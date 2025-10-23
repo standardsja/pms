@@ -36,10 +36,11 @@ To set up and run the project locally, follow these steps:
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/spinx-pms.git
+git clone https://github.com/standardsja/pms.git
+
 
 # Navigate into the project directory
-cd spinx-pms
+cd pms
 
 # Install dependencies
 npm install
