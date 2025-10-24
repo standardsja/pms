@@ -15,6 +15,85 @@ const AdminSettings = () => {
 
     const [activeTab, setActiveTab] = useState('workflows');
 
+    // Modal states
+    const [showModal, setShowModal] = useState<{ open: boolean; title: string; message: string; tone: 'success' | 'warning' | 'danger' }>(
+        { open: false, title: '', message: '', tone: 'success' }
+    );
+
+    const openModal = (tone: 'success' | 'warning' | 'danger', title: string, message: string) => 
+        setShowModal({ open: true, title, message, tone });
+    const closeModal = () => setShowModal({ open: false, title: '', message: '', tone: 'success' });
+
+    // Email notifications state
+    const [emailNotifications, setEmailNotifications] = useState({
+        rfqUpdates: true,
+        quoteSubmissions: true,
+        approvalRequests: true,
+        paymentReminders: false,
+    });
+
+    // System preferences state
+    const [systemPrefs, setSystemPrefs] = useState({
+        currency: 'USD',
+        dateFormat: 'YYYY-MM-DD',
+        rfqValidity: 30,
+    });
+
+    // SLA settings state
+    const [slaSettings, setSlaSettings] = useState({
+        rfqResponse: 7,
+        quoteEvaluation: 5,
+        approval: 3,
+        poProcessing: 2,
+        paymentProcessing: 30,
+    });
+
+    // Action handlers
+    const handleCreateWorkflow = () => {
+        openModal('success', 'Create Workflow', 'New workflow creation form would open here. This feature allows you to define custom approval workflows.');
+    };
+
+    const handleEditWorkflow = (workflow: { name: string }) => {
+        openModal('success', 'Edit Workflow', `Editing workflow: ${workflow.name}. You can modify steps, approvers, and conditions.`);
+    };
+
+    const handleDeleteWorkflow = (workflow: { name: string }) => {
+        if (confirm(`Are you sure you want to delete the workflow "${workflow.name}"? This action cannot be undone.`)) {
+            openModal('warning', 'Workflow Deleted', `Workflow "${workflow.name}" has been deleted successfully.`);
+        }
+    };
+
+    const handleUploadTemplate = () => {
+        openModal('success', 'Upload Template', 'Template upload dialog would open here. Supported formats: DOCX, PDF, XLSX.');
+    };
+
+    const handleEditTemplate = (template: { name: string }) => {
+        openModal('success', 'Edit Template', `Editing template: ${template.name}. You can modify the template content and variables.`);
+    };
+
+    const handleDeleteTemplate = (template: { name: string }) => {
+        if (confirm(`Are you sure you want to delete the template "${template.name}"?`)) {
+            openModal('warning', 'Template Deleted', `Template "${template.name}" has been deleted successfully.`);
+        }
+    };
+
+    const handleEditApprovalLimit = (role: string) => {
+        openModal('success', 'Edit Approval Limit', `Editing approval limit for ${role}. You can set the maximum amount this role can approve.`);
+    };
+
+    const handleSaveSettings = () => {
+        openModal('success', 'Settings Saved', 'All settings have been saved successfully. Changes will take effect immediately.');
+    };
+
+    const handleResetSettings = () => {
+        if (confirm('Are you sure you want to reset all settings to default values? This action cannot be undone.')) {
+            setEmailNotifications({ rfqUpdates: true, quoteSubmissions: true, approvalRequests: true, paymentReminders: false });
+            setSystemPrefs({ currency: 'USD', dateFormat: 'YYYY-MM-DD', rfqValidity: 30 });
+            setSlaSettings({ rfqResponse: 7, quoteEvaluation: 5, approval: 3, poProcessing: 2, paymentProcessing: 30 });
+            openModal('warning', 'Settings Reset', 'All settings have been reset to default values.');
+        }
+    };
+
     const [workflows] = useState([
         { id: 1, name: 'Standard Purchase Request', steps: 5, status: 'Active', lastModified: '2024-10-20' },
         { id: 2, name: 'Emergency Procurement', steps: 3, status: 'Active', lastModified: '2024-10-18' },
@@ -99,7 +178,7 @@ const AdminSettings = () => {
                 <div>
                     <div className="mb-6 flex items-center justify-between">
                         <h5 className="text-lg font-semibold">Workflow Management</h5>
-                        <button type="button" className="btn btn-primary gap-2">
+                        <button type="button" className="btn btn-primary gap-2" onClick={handleCreateWorkflow}>
                             <IconPlus />
                             Create Workflow
                         </button>
@@ -131,10 +210,10 @@ const AdminSettings = () => {
                                             <td>{workflow.lastModified}</td>
                                             <td>
                                                 <div className="flex gap-2">
-                                                    <button type="button" className="btn btn-sm btn-outline-primary">
+                                                    <button type="button" className="btn btn-sm btn-outline-primary" onClick={() => handleEditWorkflow(workflow)}>
                                                         <IconPencil className="h-4 w-4" />
                                                     </button>
-                                                    <button type="button" className="btn btn-sm btn-outline-danger">
+                                                    <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => handleDeleteWorkflow(workflow)}>
                                                         <IconTrash className="h-4 w-4" />
                                                     </button>
                                                 </div>
@@ -153,7 +232,7 @@ const AdminSettings = () => {
                 <div>
                     <div className="mb-6 flex items-center justify-between">
                         <h5 className="text-lg font-semibold">Document Templates</h5>
-                        <button type="button" className="btn btn-primary gap-2">
+                        <button type="button" className="btn btn-primary gap-2" onClick={handleUploadTemplate}>
                             <IconPlus />
                             Upload Template
                         </button>
@@ -192,10 +271,10 @@ const AdminSettings = () => {
                                             <td>{template.lastModified}</td>
                                             <td>
                                                 <div className="flex gap-2">
-                                                    <button type="button" className="btn btn-sm btn-outline-primary">
+                                                    <button type="button" className="btn btn-sm btn-outline-primary" onClick={() => handleEditTemplate(template)}>
                                                         <IconPencil className="h-4 w-4" />
                                                     </button>
-                                                    <button type="button" className="btn btn-sm btn-outline-danger">
+                                                    <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => handleDeleteTemplate(template)}>
                                                         <IconTrash className="h-4 w-4" />
                                                     </button>
                                                 </div>
@@ -236,7 +315,7 @@ const AdminSettings = () => {
                                             </td>
                                             <td>{limit.currency}</td>
                                             <td>
-                                                <button type="button" className="btn btn-sm btn-outline-primary">
+                                                <button type="button" className="btn btn-sm btn-outline-primary" onClick={() => handleEditApprovalLimit(limit.role)}>
                                                     <IconPencil className="h-4 w-4" />
                                                 </button>
                                             </td>
@@ -256,19 +335,39 @@ const AdminSettings = () => {
                         <h5 className="mb-4 text-lg font-semibold">Email Notifications</h5>
                         <div className="space-y-4">
                             <label className="flex cursor-pointer items-center">
-                                <input type="checkbox" className="form-checkbox" defaultChecked />
+                                <input 
+                                    type="checkbox" 
+                                    className="form-checkbox" 
+                                    checked={emailNotifications.rfqUpdates}
+                                    onChange={(e) => setEmailNotifications({ ...emailNotifications, rfqUpdates: e.target.checked })}
+                                />
                                 <span className="ml-2 text-white-dark">RFQ Status Updates</span>
                             </label>
                             <label className="flex cursor-pointer items-center">
-                                <input type="checkbox" className="form-checkbox" defaultChecked />
+                                <input 
+                                    type="checkbox" 
+                                    className="form-checkbox" 
+                                    checked={emailNotifications.quoteSubmissions}
+                                    onChange={(e) => setEmailNotifications({ ...emailNotifications, quoteSubmissions: e.target.checked })}
+                                />
                                 <span className="ml-2 text-white-dark">Quote Submissions</span>
                             </label>
                             <label className="flex cursor-pointer items-center">
-                                <input type="checkbox" className="form-checkbox" defaultChecked />
+                                <input 
+                                    type="checkbox" 
+                                    className="form-checkbox" 
+                                    checked={emailNotifications.approvalRequests}
+                                    onChange={(e) => setEmailNotifications({ ...emailNotifications, approvalRequests: e.target.checked })}
+                                />
                                 <span className="ml-2 text-white-dark">Approval Requests</span>
                             </label>
                             <label className="flex cursor-pointer items-center">
-                                <input type="checkbox" className="form-checkbox" />
+                                <input 
+                                    type="checkbox" 
+                                    className="form-checkbox" 
+                                    checked={emailNotifications.paymentReminders}
+                                    onChange={(e) => setEmailNotifications({ ...emailNotifications, paymentReminders: e.target.checked })}
+                                />
                                 <span className="ml-2 text-white-dark">Payment Reminders</span>
                             </label>
                         </div>
@@ -279,7 +378,11 @@ const AdminSettings = () => {
                         <div className="space-y-4">
                             <div>
                                 <label className="mb-2 block">Default Currency</label>
-                                <select className="form-select">
+                                <select 
+                                    className="form-select"
+                                    value={systemPrefs.currency}
+                                    onChange={(e) => setSystemPrefs({ ...systemPrefs, currency: e.target.value })}
+                                >
                                     <option>USD</option>
                                     <option>EUR</option>
                                     <option>GBP</option>
@@ -287,7 +390,11 @@ const AdminSettings = () => {
                             </div>
                             <div>
                                 <label className="mb-2 block">Date Format</label>
-                                <select className="form-select">
+                                <select 
+                                    className="form-select"
+                                    value={systemPrefs.dateFormat}
+                                    onChange={(e) => setSystemPrefs({ ...systemPrefs, dateFormat: e.target.value })}
+                                >
                                     <option>YYYY-MM-DD</option>
                                     <option>DD/MM/YYYY</option>
                                     <option>MM/DD/YYYY</option>
@@ -295,7 +402,12 @@ const AdminSettings = () => {
                             </div>
                             <div>
                                 <label className="mb-2 block">Default RFQ Validity (Days)</label>
-                                <input type="number" className="form-input" defaultValue={30} />
+                                <input 
+                                    type="number" 
+                                    className="form-input" 
+                                    value={systemPrefs.rfqValidity}
+                                    onChange={(e) => setSystemPrefs({ ...systemPrefs, rfqValidity: parseInt(e.target.value) || 30 })}
+                                />
                             </div>
                         </div>
                     </div>
@@ -305,34 +417,95 @@ const AdminSettings = () => {
                         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                             <div>
                                 <label className="mb-2 block">RFQ Response Time (Days)</label>
-                                <input type="number" className="form-input" defaultValue={7} />
+                                <input 
+                                    type="number" 
+                                    className="form-input" 
+                                    value={slaSettings.rfqResponse}
+                                    onChange={(e) => setSlaSettings({ ...slaSettings, rfqResponse: parseInt(e.target.value) || 7 })}
+                                />
                             </div>
                             <div>
                                 <label className="mb-2 block">Quote Evaluation Time (Days)</label>
-                                <input type="number" className="form-input" defaultValue={5} />
+                                <input 
+                                    type="number" 
+                                    className="form-input" 
+                                    value={slaSettings.quoteEvaluation}
+                                    onChange={(e) => setSlaSettings({ ...slaSettings, quoteEvaluation: parseInt(e.target.value) || 5 })}
+                                />
                             </div>
                             <div>
                                 <label className="mb-2 block">Approval Time (Days)</label>
-                                <input type="number" className="form-input" defaultValue={3} />
+                                <input 
+                                    type="number" 
+                                    className="form-input" 
+                                    value={slaSettings.approval}
+                                    onChange={(e) => setSlaSettings({ ...slaSettings, approval: parseInt(e.target.value) || 3 })}
+                                />
                             </div>
                             <div>
                                 <label className="mb-2 block">PO Processing Time (Days)</label>
-                                <input type="number" className="form-input" defaultValue={2} />
+                                <input 
+                                    type="number" 
+                                    className="form-input" 
+                                    value={slaSettings.poProcessing}
+                                    onChange={(e) => setSlaSettings({ ...slaSettings, poProcessing: parseInt(e.target.value) || 2 })}
+                                />
                             </div>
                             <div>
                                 <label className="mb-2 block">Payment Processing (Days)</label>
-                                <input type="number" className="form-input" defaultValue={30} />
+                                <input 
+                                    type="number" 
+                                    className="form-input" 
+                                    value={slaSettings.paymentProcessing}
+                                    onChange={(e) => setSlaSettings({ ...slaSettings, paymentProcessing: parseInt(e.target.value) || 30 })}
+                                />
                             </div>
                         </div>
                     </div>
 
                     <div className="panel lg:col-span-2">
                         <div className="flex items-center justify-end gap-2">
-                            <button type="button" className="btn btn-outline-danger">
+                            <button type="button" className="btn btn-outline-danger" onClick={handleResetSettings}>
                                 Reset to Default
                             </button>
-                            <button type="button" className="btn btn-primary">
+                            <button type="button" className="btn btn-primary" onClick={handleSaveSettings}>
                                 Save Changes
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal */}
+            {showModal.open && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+                    <div className="panel w-full max-w-lg bg-white dark:bg-gray-800 rounded-lg shadow-xl">
+                        <div className="mb-4 flex items-center justify-between">
+                            <h3 className="text-xl font-semibold text-gray-800 dark:text-white">{showModal.title}</h3>
+                            <button onClick={closeModal} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+                        <div 
+                            className={`mb-6 rounded-lg p-4 ${
+                                showModal.tone === 'success' ? 'bg-green-100 dark:bg-green-900/30' :
+                                showModal.tone === 'danger' ? 'bg-red-100 dark:bg-red-900/30' :
+                                'bg-yellow-100 dark:bg-yellow-900/30'
+                            }`}
+                        >
+                            <p className={`${
+                                showModal.tone === 'success' ? 'text-green-800 dark:text-green-200' :
+                                showModal.tone === 'danger' ? 'text-red-800 dark:text-red-200' :
+                                'text-yellow-800 dark:text-yellow-200'
+                            }`}>
+                                {showModal.message}
+                            </p>
+                        </div>
+                        <div className="flex justify-end">
+                            <button onClick={closeModal} className="btn btn-primary">
+                                OK
                             </button>
                         </div>
                     </div>

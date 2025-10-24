@@ -12,6 +12,12 @@ const PaymentsList = () => {
         dispatch(setPageTitle('Payments Management'));
     });
 
+    const handleApprove = (payment: { paymentNumber: string; supplier: string }) => {
+        if (confirm(`Approve payment ${payment.paymentNumber} to ${payment.supplier}?`)) {
+            alert(`Payment ${payment.paymentNumber} has been approved and will be processed.`);
+        }
+    };
+
     const [payments] = useState([
         { id: 1, paymentNumber: 'PAY-2024-001', poNumber: 'PO-2024-098', supplier: 'ABC Corporation', amount: 12500, dueDate: '2024-10-28', invoiceDate: '2024-10-15', status: 'Pending Approval' },
         { id: 2, paymentNumber: 'PAY-2024-002', poNumber: 'PO-2024-097', supplier: 'Tech Solutions Inc', amount: 15200, dueDate: '2024-10-25', invoiceDate: '2024-10-12', status: 'Approved' },
@@ -166,11 +172,11 @@ const PaymentsList = () => {
                                     </td>
                                     <td>
                                         <div className="flex gap-2">
-                                            <Link to={`/procurement/payments/${payment.id}`} className="btn btn-sm btn-outline-primary">
+                                            <Link to={`/procurement/payments/${payment.id}`} className="btn btn-sm btn-outline-primary" title="View Details">
                                                 <IconEye className="h-4 w-4" />
                                             </Link>
                                             {payment.status === 'Pending Approval' && (
-                                                <button type="button" className="btn btn-sm btn-outline-success">
+                                                <button type="button" className="btn btn-sm btn-outline-success" onClick={() => handleApprove(payment)} title="Approve Payment">
                                                     <IconChecks className="h-4 w-4" />
                                                 </button>
                                             )}

@@ -39,6 +39,7 @@ const EditCatalogItem = lazy(() => import('../pages/Procurement/Catalog/EditCata
 const ReportsList = lazy(() => import('../pages/Procurement/Reports/ReportsList'));
 const NewReport = lazy(() => import('../pages/Procurement/Reports/NewReport'));
 const PaymentsList = lazy(() => import('../pages/Procurement/Payments/PaymentsList'));
+const PaymentDetail = lazy(() => import('../pages/Procurement/Payments/PaymentDetail'));
 const AdminSettings = lazy(() => import('../pages/Procurement/Admin/AdminSettings'));
 
 // Existing Pages
@@ -191,6 +192,10 @@ const routes = [
     {
         path: '/procurement/payments',
         element: <PaymentsList />,
+    },
+    {
+        path: '/procurement/payments/:id',
+        element: <PaymentDetail />,
     },
     {
         path: '/procurement/admin',
