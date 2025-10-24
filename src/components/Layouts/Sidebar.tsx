@@ -17,6 +17,17 @@ import IconMenuFontIcons from '../Icon/Menu/IconMenuFontIcons';
 import IconMenuDragAndDrop from '../Icon/Menu/IconMenuDragAndDrop';
 import IconMenuTables from '../Icon/Menu/IconMenuTables';
 import IconMenuDocumentation from '../Icon/Menu/IconMenuDocumentation';
+import IconEdit from '../Icon/IconEdit';
+import IconDollarSignCircle from '../Icon/IconDollarSignCircle';
+import IconClipboardText from '../Icon/IconClipboardText';
+import IconChecks from '../Icon/IconChecks';
+import IconFile from '../Icon/IconFile';
+import IconShoppingCart from '../Icon/IconShoppingCart';
+import IconUsersGroup from '../Icon/IconUsersGroup';
+import IconBook from '../Icon/IconBook';
+import IconBarChart from '../Icon/IconBarChart';
+import IconCreditCard from '../Icon/IconCreditCard';
+import IconSettings from '../Icon/IconSettings';
 
 const Sidebar = () => {
     const [currentMenu, setCurrentMenu] = useState<string>('');
@@ -78,136 +89,115 @@ const Sidebar = () => {
                     </div>
                     <PerfectScrollbar className="h-[calc(100vh-80px)] relative">
                         <ul className="relative font-semibold space-y-0.5 p-4 py-0">
-                            <li className="menu nav-item">
-                                <button type="button" className={`${currentMenu === 'dashboard' ? 'active' : ''} nav-link group w-full`} onClick={() => toggleMenu('dashboard')}>
-                                    <div className="flex items-center">
-                                        <IconMenuDashboard
-                                         className="group-hover:!text-primary shrink-0" />
-                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">{t('dashboard')}</span>
-                                    </div>
-
-                                    <div className={currentMenu !== 'dashboard' ? 'rtl:rotate-90 -rotate-90' : ''}>
-                                        <IconCaretDown />
-                                    </div>
-                                </button>
-
-                                <AnimateHeight duration={300} height={currentMenu === 'dashboard' ? 'auto' : 0}>
-                                    <ul className="sub-menu text-gray-500">
-                                        <li>
-                                            <NavLink to="/">Sales</NavLink>
-                                        </li>
-                                        <li>
-                                            <NavLink to="/procurement/dashboard">Procurement</NavLink>
-                                        </li>
-                                    </ul>
-                                </AnimateHeight>
-                            </li>
-
                             <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
                                 <IconMinus className="w-4 h-5 flex-none hidden" />
-                                <span>Procurement</span>
+                                <span>Procurement Officer</span>
                             </h2>
 
-                            <li className="menu nav-item">
-                                <button type="button" className={`${currentMenu === 'procurement' ? 'active' : ''} nav-link group w-full`} onClick={() => toggleMenu('procurement')}>
+                            <li className="nav-item">
+                                <NavLink to="/" className="group">
                                     <div className="flex items-center">
-                                        <IconMenuInvoice className="group-hover:!text-primary shrink-0" />
-                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Procurement</span>
-                                    </div>
-                                    <div className={currentMenu !== 'procurement' ? 'rtl:rotate-90 -rotate-90' : ''}>
-                                        <IconCaretDown />
-                                    </div>
-                                </button>
-
-                                <AnimateHeight duration={300} height={currentMenu === 'procurement' ? 'auto' : 0}>
-                                    <ul className="sub-menu text-gray-500">
-                                        <li>
-                                            <NavLink to="/procurement/dashboard">Dashboard</NavLink>
-                                        </li>
-                                        <li>
-                                            <NavLink to="/procurement/requests">Requests</NavLink>
-                                        </li>
-                                        <li>
-                                            <NavLink to="/procurement/rfq/list">RFQ Management</NavLink>
-                                        </li>
-                                        <li>
-                                            <NavLink to="/procurement/approvals">Approvals</NavLink>
-                                        </li>
-                                        <li>
-                                            <NavLink to="/procurement/purchase-orders">Purchase Orders</NavLink>
-                                        </li>
-                                        <li>
-                                            <NavLink to="/procurement/suppliers">Suppliers</NavLink>
-                                        </li>
-                                    </ul>
-                                </AnimateHeight>
-                            </li>
-
-                            <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
-                                <IconMinus className="w-4 h-5 flex-none hidden" />
-                                <span>{t('user_interface')}</span>
-                            </h2>
-
-                            <li className="menu nav-item">
-                                <NavLink to="/charts" className="group">
-                                    <div className="flex items-center">
-                                        <IconMenuCharts className="group-hover:!text-primary shrink-0" />
-                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">{t('charts')}</span>
+                                        <IconMenuDashboard className="group-hover:!text-primary shrink-0" />
+                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Dashboard</span>
                                     </div>
                                 </NavLink>
                             </li>
 
-                            <li className="menu nav-item">
-                                <NavLink to="/widgets" className="group">
+                            <li className="nav-item">
+                                <NavLink to="/procurement/rfq/list" className="group">
                                     <div className="flex items-center">
-                                        <IconMenuWidgets className="group-hover:!text-primary shrink-0" />
-                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">{t('widgets')}</span>
+                                        <IconEdit className="group-hover:!text-primary shrink-0" />
+                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">RFQ Management</span>
                                     </div>
                                 </NavLink>
                             </li>
 
-                            <li className="menu nav-item">
-                                <NavLink to="/font-icons" className="group">
+                            <li className="nav-item">
+                                <NavLink to="/procurement/quotes" className="group">
                                     <div className="flex items-center">
-                                        <IconMenuFontIcons className="group-hover:!text-primary shrink-0" />
-                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">{t('font_icons')}</span>
+                                        <IconDollarSignCircle className="group-hover:!text-primary shrink-0" />
+                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Quotes</span>
                                     </div>
                                 </NavLink>
                             </li>
 
-                            <li className="menu nav-item">
-                                <NavLink to="/dragndrop" className="group">
+                            <li className="nav-item">
+                                <NavLink to="/procurement/evaluation" className="group">
                                     <div className="flex items-center">
-                                        <IconMenuDragAndDrop className="group-hover:!text-primary shrink-0" />
-                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">{t('drag_and_drop')}</span>
+                                        <IconClipboardText className="group-hover:!text-primary shrink-0" />
+                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Evaluation</span>
                                     </div>
                                 </NavLink>
                             </li>
 
-                            <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
-                                <IconMinus className="w-4 h-5 flex-none hidden" />
-                                <span>{t('tables_and_forms')}</span>
-                            </h2>
-
-                            <li className="menu nav-item">
-                                <NavLink to="/tables" className="group">
+                            <li className="nav-item">
+                                <NavLink to="/procurement/review" className="group">
                                     <div className="flex items-center">
-                                        <IconMenuTables className="group-hover:!text-primary shrink-0" />
-                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">{t('tables')}</span>
+                                        <IconChecks className="group-hover:!text-primary shrink-0" />
+                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Review</span>
                                     </div>
                                 </NavLink>
                             </li>
 
-                            <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
-                                <IconMinus className="w-4 h-5 flex-none hidden" />
-                                <span>{t('supports')}</span>
-                            </h2>
-
-                            <li className="menu nav-item">
-                                <NavLink to="https://vristo.sbthemes.com" target="_blank" className="nav-link group">
+                            <li className="nav-item">
+                                <NavLink to="/procurement/approvals" className="group">
                                     <div className="flex items-center">
-                                        <IconMenuDocumentation className="group-hover:!text-primary shrink-0" />
-                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">{t('documentation')}</span>
+                                        <IconFile className="group-hover:!text-primary shrink-0" />
+                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Approvals</span>
+                                    </div>
+                                </NavLink>
+                            </li>
+
+                            <li className="nav-item">
+                                <NavLink to="/procurement/purchase-orders" className="group">
+                                    <div className="flex items-center">
+                                        <IconShoppingCart className="group-hover:!text-primary shrink-0" />
+                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Purchase Orders</span>
+                                    </div>
+                                </NavLink>
+                            </li>
+
+                            <li className="nav-item">
+                                <NavLink to="/procurement/suppliers" className="group">
+                                    <div className="flex items-center">
+                                        <IconUsersGroup className="group-hover:!text-primary shrink-0" />
+                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Suppliers</span>
+                                    </div>
+                                </NavLink>
+                            </li>
+
+                            <li className="nav-item">
+                                <NavLink to="/procurement/catalog" className="group">
+                                    <div className="flex items-center">
+                                        <IconBook className="group-hover:!text-primary shrink-0" />
+                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Catalog</span>
+                                    </div>
+                                </NavLink>
+                            </li>
+
+                            <li className="nav-item">
+                                <NavLink to="/procurement/reports" className="group">
+                                    <div className="flex items-center">
+                                        <IconBarChart className="group-hover:!text-primary shrink-0" />
+                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Reports</span>
+                                    </div>
+                                </NavLink>
+                            </li>
+
+                            <li className="nav-item">
+                                <NavLink to="/procurement/payments" className="group">
+                                    <div className="flex items-center">
+                                        <IconCreditCard className="group-hover:!text-primary shrink-0" />
+                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Payments</span>
+                                    </div>
+                                </NavLink>
+                            </li>
+
+                            <li className="nav-item">
+                                <NavLink to="/procurement/admin" className="group">
+                                    <div className="flex items-center">
+                                        <IconSettings className="group-hover:!text-primary shrink-0" />
+                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Settings</span>
                                     </div>
                                 </NavLink>
                             </li>

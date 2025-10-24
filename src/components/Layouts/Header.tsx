@@ -161,13 +161,18 @@ const Header = () => {
                     <div className="ltr:mr-2 rtl:ml-2 hidden sm:block">
                         <ul className="flex items-center space-x-2 rtl:space-x-reverse dark:text-[#d0d2d6]">
                             <li>
-                                <Link to="/procurement/dashboard" className="block p-2 rounded-full bg-white-light/40 dark:bg-dark/40 hover:text-primary hover:bg-white-light/90 dark:hover:bg-dark/60" title="Procurement Dashboard">
+                                <Link to="/" className="block p-2 rounded-full bg-white-light/40 dark:bg-dark/40 hover:text-primary hover:bg-white-light/90 dark:hover:bg-dark/60" title="Dashboard">
                                     <IconMenuDashboard />
                                 </Link>
                             </li>
                             <li>
-                                <Link to="/procurement/requests/new" className="block p-2 rounded-full bg-white-light/40 dark:bg-dark/40 hover:text-primary hover:bg-white-light/90 dark:hover:bg-dark/60" title="New Request">
+                                <Link to="/procurement/rfq/list" className="block p-2 rounded-full bg-white-light/40 dark:bg-dark/40 hover:text-primary hover:bg-white-light/90 dark:hover:bg-dark/60" title="RFQ Management">
                                     <IconEdit />
+                                </Link>
+                            </li>
+                            <li>
+                                <Link to="/procurement/approvals" className="block p-2 rounded-full bg-white-light/40 dark:bg-dark/40 hover:text-primary hover:bg-white-light/90 dark:hover:bg-dark/60" title="Approvals">
+                                    <IconCalendar />
                                 </Link>
                             </li>
                         </ul>
@@ -423,7 +428,7 @@ const Header = () => {
                                             <div className="ltr:pl-4 rtl:pr-4 truncate">
                                                 <h4 className="text-base">
                                                     John Doe
-                                                    <span className="text-xs bg-success-light rounded text-success px-1 ltr:ml-2 rtl:ml-2">Admin</span>
+                                                    <span className="text-xs bg-success-light rounded text-success px-1 ltr:ml-2 rtl:ml-2">Procurement Officer</span>
                                                 </h4>
                                                 <button type="button" className="text-black/60 hover:text-primary dark:text-dark-light/60 dark:hover:text-white text-xs">
                                                     john.doe@company.com
@@ -474,23 +479,12 @@ const Header = () => {
                 {/* horizontal menu */}
                 <ul className="horizontal-menu hidden py-1.5 font-semibold px-6 lg:space-x-1.5 xl:space-x-8 rtl:space-x-reverse bg-white border-t border-[#ebedf2] dark:border-[#191e3a] dark:bg-black text-black dark:text-white-dark">
                     <li className="menu nav-item relative">
-                        <button type="button" className="nav-link">
+                        <NavLink to="/" className="nav-link">
                             <div className="flex items-center">
                                 <IconMenuDashboard className="shrink-0" />
-                                <span className="px-1">{t('dashboard')}</span>
+                                <span className="px-1">Dashboard</span>
                             </div>
-                            <div className="right_arrow">
-                                <IconCaretDown />
-                            </div>
-                        </button>
-                        <ul className="sub-menu">
-                            <li>
-                                <NavLink to="/">Overview</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/procurement/dashboard">Procurement</NavLink>
-                            </li>
-                        </ul>
+                        </NavLink>
                     </li>
                     <li className="menu nav-item relative">
                         <button type="button" className="nav-link">
@@ -506,13 +500,16 @@ const Header = () => {
                         </button>
                         <ul className="sub-menu">
                             <li>
-                                <NavLink to="/procurement/requests">Requests</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/procurement/requests/new">New Request</NavLink>
-                            </li>
-                            <li>
                                 <NavLink to="/procurement/rfq/list">RFQ Management</NavLink>
+                            </li>
+                            <li>
+                                <NavLink to="/procurement/quotes">Quotes</NavLink>
+                            </li>
+                            <li>
+                                <NavLink to="/procurement/evaluation">Evaluation</NavLink>
+                            </li>
+                            <li>
+                                <NavLink to="/procurement/review">Review</NavLink>
                             </li>
                             <li>
                                 <NavLink to="/procurement/approvals">Approvals</NavLink>
@@ -522,6 +519,18 @@ const Header = () => {
                             </li>
                             <li>
                                 <NavLink to="/procurement/suppliers">Suppliers</NavLink>
+                            </li>
+                            <li>
+                                <NavLink to="/procurement/catalog">Catalog</NavLink>
+                            </li>
+                            <li>
+                                <NavLink to="/procurement/reports">Reports</NavLink>
+                            </li>
+                            <li>
+                                <NavLink to="/procurement/payments">Payments</NavLink>
+                            </li>
+                            <li>
+                                <NavLink to="/procurement/admin">Settings</NavLink>
                             </li>
                         </ul>
                     </li>
