@@ -161,18 +161,13 @@ const Header = () => {
                     <div className="ltr:mr-2 rtl:ml-2 hidden sm:block">
                         <ul className="flex items-center space-x-2 rtl:space-x-reverse dark:text-[#d0d2d6]">
                             <li>
-                                <Link to="/apps/calendar" className="block p-2 rounded-full bg-white-light/40 dark:bg-dark/40 hover:text-primary hover:bg-white-light/90 dark:hover:bg-dark/60">
-                                    <IconCalendar />
+                                <Link to="/procurement/dashboard" className="block p-2 rounded-full bg-white-light/40 dark:bg-dark/40 hover:text-primary hover:bg-white-light/90 dark:hover:bg-dark/60" title="Procurement Dashboard">
+                                    <IconMenuDashboard />
                                 </Link>
                             </li>
                             <li>
-                                <Link to="/apps/todolist" className="block p-2 rounded-full bg-white-light/40 dark:bg-dark/40 hover:text-primary hover:bg-white-light/90 dark:hover:bg-dark/60">
+                                <Link to="/procurement/requests/new" className="block p-2 rounded-full bg-white-light/40 dark:bg-dark/40 hover:text-primary hover:bg-white-light/90 dark:hover:bg-dark/60" title="New Request">
                                     <IconEdit />
-                                </Link>
-                            </li>
-                            <li>
-                                <Link to="/apps/chat" className="block p-2 rounded-full bg-white-light/40 dark:bg-dark/40 hover:text-primary hover:bg-white-light/90 dark:hover:bg-dark/60">
-                                    <IconChatNotification />
                                 </Link>
                             </li>
                         </ul>
@@ -428,34 +423,44 @@ const Header = () => {
                                             <div className="ltr:pl-4 rtl:pr-4 truncate">
                                                 <h4 className="text-base">
                                                     John Doe
-                                                    <span className="text-xs bg-success-light rounded text-success px-1 ltr:ml-2 rtl:ml-2">Pro</span>
+                                                    <span className="text-xs bg-success-light rounded text-success px-1 ltr:ml-2 rtl:ml-2">Admin</span>
                                                 </h4>
-                                                <button type="button" className="text-black/60 hover:text-primary dark:text-dark-light/60 dark:hover:text-white">
-                                                    johndoe@gmail.com
+                                                <button type="button" className="text-black/60 hover:text-primary dark:text-dark-light/60 dark:hover:text-white text-xs">
+                                                    john.doe@company.com
                                                 </button>
                                             </div>
                                         </div>
                                     </li>
                                     <li>
-                                        <Link to="/users/profile" className="dark:hover:text-white">
+                                        <Link to="/profile" className="dark:hover:text-white">
                                             <IconUser className="w-4.5 h-4.5 ltr:mr-2 rtl:ml-2 shrink-0" />
-                                            Profile
+                                            My Profile
                                         </Link>
                                     </li>
                                     <li>
-                                        <Link to="/apps/mailbox" className="dark:hover:text-white">
-                                            <IconMail className="w-4.5 h-4.5 ltr:mr-2 rtl:ml-2 shrink-0" />
-                                            Inbox
+                                        <Link to="/settings" className="dark:hover:text-white">
+                                            <svg className="w-4.5 h-4.5 ltr:mr-2 rtl:ml-2 shrink-0" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.5"></circle>
+                                                <path d="M13.7654 2.15224C13.3978 2 12.9319 2 12 2C11.0681 2 10.6022 2 10.2346 2.15224C9.74457 2.35523 9.35522 2.74458 9.15223 3.23463C9.05957 3.45834 9.0233 3.7185 9.00911 4.09799C8.98826 4.65568 8.70226 5.17189 8.21894 5.45093C7.73564 5.72996 7.14559 5.71954 6.65219 5.45876C6.31645 5.2813 6.07301 5.18262 5.83294 5.15102C5.30704 5.08178 4.77518 5.22429 4.35436 5.5472C4.03874 5.78938 3.80577 6.1929 3.33983 6.99993C2.87389 7.80697 2.64092 8.21048 2.58899 8.60491C2.51976 9.1308 2.66227 9.66266 2.98518 10.0835C3.13256 10.2756 3.3397 10.437 3.66119 10.639C4.1338 10.936 4.43789 11.4419 4.43786 12C4.43783 12.5581 4.13375 13.0639 3.66118 13.3608C3.33965 13.5629 3.13248 13.7244 2.98508 13.9165C2.66217 14.3373 2.51966 14.8691 2.5889 15.395C2.64082 15.7894 2.87379 16.193 3.33973 17C3.80568 17.807 4.03865 18.2106 4.35426 18.4527C4.77508 18.7756 5.30694 18.9181 5.83284 18.8489C6.07289 18.8173 6.31632 18.7186 6.65204 18.5412C7.14547 18.2804 7.73556 18.27 8.2189 18.549C8.70224 18.8281 8.98826 19.3443 9.00911 19.9021C9.02331 20.2815 9.05957 20.5417 9.15223 20.7654C9.35522 21.2554 9.74457 21.6448 10.2346 21.8478C10.6022 22 11.0681 22 12 22C12.9319 22 13.3978 22 13.7654 21.8478C14.2554 21.6448 14.6448 21.2554 14.8477 20.7654C14.9404 20.5417 14.9767 20.2815 14.9909 19.902C15.0117 19.3443 15.2977 18.8281 15.781 18.549C16.2643 18.2699 16.8544 18.2804 17.3479 18.5412C17.6836 18.7186 17.927 18.8172 18.167 18.8488C18.6929 18.9181 19.2248 18.7756 19.6456 18.4527C19.9612 18.2105 20.1942 17.807 20.6601 16.9999C21.1261 16.1929 21.3591 15.7894 21.411 15.395C21.4802 14.8691 21.3377 14.3372 21.0148 13.9164C20.8674 13.7243 20.6602 13.5628 20.3387 13.3608C19.8662 13.0639 19.5621 12.558 19.5621 11.9999C19.5621 11.4418 19.8662 10.9361 20.3387 10.6392C20.6603 10.4371 20.8675 10.2757 21.0149 10.0835C21.3378 9.66273 21.4803 9.13087 21.4111 8.60497C21.3592 8.21055 21.1262 7.80703 20.6602 7C20.1943 6.19297 19.9613 5.78945 19.6457 5.54727C19.2249 5.22436 18.693 5.08185 18.1671 5.15109C17.9271 5.18269 17.6837 5.28136 17.3479 5.4588C16.8545 5.71959 16.2644 5.73002 15.7811 5.45096C15.2977 5.17191 15.0117 4.65566 14.9909 4.09794C14.9767 3.71848 14.9404 3.45833 14.8477 3.23463C14.6448 2.74458 14.2554 2.35523 13.7654 2.15224Z" stroke="currentColor" strokeWidth="1.5"></path>
+                                            </svg>
+                                            Account Settings
                                         </Link>
                                     </li>
                                     <li>
-                                        <Link to="/auth/boxed-lockscreen" className="dark:hover:text-white">
-                                            <IconLockDots className="w-4.5 h-4.5 ltr:mr-2 rtl:ml-2 shrink-0" />
-                                            Lock Screen
+                                        <Link to="/help" className="dark:hover:text-white">
+                                            <IconInfoCircle className="w-4.5 h-4.5 ltr:mr-2 rtl:ml-2 shrink-0" />
+                                            Help & Support
                                         </Link>
                                     </li>
                                     <li className="border-t border-white-light dark:border-white-light/10">
-                                        <Link to="/auth/boxed-signin" className="text-danger !py-3">
+                                        <Link 
+                                            to="/auth/login" 
+                                            className="text-danger !py-3"
+                                            onClick={() => {
+                                                localStorage.removeItem('isAuthenticated');
+                                                localStorage.removeItem('token');
+                                            }}
+                                        >
                                             <IconLogout className="w-4.5 h-4.5 ltr:mr-2 rtl:ml-2 rotate-90 shrink-0" />
                                             Sign Out
                                         </Link>
@@ -480,24 +485,20 @@ const Header = () => {
                         </button>
                         <ul className="sub-menu">
                             <li>
-                                <NavLink to="/">{t('sales')}</NavLink>
+                                <NavLink to="/">Overview</NavLink>
                             </li>
                             <li>
-                                <NavLink to="/analytics">{t('analytics')}</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/finance">{t('finance')}</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/crypto">{t('crypto')}</NavLink>
+                                <NavLink to="/procurement/dashboard">Procurement</NavLink>
                             </li>
                         </ul>
                     </li>
                     <li className="menu nav-item relative">
                         <button type="button" className="nav-link">
                             <div className="flex items-center">
-                                <IconMenuApps className="shrink-0" />
-                                <span className="px-1">{t('apps')}</span>
+                                <svg className="shrink-0" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M2 3L2 21M22 3V21M11.8 20H12.2C13.8802 20 14.7202 20 15.362 19.673C15.9265 19.3854 16.3854 18.9265 16.673 18.362C17 17.7202 17 16.8802 17 15.2V8.8C17 7.11984 17 6.27976 16.673 5.63803C16.3854 5.07354 15.9265 4.6146 15.362 4.32698C14.7202 4 13.8802 4 12.2 4H11.8C10.1198 4 9.27976 4 8.63803 4.32698C8.07354 4.6146 7.6146 5.07354 7.32698 5.63803C7 6.27976 7 7.11984 7 8.8V15.2C7 16.8802 7 17.7202 7.32698 18.362C7.6146 18.9265 8.07354 19.3854 8.63803 19.673C9.27976 20 10.1198 20 11.8 20Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                                </svg>
+                                <span className="px-1">Procurement</span>
                             </div>
                             <div className="right_arrow">
                                 <IconCaretDown />
@@ -505,483 +506,48 @@ const Header = () => {
                         </button>
                         <ul className="sub-menu">
                             <li>
-                                <NavLink to="/apps/chat">{t('chat')}</NavLink>
+                                <NavLink to="/procurement/requests">Requests</NavLink>
                             </li>
                             <li>
-                                <NavLink to="/apps/mailbox">{t('mailbox')}</NavLink>
+                                <NavLink to="/procurement/requests/new">New Request</NavLink>
                             </li>
                             <li>
-                                <NavLink to="/apps/todolist">{t('todo_list')}</NavLink>
+                                <NavLink to="/procurement/rfq/list">RFQ Management</NavLink>
                             </li>
                             <li>
-                                <NavLink to="/apps/notes">{t('notes')}</NavLink>
+                                <NavLink to="/procurement/approvals">Approvals</NavLink>
                             </li>
                             <li>
-                                <NavLink to="/apps/scrumboard">{t('scrumboard')}</NavLink>
+                                <NavLink to="/procurement/purchase-orders">Purchase Orders</NavLink>
                             </li>
                             <li>
-                                <NavLink to="/apps/contacts">{t('contacts')}</NavLink>
-                            </li>
-                            <li className="relative">
-                                <button type="button">
-                                    {t('invoice')}
-                                    <div className="ltr:ml-auto rtl:mr-auto rtl:rotate-90 -rotate-90">
-                                        <IconCaretDown />
-                                    </div>
-                                </button>
-                                <ul className="rounded absolute top-0 ltr:left-[95%] rtl:right-[95%] min-w-[180px] bg-white z-[10] text-dark dark:text-white-dark dark:bg-[#1b2e4b] shadow p-0 py-2 hidden">
-                                    <li>
-                                        <NavLink to="/apps/invoice/list">{t('list')}</NavLink>
-                                    </li>
-                                    <li>
-                                        <NavLink to="/apps/invoice/preview">{t('preview')}</NavLink>
-                                    </li>
-                                    <li>
-                                        <NavLink to="/apps/invoice/add">{t('add')}</NavLink>
-                                    </li>
-                                    <li>
-                                        <NavLink to="/apps/invoice/edit">{t('edit')}</NavLink>
-                                    </li>
-                                </ul>
-                            </li>
-                            <li>
-                                <NavLink to="/apps/calendar">{t('calendar')}</NavLink>
+                                <NavLink to="/procurement/suppliers">Suppliers</NavLink>
                             </li>
                         </ul>
                     </li>
                     <li className="menu nav-item relative">
-                        <button type="button" className="nav-link">
+                        <NavLink to="/charts" className="nav-link">
                             <div className="flex items-center">
                                 <IconMenuComponents className="shrink-0" />
-                                <span className="px-1">{t('components')}</span>
+                                <span className="px-1">{t('charts')}</span>
                             </div>
-                            <div className="right_arrow">
-                                <IconCaretDown />
-                            </div>
-                        </button>
-                        <ul className="sub-menu">
-                            <li>
-                                <NavLink to="/components/tabs">{t('tabs')}</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/components/accordions">{t('accordions')}</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/components/modals">{t('modals')}</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/components/cards">{t('cards')}</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/components/carousel">{t('carousel')}</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/components/countdown">{t('countdown')}</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/components/counter">{t('counter')}</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/components/sweetalert">{t('sweet_alerts')}</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/components/timeline">{t('timeline')}</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/components/notifications">{t('notifications')}</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/components/media-object">{t('media_object')}</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/components/list-group">{t('list_group')}</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/components/pricing-table">{t('pricing_tables')}</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/components/lightbox">{t('lightbox')}</NavLink>
-                            </li>
-                        </ul>
+                        </NavLink>
                     </li>
                     <li className="menu nav-item relative">
-                        <button type="button" className="nav-link">
-                            <div className="flex items-center">
-                                <IconMenuElements className="shrink-0" />
-                                <span className="px-1">{t('elements')}</span>
-                            </div>
-                            <div className="right_arrow">
-                                <IconCaretDown />
-                            </div>
-                        </button>
-                        <ul className="sub-menu">
-                            <li>
-                                <NavLink to="/elements/alerts">{t('alerts')}</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/elements/avatar">{t('avatar')}</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/elements/badges">{t('badges')}</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/elements/breadcrumbs">{t('breadcrumbs')}</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/elements/buttons">{t('buttons')}</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/elements/buttons-group">{t('button_groups')}</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/elements/color-library">{t('color_library')}</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/elements/dropdown">{t('dropdown')}</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/elements/infobox">{t('infobox')}</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/elements/jumbotron">{t('jumbotron')}</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/elements/loader">{t('loader')}</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/elements/pagination">{t('pagination')}</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/elements/popovers">{t('popovers')}</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/elements/progress-bar">{t('progress_bar')}</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/elements/search">{t('search')}</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/elements/tooltips">{t('tooltips')}</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/elements/treeview">{t('treeview')}</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/elements/typography">{t('typography')}</NavLink>
-                            </li>
-                        </ul>
-                    </li>
-                    <li className="menu nav-item relative">
-                        <button type="button" className="nav-link">
+                        <NavLink to="/tables" className="nav-link">
                             <div className="flex items-center">
                                 <IconMenuDatatables className="shrink-0" />
                                 <span className="px-1">{t('tables')}</span>
                             </div>
-                            <div className="right_arrow">
-                                <IconCaretDown />
-                            </div>
-                        </button>
-                        <ul className="sub-menu">
-                            <li>
-                                <NavLink to="/tables">{t('tables')}</NavLink>
-                            </li>
-                            <li className="relative">
-                                <button type="button">
-                                    {t('datatables')}
-                                    <div className="ltr:ml-auto rtl:mr-auto rtl:rotate-90 -rotate-90">
-                                        <IconCaretDown />
-                                    </div>
-                                </button>
-                                <ul className="rounded absolute top-0 ltr:left-[95%] rtl:right-[95%] min-w-[180px] bg-white z-[10] text-dark dark:text-white-dark dark:bg-[#1b2e4b] shadow p-0 py-2 hidden">
-                                    <li>
-                                        <NavLink to="/datatables/basic">{t('basic')}</NavLink>
-                                    </li>
-                                    <li>
-                                        <NavLink to="/datatables/advanced">{t('advanced')}</NavLink>
-                                    </li>
-                                    <li>
-                                        <NavLink to="/datatables/skin">{t('skin')}</NavLink>
-                                    </li>
-                                    <li>
-                                        <NavLink to="/datatables/order-sorting">{t('order_sorting')}</NavLink>
-                                    </li>
-                                    <li>
-                                        <NavLink to="/datatables/multi-column">{t('multi_column')}</NavLink>
-                                    </li>
-                                    <li>
-                                        <NavLink to="/datatables/multiple-tables">{t('multiple_tables')}</NavLink>
-                                    </li>
-                                    <li>
-                                        <NavLink to="/datatables/alt-pagination">{t('alt_pagination')}</NavLink>
-                                    </li>
-                                    <li>
-                                        <NavLink to="/datatables/checkbox">{t('checkbox')}</NavLink>
-                                    </li>
-                                    <li>
-                                        <NavLink to="/datatables/range-search">{t('range_search')}</NavLink>
-                                    </li>
-                                    <li>
-                                        <NavLink to="/datatables/export">{t('export')}</NavLink>
-                                    </li>
-                                    <li>
-                                        <NavLink to="/datatables/column-chooser">{t('column_chooser')}</NavLink>
-                                    </li>
-                                </ul>
-                            </li>
-                        </ul>
+                        </NavLink>
                     </li>
                     <li className="menu nav-item relative">
-                        <button type="button" className="nav-link">
-                            <div className="flex items-center">
-                                <IconMenuForms className="shrink-0" />
-                                <span className="px-1">{t('forms')}</span>
-                            </div>
-                            <div className="right_arrow">
-                                <IconCaretDown />
-                            </div>
-                        </button>
-                        <ul className="sub-menu">
-                            <li>
-                                <NavLink to="/forms/basic">{t('basic')}</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/forms/input-group">{t('input_group')}</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/forms/layouts">{t('layouts')}</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/forms/validation">{t('validation')}</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/forms/input-mask">{t('input_mask')}</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/forms/select2">{t('select2')}</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/forms/touchspin">{t('touchspin')}</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/forms/checkbox-radio">{t('checkbox_and_radio')}</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/forms/switches">{t('switches')}</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/forms/wizards">{t('wizards')}</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/forms/file-upload">{t('file_upload')}</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/forms/quill-editor">{t('quill_editor')}</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/forms/markdown-editor">{t('markdown_editor')}</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/forms/date-picker">{t('date_and_range_picker')}</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/forms/clipboard">{t('clipboard')}</NavLink>
-                            </li>
-                        </ul>
-                    </li>
-                    <li className="menu nav-item relative">
-                        <button type="button" className="nav-link">
-                            <div className="flex items-center">
-                                <IconMenuPages className="shrink-0" />
-                                <span className="px-1">{t('pages')}</span>
-                            </div>
-                            <div className="right_arrow">
-                                <IconCaretDown />
-                            </div>
-                        </button>
-                        <ul className="sub-menu">
-                            <li className="relative">
-                                <button type="button">
-                                    {t('users')}
-                                    <div className="ltr:ml-auto rtl:mr-auto rtl:rotate-90 -rotate-90">
-                                        <IconCaretDown />
-                                    </div>
-                                </button>
-                                <ul className="rounded absolute top-0 ltr:left-[95%] rtl:right-[95%] min-w-[180px] bg-white z-[10] text-dark dark:text-white-dark dark:bg-[#1b2e4b] shadow p-0 py-2 hidden">
-                                    <li>
-                                        <NavLink to="/users/profile">{t('profile')}</NavLink>
-                                    </li>
-                                    <li>
-                                        <NavLink to="/users/user-account-settings">{t('account_settings')}</NavLink>
-                                    </li>
-                                </ul>
-                            </li>
-                            <li>
-                                <NavLink to="/pages/knowledge-base">{t('knowledge_base')}</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/pages/contact-us-boxed" target="_blank">
-                                    {t('contact_us_boxed')}
-                                </NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/pages/contact-us-cover" target="_blank">
-                                    {t('contact_us_cover')}
-                                </NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/pages/faq">{t('faq')}</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/pages/coming-soon-boxed" target="_blank">
-                                    {t('coming_soon_boxed')}
-                                </NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/pages/coming-soon-cover" target="_blank">
-                                    {t('coming_soon_cover')}
-                                </NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/pages/maintenence" target="_blank">
-                                    {t('maintenence')}
-                                </NavLink>
-                            </li>
-                            <li className="relative">
-                                <button type="button">
-                                    {t('error')}
-                                    <div className="ltr:ml-auto rtl:mr-auto rtl:rotate-90 -rotate-90">
-                                        <IconCaretDown />
-                                    </div>
-                                </button>
-                                <ul className="rounded absolute top-0 ltr:left-[95%] rtl:right-[95%] min-w-[180px] bg-white z-[10] text-dark dark:text-white-dark dark:bg-[#1b2e4b] shadow p-0 py-2 hidden">
-                                    <li>
-                                        <NavLink to="/pages/error404" target="_blank">
-                                            {t('404')}
-                                        </NavLink>
-                                    </li>
-                                    <li>
-                                        <NavLink to="/pages/error500" target="_blank">
-                                            {t('500')}
-                                        </NavLink>
-                                    </li>
-                                    <li>
-                                        <NavLink to="/pages/error503" target="_blank">
-                                            {t('503')}
-                                        </NavLink>
-                                    </li>
-                                </ul>
-                            </li>
-                            <li className="relative">
-                                <button type="button">
-                                    {t('login')}
-                                    <div className="ltr:ml-auto rtl:mr-auto rtl:rotate-90 -rotate-90">
-                                        <IconCaretDown />
-                                    </div>
-                                </button>
-                                <ul className="rounded absolute top-0 ltr:left-[95%] rtl:right-[95%] min-w-[180px] bg-white z-[10] text-dark dark:text-white-dark dark:bg-[#1b2e4b] shadow p-0 py-2 hidden">
-                                    <li>
-                                        <NavLink to="/auth/cover-login" target="_blank">
-                                            {t('login_cover')}
-                                        </NavLink>
-                                    </li>
-                                    <li>
-                                        <NavLink to="/auth/boxed-signin" target="_blank">
-                                            {t('login_boxed')}
-                                        </NavLink>
-                                    </li>
-                                </ul>
-                            </li>
-                            <li className="relative">
-                                <button type="button">
-                                    {t('register')}
-                                    <div className="ltr:ml-auto rtl:mr-auto rtl:rotate-90 -rotate-90">
-                                        <IconCaretDown />
-                                    </div>
-                                </button>
-                                <ul className="rounded absolute top-0 ltr:left-[95%] rtl:right-[95%] min-w-[180px] bg-white z-[10] text-dark dark:text-white-dark dark:bg-[#1b2e4b] shadow p-0 py-2 hidden">
-                                    <li>
-                                        <NavLink to="/auth/cover-register" target="_blank">
-                                            {t('register_cover')}
-                                        </NavLink>
-                                    </li>
-                                    <li>
-                                        <NavLink to="/auth/boxed-signup" target="_blank">
-                                            {t('register_boxed')}
-                                        </NavLink>
-                                    </li>
-                                </ul>
-                            </li>
-                            <li className="relative">
-                                <button type="button">
-                                    {t('password_recovery')}
-                                    <div className="ltr:ml-auto rtl:mr-auto rtl:rotate-90 -rotate-90">
-                                        <IconCaretDown />
-                                    </div>
-                                </button>
-                                <ul className="rounded absolute top-0 ltr:left-[95%] rtl:right-[95%] min-w-[180px] bg-white z-[10] text-dark dark:text-white-dark dark:bg-[#1b2e4b] shadow p-0 py-2 hidden">
-                                    <li>
-                                        <NavLink to="/auth/cover-password-reset" target="_blank">
-                                            {t('recover_id_cover')}
-                                        </NavLink>
-                                    </li>
-                                    <li>
-                                        <NavLink to="/auth/boxed-password-reset" target="_blank">
-                                            {t('recover_id_boxed')}
-                                        </NavLink>
-                                    </li>
-                                </ul>
-                            </li>
-                            <li className="relative">
-                                <button type="button">
-                                    {t('lockscreen')}
-                                    <div className="ltr:ml-auto rtl:mr-auto rtl:rotate-90 -rotate-90">
-                                        <IconCaretDown />
-                                    </div>
-                                </button>
-                                <ul className="rounded absolute top-0 ltr:left-[95%] rtl:right-[95%] min-w-[180px] bg-white z-[10] text-dark dark:text-white-dark dark:bg-[#1b2e4b] shadow p-0 py-2 hidden">
-                                    <li>
-                                        <NavLink to="/auth/cover-lockscreen" target="_blank">
-                                            {t('unlock_cover')}
-                                        </NavLink>
-                                    </li>
-                                    <li>
-                                        <NavLink to="/auth/boxed-lockscreen" target="_blank">
-                                            {t('unlock_boxed')}
-                                        </NavLink>
-                                    </li>
-                                </ul>
-                            </li>
-                        </ul>
-                    </li>
-                    <li className="menu nav-item relative">
-                        <button type="button" className="nav-link">
+                        <NavLink to="/widgets" className="nav-link">
                             <div className="flex items-center">
                                 <IconMenuMore className="shrink-0" />
-                                <span className="px-1">{t('more')}</span>
+                                <span className="px-1">{t('widgets')}</span>
                             </div>
-                            <div className="right_arrow">
-                                <IconCaretDown />
-                            </div>
-                        </button>
-                        <ul className="sub-menu">
-                            <li>
-                                <NavLink to="/dragndrop">{t('drag_and_drop')}</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/charts">{t('charts')}</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/font-icons">{t('font_icons')}</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/widgets">{t('widgets')}</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="https://vristo.sbthemes.com" target="_blank">
-                                    {t('documentation')}
-                                </NavLink>
-                            </li>
-                        </ul>
+                        </NavLink>
                     </li>
                 </ul>
             </div>
