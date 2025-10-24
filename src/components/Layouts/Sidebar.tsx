@@ -16,6 +16,8 @@ import IconMenuTodo from '../Icon/Menu/IconMenuTodo';
 import IconMenuNotes from '../Icon/Menu/IconMenuNotes';
 import IconMenuScrumboard from '../Icon/Menu/IconMenuScrumboard';
 import IconMenuContacts from '../Icon/Menu/IconMenuContacts';
+import IconMenuMore from '../Icon/Menu/IconMenuMore';
+import IconMenuRequests from '../Icon/Menu/IconMenuMore';
 import IconMenuInvoice from '../Icon/Menu/IconMenuInvoice';
 import IconMenuCalendar from '../Icon/Menu/IconMenuCalendar';
 import IconMenuComponents from '../Icon/Menu/IconMenuComponents';
@@ -98,7 +100,7 @@ const Sidebar = () => {
                                         <IconMenuDashboard
                                          className="group-hover:!text-primary shrink-0" />
                                         <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">{t('dashboard')}</span>
-                                    </div>
+                                    </div>å
 
                                     <div className={currentMenu !== 'dashboard' ? 'rtl:rotate-90 -rotate-90' : ''}>
                                         <IconCaretDown />
@@ -175,6 +177,24 @@ const Sidebar = () => {
                                             <div className="flex items-center">
                                                 <IconMenuContacts className="group-hover:!text-primary shrink-0" />
                                                 <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">{t('contacts')}</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+
+                                    <li className="nav-item">
+                                        <NavLink to="/apps/requests" className="group">
+                                            <div className="flex items-center">
+                                                <IconMenuRequests className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">{t('requests')}</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+
+                                    <li className="nav-item">
+                                        <NavLink to="/finance/requests" className="group">
+                                            <div className="flex items-center">
+                                                <IconMenuInvoice className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Finance Requests</span>
                                             </div>
                                         </NavLink>
                                     </li>

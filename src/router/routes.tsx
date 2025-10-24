@@ -2,11 +2,14 @@ import { lazy } from 'react';
 const Index = lazy(() => import('../pages/Index'));
 const Analytics = lazy(() => import('../pages/Analytics'));
 const Finance = lazy(() => import('../pages/Finance'));
+const FinanceRequests = lazy(() => import('../pages/Finance/Requests'));
 const Crypto = lazy(() => import('../pages/Crypto'));
 const Todolist = lazy(() => import('../pages/Apps/Todolist'));
 const Mailbox = lazy(() => import('../pages/Apps/Mailbox'));
 const Notes = lazy(() => import('../pages/Apps/Notes'));
 const Contacts = lazy(() => import('../pages/Apps/Contacts'));
+const Requests = lazy(() => import('../pages/Apps/Requests'));
+const RequestForm = lazy(() => import('../pages/Apps/RequestForm'));
 const Chat = lazy(() => import('../pages/Apps/Chat'));
 const Scrumboard = lazy(() => import('../pages/Apps/Scrumboard'));
 const Calendar = lazy(() => import('../pages/Apps/Calendar'));
@@ -120,6 +123,10 @@ const routes = [
         path: '/finance',
         element: <Finance />,
     },
+    {
+        path: '/finance/requests',
+        element: <FinanceRequests />,
+    },
     // crypto page
     {
         path: '/crypto',
@@ -136,6 +143,18 @@ const routes = [
     {
         path: '/apps/contacts',
         element: <Contacts />,
+    },
+    {
+        path: '/apps/requests',
+        element: <Requests />,
+    },
+    {
+        path: '/apps/requests/mine',
+        element: <Requests />,
+    },
+    {
+        path: '/apps/requests/new',
+        element: <RequestForm />,
     },
     {
         path: '/apps/mailbox',
