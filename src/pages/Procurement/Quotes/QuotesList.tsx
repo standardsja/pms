@@ -92,6 +92,12 @@ const QuotesList = () => {
         setShowCompareModal(true);
     };
 
+    const handleDownloadQuote = (quote: any) => {
+        console.log('Downloading Quote:', quote.quoteNumber);
+        // In a real application, this would generate and download a PDF
+        alert(`Downloading ${quote.quoteNumber}.pdf\n\nSupplier: ${quote.supplier}\nAmount: $${quote.amount.toLocaleString()}\nStatus: ${quote.status}`);
+    };
+
     const comparedQuotes = quotes.filter((q) => selectedQuotes.includes(q.id));
 
     const getStatusBadge = (status: string) => {
@@ -237,7 +243,7 @@ const QuotesList = () => {
                                             <Link to={`/procurement/quotes/${quote.id}`} className="btn btn-sm btn-outline-primary">
                                                 <IconEye className="h-4 w-4" />
                                             </Link>
-                                            <button className="btn btn-sm btn-outline-info" title="Download">
+                                            <button onClick={() => handleDownloadQuote(quote)} className="btn btn-sm btn-outline-info" title="Download">
                                                 <IconDownload className="h-4 w-4" />
                                             </button>
                                         </div>

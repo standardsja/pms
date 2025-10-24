@@ -16,6 +16,22 @@ const ReportsList = () => {
 
     const isDark = useSelector((state: IRootState) => state.themeConfig.theme === 'dark' || state.themeConfig.isDarkMode);
 
+    const handleDownloadCategoryChart = () => {
+        alert('Downloading Spend by Category chart as PDF...');
+    };
+
+    const handlePrintCategoryChart = () => {
+        window.print();
+    };
+
+    const handleDownloadReport = (report: { name: string; format: string }) => {
+        alert(`Downloading ${report.name}.${report.format.toLowerCase()}...`);
+    };
+
+    const handlePrintReport = (report: { name: string }) => {
+        alert(`Printing ${report.name}...`);
+    };
+
     const [reports] = useState([
         { id: 1, name: 'Monthly Procurement Summary', type: 'Summary', period: 'October 2024', generatedDate: '2024-10-24', format: 'PDF', size: '2.3 MB' },
         { id: 2, name: 'Supplier Performance Report', type: 'Analysis', period: 'Q3 2024', generatedDate: '2024-10-20', format: 'Excel', size: '5.1 MB' },
@@ -117,10 +133,10 @@ const ReportsList = () => {
                 <div className="mb-5 flex items-center justify-between">
                     <h5 className="text-lg font-semibold dark:text-white-light">Spend by Category</h5>
                     <div className="flex gap-2">
-                        <button type="button" className="btn btn-sm btn-outline-primary">
+                        <button type="button" className="btn btn-sm btn-outline-primary" onClick={handleDownloadCategoryChart}>
                             <IconDownload className="h-4 w-4" />
                         </button>
-                        <button type="button" className="btn btn-sm btn-outline-primary">
+                        <button type="button" className="btn btn-sm btn-outline-primary" onClick={handlePrintCategoryChart}>
                             <IconPrinter className="h-4 w-4" />
                         </button>
                     </div>
@@ -213,10 +229,10 @@ const ReportsList = () => {
                                     <td>{report.size}</td>
                                     <td>
                                         <div className="flex gap-2">
-                                            <button type="button" className="btn btn-sm btn-outline-primary">
+                                            <button type="button" className="btn btn-sm btn-outline-primary" onClick={() => handleDownloadReport(report)}>
                                                 <IconDownload className="h-4 w-4" />
                                             </button>
-                                            <button type="button" className="btn btn-sm btn-outline-secondary">
+                                            <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => handlePrintReport(report)}>
                                                 <IconPrinter className="h-4 w-4" />
                                             </button>
                                         </div>

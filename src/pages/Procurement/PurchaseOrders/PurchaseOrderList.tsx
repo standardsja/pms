@@ -22,6 +22,7 @@ const PurchaseOrderList = () => {
         {
             id: 1,
             poNumber: 'PO-2024-001',
+            rfqId: 1,
             rfqNumber: 'RFQ-2024-045',
             supplier: 'ABC Corporation',
             description: 'Office Equipment - Desks and Chairs',
@@ -35,6 +36,7 @@ const PurchaseOrderList = () => {
         {
             id: 2,
             poNumber: 'PO-2024-002',
+            rfqId: 2,
             rfqNumber: 'RFQ-2024-046',
             supplier: 'Tech Solutions Inc',
             description: 'IT Equipment - Laptops and Monitors',
@@ -48,6 +50,7 @@ const PurchaseOrderList = () => {
         {
             id: 3,
             poNumber: 'PO-2024-003',
+            rfqId: 1,
             rfqNumber: 'RFQ-2024-047',
             supplier: 'Office Pro Supply',
             description: 'Office Supplies - Paper, Stationery',
@@ -61,6 +64,7 @@ const PurchaseOrderList = () => {
         {
             id: 4,
             poNumber: 'PO-2024-004',
+            rfqId: 2,
             rfqNumber: 'RFQ-2024-048',
             supplier: 'Clean Corp Ltd',
             description: 'Cleaning Services - 6 Month Contract',
@@ -74,6 +78,7 @@ const PurchaseOrderList = () => {
         {
             id: 5,
             poNumber: 'PO-2024-005',
+            rfqId: 1,
             rfqNumber: 'RFQ-2024-049',
             supplier: 'XYZ Suppliers Ltd',
             description: 'Security Equipment',
@@ -237,7 +242,7 @@ const PurchaseOrderList = () => {
                                         </Link>
                                     </td>
                                     <td>
-                                        <Link to={`/procurement/rfq/${po.rfqNumber}`} className="text-info hover:underline">
+                                        <Link to={`/procurement/rfq/${po.rfqId}`} className="text-info hover:underline">
                                             {po.rfqNumber}
                                         </Link>
                                     </td>
@@ -260,10 +265,10 @@ const PurchaseOrderList = () => {
                                             <Link to={`/procurement/purchase-orders/${po.id}`} className="hover:text-primary" title="View">
                                                 <IconEye className="h-4.5 w-4.5" />
                                             </Link>
-                                            <button type="button" className="hover:text-info" title="Download">
+                                            <button type="button" className="hover:text-info" title="Download" onClick={() => alert(`Downloading ${po.poNumber}.pdf`)}>
                                                 <IconDownload className="h-4.5 w-4.5" />
                                             </button>
-                                            <button type="button" className="hover:text-secondary" title="Print">
+                                            <button type="button" className="hover:text-secondary" title="Print" onClick={() => window.print()}>
                                                 <IconPrinter className="h-4.5 w-4.5" />
                                             </button>
                                         </div>

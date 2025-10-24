@@ -12,10 +12,10 @@ const ReviewList = () => {
     });
 
     const [reviews] = useState([
-        { id: 1, reviewNumber: 'REV-2024-001', evalNumber: 'EVAL-2024-002', description: 'IT Equipment Final Review', recommendedSupplier: 'Tech Solutions Inc', amount: 15200, reviewer: 'John Doe', reviewDate: '2024-10-24', status: 'Pending Approval' },
-        { id: 2, reviewNumber: 'REV-2024-002', evalNumber: 'EVAL-2024-001', description: 'Office Supplies Review', recommendedSupplier: 'ABC Corporation', amount: 12500, reviewer: 'Jane Smith', reviewDate: '2024-10-23', status: 'Approved' },
-        { id: 3, reviewNumber: 'REV-2024-003', evalNumber: 'EVAL-2024-003', description: 'Furniture Procurement Review', recommendedSupplier: 'Office Pro Supply', amount: 22100, reviewer: 'Mike Johnson', reviewDate: '2024-10-22', status: 'In Review' },
-        { id: 4, reviewNumber: 'REV-2024-004', evalNumber: 'EVAL-2024-004', description: 'Cleaning Services Contract', recommendedSupplier: 'Clean Corp Ltd', amount: 8900, reviewer: 'Sarah Williams', reviewDate: '2024-10-21', status: 'Rejected' },
+        { id: 1, reviewNumber: 'REV-2024-001', evalId: 2, evalNumber: 'EVAL-2024-002', description: 'IT Equipment Final Review', recommendedSupplier: 'Tech Solutions Inc', amount: 15200, reviewer: 'John Doe', reviewDate: '2024-10-24', status: 'Pending Approval' },
+        { id: 2, reviewNumber: 'REV-2024-002', evalId: 1, evalNumber: 'EVAL-2024-001', description: 'Office Supplies Review', recommendedSupplier: 'ABC Corporation', amount: 12500, reviewer: 'Jane Smith', reviewDate: '2024-10-23', status: 'Approved' },
+        { id: 3, reviewNumber: 'REV-2024-003', evalId: 3, evalNumber: 'EVAL-2024-003', description: 'Furniture Procurement Review', recommendedSupplier: 'Office Pro Supply', amount: 22100, reviewer: 'Mike Johnson', reviewDate: '2024-10-22', status: 'In Review' },
+        { id: 4, reviewNumber: 'REV-2024-004', evalId: 4, evalNumber: 'EVAL-2024-004', description: 'Cleaning Services Contract', recommendedSupplier: 'Clean Corp Ltd', amount: 8900, reviewer: 'Sarah Williams', reviewDate: '2024-10-21', status: 'Rejected' },
     ]);
 
     const getStatusBadge = (status: string) => {
@@ -102,7 +102,7 @@ const ReviewList = () => {
                                         </Link>
                                     </td>
                                     <td>
-                                        <Link to={`/procurement/evaluation/${review.evalNumber}`} className="text-info hover:underline">
+                                        <Link to={`/procurement/evaluation/${review.evalId}`} className="text-info hover:underline">
                                             {review.evalNumber}
                                         </Link>
                                     </td>

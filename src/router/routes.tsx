@@ -17,13 +17,27 @@ const RFQList = lazy(() => import('../pages/Procurement/RFQ/RFQList'));
 const NewRFQ = lazy(() => import('../pages/Procurement/RFQ/NewRFQ'));
 const RFQDetail = lazy(() => import('../pages/Procurement/RFQ/RFQDetail'));
 const QuotesList = lazy(() => import('../pages/Procurement/Quotes/QuotesList'));
+const NewQuote = lazy(() => import('../pages/Procurement/Quotes/NewQuote'));
+const QuoteDetail = lazy(() => import('../pages/Procurement/Quotes/QuoteDetail'));
 const EvaluationList = lazy(() => import('../pages/Procurement/Evaluation/EvaluationList'));
+const NewEvaluation = lazy(() => import('../pages/Procurement/Evaluation/NewEvaluation'));
+const EvaluationDetail = lazy(() => import('../pages/Procurement/Evaluation/EvaluationDetail'));
 const ReviewList = lazy(() => import('../pages/Procurement/Review/ReviewList'));
+const ReviewDetail = lazy(() => import('../pages/Procurement/Review/ReviewDetail'));
 const ApprovalsList = lazy(() => import('../pages/Procurement/Approvals/ApprovalsList'));
 const PurchaseOrderList = lazy(() => import('../pages/Procurement/PurchaseOrders/PurchaseOrderList'));
+const NewPurchaseOrder = lazy(() => import('../pages/Procurement/PurchaseOrders/NewPurchaseOrder'));
+const PurchaseOrderDetail = lazy(() => import('../pages/Procurement/PurchaseOrders/PurchaseOrderDetail'));
 const SupplierList = lazy(() => import('../pages/Procurement/Suppliers/SupplierList'));
+const NewSupplier = lazy(() => import('../pages/Procurement/Suppliers/NewSupplier'));
+const SupplierDetail = lazy(() => import('../pages/Procurement/Suppliers/SupplierDetail'));
+const EditSupplier = lazy(() => import('../pages/Procurement/Suppliers/EditSupplier'));
 const CatalogList = lazy(() => import('../pages/Procurement/Catalog/CatalogList'));
+const NewCatalogItem = lazy(() => import('../pages/Procurement/Catalog/NewCatalogItem'));
+const CatalogItemDetail = lazy(() => import('../pages/Procurement/Catalog/CatalogItemDetail'));
+const EditCatalogItem = lazy(() => import('../pages/Procurement/Catalog/EditCatalogItem'));
 const ReportsList = lazy(() => import('../pages/Procurement/Reports/ReportsList'));
+const NewReport = lazy(() => import('../pages/Procurement/Reports/NewReport'));
 const PaymentsList = lazy(() => import('../pages/Procurement/Payments/PaymentsList'));
 const AdminSettings = lazy(() => import('../pages/Procurement/Admin/AdminSettings'));
 
@@ -91,12 +105,32 @@ const routes = [
         element: <QuotesList />,
     },
     {
+        path: '/procurement/quotes/new',
+        element: <NewQuote />,
+    },
+    {
+        path: '/procurement/quotes/:id',
+        element: <QuoteDetail />,
+    },
+    {
         path: '/procurement/evaluation',
         element: <EvaluationList />,
     },
     {
+        path: '/procurement/evaluation/new',
+        element: <NewEvaluation />,
+    },
+    {
+        path: '/procurement/evaluation/:id',
+        element: <EvaluationDetail />,
+    },
+    {
         path: '/procurement/review',
         element: <ReviewList />,
+    },
+    {
+        path: '/procurement/review/:id',
+        element: <ReviewDetail />,
     },
     {
         path: '/procurement/approvals',
@@ -107,16 +141,52 @@ const routes = [
         element: <PurchaseOrderList />,
     },
     {
+        path: '/procurement/purchase-orders/new',
+        element: <NewPurchaseOrder />,
+    },
+    {
+        path: '/procurement/purchase-orders/:id',
+        element: <PurchaseOrderDetail />,
+    },
+    {
         path: '/procurement/suppliers',
         element: <SupplierList />,
+    },
+    {
+        path: '/procurement/suppliers/new',
+        element: <NewSupplier />,
+    },
+    {
+        path: '/procurement/suppliers/:id',
+        element: <SupplierDetail />,
+    },
+    {
+        path: '/procurement/suppliers/:id/edit',
+        element: <EditSupplier />,
     },
     {
         path: '/procurement/catalog',
         element: <CatalogList />,
     },
     {
+        path: '/procurement/catalog/new',
+        element: <NewCatalogItem />,
+    },
+    {
+        path: '/procurement/catalog/:id',
+        element: <CatalogItemDetail />,
+    },
+    {
+        path: '/procurement/catalog/:id/edit',
+        element: <EditCatalogItem />,
+    },
+    {
         path: '/procurement/reports',
         element: <ReportsList />,
+    },
+    {
+        path: '/procurement/reports/generate',
+        element: <NewReport />,
     },
     {
         path: '/procurement/payments',
