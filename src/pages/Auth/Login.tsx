@@ -117,8 +117,10 @@ const Login = () => {
                             <div className="relative">
                                 <div className="absolute inset-0 bg-white/20 blur-2xl rounded-full"></div>
                                 <div className="relative flex items-center gap-4 bg-white/10 backdrop-blur-sm px-8 py-6 rounded-2xl border-2 border-white/30 shadow-2xl">
-                                    <span className="text-7xl drop-shadow-lg animate-pulse">🌀</span>
-                                    <span className="text-6xl font-black tracking-widest text-white drop-shadow-2xl" style={{ letterSpacing: '0.15em' }}>SPINX</span>
+                                    <span className="text-7xl drop-shadow-lg animate-[spin_20s_linear_infinite]">🌀</span>
+                                    <span className="text-6xl font-black text-white drop-shadow-2xl flex" style={{ letterSpacing: '0.15em' }}>
+                                        SPINX
+                                    </span>
                                 </div>
                             </div>
                         </div>
