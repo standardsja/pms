@@ -13,6 +13,8 @@ const Onboarding = lazy(() => import('../pages/Auth/Onboarding'));
 
 // Procurement Pages
 const ProcurementDashboard = lazy(() => import('../pages/Procurement/Dashboard'));
+const DepartmentHeadDashboard = lazy(() => import('../pages/Procurement/DepartmentHeadDashboard'));
+const ExecutiveDirectorDashboard = lazy(() => import('../pages/Procurement/ExecutiveDirectorDashboard'));
 const RFQList = lazy(() => import('../pages/Procurement/RFQ/RFQList'));
 const NewRFQ = lazy(() => import('../pages/Procurement/RFQ/NewRFQ'));
 const RFQDetail = lazy(() => import('../pages/Procurement/RFQ/RFQDetail'));
@@ -88,6 +90,14 @@ const routes = [
     {
         path: '/procurement/dashboard',
         element: <ProcurementDashboard />,
+    },
+    {
+        path: '/procurement/department-head-dashboard',
+        element: <DepartmentHeadDashboard />,
+    },
+    {
+        path: '/procurement/executive-director-dashboard',
+        element: <ExecutiveDirectorDashboard />,
     },
     {
         path: '/procurement/rfq/list',
