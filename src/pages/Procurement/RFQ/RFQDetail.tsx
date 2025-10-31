@@ -290,6 +290,36 @@ const RFQDetail = () => {
                 </div>
             )}
 
+            {/* Clarifications / Q&A */}
+            <div className="panel mt-6">
+                <div className="flex items-center justify-between mb-4">
+                    <h5 className="text-lg font-semibold">Clarifications & Q&A</h5>
+                    <div className="text-sm text-gray-500">{rfq.status === 'Open' ? 'Open for questions' : 'Closed'}</div>
+                </div>
+
+                <div className="space-y-3">
+                    {/* Mock Q&A list */}
+                    <div className="rounded border p-3">
+                        <div className="text-sm text-gray-600"><strong>Q:</strong> Can vendors propose alternative brands?</div>
+                        <div className="text-sm text-white-dark mt-2"><strong>A:</strong> Yes, alternative brands may be proposed if they meet specification requirements.</div>
+                    </div>
+                    <div className="rounded border p-3">
+                        <div className="text-sm text-gray-600"><strong>Q:</strong> Is partial delivery allowed?</div>
+                        <div className="text-sm text-white-dark mt-2"><strong>A:</strong> Partial delivery may be allowed with prior approval. Indicate in your proposal.</div>
+                    </div>
+
+                    {rfq.status === 'Open' && (
+                        <div>
+                            <label className="block text-sm font-semibold mb-2">Ask a question</label>
+                            <textarea className="form-textarea w-full mb-2" rows={3} placeholder="Enter your question for the procurement team or bidder clarifications..." />
+                            <div className="flex justify-end">
+                                <button className="btn btn-primary">Submit question</button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+
             {/* Action Buttons */}
             {rfq.status === 'Draft' && (
                 <div className="mt-6 flex gap-3">

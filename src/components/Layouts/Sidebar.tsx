@@ -201,6 +201,48 @@ const Sidebar = () => {
                                     </div>
                                 </NavLink>
                             </li>
+
+                            {/* Procurement Manager */}
+                            <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mt-4 mb-1">
+                                <IconMinus className="w-4 h-5 flex-none hidden" />
+                                <span>Procurement Manager</span>
+                            </h2>
+                            <li className="nav-item">
+                                <NavLink to="/procurement/manager" className="group">
+                                    <div className="flex items-center">
+                                        <IconMenuDashboard className="group-hover:!text-primary shrink-0" />
+                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Manager Dashboard</span>
+                                    </div>
+                                </NavLink>
+                            </li>
+
+                            {/* Supplier */}
+                            <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mt-4 mb-1">
+                                <IconMinus className="w-4 h-5 flex-none hidden" />
+                                <span>Supplier</span>
+                            </h2>
+                            <li className="nav-item">
+                                <NavLink to="/supplier" className="group">
+                                    <div className="flex items-center">
+                                        <IconMenuDashboard className="group-hover:!text-primary shrink-0" />
+                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Supplier Dashboard</span>
+                                    </div>
+                                </NavLink>
+                            </li>
+
+                            {/* Finance */}
+                            <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mt-4 mb-1">
+                                <IconMinus className="w-4 h-5 flex-none hidden" />
+                                <span>Finance</span>
+                            </h2>
+                            <li className="nav-item">
+                                <NavLink to="/finance" className="group">
+                                    <div className="flex items-center">
+                                        <IconMenuDashboard className="group-hover:!text-primary shrink-0" />
+                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Finance Dashboard</span>
+                                    </div>
+                                </NavLink>
+                            </li>
                         </ul>
                     </PerfectScrollbar>
                 </div>

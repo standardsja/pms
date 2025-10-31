@@ -13,6 +13,7 @@ const Onboarding = lazy(() => import('../pages/Auth/Onboarding'));
 
 // Procurement Pages
 const ProcurementDashboard = lazy(() => import('../pages/Procurement/Dashboard'));
+const ProcurementManagerDashboard = lazy(() => import('../pages/Procurement/Manager/ProcurementManagerDashboard'));
 const RFQList = lazy(() => import('../pages/Procurement/RFQ/RFQList'));
 const NewRFQ = lazy(() => import('../pages/Procurement/RFQ/NewRFQ'));
 const RFQDetail = lazy(() => import('../pages/Procurement/RFQ/RFQDetail'));
@@ -29,6 +30,7 @@ const PurchaseOrderList = lazy(() => import('../pages/Procurement/PurchaseOrders
 const NewPurchaseOrder = lazy(() => import('../pages/Procurement/PurchaseOrders/NewPurchaseOrder'));
 const PurchaseOrderDetail = lazy(() => import('../pages/Procurement/PurchaseOrders/PurchaseOrderDetail'));
 const SupplierList = lazy(() => import('../pages/Procurement/Suppliers/SupplierList'));
+const SupplierDashboard = lazy(() => import('../pages/Procurement/Suppliers/SupplierDashboard'));
 const NewSupplier = lazy(() => import('../pages/Procurement/Suppliers/NewSupplier'));
 const SupplierDetail = lazy(() => import('../pages/Procurement/Suppliers/SupplierDetail'));
 const EditSupplier = lazy(() => import('../pages/Procurement/Suppliers/EditSupplier'));
@@ -40,6 +42,7 @@ const ReportsList = lazy(() => import('../pages/Procurement/Reports/ReportsList'
 const NewReport = lazy(() => import('../pages/Procurement/Reports/NewReport'));
 const PaymentsList = lazy(() => import('../pages/Procurement/Payments/PaymentsList'));
 const PaymentDetail = lazy(() => import('../pages/Procurement/Payments/PaymentDetail'));
+const FinanceDashboard = lazy(() => import('../pages/Procurement/Payments/FinanceDashboard'));
 const AdminSettings = lazy(() => import('../pages/Procurement/Admin/AdminSettings'));
 
 // Existing Pages
@@ -88,6 +91,10 @@ const routes = [
     {
         path: '/procurement/dashboard',
         element: <ProcurementDashboard />,
+    },
+    {
+        path: '/procurement/manager',
+        element: <ProcurementManagerDashboard />,
     },
     {
         path: '/procurement/rfq/list',
@@ -154,6 +161,10 @@ const routes = [
         element: <SupplierList />,
     },
     {
+        path: '/supplier',
+        element: <SupplierDashboard />,
+    },
+    {
         path: '/procurement/suppliers/new',
         element: <NewSupplier />,
     },
@@ -192,6 +203,10 @@ const routes = [
     {
         path: '/procurement/payments',
         element: <PaymentsList />,
+    },
+    {
+        path: '/finance',
+        element: <FinanceDashboard />,
     },
     {
         path: '/procurement/payments/:id',

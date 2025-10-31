@@ -42,6 +42,31 @@ const NewRFQ = () => {
     const [errorFields, setErrorFields] = useState<string[]>([]);
     const [alertType, setAlertType] = useState<'success' | 'warning'>('success');
 
+    // Mock verified requests (to import/create RFQ from a verified request)
+    const verifiedRequests = [
+        {
+            id: 'REQ-2025-100',
+            title: 'New Workstations for Dev Team',
+            requester: 'IT Department',
+            items: [
+                { id: 1, description: 'Desktop Computer - i7', quantity: '10', unit: 'Each', specifications: 'i7, 16GB RAM, 512GB SSD' },
+                { id: 2, description: '24" Monitor', quantity: '10', unit: 'Each', specifications: 'IPS, 1080p' },
+            ],
+            category: 'IT Equipment',
+            estimatedValue: 15000,
+        },
+        {
+            id: 'REQ-2025-101',
+            title: 'Office Chairs Replacement',
+            requester: 'Facilities',
+            items: [
+                { id: 1, description: 'Ergonomic Chair', quantity: '30', unit: 'Each', specifications: 'Adjustable, lumbar support' },
+            ],
+            category: 'Furniture',
+            estimatedValue: 9000,
+        },
+    ];
+
     // Mock vendor data
     const vendors = [
         { id: 1, name: 'ABC Corp', email: 'contact@abccorp.com', category: 'Office Supplies', rating: 4.5 },
@@ -55,6 +80,23 @@ const NewRFQ = () => {
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
         setFormData({ ...formData, [name]: value });
+    };
+
+    const [importRequestId, setImportRequestId] = useState('');
+
+    const handleImportRequest = () => {
+        const req = verifiedRequests.find((r) => r.id === importRequestId);
+        if (!req) return;
+        setFormData((prev) => ({
+            ...prev,
+            title: req.title,
+            requestNumber: req.id,
+            category: req.category,
+            estimatedValue: String(req.estimatedValue),
+        }));
+        // map items, ensure ids are numeric and unique
+        const mapped = req.items.map((it: any, idx: number) => ({ id: idx + 1, description: it.description, quantity: it.quantity, unit: it.unit || 'Each', specifications: it.specifications || '' }));
+        setItems(mapped);
     };
 
     const handleItemChange = (id: number, field: string, value: string) => {

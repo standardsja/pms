@@ -122,6 +122,19 @@ const RFQList = () => {
         alert(`Downloading ${rfq.rfqNumber}.pdf\n\nRFQ: ${rfq.title}\nStatus: ${rfq.status}\nClosing Date: ${rfq.closingDate}`);
     };
 
+    const exportCSV = (rows: any[]) => {
+        if (!rows || rows.length === 0) return;
+        const keys = Object.keys(rows[0]);
+        const csv = [keys.join(','), ...rows.map(r => keys.map(k => JSON.stringify((r as any)[k] ?? '')).join(','))].join('\n');
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `rfqs_export_${new Date().toISOString().slice(0,10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
     const stats = {
         total: rfqs.length,
         open: rfqs.filter((r) => r.status === 'Open').length,
@@ -137,10 +150,15 @@ const RFQList = () => {
                     <h2 className="text-2xl font-bold">RFQ Management</h2>
                     <p className="text-white-dark">Create and send RFQs to collect vendor quotations</p>
                 </div>
-                <Link to="/procurement/rfq/new" className="btn btn-primary gap-2">
-                    <IconPlus />
-                    Create New RFQ
-                </Link>
+                <div className="flex gap-3">
+                    <Link to="/procurement/rfq/new" className="btn btn-primary gap-2">
+                        <IconPlus />
+                        Create New RFQ
+                    </Link>
+                    <button onClick={() => exportCSV(filteredRFQs)} className="btn btn-outline-primary gap-2">
+                        <IconDownload /> Export CSV
+                    </button>
+                </div>
             </div>
 
             {/* Stats Cards */}
