@@ -14,7 +14,11 @@ const Onboarding = lazy(() => import('../pages/Auth/Onboarding'));
 // Procurement Pages
 const ProcurementDashboard = lazy(() => import('../pages/Procurement/Dashboard'));
 const DepartmentHeadDashboard = lazy(() => import('../pages/Procurement/DepartmentHeadDashboard'));
+const DepartmentHeadEvaluationReview = lazy(() => import('../pages/Procurement/DepartmentHead/DepartmentHeadEvaluationReview'));
+const DepartmentHeadReportReview = lazy(() => import('../pages/Procurement/DepartmentHead/DepartmentHeadReportReview'));
 const ExecutiveDirectorDashboard = lazy(() => import('../pages/Procurement/ExecutiveDirectorDashboard'));
+const ExecutiveDigitalSignoffs = lazy(() => import('../pages/Procurement/ExecutiveDirector/ExecutiveDigitalSignoffs'));
+const ExecutiveDirectorReports = lazy(() => import('../pages/Procurement/ExecutiveDirector/ExecutiveDirectorReports'));
 const RFQList = lazy(() => import('../pages/Procurement/RFQ/RFQList'));
 const NewRFQ = lazy(() => import('../pages/Procurement/RFQ/NewRFQ'));
 const RFQDetail = lazy(() => import('../pages/Procurement/RFQ/RFQDetail'));
@@ -27,6 +31,7 @@ const EvaluationDetail = lazy(() => import('../pages/Procurement/Evaluation/Eval
 const ReviewList = lazy(() => import('../pages/Procurement/Review/ReviewList'));
 const ReviewDetail = lazy(() => import('../pages/Procurement/Review/ReviewDetail'));
 const ApprovalsList = lazy(() => import('../pages/Procurement/Approvals/ApprovalsList'));
+const ExecutiveApprovals = lazy(() => import('../pages/Procurement/Approvals/ExecutiveApprovals'));
 const PurchaseOrderList = lazy(() => import('../pages/Procurement/PurchaseOrders/PurchaseOrderList'));
 const NewPurchaseOrder = lazy(() => import('../pages/Procurement/PurchaseOrders/NewPurchaseOrder'));
 const PurchaseOrderDetail = lazy(() => import('../pages/Procurement/PurchaseOrders/PurchaseOrderDetail'));
@@ -96,8 +101,24 @@ const routes = [
         element: <DepartmentHeadDashboard />,
     },
     {
+        path: '/procurement/department-head/evaluation-reviews',
+        element: <DepartmentHeadEvaluationReview />,
+    },
+    {
+        path: '/procurement/department-head/report-reviews',
+        element: <DepartmentHeadReportReview />,
+    },
+    {
         path: '/procurement/executive-director-dashboard',
         element: <ExecutiveDirectorDashboard />,
+    },
+    {
+        path: '/procurement/executive-director/digital-signoffs',
+        element: <ExecutiveDigitalSignoffs />,
+    },
+    {
+        path: '/procurement/executive-director/reports',
+        element: <ExecutiveDirectorReports />,
     },
     {
         path: '/procurement/rfq/list',
@@ -146,6 +167,10 @@ const routes = [
     {
         path: '/procurement/approvals',
         element: <ApprovalsList />,
+    },
+    {
+        path: '/procurement/executive-approvals',
+        element: <ExecutiveApprovals />,
     },
     {
         path: '/procurement/purchase-orders',

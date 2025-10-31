@@ -1,52 +1,35 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { IRootState } from '../../store';
-import { setPageTitle } from '../../store/themeConfigSlice';
-import ReactApexChart from 'react-apexcharts';
-import PerfectScrollbar from 'react-perfect-scrollbar';
-import IconDollarSignCircle from '../../components/Icon/IconDollarSignCircle';
-import IconFile from '../../components/Icon/IconFile';
-import IconChecks from '../../components/Icon/IconChecks';
-import IconClock from '../../components/Icon/IconClock';
-import IconEye from '../../components/Icon/IconEye';
-import IconUser from '../../components/Icon/IconUser';
-import IconTrendingUp from '../../components/Icon/IconTrendingUp';
-import IconChartSquare from '../../components/Icon/IconChartSquare';
-import IconThumbUp from '../../components/Icon/IconThumbUp';
-import IconX from '../../components/Icon/IconX';
-import IconDownload from '../../components/Icon/IconDownload';
-import IconPencil from '../../components/Icon/IconPencil';
-import IconLock from '../../components/Icon/IconLock';
-import IconCircleCheck from '../../components/Icon/IconCircleCheck';
+import { IRootState } from '../../../store';
+import { setPageTitle } from '../../../store/themeConfigSlice';
+import IconChecks from '../../../components/Icon/IconChecks';
+import IconX from '../../../components/Icon/IconX';
+import IconEye from '../../../components/Icon/IconEye';
+import IconClock from '../../../components/Icon/IconClock';
+import IconDollarSignCircle from '../../../components/Icon/IconDollarSignCircle';
+import IconFile from '../../../components/Icon/IconFile';
+import IconDownload from '../../../components/Icon/IconDownload';
+import IconPencil from '../../../components/Icon/IconPencil';
+import IconCircleCheck from '../../../components/Icon/IconCircleCheck';
+import IconSearch from '../../../components/Icon/IconSearch';
 
-const ExecutiveDirectorDashboard = () => {
+const ExecutiveApprovals = () => {
     const dispatch = useDispatch();
     useEffect(() => {
-        dispatch(setPageTitle('Executive Director Dashboard'));
+        dispatch(setPageTitle('Executive Approvals'));
     });
 
-    const isDark = useSelector((state: IRootState) => state.themeConfig.theme === 'dark' || state.themeConfig.isDarkMode);
-    const isRtl = useSelector((state: IRootState) => state.themeConfig.rtlClass) === 'rtl' ? true : false;
-
+    const [filter, setFilter] = useState('all');
+    const [searchTerm, setSearchTerm] = useState('');
     const [signOffModal, setSignOffModal] = useState(false);
     const [selectedApproval, setSelectedApproval] = useState<any>(null);
     const [digitalSignature, setDigitalSignature] = useState('');
     const [documentModal, setDocumentModal] = useState(false);
     const [selectedDocument, setSelectedDocument] = useState<any>(null);
 
-    // Executive-level statistics
-    const stats = {
-        pendingSignOffs: 6,
-        completedApprovals: 89,
-        totalBudgetValue: 2500000,
-        thisQuarterApprovals: 45,
-        avgProcessingTime: 1.2,
-        complianceRate: 98.5,
-    };
-
-    // High-value procurement items requiring executive sign-off
-    const pendingApprovals = [
+    // Executive-level approvals requiring sign-off
+    const executiveApprovals = [
         {
             id: 1,
             approvalNumber: 'APP-2024-001',
@@ -63,6 +46,7 @@ const ExecutiveDirectorDashboard = () => {
             vendor: 'Microsoft Corporation',
             contractPeriod: '3 Years',
             status: 'Pending Executive Approval',
+            justification: 'Critical for business operations and productivity',
             documentList: [
                 { id: 1, name: 'Software License Agreement.pdf', type: 'Contract', size: '2.4 MB', uploadedBy: 'Jane Smith', uploadedDate: '2024-10-25', category: 'Legal' },
                 { id: 2, name: 'Budget Justification.docx', type: 'Financial', size: '856 KB', uploadedBy: 'John Doe', uploadedDate: '2024-10-25', category: 'Finance' },
@@ -90,6 +74,7 @@ const ExecutiveDirectorDashboard = () => {
             vendor: 'Office Depot Inc',
             contractPeriod: '1 Year',
             status: 'Pending Executive Approval',
+            justification: 'Required for new office expansion and employee accommodation',
             documentList: [
                 { id: 1, name: 'Equipment Purchase Order.pdf', type: 'Purchase Order', size: '1.8 MB', uploadedBy: 'Robert Brown', uploadedDate: '2024-10-24', category: 'Procurement' },
                 { id: 2, name: 'Budget Authorization.pdf', type: 'Financial', size: '445 KB', uploadedBy: 'Finance Team', uploadedDate: '2024-10-24', category: 'Finance' },
@@ -114,6 +99,7 @@ const ExecutiveDirectorDashboard = () => {
             vendor: 'SecureGuard Solutions',
             contractPeriod: '1 Year',
             status: 'Pending Executive Approval',
+            justification: 'Essential for maintaining facility security and compliance requirements',
             documentList: [
                 { id: 1, name: 'Service Level Agreement.pdf', type: 'Contract', size: '1.5 MB', uploadedBy: 'Mike Johnson', uploadedDate: '2024-10-26', category: 'Legal' },
                 { id: 2, name: 'Security Assessment Report.pdf', type: 'Assessment', size: '2.8 MB', uploadedBy: 'Security Consultant', uploadedDate: '2024-10-25', category: 'Security' },
@@ -123,190 +109,81 @@ const ExecutiveDirectorDashboard = () => {
                 { id: 6, name: 'Performance Metrics.pdf', type: 'Performance', size: '723 KB', uploadedBy: 'Quality Assurance', uploadedDate: '2024-10-25', category: 'Quality' }
             ],
         },
-    ];
-
-    // Recent executive approvals
-    const recentSignOffs = [
         {
-            id: 1,
-            action: 'Approved',
-            description: 'Marketing Campaign Management Software',
-            amount: 65000,
-            signedDate: '2024-10-25',
-            vendor: 'HubSpot Inc',
-            processing: 'Digital Signature',
-        },
-        {
-            id: 2,
-            action: 'Approved',
-            description: 'Facility Maintenance Contract',
-            amount: 140000,
-            signedDate: '2024-10-24',
-            vendor: 'FaciliCorp Services',
-            processing: 'Digital Signature',
-        },
-        {
-            id: 3,
-            action: 'Conditionally Approved',
+            id: 4,
+            approvalNumber: 'APP-2024-004',
+            type: 'Major Contract',
             description: 'Cloud Infrastructure Upgrade',
+            requestor: 'IT Department',
+            departmentHead: 'Jane Smith',
             amount: 180000,
-            signedDate: '2024-10-23',
+            submittedDate: '2024-10-23',
+            priority: 'High',
+            dueDate: '2024-11-01',
+            documents: 7,
+            budgetCode: 'IT-2024-INFRA',
             vendor: 'Amazon Web Services',
-            processing: 'Digital Signature',
-            condition: 'Budget revision required',
+            contractPeriod: '2 Years',
+            status: 'Under Review',
+            justification: 'Scalability and performance improvements for business growth',
+            documentList: [
+                { id: 1, name: 'AWS Service Agreement.pdf', type: 'Contract', size: '3.1 MB', uploadedBy: 'Jane Smith', uploadedDate: '2024-10-23', category: 'Legal' },
+                { id: 2, name: 'Migration Plan.docx', type: 'Technical', size: '1.8 MB', uploadedBy: 'IT Architecture Team', uploadedDate: '2024-10-23', category: 'Technical' },
+                { id: 3, name: 'Cost-Benefit Analysis.xlsx', type: 'Financial', size: '967 KB', uploadedBy: 'Financial Analyst', uploadedDate: '2024-10-22', category: 'Finance' },
+                { id: 4, name: 'Security Compliance Report.pdf', type: 'Security', size: '1.4 MB', uploadedBy: 'Security Team', uploadedDate: '2024-10-22', category: 'Security' },
+                { id: 5, name: 'Implementation Timeline.pdf', type: 'Planning', size: '445 KB', uploadedBy: 'Project Manager', uploadedDate: '2024-10-23', category: 'Project Management' },
+                { id: 6, name: 'Disaster Recovery Plan.pdf', type: 'DR', size: '876 KB', uploadedBy: 'IT Operations', uploadedDate: '2024-10-22', category: 'Operations' },
+                { id: 7, name: 'Executive Briefing.pptx', type: 'Presentation', size: '2.3 MB', uploadedBy: 'Jane Smith', uploadedDate: '2024-10-23', category: 'Executive' }
+            ],
+        },
+        {
+            id: 5,
+            approvalNumber: 'APP-2024-005',
+            type: 'Capital Expenditure',
+            description: 'Manufacturing Equipment Purchase',
+            requestor: 'Operations Department',
+            departmentHead: 'David Wilson',
+            amount: 250000,
+            submittedDate: '2024-10-22',
+            priority: 'Medium',
+            dueDate: '2024-11-05',
+            documents: 9,
+            budgetCode: 'OPS-2024-EQUIP',
+            vendor: 'Industrial Solutions Inc',
+            contractPeriod: '5 Years',
+            status: 'Conditionally Approved',
+            justification: 'Increase production capacity and efficiency to meet growing demand',
+            documentList: [
+                { id: 1, name: 'Equipment Specifications.pdf', type: 'Technical', size: '4.2 MB', uploadedBy: 'Engineering Team', uploadedDate: '2024-10-22', category: 'Technical' },
+                { id: 2, name: 'Financial Impact Analysis.xlsx', type: 'Financial', size: '1.1 MB', uploadedBy: 'Finance Controller', uploadedDate: '2024-10-21', category: 'Finance' },
+                { id: 3, name: 'Vendor Evaluation Matrix.pdf', type: 'Evaluation', size: '567 KB', uploadedBy: 'Procurement Team', uploadedDate: '2024-10-20', category: 'Vendor' },
+                { id: 4, name: 'Installation Requirements.docx', type: 'Technical', size: '789 KB', uploadedBy: 'Facilities Team', uploadedDate: '2024-10-21', category: 'Facilities' },
+                { id: 5, name: 'Training Program Outline.pdf', type: 'Training', size: '345 KB', uploadedBy: 'HR Department', uploadedDate: '2024-10-21', category: 'Training' },
+                { id: 6, name: 'Maintenance Contract.pdf', type: 'Contract', size: '1.8 MB', uploadedBy: 'Operations Manager', uploadedDate: '2024-10-22', category: 'Maintenance' },
+                { id: 7, name: 'ROI Projections.xlsx', type: 'Financial', size: '654 KB', uploadedBy: 'Business Analyst', uploadedDate: '2024-10-21', category: 'Analysis' },
+                { id: 8, name: 'Environmental Impact Study.pdf', type: 'Environmental', size: '2.1 MB', uploadedBy: 'Environmental Consultant', uploadedDate: '2024-10-20', category: 'Environmental' },
+                { id: 9, name: 'Board Presentation.pptx', type: 'Presentation', size: '3.4 MB', uploadedBy: 'David Wilson', uploadedDate: '2024-10-22', category: 'Executive' }
+            ],
         },
     ];
 
-    // Executive approval trends chart
-    const approvalTrendsChart = {
-        series: [
-            {
-                name: 'Approved Amount ($000s)',
-                data: [125, 180, 95, 220, 165, 240, 195, 275, 210, 190, 155, 145],
-            },
-            {
-                name: 'Number of Approvals',
-                data: [8, 12, 6, 15, 11, 18, 14, 20, 16, 13, 10, 9],
-            },
-        ],
-        options: {
-            chart: {
-                height: 300,
-                type: 'line' as const,
-                fontFamily: 'Nunito, sans-serif',
-                zoom: {
-                    enabled: false,
-                },
-                toolbar: {
-                    show: false,
-                },
-            },
-            colors: ['#1b55e2', '#00ab55'],
-            dataLabels: {
-                enabled: false,
-            },
-            stroke: {
-                show: true,
-                curve: 'smooth' as const,
-                width: 3,
-                lineCap: 'square' as const,
-            },
-            markers: {
-                size: 6,
-                colors: ['#1b55e2', '#00ab55'],
-                strokeColors: '#fff',
-                strokeWidth: 2,
-                hover: {
-                    size: 8,
-                },
-            },
-            xaxis: {
-                categories: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
-                axisBorder: {
-                    show: false,
-                },
-                axisTicks: {
-                    show: false,
-                },
-                labels: {
-                    offsetX: isRtl ? 2 : 0,
-                    offsetY: 5,
-                    style: {
-                        fontSize: '12px',
-                        cssClass: 'apexcharts-xaxis-title',
-                    },
-                },
-            },
-            yaxis: [
-                {
-                    title: {
-                        text: 'Amount ($000s)',
-                        style: {
-                            fontSize: '12px',
-                        },
-                    },
-                    labels: {
-                        formatter: (value: number) => {
-                            return value.toString();
-                        },
-                        offsetX: isRtl ? -10 : 0,
-                        style: {
-                            fontSize: '12px',
-                        },
-                    },
-                },
-                {
-                    opposite: true,
-                    title: {
-                        text: 'Number of Approvals',
-                        style: {
-                            fontSize: '12px',
-                        },
-                    },
-                    labels: {
-                        formatter: (value: number) => {
-                            return value.toString();
-                        },
-                        offsetX: isRtl ? 10 : 0,
-                        style: {
-                            fontSize: '12px',
-                        },
-                    },
-                },
-            ],
-            grid: {
-                borderColor: isDark ? '#191E3A' : '#E0E6ED',
-                strokeDashArray: 5,
-                xaxis: {
-                    lines: {
-                        show: true,
-                    },
-                },
-                yaxis: {
-                    lines: {
-                        show: false,
-                    },
-                },
-                padding: {
-                    top: 0,
-                    right: 0,
-                    bottom: 0,
-                    left: 0,
-                },
-            },
-            legend: {
-                position: 'top' as const,
-                horizontalAlign: 'right' as const,
-                fontSize: '16px',
-                markers: {
-                    width: 10,
-                    height: 10,
-                    offsetX: -2,
-                },
-                itemMargin: {
-                    horizontal: 10,
-                    vertical: 5,
-                },
-            },
-            tooltip: {
-                marker: {
-                    show: true,
-                },
-                y: [
-                    {
-                        title: {
-                            formatter: () => 'Amount: $',
-                        },
-                        formatter: (value: number) => `${value}K`,
-                    },
-                    {
-                        title: {
-                            formatter: () => 'Count: ',
-                        },
-                    },
-                ],
-            },
-        },
+    // Filter approvals based on selected filter and search term
+    const filteredApprovals = executiveApprovals.filter(approval => {
+        const matchesFilter = filter === 'all' || approval.status.toLowerCase().includes(filter.toLowerCase()) || approval.type.toLowerCase().includes(filter.toLowerCase());
+        const matchesSearch = approval.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                             approval.approvalNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                             approval.vendor.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                             approval.requestor.toLowerCase().includes(searchTerm.toLowerCase());
+        return matchesFilter && matchesSearch;
+    });
+
+    // Statistics
+    const stats = {
+        total: executiveApprovals.length,
+        pending: executiveApprovals.filter(a => a.status === 'Pending Executive Approval').length,
+        underReview: executiveApprovals.filter(a => a.status === 'Under Review').length,
+        conditionallyApproved: executiveApprovals.filter(a => a.status === 'Conditionally Approved').length,
+        totalValue: executiveApprovals.reduce((sum, a) => sum + a.amount, 0),
     };
 
     const handleSignOff = (approval: any) => {
@@ -315,22 +192,19 @@ const ExecutiveDirectorDashboard = () => {
     };
 
     const handleViewDocuments = (approval: any) => {
-        console.log('handleViewDocuments called with:', approval);
-        alert('View Documents button clicked!');
-        console.log('Setting selectedDocument:', approval);
-        console.log('Setting documentModal to true');
         setSelectedDocument(approval);
         setDocumentModal(true);
     };
 
-    const submitDigitalSignature = (action: 'approve' | 'reject') => {
+    const submitDigitalSignature = (action: 'approve' | 'reject' | 'conditional') => {
         if (!digitalSignature.trim()) {
             alert('Please provide your digital signature/comments');
             return;
         }
         
         console.log(`${action} approval:`, selectedApproval, 'Signature:', digitalSignature);
-        // Implement digital signature logic
+        // Implement digital signature logic here
+        alert(`Approval ${action}ed successfully with digital signature`);
         setSignOffModal(false);
         setSelectedApproval(null);
         setDigitalSignature('');
@@ -338,8 +212,6 @@ const ExecutiveDirectorDashboard = () => {
 
     const downloadDocument = (document: any) => {
         console.log('Downloading document:', document.name);
-        // Implement document download logic
-        // In a real app, this would trigger a file download
         alert(`Downloading ${document.name}...`);
     };
 
@@ -347,6 +219,10 @@ const ExecutiveDirectorDashboard = () => {
         switch (status) {
             case 'Pending Executive Approval':
                 return 'badge-outline-warning';
+            case 'Under Review':
+                return 'badge-outline-info';
+            case 'Conditionally Approved':
+                return 'badge-outline-secondary';
             case 'Approved':
                 return 'badge-outline-success';
             case 'Rejected':
@@ -391,184 +267,208 @@ const ExecutiveDirectorDashboard = () => {
                     </Link>
                 </li>
                 <li className="before:content-['/'] ltr:before:mr-2 rtl:before:ml-2">
-                    <span>Executive Director Dashboard</span>
+                    <span>Executive Approvals</span>
                 </li>
             </ul>
 
             <div className="pt-5">
-                <div className="mb-6 grid gap-6 xl:grid-cols-3">
-                    <div className="panel h-full xl:col-span-2">
-                        <div className="mb-5 flex items-center justify-between">
-                            <h5 className="text-lg font-semibold dark:text-white-light">Executive Approval Trends</h5>
-                        </div>
-                        <ReactApexChart options={approvalTrendsChart.options} series={approvalTrendsChart.series} type="line" height={300} />
+                <div className="mb-6 flex items-center justify-between">
+                    <div>
+                        <h2 className="text-2xl font-bold">Executive Approvals</h2>
+                        <p className="text-white-dark">High-value procurement items requiring executive sign-off</p>
                     </div>
+                    <div className="flex gap-2">
+                        <Link to="/procurement/executive-director-dashboard" className="btn btn-outline-primary">
+                            <IconEye className="mr-2" />
+                            Dashboard View
+                        </Link>
+                    </div>
+                </div>
 
-                    <div className="panel h-full">
-                        <div className="mb-5 flex items-center">
-                            <h5 className="text-lg font-semibold dark:text-white-light">Executive Metrics</h5>
+                {/* Statistics Cards */}
+                <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+                    <div className="panel">
+                        <div className="mb-3 flex items-center justify-between">
+                            <div className="text-lg font-semibold">Total Approvals</div>
+                            <IconFile className="h-6 w-6 text-primary" />
                         </div>
-                        <div className="space-y-4">
-                            <div className="flex items-center justify-between rounded-lg bg-warning-light p-4 dark:bg-warning-dark-light">
-                                <div>
-                                    <h4 className="text-2xl font-bold text-warning">{stats.pendingSignOffs}</h4>
-                                    <p className="text-warning">Pending Sign-offs</p>
-                                </div>
-                                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-warning text-white">
-                                    <IconPencil />
-                                </div>
-                            </div>
-                            <div className="flex items-center justify-between rounded-lg bg-success-light p-4 dark:bg-success-dark-light">
-                                <div>
-                                    <h4 className="text-2xl font-bold text-success">{stats.completedApprovals}</h4>
-                                    <p className="text-success">Completed This Quarter</p>
-                                </div>
-                                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-success text-white">
-                                    <IconChecks />
-                                </div>
-                            </div>
-                            <div className="flex items-center justify-between rounded-lg bg-primary-light p-4 dark:bg-primary-dark-light">
-                                <div>
-                                    <h4 className="text-2xl font-bold text-primary">${(stats.totalBudgetValue / 1000000).toFixed(1)}M</h4>
-                                    <p className="text-primary">Total Budget Value</p>
-                                </div>
-                                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary text-white">
-                                    <IconDollarSignCircle />
-                                </div>
-                            </div>
-                            <div className="flex items-center justify-between rounded-lg bg-info-light p-4 dark:bg-info-dark-light">
-                                <div>
-                                    <h4 className="text-2xl font-bold text-info">{stats.avgProcessingTime} days</h4>
-                                    <p className="text-info">Avg. Processing Time</p>
-                                </div>
-                                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-info text-white">
-                                    <IconClock />
-                                </div>
-                            </div>
+                        <div className="text-3xl font-bold text-primary">{stats.total}</div>
+                    </div>
+                    <div className="panel">
+                        <div className="mb-3 flex items-center justify-between">
+                            <div className="text-lg font-semibold">Pending</div>
+                            <IconClock className="h-6 w-6 text-warning" />
+                        </div>
+                        <div className="text-3xl font-bold text-warning">{stats.pending}</div>
+                    </div>
+                    <div className="panel">
+                        <div className="mb-3 flex items-center justify-between">
+                            <div className="text-lg font-semibold">Under Review</div>
+                            <IconEye className="h-6 w-6 text-info" />
+                        </div>
+                        <div className="text-3xl font-bold text-info">{stats.underReview}</div>
+                    </div>
+                    <div className="panel">
+                        <div className="mb-3 flex items-center justify-between">
+                            <div className="text-lg font-semibold">Conditional</div>
+                            <IconChecks className="h-6 w-6 text-secondary" />
+                        </div>
+                        <div className="text-3xl font-bold text-secondary">{stats.conditionallyApproved}</div>
+                    </div>
+                    <div className="panel">
+                        <div className="mb-3 flex items-center justify-between">
+                            <div className="text-lg font-semibold">Total Value</div>
+                            <IconDollarSignCircle className="h-6 w-6 text-success" />
+                        </div>
+                        <div className="text-3xl font-bold text-success">${(stats.totalValue / 1000).toFixed(0)}K</div>
+                    </div>
+                </div>
+
+                {/* Filters and Search */}
+                <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => setFilter('all')}
+                            className={`btn btn-sm ${filter === 'all' ? 'btn-primary' : 'btn-outline-primary'}`}
+                        >
+                            All
+                        </button>
+                        <button
+                            onClick={() => setFilter('pending')}
+                            className={`btn btn-sm ${filter === 'pending' ? 'btn-warning' : 'btn-outline-warning'}`}
+                        >
+                            Pending
+                        </button>
+                        <button
+                            onClick={() => setFilter('under review')}
+                            className={`btn btn-sm ${filter === 'under review' ? 'btn-info' : 'btn-outline-info'}`}
+                        >
+                            Under Review
+                        </button>
+                        <button
+                            onClick={() => setFilter('major contract')}
+                            className={`btn btn-sm ${filter === 'major contract' ? 'btn-primary' : 'btn-outline-primary'}`}
+                        >
+                            Major Contracts
+                        </button>
+                        <button
+                            onClick={() => setFilter('capital')}
+                            className={`btn btn-sm ${filter === 'capital' ? 'btn-success' : 'btn-outline-success'}`}
+                        >
+                            Capital Expenditure
+                        </button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <div className="relative">
+                            <input
+                                type="text"
+                                placeholder="Search approvals..."
+                                className="form-input pl-10 pr-4"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                            />
+                            <IconSearch className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white-dark" />
                         </div>
                     </div>
                 </div>
 
-                <div className="mb-6 grid gap-6 xl:grid-cols-2">
-                    {/* Pending Executive Approvals */}
-                    <div className="panel">
-                        <div className="mb-5 flex items-center justify-between">
-                            <h5 className="text-lg font-semibold dark:text-white-light">Pending Executive Sign-offs</h5>
-                            <Link to="/procurement/approvals" className="font-semibold text-primary hover:underline">
-                                View All
-                            </Link>
-                        </div>
-                        <div className="space-y-4">
-                            {pendingApprovals.map((approval) => (
-                                <div key={approval.id} className="rounded-lg border border-[#e0e6ed] p-4 dark:border-[#253b5c]">
-                                    <div className="mb-3 flex items-center justify-between">
-                                        <div className="flex items-center gap-2">
-                                            <h6 className="font-semibold">{approval.approvalNumber}</h6>
-                                            <span className={`badge ${getTypeBadge(approval.type)}`}>
-                                                {approval.type}
-                                            </span>
-                                            <span className={`badge ${getPriorityBadge(approval.priority)}`}>
-                                                {approval.priority}
-                                            </span>
-                                        </div>
-                                        <div className="flex gap-2">
-                                            <button
-                                                onClick={() => handleViewDocuments(approval)}
-                                                className="btn btn-outline-info btn-sm"
-                                                title="View Documents"
-                                            >
-                                                <IconEye className="h-4 w-4" />
-                                            </button>
+                {/* Approvals List */}
+                <div className="space-y-4">
+                    {filteredApprovals.map((approval) => (
+                        <div key={approval.id} className="panel">
+                            <div className="mb-4 flex items-start justify-between">
+                                <div className="flex-1">
+                                    <div className="mb-2 flex items-center gap-2">
+                                        <h5 className="text-lg font-semibold">{approval.approvalNumber}</h5>
+                                        <span className={`badge ${getTypeBadge(approval.type)}`}>
+                                            {approval.type}
+                                        </span>
+                                        <span className={`badge ${getPriorityBadge(approval.priority)}`}>
+                                            {approval.priority}
+                                        </span>
+                                        <span className={`badge ${getStatusBadge(approval.status)}`}>
+                                            {approval.status}
+                                        </span>
+                                    </div>
+                                    <p className="mb-3 text-lg font-medium">{approval.description}</p>
+                                    <p className="mb-3 text-sm text-white-dark">{approval.justification}</p>
+                                </div>
+                                <div className="flex flex-col items-end gap-2">
+                                    <div className="text-right">
+                                        <div className="text-2xl font-bold text-primary">${approval.amount.toLocaleString()}</div>
+                                        <div className="text-xs text-white-dark">Contract: {approval.contractPeriod}</div>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => handleViewDocuments(approval)}
+                                            className="btn btn-outline-info btn-sm"
+                                            title="View Documents"
+                                        >
+                                            <IconEye className="h-4 w-4" />
+                                        </button>
+                                        {approval.status === 'Pending Executive Approval' && (
                                             <button
                                                 onClick={() => handleSignOff(approval)}
                                                 className="btn btn-success btn-sm"
-                                                title="Sign Off"
+                                                title="Digital Sign-off"
                                             >
                                                 <IconPencil className="h-4 w-4" />
                                             </button>
-                                        </div>
-                                    </div>
-                                    <p className="mb-2 font-medium">{approval.description}</p>
-                                    <div className="mb-3 flex items-center justify-between">
-                                        <span className="text-lg font-bold text-primary">${approval.amount.toLocaleString()}</span>
-                                        <span className="text-sm text-white-dark">Due: {approval.dueDate}</span>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-4 text-xs text-white-dark">
-                                        <div>
-                                            <p><strong>Vendor:</strong> {approval.vendor}</p>
-                                            <p><strong>Requestor:</strong> {approval.requestor}</p>
-                                        </div>
-                                        <div>
-                                            <p><strong>Dept. Head:</strong> {approval.departmentHead}</p>
-                                            <p><strong>Budget Code:</strong> {approval.budgetCode}</p>
-                                        </div>
-                                    </div>
-                                    <div className="mt-2 flex items-center justify-between text-xs">
-                                        <span className="text-white-dark">Contract Period: {approval.contractPeriod}</span>
-                                        <span className="flex items-center gap-1 text-white-dark">
-                                            <IconFile className="h-3 w-3" />
-                                            {approval.documents} documents
-                                        </span>
+                                        )}
                                     </div>
                                 </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* Recent Executive Sign-offs */}
-                    <div className="panel">
-                        <div className="mb-5 flex items-center justify-between">
-                            <h5 className="text-lg font-semibold dark:text-white-light">Recent Executive Sign-offs</h5>
-                        </div>
-                        <PerfectScrollbar className="relative h-[400px] pr-3 -mr-3">
-                            <div className="space-y-4">
-                                {recentSignOffs.map((signOff) => (
-                                    <div key={signOff.id} className="flex items-start gap-3">
-                                        <div className={`flex h-8 w-8 items-center justify-center rounded-full ${
-                                            signOff.action === 'Approved' ? 'bg-success-light text-success' : 
-                                            signOff.action === 'Conditionally Approved' ? 'bg-warning-light text-warning' :
-                                            'bg-danger-light text-danger'
-                                        }`}>
-                                            {signOff.action === 'Approved' || signOff.action === 'Conditionally Approved' ? 
-                                                <IconThumbUp className="h-4 w-4" /> : <IconX className="h-4 w-4" />}
-                                        </div>
-                                        <div className="flex-1">
-                                            <div className="flex items-center gap-2">
-                                                <span className={`font-semibold ${
-                                                    signOff.action === 'Approved' ? 'text-success' : 
-                                                    signOff.action === 'Conditionally Approved' ? 'text-warning' :
-                                                    'text-danger'
-                                                }`}>
-                                                    {signOff.action}
-                                                </span>
-                                                <span className="flex items-center gap-1 text-xs text-white-dark">
-                                                    <IconLock className="h-3 w-3" />
-                                                    {signOff.processing}
-                                                </span>
-                                            </div>
-                                            <p className="text-sm font-medium">{signOff.description}</p>
-                                            <div className="flex items-center gap-2 text-xs text-white-dark">
-                                                <span>Vendor: {signOff.vendor}</span>
-                                                <span>Amount: ${signOff.amount.toLocaleString()}</span>
-                                            </div>
-                                            <div className="flex items-center justify-between">
-                                                <span className="text-xs text-white-dark">Signed: {signOff.signedDate}</span>
-                                            </div>
-                                            {signOff.condition && (
-                                                <p className="text-xs text-warning mt-1">Note: {signOff.condition}</p>
-                                            )}
-                                        </div>
-                                    </div>
-                                ))}
                             </div>
-                        </PerfectScrollbar>
-                    </div>
+                            
+                            <div className="grid grid-cols-2 gap-6 border-t border-[#e0e6ed] pt-4 dark:border-[#253b5c] lg:grid-cols-4">
+                                <div>
+                                    <span className="text-sm font-medium text-white-dark">Vendor</span>
+                                    <p className="font-semibold">{approval.vendor}</p>
+                                </div>
+                                <div>
+                                    <span className="text-sm font-medium text-white-dark">Requesting Department</span>
+                                    <p className="font-semibold">{approval.requestor}</p>
+                                </div>
+                                <div>
+                                    <span className="text-sm font-medium text-white-dark">Department Head</span>
+                                    <div className="flex items-center gap-1">
+                                        <IconCircleCheck className="h-4 w-4 text-success" />
+                                        <span className="font-semibold">{approval.departmentHead}</span>
+                                    </div>
+                                </div>
+                                <div>
+                                    <span className="text-sm font-medium text-white-dark">Due Date</span>
+                                    <p className="font-semibold">{approval.dueDate}</p>
+                                </div>
+                            </div>
+
+                            <div className="mt-4 flex items-center justify-between border-t border-[#e0e6ed] pt-4 dark:border-[#253b5c]">
+                                <div className="flex items-center gap-4 text-xs text-white-dark">
+                                    <span>Budget Code: {approval.budgetCode}</span>
+                                    <span>Submitted: {approval.submittedDate}</span>
+                                    <span className="flex items-center gap-1">
+                                        <IconFile className="h-3 w-3" />
+                                        {approval.documents} documents
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
                 </div>
+
+                {filteredApprovals.length === 0 && (
+                    <div className="panel">
+                        <div className="flex flex-col items-center justify-center py-12 text-center">
+                            <IconFile className="mb-4 h-16 w-16 text-white-dark" />
+                            <h3 className="mb-2 text-lg font-semibold">No approvals found</h3>
+                            <p className="text-white-dark">Try adjusting your filters or search terms</p>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Digital Sign-off Modal */}
             {signOffModal && selectedApproval && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black bg-opacity-75">
                     <div className="w-full max-w-3xl rounded-lg bg-white p-6 dark:bg-[#1b2e4b]">
                         <div className="mb-4 flex items-center justify-between">
                             <h4 className="text-lg font-semibold flex items-center gap-2">
@@ -632,13 +532,13 @@ const ExecutiveDirectorDashboard = () => {
                         </div>
                         
                         <div className="mb-6">
-                            <label className="mb-2 block text-sm font-medium">Digital Signature & Comments</label>
+                            <label className="mb-2 block text-sm font-medium">Executive Decision & Digital Signature</label>
                             <textarea
                                 value={digitalSignature}
                                 onChange={(e) => setDigitalSignature(e.target.value)}
                                 className="form-textarea resize-none"
                                 rows={4}
-                                placeholder="Enter your digital signature, comments, or conditions for this approval..."
+                                placeholder="Enter your decision rationale, comments, conditions, or digital signature..."
                             />
                         </div>
                         
@@ -650,6 +550,14 @@ const ExecutiveDirectorDashboard = () => {
                             >
                                 <IconChecks className="mr-2" />
                                 Approve & Sign
+                            </button>
+                            <button
+                                onClick={() => submitDigitalSignature('conditional')}
+                                className="btn btn-warning"
+                                disabled={!digitalSignature.trim()}
+                            >
+                                <IconClock className="mr-2" />
+                                Conditional Approval
                             </button>
                             <button
                                 onClick={() => submitDigitalSignature('reject')}
@@ -672,7 +580,6 @@ const ExecutiveDirectorDashboard = () => {
             )}
 
             {/* Document Viewer Modal */}
-            {console.log('Modal render check - documentModal:', documentModal, 'selectedDocument:', selectedDocument)}
             {documentModal && selectedDocument && (
                 <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black bg-opacity-75">
                     <div className="w-full max-w-4xl rounded-lg bg-white p-6 dark:bg-[#1b2e4b] max-h-[90vh] overflow-hidden flex flex-col">
@@ -741,7 +648,6 @@ const ExecutiveDirectorDashboard = () => {
                                             <button
                                                 onClick={() => {
                                                     console.log('Viewing document:', doc.name);
-                                                    // In a real app, this would open a document viewer/preview
                                                     alert(`Opening ${doc.name} for preview...`);
                                                 }}
                                                 className="btn btn-outline-success btn-sm"
@@ -780,4 +686,4 @@ const ExecutiveDirectorDashboard = () => {
     );
 };
 
-export default ExecutiveDirectorDashboard;
+export default ExecutiveApprovals;

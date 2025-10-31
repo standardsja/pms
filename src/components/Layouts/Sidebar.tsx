@@ -225,22 +225,23 @@ const Sidebar = () => {
                             </li>
 
                             <li className="nav-item">
-                                <NavLink to="/procurement/evaluation" className="group">
+                                <NavLink to="/procurement/department-head/evaluation-reviews" className="group">
                                     <div className="flex items-center">
                                         <IconClipboardText className="group-hover:!text-primary shrink-0" />
-                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Evaluation Reviews</span>
+                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Supplier Approvals</span>
                                     </div>
                                 </NavLink>
                             </li>
 
                             <li className="nav-item">
-                                <NavLink to="/procurement/suppliers" className="group">
+                                <NavLink to="/procurement/department-head/report-reviews" className="group">
                                     <div className="flex items-center">
-                                        <IconUsersGroup className="group-hover:!text-primary shrink-0" />
-                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Supplier Approvals</span>
+                                        <IconBarChart className="group-hover:!text-primary shrink-0" />
+                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Evaluation Report Reviews</span>
                                     </div>
                                 </NavLink>
                             </li>
+
                         </ul>
 
                             <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1 mt-6">
@@ -259,7 +260,7 @@ const Sidebar = () => {
                             </li>
 
                             <li className="nav-item">
-                                <NavLink to="/procurement/approvals" className="group">
+                                <NavLink to="/procurement/executive-director/digital-signoffs" className="group">
                                     <div className="flex items-center">
                                         <IconFile className="group-hover:!text-primary shrink-0" />
                                         <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Digital Sign-offs</span>
@@ -268,10 +269,19 @@ const Sidebar = () => {
                             </li>
 
                             <li className="nav-item">
-                                <NavLink to="/procurement/reports" className="group">
+                                <NavLink to="/procurement/executive-approvals" className="group">
+                                    <div className="flex items-center">
+                                        <IconChecks className="group-hover:!text-primary shrink-0" />
+                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Executive Approvals</span>
+                                    </div>
+                                </NavLink>
+                            </li>
+
+                            <li className="nav-item">
+                                <NavLink to="/procurement/executive-director/reports" className="group">
                                     <div className="flex items-center">
                                         <IconBarChart className="group-hover:!text-primary shrink-0" />
-                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Executive Reports</span>
+                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Strategic Reports</span>
                                     </div>
                                 </NavLink>
                             </li>

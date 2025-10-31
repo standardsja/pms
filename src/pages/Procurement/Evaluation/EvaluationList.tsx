@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { setPageTitle } from '../../../store/themeConfigSlice';
 import IconClipboardText from '../../../components/Icon/IconClipboardText';
@@ -34,6 +34,8 @@ const ProgressBar = ({ percentage, color }: { percentage: number; color: string 
 
 const EvaluationList = () => {
     const dispatch = useDispatch();
+    const navigate = useNavigate();
+    
     useEffect(() => {
         dispatch(setPageTitle('Quote Evaluations'));
     });
@@ -123,6 +125,19 @@ const EvaluationList = () => {
         setShowReportModal(false);
     };
 
+    const handleViewDetails = (evaluationId: number) => {
+        console.log('Navigating to evaluation details:', evaluationId);
+        alert(`Attempting to navigate to evaluation ${evaluationId}`);
+        try {
+            navigate(`/procurement/evaluation/${evaluationId}`);
+        } catch (error) {
+            console.error('Navigation error:', error);
+            alert('Navigation failed, trying fallback method');
+            // Fallback: use window.location if navigate fails
+            window.location.href = `/procurement/evaluation/${evaluationId}`;
+        }
+    };
+
     const getStatusBadge = (status: string) => {
         switch (status) {
             case 'Completed':
@@ -206,9 +221,12 @@ const EvaluationList = () => {
                             {evaluations.map((evaluation) => (
                                 <tr key={evaluation.id}>
                                     <td>
-                                        <Link to={`/procurement/evaluation/${evaluation.id}`} className="font-semibold text-primary hover:underline">
+                                        <button 
+                                            onClick={() => handleViewDetails(evaluation.id)}
+                                            className="font-semibold text-primary hover:underline bg-transparent border-0 p-0 cursor-pointer"
+                                        >
                                             {evaluation.evalNumber}
-                                        </Link>
+                                        </button>
                                     </td>
                                     <td>
                                         <Link to={`/procurement/rfq/${evaluation.rfqNumber}`} className="text-info hover:underline">
@@ -239,9 +257,13 @@ const EvaluationList = () => {
                                     </td>
                                     <td>
                                         <div className="flex gap-2">
-                                            <Link to={`/procurement/evaluation/${evaluation.id}`} className="btn btn-sm btn-outline-primary" title="View Details">
+                                            <button 
+                                                onClick={() => handleViewDetails(evaluation.id)}
+                                                className="btn btn-sm btn-outline-primary" 
+                                                title="View Details"
+                                            >
                                                 <IconEye className="h-4 w-4" />
-                                            </Link>
+                                            </button>
                                             {evaluation.status !== 'Pending' && (
                                                 <button onClick={() => handleGenerateReport(evaluation)} className="btn btn-sm btn-success" title="Generate Report">
                                                     <IconFile className="h-4 w-4" />
