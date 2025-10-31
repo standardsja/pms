@@ -710,8 +710,6 @@ pre.hljs {
 }
 
 /* Accent theme overrides: Purple as primary when body has .theme-purple */
-.theme-purple {
-}
 .theme-purple .btn-primary {
     @apply border-secondary bg-secondary text-white shadow-secondary/60;
 }

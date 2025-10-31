@@ -28,6 +28,7 @@ import IconBook from '../Icon/IconBook';
 import IconBarChart from '../Icon/IconBarChart';
 import IconCreditCard from '../Icon/IconCreditCard';
 import IconSettings from '../Icon/IconSettings';
+import IconInbox from '../Icon/IconInbox';
 
 const Sidebar = () => {
     const [currentMenu, setCurrentMenu] = useState<string>('');
@@ -215,6 +216,22 @@ const Sidebar = () => {
                                     </div>
                                 </NavLink>
                             </li>
+                            <li className="nav-item list-none">
+                                <NavLink to="/procurement/manager/rfqs-awaiting" className="group">
+                                    <div className="flex items-center">
+                                        <IconFile className="group-hover:!text-primary shrink-0 w-5 h-5" />
+                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">RFQs Awaiting Approval</span>
+                                    </div>
+                                </NavLink>
+                            </li>
+                            <li className="nav-item list-none">
+                                <NavLink to="/procurement/manager/evaluations-to-validate" className="group">
+                                    <div className="flex items-center">
+                                        <IconChecks className="group-hover:!text-primary shrink-0 w-5 h-5" />
+                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Evaluations to Validate</span>
+                                    </div>
+                                </NavLink>
+                            </li>
 
                             {/* Supplier */}
                             <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mt-4 mb-1">
@@ -240,6 +257,22 @@ const Sidebar = () => {
                                     <div className="flex items-center">
                                         <IconMenuDashboard className="group-hover:!text-primary shrink-0" />
                                         <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Finance Dashboard</span>
+                                    </div>
+                                </NavLink>
+                            </li>
+                            <li className="nav-item list-none">
+                                <NavLink to="/finance/awaiting-delivery" className="group">
+                                    <div className="flex items-center">
+                                        <IconInbox className="group-hover:!text-primary shrink-0 w-5 h-5" />
+                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Awaiting Delivery Confirmation</span>
+                                    </div>
+                                </NavLink>
+                            </li>
+                            <li className="nav-item list-none">
+                                <NavLink to="/finance/payments-to-process" className="group">
+                                    <div className="flex items-center">
+                                        <IconCreditCard className="group-hover:!text-primary shrink-0 w-5 h-5" />
+                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Payments to Process</span>
                                     </div>
                                 </NavLink>
                             </li>

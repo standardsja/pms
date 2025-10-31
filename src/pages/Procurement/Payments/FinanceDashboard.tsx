@@ -1,9 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { setPageTitle } from '../../../store/themeConfigSlice';
 import IconInbox from '../../../components/Icon/IconInbox';
 import IconCreditCard from '../../../components/Icon/IconCreditCard';
 import IconClock from '../../../components/Icon/IconClock';
+import { Link } from 'react-router-dom';
+import ReactApexChart from 'react-apexcharts';
+import type { ApexOptions } from 'apexcharts';
 
 interface PaymentItem {
     id: number;
@@ -31,61 +34,82 @@ const FinanceDashboard = () => {
         { id: 3, poNumber: 'PO-2025-016', supplier: 'Office Pro', amount: 4320, delivered: true, deliveredAt: '2025-10-29', confirmedBy: 'Stores', paid: true, paidAt: '2025-10-30', paymentMethod: 'EFT', paymentRef: 'TRX-883012' },
     ]);
 
-    const [showDeliverModal, setShowDeliverModal] = useState(false);
-    const [deliverWho, setDeliverWho] = useState('Stores');
-    const [deliverDate, setDeliverDate] = useState('');
-    const [activeDeliverId, setActiveDeliverId] = useState<number | null>(null);
-
-    const [showPayModal, setShowPayModal] = useState(false);
-    const [payMethod, setPayMethod] = useState('EFT');
-    const [payRef, setPayRef] = useState('');
-    const [payDate, setPayDate] = useState('');
-    const [activePayId, setActivePayId] = useState<number | null>(null);
-
-    const openDeliveryConfirm = (id: number) => {
-        setActiveDeliverId(id);
-        setDeliverDate('');
-        setDeliverWho('Stores');
-        setShowDeliverModal(true);
-    };
-
-    const confirmDelivery = () => {
-        if (!activeDeliverId) return;
-        const date = deliverDate || new Date().toISOString().slice(0, 10);
-        setItems((prev) =>
-            prev.map((it) =>
-                it.id === activeDeliverId
-                    ? { ...it, delivered: true, deliveredAt: date, confirmedBy: deliverWho }
-                    : it,
-            ),
-        );
-        setShowDeliverModal(false);
-    };
-
-    const openRecordPayment = (id: number) => {
-        setActivePayId(id);
-        setPayMethod('EFT');
-        setPayRef('');
-        setPayDate('');
-        setShowPayModal(true);
-    };
-
-    const recordPayment = () => {
-        if (!activePayId) return;
-        const date = payDate || new Date().toISOString().slice(0, 10);
-        setItems((prev) =>
-            prev.map((it) =>
-                it.id === activePayId
-                    ? { ...it, paid: true, paidAt: date, paymentMethod: payMethod, paymentRef: payRef }
-                    : it,
-            ),
-        );
-        setShowPayModal(false);
-    };
+    // Note: Delivery confirmation and payment recording moved to dedicated pages.
 
     const awaitingConfirmation = items.filter((i) => !i.delivered && !i.paid);
     const toProcessPayments = items.filter((i) => i.delivered && !i.paid);
     const paymentHistory = items.filter((i) => i.paid);
+
+    // Charts: compute series from items state
+    const { paymentsOptions, paymentsSeries, outstandingOptions, outstandingSeries, avgDaysOptions, avgDaysSeries } = useMemo(() => {
+        // Payments over last 7 days by paidAt
+        const days = (() => {
+            const labels: string[] = [];
+            for (let i = 6; i >= 0; i--) {
+                const d = new Date();
+                d.setDate(d.getDate() - i);
+                labels.push(d.toISOString().slice(0, 10)); // yyyy-mm-dd
+            }
+            return labels;
+        })();
+        const labelFmt = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+        const paidMap: Record<string, number> = Object.fromEntries(days.map((d) => [d, 0]));
+        for (const p of paymentHistory) {
+            if (p.paidAt && paidMap[p.paidAt] !== undefined) {
+                paidMap[p.paidAt] += p.amount;
+            }
+        }
+        const paymentsOptions: ApexOptions = {
+            chart: { type: 'area', toolbar: { show: false }, height: 260 },
+            dataLabels: { enabled: false },
+            stroke: { curve: 'smooth', width: 2 },
+            xaxis: { categories: days.map(labelFmt) },
+            colors: ['#00ab55'],
+            grid: { strokeDashArray: 4 },
+            tooltip: { y: { formatter: (val) => `$${Number(val).toLocaleString()}` } },
+        };
+        const paymentsSeries = [{ name: 'Paid Amount', data: days.map((d) => paidMap[d]) }];
+
+        // Outstanding by supplier (delivered & not paid)
+        const outstanding = items.filter((i) => i.delivered && !i.paid);
+        const outGrouped: Record<string, number> = {};
+        for (const it of outstanding) outGrouped[it.supplier] = (outGrouped[it.supplier] || 0) + it.amount;
+        const outLabels = Object.keys(outGrouped);
+        const outData = Object.values(outGrouped);
+        const outstandingOptions: ApexOptions = {
+            chart: { type: 'donut' },
+            labels: outLabels,
+            legend: { position: 'bottom' },
+            stroke: { show: false },
+            tooltip: { y: { formatter: (val) => `$${Number(val).toLocaleString()}` } },
+        };
+        const outstandingSeries = outData.length ? outData : [1];
+
+        // Average days to pay (paidAt - deliveredAt)
+        const paidWithDates = paymentHistory.filter((p) => p.paidAt && p.deliveredAt);
+        const daysToPay = paidWithDates.map((p) => {
+            const d1 = new Date(p.deliveredAt as string).getTime();
+            const d2 = new Date(p.paidAt as string).getTime();
+            const diff = Math.round((d2 - d1) / (1000 * 60 * 60 * 24));
+            return Math.max(diff, 0);
+        });
+        const avgDays = daysToPay.length ? Math.round(daysToPay.reduce((a, b) => a + b, 0) / daysToPay.length) : 0;
+        const avgDaysOptions: ApexOptions = {
+            chart: { type: 'radialBar' },
+            plotOptions: {
+                radialBar: {
+                    hollow: { size: '55%' },
+                    track: { background: 'rgba(226,160,63,0.15)' },
+                    dataLabels: { name: { show: true, offsetY: 10 }, value: { fontSize: '22px' } },
+                },
+            },
+            labels: ['Avg Days to Pay'],
+            colors: ['#e2a03f'],
+        };
+        const avgDaysSeries = [avgDays];
+
+        return { paymentsOptions, paymentsSeries, outstandingOptions, outstandingSeries, avgDaysOptions, avgDaysSeries };
+    }, [items, paymentHistory]);
 
     return (
         <div>
@@ -95,84 +119,40 @@ const FinanceDashboard = () => {
             </div>
 
             <div className="grid gap-6 lg:grid-cols-3">
-                {/* Awaiting Delivery Confirmation */}
-                <div className="panel lg:col-span-1">
-                    <div className="mb-5 flex items-center justify-between">
-                        <h5 className="text-lg font-semibold">
-                            <span className="inline-flex h-8 w-8 items-center justify-center rounded bg-info/10 text-info mr-2"><IconInbox className="h-4 w-4"/></span>
-                            Awaiting Delivery Confirmation
-                        </h5>
+                {/* Summary tiles */}
+                <div className="panel lg:col-span-1 flex items-center justify-between">
+                    <div>
+                        <div className="text-sm text-white-dark">Awaiting Delivery Confirmation</div>
+                        <div className="text-3xl font-bold text-primary">{awaitingConfirmation.length}</div>
                     </div>
-                    {awaitingConfirmation.length === 0 ? (
-                        <div className="text-sm text-white-dark">No items awaiting confirmation.</div>
-                    ) : (
-                        <div className="table-responsive">
-                            <table className="table-hover">
-                                <thead>
-                                    <tr>
-                                        <th>PO #</th>
-                                        <th>Supplier</th>
-                                        <th>Amount</th>
-                                        <th>Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {awaitingConfirmation.map((i) => (
-                                        <tr key={i.id}>
-                                            <td>{i.poNumber}</td>
-                                            <td>{i.supplier}</td>
-                                            <td className="font-semibold text-primary">${i.amount.toLocaleString()}</td>
-                                            <td>
-                                                <button className="btn btn-sm btn-info" onClick={() => openDeliveryConfirm(i.id)}>Mark Delivered</button>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
+                    <Link to="/finance/awaiting-delivery" className="btn btn-info btn-sm">Open Page</Link>
                 </div>
-
-                {/* Payments to Process */}
-                <div className="panel lg:col-span-2">
-                    <div className="mb-5 flex items-center justify-between">
-                        <h5 className="text-lg font-semibold">
-                            <span className="inline-flex h-8 w-8 items-center justify-center rounded bg-success/10 text-success mr-2"><IconCreditCard className="h-4 w-4"/></span>
-                            Payments to Process
-                        </h5>
+                <div className="panel lg:col-span-1 flex items-center justify-between">
+                    <div>
+                        <div className="text-sm text-white-dark">Payments to Process</div>
+                        <div className="text-3xl font-bold text-primary">{toProcessPayments.length}</div>
                     </div>
-                    {toProcessPayments.length === 0 ? (
-                        <div className="text-sm text-white-dark">No payments pending processing.</div>
-                    ) : (
-                        <div className="table-responsive">
-                            <table className="table-hover">
-                                <thead>
-                                    <tr>
-                                        <th>PO #</th>
-                                        <th>Supplier</th>
-                                        <th>Amount</th>
-                                        <th>Delivered</th>
-                                        <th>Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {toProcessPayments.map((i) => (
-                                        <tr key={i.id}>
-                                            <td>{i.poNumber}</td>
-                                            <td>{i.supplier}</td>
-                                            <td className="font-semibold text-primary">${i.amount.toLocaleString()}</td>
-                                            <td>
-                                                <span className="badge bg-success">{i.deliveredAt || 'Yes'}</span>
-                                            </td>
-                                            <td>
-                                                <button className="btn btn-sm btn-success" onClick={() => openRecordPayment(i.id)}>Record Payment</button>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
+                    <Link to="/finance/payments-to-process" className="btn btn-success btn-sm">Open Page</Link>
+                </div>
+                <div className="panel lg:col-span-1">
+                    <div className="text-sm text-white-dark mb-1">Total Paid</div>
+                    <div className="text-3xl font-bold text-primary">${paymentHistory.reduce((a, b) => a + b.amount, 0).toLocaleString()}</div>
+                </div>
+            </div>
+
+            {/* Finance insights */}
+            <div className="grid gap-6 grid-cols-1 xl:grid-cols-3 mt-6">
+                <div className="panel">
+                    <div className="mb-4 font-semibold">Payments (Last 7 Days)</div>
+                    <ReactApexChart options={paymentsOptions} series={paymentsSeries} type="area" height={260} />
+                </div>
+                <div className="panel">
+                    <div className="mb-4 font-semibold">Outstanding by Supplier</div>
+                    <ReactApexChart options={outstandingOptions} series={outstandingSeries} type="donut" height={260} />
+                </div>
+                <div className="panel">
+                    <div className="mb-4 font-semibold">Average Days to Pay</div>
+                    <ReactApexChart options={avgDaysOptions} series={avgDaysSeries} type="radialBar" height={260} />
                 </div>
             </div>
 
@@ -212,65 +192,7 @@ const FinanceDashboard = () => {
                 </div>
             </div>
 
-            {/* Confirm Delivery Modal */}
-            {showDeliverModal && (
-                <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/60">
-                    <div className="panel w-full max-w-xl">
-                        <div className="mb-5 flex items-center justify-between">
-                            <h5 className="text-xl font-semibold">Confirm Delivery</h5>
-                            <button onClick={() => setShowDeliverModal(false)} className="text-white-dark hover:text-dark">×</button>
-                        </div>
-                        <div className="grid gap-4 sm:grid-cols-2">
-                            <div>
-                                <label className="block text-sm font-semibold mb-2">Confirmed By</label>
-                                <input type="text" className="form-input" value={deliverWho} onChange={(e) => setDeliverWho(e.target.value)} />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-semibold mb-2">Delivery Date</label>
-                                <input type="date" className="form-input" value={deliverDate} onChange={(e) => setDeliverDate(e.target.value)} />
-                            </div>
-                        </div>
-                        <div className="mt-6 flex items-center justify-end gap-3">
-                            <button onClick={() => setShowDeliverModal(false)} className="btn btn-outline-danger">Cancel</button>
-                            <button onClick={confirmDelivery} className="btn btn-info">Mark Delivered</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Record Payment Modal */}
-            {showPayModal && (
-                <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/60">
-                    <div className="panel w-full max-w-xl">
-                        <div className="mb-5 flex items-center justify-between">
-                            <h5 className="text-xl font-semibold">Record Payment</h5>
-                            <button onClick={() => setShowPayModal(false)} className="text-white-dark hover:text-dark">×</button>
-                        </div>
-                        <div className="grid gap-4 sm:grid-cols-2">
-                            <div>
-                                <label className="block text-sm font-semibold mb-2">Method</label>
-                                <select className="form-select" value={payMethod} onChange={(e) => setPayMethod(e.target.value)}>
-                                    <option value="EFT">EFT</option>
-                                    <option value="Cheque">Cheque</option>
-                                    <option value="Card">Card</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-semibold mb-2">Reference</label>
-                                <input className="form-input" value={payRef} onChange={(e) => setPayRef(e.target.value)} placeholder="e.g. TRX-12345" />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-semibold mb-2">Payment Date</label>
-                                <input type="date" className="form-input" value={payDate} onChange={(e) => setPayDate(e.target.value)} />
-                            </div>
-                        </div>
-                        <div className="mt-6 flex items-center justify-end gap-3">
-                            <button onClick={() => setShowPayModal(false)} className="btn btn-outline-danger">Cancel</button>
-                            <button onClick={recordPayment} className="btn btn-success">Record Payment</button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            {/* Modals moved to dedicated pages */}
         </div>
     );
 };

@@ -13,6 +13,8 @@ const Onboarding = lazy(() => import('../pages/Auth/Onboarding'));
 // Procurement Pages
 const ProcurementDashboard = lazy(() => import('../pages/Procurement/Dashboard'));
 const ProcurementManagerDashboard = lazy(() => import('../pages/Procurement/Manager/ProcurementManagerDashboard'));
+const RFQsAwaitingApproval = lazy(() => import('../pages/Procurement/Manager/RFQsAwaitingApproval'));
+const EvaluationsToValidate = lazy(() => import('../pages/Procurement/Manager/EvaluationsToValidate'));
 const RFQList = lazy(() => import('../pages/Procurement/RFQ/RFQList'));
 const NewRFQ = lazy(() => import('../pages/Procurement/RFQ/NewRFQ'));
 const RFQDetail = lazy(() => import('../pages/Procurement/RFQ/RFQDetail'));
@@ -42,6 +44,8 @@ const NewReport = lazy(() => import('../pages/Procurement/Reports/NewReport'));
 const PaymentsList = lazy(() => import('../pages/Procurement/Payments/PaymentsList'));
 const PaymentDetail = lazy(() => import('../pages/Procurement/Payments/PaymentDetail'));
 const FinanceDashboard = lazy(() => import('../pages/Procurement/Payments/FinanceDashboard'));
+const AwaitingDelivery = lazy(() => import('../pages/Procurement/Payments/AwaitingDelivery'));
+const PaymentsToProcess = lazy(() => import('../pages/Procurement/Payments/PaymentsToProcess'));
 const AdminSettings = lazy(() => import('../pages/Procurement/Admin/AdminSettings'));
 
 // Existing Pages
@@ -89,6 +93,14 @@ const routes = [
     {
         path: '/procurement/manager',
         element: <ProcurementManagerDashboard />,
+    },
+    {
+        path: '/procurement/manager/rfqs-awaiting',
+        element: <RFQsAwaitingApproval />,
+    },
+    {
+        path: '/procurement/manager/evaluations-to-validate',
+        element: <EvaluationsToValidate />,
     },
     {
         path: '/procurement/rfq/list',
@@ -201,6 +213,14 @@ const routes = [
     {
         path: '/finance',
         element: <FinanceDashboard />,
+    },
+    {
+        path: '/finance/awaiting-delivery',
+        element: <AwaitingDelivery />,
+    },
+    {
+        path: '/finance/payments-to-process',
+        element: <PaymentsToProcess />,
     },
     {
         path: '/procurement/payments/:id',

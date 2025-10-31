@@ -5,6 +5,8 @@ import { Link } from 'react-router-dom';
 import IconChecks from '../../../components/Icon/IconChecks';
 import IconFile from '../../../components/Icon/IconFile';
 import IconEye from '../../../components/Icon/IconEye';
+import ReactApexChart from 'react-apexcharts';
+import type { ApexOptions } from 'apexcharts';
 
 type RFQ = {
 	id: string;
@@ -87,11 +89,116 @@ const ProcurementManagerDashboard = () => {
 	const pendingRFQs = rfqs.filter((r) => r.status === 'Pending Approval');
 	const pendingEvals = evaluations.filter((e) => e.status === 'Pending Validation');
 
+	// Charts data
+	const lastNDays = (n: number) => {
+		const days: string[] = [];
+		for (let i = n - 1; i >= 0; i--) {
+			const d = new Date();
+			d.setDate(d.getDate() - i);
+			days.push(d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }));
+		}
+		return days;
+	};
+
+	const { trendOptions, trendSeries, spendOptions, spendSeries, scoreOptions, scoreSeries } = useMemo(() => {
+		// Build 7-day trend for RFQs submitted vs approved
+		const labels = lastNDays(7);
+		const labelToDateKey = (label: string) => {
+			// approximate key by removing comma and spaces for matching with rfq.date
+			return label;
+		};
+		const mapDate = (dStr: string) => new Date(dStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+		const submissions = labels.map((lbl) => rfqs.filter((r) => mapDate(r.date) === labelToDateKey(lbl)).length);
+		const approvals = labels.map((lbl) => rfqs.filter((r) => r.status === 'Approved' && mapDate(r.date) === labelToDateKey(lbl)).length);
+
+		const trendOptions: ApexOptions = {
+			chart: { type: 'area', toolbar: { show: false }, height: 260 },
+			stroke: { curve: 'smooth', width: 2 },
+			dataLabels: { enabled: false },
+			xaxis: { categories: labels },
+			colors: ['#4361ee', '#00ab55'],
+			legend: { position: 'top' },
+			grid: { strokeDashArray: 4 },
+		};
+		const trendSeries = [
+			{ name: 'RFQs Submitted', data: submissions },
+			{ name: 'RFQs Approved', data: approvals },
+		];
+
+		// Spend by requester (pending RFQs)
+		const grouped: Record<string, number> = {};
+		for (const r of pendingRFQs) grouped[r.requester] = (grouped[r.requester] || 0) + r.amount;
+		const spendLabels = Object.keys(grouped);
+		const spendData = Object.values(grouped);
+		const spendOptions: ApexOptions = {
+			chart: { type: 'donut' },
+			labels: spendLabels,
+			legend: { position: 'bottom' },
+			stroke: { show: false },
+		};
+		const spendSeries = spendData.length ? spendData : [1];
+
+		// Average pending evaluation score
+		const avg = pendingEvals.length ? Math.round(pendingEvals.reduce((a, b) => a + b.score, 0) / pendingEvals.length) : 0;
+		const scoreOptions: ApexOptions = {
+			chart: { type: 'radialBar' },
+			plotOptions: {
+				radialBar: {
+					hollow: { size: '55%' },
+					track: { background: 'rgba(67,97,238,0.15)' },
+					dataLabels: { name: { show: true, offsetY: 10, color: 'inherit' }, value: { fontSize: '22px' } },
+				},
+			},
+			labels: ['Avg Score'],
+			colors: ['#805dca'],
+		};
+		const scoreSeries = [avg];
+
+		return { trendOptions, trendSeries, spendOptions, spendSeries, scoreOptions, scoreSeries };
+	}, [rfqs, pendingRFQs, pendingEvals]);
+
 	return (
 		<div className="space-y-6">
 			{/* Header */}
 			<div className="flex items-center justify-between">
 				<h1 className="text-2xl font-bold">Manager Overview</h1>
+			</div>
+
+			{/* Summary cards */
+			}
+			<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+				<div className="panel flex items-center justify-between">
+					<div>
+						<div className="text-sm text-white-dark">RFQs awaiting approval</div>
+						<div className="text-3xl font-bold text-primary">{pendingRFQs.length}</div>
+					</div>
+					<Link to="/procurement/manager/rfqs-awaiting" className="btn btn-primary btn-sm">Open Page</Link>
+				</div>
+				<div className="panel flex items-center justify-between">
+					<div>
+						<div className="text-sm text-white-dark">Evaluations to validate</div>
+						<div className="text-3xl font-bold text-primary">{pendingEvals.length}</div>
+					</div>
+					<Link to="/procurement/manager/evaluations-to-validate" className="btn btn-primary btn-sm">Open Page</Link>
+				</div>
+			</div>
+
+			{/* Insights */}
+			<div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+				<div className="panel">
+					<div className="mb-4 flex items-center justify-between">
+						<div className="font-semibold">RFQs Submitted vs Approved (7 days)</div>
+					</div>
+					<ReactApexChart options={trendOptions} series={trendSeries} type="area" height={260} />
+				</div>
+				<div className="panel">
+					<div className="mb-4 font-semibold">Pending RFQ Spend by Requester</div>
+					<ReactApexChart options={spendOptions} series={spendSeries} type="donut" height={260} />
+				</div>
+				<div className="panel">
+					<div className="mb-4 font-semibold">Average Pending Evaluation Score</div>
+					<ReactApexChart options={scoreOptions} series={scoreSeries} type="radialBar" height={260} />
+				</div>
 			</div>
 
 			<div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
@@ -102,7 +209,7 @@ const ProcurementManagerDashboard = () => {
 							<IconFile className="w-5 h-5 text-primary" />
 							<h2 className="text-lg font-semibold">RFQs awaiting approval</h2>
 						</div>
-						<Link to="/procurement/rfq/list" className="text-primary text-sm font-semibold hover:text-primary-dark">
+						<Link to="/procurement/manager/rfqs-awaiting" className="text-primary text-sm font-semibold hover:text-primary-dark">
 							View all
 						</Link>
 					</div>
@@ -161,7 +268,7 @@ const ProcurementManagerDashboard = () => {
 							<IconChecks className="w-5 h-5 text-primary" />
 							<h2 className="text-lg font-semibold">Evaluation reports to validate</h2>
 						</div>
-						<Link to="/procurement/evaluation" className="text-primary text-sm font-semibold hover:text-primary-dark">
+						<Link to="/procurement/manager/evaluations-to-validate" className="text-primary text-sm font-semibold hover:text-primary-dark">
 							View all
 						</Link>
 					</div>
