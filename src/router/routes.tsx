@@ -6,7 +6,6 @@ const Error = lazy(() => import('../components/Error'));
 
 // Auth Pages
 const Login = lazy(() => import('../pages/Auth/Login'));
-const Register = lazy(() => import('../pages/Auth/Register'));
 const ForgotPassword = lazy(() => import('../pages/Auth/ForgotPassword'));
 const ResetPassword = lazy(() => import('../pages/Auth/ResetPassword'));
 const Onboarding = lazy(() => import('../pages/Auth/Onboarding'));
@@ -58,11 +57,6 @@ const routes = [
     {
         path: '/auth/login',
         element: <Login />,
-        layout: 'blank',
-    },
-    {
-        path: '/auth/register',
-        element: <Register />,
         layout: 'blank',
     },
     {

@@ -256,7 +256,7 @@ const Header = () => {
                         </div>
                         <div className="shrink-0">
                             <div className="flex items-center p-2 rounded-full bg-white-light/40 dark:bg-dark/40">
-                                <img className="w-5 h-5 object-cover rounded-full" src={`/assets/images/flags/EN.svg`} alt="English" />
+                                <img className="w-5 h-5 object-cover rounded-full" src={`/assets/images/flags/JM.svg`} alt="Jamaica" />
                                 <span className="ltr:ml-2 rtl:mr-2 text-sm font-semibold">EN</span>
                             </div>
                         </div>

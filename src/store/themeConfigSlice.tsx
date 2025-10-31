@@ -45,6 +45,7 @@ const initialState = {
     isDarkMode: false,
     sidebar: localStorage.getItem('sidebar') || defaultState.sidebar,
     semidark: localStorage.getItem('semidark') || themeConfig.semidark,
+    accent: localStorage.getItem('accent') || 'blue',
     languageList: [
         { code: 'zh', name: 'Chinese' },
         { code: 'da', name: 'Danish' },
@@ -136,9 +137,23 @@ const themeConfigSlice = createSlice({
         setPageTitle(state, { payload }) {
             document.title = `${payload} | VRISTO - Multipurpose Tailwind Dashboard Template`;
         },
+
+        toggleAccent(state, { payload }) {
+            // payload: 'blue' | 'purple'
+            const accent = payload || state.accent || 'blue';
+            localStorage.setItem('accent', accent);
+            state.accent = accent;
+            const body = document.querySelector('body');
+            if (!body) return;
+            if (accent === 'purple') {
+                body.classList.add('theme-purple');
+            } else {
+                body.classList.remove('theme-purple');
+            }
+        },
     },
 });
 
-export const { toggleTheme, toggleMenu, toggleLayout, toggleRTL, toggleAnimation, toggleNavbar, toggleSemidark, toggleLocale, toggleSidebar, setPageTitle } = themeConfigSlice.actions;
+export const { toggleTheme, toggleMenu, toggleLayout, toggleRTL, toggleAnimation, toggleNavbar, toggleSemidark, toggleLocale, toggleSidebar, setPageTitle, toggleAccent } = themeConfigSlice.actions;
 
 export default themeConfigSlice.reducer;

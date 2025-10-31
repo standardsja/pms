@@ -708,3 +708,51 @@ hover:text-primary hover:before:!bg-primary ltr:before:mr-2 rtl:before:ml-2 dark
 pre.hljs {
     @apply p-6 rounded-md overflow-x-auto !bg-[#191e3a];
 }
+
+/* Accent theme overrides: Purple as primary when body has .theme-purple */
+.theme-purple {
+}
+.theme-purple .btn-primary {
+    @apply border-secondary bg-secondary text-white shadow-secondary/60;
+}
+.theme-purple .btn-outline-primary {
+    @apply border-secondary text-secondary shadow-none hover:bg-secondary hover:text-white;
+}
+.theme-purple .badge-outline-primary {
+    @apply border-secondary text-secondary hover:bg-secondary-light dark:hover:bg-secondary dark:hover:text-white-light;
+}
+
+/* Map primary utility usages to secondary when purple theme is active */
+.theme-purple .text-primary {
+    @apply text-secondary;
+}
+.theme-purple .hover\:text-primary:hover {
+    @apply text-secondary;
+}
+.theme-purple .bg-primary {
+    @apply bg-secondary;
+}
+.theme-purple .hover\:bg-primary:hover {
+    @apply bg-secondary;
+}
+.theme-purple .bg-primary-light {
+    @apply bg-secondary-light;
+}
+.theme-purple .border-primary {
+    @apply border-secondary;
+}
+.theme-purple .focus\:border-primary:focus {
+    @apply border-secondary;
+}
+.theme-purple .ring-primary\/30 {
+    /* Override ring color to secondary alpha 30% */
+    --tw-ring-color: rgb(128 93 202 / 0.3);
+}
+
+/* Form focus overrides to match accent */
+.theme-purple .form-input:focus,
+.theme-purple .form-textarea:focus,
+.theme-purple .form-select:focus,
+.theme-purple .form-multiselect:focus {
+    @apply border-secondary;
+}
