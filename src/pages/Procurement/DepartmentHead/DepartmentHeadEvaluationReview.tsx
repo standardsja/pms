@@ -12,6 +12,7 @@ import IconClock from '../../../components/Icon/IconClock';
 import IconUser from '../../../components/Icon/IconUser';
 import IconCircleCheck from '../../../components/Icon/IconCircleCheck';
 import IconThumbUp from '../../../components/Icon/IconThumbUp';
+import ProgressBar from '../../../components/ProgressBar';
 
 const DepartmentHeadEvaluationReview = () => {
     const dispatch = useDispatch();
@@ -184,8 +185,7 @@ const DepartmentHeadEvaluationReview = () => {
             return;
         }
 
-        console.log(`Department Head ${decision}:`, selectedEvaluation, 'Comments:', reviewComments);
-        
+        // Process the review decision
         let message = '';
         switch (decision) {
             case 'approve':
@@ -199,6 +199,7 @@ const DepartmentHeadEvaluationReview = () => {
                 break;
         }
         
+        // Show success message (in production, this would be a toast notification)
         alert(message);
         setReviewModal(false);
         setSelectedEvaluation(null);
@@ -391,36 +392,28 @@ const DepartmentHeadEvaluationReview = () => {
                                     <span className="text-sm font-medium text-white-dark">Price Score</span>
                                     <div className="flex items-center gap-2">
                                         <div className="text-lg font-bold">{evaluation.evaluationCriteria.price}</div>
-                                        <div className="h-2 w-16 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
-                                            <div className="h-full bg-primary" style={{ width: `${evaluation.evaluationCriteria.price}%` }}></div>
-                                        </div>
+                                        <ProgressBar percentage={evaluation.evaluationCriteria.price} color="primary" />
                                     </div>
                                 </div>
                                 <div>
                                     <span className="text-sm font-medium text-white-dark">Quality Score</span>
                                     <div className="flex items-center gap-2">
                                         <div className="text-lg font-bold">{evaluation.evaluationCriteria.quality}</div>
-                                        <div className="h-2 w-16 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
-                                            <div className="h-full bg-success" style={{ width: `${evaluation.evaluationCriteria.quality}%` }}></div>
-                                        </div>
+                                        <ProgressBar percentage={evaluation.evaluationCriteria.quality} color="success" />
                                     </div>
                                 </div>
                                 <div>
                                     <span className="text-sm font-medium text-white-dark">Delivery Score</span>
                                     <div className="flex items-center gap-2">
                                         <div className="text-lg font-bold">{evaluation.evaluationCriteria.delivery}</div>
-                                        <div className="h-2 w-16 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
-                                            <div className="h-full bg-warning" style={{ width: `${evaluation.evaluationCriteria.delivery}%` }}></div>
-                                        </div>
+                                        <ProgressBar percentage={evaluation.evaluationCriteria.delivery} color="warning" />
                                     </div>
                                 </div>
                                 <div>
                                     <span className="text-sm font-medium text-white-dark">Service Score</span>
                                     <div className="flex items-center gap-2">
                                         <div className="text-lg font-bold">{evaluation.evaluationCriteria.service}</div>
-                                        <div className="h-2 w-16 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
-                                            <div className="h-full bg-info" style={{ width: `${evaluation.evaluationCriteria.service}%` }}></div>
-                                        </div>
+                                        <ProgressBar percentage={evaluation.evaluationCriteria.service} color="info" />
                                     </div>
                                 </div>
                             </div>

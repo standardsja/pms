@@ -120,19 +120,16 @@ const EvaluationList = () => {
     };
 
     const downloadReport = (format: string) => {
-        console.log(`Downloading ${format} report for ${selectedEvaluation?.evalNumber}`);
+        // Handle report download (in production, this would generate and download the actual file)
         // Implement download logic
         setShowReportModal(false);
     };
 
     const handleViewDetails = (evaluationId: number) => {
-        console.log('Navigating to evaluation details:', evaluationId);
-        alert(`Attempting to navigate to evaluation ${evaluationId}`);
         try {
             navigate(`/procurement/evaluation/${evaluationId}`);
         } catch (error) {
-            console.error('Navigation error:', error);
-            alert('Navigation failed, trying fallback method');
+            // Handle navigation error gracefully
             // Fallback: use window.location if navigate fails
             window.location.href = `/procurement/evaluation/${evaluationId}`;
         }

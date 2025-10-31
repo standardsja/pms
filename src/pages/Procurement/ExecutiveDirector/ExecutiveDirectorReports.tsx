@@ -225,8 +225,7 @@ const ExecutiveDirectorReports = () => {
             return;
         }
 
-        console.log(`Executive Director ${decision}:`, selectedReport, 'Comments:', executiveComments);
-        
+        // Process the executive review decision
         let message = '';
         switch (decision) {
             case 'approve':
@@ -240,6 +239,7 @@ const ExecutiveDirectorReports = () => {
                 break;
         }
         
+        // Show success message (in production, this would be a toast notification)
         alert(message);
         setReviewModal(false);
         setSelectedReport(null);

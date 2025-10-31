@@ -191,8 +191,7 @@ const DepartmentHeadReportReview = () => {
             return;
         }
 
-        console.log(`Department Head ${decision}:`, selectedReport, 'Comments:', reviewComments);
-        
+        // Process the review decision
         let message = '';
         switch (decision) {
             case 'approve':
@@ -206,6 +205,7 @@ const DepartmentHeadReportReview = () => {
                 break;
         }
         
+        // Show success message (in production, this would be a toast notification)
         alert(message);
         setReviewModal(false);
         setSelectedReport(null);

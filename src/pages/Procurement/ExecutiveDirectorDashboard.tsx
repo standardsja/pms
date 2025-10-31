@@ -315,10 +315,7 @@ const ExecutiveDirectorDashboard = () => {
     };
 
     const handleViewDocuments = (approval: any) => {
-        console.log('handleViewDocuments called with:', approval);
-        alert('View Documents button clicked!');
-        console.log('Setting selectedDocument:', approval);
-        console.log('Setting documentModal to true');
+        // Handle view documents action
         setSelectedDocument(approval);
         setDocumentModal(true);
     };
@@ -329,7 +326,7 @@ const ExecutiveDirectorDashboard = () => {
             return;
         }
         
-        console.log(`${action} approval:`, selectedApproval, 'Signature:', digitalSignature);
+        // Process approval action
         // Implement digital signature logic
         setSignOffModal(false);
         setSelectedApproval(null);
@@ -337,7 +334,6 @@ const ExecutiveDirectorDashboard = () => {
     };
 
     const downloadDocument = (document: any) => {
-        console.log('Downloading document:', document.name);
         // Implement document download logic
         // In a real app, this would trigger a file download
         alert(`Downloading ${document.name}...`);
@@ -672,7 +668,7 @@ const ExecutiveDirectorDashboard = () => {
             )}
 
             {/* Document Viewer Modal */}
-            {console.log('Modal render check - documentModal:', documentModal, 'selectedDocument:', selectedDocument)}
+
             {documentModal && selectedDocument && (
                 <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black bg-opacity-75">
                     <div className="w-full max-w-4xl rounded-lg bg-white p-6 dark:bg-[#1b2e4b] max-h-[90vh] overflow-hidden flex flex-col">
@@ -740,8 +736,7 @@ const ExecutiveDirectorDashboard = () => {
                                             </button>
                                             <button
                                                 onClick={() => {
-                                                    console.log('Viewing document:', doc.name);
-                                                    // In a real app, this would open a document viewer/preview
+                                                    // In a real app, this would open a document viewer
                                                     alert(`Opening ${doc.name} for preview...`);
                                                 }}
                                                 className="btn btn-outline-success btn-sm"
@@ -758,7 +753,7 @@ const ExecutiveDirectorDashboard = () => {
                         <div className="mt-4 flex justify-end gap-2 border-t border-[#e0e6ed] pt-4 dark:border-[#253b5c]">
                             <button
                                 onClick={() => {
-                                    console.log('Downloading all documents for:', selectedDocument.approvalNumber);
+                                    // In production, this would create a ZIP package of all documents
                                     alert(`Preparing download package for all ${selectedDocument.documents} documents...`);
                                 }}
                                 className="btn btn-primary"

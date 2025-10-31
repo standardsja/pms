@@ -228,8 +228,7 @@ const ExecutiveDigitalSignoffs = () => {
             return;
         }
 
-        console.log(`Executive Director ${action}:`, selectedItem, 'Signature:', digitalSignature, 'Comments:', signoffComments);
-        
+        // Process the digital signature action
         let message = '';
         switch (action) {
             case 'approve':
@@ -240,6 +239,7 @@ const ExecutiveDigitalSignoffs = () => {
                 break;
         }
         
+        // Show success message (in production, this would be a toast notification)
         alert(message);
         setSignoffModal(false);
         setSelectedItem(null);
