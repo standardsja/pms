@@ -48,6 +48,11 @@ const AwaitingDelivery = lazy(() => import('../pages/Procurement/Payments/Awaiti
 const PaymentsToProcess = lazy(() => import('../pages/Procurement/Payments/PaymentsToProcess'));
 const AdminSettings = lazy(() => import('../pages/Procurement/Admin/AdminSettings'));
 
+// Request Pages
+const Requests = lazy(() => import('../pages/Apps/Requests'));
+const RequestForm = lazy(() => import('../pages/Apps/RequestForm'));
+const FinanceRequests = lazy(() => import('../pages/Finance/Requests'));
+
 // User Pages
 const Profile = lazy(() => import('../pages/Users/Profile'));
 const AccountSetting = lazy(() => import('../pages/Users/AccountSetting'));
@@ -220,6 +225,10 @@ const routes = [
         element: <FinanceDashboard />,
     },
     {
+        path: '/finance/requests',
+        element: <FinanceRequests />,
+    },
+    {
         path: '/finance/awaiting-delivery',
         element: <AwaitingDelivery />,
     },
@@ -230,6 +239,20 @@ const routes = [
     {
         path: '/procurement/payments/:id',
         element: <PaymentDetail />,
+    },
+    
+    // Request Routes
+    {
+        path: '/apps/requests',
+        element: <Requests />,
+    },
+    {
+        path: '/apps/requests/mine',
+        element: <Requests />,
+    },
+    {
+        path: '/apps/requests/new',
+        element: <RequestForm />,
     },
     {
         path: '/procurement/admin',

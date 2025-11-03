@@ -105,6 +105,15 @@ const Sidebar = () => {
                             </li>
 
                             <li className="nav-item">
+                                <NavLink to="/apps/requests" className="group">
+                                    <div className="flex items-center">
+                                        <IconFile className="group-hover:!text-primary shrink-0" />
+                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Requests</span>
+                                    </div>
+                                </NavLink>
+                            </li>
+
+                            <li className="nav-item">
                                 <NavLink to="/procurement/rfq/list" className="group">
                                     <div className="flex items-center">
                                         <IconEdit className="group-hover:!text-primary shrink-0" />
@@ -257,6 +266,14 @@ const Sidebar = () => {
                                     <div className="flex items-center">
                                         <IconMenuDashboard className="group-hover:!text-primary shrink-0" />
                                         <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Finance Dashboard</span>
+                                    </div>
+                                </NavLink>
+                            </li>
+                            <li className="nav-item list-none">
+                                <NavLink to="/finance/requests" className="group">
+                                    <div className="flex items-center">
+                                        <IconMenuInvoice className="group-hover:!text-primary shrink-0 w-5 h-5" />
+                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Finance Requests</span>
                                     </div>
                                 </NavLink>
                             </li>
