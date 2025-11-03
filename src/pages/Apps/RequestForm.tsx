@@ -661,11 +661,6 @@ const RequestForm = () => {
                                 />
                             </div>
                         </div>
-
-                        <div className="text-xs text-gray-600 dark:text-gray-400">
-                            <p>Revision Date: Aug 01, 2025</p>
-                            <p>Revision No: 2</p>
-                        </div>
                     </div>
 
                     {/* Attachments */}
