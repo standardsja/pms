@@ -25,8 +25,8 @@ const AccountSetting = () => {
         <div>
             <ul className="flex space-x-2 rtl:space-x-reverse">
                 <li>
-                    <Link to="#" className="text-primary hover:underline">
-                        Users
+                    <Link to="/" className="text-primary hover:underline">
+                        Dashboard
                     </Link>
                 </li>
                 <li className="before:content-['/'] ltr:before:mr-2 rtl:before:ml-2">
@@ -83,90 +83,109 @@ const AccountSetting = () => {
                             <h6 className="text-lg font-bold mb-5">General Information</h6>
                             <div className="flex flex-col sm:flex-row">
                                 <div className="ltr:sm:mr-4 rtl:sm:ml-4 w-full sm:w-2/12 mb-5">
-                                    <img src="/assets//images/profile-34.jpeg" alt="img" className="w-20 h-20 md:w-32 md:h-32 rounded-full object-cover mx-auto" />
+                                    <img src="/assets//images/user-profile.jpeg" alt="img" className="w-20 h-20 md:w-32 md:h-32 rounded-full object-cover mx-auto" />
                                 </div>
                                 <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-5">
                                     <div>
                                         <label htmlFor="name">Full Name</label>
-                                        <input id="name" type="text" placeholder="Jimmy Turner" className="form-input" />
+                                        <input id="name" type="text" placeholder="John Doe" className="form-input" defaultValue="John Doe" />
                                     </div>
                                     <div>
-                                        <label htmlFor="profession">Profession</label>
-                                        <input id="profession" type="text" placeholder="Web Developer" className="form-input" />
+                                        <label htmlFor="profession">Job Title</label>
+                                        <input id="profession" type="text" placeholder="Procurement Officer" className="form-input" defaultValue="Procurement Officer" />
                                     </div>
                                     <div>
-                                        <label htmlFor="country">Country</label>
-                                        <select defaultValue="United States" id="country" className="form-select text-white-dark">
-                                            <option value="All Countries">All Countries</option>
-                                            <option value="United States">United States</option>
-                                            <option value="India">India</option>
-                                            <option value="Japan">Japan</option>
-                                            <option value="China">China</option>
-                                            <option value="Brazil">Brazil</option>
-                                            <option value="Norway">Norway</option>
-                                            <option value="Canada">Canada</option>
+                                        <label htmlFor="department">Department</label>
+                                        <select defaultValue="Procurement" id="department" className="form-select text-white-dark">
+                                            <option value="Procurement">Procurement</option>
+                                            <option value="Finance">Finance</option>
+                                            <option value="Operations">Operations</option>
+                                            <option value="IT">IT</option>
+                                            <option value="HR">HR</option>
+                                            <option value="Admin">Admin</option>
                                         </select>
                                     </div>
                                     <div>
-                                        <label htmlFor="address">Address</label>
-                                        <input id="address" type="text" placeholder="New York" className="form-input" />
+                                        <label htmlFor="country">Country</label>
+                                        <select defaultValue="Jamaica" id="country" className="form-select text-white-dark">
+                                            <option value="Jamaica">Jamaica</option>
+                                            <option value="United States">United States</option>
+                                            <option value="United Kingdom">United Kingdom</option>
+                                            <option value="Canada">Canada</option>
+                                            <option value="Trinidad and Tobago">Trinidad and Tobago</option>
+                                            <option value="Barbados">Barbados</option>
+                                        </select>
                                     </div>
                                     <div>
-                                        <label htmlFor="location">Location</label>
-                                        <input id="location" type="text" placeholder="Location" className="form-input" />
+                                        <label htmlFor="address">Office Address</label>
+                                        <input id="address" type="text" placeholder="Kingston" className="form-input" defaultValue="123 Main Street" />
                                     </div>
                                     <div>
-                                        <label htmlFor="phone">Phone</label>
-                                        <input id="phone" type="text" placeholder="+1 (530) 555-12121" className="form-input" />
+                                        <label htmlFor="location">City</label>
+                                        <input id="location" type="text" placeholder="City" className="form-input" defaultValue="Kingston" />
                                     </div>
                                     <div>
-                                        <label htmlFor="email">Email</label>
-                                        <input id="email" type="email" placeholder="Jimmy@gmail.com" className="form-input" />
+                                        <label htmlFor="phone">Office Phone</label>
+                                        <input id="phone" type="text" placeholder="+1 (876) 555-1234" className="form-input" defaultValue="+1 (876) 555-1234" />
                                     </div>
                                     <div>
-                                        <label htmlFor="web">Website</label>
-                                        <input id="web" type="text" placeholder="Enter URL" className="form-input" />
+                                        <label htmlFor="email">Work Email</label>
+                                        <input id="email" type="email" placeholder="john.doe@company.com" className="form-input" defaultValue="john.doe@company.com" />
                                     </div>
                                     <div>
-                                        <label className="inline-flex cursor-pointer">
-                                            <input type="checkbox" className="form-checkbox" />
-                                            <span className="text-white-dark relative checked:bg-none">Make this my default address</span>
-                                        </label>
+                                        <label htmlFor="employeeId">Employee ID</label>
+                                        <input id="employeeId" type="text" placeholder="Enter Employee ID" className="form-input" defaultValue="EMP-2024-001" />
+                                    </div>
+                                    <div>
+                                        <label htmlFor="supervisor">Reporting To</label>
+                                        <input id="supervisor" type="text" placeholder="Supervisor Name" className="form-input" defaultValue="Sarah Johnson" />
                                     </div>
                                     <div className="sm:col-span-2 mt-3">
                                         <button type="button" className="btn btn-primary">
-                                            Save
+                                            Save Changes
                                         </button>
                                     </div>
                                 </div>
                             </div>
                         </form>
                         <form className="border border-[#ebedf2] dark:border-[#191e3a] rounded-md p-4 bg-white dark:bg-black">
-                            <h6 className="text-lg font-bold mb-5">Social</h6>
+                            <h6 className="text-lg font-bold mb-5">Procurement Access & Permissions</h6>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                                <div className="flex">
-                                    <div className="bg-[#eee] flex justify-center items-center rounded px-3 font-semibold dark:bg-[#1b2e4b] ltr:mr-2 rtl:ml-2">
-                                        <IconLinkedin className="w-5 h-5" />
-                                    </div>
-                                    <input type="text" placeholder="jimmy_turner" className="form-input" />
+                                <div className="space-y-3">
+                                    <label className="inline-flex cursor-pointer">
+                                        <input type="checkbox" className="form-checkbox" defaultChecked />
+                                        <span className="text-white-dark relative checked:bg-none ltr:ml-2 rtl:mr-2">Create RFQs</span>
+                                    </label>
                                 </div>
-                                <div className="flex">
-                                    <div className="bg-[#eee] flex justify-center items-center rounded px-3 font-semibold dark:bg-[#1b2e4b] ltr:mr-2 rtl:ml-2">
-                                        <IconTwitter className="w-5 h-5" />
-                                    </div>
-                                    <input type="text" placeholder="jimmy_turner" className="form-input" />
+                                <div className="space-y-3">
+                                    <label className="inline-flex cursor-pointer">
+                                        <input type="checkbox" className="form-checkbox" defaultChecked />
+                                        <span className="text-white-dark relative checked:bg-none ltr:ml-2 rtl:mr-2">Evaluate Quotes</span>
+                                    </label>
                                 </div>
-                                <div className="flex">
-                                    <div className="bg-[#eee] flex justify-center items-center rounded px-3 font-semibold dark:bg-[#1b2e4b] ltr:mr-2 rtl:ml-2">
-                                        <IconFacebook className="w-5 h-5" />
-                                    </div>
-                                    <input type="text" placeholder="jimmy_turner" className="form-input" />
+                                <div className="space-y-3">
+                                    <label className="inline-flex cursor-pointer">
+                                        <input type="checkbox" className="form-checkbox" defaultChecked />
+                                        <span className="text-white-dark relative checked:bg-none ltr:ml-2 rtl:mr-2">Generate Purchase Orders</span>
+                                    </label>
                                 </div>
-                                <div className="flex">
-                                    <div className="bg-[#eee] flex justify-center items-center rounded px-3 font-semibold dark:bg-[#1b2e4b] ltr:mr-2 rtl:ml-2">
-                                        <IconGithub />
-                                    </div>
-                                    <input type="text" placeholder="jimmy_turner" className="form-input" />
+                                <div className="space-y-3">
+                                    <label className="inline-flex cursor-pointer">
+                                        <input type="checkbox" className="form-checkbox" defaultChecked />
+                                        <span className="text-white-dark relative checked:bg-none ltr:ml-2 rtl:mr-2">Manage Suppliers</span>
+                                    </label>
+                                </div>
+                                <div className="space-y-3">
+                                    <label className="inline-flex cursor-pointer">
+                                        <input type="checkbox" className="form-checkbox" defaultChecked />
+                                        <span className="text-white-dark relative checked:bg-none ltr:ml-2 rtl:mr-2">View Reports</span>
+                                    </label>
+                                </div>
+                                <div className="space-y-3">
+                                    <label className="inline-flex cursor-pointer">
+                                        <input type="checkbox" className="form-checkbox" />
+                                        <span className="text-white-dark relative checked:bg-none ltr:ml-2 rtl:mr-2">Approve Payments</span>
+                                    </label>
                                 </div>
                             </div>
                         </form>
@@ -179,18 +198,17 @@ const AccountSetting = () => {
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
                             <div className="panel">
                                 <div className="mb-5">
-                                    <h5 className="font-semibold text-lg mb-4">Billing Address</h5>
+                                    <h5 className="font-semibold text-lg mb-4">Supplier Payment Addresses</h5>
                                     <p>
-                                        Changes to your <span className="text-primary">Billing</span> information will take effect starting with scheduled payment and will be refelected on your next
-                                        invoice.
+                                        Manage <span className="text-primary">supplier payment</span> addresses and financial contact information for procurement transactions.
                                     </p>
                                 </div>
                                 <div className="mb-5">
                                     <div className="border-b border-[#ebedf2] dark:border-[#1b2e4b]">
                                         <div className="flex items-start justify-between py-3">
                                             <h6 className="text-[#515365] font-bold dark:text-white-dark text-[15px]">
-                                                Address #1
-                                                <span className="block text-white-dark dark:text-white-light font-normal text-xs mt-1">2249 Caynor Circle, New Brunswick, New Jersey</span>
+                                                Office #1
+                                                <span className="block text-white-dark dark:text-white-light font-normal text-xs mt-1">123 Main Street, Kingston, Jamaica</span>
                                             </h6>
                                             <div className="flex items-start justify-between ltr:ml-auto rtl:mr-auto">
                                                 <button className="btn btn-dark">Edit</button>
@@ -200,8 +218,8 @@ const AccountSetting = () => {
                                     <div className="border-b border-[#ebedf2] dark:border-[#1b2e4b]">
                                         <div className="flex items-start justify-between py-3">
                                             <h6 className="text-[#515365] font-bold dark:text-white-dark text-[15px]">
-                                                Address #2
-                                                <span className="block text-white-dark dark:text-white-light font-normal text-xs mt-1">4262 Leverton Cove Road, Springfield, Massachusetts</span>
+                                                Warehouse #2
+                                                <span className="block text-white-dark dark:text-white-light font-normal text-xs mt-1">45 Industrial Park, Portmore, Jamaica</span>
                                             </h6>
                                             <div className="flex items-start justify-between ltr:ml-auto rtl:mr-auto">
                                                 <button className="btn btn-dark">Edit</button>
@@ -211,8 +229,8 @@ const AccountSetting = () => {
                                     <div>
                                         <div className="flex items-start justify-between py-3">
                                             <h6 className="text-[#515365] font-bold dark:text-white-dark text-[15px]">
-                                                Address #3
-                                                <span className="block text-white-dark dark:text-white-light font-normal text-xs mt-1">2692 Berkshire Circle, Knoxville, Tennessee</span>
+                                                Finance Dept.
+                                                <span className="block text-white-dark dark:text-white-light font-normal text-xs mt-1">78 Business District, New Kingston, Jamaica</span>
                                             </h6>
                                             <div className="flex items-start justify-between ltr:ml-auto rtl:mr-auto">
                                                 <button className="btn btn-dark">Edit</button>
@@ -220,69 +238,68 @@ const AccountSetting = () => {
                                         </div>
                                     </div>
                                 </div>
-                                <button className="btn btn-primary">Add Address</button>
+                                <button className="btn btn-primary">Add Delivery Address</button>
                             </div>
                             <div className="panel">
                                 <div className="mb-5">
-                                    <h5 className="font-semibold text-lg mb-4">Payment History</h5>
+                                    <h5 className="font-semibold text-lg mb-4">Recent Purchase Orders</h5>
                                     <p>
-                                        Changes to your <span className="text-primary">Payment Method</span> information will take effect starting with scheduled payment and will be refelected on your
-                                        next invoice.
+                                        View your recent <span className="text-primary">Purchase Orders</span> and payment processing status for procurement activities.
                                     </p>
                                 </div>
                                 <div className="mb-5">
                                     <div className="border-b border-[#ebedf2] dark:border-[#1b2e4b]">
                                         <div className="flex items-start justify-between py-3">
                                             <div className="flex-none ltr:mr-4 rtl:ml-4">
-                                                <img src="/assets/images/card-americanexpress.svg" alt="img" />
+                                                <span className="badge bg-success">Paid</span>
                                             </div>
                                             <h6 className="text-[#515365] font-bold dark:text-white-dark text-[15px]">
-                                                Mastercard
-                                                <span className="block text-white-dark dark:text-white-light font-normal text-xs mt-1">XXXX XXXX XXXX 9704</span>
+                                                PO-2024-098
+                                                <span className="block text-white-dark dark:text-white-light font-normal text-xs mt-1">Office Furniture - $15,240</span>
                                             </h6>
                                             <div className="flex items-start justify-between ltr:ml-auto rtl:mr-auto">
-                                                <button className="btn btn-dark">Edit</button>
+                                                <button className="btn btn-dark">View</button>
                                             </div>
                                         </div>
                                     </div>
                                     <div className="border-b border-[#ebedf2] dark:border-[#1b2e4b]">
                                         <div className="flex items-start justify-between py-3">
                                             <div className="flex-none ltr:mr-4 rtl:ml-4">
-                                                <img src="/assets/images/card-mastercard.svg" alt="img" />
+                                                <span className="badge bg-warning">Pending</span>
                                             </div>
                                             <h6 className="text-[#515365] font-bold dark:text-white-dark text-[15px]">
-                                                American Express
-                                                <span className="block text-white-dark dark:text-white-light font-normal text-xs mt-1">XXXX XXXX XXXX 310</span>
+                                                PO-2024-099
+                                                <span className="block text-white-dark dark:text-white-light font-normal text-xs mt-1">IT Equipment - $22,100</span>
                                             </h6>
                                             <div className="flex items-start justify-between ltr:ml-auto rtl:mr-auto">
-                                                <button className="btn btn-dark">Edit</button>
+                                                <button className="btn btn-dark">View</button>
                                             </div>
                                         </div>
                                     </div>
                                     <div>
                                         <div className="flex items-start justify-between py-3">
                                             <div className="flex-none ltr:mr-4 rtl:ml-4">
-                                                <img src="/assets/images/card-visa.svg" alt="img" />
+                                                <span className="badge bg-info">Processing</span>
                                             </div>
                                             <h6 className="text-[#515365] font-bold dark:text-white-dark text-[15px]">
-                                                Visa
-                                                <span className="block text-white-dark dark:text-white-light font-normal text-xs mt-1">XXXX XXXX XXXX 5264</span>
+                                                PO-2024-100
+                                                <span className="block text-white-dark dark:text-white-light font-normal text-xs mt-1">Janitorial Supplies - $3,450</span>
                                             </h6>
                                             <div className="flex items-start justify-between ltr:ml-auto rtl:mr-auto">
-                                                <button className="btn btn-dark">Edit</button>
+                                                <button className="btn btn-dark">View</button>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
-                                <button className="btn btn-primary">Add Payment Method</button>
+                                <Link to="/procurement/purchase-orders" className="btn btn-primary">View All Purchase Orders</Link>
                             </div>
                         </div>
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
                             <div className="panel">
                                 <div className="mb-5">
-                                    <h5 className="font-semibold text-lg mb-4">Add Billing Address</h5>
+                                    <h5 className="font-semibold text-lg mb-4">Add Delivery Address</h5>
                                     <p>
-                                        Changes your New <span className="text-primary">Billing</span> Information.
+                                        Add a new <span className="text-primary">delivery location</span> for procurement shipments.
                                     </p>
                                 </div>
                                 <div className="mb-5">
@@ -326,47 +343,41 @@ const AccountSetting = () => {
                             </div>
                             <div className="panel">
                                 <div className="mb-5">
-                                    <h5 className="font-semibold text-lg mb-4">Add Payment Method</h5>
+                                    <h5 className="font-semibold text-lg mb-4">Supplier Contact Information</h5>
                                     <p>
-                                        Changes your New <span className="text-primary">Payment Method </span>
-                                        Information.
+                                        Add <span className="text-primary">supplier contact</span> details for procurement communication.
                                     </p>
                                 </div>
                                 <div className="mb-5">
                                     <form>
                                         <div className="mb-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
                                             <div>
-                                                <label htmlFor="payBrand">Card Brand</label>
-                                                <select id="payBrand" className="form-select text-white-dark">
-                                                    <option value="Mastercard">Mastercard</option>
-                                                    <option value="American Express">American Express</option>
-                                                    <option value="Visa">Visa</option>
-                                                    <option value="Discover">Discover</option>
+                                                <label htmlFor="supplierName">Supplier Name</label>
+                                                <input id="supplierName" type="text" placeholder="Enter Supplier Name" className="form-input" />
+                                            </div>
+                                            <div>
+                                                <label htmlFor="supplierEmail">Contact Email</label>
+                                                <input id="supplierEmail" type="email" placeholder="Enter Email" className="form-input" />
+                                            </div>
+                                        </div>
+                                        <div className="mb-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                            <div>
+                                                <label htmlFor="supplierPhone">Phone Number</label>
+                                                <input id="supplierPhone" type="text" placeholder="Enter Phone" className="form-input" />
+                                            </div>
+                                            <div>
+                                                <label htmlFor="category">Category</label>
+                                                <select id="category" className="form-select text-white-dark">
+                                                    <option>Office Supplies</option>
+                                                    <option>IT Equipment</option>
+                                                    <option>Furniture</option>
+                                                    <option>Janitorial</option>
+                                                    <option>Services</option>
                                                 </select>
-                                            </div>
-                                            <div>
-                                                <label htmlFor="payNumber">Card Number</label>
-                                                <input id="payNumber" type="text" placeholder="Card Number" className="form-input" />
-                                            </div>
-                                        </div>
-                                        <div className="mb-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                            <div>
-                                                <label htmlFor="payHolder">Holder Name</label>
-                                                <input id="payHolder" type="text" placeholder="Holder Name" className="form-input" />
-                                            </div>
-                                            <div>
-                                                <label htmlFor="payCvv">CVV/CVV2</label>
-                                                <input id="payCvv" type="text" placeholder="CVV" className="form-input" />
-                                            </div>
-                                        </div>
-                                        <div className="mb-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                            <div>
-                                                <label htmlFor="payExp">Card Expiry</label>
-                                                <input id="payExp" type="text" placeholder="Card Expiry" className="form-input" />
                                             </div>
                                         </div>
                                         <button type="button" className="btn btn-primary">
-                                            Add
+                                            Add Supplier
                                         </button>
                                     </form>
                                 </div>
@@ -400,10 +411,10 @@ const AccountSetting = () => {
                                 </div>
                             </div>
                             <div className="panel space-y-5">
-                                <h5 className="font-semibold text-lg mb-4">Activity data</h5>
-                                <p>Download your Summary, Task and Payment History Data</p>
+                                <h5 className="font-semibold text-lg mb-4">Activity Data Export</h5>
+                                <p>Download your Procurement Activity, RFQs, Purchase Orders, and Evaluation History Data</p>
                                 <button type="button" className="btn btn-primary">
-                                    Download Data
+                                    Download Procurement Data
                                 </button>
                             </div>
                         </div>
@@ -429,12 +440,12 @@ const AccountSetting = () => {
                                 </label>
                             </div>
                             <div className="panel space-y-5">
-                                <h5 className="font-semibold text-lg mb-4">Enable keyboard shortcuts</h5>
+                                <h5 className="font-semibold text-lg mb-4">Enable Procurement Notifications</h5>
                                 <p>
-                                    When enabled, press <span className="text-primary">ctrl</span> for help
+                                    Receive alerts for <span className="text-primary">RFQ updates</span>, quote submissions, and approval requests.
                                 </p>
                                 <label className="w-12 h-6 relative">
-                                    <input type="checkbox" className="custom_switch absolute w-full h-full opacity-0 z-10 cursor-pointer peer" id="custom_switch_checkbox3" />
+                                    <input type="checkbox" className="custom_switch absolute w-full h-full opacity-0 z-10 cursor-pointer peer" id="custom_switch_checkbox3" defaultChecked />
                                     <span className="bg-[#ebedf2] dark:bg-dark block h-full rounded-full before:absolute before:left-1 before:bg-white  dark:before:bg-white-dark dark:peer-checked:before:bg-white before:bottom-1 before:w-4 before:h-4 before:rounded-full peer-checked:before:left-7 peer-checked:bg-primary before:transition-all before:duration-300"></span>
                                 </label>
                             </div>
@@ -449,9 +460,9 @@ const AccountSetting = () => {
                                 </label>
                             </div>
                             <div className="panel space-y-5">
-                                <h5 className="font-semibold text-lg mb-4">Advertisements</h5>
+                                <h5 className="font-semibold text-lg mb-4">Auto-Approve Low-Value Items</h5>
                                 <p>
-                                    Display <span className="text-primary">Ads</span> on your dashboard
+                                    Automatically approve RFQs under <span className="text-primary">$1,000</span>
                                 </p>
                                 <label className="w-12 h-6 relative">
                                     <input type="checkbox" className="custom_switch absolute w-full h-full opacity-0 z-10 cursor-pointer peer" id="custom_switch_checkbox5" />
@@ -459,12 +470,12 @@ const AccountSetting = () => {
                                 </label>
                             </div>
                             <div className="panel space-y-5">
-                                <h5 className="font-semibold text-lg mb-4">Social Profile</h5>
+                                <h5 className="font-semibold text-lg mb-4">Supplier Email Notifications</h5>
                                 <p>
-                                    Enable your <span className="text-primary">social</span> profiles on this network
+                                    Send automatic email updates to <span className="text-primary">suppliers</span> on RFQ changes
                                 </p>
                                 <label className="w-12 h-6 relative">
-                                    <input type="checkbox" className="custom_switch absolute w-full h-full opacity-0 z-10 cursor-pointer peer" id="custom_switch_checkbox6" />
+                                    <input type="checkbox" className="custom_switch absolute w-full h-full opacity-0 z-10 cursor-pointer peer" id="custom_switch_checkbox6" defaultChecked />
                                     <span className="bg-[#ebedf2] dark:bg-dark block h-full rounded-full before:absolute before:left-1 before:bg-white  dark:before:bg-white-dark dark:peer-checked:before:bg-white before:bottom-1 before:w-4 before:h-4 before:rounded-full peer-checked:before:left-7 peer-checked:bg-primary before:transition-all before:duration-300"></span>
                                 </label>
                             </div>
@@ -477,9 +488,9 @@ const AccountSetting = () => {
                     <div className="switch">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                             <div className="panel space-y-5">
-                                <h5 className="font-semibold text-lg mb-4">Purge Cache</h5>
-                                <p>Remove the active resource from the cache without waiting for the predetermined cache expiry time.</p>
-                                <button className="btn btn-secondary">Clear</button>
+                                <h5 className="font-semibold text-lg mb-4">Clear Procurement Cache</h5>
+                                <p>Remove cached RFQ data, supplier information, and reports to improve system performance.</p>
+                                <button className="btn btn-secondary">Clear Cache</button>
                             </div>
                             <div className="panel space-y-5">
                                 <h5 className="font-semibold text-lg mb-4">Deactivate Account</h5>

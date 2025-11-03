@@ -24,12 +24,39 @@ import IconMultipleForwardRight from '../components/Icon/IconMultipleForwardRigh
 const Index = () => {
     const dispatch = useDispatch();
     useEffect(() => {
-        dispatch(setPageTitle('Sales Admin'));
+        dispatch(setPageTitle('Dashboard'));
     });
     const isDark = useSelector((state: IRootState) => state.themeConfig.theme === 'dark' || state.themeConfig.isDarkMode);
     const isRtl = useSelector((state: IRootState) => state.themeConfig.rtlClass) === 'rtl' ? true : false;
 
     const [loading] = useState(false);
+
+    // Role / permissions from onboarding (localStorage)
+    const userProfile: any = (() => {
+        try {
+            return JSON.parse(localStorage.getItem('userProfile') || '{}');
+        } catch (e) {
+            return {};
+        }
+    })();
+    const permissions: string[] = userProfile?.permissions || [];
+    const primaryRole: string = userProfile?.primaryRole || '';
+
+    const hasPermission = (perms: string[]) => {
+        if (primaryRole === 'admin' || permissions.includes('full_access')) return true;
+        return perms.some((p) => permissions.includes(p));
+    };
+
+    // Mock counts for procurement widgets (replace with API data later)
+    const procurementStats = {
+        pendingApprovals: 5,
+        rfqsOut: 12,
+        quotesDue: 4,
+        deliveries: 3,
+        paymentsQueue: 7,
+        slaAlerts: 2,
+        spendToBudgetPct: 68,
+    };
 
     //Revenue Chart
     const revenueChart: any = {
@@ -415,6 +442,97 @@ const Index = () => {
             </ul>
 
             <div className="pt-5">
+                {/* Procurement widgets (role-aware) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4 mb-6">
+                    {hasPermission(['approve_requests', 'view_all_requests']) && (
+                        <div className="panel p-4 flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-md bg-warning-light dark:bg-warning text-warning grid place-content-center">
+                                <IconInbox />
+                            </div>
+                            <div>
+                                <div className="text-sm text-white-dark">Pending Approvals</div>
+                                <div className="text-lg font-semibold">{procurementStats.pendingApprovals}</div>
+                            </div>
+                        </div>
+                    )}
+
+                    {hasPermission(['manage_rfq', 'manage_evaluations']) && (
+                        <div className="panel p-4 flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-md bg-primary-light dark:bg-primary text-primary grid place-content-center">
+                                <IconShoppingCart />
+                            </div>
+                            <div>
+                                <div className="text-sm text-white-dark">RFQs Out</div>
+                                <div className="text-lg font-semibold">{procurementStats.rfqsOut}</div>
+                            </div>
+                        </div>
+                    )}
+
+                    {hasPermission(['view_all_requests', 'view_own_requests']) && (
+                        <div className="panel p-4 flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-md bg-info-light dark:bg-info text-info grid place-content-center">
+                                <IconTag />
+                            </div>
+                            <div>
+                                <div className="text-sm text-white-dark">Quotes Due</div>
+                                <div className="text-lg font-semibold">{procurementStats.quotesDue}</div>
+                            </div>
+                        </div>
+                    )}
+
+                    {hasPermission(['view_all_requests', 'manage_rfq']) && (
+                        <div className="panel p-4 flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-md bg-success-light dark:bg-success text-success grid place-content-center">
+                                <IconBolt />
+                            </div>
+                            <div>
+                                <div className="text-sm text-white-dark">Deliveries</div>
+                                <div className="text-lg font-semibold">{procurementStats.deliveries}</div>
+                            </div>
+                        </div>
+                    )}
+
+                    {hasPermission(['approve_payments', 'view_financial_reports']) && (
+                        <div className="panel p-4 flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-md bg-secondary-light dark:bg-secondary text-secondary grid place-content-center">
+                                <IconCreditCard />
+                            </div>
+                            <div>
+                                <div className="text-sm text-white-dark">Payments Queue</div>
+                                <div className="text-lg font-semibold">{procurementStats.paymentsQueue}</div>
+                            </div>
+                        </div>
+                    )}
+
+                    {hasPermission(['view_all_requests']) && (
+                        <div className="panel p-4 flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-md bg-danger-light dark:bg-danger text-danger grid place-content-center">
+                                <IconDollarSign />
+                            </div>
+                            <div>
+                                <div className="text-sm text-white-dark">SLA Alerts</div>
+                                <div className="text-lg font-semibold">{procurementStats.slaAlerts}</div>
+                            </div>
+                        </div>
+                    )}
+
+                    {hasPermission(['view_financial_reports', 'manage_budgets']) && (
+                        <div className="panel p-4 flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-md bg-primary-light dark:bg-primary text-primary grid place-content-center">
+                                <IconDollarSign />
+                            </div>
+                            <div className="flex-1">
+                                <div className="text-sm text-white-dark">Spend vs Budget</div>
+                                <div className="flex items-center gap-3">
+                                    <div className="text-lg font-semibold">{procurementStats.spendToBudgetPct}%</div>
+                                    <div className="w-full bg-white dark:bg-black rounded-full h-2 overflow-hidden">
+                                        <div className="bg-gradient-to-r from-[#3cba92] to-[#0ba360] h-full" style={{ width: `${procurementStats.spendToBudgetPct}%` }}></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
                 <div className="grid xl:grid-cols-3 gap-6 mb-6">
                     <div className="panel h-full xl:col-span-2">
                         <div className="flex items-center justify-between dark:text-white-light mb-5">

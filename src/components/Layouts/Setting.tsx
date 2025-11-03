@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { IRootState } from '../../store';
-import { toggleAnimation, toggleLayout, toggleMenu, toggleNavbar, toggleRTL, toggleTheme, toggleSemidark } from '../../store/themeConfigSlice';
+import { toggleAnimation, toggleLayout, toggleMenu, toggleNavbar, toggleRTL, toggleTheme, toggleSemidark, toggleAccent } from '../../store/themeConfigSlice';
 import IconSettings from '../Icon/IconSettings';
 import IconX from '../Icon/IconX';
 import IconSun from '../Icon/IconSun';
@@ -37,7 +37,7 @@ const Setting = () => {
                             <IconX className="w-5 h-5" />
                         </button>
 
-                        <h4 className="mb-1 dark:text-white">TEMPLATE CUSTOMIZER</h4>
+                        <h4 className="mb-1 dark:text-white">BSJ Customizer</h4>
                         <p className="text-white-dark">Set preferences that will be cookied for your live preview demonstration.</p>
                     </div>
 
@@ -58,6 +58,28 @@ const Setting = () => {
                             <button type="button" className={`${themeConfig.theme === 'system' ? 'btn-primary' : 'btn-outline-primary'} btn`} onClick={() => dispatch(toggleTheme('system'))}>
                                 <IconLaptop className="w-5 h-5 shrink-0 ltr:mr-2 rtl:ml-2" />
                                 System
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Accent Color */}
+                    <div className="border border-dashed border-white-light dark:border-[#1b2e4b] rounded-md mb-3 p-3">
+                        <h5 className="mb-1 text-base dark:text-white leading-none">Accent Color</h5>
+                        <p className="text-white-dark text-xs">Choose the primary accent color used for buttons and highlights.</p>
+                        <div className="grid grid-cols-2 gap-2 mt-3">
+                            <button
+                                type="button"
+                                className={`${(themeConfig as any).accent === 'blue' ? 'btn-primary' : 'btn-outline-primary'} btn`}
+                                onClick={() => dispatch(toggleAccent('blue'))}
+                            >
+                                Blue
+                            </button>
+                            <button
+                                type="button"
+                                className={`${(themeConfig as any).accent === 'purple' ? 'btn-primary' : 'btn-outline-primary'} btn`}
+                                onClick={() => dispatch(toggleAccent('purple'))}
+                            >
+                                Purple
                             </button>
                         </div>
                     </div>
