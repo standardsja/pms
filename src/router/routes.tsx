@@ -48,6 +48,11 @@ const AwaitingDelivery = lazy(() => import('../pages/Procurement/Payments/Awaiti
 const PaymentsToProcess = lazy(() => import('../pages/Procurement/Payments/PaymentsToProcess'));
 const AdminSettings = lazy(() => import('../pages/Procurement/Admin/AdminSettings'));
 
+// User Pages
+const Profile = lazy(() => import('../pages/Users/Profile'));
+const AccountSetting = lazy(() => import('../pages/Users/AccountSetting'));
+const HelpSupport = lazy(() => import('../pages/Pages/HelpSupport'));
+
 // Existing Pages
 const Widgets = lazy(() => import('../pages/Widgets'));
 const FontIcons = lazy(() => import('../pages/FontIcons'));
@@ -229,6 +234,24 @@ const routes = [
     {
         path: '/procurement/admin',
         element: <AdminSettings />,
+    },
+    
+    // User Pages
+    {
+        path: '/profile',
+        element: <Profile />,
+    },
+    {
+        path: '/settings',
+        element: <AccountSetting />,
+    },
+    {
+        path: '/users/user-account-settings',
+        element: <AccountSetting />,
+    },
+    {
+        path: '/help',
+        element: <HelpSupport />,
     },
     
     // Utility Pages
