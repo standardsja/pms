@@ -45,10 +45,16 @@ const ForgotPassword = () => {
                 <div className="absolute inset-0 bg-[url('/assets/images/auth/pattern.png')] opacity-10"></div>
                 <div className="relative z-10 flex flex-col justify-center items-center w-full p-12 text-white">
                     <div className="max-w-lg">
-                        <div className="w-24 h-24 bg-white/20 rounded-full flex items-center justify-center mb-8">
-                            <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                            </svg>
+                        <div className="flex items-center justify-center mb-12">
+                            <div className="relative">
+                                <div className="absolute inset-0 bg-white/20 blur-2xl rounded-full"></div>
+                                <div className="relative flex items-center gap-4 bg-white/10 backdrop-blur-sm px-8 py-6 rounded-2xl border-2 border-white/30 shadow-2xl">
+                                    <span className="text-7xl drop-shadow-lg animate-[spin_20s_linear_infinite]">🌀</span>
+                                    <span className="text-6xl font-black text-white drop-shadow-2xl flex" style={{ letterSpacing: '0.15em' }}>
+                                        SPINX
+                                    </span>
+                                </div>
+                            </div>
                         </div>
                         <h1 className="text-5xl font-bold mb-6">Forgot Your Password?</h1>
                         <p className="text-xl text-white/90 mb-8">
