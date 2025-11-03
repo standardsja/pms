@@ -29,6 +29,7 @@ import IconBarChart from '../Icon/IconBarChart';
 import IconCreditCard from '../Icon/IconCreditCard';
 import IconSettings from '../Icon/IconSettings';
 import IconInbox from '../Icon/IconInbox';
+import IconCircleCheck from '../Icon/IconCircleCheck';
 
 const Sidebar = () => {
     const [currentMenu, setCurrentMenu] = useState<string>('');
@@ -92,6 +93,20 @@ const Sidebar = () => {
                         <ul className="relative font-semibold space-y-0.5 p-4 py-0">
                             <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
                                 <IconMinus className="w-4 h-5 flex-none hidden" />
+                                <span>USER</span>
+                            </h2>
+
+                            <li className="nav-item">
+                                <NavLink to="/apps/requests" className="group">
+                                    <div className="flex items-center">
+                                        <IconFile className="group-hover:!text-primary shrink-0" />
+                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Requests</span>
+                                    </div>
+                                </NavLink>
+                            </li>
+
+                            <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1 mt-4">
+                                <IconMinus className="w-4 h-5 flex-none hidden" />
                                 <span>Procurement Officer</span>
                             </h2>
 
@@ -104,23 +119,14 @@ const Sidebar = () => {
                                 </NavLink>
                             </li>
 
-                            <li className="nav-item">
-                                <NavLink to="/apps/requests" className="group">
-                                    <div className="flex items-center">
-                                        <IconFile className="group-hover:!text-primary shrink-0" />
-                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Requests</span>
-                                    </div>
-                                </NavLink>
-                            </li>
-
-                            <li className="nav-item">
+                            {/* <li className="nav-item">
                                 <NavLink to="/procurement/rfq/list" className="group">
                                     <div className="flex items-center">
                                         <IconEdit className="group-hover:!text-primary shrink-0" />
                                         <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">RFQ Management</span>
                                     </div>
                                 </NavLink>
-                            </li>
+                            </li> */}
 
                             {/* <li className="nav-item">
                                 <NavLink to="/procurement/quotes" className="group">
@@ -261,19 +267,27 @@ const Sidebar = () => {
                                 <IconMinus className="w-4 h-5 flex-none hidden" />
                                 <span>Department Head</span>
                             </h2>
-                            <li className="nav-item list-none">
-                                <NavLink to="/department-head/evaluation-review" className="group">
+                            <li className="nav-item">
+                                <NavLink to="/procurement/department-head-dashboard" className="group">
                                     <div className="flex items-center">
-                                        <IconClipboardText className="group-hover:!text-primary shrink-0 w-5 h-5" />
-                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Evaluation Review</span>
+                                        <IconMenuDashboard className="group-hover:!text-primary shrink-0" />
+                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Dashboard</span>
                                     </div>
                                 </NavLink>
                             </li>
                             <li className="nav-item list-none">
-                                <NavLink to="/department-head/report-review" className="group">
+                                <NavLink to="/procurement/department-head/evaluations" className="group">
+                                    <div className="flex items-center">
+                                        <IconChecks className="group-hover:!text-primary shrink-0 w-5 h-5" />
+                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Supplier Approvals</span>
+                                    </div>
+                                </NavLink>
+                            </li>
+                            <li className="nav-item list-none">
+                                <NavLink to="/procurement/department-head/reports" className="group">
                                     <div className="flex items-center">
                                         <IconBarChart className="group-hover:!text-primary shrink-0 w-5 h-5" />
-                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Report Review</span>
+                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Report Reviews</span>
                                     </div>
                                 </NavLink>
                             </li>
@@ -283,27 +297,35 @@ const Sidebar = () => {
                                 <IconMinus className="w-4 h-5 flex-none hidden" />
                                 <span>Executive Director</span>
                             </h2>
-                            <li className="nav-item list-none">
-                                <NavLink to="/executive/approvals" className="group">
+                            <li className="nav-item">
+                                <NavLink to="/procurement/executive-director-dashboard" className="group">
                                     <div className="flex items-center">
-                                        <IconChecks className="group-hover:!text-primary shrink-0 w-5 h-5" />
+                                        <IconMenuDashboard className="group-hover:!text-primary shrink-0" />
+                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Executive Dashboard</span>
+                                    </div>
+                                </NavLink>
+                            </li>
+                            <li className="nav-item list-none">
+                                <NavLink to="/procurement/executive/approvals" className="group">
+                                    <div className="flex items-center">
+                                        <IconFile className="group-hover:!text-primary shrink-0 w-5 h-5" />
                                         <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Executive Approvals</span>
                                     </div>
                                 </NavLink>
                             </li>
                             <li className="nav-item list-none">
-                                <NavLink to="/executive/digital-signoffs" className="group">
+                                <NavLink to="/procurement/executive/signoffs" className="group">
                                     <div className="flex items-center">
-                                        <IconEdit className="group-hover:!text-primary shrink-0 w-5 h-5" />
+                                        <IconCircleCheck className="group-hover:!text-primary shrink-0 w-5 h-5" />
                                         <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Digital Sign-offs</span>
                                     </div>
                                 </NavLink>
                             </li>
                             <li className="nav-item list-none">
-                                <NavLink to="/executive/reports" className="group">
+                                <NavLink to="/procurement/executive/reports" className="group">
                                     <div className="flex items-center">
                                         <IconBarChart className="group-hover:!text-primary shrink-0 w-5 h-5" />
-                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Executive Reports</span>
+                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Strategic Reports</span>
                                     </div>
                                 </NavLink>
                             </li>

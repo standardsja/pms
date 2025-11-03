@@ -54,13 +54,15 @@ const RequestForm = lazy(() => import('../pages/Apps/RequestForm'));
 const FinanceRequests = lazy(() => import('../pages/Finance/Requests'));
 
 // Department Head Pages
+const DepartmentHeadDashboard = lazy(() => import('../pages/Procurement/DepartmentHeadDashboard'));
 const DepartmentHeadEvaluationReview = lazy(() => import('../pages/Procurement/DepartmentHead/DepartmentHeadEvaluationReview'));
 const DepartmentHeadReportReview = lazy(() => import('../pages/Procurement/DepartmentHead/DepartmentHeadReportReview'));
 
 // Executive Director Pages
+const ExecutiveDirectorDashboard = lazy(() => import('../pages/Procurement/ExecutiveDirectorDashboard'));
 const ExecutiveApprovals = lazy(() => import('../pages/Procurement/Approvals/ExecutiveApprovals'));
-const ExecutiveDigitalSignoffs = lazy(() => import('../pages/Procurement/ExecutiveDirector/ExecutiveDigitalSignoffs'));
 const ExecutiveDirectorReports = lazy(() => import('../pages/Procurement/ExecutiveDirector/ExecutiveDirectorReports'));
+const ExecutiveDigitalSignoffs = lazy(() => import('../pages/Procurement/ExecutiveDirector/ExecutiveDigitalSignoffs'));
 
 // User Pages
 const Profile = lazy(() => import('../pages/Users/Profile'));
@@ -248,6 +250,38 @@ const routes = [
     {
         path: '/procurement/payments/:id',
         element: <PaymentDetail />,
+    },
+
+    // Department Head Routes
+    {
+        path: '/procurement/department-head-dashboard',
+        element: <DepartmentHeadDashboard />,
+    },
+    {
+        path: '/procurement/department-head/evaluations',
+        element: <DepartmentHeadEvaluationReview />,
+    },
+    {
+        path: '/procurement/department-head/reports',
+        element: <DepartmentHeadReportReview />,
+    },
+
+    // Executive Director Routes
+    {
+        path: '/procurement/executive-director-dashboard',
+        element: <ExecutiveDirectorDashboard />,
+    },
+    {
+        path: '/procurement/executive/approvals',
+        element: <ExecutiveApprovals />,
+    },
+    {
+        path: '/procurement/executive/reports',
+        element: <ExecutiveDirectorReports />,
+    },
+    {
+        path: '/procurement/executive/signoffs',
+        element: <ExecutiveDigitalSignoffs />,
     },
     
     // Request Routes
