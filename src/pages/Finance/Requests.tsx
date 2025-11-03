@@ -4,6 +4,8 @@ import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import { setPageTitle } from '../../store/themeConfigSlice';
 import IconEye from '../../components/Icon/IconEye';
+import IconEdit from '../../components/Icon/IconEdit';
+import IconPrinter from '../../components/Icon/IconPrinter';
 
 const MySwal = withReactContent(Swal);
 
@@ -87,6 +89,123 @@ const FinanceRequests = () => {
       width: '600px',
       confirmButtonText: 'Close',
     });
+  };
+
+  // Allow Finance to adjust Funding Source and Budget Code
+  const editBudget = async (req: Req) => {
+    const options = [
+      'Operational Budget',
+      'Capital Budget',
+      'Project Budget',
+      'Grant Funded',
+      'Other',
+    ];
+
+    const html = `
+      <div style="text-align:left">
+        <label style="display:block;font-weight:600;margin-bottom:6px">Funding Source <span style="color:#ef4444">*</span></label>
+        <select id="swal-funding-source" class="swal2-select" style="width:100%">
+          ${options.map((o) => `<option value="${o}" ${o === req.fundingSource ? 'selected' : ''}>${o}</option>`).join('')}
+        </select>
+        <div style="height:10px"></div>
+        <label style="display:block;font-weight:600;margin-bottom:6px">Budget Code</label>
+        <input id="swal-budget-code" class="swal2-input" style="width:100%" placeholder="e.g., OP-2025-HR-001" value="${req.budgetCode || ''}" />
+      </div>
+    `;
+
+    const result = await MySwal.fire({
+      title: `Edit Budget: ${req.id}`,
+      html,
+      focusConfirm: false,
+      showCancelButton: true,
+      confirmButtonText: 'Save Changes',
+      preConfirm: () => {
+        const fs = document.getElementById('swal-funding-source') as HTMLSelectElement | null;
+        const bc = document.getElementById('swal-budget-code') as HTMLInputElement | null;
+        if (!fs || !fs.value) {
+          MySwal.showValidationMessage('Funding Source is required');
+          return;
+        }
+        return { fundingSource: fs.value, budgetCode: bc ? bc.value.trim() : '' };
+      },
+    });
+
+    if (result.isConfirmed && result.value) {
+      const { fundingSource, budgetCode } = result.value as { fundingSource: string; budgetCode: string };
+      setRequests((prev) => prev.map((r) => (r.id === req.id ? { ...r, fundingSource, budgetCode } : r)));
+      await MySwal.fire({ icon: 'success', title: 'Budget updated', timer: 900, showConfirmButton: false });
+    }
+  };
+
+  // Print a clean copy of the request details
+  const printRequest = (req: Req) => {
+    const safe = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as any)[c]);
+    const w = window.open('', 'PRINT', 'height=800,width=900');
+    if (!w) return;
+    const css = `
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; margin: 24px; color: #0f172a; }
+        h1 { font-size: 22px; margin: 0 0 6px; }
+        h2 { font-size: 16px; margin: 18px 0 8px; }
+        .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .box { background: #f8fafc; padding: 10px; border-radius: 6px; border: 1px solid #e2e8f0; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th, td { border: 1px solid #e2e8f0; padding: 8px; text-align: left; }
+        th { background: #f1f5f9; }
+        .right { text-align: right; }
+        .muted { color: #64748b; }
+        @media print { .no-print { display: none; } }
+      </style>
+    `;
+    const html = `
+      <!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>Request ${safe(req.id)}</title>
+          ${css}
+        </head>
+        <body>
+          <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:8px">
+            <h1>Procurement Request</h1>
+            <div class="muted">Printed: ${new Date().toLocaleString()}</div>
+          </div>
+          <div class="row">
+            <div class="box">
+              <h2>Request</h2>
+              <div><strong>ID:</strong> ${safe(req.id)}</div>
+              <div><strong>Title:</strong> ${safe(req.title)}</div>
+              <div><strong>Date:</strong> ${safe(req.date)}</div>
+              <div><strong>Status:</strong> ${safe(req.status)}</div>
+            </div>
+            <div class="box">
+              <h2>Requester</h2>
+              <div><strong>Name:</strong> ${safe(req.requester)}</div>
+              <div><strong>Department:</strong> ${safe(req.department)}</div>
+            </div>
+          </div>
+          <div class="row" style="margin-top:10px">
+            <div class="box">
+              <h2>Budget</h2>
+              <div><strong>Funding Source:</strong> ${safe(req.fundingSource || '—')}</div>
+              <div><strong>Budget Code:</strong> ${safe(req.budgetCode || '—')}</div>
+              <div><strong>Total Amount:</strong> $${req.totalEstimated.toFixed(2)}</div>
+            </div>
+          </div>
+          <div class="box" style="margin-top:10px">
+            <h2>Justification</h2>
+            <div>${safe(req.justification)}</div>
+          </div>
+          <div class="no-print" style="margin-top:16px;text-align:right">
+            <button onclick="window.print()" style="padding:8px 12px;border:1px solid #cbd5e1;border-radius:6px;background:#0ea5e9;color:white">Print</button>
+          </div>
+          <script>window.print();</script>
+        </body>
+      </html>
+    `;
+    w.document.write(html);
+    w.document.close();
+    w.focus();
   };
 
   const handleAction = async (req: Req, action: 'approve' | 'return') => {
@@ -184,6 +303,20 @@ const FinanceRequests = () => {
                       title="View Details"
                     >
                       <IconEye className="w-5 h-5" />
+                    </button>
+                    <button
+                      className="p-1.5 rounded hover:bg-amber-50 dark:hover:bg-amber-900/20 text-amber-600"
+                      onClick={() => editBudget(r)}
+                      title="Edit Funding/Budget Code"
+                    >
+                      <IconEdit className="w-5 h-5" />
+                    </button>
+                    <button
+                      className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200"
+                      onClick={() => printRequest(r)}
+                      title="Print Request"
+                    >
+                      <IconPrinter className="w-5 h-5" />
                     </button>
                     <button
                       className="px-3 py-1 rounded bg-emerald-600 text-white hover:opacity-95 text-xs font-medium"
