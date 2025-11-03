@@ -256,6 +256,58 @@ const Sidebar = () => {
                                 </NavLink>
                             </li>
 
+                            {/* Department Head */}
+                            <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mt-4 mb-1">
+                                <IconMinus className="w-4 h-5 flex-none hidden" />
+                                <span>Department Head</span>
+                            </h2>
+                            <li className="nav-item list-none">
+                                <NavLink to="/department-head/evaluation-review" className="group">
+                                    <div className="flex items-center">
+                                        <IconClipboardText className="group-hover:!text-primary shrink-0 w-5 h-5" />
+                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Evaluation Review</span>
+                                    </div>
+                                </NavLink>
+                            </li>
+                            <li className="nav-item list-none">
+                                <NavLink to="/department-head/report-review" className="group">
+                                    <div className="flex items-center">
+                                        <IconBarChart className="group-hover:!text-primary shrink-0 w-5 h-5" />
+                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Report Review</span>
+                                    </div>
+                                </NavLink>
+                            </li>
+
+                            {/* Executive Director */}
+                            <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mt-4 mb-1">
+                                <IconMinus className="w-4 h-5 flex-none hidden" />
+                                <span>Executive Director</span>
+                            </h2>
+                            <li className="nav-item list-none">
+                                <NavLink to="/executive/approvals" className="group">
+                                    <div className="flex items-center">
+                                        <IconChecks className="group-hover:!text-primary shrink-0 w-5 h-5" />
+                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Executive Approvals</span>
+                                    </div>
+                                </NavLink>
+                            </li>
+                            <li className="nav-item list-none">
+                                <NavLink to="/executive/digital-signoffs" className="group">
+                                    <div className="flex items-center">
+                                        <IconEdit className="group-hover:!text-primary shrink-0 w-5 h-5" />
+                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Digital Sign-offs</span>
+                                    </div>
+                                </NavLink>
+                            </li>
+                            <li className="nav-item list-none">
+                                <NavLink to="/executive/reports" className="group">
+                                    <div className="flex items-center">
+                                        <IconBarChart className="group-hover:!text-primary shrink-0 w-5 h-5" />
+                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Executive Reports</span>
+                                    </div>
+                                </NavLink>
+                            </li>
+
                             {/* Finance */}
                             <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mt-4 mb-1">
                                 <IconMinus className="w-4 h-5 flex-none hidden" />
