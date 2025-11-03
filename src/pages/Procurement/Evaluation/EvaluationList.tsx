@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { setPageTitle } from '../../../store/themeConfigSlice';
 import IconClipboardText from '../../../components/Icon/IconClipboardText';
@@ -10,8 +10,32 @@ import IconPrinter from '../../../components/Icon/IconPrinter';
 import IconFile from '../../../components/Icon/IconFile';
 import IconCircleCheck from '../../../components/Icon/IconCircleCheck';
 
+const ProgressBar = ({ percentage, color }: { percentage: number; color: string }) => {
+    const safePercentage = Math.min(100, Math.max(0, percentage));
+    
+    // Create dynamic width class based on percentage ranges
+    let widthClass = 'w-0';
+    if (safePercentage >= 90) widthClass = 'w-full';
+    else if (safePercentage >= 75) widthClass = 'w-3/4';
+    else if (safePercentage >= 60) widthClass = 'w-3/5';
+    else if (safePercentage >= 50) widthClass = 'w-1/2';
+    else if (safePercentage >= 40) widthClass = 'w-2/5';
+    else if (safePercentage >= 25) widthClass = 'w-1/4';
+    else if (safePercentage >= 20) widthClass = 'w-1/5';
+    else if (safePercentage >= 10) widthClass = 'w-1/12';
+    else if (safePercentage > 0) widthClass = 'w-1';
+    
+    return (
+        <div className="h-2 w-48 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700 relative">
+            <div className={`h-full ${color} transition-all duration-300 ${widthClass}`} />
+        </div>
+    );
+};
+
 const EvaluationList = () => {
     const dispatch = useDispatch();
+    const navigate = useNavigate();
+    
     useEffect(() => {
         dispatch(setPageTitle('Quote Evaluations'));
     });
@@ -96,9 +120,19 @@ const EvaluationList = () => {
     };
 
     const downloadReport = (format: string) => {
-        console.log(`Downloading ${format} report for ${selectedEvaluation?.evalNumber}`);
+        // Handle report download (in production, this would generate and download the actual file)
         // Implement download logic
         setShowReportModal(false);
+    };
+
+    const handleViewDetails = (evaluationId: number) => {
+        try {
+            navigate(`/procurement/evaluation/${evaluationId}`);
+        } catch (error) {
+            // Handle navigation error gracefully
+            // Fallback: use window.location if navigate fails
+            window.location.href = `/procurement/evaluation/${evaluationId}`;
+        }
     };
 
     const getStatusBadge = (status: string) => {
@@ -184,9 +218,12 @@ const EvaluationList = () => {
                             {evaluations.map((evaluation) => (
                                 <tr key={evaluation.id}>
                                     <td>
-                                        <Link to={`/procurement/evaluation/${evaluation.id}`} className="font-semibold text-primary hover:underline">
+                                        <button 
+                                            onClick={() => handleViewDetails(evaluation.id)}
+                                            className="font-semibold text-primary hover:underline bg-transparent border-0 p-0 cursor-pointer"
+                                        >
                                             {evaluation.evalNumber}
-                                        </Link>
+                                        </button>
                                     </td>
                                     <td>
                                         <Link to={`/procurement/rfq/${evaluation.rfqNumber}`} className="text-info hover:underline">
@@ -217,9 +254,13 @@ const EvaluationList = () => {
                                     </td>
                                     <td>
                                         <div className="flex gap-2">
-                                            <Link to={`/procurement/evaluation/${evaluation.id}`} className="btn btn-sm btn-outline-primary" title="View Details">
+                                            <button 
+                                                onClick={() => handleViewDetails(evaluation.id)}
+                                                className="btn btn-sm btn-outline-primary" 
+                                                title="View Details"
+                                            >
                                                 <IconEye className="h-4 w-4" />
-                                            </Link>
+                                            </button>
                                             {evaluation.status !== 'Pending' && (
                                                 <button onClick={() => handleGenerateReport(evaluation)} className="btn btn-sm btn-success" title="Generate Report">
                                                     <IconFile className="h-4 w-4" />
@@ -270,36 +311,28 @@ const EvaluationList = () => {
                                     <div className="flex items-center justify-between">
                                         <span>Price</span>
                                         <div className="flex items-center gap-2">
-                                            <div className="h-2 w-48 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
-                                                <div className="h-full bg-primary" style={{ width: `${selectedEvaluation.criteria.price}%` }}></div>
-                                            </div>
+                                            <ProgressBar percentage={selectedEvaluation.criteria.price} color="bg-primary" />
                                             <span className="font-semibold">{selectedEvaluation.criteria.price}%</span>
                                         </div>
                                     </div>
                                     <div className="flex items-center justify-between">
                                         <span>Quality</span>
                                         <div className="flex items-center gap-2">
-                                            <div className="h-2 w-48 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
-                                                <div className="h-full bg-success" style={{ width: `${selectedEvaluation.criteria.quality}%` }}></div>
-                                            </div>
+                                            <ProgressBar percentage={selectedEvaluation.criteria.quality} color="bg-success" />
                                             <span className="font-semibold">{selectedEvaluation.criteria.quality}%</span>
                                         </div>
                                     </div>
                                     <div className="flex items-center justify-between">
                                         <span>Delivery Time</span>
                                         <div className="flex items-center gap-2">
-                                            <div className="h-2 w-48 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
-                                                <div className="h-full bg-warning" style={{ width: `${selectedEvaluation.criteria.delivery}%` }}></div>
-                                            </div>
+                                            <ProgressBar percentage={selectedEvaluation.criteria.delivery} color="bg-warning" />
                                             <span className="font-semibold">{selectedEvaluation.criteria.delivery}%</span>
                                         </div>
                                     </div>
                                     <div className="flex items-center justify-between">
                                         <span>After-Sales Service</span>
                                         <div className="flex items-center gap-2">
-                                            <div className="h-2 w-48 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
-                                                <div className="h-full bg-info" style={{ width: `${selectedEvaluation.criteria.service}%` }}></div>
-                                            </div>
+                                            <ProgressBar percentage={selectedEvaluation.criteria.service} color="bg-info" />
                                             <span className="font-semibold">{selectedEvaluation.criteria.service}%</span>
                                         </div>
                                     </div>
