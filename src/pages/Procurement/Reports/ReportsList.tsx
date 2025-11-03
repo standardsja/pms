@@ -36,7 +36,7 @@ const ReportsList = () => {
         { id: 1, name: 'Monthly Procurement Summary', type: 'Summary', period: 'October 2024', generatedDate: '2024-10-24', format: 'PDF', size: '2.3 MB' },
         { id: 2, name: 'Supplier Performance Report', type: 'Analysis', period: 'Q3 2024', generatedDate: '2024-10-20', format: 'Excel', size: '5.1 MB' },
         { id: 3, name: 'Budget vs Spend Analysis', type: 'Financial', period: 'October 2024', generatedDate: '2024-10-22', format: 'PDF', size: '1.8 MB' },
-        { id: 4, name: 'RFQ Cycle Time Report', type: 'Performance', period: 'September 2024', generatedDate: '2024-10-15', format: 'PDF', size: '1.2 MB' },
+        { id: 4, name: 'Request Cycle Time Report', type: 'Performance', period: 'September 2024', generatedDate: '2024-10-15', format: 'PDF', size: '1.2 MB' },
     ]);
 
     // Spend by category chart
@@ -112,7 +112,7 @@ const ReportsList = () => {
                     <div className="mt-2 text-xs text-success">↑ 12% from last month</div>
                 </div>
                 <div className="panel">
-                    <div className="mb-3 text-lg font-semibold">Avg RFQ Time</div>
+                    <div className="mb-3 text-lg font-semibold">Avg Request Time</div>
                     <div className="text-3xl font-bold text-warning">8.5 days</div>
                     <div className="mt-2 text-xs text-danger">↓ 2 days slower</div>
                 </div>
@@ -172,11 +172,11 @@ const ReportsList = () => {
                         <p className="text-xs text-white-dark">Budget vs actual spend comparison</p>
                     </Link>
                     <Link
-                        to="/procurement/reports/generate?template=rfq"
+                        to="/procurement/reports/generate?template=request"
                         className="rounded-lg border border-white-light p-4 hover:border-primary hover:shadow-lg dark:border-white/10"
                     >
-                        <h6 className="mb-2 font-semibold">RFQ Performance</h6>
-                        <p className="text-xs text-white-dark">RFQ cycle times and efficiency</p>
+                        <h6 className="mb-2 font-semibold">Request Performance</h6>
+                        <p className="text-xs text-white-dark">Request cycle times and efficiency</p>
                     </Link>
                     <Link
                         to="/procurement/reports/generate?template=savings"
