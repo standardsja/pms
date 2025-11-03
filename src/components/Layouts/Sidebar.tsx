@@ -84,16 +84,19 @@ const Sidebar = () => {
                             type="button"
                             className="collapse-icon w-8 h-8 rounded-full flex items-center hover:bg-gray-500/10 dark:hover:bg-dark-light/10 dark:text-white-light transition duration-300 rtl:rotate-180"
                             onClick={() => dispatch(toggleSidebar())}
+                            aria-label="Toggle sidebar"
                         >
                             <IconCaretsDown className="m-auto rotate-90" />
                         </button>
                     </div>
                     <PerfectScrollbar className="h-[calc(100vh-80px)] relative">
                         <ul className="relative font-semibold space-y-0.5 p-4 py-0">
-                            <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
-                                <IconMinus className="w-4 h-5 flex-none hidden" />
-                                <span>Procurement Officer</span>
-                            </h2>
+                            <li className="nav-section">
+                                <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
+                                    <IconMinus className="w-4 h-5 flex-none hidden" />
+                                    <span>Procurement Officer</span>
+                                </h2>
+                            </li>
 
                             <li className="nav-item">
                                 <NavLink to="/" className="group">
@@ -213,10 +216,12 @@ const Sidebar = () => {
                             </li>
 
                             {/* Procurement Manager */}
-                            <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mt-4 mb-1">
-                                <IconMinus className="w-4 h-5 flex-none hidden" />
-                                <span>Procurement Manager</span>
-                            </h2>
+                            <li className="nav-section">
+                                <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mt-4 mb-1">
+                                    <IconMinus className="w-4 h-5 flex-none hidden" />
+                                    <span>Procurement Manager</span>
+                                </h2>
+                            </li>
                             <li className="nav-item">
                                 <NavLink to="/procurement/manager" className="group">
                                     <div className="flex items-center">
@@ -243,10 +248,12 @@ const Sidebar = () => {
                             </li>
 
                             {/* Supplier */}
-                            <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mt-4 mb-1">
-                                <IconMinus className="w-4 h-5 flex-none hidden" />
-                                <span>Supplier</span>
-                            </h2>
+                            <li className="nav-section">
+                                <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mt-4 mb-1">
+                                    <IconMinus className="w-4 h-5 flex-none hidden" />
+                                    <span>Supplier</span>
+                                </h2>
+                            </li>
                             <li className="nav-item">
                                 <NavLink to="/supplier" className="group">
                                     <div className="flex items-center">
@@ -257,10 +264,12 @@ const Sidebar = () => {
                             </li>
 
                             {/* Department Head */}
-                            <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mt-4 mb-1">
-                                <IconMinus className="w-4 h-5 flex-none hidden" />
-                                <span>Department Head</span>
-                            </h2>
+                            <li className="nav-section">
+                                <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mt-4 mb-1">
+                                    <IconMinus className="w-4 h-5 flex-none hidden" />
+                                    <span>Department Head</span>
+                                </h2>
+                            </li>
                             <li className="nav-item list-none">
                                 <NavLink to="/department-head/evaluation-review" className="group">
                                     <div className="flex items-center">
@@ -279,10 +288,12 @@ const Sidebar = () => {
                             </li>
 
                             {/* Executive Director */}
-                            <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mt-4 mb-1">
-                                <IconMinus className="w-4 h-5 flex-none hidden" />
-                                <span>Executive Director</span>
-                            </h2>
+                            <li className="nav-section">
+                                <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mt-4 mb-1">
+                                    <IconMinus className="w-4 h-5 flex-none hidden" />
+                                    <span>Executive Director</span>
+                                </h2>
+                            </li>
                             <li className="nav-item list-none">
                                 <NavLink to="/executive/approvals" className="group">
                                     <div className="flex items-center">
@@ -309,10 +320,12 @@ const Sidebar = () => {
                             </li>
 
                             {/* Finance */}
-                            <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mt-4 mb-1">
-                                <IconMinus className="w-4 h-5 flex-none hidden" />
-                                <span>Finance</span>
-                            </h2>
+                            <li className="nav-section">
+                                <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mt-4 mb-1">
+                                    <IconMinus className="w-4 h-5 flex-none hidden" />
+                                    <span>Finance</span>
+                                </h2>
+                            </li>
                             <li className="nav-item">
                                 <NavLink to="/finance" className="group">
                                     <div className="flex items-center">
