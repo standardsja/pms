@@ -302,6 +302,30 @@ const routes = [
         element: <AdminSettings />,
     },
     
+    // Department Head Routes
+    {
+        path: '/department-head/evaluation-review',
+        element: <DepartmentHeadEvaluationReview />,
+    },
+    {
+        path: '/department-head/report-review',
+        element: <DepartmentHeadReportReview />,
+    },
+    
+    // Executive Director Routes
+    {
+        path: '/executive/approvals',
+        element: <ExecutiveApprovals />,
+    },
+    {
+        path: '/executive/digital-signoffs',
+        element: <ExecutiveDigitalSignoffs />,
+    },
+    {
+        path: '/executive/reports',
+        element: <ExecutiveDirectorReports />,
+    },
+    
     // User Pages
     {
         path: '/profile',
