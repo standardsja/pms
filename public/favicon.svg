@@ -1,4 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <rect width="100" height="100" fill="#4361ee"/>
-  <text x="50" y="50" font-size="60" text-anchor="middle" dominant-baseline="central">🌀</text>
+  <!-- Transparent background: removed solid rect fill -->
+  <text x="50" y="50" font-size="60" text-anchor="middle" dominant-baseline="central"
+        style="font-family: 'Segoe UI Emoji','Apple Color Emoji','Noto Color Emoji',sans-serif;">
+    🌀
+  </text>
+  <!-- If some browsers render a default background, ensure none is drawn by leaving only the emoji glyph. -->
+  
 </svg>
