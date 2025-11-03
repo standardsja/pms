@@ -7,10 +7,18 @@ import IconDownload from '../../../components/Icon/IconDownload';
 import IconPrinter from '../../../components/Icon/IconPrinter';
 import IconCircleCheck from '../../../components/Icon/IconCircleCheck';
 import IconFile from '../../../components/Icon/IconFile';
+import ProgressBar from '../../../components/ProgressBar';
 
 const EvaluationDetail = () => {
     const dispatch = useDispatch();
     const { id } = useParams();
+
+    // Helper function to get color based on score
+    const getScoreColor = (score: number): 'success' | 'warning' | 'danger' => {
+        if (score >= 80) return 'success';
+        if (score >= 60) return 'warning';
+        return 'danger';
+    };
 
     useEffect(() => {
         dispatch(setPageTitle('Evaluation Details'));
@@ -151,7 +159,7 @@ const EvaluationDetail = () => {
     };
 
     const handleDownloadPDF = () => {
-        console.log('Downloading Evaluation Report PDF for:', evaluation.evalNumber);
+        // In production, this would generate and download the actual PDF report
         alert(`Downloading ${evaluation.evalNumber}_Report.pdf`);
     };
 
@@ -249,9 +257,7 @@ const EvaluationDetail = () => {
                                 <span className="badge bg-primary">{criterion.weight}%</span>
                             </div>
                             <div className="flex items-center gap-2">
-                                <div className="h-2 flex-1 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
-                                    <div className="h-full bg-primary" style={{ width: `${criterion.weight}%` }}></div>
-                                </div>
+                                <ProgressBar percentage={criterion.weight} color="primary" className="flex-1" />
                                 <span className="text-sm font-semibold">{criterion.weight}%</span>
                             </div>
                         </div>
@@ -293,45 +299,45 @@ const EvaluationDetail = () => {
                                     <td className="text-center">
                                         <div className="flex items-center justify-center gap-1">
                                             <span className="font-semibold">{quote.scores.price}</span>
-                                            <div className="h-1 w-8 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
-                                                <div
-                                                    className={`h-full ${quote.scores.price >= 80 ? 'bg-success' : quote.scores.price >= 60 ? 'bg-warning' : 'bg-danger'}`}
-                                                    style={{ width: `${quote.scores.price}%` }}
-                                                ></div>
-                                            </div>
+                                            <ProgressBar 
+                                                percentage={quote.scores.price} 
+                                                color={getScoreColor(quote.scores.price)}
+                                                size="sm"
+                                                className="w-8"
+                                            />
                                         </div>
                                     </td>
                                     <td className="text-center">
                                         <div className="flex items-center justify-center gap-1">
                                             <span className="font-semibold">{quote.scores.quality}</span>
-                                            <div className="h-1 w-8 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
-                                                <div
-                                                    className={`h-full ${quote.scores.quality >= 80 ? 'bg-success' : quote.scores.quality >= 60 ? 'bg-warning' : 'bg-danger'}`}
-                                                    style={{ width: `${quote.scores.quality}%` }}
-                                                ></div>
-                                            </div>
+                                            <ProgressBar 
+                                                percentage={quote.scores.quality} 
+                                                color={getScoreColor(quote.scores.quality)}
+                                                size="sm"
+                                                className="w-8"
+                                            />
                                         </div>
                                     </td>
                                     <td className="text-center">
                                         <div className="flex items-center justify-center gap-1">
                                             <span className="font-semibold">{quote.scores.delivery}</span>
-                                            <div className="h-1 w-8 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
-                                                <div
-                                                    className={`h-full ${quote.scores.delivery >= 80 ? 'bg-success' : quote.scores.delivery >= 60 ? 'bg-warning' : 'bg-danger'}`}
-                                                    style={{ width: `${quote.scores.delivery}%` }}
-                                                ></div>
-                                            </div>
+                                            <ProgressBar 
+                                                percentage={quote.scores.delivery} 
+                                                color={getScoreColor(quote.scores.delivery)}
+                                                size="sm"
+                                                className="w-8"
+                                            />
                                         </div>
                                     </td>
                                     <td className="text-center">
                                         <div className="flex items-center justify-center gap-1">
                                             <span className="font-semibold">{quote.scores.service}</span>
-                                            <div className="h-1 w-8 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
-                                                <div
-                                                    className={`h-full ${quote.scores.service >= 80 ? 'bg-success' : quote.scores.service >= 60 ? 'bg-warning' : 'bg-danger'}`}
-                                                    style={{ width: `${quote.scores.service}%` }}
-                                                ></div>
-                                            </div>
+                                            <ProgressBar 
+                                                percentage={quote.scores.service} 
+                                                color={getScoreColor(quote.scores.service)}
+                                                size="sm"
+                                                className="w-8"
+                                            />
                                         </div>
                                     </td>
                                     <td className="text-center">
