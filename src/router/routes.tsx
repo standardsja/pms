@@ -53,6 +53,15 @@ const Requests = lazy(() => import('../pages/Apps/Requests'));
 const RequestForm = lazy(() => import('../pages/Apps/RequestForm'));
 const FinanceRequests = lazy(() => import('../pages/Finance/Requests'));
 
+// Department Head Pages
+const DepartmentHeadEvaluationReview = lazy(() => import('../pages/Procurement/DepartmentHead/DepartmentHeadEvaluationReview'));
+const DepartmentHeadReportReview = lazy(() => import('../pages/Procurement/DepartmentHead/DepartmentHeadReportReview'));
+
+// Executive Director Pages
+const ExecutiveApprovals = lazy(() => import('../pages/Procurement/Approvals/ExecutiveApprovals'));
+const ExecutiveDigitalSignoffs = lazy(() => import('../pages/Procurement/ExecutiveDirector/ExecutiveDigitalSignoffs'));
+const ExecutiveDirectorReports = lazy(() => import('../pages/Procurement/ExecutiveDirector/ExecutiveDirectorReports'));
+
 // User Pages
 const Profile = lazy(() => import('../pages/Users/Profile'));
 const AccountSetting = lazy(() => import('../pages/Users/AccountSetting'));
@@ -257,6 +266,30 @@ const routes = [
     {
         path: '/procurement/admin',
         element: <AdminSettings />,
+    },
+    
+    // Department Head Routes
+    {
+        path: '/department-head/evaluation-review',
+        element: <DepartmentHeadEvaluationReview />,
+    },
+    {
+        path: '/department-head/report-review',
+        element: <DepartmentHeadReportReview />,
+    },
+    
+    // Executive Director Routes
+    {
+        path: '/executive/approvals',
+        element: <ExecutiveApprovals />,
+    },
+    {
+        path: '/executive/digital-signoffs',
+        element: <ExecutiveDigitalSignoffs />,
+    },
+    {
+        path: '/executive/reports',
+        element: <ExecutiveDirectorReports />,
     },
     
     // User Pages
