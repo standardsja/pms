@@ -102,7 +102,7 @@ const AdminSettings = () => {
     ]);
 
     const [templates] = useState([
-        { id: 1, name: 'RFQ Template - Standard', category: 'RFQ', version: '2.1', lastModified: '2024-10-22' },
+        { id: 1, name: 'Requisition Template - Standard', category: 'Requisition', version: '2.1', lastModified: '2024-10-22' },
         { id: 2, name: 'Purchase Order - General', category: 'PO', version: '1.5', lastModified: '2024-10-20' },
         { id: 3, name: 'Contract Template - Services', category: 'Contract', version: '3.0', lastModified: '2024-10-19' },
         { id: 4, name: 'Evaluation Matrix', category: 'Evaluation', version: '1.2', lastModified: '2024-10-18' },
@@ -241,7 +241,7 @@ const AdminSettings = () => {
                         <div className="mb-5 flex items-center justify-between">
                             <select className="form-select w-auto">
                                 <option>All Categories</option>
-                                <option>RFQ</option>
+                                <option>Requisition</option>
                                 <option>PO</option>
                                 <option>Contract</option>
                                 <option>Evaluation</option>
@@ -341,7 +341,7 @@ const AdminSettings = () => {
                                     checked={emailNotifications.rfqUpdates}
                                     onChange={(e) => setEmailNotifications({ ...emailNotifications, rfqUpdates: e.target.checked })}
                                 />
-                                <span className="ml-2 text-white-dark">RFQ Status Updates</span>
+                                <span className="ml-2 text-white-dark">Request Status Updates</span>
                             </label>
                             <label className="flex cursor-pointer items-center">
                                 <input 
@@ -350,7 +350,7 @@ const AdminSettings = () => {
                                     checked={emailNotifications.quoteSubmissions}
                                     onChange={(e) => setEmailNotifications({ ...emailNotifications, quoteSubmissions: e.target.checked })}
                                 />
-                                <span className="ml-2 text-white-dark">Quote Submissions</span>
+                                <span className="ml-2 text-white-dark">Offer Submissions</span>
                             </label>
                             <label className="flex cursor-pointer items-center">
                                 <input 
@@ -401,7 +401,7 @@ const AdminSettings = () => {
                                 </select>
                             </div>
                             <div>
-                                <label className="mb-2 block">Default RFQ Validity (Days)</label>
+                                <label className="mb-2 block">Default Request Validity (Days)</label>
                                 <input 
                                     type="number" 
                                     className="form-input" 
@@ -416,7 +416,7 @@ const AdminSettings = () => {
                         <h5 className="mb-4 text-lg font-semibold">SLA Settings</h5>
                         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                             <div>
-                                <label className="mb-2 block">RFQ Response Time (Days)</label>
+                                <label className="mb-2 block">Request Response Time (Days)</label>
                                 <input 
                                     type="number" 
                                     className="form-input" 
@@ -425,7 +425,7 @@ const AdminSettings = () => {
                                 />
                             </div>
                             <div>
-                                <label className="mb-2 block">Quote Evaluation Time (Days)</label>
+                                <label className="mb-2 block">Offer Evaluation Time (Days)</label>
                                 <input 
                                     type="number" 
                                     className="form-input" 

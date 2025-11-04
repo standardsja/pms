@@ -78,7 +78,7 @@ const ExecutiveApprovals = () => {
             documentList: [
                 { id: 1, name: 'Equipment Purchase Order.pdf', type: 'Purchase Order', size: '1.8 MB', uploadedBy: 'Robert Brown', uploadedDate: '2024-10-24', category: 'Procurement' },
                 { id: 2, name: 'Budget Authorization.pdf', type: 'Financial', size: '445 KB', uploadedBy: 'Finance Team', uploadedDate: '2024-10-24', category: 'Finance' },
-                { id: 3, name: 'Vendor Quotations.zip', type: 'Quotes', size: '3.2 MB', uploadedBy: 'Procurement Officer', uploadedDate: '2024-10-23', category: 'Vendor' },
+                { id: 3, name: 'Vendor Offers.zip', type: 'Vendor', size: '3.2 MB', uploadedBy: 'Procurement Officer', uploadedDate: '2024-10-23', category: 'Vendor' },
                 { id: 4, name: 'Space Planning Layout.dwg', type: 'Technical', size: '2.1 MB', uploadedBy: 'Facilities Team', uploadedDate: '2024-10-23', category: 'Technical' },
                 { id: 5, name: 'Delivery Schedule.xlsx', type: 'Logistics', size: '234 KB', uploadedBy: 'Logistics Coordinator', uploadedDate: '2024-10-24', category: 'Logistics' }
             ],
