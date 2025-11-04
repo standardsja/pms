@@ -5,6 +5,8 @@ import { setPageTitle } from '../../store/themeConfigSlice';
 import IconMail from '../../components/Icon/IconMail';
 import IconLockDots from '../../components/Icon/IconLockDots';
 import IconEye from '../../components/Icon/IconEye';
+// @ts-ignore
+import packageInfo from '../../../package.json';
 
 const Login = () => {
     const dispatch = useDispatch();
@@ -370,6 +372,7 @@ const Login = () => {
                     {/* Footer */}
                     <div className="mt-12 text-center text-sm text-gray-500">
                         <p>© {new Date().getFullYear()} Bureau of Standards Jamaica. All rights reserved.</p>
+                        <p className="mt-2 text-xs text-gray-400">Version {packageInfo.version}</p>
                     </div>
                 </div>
             </div>
