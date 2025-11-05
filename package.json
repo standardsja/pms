@@ -6,7 +6,8 @@
     "scripts": {
         "dev": "vite",
         "build": "vite build && tsc",
-        "preview": "vite preview"
+        "preview": "vite preview",
+        "test": "vitest"
     },
     "dependencies": {
         "@emotion/react": "^11.10.6",
@@ -76,12 +77,14 @@
         "i18next": "^23.13.0",
         "i18next-browser-languagedetector": "^8.0.0",
         "i18next-http-backend": "^2.5.2",
+        "jsdom": "^27.1.0",
         "postcss": "^8.4.35",
         "react-animate-height": "^3.0.4",
         "react-i18next": "^15.0.1",
         "react-perfect-scrollbar": "^1.5.8",
         "tailwindcss": "^3.4.1",
         "typescript": "^5.5.4",
-        "vite": "^5.4.1"
+        "vite": "^5.4.1",
+        "vitest": "^2.0.5"
     }
 }

@@ -6,6 +6,10 @@ import IconPlus from '../../components/Icon/IconPlus';
 import IconEye from '../../components/Icon/IconEye';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
+import { Request, ApiResponse } from '../../types/request.types';
+import { getStatusBadge } from '../../utils/statusBadges';
+import { searchRequests, filterRequests, onlyMine, paginate, formatDate, sortRequestsByDateDesc } from '../../utils/requestUtils';
+import RequestDetailsContent from '../../components/RequestDetailsContent';
 
 const MySwal = withReactContent(Swal);
 
@@ -18,194 +22,112 @@ const Requests = () => {
         dispatch(setPageTitle('Requests'));
     }, [dispatch]);
 
-    const [requests] = useState<any>([
-        {
-            id: 'REQ-001',
-            title: 'Purchase Office Chairs',
-            requester: 'Alice Johnson',
-            department: 'HR',
-            status: 'Pending Finance',
-            date: '2025-10-20',
-            items: [
-                { description: 'Ergonomic Office Chair Model XYZ', quantity: 15, unitPrice: 350.00 },
-                { description: 'Chair Assembly Service', quantity: 15, unitPrice: 10.00 }
-            ],
-            totalEstimated: 5400.00,
-            fundingSource: 'Operational Budget',
-            budgetCode: 'OP-2025-HR-001',
-            justification: 'Current chairs are 8+ years old and causing employee back pain complaints. Ergonomic replacements will improve productivity and reduce sick leave.',
-            comments: [],
-            statusHistory: [
-                { status: 'Submitted', date: '2025-10-20', actor: 'Alice Johnson', note: 'Request created' }
-            ]
-        },
-        {
-            id: 'REQ-002',
-            title: 'Subscription: Design Tool',
-            requester: 'Mark Benson',
-            department: 'Design',
-            status: 'Approved',
-            date: '2025-10-14',
-            items: [
-                { description: 'Figma Professional Plan - Annual License', quantity: 5, unitPrice: 144.00 }
-            ],
-            totalEstimated: 720.00,
-            fundingSource: 'Operational Budget',
-            budgetCode: 'OP-2025-DES-003',
-            justification: 'Design team needs collaborative design tool for client projects.',
-            comments: [
-                { actor: 'Finance Officer', date: '2025-10-15', text: 'Budget verified. Approved.' },
-                { actor: 'Procurement Officer', date: '2025-10-16', text: 'Vendor contract signed.' }
-            ],
-            statusHistory: [
-                { status: 'Submitted', date: '2025-10-14', actor: 'Mark Benson', note: 'Request created' },
-                { status: 'Finance Verified', date: '2025-10-15', actor: 'Finance Officer', note: 'Budget approved' },
-                { status: 'Approved', date: '2025-10-16', actor: 'Procurement Officer', note: 'Final approval' }
-            ]
-        },
-        {
-            id: 'REQ-003',
-            title: 'Laptop Replacement',
-            requester: 'Samuel Lee',
-            department: 'Engineering',
-            status: 'Returned by Finance',
-            date: '2025-09-30',
-            items: [
-                { description: 'MacBook Pro 16" M3 Max', quantity: 1, unitPrice: 3499.00 }
-            ],
-            totalEstimated: 3499.00,
-            fundingSource: 'Capital Budget',
-            budgetCode: '',
-            justification: 'Current laptop too slow for development work.',
-            comments: [
-                { actor: 'Finance Officer', date: '2025-10-02', text: 'Please provide budget code for capital purchases and business justification for high-spec model.' }
-            ],
-            statusHistory: [
-                { status: 'Submitted', date: '2025-09-30', actor: 'Samuel Lee', note: 'Request created' },
-                { status: 'Returned by Finance', date: '2025-10-02', actor: 'Finance Officer', note: 'Missing budget code' }
-            ]
-        },
-    ]);
+    const [requests, setRequests] = useState<Request[]>([]);
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
-    // Simulated current user; replace with real auth when available
-    const currentUserName = 'Alice Johnson';
-    const showMineByPath = location.pathname.endsWith('/mine');
-    const [showMineOnly, setShowMineOnly] = useState<boolean>(showMineByPath);
+    // Current user from localStorage (aligns with RequestForm pattern)
+    const [currentUserName, setCurrentUserName] = useState<string>('');
+    const showMineOnly = location.pathname.endsWith('/mine');
 
+    // Load current user
     useEffect(() => {
-        // keep in sync if navigating between /apps/requests and /apps/requests/mine
-        setShowMineOnly(showMineByPath);
-    }, [showMineByPath]);
+        try {
+            const user = JSON.parse(localStorage.getItem('auth_user') || '{}');
+            setCurrentUserName(user?.name || '');
+        } catch {
+            setCurrentUserName('');
+        }
+    }, []);
 
-    const filteredRequests = useMemo(
-        () => (showMineOnly ? requests.filter((r: any) => r.requester === currentUserName) : requests),
-        [showMineOnly, requests]
-    );
-
-    // View request details modal
-    const viewDetails = (req: any) => {
-        const safe = (s: string) => {
-            const charMap: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
-            return s.replace(/[&<>"']/g, (c) => charMap[c]);
+    // Fetch requests from API
+    useEffect(() => {
+        const controller = new AbortController();
+        const fetchRequests = async () => {
+            setIsLoading(true);
+            setError(null);
+            try {
+                const token = localStorage.getItem('auth_token');
+                const headers: Record<string, string> = {};
+                if (token) headers['Authorization'] = `Bearer ${token}`;
+                const res = await fetch('/api/requisitions', {
+                    headers,
+                    signal: controller.signal,
+                });
+                let payload: any = null;
+                try {
+                    payload = await res.json();
+                } catch {
+                    /* no-op: non-JSON response */
+                }
+                if (!res.ok) {
+                    const msg = (payload && (payload.message || payload.error)) || res.statusText || 'Failed to load requests';
+                    throw new Error(msg);
+                }
+                const json: ApiResponse<Request[]> | Request[] = payload;
+                const data = Array.isArray(json) ? json : (json?.data || []);
+                setRequests(data);
+            } catch (e: unknown) {
+                // Ignore abort errors
+                if (e instanceof DOMException && e.name === 'AbortError') return;
+                const message = e instanceof Error ? e.message : typeof e === 'string' ? e : 'Failed to load requests';
+                setError(String(message));
+            } finally {
+                setIsLoading(false);
+            }
         };
 
-        const itemsHtml = req.items.map((item: any, idx: number) => 
-            `<tr class="border-t">
-                <td class="px-3 py-2 text-left">${idx + 1}</td>
-                <td class="px-3 py-2 text-left">${safe(item.description)}</td>
-                <td class="px-3 py-2 text-center">${item.quantity}</td>
-                <td class="px-3 py-2 text-right">$${item.unitPrice.toFixed(2)}</td>
-                <td class="px-3 py-2 text-right font-medium">$${(item.quantity * item.unitPrice).toFixed(2)}</td>
-            </tr>`
-        ).join('');
+        fetchRequests();
+        return () => controller.abort();
+    }, []);
 
-        const commentsHtml = req.comments.length > 0 
-            ? req.comments.map((c: any) => 
-                `<div class="p-3 bg-gray-50 rounded mb-2">
-                    <div class="font-medium text-sm">${safe(c.actor)} <span class="text-gray-500 font-normal">on ${c.date}</span></div>
-                    <div class="text-sm mt-1">${safe(c.text)}</div>
-                </div>`
-            ).join('')
-            : '<p class="text-gray-500 text-sm">No comments yet.</p>';
+    // URL-synced filters/search/page
+    const initParams = new URLSearchParams(location.search);
+    const [query, setQuery] = useState<string>(() => initParams.get('q') || '');
+    const [statusFilter, setStatusFilter] = useState<string>(() => initParams.get('status') || '');
+    const [departmentFilter, setDepartmentFilter] = useState<string>(() => initParams.get('dept') || '');
 
-        const historyHtml = req.statusHistory.map((h: any) => 
-            `<div class="flex justify-between items-start py-2 border-b last:border-0">
-                <div>
-                    <div class="font-medium text-sm">${safe(h.status)}</div>
-                    <div class="text-xs text-gray-500">${safe(h.note)}</div>
-                </div>
-                <div class="text-xs text-gray-500 text-right">
-                    <div>${safe(h.actor)}</div>
-                    <div>${h.date}</div>
-                </div>
-            </div>`
-        ).join('');
+    const sorted = useMemo(() => sortRequestsByDateDesc(requests), [requests]);
+    const searched = useMemo(() => searchRequests(sorted, query), [sorted, query]);
+    const filteredByMeta = useMemo(
+        () => filterRequests(searched, { status: statusFilter, department: departmentFilter }),
+        [searched, statusFilter, departmentFilter]
+    );
+    const filteredRequests = useMemo(
+        () => (showMineOnly ? onlyMine(filteredByMeta, currentUserName) : filteredByMeta),
+        [showMineOnly, filteredByMeta, currentUserName]
+    );
 
+    // Pagination
+    const [page, setPage] = useState<number>(() => {
+        const p = parseInt(initParams.get('page') || '1', 10);
+        return Number.isFinite(p) && p > 0 ? p : 1;
+    });
+    const pageSize = 10;
+    const pageCount = Math.max(1, Math.ceil(filteredRequests.length / pageSize));
+    const paged = useMemo(() => paginate(filteredRequests, page, pageSize), [filteredRequests, page]);
+
+    // Keep URL query params in sync with current UI state
+    useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        if (query) params.set('q', query); else params.delete('q');
+        if (statusFilter) params.set('status', statusFilter); else params.delete('status');
+        if (departmentFilter) params.set('dept', departmentFilter); else params.delete('dept');
+        if (page > 1) params.set('page', String(page)); else params.delete('page');
+        const search = params.toString();
+        navigate({ pathname: location.pathname, search: search ? `?${search}` : '' }, { replace: true });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [query, statusFilter, departmentFilter, page]);
+
+    // View request details modal (React content, no HTML strings)
+    const viewDetails = (req: Request) => {
         MySwal.fire({
-            title: `Request Details: ${safe(req.id)}`,
-            html: `
-                <div class="text-left space-y-4">
-                    <div>
-                        <h3 class="font-semibold text-lg mb-2">${safe(req.title)}</h3>
-                        <div class="grid grid-cols-2 gap-2 text-sm">
-                            <div><span class="font-medium">Requester:</span> ${safe(req.requester)}</div>
-                            <div><span class="font-medium">Department:</span> ${safe(req.department)}</div>
-                            <div><span class="font-medium">Date Submitted:</span> ${req.date}</div>
-                            <div><span class="font-medium">Status:</span> ${safe(req.status)}</div>
-                        </div>
-                    </div>
-
-                    <div>
-                        <h4 class="font-semibold mb-2">Budget Information</h4>
-                        <div class="text-sm space-y-1">
-                            <div><span class="font-medium">Total Amount:</span> <span class="text-lg font-bold text-blue-600">$${req.totalEstimated.toFixed(2)}</span></div>
-                            <div><span class="font-medium">Funding Source:</span> ${safe(req.fundingSource || '—')}</div>
-                            <div><span class="font-medium">Budget Code:</span> ${safe(req.budgetCode || '—')}</div>
-                        </div>
-                    </div>
-
-                    <div>
-                        <h4 class="font-semibold mb-2">Items/Services</h4>
-                        <table class="w-full text-sm border-collapse border">
-                            <thead class="bg-gray-100">
-                                <tr>
-                                    <th class="px-3 py-2 text-left">#</th>
-                                    <th class="px-3 py-2 text-left">Description</th>
-                                    <th class="px-3 py-2 text-center">Qty</th>
-                                    <th class="px-3 py-2 text-right">Unit Price</th>
-                                    <th class="px-3 py-2 text-right">Subtotal</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${itemsHtml}
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <div>
-                        <h4 class="font-semibold mb-2">Justification</h4>
-                        <p class="text-sm bg-gray-50 p-3 rounded">${safe(req.justification)}</p>
-                    </div>
-
-                    <div>
-                        <h4 class="font-semibold mb-2">Comments & Feedback</h4>
-                        ${commentsHtml}
-                    </div>
-
-                    <div>
-                        <h4 class="font-semibold mb-2">Status History</h4>
-                        <div class="text-sm border rounded p-3">
-                            ${historyHtml}
-                        </div>
-                    </div>
-                </div>
-            `,
+            title: `Request Details: ${req.id}`,
+            html: <RequestDetailsContent request={req} />,
             width: '800px',
             showCloseButton: true,
             showConfirmButton: false,
-            customClass: {
-                popup: 'text-left'
-            }
+            customClass: { popup: 'text-left' }
         });
     };
 
@@ -228,31 +150,85 @@ const Requests = () => {
                 </div>
             </div>
 
-            {/* Filter controls */}
-            <div className="mb-4 flex items-center gap-2">
+            {/* Filter & Search controls */}
+            <div className="mb-4 flex flex-wrap items-center gap-2">
                 <button
                     className={`px-3 py-1.5 rounded border text-sm ${!showMineOnly ? 'bg-primary text-white border-primary' : 'border-gray-300 dark:border-gray-600'}`}
                     onClick={() => {
-                        setShowMineOnly(false);
-                        if (location.pathname.endsWith('/mine')) navigate('/apps/requests');
+                        if (location.pathname.endsWith('/mine')) {
+                            navigate({ pathname: '/apps/requests', search: location.search });
+                        }
                     }}
                     type="button"
+                    aria-pressed={!showMineOnly}
+                    aria-label="Show all requests"
                 >
                     All Requests
                 </button>
                 <button
                     className={`px-3 py-1.5 rounded border text-sm ${showMineOnly ? 'bg-primary text-white border-primary' : 'border-gray-300 dark:border-gray-600'}`}
                     onClick={() => {
-                        setShowMineOnly(true);
-                        if (!location.pathname.endsWith('/mine')) navigate('/apps/requests/mine');
+                        if (!location.pathname.endsWith('/mine')) {
+                            navigate({ pathname: '/apps/requests/mine', search: location.search });
+                        }
                     }}
                     type="button"
+                    aria-pressed={showMineOnly}
+                    aria-label="Show my requests"
                 >
                     My Requests
                 </button>
+
+                <input
+                    type="text"
+                    value={query}
+                    onChange={(e) => { setQuery(e.target.value); setPage(1); }}
+                    placeholder="Search by ID, Title, Requester, Dept"
+                    className="form-input w-64"
+                    aria-label="Search requests"
+                />
+
+                <select
+                    value={statusFilter}
+                    onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+                    className="form-select"
+                    aria-label="Filter by status"
+                >
+                    <option value="">All Statuses</option>
+                    <option>Pending Finance</option>
+                    <option>Finance Verified</option>
+                    <option>Pending Procurement</option>
+                    <option>Approved</option>
+                    <option>Returned by Finance</option>
+                    <option>Rejected</option>
+                    <option>Fulfilled</option>
+                </select>
+
+                <select
+                    value={departmentFilter}
+                    onChange={(e) => { setDepartmentFilter(e.target.value); setPage(1); }}
+                    className="form-select"
+                    aria-label="Filter by department"
+                >
+                    <option value="">All Departments</option>
+                    {[...new Set(requests.map(r => r.department).filter(Boolean) as string[])]
+                        .sort((a, b) => a.localeCompare(b))
+                        .map(dep => (
+                            <option key={dep} value={dep}>{dep}</option>
+                        ))}
+                </select>
             </div>
 
-            <div className="bg-white dark:bg-slate-800 shadow rounded overflow-hidden">
+            <div className="bg-white dark:bg-slate-800 shadow rounded overflow-hidden" aria-busy={isLoading}>
+                {isLoading && (
+                    <div className="p-6 text-center text-sm text-gray-500">Loading requests…</div>
+                )}
+                {error && !isLoading && (
+                    <div className="p-6 text-center text-sm text-red-600">{error}</div>
+                )}
+                {!isLoading && !error && filteredRequests.length === 0 && (
+                    <div className="p-6 text-center text-sm text-gray-500">No requests found.</div>
+                )}
                 <table className="min-w-full table-auto">
                     <thead className="bg-slate-50 dark:bg-slate-700 text-sm">
                         <tr>
@@ -266,23 +242,8 @@ const Requests = () => {
                         </tr>
                     </thead>
                     <tbody className="text-sm">
-                        {filteredRequests.map((r: any) => {
-                            // Status badge colors for quick visual tracking
-                            const getStatusBadge = (status: string) => {
-                                const statusMap: Record<string, { bg: string; text: string; label: string }> = {
-                                    'Pending Finance': { bg: 'bg-yellow-100 dark:bg-yellow-900/30', text: 'text-yellow-800 dark:text-yellow-300', label: 'Pending Finance' },
-                                    'Finance Verified': { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-800 dark:text-blue-300', label: 'Finance Verified' },
-                                    'Pending Procurement': { bg: 'bg-purple-100 dark:bg-purple-900/30', text: 'text-purple-800 dark:text-purple-300', label: 'Pending Procurement' },
-                                    'Approved': { bg: 'bg-emerald-100 dark:bg-emerald-900/30', text: 'text-emerald-800 dark:text-emerald-300', label: 'Approved' },
-                                    'Returned by Finance': { bg: 'bg-rose-100 dark:bg-rose-900/30', text: 'text-rose-800 dark:text-rose-300', label: 'Returned' },
-                                    'Rejected': { bg: 'bg-rose-100 dark:bg-rose-900/30', text: 'text-rose-800 dark:text-rose-300', label: 'Rejected' },
-                                    'Fulfilled': { bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-800 dark:text-green-300', label: 'Fulfilled' },
-                                };
-                                return statusMap[status] || { bg: 'bg-gray-100 dark:bg-gray-700', text: 'text-gray-800 dark:text-gray-300', label: status };
-                            };
-                            
+                        {paged.map((r) => {
                             const badge = getStatusBadge(r.status);
-                            
                             return (
                                 <tr key={r.id} className="border-t last:border-b hover:bg-slate-50 dark:hover:bg-slate-700">
                                     <td className="px-4 py-3 font-medium">{r.id}</td>
@@ -290,16 +251,17 @@ const Requests = () => {
                                     <td className="px-4 py-3">{r.requester}</td>
                                     <td className="px-4 py-3">{r.department}</td>
                                     <td className="px-4 py-3">
-                                        <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${badge.bg} ${badge.text}`}>
+                                        <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${badge.bg} ${badge.text}`} aria-label={`Status: ${badge.label}`}>
                                             {badge.label}
                                         </span>
                                     </td>
-                                    <td className="px-4 py-3">{r.date}</td>
+                                    <td className="px-4 py-3">{formatDate(r.date)}</td>
                                     <td className="px-4 py-3">
                                         <button
                                             className="p-1.5 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600"
                                             onClick={() => viewDetails(r)}
                                             title="View Details"
+                                            aria-label={`View details for ${r.id}`}
                                         >
                                             <IconEye className="w-5 h-5" />
                                         </button>
@@ -309,6 +271,31 @@ const Requests = () => {
                         })}
                     </tbody>
                 </table>
+                {/* Pagination */}
+                {!isLoading && !error && filteredRequests.length > pageSize && (
+                    <div className="flex items-center justify-between p-3 text-sm">
+                        <div>
+                            Showing {(page - 1) * pageSize + 1}-{Math.min(page * pageSize, filteredRequests.length)} of {filteredRequests.length}
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <button
+                                className="px-3 py-1 rounded border disabled:opacity-50"
+                                onClick={() => setPage(p => Math.max(1, p - 1))}
+                                disabled={page === 1}
+                            >
+                                Previous
+                            </button>
+                            <span>Page {page} of {pageCount}</span>
+                            <button
+                                className="px-3 py-1 rounded border disabled:opacity-50"
+                                onClick={() => setPage(p => Math.min(pageCount, p + 1))}
+                                disabled={page === pageCount}
+                            >
+                                Next
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );
