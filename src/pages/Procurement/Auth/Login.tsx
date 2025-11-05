@@ -1,12 +1,12 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { useDispatch } from 'react-redux';
-import { setPageTitle } from '../../store/themeConfigSlice';
-import IconMail from '../../components/Icon/IconMail';
-import IconLockDots from '../../components/Icon/IconLockDots';
-import IconEye from '../../components/Icon/IconEye';
+import { setPageTitle } from '../../../store/themeConfigSlice';
+import IconMail from '../../../components/Icon/IconMail';
+import IconLockDots from '../../../components/Icon/IconLockDots';
+import IconEye from '../../../components/Icon/IconEye';
 // @ts-ignore
-import packageInfo from '../../../package.json';
+import packageInfo from '../../../../package.json';
 
 const Login = () => {
     const dispatch = useDispatch();

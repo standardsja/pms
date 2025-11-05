@@ -1,10 +1,10 @@
 import { useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { useDispatch } from 'react-redux';
-import { setPageTitle } from '../../store/themeConfigSlice';
-import IconUser from '../../components/Icon/IconUser';
-import IconMail from '../../components/Icon/IconMail';
-import IconPhone from '../../components/Icon/IconPhone';
+import { setPageTitle } from '../../../store/themeConfigSlice';
+import IconUser from '../../../components/Icon/IconUser';
+import IconMail from '../../../components/Icon/IconMail';
+import IconPhone from '../../../components/Icon/IconPhone';
 
 interface OnboardingData {
     // Step 1: Personal Information
