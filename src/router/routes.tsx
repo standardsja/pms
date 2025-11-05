@@ -5,10 +5,10 @@ const Index = lazy(() => import('../pages/Index'));
 const Error = lazy(() => import('../components/Error'));
 
 // Auth Pages
-const Login = lazy(() => import('../pages/Auth/Login'));
-const ForgotPassword = lazy(() => import('../pages/Auth/ForgotPassword'));
-const ResetPassword = lazy(() => import('../pages/Auth/ResetPassword'));
-const Onboarding = lazy(() => import('../pages/Auth/Onboarding'));
+const Login = lazy(() => import('../pages/Procurement/Auth/Login'));
+const ForgotPassword = lazy(() => import('../pages/Procurement/Auth/ForgotPassword'));
+const ResetPassword = lazy(() => import('../pages/Procurement/Auth/ResetPassword'));
+const Onboarding = lazy(() => import('../pages/Procurement/Auth/Onboarding'));
 
 // Procurement Pages
 const ProcurementDashboard = lazy(() => import('../pages/Procurement/Dashboard'));
@@ -49,24 +49,24 @@ const PaymentsToProcess = lazy(() => import('../pages/Procurement/Payments/Payme
 const AdminSettings = lazy(() => import('../pages/Procurement/Admin/AdminSettings'));
 
 // Request Pages
-const Requests = lazy(() => import('../pages/Apps/Requests'));
-const RequestForm = lazy(() => import('../pages/Apps/RequestForm'));
-const FinanceRequests = lazy(() => import('../pages/Finance/Requests'));
+const Requests = lazy(() => import('../pages/Procurement/Requests/Requests'));
+const RequestForm = lazy(() => import('../pages/Procurement/Requests/RequestForm'));
+const FinanceRequests = lazy(() => import('../pages/Procurement/Finance/Requests'));
 
 // Department Head Pages
-const DepartmentHeadDashboard = lazy(() => import('../pages/Procurement/DepartmentHeadDashboard'));
+const DepartmentHeadDashboard = lazy(() => import('../pages/Procurement/DepartmentHead/DepartmentHeadDashboard'));
 const DepartmentHeadEvaluationReview = lazy(() => import('../pages/Procurement/DepartmentHead/DepartmentHeadEvaluationReview'));
 const DepartmentHeadReportReview = lazy(() => import('../pages/Procurement/DepartmentHead/DepartmentHeadReportReview'));
 
 // Executive Director Pages
-const ExecutiveDirectorDashboard = lazy(() => import('../pages/Procurement/ExecutiveDirectorDashboard'));
+const ExecutiveDirectorDashboard = lazy(() => import('../pages/Procurement/ExecutiveDirector/ExecutiveDirectorDashboard'));
 const ExecutiveApprovals = lazy(() => import('../pages/Procurement/Approvals/ExecutiveApprovals'));
 const ExecutiveDirectorReports = lazy(() => import('../pages/Procurement/ExecutiveDirector/ExecutiveDirectorReports'));
 const ExecutiveDigitalSignoffs = lazy(() => import('../pages/Procurement/ExecutiveDirector/ExecutiveDigitalSignoffs'));
 
 // User Pages
-const Profile = lazy(() => import('../pages/Users/Profile'));
-const AccountSetting = lazy(() => import('../pages/Users/AccountSetting'));
+const Profile = lazy(() => import('../pages/Procurement/Users/Profile'));
+const AccountSetting = lazy(() => import('../pages/Procurement/Users/AccountSetting'));
 const HelpSupport = lazy(() => import('../pages/Pages/HelpSupport'));
 
 
