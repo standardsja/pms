@@ -62,6 +62,7 @@ const RequestForm = () => {
     const canEditHodFields = !!(isAssignee && requestMeta?.status === 'HOD_REVIEW');
     const canEditProcurementSection = !!(isAssignee && requestMeta?.status === 'PROCUREMENT_REVIEW');
     const canEditBudgetSection = !!(isAssignee && requestMeta?.status === 'FINANCE_REVIEW');
+    const canDispatchToVendors = !!(isAssignee && requestMeta?.status === 'FINANCE_APPROVED');
 
     useEffect(() => {
         dispatch(setPageTitle(isEditMode ? 'Review Procurement Request' : 'New Procurement Request'));
@@ -283,6 +284,38 @@ const RequestForm = () => {
         } catch (err: any) {
             console.error(err);
             try { (await import('sweetalert2')).default.fire({ icon: 'error', title: 'Submission failed', text: err.message || String(err) }); } catch (e) { alert('Submission failed: ' + (err.message || err)); }
+        }
+    };
+
+    const handleDownloadPdf = () => {
+        if (!id) return;
+        const url = `http://localhost:4000/requests/${id}/pdf`;
+        // open in a new tab to trigger download
+        window.open(url, '_blank');
+    };
+
+    const handleSendToVendor = async () => {
+        if (!id) return;
+        const raw = localStorage.getItem('userProfile');
+        const profile = raw ? JSON.parse(raw) : null;
+        const userId = profile?.id || profile?.userId || null;
+        if (!userId) { Swal.fire({ icon: 'error', title: 'Not logged in' }); return; }
+        try {
+            const resp = await fetch(`http://localhost:4000/requests/${id}/action`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-user-id': String(userId) },
+                body: JSON.stringify({ action: 'SEND_TO_VENDOR' }),
+            });
+            if (!resp.ok) {
+                const err = await resp.json().catch(() => ({}));
+                throw new Error(err.error || resp.statusText || 'Failed to send');
+            }
+            await resp.json();
+            Swal.fire({ icon: 'success', title: 'Marked as sent to vendor' });
+            navigate('/apps/requests');
+        } catch (err: any) {
+            console.error(err);
+            Swal.fire({ icon: 'error', title: 'Failed', text: err?.message || String(err) });
         }
     };
 
@@ -877,13 +910,31 @@ const RequestForm = () => {
                     </div>
 
                     {/* Action Buttons */}
-                    <div className="flex gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <div className="flex flex-wrap items-center gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
                         <button
                             type="submit"
                             className="px-6 py-2 rounded bg-primary text-white hover:opacity-95 font-medium"
                         >
                             {isEditMode ? 'Save Changes' : 'Submit Procurement Request'}
                         </button>
+                        {isEditMode && canDispatchToVendors && (
+                            <>
+                                <button
+                                    type="button"
+                                    onClick={handleDownloadPdf}
+                                    className="px-6 py-2 rounded border border-gray-300 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700"
+                                >
+                                    Download PDF
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleSendToVendor}
+                                    className="px-6 py-2 rounded bg-emerald-600 text-white hover:bg-emerald-700"
+                                >
+                                    Mark as Sent to Vendor
+                                </button>
+                            </>
+                        )}
                         <button
                             type="button"
                             onClick={() => navigate('/apps/requests')}
