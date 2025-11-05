@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useDispatch } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { setPageTitle } from '../../store/themeConfigSlice';
 import IconPlus from '../../components/Icon/IconPlus';
 import IconX from '../../components/Icon/IconX';
+import Swal from 'sweetalert2';
 
 interface RequestItem {
     itemNo: number;
@@ -18,11 +19,14 @@ interface RequestItem {
 const RequestForm = () => {
     const dispatch = useDispatch();
     const navigate = useNavigate();
+    const { id } = useParams<{ id: string }>();
+    const isEditMode = !!id;
     const [formDate, setFormDate] = useState(new Date().toISOString().split('T')[0]);
     const [estimatedTotal, setEstimatedTotal] = useState(0);
     const [institution, setInstitution] = useState('');
     const [division, setDivision] = useState('');
     const [branchUnit, setBranchUnit] = useState('');
+    const [requestedBy, setRequestedBy] = useState('');
     const [budgetActivity, setBudgetActivity] = useState('yes');
     const [email, setEmail] = useState('');
     const [procurementType, setProcurementType] = useState<string[]>([]);
@@ -45,12 +49,108 @@ const RequestForm = () => {
     const [procurementComments, setProcurementComments] = useState('');
     const [attachments, setAttachments] = useState<File[]>([]);
 
+    // Current user profile (for edit permissions)
+    const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
+    const currentUserId = userProfile?.id || userProfile?.userId || null;
+
+    // Track request metadata to gate editing by stage & assignee
+    const [requestMeta, setRequestMeta] = useState<{ status?: string; currentAssigneeId?: number } | null>(null);
+
+    // Determine field permissions strictly by workflow stage + assignee
+    const isAssignee = !!(isEditMode && requestMeta?.currentAssigneeId && currentUserId && Number(requestMeta.currentAssigneeId) === Number(currentUserId));
+    const canEditManagerFields = !!(isAssignee && requestMeta?.status === 'DEPARTMENT_REVIEW');
+    const canEditHodFields = !!(isAssignee && requestMeta?.status === 'HOD_REVIEW');
+    const canEditProcurementSection = !!(isAssignee && requestMeta?.status === 'PROCUREMENT_REVIEW');
+    const canEditBudgetSection = !!(isAssignee && requestMeta?.status === 'FINANCE_REVIEW');
+
     useEffect(() => {
-        dispatch(setPageTitle('New Procurement Request'));
+        dispatch(setPageTitle(isEditMode ? 'Review Procurement Request' : 'New Procurement Request'));
         // Calculate total whenever items change
         const total = items.reduce((sum, item) => sum + (item.quantity * item.unitCost), 0);
         setEstimatedTotal(total);
-    }, [dispatch, items]);
+    }, [dispatch, items, isEditMode]);
+
+    // Prefill requester info when creating a new request
+    useEffect(() => {
+        if (isEditMode) return;
+        try {
+            const raw = localStorage.getItem('userProfile');
+            const profile = raw ? JSON.parse(raw) : null;
+            if (profile) {
+                setRequestedBy(profile.name || '');
+                setEmail(profile.email || '');
+                setDivision(profile.department?.name || '');
+                // best-effort for branch/unit using dept code
+                if (profile.department?.code && !branchUnit) setBranchUnit(profile.department.code);
+            }
+        } catch {}
+    }, [isEditMode]);
+
+    // Fetch existing request data when in edit mode
+    useEffect(() => {
+        if (!isEditMode || !id) return;
+
+        const fetchRequest = async () => {
+            try {
+                const resp = await fetch(`http://localhost:4000/requests/${id}`);
+                if (!resp.ok) throw new Error('Failed to fetch request');
+                
+                const request = await resp.json();
+                
+                // Pre-fill form with existing data (review mode)
+                setFormDate(request.createdAt ? new Date(request.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]);
+                // Some fields may not exist in DB yet; provide sensible fallbacks for reviewers
+                setInstitution(request.institution || 'Bureau of Standards Jamaica');
+                setDivision(request.department?.name || '');
+                setBranchUnit(request.branchUnit || request.department?.code || '');
+                setRequestedBy(request.requester?.name || '');
+                setEmail(request.requester?.email || '');
+                setPriority(request.priority?.toLowerCase() || 'medium');
+                setCommentsJustification(request.description || '');
+                
+                // Pre-fill items
+                if (request.items && request.items.length > 0) {
+                    setItems(request.items.map((item: any, idx: number) => ({
+                        itemNo: idx + 1,
+                        stockLevel: item.stockLevel || '',
+                        description: item.description || '',
+                        quantity: item.quantity || 1,
+                        unitOfMeasure: item.unitOfMeasure || '',
+                        unitCost: Number(item.unitPrice) || 0,
+                        partNumber: item.partNumber || ''
+                    })));
+                }
+                
+                // Pre-fill manager section (if present)
+                setManagerName(request.managerName || '');
+                setHeadName(request.headName || '');
+                
+                // Pre-fill budget section (if present)
+                setCommitmentNumber(request.commitmentNumber || '');
+                setAccountingCode(request.accountingCode || '');
+                setBudgetComments(request.budgetComments || '');
+                setBudgetOfficerName(request.budgetOfficerName || '');
+                setBudgetManagerName(request.budgetManagerName || '');
+                
+                // Pre-fill procurement section (if present)
+                setProcurementCaseNumber(request.procurementCaseNumber || '');
+                setReceivedBy(request.receivedBy || '');
+                setDateReceived(request.dateReceived || '');
+                setActionDate(request.actionDate || '');
+                setProcurementComments(request.procurementComments || '');
+
+                // Track status and assignee for edit gating
+                const assigneeId = request.currentAssignee?.id || request.currentAssigneeId || null;
+                setRequestMeta({ status: request.status, currentAssigneeId: assigneeId ? Number(assigneeId) : undefined });
+                
+            } catch (err) {
+                console.error('Error fetching request:', err);
+                Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to load request data' });
+            }
+        };
+
+        fetchRequest();
+    }, [id, isEditMode]);
 
     const addItem = () => {
         const newItemNo = items.length + 1;
@@ -98,38 +198,92 @@ const RequestForm = () => {
         }
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        const formData = {
-            date: formDate,
-            requestedBy: 'Current User', // TODO: Get from auth
-            estimatedTotal,
-            institution,
-            division,
-            branchUnit,
-            budgetActivity,
-            email,
-            procurementType,
-            priority,
-            items,
-            commentsJustification,
-            managerName,
-            headName,
-            commitmentNumber,
-            accountingCode,
-            budgetComments,
-            budgetOfficerName,
-            budgetManagerName,
-            procurementCaseNumber,
-            receivedBy,
-            dateReceived,
-            actionDate,
-            procurementComments,
-            attachments: attachments.map(f => f.name)
-        };
-        console.log('Procurement Request Data:', formData);
-        alert('Procurement Request submitted! (Add API integration here)');
-        navigate('/apps/requests');
+
+        // read logged-in profile from localStorage
+        const raw = localStorage.getItem('userProfile');
+        const profile = raw ? JSON.parse(raw) : null;
+        const userId = profile?.id || profile?.userId || null;
+        const departmentId = profile?.department?.id || profile?.departmentId || null;
+
+        if (!userId) {
+            Swal.fire({ icon: 'error', title: 'Error', text: 'Unable to determine user. Make sure you are logged in.' });
+            return;
+        }
+
+        try {
+            if (isEditMode && id) {
+                // Update existing request (manager/procurement/finance filling their sections)
+                const updatePayload = {
+                    managerName,
+                    headName,
+                    commitmentNumber,
+                    accountingCode,
+                    budgetComments,
+                    budgetOfficerName,
+                    budgetManagerName,
+                    procurementCaseNumber,
+                    receivedBy,
+                    dateReceived,
+                    actionDate,
+                    procurementComments,
+                };
+
+                const resp = await fetch(`http://localhost:4000/requests/${id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-user-id': String(userId),
+                    },
+                    body: JSON.stringify(updatePayload),
+                });
+
+                if (!resp.ok) {
+                    const err = await resp.json().catch(() => ({}));
+                    throw new Error(err.error || resp.statusText || 'Update failed');
+                }
+
+                Swal.fire({ icon: 'success', title: 'Request updated', text: 'Your information has been saved' });
+                navigate('/apps/requests');
+            } else {
+                // Create new request
+                if (!departmentId) {
+                    Swal.fire({ icon: 'error', title: 'Error', text: 'Unable to determine department. Make sure you are logged in.' });
+                    return;
+                }
+
+                const payload = {
+                    title: `Request - ${formDate} - ${items.length} item(s)`,
+                    description: commentsJustification || 'Procurement request created from form',
+                    departmentId: Number(departmentId),
+                    items: items.map(it => ({ description: it.description, quantity: it.quantity, unitPrice: it.unitCost, totalPrice: it.quantity * it.unitCost, accountCode: '' })),
+                    totalEstimated: estimatedTotal,
+                    currency: 'USD'
+                };
+
+                const resp = await fetch('http://localhost:4000/requests', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-user-id': String(userId),
+                    },
+                    body: JSON.stringify(payload),
+                });
+
+                if (!resp.ok) {
+                    const err = await resp.json().catch(() => ({}));
+                    throw new Error(err.error || resp.statusText || 'Request failed');
+                }
+
+                const data = await resp.json();
+                Swal.fire({ icon: 'success', title: 'Request submitted', text: `Reference ${data.reference || data.id}` });
+                navigate('/apps/requests');
+            }
+        } catch (err: any) {
+            console.error(err);
+            try { (await import('sweetalert2')).default.fire({ icon: 'error', title: 'Submission failed', text: err.message || String(err) }); } catch (e) { alert('Submission failed: ' + (err.message || err)); }
+        }
     };
 
     return (
@@ -161,7 +315,10 @@ const RequestForm = () => {
                                 <input
                                     type="text"
                                     className="form-input w-full"
+                                    value={requestedBy}
+                                    onChange={(e) => setRequestedBy(e.target.value)}
                                     placeholder="Click here to enter text"
+                                    readOnly={!isEditMode}
                                     required
                                 />
                             </div>
@@ -189,6 +346,7 @@ const RequestForm = () => {
                                     onChange={(e) => setInstitution(e.target.value)}
                                     className="form-input w-full"
                                     placeholder="Choose an item"
+                                    readOnly={!isEditMode}
                                     required
                                 />
                             </div>
@@ -200,6 +358,7 @@ const RequestForm = () => {
                                     onChange={(e) => setDivision(e.target.value)}
                                     className="form-input w-full"
                                     placeholder="Choose an item"
+                                    readOnly={!isEditMode}
                                     required
                                 />
                             </div>
@@ -214,6 +373,7 @@ const RequestForm = () => {
                                     onChange={(e) => setBranchUnit(e.target.value)}
                                     className="form-input w-full"
                                     placeholder="Choose an item"
+                                    readOnly={!isEditMode}
                                 />
                             </div>
                             <div>
@@ -254,6 +414,7 @@ const RequestForm = () => {
                                     onChange={(e) => setEmail(e.target.value)}
                                     className="form-input w-full"
                                     placeholder="Enter email"
+                                    readOnly={!isEditMode}
                                     required
                                 />
                             </div>
@@ -484,17 +645,19 @@ const RequestForm = () => {
                                         onChange={(e) => setManagerName(e.target.value)}
                                         className="form-input w-full mb-3"
                                         placeholder="Enter name of head of department"
+                                        disabled={!canEditManagerFields}
                                     />
                                     <div className="grid grid-cols-2 gap-3">
                                         <div>
                                             <label className="block text-xs text-gray-500 mb-1">Signature:</label>
-                                            <input type="text" className="form-input w-full" placeholder="" />
+                                            <input type="text" className="form-input w-full" placeholder="" disabled={!canEditManagerFields} />
                                         </div>
                                         <div>
                                             <label className="block text-xs text-gray-500 mb-1">Date:</label>
-                                            <input type="date" className="form-input w-full" defaultValue="2025-05-15" />
+                                            <input type="date" className="form-input w-full" defaultValue="2025-05-15" disabled={!canEditManagerFields} />
                                         </div>
                                     </div>
+                                    {/* Duplicate signature/date removed after refining permissions */}
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium mb-2">Head of Division's Name:</label>
@@ -504,17 +667,19 @@ const RequestForm = () => {
                                         onChange={(e) => setHeadName(e.target.value)}
                                         className="form-input w-full mb-3"
                                         placeholder="Enter name of head of department"
+                                        disabled={!canEditHodFields}
                                     />
                                     <div className="grid grid-cols-2 gap-3">
                                         <div>
                                             <label className="block text-xs text-gray-500 mb-1">Signature:</label>
-                                            <input type="text" className="form-input w-full" placeholder="" />
+                                            <input type="text" className="form-input w-full" placeholder="" disabled={!canEditHodFields} />
                                         </div>
                                         <div>
                                             <label className="block text-xs text-gray-500 mb-1">Date:</label>
-                                            <input type="date" className="form-input w-full" defaultValue="2025-05-15" />
+                                            <input type="date" className="form-input w-full" defaultValue="2025-05-15" disabled={!canEditHodFields} />
                                         </div>
                                     </div>
+                                    {/* Duplicate signature/date removed after refining permissions */}
                                 </div>
                             </div>
                         </div>
@@ -533,6 +698,7 @@ const RequestForm = () => {
                                     onChange={(e) => setCommitmentNumber(e.target.value)}
                                     className="form-input w-full"
                                     placeholder=""
+                                    disabled={!canEditBudgetSection}
                                 />
                             </div>
                             <div>
@@ -543,6 +709,7 @@ const RequestForm = () => {
                                     onChange={(e) => setAccountingCode(e.target.value)}
                                     className="form-input w-full"
                                     placeholder=""
+                                    disabled={!canEditBudgetSection}
                                 />
                             </div>
                         </div>
@@ -555,6 +722,7 @@ const RequestForm = () => {
                                 className="form-textarea w-full"
                                 rows={2}
                                 placeholder=""
+                                disabled={!canEditBudgetSection}
                             />
                         </div>
 
@@ -567,15 +735,16 @@ const RequestForm = () => {
                                     onChange={(e) => setBudgetOfficerName(e.target.value)}
                                     className="form-input w-full mb-3"
                                     placeholder=""
+                                    disabled={!canEditBudgetSection}
                                 />
                                 <div className="grid grid-cols-2 gap-3">
                                     <div>
                                         <label className="block text-xs text-gray-500 mb-1">Signature:</label>
-                                        <input type="text" className="form-input w-full" placeholder="" />
+                                        <input type="text" className="form-input w-full" placeholder="" disabled={!canEditBudgetSection} />
                                     </div>
                                     <div>
                                         <label className="block text-xs text-gray-500 mb-1">Date:</label>
-                                        <input type="date" className="form-input w-full" />
+                                        <input type="date" className="form-input w-full" disabled={!canEditBudgetSection} />
                                     </div>
                                 </div>
                             </div>
@@ -587,15 +756,16 @@ const RequestForm = () => {
                                     onChange={(e) => setBudgetManagerName(e.target.value)}
                                     className="form-input w-full mb-3"
                                     placeholder=""
+                                    disabled={!canEditBudgetSection}
                                 />
                                 <div className="grid grid-cols-2 gap-3">
                                     <div>
                                         <label className="block text-xs text-gray-500 mb-1">Signature:</label>
-                                        <input type="text" className="form-input w-full" placeholder="" />
+                                        <input type="text" className="form-input w-full" placeholder="" disabled={!canEditBudgetSection} />
                                     </div>
                                     <div>
                                         <label className="block text-xs text-gray-500 mb-1">Date:</label>
-                                        <input type="date" className="form-input w-full" />
+                                        <input type="date" className="form-input w-full" disabled={!canEditBudgetSection} />
                                     </div>
                                 </div>
                             </div>
@@ -618,6 +788,7 @@ const RequestForm = () => {
                                         onChange={(e) => setReceivedBy(e.target.value)}
                                         className="form-input w-full"
                                         placeholder=""
+                                        disabled={!canEditProcurementSection}
                                     />
                                 </div>
                                 <div>
@@ -628,6 +799,7 @@ const RequestForm = () => {
                                         onChange={(e) => setProcurementCaseNumber(e.target.value)}
                                         className="form-input w-full"
                                         placeholder=""
+                                        disabled={!canEditProcurementSection}
                                     />
                                 </div>
                                 <div>
@@ -637,6 +809,7 @@ const RequestForm = () => {
                                         value={dateReceived}
                                         onChange={(e) => setDateReceived(e.target.value)}
                                         className="form-input w-full"
+                                        disabled={!canEditProcurementSection}
                                     />
                                 </div>
                                 <div>
@@ -646,6 +819,7 @@ const RequestForm = () => {
                                         value={actionDate}
                                         onChange={(e) => setActionDate(e.target.value)}
                                         className="form-input w-full"
+                                        disabled={!canEditProcurementSection}
                                     />
                                 </div>
                             </div>
@@ -658,6 +832,7 @@ const RequestForm = () => {
                                     className="form-textarea w-full"
                                     rows={2}
                                     placeholder=""
+                                    disabled={!canEditProcurementSection}
                                 />
                             </div>
                         </div>
@@ -707,7 +882,7 @@ const RequestForm = () => {
                             type="submit"
                             className="px-6 py-2 rounded bg-primary text-white hover:opacity-95 font-medium"
                         >
-                            Submit Procurement Request
+                            {isEditMode ? 'Save Changes' : 'Submit Procurement Request'}
                         </button>
                         <button
                             type="button"

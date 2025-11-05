@@ -18,77 +18,14 @@ const Requests = () => {
         dispatch(setPageTitle('Requests'));
     }, [dispatch]);
 
-    const [requests] = useState<any>([
-        {
-            id: 'REQ-001',
-            title: 'Purchase Office Chairs',
-            requester: 'Alice Johnson',
-            department: 'HR',
-            status: 'Pending Finance',
-            date: '2025-10-20',
-            items: [
-                { description: 'Ergonomic Office Chair Model XYZ', quantity: 15, unitPrice: 350.00 },
-                { description: 'Chair Assembly Service', quantity: 15, unitPrice: 10.00 }
-            ],
-            totalEstimated: 5400.00,
-            fundingSource: 'Operational Budget',
-            budgetCode: 'OP-2025-HR-001',
-            justification: 'Current chairs are 8+ years old and causing employee back pain complaints. Ergonomic replacements will improve productivity and reduce sick leave.',
-            comments: [],
-            statusHistory: [
-                { status: 'Submitted', date: '2025-10-20', actor: 'Alice Johnson', note: 'Request created' }
-            ]
-        },
-        {
-            id: 'REQ-002',
-            title: 'Subscription: Design Tool',
-            requester: 'Mark Benson',
-            department: 'Design',
-            status: 'Approved',
-            date: '2025-10-14',
-            items: [
-                { description: 'Figma Professional Plan - Annual License', quantity: 5, unitPrice: 144.00 }
-            ],
-            totalEstimated: 720.00,
-            fundingSource: 'Operational Budget',
-            budgetCode: 'OP-2025-DES-003',
-            justification: 'Design team needs collaborative design tool for client projects.',
-            comments: [
-                { actor: 'Finance Officer', date: '2025-10-15', text: 'Budget verified. Approved.' },
-                { actor: 'Procurement Officer', date: '2025-10-16', text: 'Vendor contract signed.' }
-            ],
-            statusHistory: [
-                { status: 'Submitted', date: '2025-10-14', actor: 'Mark Benson', note: 'Request created' },
-                { status: 'Finance Verified', date: '2025-10-15', actor: 'Finance Officer', note: 'Budget approved' },
-                { status: 'Approved', date: '2025-10-16', actor: 'Procurement Officer', note: 'Final approval' }
-            ]
-        },
-        {
-            id: 'REQ-003',
-            title: 'Laptop Replacement',
-            requester: 'Samuel Lee',
-            department: 'Engineering',
-            status: 'Returned by Finance',
-            date: '2025-09-30',
-            items: [
-                { description: 'MacBook Pro 16" M3 Max', quantity: 1, unitPrice: 3499.00 }
-            ],
-            totalEstimated: 3499.00,
-            fundingSource: 'Capital Budget',
-            budgetCode: '',
-            justification: 'Current laptop too slow for development work.',
-            comments: [
-                { actor: 'Finance Officer', date: '2025-10-02', text: 'Please provide budget code for capital purchases and business justification for high-spec model.' }
-            ],
-            statusHistory: [
-                { status: 'Submitted', date: '2025-09-30', actor: 'Samuel Lee', note: 'Request created' },
-                { status: 'Returned by Finance', date: '2025-10-02', actor: 'Finance Officer', note: 'Missing budget code' }
-            ]
-        },
-    ]);
+    const [requests, setRequests] = useState<any[]>([]);
+    const [loading, setLoading] = useState(false);
 
-    // Simulated current user; replace with real auth when available
-    const currentUserName = 'Alice Johnson';
+    // Current user from localStorage
+    const raw = typeof window !== 'undefined' ? localStorage.getItem('userProfile') : null;
+    const currentProfile = raw ? JSON.parse(raw) : null;
+    const currentUserName = currentProfile?.name || 'Current User';
+    const currentUserId = currentProfile?.id || currentProfile?.userId || null;
     const showMineByPath = location.pathname.endsWith('/mine');
     const [showMineOnly, setShowMineOnly] = useState<boolean>(showMineByPath);
 
@@ -97,10 +34,57 @@ const Requests = () => {
         setShowMineOnly(showMineByPath);
     }, [showMineByPath]);
 
-    const filteredRequests = useMemo(
-        () => (showMineOnly ? requests.filter((r: any) => r.requester === currentUserName) : requests),
-        [showMineOnly, requests]
-    );
+    useEffect(() => {
+        // fetch requests from backend
+        const fetchRequests = async () => {
+            setLoading(true);
+            try {
+                let url = 'http://localhost:4000/requests';
+                if (showMineOnly && currentUserId) url = `${url}?assignee=${currentUserId}`;
+                const resp = await fetch(url, { headers: { 'x-user-id': String(currentUserId || '') } });
+                if (resp.ok) {
+                    const data = await resp.json();
+                    // normalize to the shape used by the component
+                    setRequests(data.map((r: any) => ({
+                        id: r.id,
+                        title: r.title,
+                        requester: r.requester?.name || '',
+                        department: r.department?.name || '',
+                        status: r.status,
+                        date: r.createdAt,
+                        items: (r.items || []).map((it: any) => ({ description: it.description, quantity: it.quantity, unitPrice: Number(it.unitPrice) })),
+                        totalEstimated: Number(r.totalEstimated || 0),
+                        fundingSource: r.fundingSource?.name || '',
+                        budgetCode: r.budgetCode || '',
+                        justification: r.description || '',
+                        currentAssigneeId: r.currentAssignee?.id || r.currentAssigneeId || null,
+                        currentAssigneeName: r.currentAssignee?.name || '',
+                        raw: r,
+                    })));
+                } else {
+                    console.error('Failed to fetch requests', resp.statusText);
+                }
+            } catch (err) {
+                console.error(err);
+            } finally { setLoading(false); }
+        };
+        
+        // Initial fetch
+        fetchRequests();
+        
+        // Auto-refresh every 5 seconds
+        const interval = setInterval(fetchRequests, 5000);
+        
+        // Cleanup on unmount or dependency change
+        return () => clearInterval(interval);
+    }, [showMineOnly, currentUserId]);
+
+    const filteredRequests = useMemo(() => {
+        if (showMineOnly && currentUserId) {
+            return requests.filter((r: any) => Number(r.currentAssigneeId) === Number(currentUserId));
+        }
+        return requests;
+    }, [showMineOnly, requests, currentUserId]);
 
     // View request details modal
     const viewDetails = (req: any) => {
@@ -209,6 +193,29 @@ const Requests = () => {
         });
     };
 
+    const approveRequest = async (req: any) => {
+        const raw = localStorage.getItem('userProfile');
+        const profile = raw ? JSON.parse(raw) : null;
+        const userId = profile?.id || profile?.userId || null;
+        if (!userId) { alert('Not logged in'); return; }
+
+        try {
+            const resp = await fetch(`http://localhost:4000/requests/${req.raw.id}/action`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-user-id': String(userId) },
+                body: JSON.stringify({ action: 'APPROVE' }),
+            });
+            if (!resp.ok) throw new Error('Approve failed');
+            const updated = await resp.json();
+            // refresh list
+            setRequests(prev => prev.map(p => p.id === req.id ? ({ ...p, raw: updated, status: updated.status }) : p));
+            MySwal.fire({ icon: 'success', title: 'Approved' });
+        } catch (err: any) {
+            console.error(err);
+            MySwal.fire({ icon: 'error', title: 'Approve failed', text: err?.message || String(err) });
+        }
+    };
+
     return (
         <div className="p-6">
             <div className="flex items-center justify-between mb-6">
@@ -261,6 +268,7 @@ const Requests = () => {
                             <th className="px-4 py-3 text-left">Requester</th>
                             <th className="px-4 py-3 text-left">Department</th>
                             <th className="px-4 py-3 text-left">Status</th>
+                            <th className="px-4 py-3 text-left">Assigned To</th>
                             <th className="px-4 py-3 text-left">Date</th>
                             <th className="px-4 py-3 text-left">Actions</th>
                         </tr>
@@ -294,15 +302,42 @@ const Requests = () => {
                                             {badge.label}
                                         </span>
                                     </td>
+                                    <td className="px-4 py-3">
+                                        {r.currentAssigneeName ? (
+                                            <span className={`text-sm ${Number(currentUserId) === Number(r.currentAssigneeId) ? 'font-semibold text-primary' : ''}`}>
+                                                {r.currentAssigneeName}
+                                            </span>
+                                        ) : (
+                                            <span className="text-sm text-gray-400">—</span>
+                                        )}
+                                    </td>
                                     <td className="px-4 py-3">{r.date}</td>
                                     <td className="px-4 py-3">
-                                        <button
-                                            className="p-1.5 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600"
-                                            onClick={() => viewDetails(r)}
-                                            title="View Details"
-                                        >
-                                            <IconEye className="w-5 h-5" />
-                                        </button>
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                className="p-1.5 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600"
+                                                onClick={() => viewDetails(r)}
+                                                title="View Details"
+                                            >
+                                                <IconEye className="w-5 h-5" />
+                                            </button>
+                                            {currentUserId && (Number(currentUserId) === Number(r.currentAssigneeId)) && (
+                                                <>
+                                                    <button
+                                                        className="px-3 py-1 rounded bg-blue-600 text-white text-sm hover:bg-blue-700"
+                                                        onClick={() => navigate(`/apps/requests/edit/${r.id}`)}
+                                                    >
+                                                        Review
+                                                    </button>
+                                                    <button
+                                                        className="px-3 py-1 rounded bg-emerald-600 text-white text-sm hover:bg-emerald-700"
+                                                        onClick={() => approveRequest(r)}
+                                                    >
+                                                        Approve
+                                                    </button>
+                                                </>
+                                            )}
+                                        </div>
                                     </td>
                                 </tr>
                             );

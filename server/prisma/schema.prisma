@@ -150,6 +150,24 @@ model Request {
   vendor   Vendor? @relation(fields: [vendorId], references: [id])
   vendorId Int?
 
+  // Manager/HOD section fields
+  managerName String?
+  headName    String?
+
+  // Budget section fields
+  commitmentNumber  String?
+  accountingCode    String?
+  budgetComments    String?
+  budgetOfficerName String?
+  budgetManagerName String?
+
+  // Procurement section fields
+  procurementCaseNumber String?
+  receivedBy            String?
+  dateReceived          String?
+  actionDate            String?
+  procurementComments   String?
+
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   submittedAt DateTime?
