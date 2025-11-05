@@ -1,0 +1,209 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+/**
+ * ===== Enums =====
+ */
+enum RequestStatus {
+  DRAFT
+  SUBMITTED
+  DEPARTMENT_REVIEW
+  DEPARTMENT_RETURNED
+  DEPARTMENT_APPROVED
+  HOD_REVIEW
+  PROCUREMENT_REVIEW
+  FINANCE_REVIEW
+  FINANCE_RETURNED
+  FINANCE_APPROVED
+  SENT_TO_VENDOR
+  CLOSED
+  REJECTED
+}
+
+enum RequestActionType {
+  SUBMIT
+  APPROVE
+  RETURN
+  ASSIGN
+  EDIT_BUDGET
+  COMMENT
+  SEND_TO_VENDOR
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+/**
+ * ===== Models =====
+ */
+
+model User {
+  id           Int     @id @default(autoincrement())
+  externalId   String? @unique
+  email        String  @unique
+  name         String?
+  passwordHash String? // ← for local email/password testing
+
+  department   Department? @relation("userDepartment", fields: [departmentId], references: [id])
+  departmentId Int?
+
+  managedDepartment   Department?            @relation("departmentManager")
+  roles               UserRole[]
+  requests            Request[]              @relation("requestRequester")
+  assignedRequests    Request[]              @relation("requestAssignee")
+  actions             RequestAction[]        @relation("actionPerformedBy")
+  attachmentsUploaded RequestAttachment[]    @relation("attachmentUploadedBy")
+  statusChanges       RequestStatusHistory[] @relation("statusChangedBy")
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+}
+
+model Department {
+  id   Int     @id @default(autoincrement())
+  name String
+  code String? @unique
+
+  // one manager per department
+  manager   User? @relation("departmentManager", fields: [managerId], references: [id], onDelete: SetNull)
+  managerId Int?  @unique // <-- make the FK unique
+
+  users    User[]    @relation("userDepartment")
+  requests Request[]
+}
+
+model Role {
+  id          Int        @id @default(autoincrement())
+  name        String     @unique
+  description String?
+  users       UserRole[]
+}
+
+model UserRole {
+  id     Int  @id @default(autoincrement())
+  user   User @relation(fields: [userId], references: [id])
+  userId Int
+  role   Role @relation(fields: [roleId], references: [id])
+  roleId Int
+
+  @@unique([userId, roleId])
+}
+
+model FundingSource {
+  id       Int       @id @default(autoincrement())
+  name     String
+  code     String?
+  notes    String?
+  requests Request[] // back-relation for Request.fundingSource
+}
+
+model Vendor {
+  id        Int       @id @default(autoincrement())
+  name      String
+  contact   Json?
+  address   String?
+  website   String?
+  createdAt DateTime  @default(now())
+  requests  Request[] // back-relation for Request.vendor
+}
+
+model Request {
+  id          Int     @id @default(autoincrement())
+  reference   String  @unique
+  title       String
+  description String?
+
+  requester   User @relation("requestRequester", fields: [requesterId], references: [id])
+  requesterId Int
+
+  department   Department? @relation(fields: [departmentId], references: [id])
+  departmentId Int?
+
+  items         RequestItem[]
+  attachments   RequestAttachment[]
+  actions       RequestAction[]
+  statusHistory RequestStatusHistory[]
+
+  status RequestStatus @default(DRAFT)
+
+  fundingSource   FundingSource? @relation(fields: [fundingSourceId], references: [id])
+  fundingSourceId Int?
+
+  budgetCode       String?
+  totalEstimated   Decimal?  @db.Decimal(12, 2)
+  currency         String?   @default("USD")
+  priority         Priority? @default(MEDIUM)
+  expectedDelivery DateTime?
+
+  currentAssignee   User? @relation("requestAssignee", fields: [currentAssigneeId], references: [id])
+  currentAssigneeId Int?
+
+  vendor   Vendor? @relation(fields: [vendorId], references: [id])
+  vendorId Int?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  submittedAt DateTime?
+}
+
+model RequestItem {
+  id          Int     @id @default(autoincrement())
+  request     Request @relation(fields: [requestId], references: [id])
+  requestId   Int
+  description String
+  quantity    Int     @default(1)
+  unitPrice   Decimal @db.Decimal(12, 2)
+  totalPrice  Decimal @db.Decimal(12, 2)
+  accountCode String?
+}
+
+model RequestAttachment {
+  id        Int     @id @default(autoincrement())
+  request   Request @relation(fields: [requestId], references: [id])
+  requestId Int
+  filename  String
+  url       String
+  mimeType  String?
+
+  uploadedBy   User? @relation("attachmentUploadedBy", fields: [uploadedById], references: [id])
+  uploadedById Int?
+
+  uploadedAt DateTime @default(now())
+}
+
+model RequestAction {
+  id        Int     @id @default(autoincrement())
+  request   Request @relation(fields: [requestId], references: [id])
+  requestId Int
+
+  action  RequestActionType
+  comment String?
+
+  performedBy   User? @relation("actionPerformedBy", fields: [performedById], references: [id])
+  performedById Int?
+
+  metadata  Json?
+  createdAt DateTime @default(now())
+}
+
+model RequestStatusHistory {
+  id        Int           @id @default(autoincrement())
+  request   Request       @relation(fields: [requestId], references: [id])
+  requestId Int
+  status    RequestStatus
+
+  changedBy   User? @relation("statusChangedBy", fields: [changedById], references: [id])
+  changedById Int?
+
+  comment   String?
+  createdAt DateTime @default(now())
+}
