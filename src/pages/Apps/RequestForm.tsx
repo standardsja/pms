@@ -3,10 +3,12 @@
  * 
  * Features:
  * - Role-based access control (Requesters can only edit Section I)
- * - Form validation with error display
- * - File upload with size/type validation (10MB max)
+ * - Form validation with real-time debounced feedback
+ * - File upload with size/type validation and progress indicator
+ * - Auto-save to prevent data loss
  * - Auto-calculated estimated total
  * - API integration with error handling
+ * - Error boundary for crash protection
  * 
  * @returns {JSX.Element} Procurement request form
  */
@@ -16,6 +18,10 @@ import { useNavigate } from 'react-router-dom';
 import { setPageTitle } from '../../store/themeConfigSlice';
 import IconX from '../../components/Icon/IconX';
 import ItemsTable, { RequestItem } from '../../components/ItemsTable';
+import ErrorBoundary from '../../components/ErrorBoundary';
+import { useAutoSave, restoreAutoSave, clearAutoSave } from '../../utils/useAutoSave';
+import { useDebounce } from '../../utils/useDebounce';
+import { uploadWithProgress, createFormData } from '../../utils/uploadWithProgress';
 import Swal from 'sweetalert2';
 
 interface FormErrors {
@@ -57,6 +63,7 @@ const RequestForm = () => {
     const [currentUser, setCurrentUser] = useState<User | null>(null);
     const [isRequester, setIsRequester] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState(0);
     const [errors, setErrors] = useState<FormErrors>({});
     
     // Computed className for disabled fields
@@ -95,6 +102,20 @@ const RequestForm = () => {
     const [actionDate, setActionDate] = useState('');
     const [procurementComments, setProcurementComments] = useState('');
 
+    // Auto-save form data (debounced by 2 seconds)
+    const formData = {
+        formDate, requestedBy, institution, division, branchUnit, budgetActivity,
+        email, procurementType, priority, items, commentsJustification,
+        managerName, headName, commitmentNumber, accountingCode, budgetComments,
+        budgetOfficerName, budgetManagerName, procurementCaseNumber, receivedBy,
+        dateReceived, actionDate, procurementComments
+    };
+    useAutoSave('procurement_request_draft', formData, 2000);
+
+    // Debounced validation for real-time feedback
+    const debouncedInstitution = useDebounce(institution, 500);
+    const debouncedEmail = useDebounce(email, 500);
+
     useEffect(() => {
         dispatch(setPageTitle('New Procurement Request'));
         
@@ -107,11 +128,83 @@ const RequestForm = () => {
             
             const roles = user.roles || [];
             setIsRequester(roles.includes(ROLE_REQUESTER));
+
+            // Restore auto-saved draft
+            const savedDraft = restoreAutoSave<typeof formData>('procurement_request_draft');
+            if (savedDraft) {
+                Swal.fire({
+                    title: 'Draft Found',
+                    text: 'Would you like to restore your previous draft?',
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonText: 'Restore',
+                    cancelButtonText: 'Start Fresh'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        // Restore all saved fields
+                        if (savedDraft.formDate) setFormDate(savedDraft.formDate);
+                        if (savedDraft.requestedBy) setRequestedBy(savedDraft.requestedBy);
+                        if (savedDraft.institution) setInstitution(savedDraft.institution);
+                        if (savedDraft.division) setDivision(savedDraft.division);
+                        if (savedDraft.branchUnit) setBranchUnit(savedDraft.branchUnit);
+                        if (savedDraft.budgetActivity) setBudgetActivity(savedDraft.budgetActivity);
+                        if (savedDraft.email) setEmail(savedDraft.email);
+                        if (savedDraft.procurementType) setProcurementType(savedDraft.procurementType);
+                        if (savedDraft.priority) setPriority(savedDraft.priority);
+                        if (savedDraft.items) setItems(savedDraft.items);
+                        if (savedDraft.commentsJustification) setCommentsJustification(savedDraft.commentsJustification);
+                        
+                        if (!roles.includes(ROLE_REQUESTER)) {
+                            if (savedDraft.managerName) setManagerName(savedDraft.managerName);
+                            if (savedDraft.headName) setHeadName(savedDraft.headName);
+                            if (savedDraft.commitmentNumber) setCommitmentNumber(savedDraft.commitmentNumber);
+                            if (savedDraft.accountingCode) setAccountingCode(savedDraft.accountingCode);
+                            if (savedDraft.budgetComments) setBudgetComments(savedDraft.budgetComments);
+                            if (savedDraft.budgetOfficerName) setBudgetOfficerName(savedDraft.budgetOfficerName);
+                            if (savedDraft.budgetManagerName) setBudgetManagerName(savedDraft.budgetManagerName);
+                            if (savedDraft.procurementCaseNumber) setProcurementCaseNumber(savedDraft.procurementCaseNumber);
+                            if (savedDraft.receivedBy) setReceivedBy(savedDraft.receivedBy);
+                            if (savedDraft.dateReceived) setDateReceived(savedDraft.dateReceived);
+                            if (savedDraft.actionDate) setActionDate(savedDraft.actionDate);
+                            if (savedDraft.procurementComments) setProcurementComments(savedDraft.procurementComments);
+                        }
+
+                        Swal.fire('Restored!', 'Your draft has been restored.', 'success');
+                    } else {
+                        clearAutoSave('procurement_request_draft');
+                    }
+                });
+            }
         } catch (error) {
             console.error('Error loading user data:', error);
             setIsRequester(true);
         }
     }, [dispatch]);
+
+    // Real-time validation for debounced fields
+    useEffect(() => {
+        if (debouncedInstitution && !debouncedInstitution.trim()) {
+            setErrors(prev => ({ ...prev, institution: 'Institution is required' }));
+        } else {
+            setErrors(prev => {
+                const { institution, ...rest } = prev;
+                return rest;
+            });
+        }
+    }, [debouncedInstitution]);
+
+    useEffect(() => {
+        if (debouncedEmail) {
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(debouncedEmail)) {
+                setErrors(prev => ({ ...prev, email: 'Invalid email format' }));
+            } else {
+                setErrors(prev => {
+                    const { email, ...rest } = prev;
+                    return rest;
+                });
+            }
+        }
+    }, [debouncedEmail]);
 
     useEffect(() => {
         const total = items.reduce((sum, item) => sum + (item.quantity * item.unitCost), 0);
@@ -231,12 +324,13 @@ const RequestForm = () => {
         }
 
         setIsLoading(true);
+        setUploadProgress(0);
 
         try {
             const token = localStorage.getItem('auth_token');
             if (!token) throw new Error('No authentication token found');
 
-            const formData = {
+            const requestData = {
                 date: formDate,
                 requestedBy: requestedBy || currentUser?.name,
                 estimatedTotal,
@@ -262,24 +356,27 @@ const RequestForm = () => {
                     dateReceived,
                     actionDate,
                     procurementComments,
-                }),
-                attachments: attachments.map(f => f.name)
+                })
             };
 
-            const response = await fetch('/api/requisitions', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify(formData)
-            });
+            // Use FormData for file upload with progress
+            const formDataToSend = createFormData(requestData, attachments);
 
-            const data: ApiResponse<{ req_number: string; id: number }> = await response.json();
+            const data: ApiResponse<{ req_number: string; id: number }> = await uploadWithProgress(
+                '/api/requisitions',
+                formDataToSend,
+                token,
+                (progress) => {
+                    setUploadProgress(progress);
+                }
+            );
 
-            if (!response.ok) {
-                throw new Error(data.message || `Server error: ${response.status}`);
+            if (!data.success) {
+                throw new Error(data.message || 'Submission failed');
             }
+
+            // Clear auto-save after successful submission
+            clearAutoSave('procurement_request_draft');
 
             await Swal.fire({
                 icon: 'success',
@@ -309,6 +406,7 @@ const RequestForm = () => {
             });
         } finally {
             setIsLoading(false);
+            setUploadProgress(0);
         }
     };
 
@@ -820,9 +918,15 @@ const RequestForm = () => {
                         <button
                             type="submit"
                             disabled={isLoading}
-                            className="px-6 py-2 rounded bg-primary text-white hover:opacity-95 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="px-6 py-2 rounded bg-primary text-white hover:opacity-95 font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                         >
-                            {isLoading ? 'Submitting...' : 'Submit Procurement Request'}
+                            {isLoading && (
+                                <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                            )}
+                            {isLoading ? (uploadProgress > 0 ? `Uploading ${uploadProgress}%` : 'Submitting...') : 'Submit Procurement Request'}
                         </button>
                         <button
                             type="button"
@@ -839,4 +943,11 @@ const RequestForm = () => {
     );
 };
 
-export default RequestForm;
+// Wrap component in ErrorBoundary
+const RequestFormWithErrorBoundary = () => (
+    <ErrorBoundary>
+        <RequestForm />
+    </ErrorBoundary>
+);
+
+export default RequestFormWithErrorBoundary;
