@@ -69,13 +69,6 @@ const Profile = lazy(() => import('../pages/Users/Profile'));
 const AccountSetting = lazy(() => import('../pages/Users/AccountSetting'));
 const HelpSupport = lazy(() => import('../pages/Pages/HelpSupport'));
 
-// Existing Pages
-const Widgets = lazy(() => import('../pages/Widgets'));
-const FontIcons = lazy(() => import('../pages/FontIcons'));
-const DragAndDrop = lazy(() => import('../pages/DragAndDrop'));
-const Tables = lazy(() => import('../pages/Tables'));
-const Charts = lazy(() => import('../pages/Charts'));
-const About = lazy(() => import('../pages/About'));
 
 const routes = [
     // Auth Routes
@@ -344,33 +337,7 @@ const routes = [
         element: <HelpSupport />,
     },
     
-    // Utility Pages
-    {
-        path: '/charts',
-        element: <Charts />,
-    },
-    {
-        path: '/widgets',
-        element: <Widgets />,
-    },
-    {
-        path: '/font-icons',
-        element: <FontIcons />,
-    },
-    {
-        path: '/dragndrop',
-        element: <DragAndDrop />,
-    },
-    {
-        path: '/tables',
-        element: <Tables />,
-    },
-    {
-        path: '/about',
-        element: <About />,
-        layout: 'blank',
-    },
-    
+       
     // Error page - must be last
     {
         path: '*',
