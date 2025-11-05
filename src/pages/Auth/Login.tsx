@@ -31,18 +31,37 @@ const Login = () => {
         setIsLoading(true);
 
         try {
-            // Simulate API call
-            await new Promise(resolve => setTimeout(resolve, 1000));
-
-            // Mock validation
-            if (email && password) {
-                // Simulate MFA requirement
-                setShowMFA(true);
-            } else {
-                setError('Please enter valid credentials');
+            // Dev-only: call backend test-login to fetch user + department + roles
+            const resp = await fetch('http://localhost:4000/auth/test-login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email }),
+            });
+            if (!resp.ok) {
+                const err = await resp.json().catch(() => ({}));
+                throw new Error(err.error || resp.statusText || 'Login failed');
             }
-        } catch (err) {
-            setError('Login failed. Please try again.');
+            const data = await resp.json();
+            const user = data.user || {};
+
+            // Normalize profile
+            const profile = {
+                id: user.id,
+                email: user.email,
+                name: user.name,
+                department: user.department || null,
+                roles: Array.isArray(user.roles) ? user.roles : [],
+                primaryRole: Array.isArray(user.roles) && user.roles.length ? user.roles[0] : '',
+                permissions: [],
+            };
+
+            localStorage.setItem('isAuthenticated', 'true');
+            localStorage.setItem('userProfile', JSON.stringify(profile));
+            localStorage.setItem('authToken', data.token || '');
+            try { window.dispatchEvent(new Event('userProfileChanged')); } catch {}
+            navigate('/');
+        } catch (err: any) {
+            setError(err?.message || 'Login failed. Please try again.');
         } finally {
             setIsLoading(false);
         }
