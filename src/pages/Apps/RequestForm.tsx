@@ -472,8 +472,8 @@ const RequestForm = () => {
                             />
                         </div>
 
-                        {/* Approved by */}
-                        <div className="border-t pt-4">
+                        {/* Approved by - Disabled for Requestors */}
+                        <fieldset disabled className="border-t pt-4 opacity-60 cursor-not-allowed">
                             <p className="text-sm font-semibold mb-3">Approved by:</p>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
@@ -482,17 +482,17 @@ const RequestForm = () => {
                                         type="text"
                                         value={managerName}
                                         onChange={(e) => setManagerName(e.target.value)}
-                                        className="form-input w-full mb-3"
+                                        className="form-input w-full mb-3 bg-gray-100 dark:bg-gray-800"
                                         placeholder="Enter name of head of department"
                                     />
                                     <div className="grid grid-cols-2 gap-3">
                                         <div>
                                             <label className="block text-xs text-gray-500 mb-1">Signature:</label>
-                                            <input type="text" className="form-input w-full" placeholder="" />
+                                            <input type="text" className="form-input w-full bg-gray-100 dark:bg-gray-800" placeholder="" />
                                         </div>
                                         <div>
                                             <label className="block text-xs text-gray-500 mb-1">Date:</label>
-                                            <input type="date" className="form-input w-full" defaultValue="2025-05-15" />
+                                            <input type="date" className="form-input w-full bg-gray-100 dark:bg-gray-800" defaultValue="2025-05-15" />
                                         </div>
                                     </div>
                                 </div>
@@ -502,26 +502,26 @@ const RequestForm = () => {
                                         type="text"
                                         value={headName}
                                         onChange={(e) => setHeadName(e.target.value)}
-                                        className="form-input w-full mb-3"
+                                        className="form-input w-full mb-3 bg-gray-100 dark:bg-gray-800"
                                         placeholder="Enter name of head of department"
                                     />
                                     <div className="grid grid-cols-2 gap-3">
                                         <div>
                                             <label className="block text-xs text-gray-500 mb-1">Signature:</label>
-                                            <input type="text" className="form-input w-full" placeholder="" />
+                                            <input type="text" className="form-input w-full bg-gray-100 dark:bg-gray-800" placeholder="" />
                                         </div>
                                         <div>
                                             <label className="block text-xs text-gray-500 mb-1">Date:</label>
-                                            <input type="date" className="form-input w-full" defaultValue="2025-05-15" />
+                                            <input type="date" className="form-input w-full bg-gray-100 dark:bg-gray-800" defaultValue="2025-05-15" />
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
+                        </fieldset>
                     </div>
 
-                    {/* Section II: Commitment from Budget */}
-                    <div className="border-b-2 border-red-500 pb-4">
+                    {/* Section II: Commitment from Budget - Disabled for Requestors */}
+                    <fieldset disabled className="border-b-2 border-red-500 pb-4 opacity-60 cursor-not-allowed">
                         <h3 className="text-lg font-bold text-red-600 mb-4">Section II: Commitment from Budget</h3>
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -552,7 +552,7 @@ const RequestForm = () => {
                             <textarea
                                 value={budgetComments}
                                 onChange={(e) => setBudgetComments(e.target.value)}
-                                className="form-textarea w-full"
+                                className="form-textarea w-full bg-gray-100 dark:bg-gray-800"
                                 rows={2}
                                 placeholder=""
                             />
@@ -565,17 +565,17 @@ const RequestForm = () => {
                                     type="text"
                                     value={budgetOfficerName}
                                     onChange={(e) => setBudgetOfficerName(e.target.value)}
-                                    className="form-input w-full mb-3"
+                                    className="form-input w-full mb-3 bg-gray-100 dark:bg-gray-800"
                                     placeholder=""
                                 />
                                 <div className="grid grid-cols-2 gap-3">
                                     <div>
                                         <label className="block text-xs text-gray-500 mb-1">Signature:</label>
-                                        <input type="text" className="form-input w-full" placeholder="" />
+                                        <input type="text" className="form-input w-full bg-gray-100 dark:bg-gray-800" placeholder="" />
                                     </div>
                                     <div>
                                         <label className="block text-xs text-gray-500 mb-1">Date:</label>
-                                        <input type="date" className="form-input w-full" />
+                                        <input type="date" className="form-input w-full bg-gray-100 dark:bg-gray-800" />
                                     </div>
                                 </div>
                             </div>
@@ -585,25 +585,25 @@ const RequestForm = () => {
                                     type="text"
                                     value={budgetManagerName}
                                     onChange={(e) => setBudgetManagerName(e.target.value)}
-                                    className="form-input w-full mb-3"
+                                    className="form-input w-full mb-3 bg-gray-100 dark:bg-gray-800"
                                     placeholder=""
                                 />
                                 <div className="grid grid-cols-2 gap-3">
                                     <div>
                                         <label className="block text-xs text-gray-500 mb-1">Signature:</label>
-                                        <input type="text" className="form-input w-full" placeholder="" />
+                                        <input type="text" className="form-input w-full bg-gray-100 dark:bg-gray-800" placeholder="" />
                                     </div>
                                     <div>
                                         <label className="block text-xs text-gray-500 mb-1">Date:</label>
-                                        <input type="date" className="form-input w-full" />
+                                        <input type="date" className="form-input w-full bg-gray-100 dark:bg-gray-800" />
                                     </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
+                    </fieldset>
 
-                    {/* Section III: To be completed by Procurement unit */}
-                    <div className="pb-4">
+                    {/* Section III: To be completed by Procurement unit - Disabled for Requestors */}
+                    <fieldset disabled className="pb-4 opacity-60 cursor-not-allowed">
                         <h3 className="text-lg font-bold text-red-600 mb-4">Section III: To be completed by Procurement unit</h3>
                         
                         <div className="bg-gray-50 dark:bg-gray-900 p-4 rounded mb-4">
@@ -616,7 +616,7 @@ const RequestForm = () => {
                                         type="text"
                                         value={receivedBy}
                                         onChange={(e) => setReceivedBy(e.target.value)}
-                                        className="form-input w-full"
+                                        className="form-input w-full bg-gray-100 dark:bg-gray-800"
                                         placeholder=""
                                     />
                                 </div>
@@ -626,7 +626,7 @@ const RequestForm = () => {
                                         type="text"
                                         value={procurementCaseNumber}
                                         onChange={(e) => setProcurementCaseNumber(e.target.value)}
-                                        className="form-input w-full"
+                                        className="form-input w-full bg-gray-100 dark:bg-gray-800"
                                         placeholder=""
                                     />
                                 </div>
@@ -636,7 +636,7 @@ const RequestForm = () => {
                                         type="date"
                                         value={dateReceived}
                                         onChange={(e) => setDateReceived(e.target.value)}
-                                        className="form-input w-full"
+                                        className="form-input w-full bg-gray-100 dark:bg-gray-800"
                                     />
                                 </div>
                                 <div>
@@ -645,7 +645,7 @@ const RequestForm = () => {
                                         type="date"
                                         value={actionDate}
                                         onChange={(e) => setActionDate(e.target.value)}
-                                        className="form-input w-full"
+                                        className="form-input w-full bg-gray-100 dark:bg-gray-800"
                                     />
                                 </div>
                             </div>
@@ -655,13 +655,13 @@ const RequestForm = () => {
                                 <textarea
                                     value={procurementComments}
                                     onChange={(e) => setProcurementComments(e.target.value)}
-                                    className="form-textarea w-full"
+                                    className="form-textarea w-full bg-gray-100 dark:bg-gray-800"
                                     rows={2}
                                     placeholder=""
                                 />
                             </div>
                         </div>
-                    </div>
+                    </fieldset>
 
                     {/* Attachments */}
                     <div className="border-t pt-4">
