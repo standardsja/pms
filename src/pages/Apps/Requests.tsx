@@ -8,7 +8,7 @@ import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import { Request, ApiResponse } from '../../types/request.types';
 import { getStatusBadge } from '../../utils/statusBadges';
-import { searchRequests, filterRequests, onlyMine, paginate, formatDate, sortRequestsByDateDesc } from '../../utils/requestUtils';
+import { searchRequests, filterRequests, onlyMine, paginate, formatDate, sortRequestsByDateDesc, adaptRequestsResponse } from '../../utils/requestUtils';
 import RequestDetailsContent from '../../components/RequestDetailsContent';
 
 const MySwal = withReactContent(Swal);
@@ -64,9 +64,8 @@ const Requests = () => {
                     const msg = (payload && (payload.message || payload.error)) || res.statusText || 'Failed to load requests';
                     throw new Error(msg);
                 }
-                const json: ApiResponse<Request[]> | Request[] = payload;
-                const data = Array.isArray(json) ? json : (json?.data || []);
-                setRequests(data);
+                const adapted = adaptRequestsResponse(payload);
+                setRequests(adapted);
             } catch (e: unknown) {
                 // Ignore abort errors
                 if (e instanceof DOMException && e.name === 'AbortError') return;

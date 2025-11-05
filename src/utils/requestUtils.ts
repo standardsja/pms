@@ -140,3 +140,52 @@ export const sortRequestsByDateDesc = (requests: Request[]): Request[] => {
 	});
 };
 
+/**
+ * Adapt various backend response shapes into our Request[] model.
+ * Accepts either an array, or an object with a `data` array.
+ * Handles common field aliases and nested requester/department objects.
+ */
+export const adaptRequestsResponse = (input: unknown): Request[] => {
+	const raw = Array.isArray(input) ? input : (input && typeof input === 'object' && Array.isArray((input as any).data) ? (input as any).data : []);
+	if (!Array.isArray(raw)) return [];
+
+	const toStr = (v: any): string => (v == null ? '' : String(v));
+	const getName = (obj: any): string => {
+		if (!obj || typeof obj !== 'object') return toStr(obj);
+		return toStr(obj.name ?? obj.fullName ?? obj.displayName ?? obj.username ?? '');
+	};
+
+	const pickId = (r: any): string => toStr(r.id ?? r.requestId ?? r.request_id ?? r.code ?? r.uuid ?? '');
+	const pickTitle = (r: any): string => toStr(r.title ?? r.subject ?? r.name ?? '');
+	const pickRequester = (r: any): string => getName(r.requester ?? r.createdBy ?? r.created_by ?? r.owner);
+	const pickDepartment = (r: any): string => getName(r.department ?? r.dept ?? r.department_name ?? r.dept_name);
+	const pickStatus = (r: any): string => normalizeStatus(toStr(r.status ?? r.state ?? r.stage ?? ''));
+	const pickDate = (r: any): string => toStr(r.date ?? r.createdAt ?? r.created_at ?? r.submittedAt ?? r.submitted_at ?? '');
+	const pickItems = (r: any): RequestItem[] => Array.isArray(r.items ?? r.lines) ? (r.items ?? r.lines) : [];
+	const pickJustification = (r: any): string => toStr(r.justification ?? r.reason ?? r.purpose ?? '');
+	const pickTotal = (r: any, items: RequestItem[]): number => {
+		const t = r.totalEstimated ?? r.total_estimated ?? r.total ?? r.amount;
+		if (t != null && !isNaN(Number(t))) return Number(t);
+		return calculateTotalEstimated(items);
+	};
+
+	return raw.map((r: any): Request => {
+		const items = pickItems(r);
+		return {
+			id: pickId(r),
+			title: pickTitle(r),
+			requester: pickRequester(r),
+			department: pickDepartment(r),
+			status: pickStatus(r),
+			date: pickDate(r),
+			items,
+			totalEstimated: pickTotal(r, items),
+			fundingSource: r.fundingSource ?? r.funding_source,
+			budgetCode: r.budgetCode ?? r.budget_code,
+			justification: pickJustification(r),
+			comments: Array.isArray(r.comments) ? r.comments : [],
+			statusHistory: Array.isArray(r.statusHistory ?? r.status_history) ? (r.statusHistory ?? r.status_history) : [],
+		};
+	});
+};
+
