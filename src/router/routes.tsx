@@ -71,7 +71,9 @@ const HelpSupport = lazy(() => import('../pages/Pages/HelpSupport'));
 
 
 const routes = [
-    // Auth Routes
+    // ============================================
+    // AUTH ROUTES
+    // ============================================
     {
         path: '/auth/login',
         element: <Login />,
@@ -93,13 +95,17 @@ const routes = [
         layout: 'blank',
     },
     
-    // Dashboard - Procurement Officer Dashboard loads first
+    // ============================================
+    // MAIN DASHBOARD
+    // ============================================
     {
         path: '/',
         element: <ProcurementDashboard />,
     },
     
-    // Procurement Routes
+    // ============================================
+    // PROCUREMENT MODULE
+    // ============================================
     {
         path: '/procurement/dashboard',
         element: <ProcurementDashboard />,
@@ -245,7 +251,9 @@ const routes = [
         element: <PaymentDetail />,
     },
 
-    // Department Head Routes
+    // ============================================
+    // DEPARTMENT HEAD ROUTES
+    // ============================================
     {
         path: '/procurement/department-head-dashboard',
         element: <DepartmentHeadDashboard />,
@@ -259,7 +267,9 @@ const routes = [
         element: <DepartmentHeadReportReview />,
     },
 
-    // Executive Director Routes
+    // ============================================
+    // EXECUTIVE DIRECTOR ROUTES
+    // ============================================
     {
         path: '/procurement/executive-director-dashboard',
         element: <ExecutiveDirectorDashboard />,
@@ -277,7 +287,9 @@ const routes = [
         element: <ExecutiveDigitalSignoffs />,
     },
     
-    // Request Routes
+    // ============================================
+    // REQUEST ROUTES
+    // ============================================
     {
         path: '/apps/requests',
         element: <Requests />,
@@ -290,36 +302,18 @@ const routes = [
         path: '/apps/requests/new',
         element: <RequestForm />,
     },
+    
+    // ============================================
+    // ADMIN ROUTES
+    // ============================================
     {
         path: '/procurement/admin',
         element: <AdminSettings />,
     },
     
-    // Department Head Routes
-    {
-        path: '/department-head/evaluation-review',
-        element: <DepartmentHeadEvaluationReview />,
-    },
-    {
-        path: '/department-head/report-review',
-        element: <DepartmentHeadReportReview />,
-    },
-    
-    // Executive Director Routes
-    {
-        path: '/executive/approvals',
-        element: <ExecutiveApprovals />,
-    },
-    {
-        path: '/executive/digital-signoffs',
-        element: <ExecutiveDigitalSignoffs />,
-    },
-    {
-        path: '/executive/reports',
-        element: <ExecutiveDirectorReports />,
-    },
-    
-    // User Pages
+    // ============================================
+    // USER PAGES
+    // ============================================
     {
         path: '/profile',
         element: <Profile />,
@@ -337,8 +331,9 @@ const routes = [
         element: <HelpSupport />,
     },
     
-       
-    // Error page - must be last
+    // ============================================
+    // ERROR HANDLING - MUST BE LAST
+    // ============================================
     {
         path: '*',
         element: <Error />,
