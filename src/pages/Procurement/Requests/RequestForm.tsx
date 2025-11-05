@@ -76,6 +76,7 @@ const RequestForm = () => {
     const [institution, setInstitution] = useState('');
     const [division, setDivision] = useState('');
     const [branchUnit, setBranchUnit] = useState('');
+    const [requestedBy, setRequestedBy] = useState('');
     const [budgetActivity, setBudgetActivity] = useState('yes');
     const [email, setEmail] = useState('');
     const [procurementType, setProcurementType] = useState<string[]>([]);
@@ -115,6 +116,20 @@ const RequestForm = () => {
     // Debounced validation for real-time feedback
     const debouncedInstitution = useDebounce(institution, 500);
     const debouncedEmail = useDebounce(email, 500);
+
+    // Current user profile (for edit permissions)
+    const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
+    const currentUserId = userProfile?.id || userProfile?.userId || null;
+
+    // Track request metadata to gate editing by stage & assignee
+    const [requestMeta, setRequestMeta] = useState<{ status?: string; currentAssigneeId?: number } | null>(null);
+
+    // Determine field permissions strictly by workflow stage + assignee
+    const isAssignee = !!(isEditMode && requestMeta?.currentAssigneeId && currentUserId && Number(requestMeta.currentAssigneeId) === Number(currentUserId));
+    const canEditManagerFields = !!(isAssignee && requestMeta?.status === 'DEPARTMENT_REVIEW');
+    const canEditHodFields = !!(isAssignee && requestMeta?.status === 'HOD_REVIEW');
+    const canEditProcurementSection = !!(isAssignee && requestMeta?.status === 'PROCUREMENT_REVIEW');
+    const canEditBudgetSection = !!(isAssignee && requestMeta?.status === 'FINANCE_REVIEW');
 
     useEffect(() => {
         dispatch(setPageTitle('New Procurement Request'));
@@ -704,6 +719,7 @@ const RequestForm = () => {
                                             <input type="date" className={`form-input w-full ${disabledFieldClass}`} />
                                         </div>
                                     </div>
+                                    {/* Duplicate signature/date removed after refining permissions */}
                                 </div>
                                 <div>
                                     <label htmlFor="headName" className="block text-sm font-medium mb-2">Head of Division's Name:</label>
@@ -725,6 +741,7 @@ const RequestForm = () => {
                                             <input type="date" className={`form-input w-full ${disabledFieldClass}`} />
                                         </div>
                                     </div>
+                                    {/* Duplicate signature/date removed after refining permissions */}
                                 </div>
                             </div>
                         </fieldset>

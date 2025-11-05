@@ -144,6 +144,25 @@ const Header = () => {
 
     const { t } = useTranslation();
 
+    // Logged-in profile (from localStorage)
+    const [profile, setProfile] = useState<any>(() => {
+        try {
+            const raw = typeof window !== 'undefined' ? localStorage.getItem('userProfile') : null;
+            return raw ? JSON.parse(raw) : null;
+        } catch { return null; }
+    });
+
+    useEffect(() => {
+        const onProfileChanged = () => {
+            try {
+                const raw = localStorage.getItem('userProfile');
+                setProfile(raw ? JSON.parse(raw) : null);
+            } catch {}
+        };
+        window.addEventListener('userProfileChanged', onProfileChanged);
+        return () => window.removeEventListener('userProfileChanged', onProfileChanged);
+    }, []);
+
     return (
         <header className={`z-40 ${themeConfig.semidark && themeConfig.menu === 'horizontal' ? 'dark' : ''}`}>
             <div className="shadow-sm">
@@ -404,17 +423,19 @@ const Header = () => {
                                 btnClassName="relative group block"
                                 button={<img className="w-9 h-9 rounded-full object-cover saturate-50 group-hover:saturate-100" src="/assets/images/user-profile.jpeg" alt="userProfile" />}
                             >
-                                <ul className="text-dark dark:text-white-dark !py-0 w-[230px] font-semibold dark:text-white-light/90">
+                                <ul className="text-dark dark:text-white-dark !py-0 w-[260px] font-semibold dark:text-white-light/90">
                                     <li>
                                         <div className="flex items-center px-4 py-4">
                                             <img className="rounded-md w-10 h-10 object-cover" src="/assets/images/user-profile.jpeg" alt="userProfile" />
                                             <div className="ltr:pl-4 rtl:pr-4 truncate">
                                                 <h4 className="text-base">
-                                                    John Doe
-                                                    <span className="text-xs bg-success-light rounded text-success px-1 ltr:ml-2 rtl:ml-2">Procurement Officer</span>
+                                                    {profile?.name || 'User'}
+                                                    {profile?.primaryRole && (
+                                                        <span className="text-xs bg-success-light rounded text-success px-1 ltr:ml-2 rtl:ml-2">{profile.primaryRole}</span>
+                                                    )}
                                                 </h4>
                                                 <button type="button" className="text-black/60 hover:text-primary dark:text-dark-light/60 dark:hover:text-white text-xs">
-                                                    john.doe@company.com
+                                                    {profile?.email || 'Not signed in'}
                                                 </button>
                                             </div>
                                         </div>

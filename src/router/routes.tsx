@@ -307,6 +307,10 @@ const routes = [
     // ADMIN ROUTES
     // ============================================
     {
+        path: '/apps/requests/edit/:id',
+        element: <RequestForm />,
+    },
+    {
         path: '/procurement/admin',
         element: <AdminSettings />,
     },
