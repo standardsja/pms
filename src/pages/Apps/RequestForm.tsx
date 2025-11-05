@@ -102,7 +102,7 @@ const RequestForm = () => {
         e.preventDefault();
         const formData = {
             date: formDate,
-            requestedBy: 'Current User', // TODO: Get from auth
+            requestedBy: 'Current User', // Will be populated from user auth context
             estimatedTotal,
             institution,
             division,
@@ -127,7 +127,7 @@ const RequestForm = () => {
             procurementComments,
             attachments: attachments.map(f => f.name)
         };
-        console.log('Procurement Request Data:', formData);
+        // Form submission logic would go here
         alert('Procurement Request submitted! (Add API integration here)');
         navigate('/apps/requests');
     };

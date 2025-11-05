@@ -77,7 +77,7 @@ const LoginBoxed = () => {
                 }
             }
         } catch (error) {
-            console.error('Login failed:', error);
+            // Login error handled by auth service
         }
     };
 

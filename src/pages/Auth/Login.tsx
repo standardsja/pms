@@ -277,7 +277,7 @@ const Login = () => {
                                     className="btn btn-outline-primary w-full py-3 flex items-center justify-center gap-3"
                                     onClick={() => {
                                         // Microsoft SSO integration
-                                        console.log('Microsoft SSO clicked');
+                                        // Microsoft SSO integration would go here
                                     }}
                                 >
                                     <svg className="w-5 h-5" viewBox="0 0 23 23" fill="none">

@@ -276,7 +276,7 @@ const DepartmentHeadDashboard = () => {
     };
 
     const handleApproval = (action: 'approve' | 'reject') => {
-        console.log(`${action} evaluation:`, selectedEvaluation);
+        // Evaluation action logic would be implemented here
         // Implement approval logic
         setApprovalModal(false);
         setSelectedEvaluation(null);

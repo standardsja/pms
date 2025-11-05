@@ -123,7 +123,7 @@ const NewRFQ = () => {
     };
 
     const handleSaveDraft = () => {
-        console.log('Saving draft:', { formData, items, selectedVendors });
+        // RFQ draft save logic would be implemented here
         
         // Show warning alert for draft
         setAlertType('warning');
@@ -155,7 +155,7 @@ const NewRFQ = () => {
             return;
         }
         
-        console.log('Sending RFQ:', { formData, items, selectedVendors });
+        // RFQ send logic would be implemented here
         
         // Show success alert for sending
         setAlertType('success');

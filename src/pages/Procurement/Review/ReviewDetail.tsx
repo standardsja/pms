@@ -117,7 +117,7 @@ const ReviewDetail = () => {
     };
 
     const handleDownloadPDF = () => {
-        console.log('Downloading Review Report PDF for:', review.reviewNumber);
+        // PDF download logic would be implemented here
         alert(`Downloading ${review.reviewNumber}_Report.pdf`);
     };
 

@@ -108,7 +108,7 @@ const RFQDetail = () => {
 
     const handleDownloadPDF = () => {
         // In a real application, this would generate and download a PDF
-        console.log('Downloading RFQ PDF for:', rfq.rfqNumber);
+        // RFQ PDF download logic would be implemented here
         alert(`Downloading ${rfq.rfqNumber}.pdf`);
     };
 
