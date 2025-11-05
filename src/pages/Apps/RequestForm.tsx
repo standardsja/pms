@@ -1,12 +1,25 @@
+/**
+ * RequestForm Component - Procurement Requisition Form
+ * 
+ * Features:
+ * - Role-based access control (Requesters can only edit Section I)
+ * - Form validation with error display
+ * - File upload with size/type validation (10MB max)
+ * - Auto-calculated estimated total
+ * - API integration with error handling
+ * 
+ * @returns {JSX.Element} Procurement request form
+ */
 import React, { useEffect, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { setPageTitle } from '../../store/themeConfigSlice';
 import IconPlus from '../../components/Icon/IconPlus';
 import IconX from '../../components/Icon/IconX';
+import Swal from 'sweetalert2';
 
 interface RequestItem {
-    itemNo: number;
+    id: string;
     stockLevel: string;
     description: string;
     quantity: number;
@@ -15,10 +28,36 @@ interface RequestItem {
     partNumber: string;
 }
 
+interface FormErrors {
+    [key: string]: string;
+}
+
+interface User {
+    name?: string;
+    email?: string;
+    roles?: string[];
+    department_id?: number;
+}
+
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const ACCEPTED_FILE_TYPES = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.jpg', '.jpeg', '.png'];
+
+const generateId = (): string => {
+    return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+};
+
 const RequestForm = () => {
     const dispatch = useDispatch();
     const navigate = useNavigate();
+    
+    const [currentUser, setCurrentUser] = useState<User | null>(null);
+    const [isRequester, setIsRequester] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
+    const [errors, setErrors] = useState<FormErrors>({});
+    
+    // Section I - Requester fields
     const [formDate, setFormDate] = useState(new Date().toISOString().split('T')[0]);
+    const [requestedBy, setRequestedBy] = useState('');
     const [estimatedTotal, setEstimatedTotal] = useState(0);
     const [institution, setInstitution] = useState('');
     const [division, setDivision] = useState('');
@@ -28,9 +67,12 @@ const RequestForm = () => {
     const [procurementType, setProcurementType] = useState<string[]>([]);
     const [priority, setPriority] = useState('');
     const [items, setItems] = useState<RequestItem[]>([
-        { itemNo: 1, stockLevel: '', description: '', quantity: 1, unitOfMeasure: '', unitCost: 0, partNumber: '' }
+        { id: generateId(), stockLevel: '', description: '', quantity: 1, unitOfMeasure: '', unitCost: 0, partNumber: '' }
     ]);
     const [commentsJustification, setCommentsJustification] = useState('');
+    const [attachments, setAttachments] = useState<File[]>([]);
+    
+    // Section II - Budget fields (disabled for requesters)
     const [managerName, setManagerName] = useState('');
     const [headName, setHeadName] = useState('');
     const [commitmentNumber, setCommitmentNumber] = useState('');
@@ -38,24 +80,61 @@ const RequestForm = () => {
     const [budgetComments, setBudgetComments] = useState('');
     const [budgetOfficerName, setBudgetOfficerName] = useState('');
     const [budgetManagerName, setBudgetManagerName] = useState('');
+    
+    // Section III - Procurement fields (disabled for requesters)
     const [procurementCaseNumber, setProcurementCaseNumber] = useState('');
     const [receivedBy, setReceivedBy] = useState('');
     const [dateReceived, setDateReceived] = useState('');
     const [actionDate, setActionDate] = useState('');
     const [procurementComments, setProcurementComments] = useState('');
-    const [attachments, setAttachments] = useState<File[]>([]);
 
     useEffect(() => {
         dispatch(setPageTitle('New Procurement Request'));
-        // Calculate total whenever items change
+        
+        const user = JSON.parse(localStorage.getItem('auth_user') || '{}');
+        setCurrentUser(user);
+        
+        if (user.name) setRequestedBy(user.name);
+        if (user.email) setEmail(user.email);
+        
+        const roles = user.roles || [];
+        setIsRequester(roles.includes('Requester'));
+    }, [dispatch]);
+
+    useEffect(() => {
         const total = items.reduce((sum, item) => sum + (item.quantity * item.unitCost), 0);
         setEstimatedTotal(total);
-    }, [dispatch, items]);
+    }, [items]);
+
+    const validateForm = (): boolean => {
+        const newErrors: FormErrors = {};
+
+        if (!institution.trim()) newErrors.institution = 'Institution is required';
+        if (!division.trim()) newErrors.division = 'Division is required';
+        if (!email.trim()) {
+            newErrors.email = 'Email is required';
+        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            newErrors.email = 'Invalid email format';
+        }
+        if (!priority) newErrors.priority = 'Priority is required';
+        if (procurementType.length === 0) newErrors.procurementType = 'Select at least one procurement type';
+        
+        items.forEach((item, index) => {
+            if (!item.description.trim()) {
+                newErrors[`item_${index}_description`] = 'Description is required';
+            }
+            if (item.quantity < 1) {
+                newErrors[`item_${index}_quantity`] = 'Quantity must be at least 1';
+            }
+        });
+
+        setErrors(newErrors);
+        return Object.keys(newErrors).length === 0;
+    };
 
     const addItem = () => {
-        const newItemNo = items.length + 1;
         setItems([...items, { 
-            itemNo: newItemNo,
+            id: generateId(),
             stockLevel: '', 
             description: '', 
             quantity: 1, 
@@ -65,24 +144,55 @@ const RequestForm = () => {
         }]);
     };
 
-    const removeItem = (itemNo: number) => {
+    const removeItem = (id: string) => {
         if (items.length > 1) {
-            const updatedItems = items
-                .filter(item => item.itemNo !== itemNo)
-                .map((item, index) => ({ ...item, itemNo: index + 1 }));
-            setItems(updatedItems);
+            setItems(items.filter(item => item.id !== id));
         }
     };
 
-    const updateItem = (itemNo: number, field: keyof RequestItem, value: string | number) => {
+    const updateItem = (id: string, field: keyof RequestItem, value: string | number) => {
         setItems(items.map(item => 
-            item.itemNo === itemNo ? { ...item, [field]: value } : item
+            item.id === id ? { ...item, [field]: value } : item
         ));
     };
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
-            setAttachments([...attachments, ...Array.from(e.target.files)]);
+            const newFiles = Array.from(e.target.files);
+            const validFiles: File[] = [];
+            const fileErrors: string[] = [];
+
+            newFiles.forEach(file => {
+                if (file.size > MAX_FILE_SIZE) {
+                    fileErrors.push(`${file.name} exceeds 10MB limit`);
+                    return;
+                }
+
+                const fileExt = '.' + file.name.split('.').pop()?.toLowerCase();
+                if (!ACCEPTED_FILE_TYPES.includes(fileExt)) {
+                    fileErrors.push(`${file.name} has an unsupported file type`);
+                    return;
+                }
+
+                if (attachments.some(existing => existing.name === file.name && existing.size === file.size)) {
+                    fileErrors.push(`${file.name} is already attached`);
+                    return;
+                }
+
+                validFiles.push(file);
+            });
+
+            if (fileErrors.length > 0) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'File Upload Issues',
+                    html: fileErrors.join('<br>'),
+                });
+            }
+
+            if (validFiles.length > 0) {
+                setAttachments([...attachments, ...validFiles]);
+            }
         }
     };
 
@@ -91,45 +201,103 @@ const RequestForm = () => {
     };
 
     const handleProcurementTypeChange = (type: string) => {
-        if (procurementType.includes(type)) {
-            setProcurementType(procurementType.filter(t => t !== type));
-        } else {
-            setProcurementType([...procurementType, type]);
-        }
+        setProcurementType(prev => 
+            prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type]
+        );
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        const formData = {
-            date: formDate,
-            requestedBy: 'Current User', // TODO: Get from auth
-            estimatedTotal,
-            institution,
-            division,
-            branchUnit,
-            budgetActivity,
-            email,
-            procurementType,
-            priority,
-            items,
-            commentsJustification,
-            managerName,
-            headName,
-            commitmentNumber,
-            accountingCode,
-            budgetComments,
-            budgetOfficerName,
-            budgetManagerName,
-            procurementCaseNumber,
-            receivedBy,
-            dateReceived,
-            actionDate,
-            procurementComments,
-            attachments: attachments.map(f => f.name)
-        };
-        console.log('Procurement Request Data:', formData);
-        alert('Procurement Request submitted! (Add API integration here)');
-        navigate('/apps/requests');
+        
+        if (!validateForm()) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Validation Error',
+                text: 'Please fix the errors in the form before submitting.',
+            });
+            return;
+        }
+
+        setIsLoading(true);
+
+        try {
+            const token = localStorage.getItem('auth_token');
+            if (!token) throw new Error('No authentication token found');
+
+            const formData = {
+                date: formDate,
+                requestedBy: requestedBy || currentUser?.name,
+                estimatedTotal,
+                institution,
+                division,
+                branchUnit,
+                budgetActivity,
+                email,
+                procurementType,
+                priority,
+                items: items.map(({ id, ...rest }) => rest),
+                commentsJustification,
+                ...(!isRequester && {
+                    managerName,
+                    headName,
+                    commitmentNumber,
+                    accountingCode,
+                    budgetComments,
+                    budgetOfficerName,
+                    budgetManagerName,
+                    procurementCaseNumber,
+                    receivedBy,
+                    dateReceived,
+                    actionDate,
+                    procurementComments,
+                }),
+                attachments: attachments.map(f => f.name)
+            };
+
+            const response = await fetch('/api/requisitions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(formData)
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || `Server error: ${response.status}`);
+            }
+
+            await Swal.fire({
+                icon: 'success',
+                title: 'Request Submitted!',
+                html: `Your procurement request <strong>${data.req_number || ''}</strong> has been submitted successfully.`,
+            });
+
+            navigate('/apps/requests', {
+                state: {
+                    add: {
+                        id: data.req_number,
+                        routeId: data.id,
+                        title: items[0]?.description || 'New Request',
+                        date: formDate,
+                        status: 'Pending',
+                        amount: estimatedTotal
+                    }
+                }
+            });
+
+        } catch (error: any) {
+            console.error('Submission error:', error);
+            Swal.fire({
+                icon: 'error',
+                title: 'Submission Failed',
+                text: error.message || 'An error occurred while submitting your request. Please try again.',
+            });
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     return (
@@ -147,8 +315,9 @@ const RequestForm = () => {
                         
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                             <div>
-                                <label className="block text-sm font-medium mb-2">Date: {formDate}</label>
+                                <label htmlFor="formDate" className="block text-sm font-medium mb-2">Date</label>
                                 <input
+                                    id="formDate"
                                     type="date"
                                     value={formDate}
                                     onChange={(e) => setFormDate(e.target.value)}
@@ -157,19 +326,23 @@ const RequestForm = () => {
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium mb-2">Requested by</label>
+                                <label htmlFor="requestedBy" className="block text-sm font-medium mb-2">Requested by</label>
                                 <input
+                                    id="requestedBy"
                                     type="text"
+                                    value={requestedBy}
+                                    onChange={(e) => setRequestedBy(e.target.value)}
                                     className="form-input w-full"
-                                    placeholder="Click here to enter text"
+                                    placeholder="Your name"
                                     required
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium mb-2">Estimated Cost (Total)</label>
+                                <label htmlFor="estimatedTotal" className="block text-sm font-medium mb-2">Estimated Cost (Total)</label>
                                 <div className="flex items-center gap-2">
                                     <span className="font-semibold">JMD $</span>
                                     <input
+                                        id="estimatedTotal"
                                         type="number"
                                         value={estimatedTotal}
                                         className="form-input flex-1 bg-gray-50 dark:bg-gray-900"
@@ -182,38 +355,47 @@ const RequestForm = () => {
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                             <div>
-                                <label className="block text-sm font-medium mb-2">Institution</label>
+                                <label htmlFor="institution" className="block text-sm font-medium mb-2">Institution *</label>
                                 <input
+                                    id="institution"
                                     type="text"
                                     value={institution}
                                     onChange={(e) => setInstitution(e.target.value)}
                                     className="form-input w-full"
-                                    placeholder="Choose an item"
+                                    placeholder="Bureau of Standards Jamaica"
                                     required
                                 />
+                                {errors.institution && (
+                                    <p className="text-red-500 text-xs mt-1">{errors.institution}</p>
+                                )}
                             </div>
                             <div>
-                                <label className="block text-sm font-medium mb-2">Division</label>
+                                <label htmlFor="division" className="block text-sm font-medium mb-2">Division *</label>
                                 <input
+                                    id="division"
                                     type="text"
                                     value={division}
                                     onChange={(e) => setDivision(e.target.value)}
                                     className="form-input w-full"
-                                    placeholder="Choose an item"
+                                    placeholder="e.g., Procurement, IT, Finance"
                                     required
                                 />
+                                {errors.division && (
+                                    <p className="text-red-500 text-xs mt-1">{errors.division}</p>
+                                )}
                             </div>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                             <div>
-                                <label className="block text-sm font-medium mb-2">Branch / Unit</label>
+                                <label htmlFor="branchUnit" className="block text-sm font-medium mb-2">Branch / Unit</label>
                                 <input
+                                    id="branchUnit"
                                     type="text"
                                     value={branchUnit}
                                     onChange={(e) => setBranchUnit(e.target.value)}
                                     className="form-input w-full"
-                                    placeholder="Choose an item"
+                                    placeholder="Optional"
                                 />
                             </div>
                             <div>
@@ -228,7 +410,7 @@ const RequestForm = () => {
                                             onChange={(e) => setBudgetActivity(e.target.value)}
                                             className="form-radio"
                                         />
-                                        <span>yes</span>
+                                        <span>Yes</span>
                                     </label>
                                     <label className="flex items-center gap-2">
                                         <input
@@ -239,7 +421,7 @@ const RequestForm = () => {
                                             onChange={(e) => setBudgetActivity(e.target.value)}
                                             className="form-radio"
                                         />
-                                        <span>no</span>
+                                        <span>No</span>
                                     </label>
                                 </div>
                             </div>
@@ -247,19 +429,23 @@ const RequestForm = () => {
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                             <div>
-                                <label className="block text-sm font-medium mb-2">E-Mail</label>
+                                <label htmlFor="email" className="block text-sm font-medium mb-2">E-Mail *</label>
                                 <input
+                                    id="email"
                                     type="email"
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
                                     className="form-input w-full"
-                                    placeholder="Enter email"
+                                    placeholder="your.email@example.com"
                                     required
                                 />
+                                {errors.email && (
+                                    <p className="text-red-500 text-xs mt-1">{errors.email}</p>
+                                )}
                             </div>
                             <div>
-                                <label className="block text-sm font-medium mb-2">Procurement Type</label>
-                                <div className="flex gap-4 flex-wrap items-center h-[42px]">
+                                <label className="block text-sm font-medium mb-2">Procurement Type *</label>
+                                <div className="flex gap-4 flex-wrap items-center h-auto py-2">
                                     <label className="flex items-center gap-2">
                                         <input
                                             type="checkbox"
@@ -297,11 +483,14 @@ const RequestForm = () => {
                                         <span className="text-sm">Works</span>
                                     </label>
                                 </div>
+                                {errors.procurementType && (
+                                    <p className="text-red-500 text-xs mt-1">{errors.procurementType}</p>
+                                )}
                             </div>
                         </div>
 
                         <div className="mb-4">
-                            <label className="block text-sm font-medium mb-2">Priority</label>
+                            <label className="block text-sm font-medium mb-2">Priority *</label>
                             <div className="flex gap-6">
                                 <label className="flex items-center gap-2">
                                     <input
@@ -348,6 +537,9 @@ const RequestForm = () => {
                                     <span>Low</span>
                                 </label>
                             </div>
+                            {errors.priority && (
+                                <p className="text-red-500 text-xs mt-1">{errors.priority}</p>
+                            )}
                         </div>
 
                         {/* Items Table */}
@@ -379,71 +571,77 @@ const RequestForm = () => {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                                        {items.map((item) => (
-                                            <tr key={item.itemNo}>
-                                                <td className="px-3 py-2 text-center">{item.itemNo}</td>
+                                        {items.map((item, index) => (
+                                            <tr key={item.id}>
+                                                <td className="px-3 py-2 text-center">{index + 1}</td>
                                                 <td className="px-3 py-2">
                                                     <input
                                                         type="text"
                                                         value={item.stockLevel}
-                                                        onChange={(e) => updateItem(item.itemNo, 'stockLevel', e.target.value)}
+                                                        onChange={(e) => updateItem(item.id, 'stockLevel', e.target.value)}
                                                         className="form-input w-full"
-                                                        placeholder=""
                                                     />
                                                 </td>
                                                 <td className="px-3 py-2">
                                                     <textarea
                                                         value={item.description}
-                                                        onChange={(e) => updateItem(item.itemNo, 'description', e.target.value)}
+                                                        onChange={(e) => updateItem(item.id, 'description', e.target.value)}
                                                         className="form-textarea w-full"
                                                         rows={2}
-                                                        placeholder="Generic specification to be provided"
+                                                        placeholder="Provide detailed specifications"
                                                         required
                                                     />
+                                                    {errors[`item_${index}_description`] && (
+                                                        <p className="text-red-500 text-xs mt-1">{errors[`item_${index}_description`]}</p>
+                                                    )}
                                                 </td>
                                                 <td className="px-3 py-2">
                                                     <input
                                                         type="number"
                                                         value={item.quantity}
-                                                        onChange={(e) => updateItem(item.itemNo, 'quantity', parseInt(e.target.value) || 1)}
+                                                        onChange={(e) => updateItem(item.id, 'quantity', parseInt(e.target.value) || 1)}
                                                         className="form-input w-full"
                                                         min="1"
                                                         required
                                                     />
+                                                    {errors[`item_${index}_quantity`] && (
+                                                        <p className="text-red-500 text-xs mt-1">{errors[`item_${index}_quantity`]}</p>
+                                                    )}
                                                 </td>
                                                 <td className="px-3 py-2">
                                                     <input
                                                         type="text"
                                                         value={item.unitOfMeasure}
-                                                        onChange={(e) => updateItem(item.itemNo, 'unitOfMeasure', e.target.value)}
+                                                        onChange={(e) => updateItem(item.id, 'unitOfMeasure', e.target.value)}
                                                         className="form-input w-full"
-                                                        placeholder="Each"
+                                                        placeholder="e.g., Each, Box, Kg"
                                                     />
                                                 </td>
                                                 <td className="px-3 py-2">
                                                     <input
                                                         type="number"
                                                         value={item.unitCost}
-                                                        onChange={(e) => updateItem(item.itemNo, 'unitCost', parseFloat(e.target.value) || 0)}
+                                                        onChange={(e) => updateItem(item.id, 'unitCost', parseFloat(e.target.value) || 0)}
                                                         className="form-input w-full"
                                                         step="0.01"
                                                         min="0"
+                                                        placeholder="0.00"
                                                     />
                                                 </td>
                                                 <td className="px-3 py-2">
                                                     <input
                                                         type="text"
                                                         value={item.partNumber}
-                                                        onChange={(e) => updateItem(item.itemNo, 'partNumber', e.target.value)}
+                                                        onChange={(e) => updateItem(item.id, 'partNumber', e.target.value)}
                                                         className="form-input w-full"
-                                                        placeholder="If applicable"
+                                                        placeholder="Optional"
                                                     />
                                                 </td>
                                                 <td className="px-3 py-2 text-center">
                                                     {items.length > 1 && (
                                                         <button
                                                             type="button"
-                                                            onClick={() => removeItem(item.itemNo)}
+                                                            onClick={() => removeItem(item.id)}
                                                             className="text-red-500 hover:text-red-700"
                                                         >
                                                             <IconX className="w-5 h-5" />
@@ -456,63 +654,66 @@ const RequestForm = () => {
                                 </table>
                             </div>
                             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 italic">
-                                Please continue the description on a separate page if the above space is inadequate. Add rows as required.
+                                Add additional rows as needed.
                             </p>
                         </div>
 
                         {/* Comments/Justification */}
                         <div className="mb-4">
-                            <label className="block text-sm font-medium mb-2">Comments/Justification:</label>
+                            <label htmlFor="commentsJustification" className="block text-sm font-medium mb-2">Comments/Justification:</label>
                             <textarea
+                                id="commentsJustification"
                                 value={commentsJustification}
                                 onChange={(e) => setCommentsJustification(e.target.value)}
                                 className="form-textarea w-full"
                                 rows={3}
-                                placeholder="Click or tap here to enter text."
+                                placeholder="Provide justification for this procurement request"
                             />
                         </div>
 
                         {/* Approved by - Disabled for Requestors */}
-                        <fieldset disabled className="border-t pt-4 opacity-60 cursor-not-allowed">
+                        <fieldset disabled={isRequester} className={isRequester ? "border-t pt-4 opacity-60 cursor-not-allowed" : "border-t pt-4"}>
                             <p className="text-sm font-semibold mb-3">Approved by:</p>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
-                                    <label className="block text-sm font-medium mb-2">Manager of Division's Name:</label>
+                                    <label htmlFor="managerName" className="block text-sm font-medium mb-2">Manager of Division's Name:</label>
                                     <input
+                                        id="managerName"
                                         type="text"
                                         value={managerName}
                                         onChange={(e) => setManagerName(e.target.value)}
-                                        className="form-input w-full mb-3 bg-gray-100 dark:bg-gray-800"
-                                        placeholder="Enter name of head of department"
+                                        className={`form-input w-full mb-3 ${isRequester ? 'bg-gray-100 dark:bg-gray-800' : ''}`}
+                                        placeholder="Full name"
                                     />
                                     <div className="grid grid-cols-2 gap-3">
                                         <div>
                                             <label className="block text-xs text-gray-500 mb-1">Signature:</label>
-                                            <input type="text" className="form-input w-full bg-gray-100 dark:bg-gray-800" placeholder="" />
+                                            <input type="text" className={`form-input w-full ${isRequester ? 'bg-gray-100 dark:bg-gray-800' : ''}`} />
                                         </div>
                                         <div>
                                             <label className="block text-xs text-gray-500 mb-1">Date:</label>
-                                            <input type="date" className="form-input w-full bg-gray-100 dark:bg-gray-800" defaultValue="2025-05-15" />
+                                            <input type="date" className={`form-input w-full ${isRequester ? 'bg-gray-100 dark:bg-gray-800' : ''}`} />
                                         </div>
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium mb-2">Head of Division's Name:</label>
+                                    <label htmlFor="headName" className="block text-sm font-medium mb-2">Head of Division's Name:</label>
                                     <input
+                                        id="headName"
                                         type="text"
                                         value={headName}
                                         onChange={(e) => setHeadName(e.target.value)}
-                                        className="form-input w-full mb-3 bg-gray-100 dark:bg-gray-800"
-                                        placeholder="Enter name of head of department"
+                                        className={`form-input w-full mb-3 ${isRequester ? 'bg-gray-100 dark:bg-gray-800' : ''}`}
+                                        placeholder="Full name"
                                     />
                                     <div className="grid grid-cols-2 gap-3">
                                         <div>
                                             <label className="block text-xs text-gray-500 mb-1">Signature:</label>
-                                            <input type="text" className="form-input w-full bg-gray-100 dark:bg-gray-800" placeholder="" />
+                                            <input type="text" className={`form-input w-full ${isRequester ? 'bg-gray-100 dark:bg-gray-800' : ''}`} />
                                         </div>
                                         <div>
                                             <label className="block text-xs text-gray-500 mb-1">Date:</label>
-                                            <input type="date" className="form-input w-full bg-gray-100 dark:bg-gray-800" defaultValue="2025-05-15" />
+                                            <input type="date" className={`form-input w-full ${isRequester ? 'bg-gray-100 dark:bg-gray-800' : ''}`} />
                                         </div>
                                     </div>
                                 </div>
@@ -521,81 +722,81 @@ const RequestForm = () => {
                     </div>
 
                     {/* Section II: Commitment from Budget - Disabled for Requestors */}
-                    <fieldset disabled className="border-b-2 border-red-500 pb-4 opacity-60 cursor-not-allowed">
+                    <fieldset disabled={isRequester} className={isRequester ? "border-b-2 border-red-500 pb-4 opacity-60 cursor-not-allowed" : "border-b-2 border-red-500 pb-4"}>
                         <h3 className="text-lg font-bold text-red-600 mb-4">Section II: Commitment from Budget</h3>
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                             <div>
-                                <label className="block text-sm font-medium mb-2">Commitment Number:</label>
+                                <label htmlFor="commitmentNumber" className="block text-sm font-medium mb-2">Commitment Number:</label>
                                 <input
+                                    id="commitmentNumber"
                                     type="text"
                                     value={commitmentNumber}
                                     onChange={(e) => setCommitmentNumber(e.target.value)}
-                                    className="form-input w-full"
-                                    placeholder=""
+                                    className={`form-input w-full ${isRequester ? 'bg-gray-100 dark:bg-gray-800' : ''}`}
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium mb-2">Accounting Code:</label>
+                                <label htmlFor="accountingCode" className="block text-sm font-medium mb-2">Accounting Code:</label>
                                 <input
+                                    id="accountingCode"
                                     type="text"
                                     value={accountingCode}
                                     onChange={(e) => setAccountingCode(e.target.value)}
-                                    className="form-input w-full"
-                                    placeholder=""
+                                    className={`form-input w-full ${isRequester ? 'bg-gray-100 dark:bg-gray-800' : ''}`}
                                 />
                             </div>
                         </div>
 
                         <div className="mb-4">
-                            <label className="block text-sm font-medium mb-2">Comments:</label>
+                            <label htmlFor="budgetComments" className="block text-sm font-medium mb-2">Comments:</label>
                             <textarea
+                                id="budgetComments"
                                 value={budgetComments}
                                 onChange={(e) => setBudgetComments(e.target.value)}
-                                className="form-textarea w-full bg-gray-100 dark:bg-gray-800"
+                                className={`form-textarea w-full ${isRequester ? 'bg-gray-100 dark:bg-gray-800' : ''}`}
                                 rows={2}
-                                placeholder=""
                             />
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
-                                <label className="block text-sm font-medium mb-2">Budget Officer's Name:</label>
+                                <label htmlFor="budgetOfficerName" className="block text-sm font-medium mb-2">Budget Officer's Name:</label>
                                 <input
+                                    id="budgetOfficerName"
                                     type="text"
                                     value={budgetOfficerName}
                                     onChange={(e) => setBudgetOfficerName(e.target.value)}
-                                    className="form-input w-full mb-3 bg-gray-100 dark:bg-gray-800"
-                                    placeholder=""
+                                    className={`form-input w-full mb-3 ${isRequester ? 'bg-gray-100 dark:bg-gray-800' : ''}`}
                                 />
                                 <div className="grid grid-cols-2 gap-3">
                                     <div>
                                         <label className="block text-xs text-gray-500 mb-1">Signature:</label>
-                                        <input type="text" className="form-input w-full bg-gray-100 dark:bg-gray-800" placeholder="" />
+                                        <input type="text" className={`form-input w-full ${isRequester ? 'bg-gray-100 dark:bg-gray-800' : ''}`} />
                                     </div>
                                     <div>
                                         <label className="block text-xs text-gray-500 mb-1">Date:</label>
-                                        <input type="date" className="form-input w-full bg-gray-100 dark:bg-gray-800" />
+                                        <input type="date" className={`form-input w-full ${isRequester ? 'bg-gray-100 dark:bg-gray-800' : ''}`} />
                                     </div>
                                 </div>
                             </div>
                             <div>
-                                <label className="block text-sm font-medium mb-2">Budget Manager's Name:</label>
+                                <label htmlFor="budgetManagerName" className="block text-sm font-medium mb-2">Budget Manager's Name:</label>
                                 <input
+                                    id="budgetManagerName"
                                     type="text"
                                     value={budgetManagerName}
                                     onChange={(e) => setBudgetManagerName(e.target.value)}
-                                    className="form-input w-full mb-3 bg-gray-100 dark:bg-gray-800"
-                                    placeholder=""
+                                    className={`form-input w-full mb-3 ${isRequester ? 'bg-gray-100 dark:bg-gray-800' : ''}`}
                                 />
                                 <div className="grid grid-cols-2 gap-3">
                                     <div>
                                         <label className="block text-xs text-gray-500 mb-1">Signature:</label>
-                                        <input type="text" className="form-input w-full bg-gray-100 dark:bg-gray-800" placeholder="" />
+                                        <input type="text" className={`form-input w-full ${isRequester ? 'bg-gray-100 dark:bg-gray-800' : ''}`} />
                                     </div>
                                     <div>
                                         <label className="block text-xs text-gray-500 mb-1">Date:</label>
-                                        <input type="date" className="form-input w-full bg-gray-100 dark:bg-gray-800" />
+                                        <input type="date" className={`form-input w-full ${isRequester ? 'bg-gray-100 dark:bg-gray-800' : ''}`} />
                                     </div>
                                 </div>
                             </div>
@@ -603,7 +804,7 @@ const RequestForm = () => {
                     </fieldset>
 
                     {/* Section III: To be completed by Procurement unit - Disabled for Requestors */}
-                    <fieldset disabled className="pb-4 opacity-60 cursor-not-allowed">
+                    <fieldset disabled={isRequester} className={isRequester ? "pb-4 opacity-60 cursor-not-allowed" : "pb-4"}>
                         <h3 className="text-lg font-bold text-red-600 mb-4">Section III: To be completed by Procurement unit</h3>
                         
                         <div className="bg-gray-50 dark:bg-gray-900 p-4 rounded mb-4">
@@ -611,53 +812,55 @@ const RequestForm = () => {
                             
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm font-medium mb-2">Rec'd By:</label>
+                                    <label htmlFor="receivedBy" className="block text-sm font-medium mb-2">Rec'd By:</label>
                                     <input
+                                        id="receivedBy"
                                         type="text"
                                         value={receivedBy}
                                         onChange={(e) => setReceivedBy(e.target.value)}
-                                        className="form-input w-full bg-gray-100 dark:bg-gray-800"
-                                        placeholder=""
+                                        className={`form-input w-full ${isRequester ? 'bg-gray-100 dark:bg-gray-800' : ''}`}
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium mb-2">Procurement Case Number:</label>
+                                    <label htmlFor="procurementCaseNumber" className="block text-sm font-medium mb-2">Procurement Case Number:</label>
                                     <input
+                                        id="procurementCaseNumber"
                                         type="text"
                                         value={procurementCaseNumber}
                                         onChange={(e) => setProcurementCaseNumber(e.target.value)}
-                                        className="form-input w-full bg-gray-100 dark:bg-gray-800"
-                                        placeholder=""
+                                        className={`form-input w-full ${isRequester ? 'bg-gray-100 dark:bg-gray-800' : ''}`}
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium mb-2">Date Rec'd:</label>
+                                    <label htmlFor="dateReceived" className="block text-sm font-medium mb-2">Date Rec'd:</label>
                                     <input
+                                        id="dateReceived"
                                         type="date"
                                         value={dateReceived}
                                         onChange={(e) => setDateReceived(e.target.value)}
-                                        className="form-input w-full bg-gray-100 dark:bg-gray-800"
+                                        className={`form-input w-full ${isRequester ? 'bg-gray-100 dark:bg-gray-800' : ''}`}
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium mb-2">Action Date:</label>
+                                    <label htmlFor="actionDate" className="block text-sm font-medium mb-2">Action Date:</label>
                                     <input
+                                        id="actionDate"
                                         type="date"
                                         value={actionDate}
                                         onChange={(e) => setActionDate(e.target.value)}
-                                        className="form-input w-full bg-gray-100 dark:bg-gray-800"
+                                        className={`form-input w-full ${isRequester ? 'bg-gray-100 dark:bg-gray-800' : ''}`}
                                     />
                                 </div>
                             </div>
 
                             <div className="mt-4">
-                                <label className="block text-sm font-medium mb-2">Comments:</label>
+                                <label htmlFor="procurementComments" className="block text-sm font-medium mb-2">Comments:</label>
                                 <textarea
+                                    id="procurementComments"
                                     value={procurementComments}
                                     onChange={(e) => setProcurementComments(e.target.value)}
-                                    className="form-textarea w-full bg-gray-100 dark:bg-gray-800"
+                                    className={`form-textarea w-full ${isRequester ? 'bg-gray-100 dark:bg-gray-800' : ''}`}
                                     rows={2}
-                                    placeholder=""
                                 />
                             </div>
                         </div>
@@ -675,7 +878,7 @@ const RequestForm = () => {
                                 accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
                             />
                             <p className="text-xs text-gray-500 dark:text-gray-400">
-                                Attach quotations, specifications, or other supporting documents (PDF, Word, Excel, Images - Max 10MB per file)
+                                PDF, Word, Excel, or Images (Max 10MB per file)
                             </p>
                             
                             {attachments.length > 0 && (
@@ -705,14 +908,16 @@ const RequestForm = () => {
                     <div className="flex gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
                         <button
                             type="submit"
-                            className="px-6 py-2 rounded bg-primary text-white hover:opacity-95 font-medium"
+                            disabled={isLoading}
+                            className="px-6 py-2 rounded bg-primary text-white hover:opacity-95 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            Submit Procurement Request
+                            {isLoading ? 'Submitting...' : 'Submit Procurement Request'}
                         </button>
                         <button
                             type="button"
                             onClick={() => navigate('/apps/requests')}
-                            className="px-6 py-2 rounded border border-gray-300 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700"
+                            disabled={isLoading}
+                            className="px-6 py-2 rounded border border-gray-300 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             Cancel
                         </button>
