@@ -17,6 +17,16 @@ i18n
     .init({
         fallbackLng: themeConfig.locale || 'en',
         debug: false,
-        load: 'languageOnly'
+        load: 'languageOnly',
+        ns: ['translation'],
+        defaultNS: 'translation',
+        interpolation: { escapeValue: false },
+        backend: {
+            // Cache-bust translation files in dev; allow versioned URLs in prod
+            loadPath: `/locales/{{lng}}/{{ns}}.json?v=${import.meta.env.DEV ? Date.now() : (import.meta.env.VITE_APP_VERSION || '1')}`
+        },
+        react: {
+            useSuspense: true
+        }
     });
 export default i18n;

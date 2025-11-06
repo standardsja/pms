@@ -1,8 +1,8 @@
 import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { useDispatch } from 'react-redux';
-import { setPageTitle } from '../../store/themeConfigSlice';
-import IconMail from '../../components/Icon/IconMail';
+import { setPageTitle } from '../../../store/themeConfigSlice';
+import IconMail from '../../../components/Icon/IconMail';
 
 const ForgotPassword = () => {
     const dispatch = useDispatch();

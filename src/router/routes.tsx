@@ -5,10 +5,10 @@ const Index = lazy(() => import('../pages/Index'));
 const Error = lazy(() => import('../components/Error'));
 
 // Auth Pages
-const Login = lazy(() => import('../pages/Auth/Login'));
-const ForgotPassword = lazy(() => import('../pages/Auth/ForgotPassword'));
-const ResetPassword = lazy(() => import('../pages/Auth/ResetPassword'));
-const Onboarding = lazy(() => import('../pages/Auth/Onboarding'));
+const Login = lazy(() => import('../pages/Procurement/Auth/Login'));
+const ForgotPassword = lazy(() => import('../pages/Procurement/Auth/ForgotPassword'));
+const ResetPassword = lazy(() => import('../pages/Procurement/Auth/ResetPassword'));
+const Onboarding = lazy(() => import('../pages/Procurement/Auth/Onboarding'));
 
 // Procurement Pages
 const ProcurementDashboard = lazy(() => import('../pages/Procurement/Dashboard'));
@@ -49,36 +49,45 @@ const PaymentsToProcess = lazy(() => import('../pages/Procurement/Payments/Payme
 const AdminSettings = lazy(() => import('../pages/Procurement/Admin/AdminSettings'));
 
 // Request Pages
-const Requests = lazy(() => import('../pages/Apps/Requests'));
-const RequestForm = lazy(() => import('../pages/Apps/RequestForm'));
-const FinanceRequests = lazy(() => import('../pages/Finance/Requests'));
+const Requests = lazy(() => import('../pages/Procurement/Requests/Requests'));
+const RequestForm = lazy(() => import('../pages/Procurement/Requests/RequestForm'));
+const FinanceRequests = lazy(() => import('../pages/Procurement/Finance/Requests'));
 
 // Department Head Pages
-const DepartmentHeadDashboard = lazy(() => import('../pages/Procurement/DepartmentHeadDashboard'));
+const DepartmentHeadDashboard = lazy(() => import('../pages/Procurement/DepartmentHead/DepartmentHeadDashboard'));
 const DepartmentHeadEvaluationReview = lazy(() => import('../pages/Procurement/DepartmentHead/DepartmentHeadEvaluationReview'));
 const DepartmentHeadReportReview = lazy(() => import('../pages/Procurement/DepartmentHead/DepartmentHeadReportReview'));
 
 // Executive Director Pages
-const ExecutiveDirectorDashboard = lazy(() => import('../pages/Procurement/ExecutiveDirectorDashboard'));
+const ExecutiveDirectorDashboard = lazy(() => import('../pages/Procurement/ExecutiveDirector/ExecutiveDirectorDashboard'));
 const ExecutiveApprovals = lazy(() => import('../pages/Procurement/Approvals/ExecutiveApprovals'));
 const ExecutiveDirectorReports = lazy(() => import('../pages/Procurement/ExecutiveDirector/ExecutiveDirectorReports'));
 const ExecutiveDigitalSignoffs = lazy(() => import('../pages/Procurement/ExecutiveDirector/ExecutiveDigitalSignoffs'));
 
 // User Pages
-const Profile = lazy(() => import('../pages/Users/Profile'));
-const AccountSetting = lazy(() => import('../pages/Users/AccountSetting'));
+const Profile = lazy(() => import('../pages/Procurement/Users/Profile'));
+const AccountSetting = lazy(() => import('../pages/Procurement/Users/AccountSetting'));
 const HelpSupport = lazy(() => import('../pages/Pages/HelpSupport'));
 
-// Existing Pages
-const Widgets = lazy(() => import('../pages/Widgets'));
-const FontIcons = lazy(() => import('../pages/FontIcons'));
-const DragAndDrop = lazy(() => import('../pages/DragAndDrop'));
-const Tables = lazy(() => import('../pages/Tables'));
-const Charts = lazy(() => import('../pages/Charts'));
-const About = lazy(() => import('../pages/About'));
+// Module Selector (legacy)
+const ModuleSelector = lazy(() => import('../pages/ModuleSelector'));
+
+// Innovation Hub Pages
+const InnovationDashboard = lazy(() => import('../pages/Innovation/InnovationDashboard'));
+const SubmitIdea = lazy(() => import('../pages/Innovation/Ideas/SubmitIdea'));
+const ViewIdeas = lazy(() => import('../pages/Innovation/Ideas/ViewIdeas'));
+const VoteOnIdeas = lazy(() => import('../pages/Innovation/Ideas/VoteOnIdeas'));
+const MyIdeas = lazy(() => import('../pages/Innovation/Ideas/MyIdeas'));
+const IdeaDetails = lazy(() => import('../pages/Innovation/Ideas/IdeaDetails'));
+const CommitteeDashboard = lazy(() => import('../pages/Innovation/Committee/CommitteeDashboard'));
+const CommitteeReviewIdeas = lazy(() => import('../pages/Innovation/Committee/ReviewIdeas'));
+const InnovationAnalytics = lazy(() => import('../pages/Innovation/Ideas/Analytics'));
+
 
 const routes = [
-    // Auth Routes
+    // ============================================
+    // AUTH ROUTES
+    // ============================================
     {
         path: '/auth/login',
         element: <Login />,
@@ -100,13 +109,83 @@ const routes = [
         layout: 'blank',
     },
     
-    // Dashboard - Procurement Officer Dashboard loads first
+    // ============================================
+    // MODULE SELECTOR / ONBOARDING
+    // ============================================
     {
         path: '/',
+        element: <Onboarding />,
+        layout: 'blank',
+    },
+    // Optional: keep a direct route to the old selector (not linked)
+    {
+        path: '/modules',
+        element: <ModuleSelector />,
+    },
+    
+    // ============================================
+    // INNOVATION HUB MODULE
+    // ============================================
+    {
+        path: '/innovation/dashboard',
+        element: <InnovationDashboard />,
+    },
+    {
+        path: '/innovation/ideas/new',
+        element: <SubmitIdea />,
+    },
+    {
+        path: '/innovation/ideas/browse',
+        element: <ViewIdeas />,
+    },
+    {
+        path: '/innovation/ideas/mine',
+        element: <MyIdeas />,
+    },
+    {
+        path: '/innovation/ideas/popular',
+        element: <VoteOnIdeas />,
+    },
+    {
+        path: '/innovation/ideas/all',
+        element: <ViewIdeas />,
+    },
+    {
+        path: '/innovation/ideas/analytics',
+        element: <InnovationAnalytics />,
+    },
+    {
+        path: '/innovation/ideas/:id',
+        element: <IdeaDetails />,
+    },
+    {
+        path: '/innovation/committee',
+        element: <CommitteeDashboard />,
+    },
+    {
+        path: '/innovation/committee/dashboard',
+        element: <CommitteeDashboard />,
+    },
+    {
+        path: '/innovation/committee/review',
+        element: <CommitteeReviewIdeas />,
+    },
+    {
+        path: '/innovation/committee/review/:id',
+        element: <CommitteeDashboard />, // TODO: Create detailed review page
+    },
+    
+    // ============================================
+    // MAIN DASHBOARD - Now points to module selector
+    // ============================================
+    {
+        path: '/procurement',
         element: <ProcurementDashboard />,
     },
     
-    // Procurement Routes
+    // ============================================
+    // PROCUREMENT MODULE
+    // ============================================
     {
         path: '/procurement/dashboard',
         element: <ProcurementDashboard />,
@@ -252,7 +331,9 @@ const routes = [
         element: <PaymentDetail />,
     },
 
-    // Department Head Routes
+    // ============================================
+    // DEPARTMENT HEAD ROUTES
+    // ============================================
     {
         path: '/procurement/department-head-dashboard',
         element: <DepartmentHeadDashboard />,
@@ -266,7 +347,9 @@ const routes = [
         element: <DepartmentHeadReportReview />,
     },
 
-    // Executive Director Routes
+    // ============================================
+    // EXECUTIVE DIRECTOR ROUTES
+    // ============================================
     {
         path: '/procurement/executive-director-dashboard',
         element: <ExecutiveDirectorDashboard />,
@@ -284,7 +367,9 @@ const routes = [
         element: <ExecutiveDigitalSignoffs />,
     },
     
-    // Request Routes
+    // ============================================
+    // REQUEST ROUTES
+    // ============================================
     {
         path: '/apps/requests',
         element: <Requests />,
@@ -297,40 +382,18 @@ const routes = [
         path: '/apps/requests/new',
         element: <RequestForm />,
     },
-    {
-        path: '/apps/requests/edit/:id',
-        element: <RequestForm />,
-    },
+    
+    // ============================================
+    // ADMIN ROUTES
+    // ============================================
     {
         path: '/procurement/admin',
         element: <AdminSettings />,
     },
     
-    // Department Head Routes
-    {
-        path: '/department-head/evaluation-review',
-        element: <DepartmentHeadEvaluationReview />,
-    },
-    {
-        path: '/department-head/report-review',
-        element: <DepartmentHeadReportReview />,
-    },
-    
-    // Executive Director Routes
-    {
-        path: '/executive/approvals',
-        element: <ExecutiveApprovals />,
-    },
-    {
-        path: '/executive/digital-signoffs',
-        element: <ExecutiveDigitalSignoffs />,
-    },
-    {
-        path: '/executive/reports',
-        element: <ExecutiveDirectorReports />,
-    },
-    
-    // User Pages
+    // ============================================
+    // USER PAGES
+    // ============================================
     {
         path: '/profile',
         element: <Profile />,
@@ -348,34 +411,9 @@ const routes = [
         element: <HelpSupport />,
     },
     
-    // Utility Pages
-    {
-        path: '/charts',
-        element: <Charts />,
-    },
-    {
-        path: '/widgets',
-        element: <Widgets />,
-    },
-    {
-        path: '/font-icons',
-        element: <FontIcons />,
-    },
-    {
-        path: '/dragndrop',
-        element: <DragAndDrop />,
-    },
-    {
-        path: '/tables',
-        element: <Tables />,
-    },
-    {
-        path: '/about',
-        element: <About />,
-        layout: 'blank',
-    },
-    
-    // Error page - must be last
+    // ============================================
+    // ERROR HANDLING - MUST BE LAST
+    // ============================================
     {
         path: '*',
         element: <Error />,

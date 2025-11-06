@@ -2,10 +2,10 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
-import { setPageTitle } from '../../store/themeConfigSlice';
-import IconEye from '../../components/Icon/IconEye';
-import IconEdit from '../../components/Icon/IconEdit';
-import IconPrinter from '../../components/Icon/IconPrinter';
+import { setPageTitle } from '../../../store/themeConfigSlice';
+import IconEye from '../../../components/Icon/IconEye';
+import IconEdit from '../../../components/Icon/IconEdit';
+import IconPrinter from '../../../components/Icon/IconPrinter';
 
 const MySwal = withReactContent(Swal);
 
