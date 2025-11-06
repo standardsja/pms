@@ -1,15 +1,15 @@
 import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { setPageTitle } from '../../store/themeConfigSlice';
+import { setPageTitle } from '../../../store/themeConfigSlice';
 import { useDispatch } from 'react-redux';
-import IconHome from '../../components/Icon/IconHome';
-import IconDollarSignCircle from '../../components/Icon/IconDollarSignCircle';
-import IconUser from '../../components/Icon/IconUser';
-import IconPhone from '../../components/Icon/IconPhone';
-import IconLinkedin from '../../components/Icon/IconLinkedin';
-import IconTwitter from '../../components/Icon/IconTwitter';
-import IconFacebook from '../../components/Icon/IconFacebook';
-import IconGithub from '../../components/Icon/IconGithub';
+import IconHome from '../../../components/Icon/IconHome';
+import IconDollarSignCircle from '../../../components/Icon/IconDollarSignCircle';
+import IconUser from '../../../components/Icon/IconUser';
+import IconPhone from '../../../components/Icon/IconPhone';
+import IconLinkedin from '../../../components/Icon/IconLinkedin';
+import IconTwitter from '../../../components/Icon/IconTwitter';
+import IconFacebook from '../../../components/Icon/IconFacebook';
+import IconGithub from '../../../components/Icon/IconGithub';
 
 const AccountSetting = () => {
     const dispatch = useDispatch();

@@ -30,6 +30,10 @@ import IconCreditCard from '../Icon/IconCreditCard';
 import IconSettings from '../Icon/IconSettings';
 import IconInbox from '../Icon/IconInbox';
 import IconCircleCheck from '../Icon/IconCircleCheck';
+import IconThumbUp from '../Icon/IconThumbUp';
+import IconPlusCircle from '../Icon/IconPlusCircle';
+import IconUser from '../Icon/IconUser';
+import { getUser } from '../../utils/auth';
 
 const Sidebar = () => {
     const [currentMenu, setCurrentMenu] = useState<string>('');
@@ -39,6 +43,20 @@ const Sidebar = () => {
     const location = useLocation();
     const dispatch = useDispatch();
     const { t } = useTranslation();
+    
+    // Get current user to check role
+    const currentUser = getUser();
+    const isCommitteeMember = currentUser?.role === 'INNOVATION_COMMITTEE';
+    
+    // Determine if we're in Innovation Hub
+    const isInnovationHub = location.pathname.startsWith('/innovation');
+    // Compute dashboard path for logo/home
+    const dashboardPath = isCommitteeMember
+        ? '/innovation/committee/dashboard'
+        : isInnovationHub
+        ? '/innovation/dashboard'
+        : '/procurement/dashboard';
+    
     const toggleMenu = (value: string) => {
         setCurrentMenu((oldValue) => {
             return oldValue === value ? '' : value;
@@ -76,7 +94,7 @@ const Sidebar = () => {
             >
                 <div className="bg-white dark:bg-black h-full">
                     <div className="flex justify-between items-center px-4 py-3">
-                        <NavLink to="/" className="main-logo flex items-center shrink-0">
+                        <NavLink to={dashboardPath} className="main-logo flex items-center shrink-0">
                             <span className="text-3xl">🌀</span>
                             <span className="text-xl ltr:ml-2 rtl:mr-2 font-bold align-middle lg:inline dark:text-white-light tracking-wider">SPINX</span>
                         </NavLink>
@@ -91,6 +109,108 @@ const Sidebar = () => {
                     </div>
                     <PerfectScrollbar className="h-[calc(100vh-80px)] relative">
                         <ul className="relative font-semibold space-y-0.5 p-4 py-0">
+                            {isCommitteeMember ? (
+                                // Innovation Committee Menu
+                                <>
+                                    <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
+                                        <IconMinus className="w-4 h-5 flex-none hidden" />
+                                        <span>Committee Dashboard</span>
+                                    </h2>
+
+                                    <li className="nav-item">
+                                        <NavLink to="/innovation/committee/dashboard" className="group">
+                                            <div className="flex items-center">
+                                                <IconMenuDashboard className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Dashboard</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+
+                                    <li className="nav-item">
+                                        <NavLink to="/innovation/committee/review" className="group">
+                                            <div className="flex items-center">
+                                                <IconCircleCheck className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Review Ideas</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+
+                                    <li className="nav-item">
+                                        <NavLink to="/innovation/ideas/browse" className="group">
+                                            <div className="flex items-center">
+                                                <IconBook className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Browse All Ideas</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+
+
+
+                                    <li className="nav-item">
+                                        <NavLink to="/innovation/ideas/analytics" className="group">
+                                            <div className="flex items-center">
+                                                <IconBarChart className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Analytics</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+                                </>
+                            ) : isInnovationHub ? (
+                                // Innovation Hub Menu
+                                <>
+                                    <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
+                                        <IconMinus className="w-4 h-5 flex-none hidden" />
+                                        <span>Innovation Hub</span>
+                                    </h2>
+
+                                    <li className="nav-item">
+                                        <NavLink to="/innovation/dashboard" className="group">
+                                            <div className="flex items-center">
+                                                <IconMenuDashboard className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Dashboard</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+
+                                    <li className="nav-item">
+                                        <NavLink to="/innovation/ideas/new" className="group">
+                                            <div className="flex items-center">
+                                                <IconPlusCircle className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Create an Idea</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+
+                                    <li className="nav-item">
+                                        <NavLink to="/innovation/ideas/browse" className="group">
+                                            <div className="flex items-center">
+                                                <IconBook className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Browse Ideas</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+
+                                    <li className="nav-item">
+                                        <NavLink to="/innovation/ideas/popular" className="group">
+                                            <div className="flex items-center">
+                                                <IconThumbUp className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Vote on Ideas</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+
+                                    <li className="nav-item">
+                                        <NavLink to="/innovation/ideas/mine" className="group">
+                                            <div className="flex items-center">
+                                                <IconUser className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">My Ideas</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+                                </>
+                            ) : (
+                                // Procurement Management Menu
+                                <>
                             <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
                                 <IconMinus className="w-4 h-5 flex-none hidden" />
                                 <span>USER</span>
@@ -111,7 +231,7 @@ const Sidebar = () => {
                             </h2>
 
                             <li className="nav-item">
-                                <NavLink to="/" className="group">
+                                <NavLink to="/procurement/dashboard" className="group">
                                     <div className="flex items-center">
                                         <IconMenuDashboard className="group-hover:!text-primary shrink-0" />
                                         <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Dashboard</span>
@@ -367,6 +487,8 @@ const Sidebar = () => {
                                     </div>
                                 </NavLink>
                             </li>
+                                </>
+                            )}
                         </ul>
                     </PerfectScrollbar>
                 </div>

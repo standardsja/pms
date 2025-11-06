@@ -1,9 +1,9 @@
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { useDispatch } from 'react-redux';
-import { setPageTitle } from '../../store/themeConfigSlice';
-import IconLockDots from '../../components/Icon/IconLockDots';
-import IconEye from '../../components/Icon/IconEye';
+import { setPageTitle } from '../../../store/themeConfigSlice';
+import IconLockDots from '../../../components/Icon/IconLockDots';
+import IconEye from '../../../components/Icon/IconEye';
 
 const ResetPassword = () => {
     const dispatch = useDispatch();

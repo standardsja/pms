@@ -125,6 +125,335 @@
     "coming_soon_cover": "Coming Soon Cover",
     "contact_us_boxed": "Contact Us Boxed",
     "requests": "Requests",
-    "contact_us_cover": "Contact Us Cover"
-    
+    "contact_us_cover": "Contact Us Cover",
+    "onboarding": {
+        "title": "Choose where to work today",
+        "subtitle": "You can switch modules anytime from the header. Your choice can be remembered for next time.",
+        "keyFeatures": "Key features",
+        "selected": "Selected",
+        "clickToSelect": "Click to select",
+        "continue": "Continue",
+        "needHelp": "Need Help",
+        "remember": "Remember my choice",
+        "redirecting": "Redirecting...",
+        "badges": {
+            "selected": "Selected ✓",
+            "recommended": "Recommended"
+        },
+        "errors": {
+            "selectOne": "Please select a module to continue"
+        },
+        "goTo": {
+            "pms": "Go to Procurement",
+            "ih": "Go to Innovation Hub",
+            "committee": "Go to Committee"
+        },
+        "modules": {
+            "pms": {
+                "title": "Procurement",
+                "description": "Manage requests, RFQs, suppliers, purchase orders, and payments",
+                "features": [
+                    "Manage requests",
+                    "Send RFQs",
+                    "Track suppliers"
+                ]
+            },
+            "ih": {
+                "title": "Innovation Hub",
+                "description": "Submit ideas, vote on innovations, and drive BSJ projects forward",
+                "features": [
+                    "Submit ideas",
+                    "Vote on innovations",
+                    "Promote projects"
+                ]
+            },
+            "committee": {
+                "title": "Committee Dashboard",
+                "description": "Review and approve innovation idea submissions",
+                "features": [
+                    "Review submissions",
+                    "Approve/Reject ideas",
+                    "View analytics"
+                ]
+            }
+        }
+    },
+    "innovation": {
+        "hub": "Innovation Hub",
+        "dashboard": {
+            "title": "Innovation Hub",
+            "subtitle": "Share ideas, vote on innovations, and drive BSJ forward",
+            "submitNewIdea": "Submit New Idea",
+            "stats": {
+                "myIdeas": "My Ideas",
+                "approvedIdeas": "Approved Ideas",
+                "underReview": "Under Review",
+                "bsjProjects": "BSJ Projects",
+                "totalVotes": "Total Votes"
+            },
+            "quickActions": {
+                "title": "Quick Actions",
+                "submitNew": {
+                    "title": "Submit New Idea",
+                    "description": "Share your innovative concept"
+                },
+                "browse": {
+                    "title": "Browse Ideas",
+                    "description": "Explore approved innovations"
+                },
+                "mySubmissions": {
+                    "title": "My Submissions",
+                    "description": "View your submitted ideas"
+                },
+                "popular": {
+                    "title": "Popular This Week",
+                    "description": "See trending innovations"
+                },
+                "go": "Go"
+            },
+            "recentActivity": {
+                "title": "Recent Activity",
+                "viewAll": "View All",
+                "votesReceived": "Your idea \"{{title}}\" received {{count}} new votes",
+                "ideaApproved": "Innovation Committee approved \"{{title}}\"",
+                "ideaPromoted": "\"{{title}}\" was promoted to BSJ Project!",
+                "timeAgo": {
+                    "hours": "{{count}} hours ago",
+                    "days": "{{count}} days ago"
+                },
+                "empty": "No recent activity"
+            },
+            "proTip": {
+                "title": "Pro Tip",
+                "message": "Ideas with detailed descriptions and clear benefits receive 3x more votes on average!",
+                "action": "Submit a Well-Crafted Idea →"
+            }
+        },
+        "browse": {
+            "title": "Browse Approved Ideas",
+            "subtitle": "Explore innovations from your colleagues and vote for your favorites",
+            "filters": {
+                "category": "Category:",
+                "allCategories": "All Categories",
+                "sortBy": "Sort by:",
+                "mostPopular": "Most Popular",
+                "mostRecent": "Most Recent",
+                "mostViewed": "Most Viewed"
+            },
+            "vote": {
+                "votes": "votes",
+                "upvote": "Upvote this idea",
+                "removeVote": "Remove your vote"
+            },
+            "viewDetails": "View Details",
+            "viewCount": "{{count}} views",
+            "submittedBy": "by {{name}}",
+            "empty": {
+                "title": "No Ideas Found",
+                "message": "Try adjusting your filters or be the first to submit an idea!",
+                "action": "Submit New Idea"
+            }
+        },
+        "myIdeas": {
+            "title": "My Innovation Portfolio",
+            "subtitle": "Track your ideas from concept to implementation",
+            "stats": {
+                "approved": "Approved",
+                "inReview": "In Review",
+                "totalViews": "Total Views",
+                "completed": "Completed"
+            },
+            "filters": {
+                "status": "Filter by Status:",
+                "allIdeas": "All Ideas"
+            },
+            "status": {
+                "draft": "Draft",
+                "pending": "Pending Review",
+                "underReview": "Under Review",
+                "approved": "Approved",
+                "implemented": "Implemented",
+                "rejected": "Not Selected"
+            },
+            "actions": {
+                "edit": "Edit Idea",
+                "view": "View Idea"
+            },
+            "feedback": {
+                "title": "Committee Feedback",
+                "none": "No feedback yet"
+            },
+            "engagement": {
+                "votes": "{{count}} votes",
+                "views": "{{count}} views",
+                "comments": "{{count}} comments"
+            },
+            "empty": {
+                "all": {
+                    "title": "You haven't submitted any ideas yet",
+                    "message": "Start your innovation journey by submitting your first idea!",
+                    "action": "Submit Your First Idea"
+                },
+                "filtered": {
+                    "title": "No {{status}} ideas",
+                    "message": "Try selecting a different status filter",
+                    "action": "View All Ideas"
+                }
+            }
+        },
+        "submit": {
+            "title": "Submit New Idea",
+            "subtitle": "Share your innovative concept with the Innovation Committee",
+            "back": "Back",
+            "guidelines": {
+                "title": "Submission Guidelines",
+                "items": [
+                    "Provide a clear, descriptive title for your idea",
+                    "Explain the problem your idea solves",
+                    "Describe expected benefits (cost savings, efficiency, etc.)",
+                    "Ideas will be reviewed by the Innovation Committee",
+                    "Approved ideas become visible for voting by all staff"
+                ]
+            },
+            "form": {
+                "title": {
+                    "label": "Idea Title",
+                    "placeholder": "e.g., AI-Powered Document Analysis System",
+                    "hint": "Keep it concise and descriptive (max 100 characters)",
+                    "error": "Title must be between 10 and 100 characters"
+                },
+                "category": {
+                    "label": "Category",
+                    "placeholder": "Select a category",
+                    "error": "Please select a category"
+                },
+                "description": {
+                    "label": "Detailed Description",
+                    "placeholder": "Describe your idea in detail. What problem does it solve? How does it work?",
+                    "hint": "Provide as much detail as possible to help reviewers understand your concept",
+                    "error": "Description must be at least 50 characters"
+                },
+                "benefits": {
+                    "label": "Expected Benefits",
+                    "placeholder": "What benefits will this idea bring? (e.g., cost savings, time efficiency, improved quality)",
+                    "error": "Please describe the expected benefits"
+                },
+                "implementation": {
+                    "label": "Implementation Notes (Optional)",
+                    "placeholder": "Any thoughts on how this could be implemented? Resources needed? Timeline?"
+                },
+                "required": "*",
+                "charactersRemaining": "{{count}} characters remaining"
+            },
+            "actions": {
+                "cancel": "Cancel",
+                "submit": "Submit Idea",
+                "submitting": "Submitting..."
+            },
+            "success": {
+                "title": "Idea Submitted!",
+                "message": "Your innovative idea has been submitted for review. The Innovation Committee will review it soon.",
+                "action": "View My Ideas"
+            },
+            "error": {
+                "title": "Submission Failed",
+                "message": "There was an error submitting your idea. Please try again."
+            }
+        },
+        "view": {
+            "title": "Idea Gallery",
+            "subtitle": "Discover innovative ideas shaping the future of BSJ",
+            "viewMode": {
+                "grid": "Grid view",
+                "list": "List view"
+            },
+            "search": {
+                "placeholder": "Search ideas, tags, or keywords..."
+            },
+            "filters": {
+                "category": "Category:",
+                "all": "All"
+            },
+            "status": {
+                "approved": "Approved",
+                "underReview": "Under Review",
+                "implemented": "Implemented"
+            },
+            "engagement": {
+                "votes": "{{count}} votes",
+                "views": "{{count}} views"
+            },
+            "submittedBy": "by {{name}}",
+            "empty": {
+                "title": "No Ideas Found",
+                "message": "Try adjusting your search or filters",
+                "action": "Clear Filters"
+            }
+        },
+        "vote": {
+            "title": "Vote on Ideas",
+            "subtitle": "Help shape BSJ's future by voting on innovative proposals",
+            "votingPower": {
+                "label": "Voting Power",
+                "remaining": "{{count}} votes remaining",
+                "used": "{{used}}/{{total}} votes used",
+                "info": "You can vote on up to 10 ideas. Choose wisely!"
+            },
+            "sort": {
+                "label": "Sort by:",
+                "trending": "Trending",
+                "popular": "Most Popular",
+                "recent": "Most Recent"
+            },
+            "filters": {
+                "showVotedOnly": "Show only voted ideas"
+            },
+            "actions": {
+                "upvote": "Upvote this idea",
+                "downvote": "Downvote this idea",
+                "removeUpvote": "Remove upvote",
+                "removeDownvote": "Remove downvote"
+            },
+            "badges": {
+                "rank": "#{{rank}} Trending",
+                "topIdea": "Top Idea"
+            },
+            "engagement": {
+                "upvotes": "{{count}} upvotes",
+                "downvotes": "{{count}} downvotes",
+                "netVotes": "{{count}} net votes",
+                "views": "{{count}} views",
+                "trendingScore": "{{score}}% trending"
+            },
+            "submittedBy": "by {{name}} on {{date}}",
+            "viewDetails": "View Full Details",
+            "empty": {
+                "noVoted": {
+                    "title": "You haven't voted yet",
+                    "message": "Start voting for ideas you believe in!",
+                    "action": "View All Ideas"
+                },
+                "noIdeas": {
+                    "title": "No Ideas Available",
+                    "message": "Check back later for new innovative ideas"
+                }
+            },
+            "warning": {
+                "noVotesLeft": {
+                    "title": "Vote Limit Reached",
+                    "message": "You've used all 10 of your votes! To vote for new ideas, remove votes from existing ones."
+                }
+            }
+        },
+        "categories": {
+            "TECHNOLOGY": "Technology",
+            "SUSTAINABILITY": "Sustainability",
+            "CUSTOMER_SERVICE": "Customer Service",
+            "PROCESS_IMPROVEMENT": "Process Improvement",
+            "COST_REDUCTION": "Cost Reduction",
+            "PRODUCT_INNOVATION": "Product Innovation",
+            "OTHER": "Other"
+        }
+    }
 }
+

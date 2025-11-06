@@ -1,12 +1,14 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { useDispatch } from 'react-redux';
-import { setPageTitle } from '../../store/themeConfigSlice';
-import IconMail from '../../components/Icon/IconMail';
-import IconLockDots from '../../components/Icon/IconLockDots';
-import IconEye from '../../components/Icon/IconEye';
+import { setPageTitle } from '../../../store/themeConfigSlice';
+import IconMail from '../../../components/Icon/IconMail';
+import IconLockDots from '../../../components/Icon/IconLockDots';
+import IconEye from '../../../components/Icon/IconEye';
 // @ts-ignore
-import packageInfo from '../../../package.json';
+import packageInfo from '../../../../package.json';
+import { setAuth } from '../../../utils/auth';
+import { loginWithMicrosoft, initializeMsal, isMsalConfigured } from '../../../auth/msal';
 
 const Login = () => {
     const dispatch = useDispatch();
@@ -14,6 +16,10 @@ const Login = () => {
 
     useEffect(() => {
         dispatch(setPageTitle('Login'));
+        // Initialize MSAL early so button clicks don't race initialization
+        if (isMsalConfigured) {
+            initializeMsal().catch(() => {});
+        }
     });
 
     const [email, setEmail] = useState('');
@@ -31,35 +37,27 @@ const Login = () => {
         setIsLoading(true);
 
         try {
-            // Dev-only: call backend test-login to fetch user + department + roles
-            const resp = await fetch('http://localhost:4000/auth/test-login', {
+            const res = await fetch('/api/auth/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email }),
+                body: JSON.stringify({ email, password }),
             });
-            if (!resp.ok) {
-                const err = await resp.json().catch(() => ({}));
-                throw new Error(err.error || resp.statusText || 'Login failed');
+            const data = await res.json().catch(() => null);
+            if (!res.ok) {
+                const msg = (data && (data.message || data.error)) || 'Login failed';
+                throw new Error(msg);
             }
-            const data = await resp.json();
-            const user = data.user || {};
-
-            // Normalize profile
-            const profile = {
-                id: user.id,
-                email: user.email,
-                name: user.name,
-                department: user.department || null,
-                roles: Array.isArray(user.roles) ? user.roles : [],
-                primaryRole: Array.isArray(user.roles) && user.roles.length ? user.roles[0] : '',
-                permissions: [],
-            };
-
-            localStorage.setItem('isAuthenticated', 'true');
-            localStorage.setItem('userProfile', JSON.stringify(profile));
-            localStorage.setItem('authToken', data.token || '');
-            try { window.dispatchEvent(new Event('userProfileChanged')); } catch {}
-            navigate('/');
+            const { token, user } = data || {};
+            if (!token || !user) throw new Error('Invalid login response');
+            setAuth(token, user, rememberMe);
+            
+            // Check if user is committee member - route directly to committee dashboard
+            if (user.role === 'INNOVATION_COMMITTEE') {
+                navigate('/innovation/committee/dashboard');
+            } else {
+                // Regular users go to onboarding
+                navigate('/onboarding');
+            }
         } catch (err: any) {
             setError(err?.message || 'Login failed. Please try again.');
         } finally {
@@ -80,7 +78,17 @@ const Login = () => {
             if (code.length === 6) {
                 // Mock successful MFA verification
                 localStorage.setItem('isAuthenticated', 'true');
-                navigate('/');
+                
+                // Check stored user data for committee role
+                const userData = localStorage.getItem('user') || sessionStorage.getItem('user');
+                if (userData) {
+                    const user = JSON.parse(userData);
+                    if (user.role === 'INNOVATION_COMMITTEE') {
+                        navigate('/innovation/committee/dashboard');
+                        return;
+                    }
+                }
+                navigate('/onboarding');
             } else {
                 setError('Please enter a valid 6-digit code');
             }
@@ -294,9 +302,47 @@ const Login = () => {
                                 <button
                                     type="button"
                                     className="btn btn-outline-primary w-full py-3 flex items-center justify-center gap-3"
-                                    onClick={() => {
-                                        // Microsoft SSO integration
-                                        console.log('Microsoft SSO clicked');
+                                    disabled={!isMsalConfigured || isLoading}
+                                    onClick={async () => {
+                                        setError('');
+                                        setIsLoading(true);
+                                        try {
+                                            if (!isMsalConfigured) {
+                                                throw new Error('Microsoft SSO is not configured. Set VITE_AZURE_CLIENT_ID and VITE_AZURE_TENANT_ID.');
+                                            }
+                                            const result = await loginWithMicrosoft();
+                                            const idToken = result.idToken;
+                                            if (!idToken) throw new Error('No idToken from Microsoft');
+                                            
+                                            // Note: Backend endpoint /api/auth/microsoft was removed
+                                            // You'll need to implement a new backend endpoint or use client-side only auth
+                                            // For now, this will fail - placeholder for future implementation
+                                            const res = await fetch('/api/auth/microsoft', {
+                                                method: 'POST',
+                                                headers: { 'Content-Type': 'application/json' },
+                                                body: JSON.stringify({ idToken }),
+                                            });
+                                            const data = await res.json().catch(() => null);
+                                            if (!res.ok) {
+                                                const msg = (data && (data.message || data.error)) || 'Microsoft sign-in failed';
+                                                throw new Error(msg);
+                                            }
+                                            const { token, user } = data || {};
+                                            if (!token || !user) throw new Error('Invalid Microsoft login response');
+                                            setAuth(token, user, rememberMe);
+                                            
+                                            // Check if user is committee member
+                                            if (user.role === 'INNOVATION_COMMITTEE') {
+                                                navigate('/innovation/committee/dashboard');
+                                            } else {
+                                                navigate('/onboarding');
+                                            }
+                                        } catch (e: any) {
+                                            const msg = e?.message || 'Microsoft sign-in failed';
+                                            if (!/Redirecting/.test(msg)) setError(msg);
+                                        } finally {
+                                            setIsLoading(false);
+                                        }
                                     }}
                                 >
                                     <svg className="w-5 h-5" viewBox="0 0 23 23" fill="none">
@@ -307,6 +353,11 @@ const Login = () => {
                                     </svg>
                                     <span className="font-semibold">Sign in with Microsoft</span>
                                 </button>
+                                {!isMsalConfigured && (
+                                    <p className="text-xs text-amber-600 mt-2">
+                                        Microsoft SSO not configured. Please set VITE_AZURE_CLIENT_ID and VITE_AZURE_TENANT_ID and restart the dev server.
+                                    </p>
+                                )}
                             </div>
                         </div>
                     ) : (
