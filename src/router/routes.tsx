@@ -110,11 +110,11 @@ const routes = [
     },
     
     // ============================================
-    // MODULE SELECTOR / ONBOARDING
+    // ROOT / DEFAULT ROUTE
     // ============================================
     {
         path: '/',
-        element: <Onboarding />,
+        element: <Login />,
         layout: 'blank',
     },
     // Optional: keep a direct route to the old selector (not linked)
