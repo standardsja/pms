@@ -7,6 +7,7 @@ import IconChecks from '../../../components/Icon/IconChecks';
 import IconClock from '../../../components/Icon/IconClock';
 import IconEye from '../../../components/Icon/IconEye';
 import IconDollarSignCircle from '../../../components/Icon/IconDollarSignCircle';
+import { fetchRequisitions as mockFetch, procurementMockEnabled } from '../../../utils/procurementApi';
 
 const DepartmentHeadDashboard = () => {
     const dispatch = useDispatch();
@@ -18,22 +19,38 @@ const DepartmentHeadDashboard = () => {
         dispatch(setPageTitle('Department Head Dashboard'));
     }, [dispatch]);
 
-    // Fetch requests from API
+    // Fetch requests from API or mock
     useEffect(() => {
         const controller = new AbortController();
         async function loadRequests() {
             try {
-                const apiBase = (import.meta as any).env?.VITE_API_BASE_URL as string | undefined;
-                const endpoint = apiBase ? `${apiBase.replace(/\/$/, '')}/requisitions` : '/api/requisitions';
-                const token = localStorage.getItem('auth_token') || '';
-                const res = await fetch(endpoint, {
-                    headers: { Authorization: token ? `Bearer ${token}` : '' },
-                    signal: controller.signal,
-                });
-                if (res.ok) {
-                    const data = await res.json();
-                    if (Array.isArray(data?.data)) {
-                        setRequests(data.data);
+                if (procurementMockEnabled()) {
+                    const data = await mockFetch();
+                    // Map to the fields used in this dashboard's table
+                    const mapped = data.map(r => ({
+                        id: r.id,
+                        req_number: r.id,
+                        title: r.title,
+                        requester: r.requester,
+                        department: r.department,
+                        created_at: r.date,
+                        total_amount: r.totalEstimated,
+                        status: r.status,
+                    }));
+                    setRequests(mapped);
+                } else {
+                    const apiBase = (import.meta as any).env?.VITE_API_BASE_URL as string | undefined;
+                    const endpoint = apiBase ? `${apiBase.replace(/\/$/, '')}/requisitions` : '/api/requisitions';
+                    const token = localStorage.getItem('auth_token') || '';
+                    const res = await fetch(endpoint, {
+                        headers: { Authorization: token ? `Bearer ${token}` : '' },
+                        signal: controller.signal,
+                    });
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (Array.isArray(data?.data)) {
+                            setRequests(data.data);
+                        }
                     }
                 }
             } catch (_) {
@@ -48,7 +65,7 @@ const DepartmentHeadDashboard = () => {
 
     // Statistics
     const stats = {
-        pendingRequests: requests.filter(r => r.status === 'submitted').length,
+        pendingRequests: requests.filter(r => (r.status || '').toLowerCase().includes('pending')).length,
         totalRequests: requests.length,
         totalAmount: requests.reduce((sum, r) => sum + (r.total_amount || 0), 0),
     };

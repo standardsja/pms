@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { useNavigate, useParams } from 'react-router-dom';
-import { setPageTitle } from '../../store/themeConfigSlice';
-import IconPlus from '../../components/Icon/IconPlus';
-import IconX from '../../components/Icon/IconX';
+import { setPageTitle } from '../../../store/themeConfigSlice';
+import IconPlus from '../../../components/Icon/IconPlus';
+import IconX from '../../../components/Icon/IconX';
 import Swal from 'sweetalert2';
+import { createRequisition, getRequestById, performAction, updateRequisition, procurementMockEnabled } from '../../../utils/procurementApi';
 
 interface RequestItem {
     itemNo: number;
@@ -114,85 +115,83 @@ const RequestForm = () => {
     // Fetch existing request data when in edit mode
     useEffect(() => {
         if (!isEditMode || !id) return;
-
-        const fetchRequest = async () => {
+        const load = async () => {
             try {
-                const resp = await fetch(`http://localhost:4000/requests/${id}`);
-                if (!resp.ok) throw new Error('Failed to fetch request');
-                
-                const request = await resp.json();
-                
-                // Pre-fill form with existing data (review mode)
-                setFormDate(request.createdAt ? new Date(request.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]);
-                // Some fields may not exist in DB yet; provide sensible fallbacks for reviewers
-                setInstitution(request.institution || 'Bureau of Standards Jamaica');
-                setDivision(request.department?.name || '');
-                setBranchUnit(request.branchUnit || request.department?.code || '');
-                setRequestedBy(request.requester?.name || '');
-                setEmail(request.requester?.email || '');
-                // Map database enum priority (URGENT/HIGH/MEDIUM/LOW) to form values (urgent/high/medium/low)
-                const priorityValue = request.priority ? request.priority.toLowerCase() : 'medium';
-                setPriority(priorityValue);
-                setCommentsJustification(request.description || '');
-                
-                // Load procurement type from JSON field
-                try {
-                    if (request.procurementType) {
-                        if (Array.isArray(request.procurementType)) {
-                            setProcurementType(request.procurementType);
-                        } else if (typeof request.procurementType === 'string') {
-                            setProcurementType(JSON.parse(request.procurementType));
-                        }
-                    }
-                } catch (e) {
-                    console.error('Failed to parse procurementType:', e);
-                }
-                
-                // Pre-fill items
-                if (request.items && request.items.length > 0) {
-                    setItems(request.items.map((item: any, idx: number) => ({
+                if (procurementMockEnabled()) {
+                    const req = await getRequestById(id);
+                    if (!req) throw new Error('Request not found');
+                    setFormDate(new Date(req.date).toISOString().split('T')[0]);
+                    setInstitution('Bureau of Standards Jamaica');
+                    setDivision(req.department || '');
+                    setBranchUnit('');
+                    setRequestedBy(req.requester || '');
+                    setEmail('');
+                    setPriority('medium');
+                    setCommentsJustification(req.justification || '');
+                    setItems((req.items || []).map((item, idx) => ({
                         itemNo: idx + 1,
-                        stockLevel: item.stockLevel || '',
-                        description: item.description || '',
-                        quantity: item.quantity || 1,
-                        unitOfMeasure: item.unitOfMeasure || '',
+                        stockLevel: '',
+                        description: item.description,
+                        quantity: item.quantity,
+                        unitOfMeasure: '',
                         unitCost: Number(item.unitPrice) || 0,
-                        partNumber: item.partNumber || ''
+                        partNumber: ''
                     })));
+                    setRequestMeta({ status: req.status, currentAssigneeId: undefined });
+                } else {
+                    const resp = await fetch(`http://localhost:4000/requests/${id}`);
+                    if (!resp.ok) throw new Error('Failed to fetch request');
+                    const request = await resp.json();
+                    setFormDate(request.createdAt ? new Date(request.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]);
+                    setInstitution(request.institution || 'Bureau of Standards Jamaica');
+                    setDivision(request.department?.name || '');
+                    setBranchUnit(request.branchUnit || request.department?.code || '');
+                    setRequestedBy(request.requester?.name || '');
+                    setEmail(request.requester?.email || '');
+                    const priorityValue = request.priority ? request.priority.toLowerCase() : 'medium';
+                    setPriority(priorityValue);
+                    setCommentsJustification(request.description || '');
+                    try {
+                        if (request.procurementType) {
+                            if (Array.isArray(request.procurementType)) setProcurementType(request.procurementType);
+                            else if (typeof request.procurementType === 'string') setProcurementType(JSON.parse(request.procurementType));
+                        }
+                    } catch {}
+                    if (request.items && request.items.length > 0) {
+                        setItems(request.items.map((item: any, idx: number) => ({
+                            itemNo: idx + 1,
+                            stockLevel: item.stockLevel || '',
+                            description: item.description || '',
+                            quantity: item.quantity || 1,
+                            unitOfMeasure: item.unitOfMeasure || '',
+                            unitCost: Number(item.unitPrice) || 0,
+                            partNumber: item.partNumber || ''
+                        })));
+                    }
+                    setManagerName(request.managerName || '');
+                    setHeadName(request.headName || '');
+                    setManagerApproved(!!request.managerApproved);
+                    setHeadApproved(!!request.headApproved);
+                    setCommitmentNumber(request.commitmentNumber || '');
+                    setAccountingCode(request.accountingCode || '');
+                    setBudgetComments(request.budgetComments || '');
+                    setBudgetOfficerName(request.budgetOfficerName || '');
+                    setBudgetManagerName(request.budgetManagerName || '');
+                    setProcurementCaseNumber(request.procurementCaseNumber || '');
+                    setReceivedBy(request.receivedBy || '');
+                    setDateReceived(request.dateReceived || '');
+                    setActionDate(request.actionDate || '');
+                    setProcurementComments(request.procurementComments || '');
+                    setProcurementApproved(!!request.procurementApproved);
+                    const assigneeId = request.currentAssignee?.id || request.currentAssigneeId || null;
+                    setRequestMeta({ status: request.status, currentAssigneeId: assigneeId ? Number(assigneeId) : undefined });
                 }
-                
-                // Pre-fill manager section (if present)
-                setManagerName(request.managerName || '');
-                setHeadName(request.headName || '');
-                setManagerApproved(!!request.managerApproved);
-                setHeadApproved(!!request.headApproved);
-                
-                // Pre-fill budget section (if present)
-                setCommitmentNumber(request.commitmentNumber || '');
-                setAccountingCode(request.accountingCode || '');
-                setBudgetComments(request.budgetComments || '');
-                setBudgetOfficerName(request.budgetOfficerName || '');
-                setBudgetManagerName(request.budgetManagerName || '');
-                
-                // Pre-fill procurement section (if present)
-                setProcurementCaseNumber(request.procurementCaseNumber || '');
-                setReceivedBy(request.receivedBy || '');
-                setDateReceived(request.dateReceived || '');
-                setActionDate(request.actionDate || '');
-                setProcurementComments(request.procurementComments || '');
-                setProcurementApproved(!!request.procurementApproved);
-
-                // Track status and assignee for edit gating
-                const assigneeId = request.currentAssignee?.id || request.currentAssigneeId || null;
-                setRequestMeta({ status: request.status, currentAssigneeId: assigneeId ? Number(assigneeId) : undefined });
-                
             } catch (err) {
                 console.error('Error fetching request:', err);
                 Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to load request data' });
             }
         };
-
-        fetchRequest();
+        load();
     }, [id, isEditMode]);
 
     const addItem = () => {
@@ -317,18 +316,21 @@ const RequestForm = () => {
                     procurementApproved,
                 };
 
-                const resp = await fetch(`http://localhost:4000/requests/${id}`, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'x-user-id': String(userId),
-                    },
-                    body: JSON.stringify(updatePayload),
-                });
-
-                if (!resp.ok) {
-                    const err = await resp.json().catch(() => ({}));
-                    throw new Error(err.error || resp.statusText || 'Update failed');
+                if (procurementMockEnabled()) {
+                    await updateRequisition(id, {});
+                } else {
+                    const resp = await fetch(`http://localhost:4000/requests/${id}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'x-user-id': String(userId),
+                        },
+                        body: JSON.stringify(updatePayload),
+                    });
+                    if (!resp.ok) {
+                        const err = await resp.json().catch(() => ({}));
+                        throw new Error(err.error || resp.statusText || 'Update failed');
+                    }
                 }
                 // Automatically perform approval action if reviewer checked the approval box
                 const isApproving = (
@@ -339,16 +341,20 @@ const RequestForm = () => {
 
                 if (isApproving) {
                     try {
-                        const approveResp = await fetch(`http://localhost:4000/requests/${id}/action`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json', 'x-user-id': String(userId) },
-                            body: JSON.stringify({ action: 'APPROVE' }),
-                        });
-                        if (!approveResp.ok) {
-                            const err = await approveResp.json().catch(() => ({}));
-                            throw new Error(err.error || approveResp.statusText || 'Approval failed');
+                        if (procurementMockEnabled()) {
+                            await performAction(id, 'APPROVE');
+                        } else {
+                            const approveResp = await fetch(`http://localhost:4000/requests/${id}/action`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json', 'x-user-id': String(userId) },
+                                body: JSON.stringify({ action: 'APPROVE' }),
+                            });
+                            if (!approveResp.ok) {
+                                const err = await approveResp.json().catch(() => ({}));
+                                throw new Error(err.error || approveResp.statusText || 'Approval failed');
+                            }
+                            await approveResp.json();
                         }
-                        await approveResp.json();
                         Swal.fire({ icon: 'success', title: 'Request approved', text: 'Request saved and advanced in workflow.' });
                         navigate('/apps/requests');
                     } catch (approveErr: any) {
@@ -398,22 +404,32 @@ const RequestForm = () => {
 
                 console.log('[debug] Submitting payload with procurementType:', payload.procurementType);
 
-                const resp = await fetch('http://localhost:4000/requests', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'x-user-id': String(userId),
-                    },
-                    body: JSON.stringify(payload),
-                });
-
-                if (!resp.ok) {
-                    const err = await resp.json().catch(() => ({}));
-                    throw new Error(err.error || resp.statusText || 'Request failed');
+                if (procurementMockEnabled()) {
+                    const created = await createRequisition({
+                        title: payload.title,
+                        justification: payload.description,
+                        requester: requestedBy || 'Requester',
+                        department: division || 'Department',
+                        items: items.map(it => ({ description: it.description, quantity: it.quantity, unitPrice: it.unitCost })),
+                        totalEstimated: estimatedTotal,
+                    });
+                    Swal.fire({ icon: 'success', title: 'Request submitted', text: `Reference ${created.id}` });
+                } else {
+                    const resp = await fetch('http://localhost:4000/requests', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'x-user-id': String(userId),
+                        },
+                        body: JSON.stringify(payload),
+                    });
+                    if (!resp.ok) {
+                        const err = await resp.json().catch(() => ({}));
+                        throw new Error(err.error || resp.statusText || 'Request failed');
+                    }
+                    const data = await resp.json();
+                    Swal.fire({ icon: 'success', title: 'Request submitted', text: `Reference ${data.reference || data.id}` });
                 }
-
-                const data = await resp.json();
-                Swal.fire({ icon: 'success', title: 'Request submitted', text: `Reference ${data.reference || data.id}` });
                 navigate('/apps/requests');
             }
         } catch (err: any) {
@@ -427,9 +443,12 @@ const RequestForm = () => {
 
     const handleDownloadPdf = () => {
         if (!id) return;
-        const url = `http://localhost:4000/requests/${id}/pdf`;
-        // open in a new tab to trigger download
-        window.open(url, '_blank');
+        if (procurementMockEnabled()) {
+            Swal.fire({ icon: 'info', title: 'PDF not available in mock mode', text: 'In frontend-only mode, PDFs are not generated.' });
+        } else {
+            const url = `http://localhost:4000/requests/${id}/pdf`;
+            window.open(url, '_blank');
+        }
     };
 
     const handleSendToVendor = async () => {
@@ -439,6 +458,12 @@ const RequestForm = () => {
         const userId = profile?.id || profile?.userId || null;
         if (!userId) { Swal.fire({ icon: 'error', title: 'Not logged in' }); return; }
         try {
+            if (procurementMockEnabled()) {
+                await performAction(id, 'SEND_TO_VENDOR');
+                Swal.fire({ icon: 'success', title: 'Marked as sent to vendor' });
+                navigate('/apps/requests');
+                return;
+            }
             const resp = await fetch(`http://localhost:4000/requests/${id}/action`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'x-user-id': String(userId) },

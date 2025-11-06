@@ -10,6 +10,7 @@ import { Request, ApiResponse } from '../../../types/request.types';
 import { getStatusBadge } from '../../../utils/statusBadges';
 import { searchRequests, filterRequests, onlyMine, paginate, formatDate, sortRequestsByDateDesc, adaptRequestsResponse } from '../../../utils/requestUtils';
 import RequestDetailsContent from '../../../components/RequestDetailsContent';
+import { fetchRequisitions as mockFetch, procurementMockEnabled } from '../../../utils/procurementApi';
 
 const MySwal = withReactContent(Swal);
 
@@ -40,26 +41,23 @@ const Requests = () => {
         }
     }, []);
 
-    // Fetch requests from API
+    // Fetch requests from API (or mock when backend is disabled)
     useEffect(() => {
         const controller = new AbortController();
         const fetchRequests = async () => {
             setIsLoading(true);
             setError(null);
             try {
+                if (procurementMockEnabled()) {
+                    const data = await mockFetch();
+                    setRequests(data);
+                    return;
+                }
                 const token = localStorage.getItem('auth_token');
                 const headers: Record<string, string> = {};
                 if (token) headers['Authorization'] = `Bearer ${token}`;
-                const res = await fetch('/api/requisitions', {
-                    headers,
-                    signal: controller.signal,
-                });
-                let payload: any = null;
-                try {
-                    payload = await res.json();
-                } catch {
-                    /* no-op: non-JSON response */
-                }
+                const res = await fetch('/api/requisitions', { headers, signal: controller.signal });
+                const payload = await res.json().catch(() => null);
                 if (!res.ok) {
                     const msg = (payload && (payload.message || payload.error)) || res.statusText || 'Failed to load requests';
                     throw new Error(msg);

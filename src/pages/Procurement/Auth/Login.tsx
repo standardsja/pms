@@ -30,6 +30,7 @@ const Login = () => {
     const [mfaCode, setMfaCode] = useState(['', '', '', '', '', '']);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
+    const DISABLE_API = (import.meta as any).env?.VITE_DISABLE_API === 'true';
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -37,6 +38,20 @@ const Login = () => {
         setIsLoading(true);
 
         try {
+            if (DISABLE_API) {
+                // Client-only mock login (no backend)
+                const name = email ? email.split('@')[0] : 'User';
+                const mockUser = {
+                    id: 'u-' + Math.random().toString(36).slice(2, 8),
+                    name,
+                    email,
+                    role: /committee/i.test(email) ? 'INNOVATION_COMMITTEE' : 'PROCUREMENT_OFFICER',
+                };
+                setAuth('dev-token', mockUser, rememberMe);
+                navigate(mockUser.role === 'INNOVATION_COMMITTEE' ? '/innovation/committee/dashboard' : '/onboarding');
+                return;
+            }
+
             const res = await fetch('/api/auth/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -50,15 +65,16 @@ const Login = () => {
             const { token, user } = data || {};
             if (!token || !user) throw new Error('Invalid login response');
             setAuth(token, user, rememberMe);
-            
-            // Check if user is committee member - route directly to committee dashboard
-            if (user.role === 'INNOVATION_COMMITTEE') {
-                navigate('/innovation/committee/dashboard');
-            } else {
-                // Regular users go to onboarding
-                navigate('/onboarding');
-            }
+            navigate(user.role === 'INNOVATION_COMMITTEE' ? '/innovation/committee/dashboard' : '/onboarding');
         } catch (err: any) {
+            if (DISABLE_API) {
+                // As a fallback, allow offline login even on error
+                const name = email ? email.split('@')[0] : 'User';
+                const mockUser = { id: 'u-offline', name, email, role: 'PROCUREMENT_OFFICER' };
+                setAuth('dev-token', mockUser, rememberMe);
+                navigate('/onboarding');
+                return;
+            }
             setError(err?.message || 'Login failed. Please try again.');
         } finally {
             setIsLoading(false);
@@ -313,29 +329,34 @@ const Login = () => {
                                             const result = await loginWithMicrosoft();
                                             const idToken = result.idToken;
                                             if (!idToken) throw new Error('No idToken from Microsoft');
-                                            
-                                            // Note: Backend endpoint /api/auth/microsoft was removed
-                                            // You'll need to implement a new backend endpoint or use client-side only auth
-                                            // For now, this will fail - placeholder for future implementation
-                                            const res = await fetch('/api/auth/microsoft', {
-                                                method: 'POST',
-                                                headers: { 'Content-Type': 'application/json' },
-                                                body: JSON.stringify({ idToken }),
-                                            });
-                                            const data = await res.json().catch(() => null);
-                                            if (!res.ok) {
-                                                const msg = (data && (data.message || data.error)) || 'Microsoft sign-in failed';
-                                                throw new Error(msg);
-                                            }
-                                            const { token, user } = data || {};
-                                            if (!token || !user) throw new Error('Invalid Microsoft login response');
-                                            setAuth(token, user, rememberMe);
-                                            
-                                            // Check if user is committee member
-                                            if (user.role === 'INNOVATION_COMMITTEE') {
-                                                navigate('/innovation/committee/dashboard');
+                                            if (DISABLE_API) {
+                                                // Client-only: create a mock user from the ID token claims
+                                                const emailFromToken = (result?.account?.username || '').toLowerCase();
+                                                const name = result?.account?.name || emailFromToken.split('@')[0] || 'User';
+                                                const mockUser = {
+                                                    id: 'msal-' + Math.random().toString(36).slice(2, 8),
+                                                    name,
+                                                    email: emailFromToken || `${name.replace(/\s+/g,'').toLowerCase()}@example.com`,
+                                                    role: /committee|review|approver/i.test(name) ? 'INNOVATION_COMMITTEE' : 'PROCUREMENT_OFFICER',
+                                                };
+                                                setAuth('dev-token', mockUser, rememberMe);
+                                                navigate(mockUser.role === 'INNOVATION_COMMITTEE' ? '/innovation/committee/dashboard' : '/onboarding');
                                             } else {
-                                                navigate('/onboarding');
+                                                // Real backend path
+                                                const res = await fetch('/api/auth/microsoft', {
+                                                    method: 'POST',
+                                                    headers: { 'Content-Type': 'application/json' },
+                                                    body: JSON.stringify({ idToken }),
+                                                });
+                                                const data = await res.json().catch(() => null);
+                                                if (!res.ok) {
+                                                    const msg = (data && (data.message || data.error)) || 'Microsoft sign-in failed';
+                                                    throw new Error(msg);
+                                                }
+                                                const { token, user } = data || {};
+                                                if (!token || !user) throw new Error('Invalid Microsoft login response');
+                                                setAuth(token, user, rememberMe);
+                                                navigate(user.role === 'INNOVATION_COMMITTEE' ? '/innovation/committee/dashboard' : '/onboarding');
                                             }
                                         } catch (e: any) {
                                             const msg = e?.message || 'Microsoft sign-in failed';
