@@ -5,17 +5,14 @@
     "type": "module",
     "scripts": {
         "dev": "vite",
-        "dev:all": "concurrently \"npm run server:dev\" \"npm run dev\" --names \"API,CLIENT\" --prefix-colors \"blue,green\"",
         "build": "vite build && tsc",
         "prisma:seed": "node --loader ts-node/esm server/prisma/seed.ts",
         "preview": "vite preview",
         "server:dev": "node server/index.mjs"
     },
     "prisma": {
-    "seed": "node --loader ts-node/esm server/prisma/seed.ts"
-  },
-
-
+        "seed": "node --loader ts-node/esm server/prisma/seed.ts"
+    },
     "dependencies": {
         "@emotion/react": "^11.10.6",
         "@fullcalendar/core": "^6.1.4",
@@ -37,13 +34,18 @@
         "@types/react-text-mask": "^5.4.11",
         "@x1mrdonut1x/nouislider-react": "^3.4.3",
         "apexcharts": "^4.0.0",
-        "axios": "^1.13.1",
+        "bcryptjs": "^3.0.3",
+        "body-parser": "^1.20.2",
         "caniuse-lite": "^1.0.30001752",
+        "cors": "^2.8.5",
         "easymde": "^2.18.0",
+        "express": "^4.19.2",
         "formik": "^2.2.9",
         "highlight.js": "^11.6.0",
         "mantine-datatable": "^1.7.17",
         "nouislider-react": "^3.4.1",
+        "pdfkit": "^0.13.0",
+        "puppeteer": "^23.7.0",
         "react": "^18.3.1",
         "react-18-image-lightbox": "^5.1.4",
         "react-apexcharts": "^1.8.0",
@@ -92,8 +94,8 @@
         "react-i18next": "^15.0.1",
         "react-perfect-scrollbar": "^1.5.8",
         "tailwindcss": "^3.4.1",
-        "typescript": "^5.5.4",
+        "ts-node": "^10.9.2",
+        "typescript": "^5.9.3",
         "vite": "^5.4.1"
     }
-
 }

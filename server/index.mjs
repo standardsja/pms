@@ -1,11 +1,15 @@
 #!/usr/bin/env node
-// Ensure environment variables from .env are available when running the server directly
-import 'dotenv/config';
 import express from 'express';
 import bodyParser from 'body-parser';
 import cors from 'cors';
 import { PrismaClient, Prisma } from '@prisma/client';
-import bcrypt from 'bcryptjs';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import puppeteer from 'puppeteer';
+
+// PDF debug logging toggle (default on in non-production, disable with PDF_DEBUG=0)
+const PDF_DEBUG = process.env.PDF_DEBUG !== '0' && process.env.NODE_ENV !== 'production';
+const logPdf = (...args) => { if (PDF_DEBUG) console.log('[pdf]', ...args); };
 
 const prisma = new PrismaClient();
 const app = express();
@@ -51,12 +55,18 @@ app.post('/requests', async (req, res) => {
 			totalEstimated,
 			currency,
 			priority,
+			procurementType,
 			vendorId,
 			budgetCode,
 		} = req.body;
 
 		if (!title || !departmentId || !actorId) {
 			return res.status(400).json({ error: 'title, departmentId and x-user-id header are required' });
+		}
+
+		// Debug log the received procurement type
+		if (procurementType) {
+			console.log('[debug] Received procurementType:', procurementType, 'type:', typeof procurementType);
 		}
 
 		const reference = generateReference();
@@ -72,6 +82,7 @@ app.post('/requests', async (req, res) => {
 				totalEstimated: totalEstimated ? new Prisma.Decimal(String(totalEstimated)) : undefined,
 				currency: currency || undefined,
 				priority: priority || undefined,
+				procurementType: procurementType || undefined,
 				vendorId: vendorId || undefined,
 				budgetCode: budgetCode || undefined,
 				status: 'SUBMITTED',
@@ -83,6 +94,9 @@ app.post('/requests', async (req, res) => {
 						unitPrice: it.unitPrice ? new Prisma.Decimal(String(it.unitPrice)) : new Prisma.Decimal('0'),
 						totalPrice: it.totalPrice ? new Prisma.Decimal(String(it.totalPrice)) : new Prisma.Decimal('0'),
 						accountCode: it.accountCode || undefined,
+						stockLevel: it.stockLevel || undefined,
+						unitOfMeasure: it.unitOfMeasure || undefined,
+						partNumber: it.partNumber || undefined,
 					})),
 				},
 			},
@@ -154,60 +168,8 @@ app.post('/auth/test-login', async (req, res) => {
 	}
 });
 
-// Real login endpoint with password verification
-// POST /auth/login { email, password }
-app.post('/auth/login', async (req, res) => {
-	try {
-		const { email, password } = req.body || {};
-		if (!email || !password) return res.status(400).json({ error: 'email and password required' });
-
-		const user = await prisma.user.findUnique({
-			where: { email },
-			include: {
-				department: true,
-				roles: { include: { role: true } },
-			},
-		});
-		if (!user || !user.passwordHash) return res.status(401).json({ error: 'invalid credentials' });
-
-		const ok = await bcrypt.compare(password, user.passwordHash);
-		if (!ok) return res.status(401).json({ error: 'invalid credentials' });
-
-		const payload = {
-			id: user.id,
-			email: user.email,
-			name: user.name,
-			department: user.department ? { id: user.department.id, name: user.department.name, code: user.department.code } : null,
-			roles: (user.roles || []).map((ur) => ur.role.name),
-		};
-		// TODO: replace demo-token with a signed JWT
-		return res.json({ token: 'demo-token', user: payload });
-	} catch (err) {
-		console.error(err);
-		res.status(500).json({ error: 'server error' });
-	}
-});
-
 // List requests with simple filters
 app.get('/requests', async (req, res) => {
-	try {
-		const { assignee, requester, status, departmentId } = req.query;
-		const where = {};
-		if (assignee) where.currentAssigneeId = Number(assignee);
-		if (requester) where.requesterId = Number(requester);
-		if (status) where.status = String(status);
-		if (departmentId) where.departmentId = Number(departmentId);
-
-		const list = await prisma.request.findMany({ where, orderBy: { createdAt: 'desc' }, include: { items: true, requester: true, department: true, currentAssignee: true, statusHistory: true } });
-		res.json(list);
-	} catch (err) {
-		console.error(err);
-		res.status(500).json({ error: String(err) });
-	}
-});
-
-// Alias for /requests (some frontend code uses /requisitions)
-app.get('/requisitions', async (req, res) => {
 	try {
 		const { assignee, requester, status, departmentId } = req.query;
 		const where = {};
@@ -263,6 +225,8 @@ app.put('/requests/:id', async (req, res) => {
 		const updateData = {};
 		if (data.managerName !== undefined) updateData.managerName = data.managerName;
 		if (data.headName !== undefined) updateData.headName = data.headName;
+		if (data.managerApproved !== undefined) updateData.managerApproved = Boolean(data.managerApproved);
+		if (data.headApproved !== undefined) updateData.headApproved = Boolean(data.headApproved);
 		if (data.commitmentNumber !== undefined) updateData.commitmentNumber = data.commitmentNumber;
 		if (data.accountingCode !== undefined) updateData.accountingCode = data.accountingCode;
 		if (data.budgetComments !== undefined) updateData.budgetComments = data.budgetComments;
@@ -273,6 +237,7 @@ app.put('/requests/:id', async (req, res) => {
 		if (data.dateReceived !== undefined) updateData.dateReceived = data.dateReceived;
 		if (data.actionDate !== undefined) updateData.actionDate = data.actionDate;
 		if (data.procurementComments !== undefined) updateData.procurementComments = data.procurementComments;
+		if (data.procurementApproved !== undefined) updateData.procurementApproved = Boolean(data.procurementApproved);
 		
 		const updated = await prisma.request.update({ 
 			where: { id }, 
@@ -344,24 +309,89 @@ app.post('/requests/:id/action', async (req, res) => {
 					}
 					break;
 				case 'HOD_REVIEW':
-					// move to PROCUREMENT_REVIEW (find procurement user)
+					// move to PROCUREMENT_REVIEW (load-balance across procurement officers)
 					nextStatus = 'PROCUREMENT_REVIEW';
 					{
-						const proc = await prisma.userRole.findFirst({ where: { role: { name: 'PROCUREMENT' } }, include: { user: true } });
-						if (proc && proc.user) nextAssigneeId = proc.user.id;
+						// Get all procurement officers
+						const procOfficers = await prisma.userRole.findMany({ 
+							where: { role: { name: 'PROCUREMENT' } }, 
+							include: { user: true } 
+						});
+						
+						if (procOfficers.length > 0) {
+							// Count pending assignments for each procurement officer
+							const countsPromises = procOfficers.map(async (uro) => {
+								const count = await prisma.request.count({
+									where: {
+										currentAssigneeId: uro.user.id,
+										status: { in: ['PROCUREMENT_REVIEW'] }
+									}
+								});
+								return { userId: uro.user.id, count };
+							});
+							
+							const counts = await Promise.all(countsPromises);
+							
+							// Find the officer with the fewest pending assignments
+							const leastBusy = counts.reduce((min, curr) => (curr.count < min.count ? curr : min));
+							nextAssigneeId = leastBusy.userId;
+						}
 					}
 					break;
 				case 'PROCUREMENT_REVIEW':
-					// move to FINANCE_REVIEW
+					// move to FINANCE_REVIEW (load-balance across finance officers)
 					nextStatus = 'FINANCE_REVIEW';
 					{
-						const fin = await prisma.userRole.findFirst({ where: { role: { name: 'FINANCE' } }, include: { user: true } });
-						if (fin && fin.user) nextAssigneeId = fin.user.id;
+						// Get all finance officers
+						const finOfficers = await prisma.userRole.findMany({ 
+							where: { role: { name: 'FINANCE' } }, 
+							include: { user: true } 
+						});
+						
+						if (finOfficers.length > 0) {
+							// Count pending assignments for each finance officer
+							const countsPromises = finOfficers.map(async (uro) => {
+								const count = await prisma.request.count({
+									where: {
+										currentAssigneeId: uro.user.id,
+										status: { in: ['FINANCE_REVIEW'] }
+									}
+								});
+								return { userId: uro.user.id, count };
+							});
+							
+							const counts = await Promise.all(countsPromises);
+							
+							// Find the officer with the fewest pending assignments
+							const leastBusy = counts.reduce((min, curr) => (curr.count < min.count ? curr : min));
+							nextAssigneeId = leastBusy.userId;
+						}
 					}
 					break;
 				case 'FINANCE_REVIEW':
+					// Finance approves; mark as FINANCE_APPROVED and assign back to Procurement for dispatch (least-load)
 					nextStatus = 'FINANCE_APPROVED';
-					nextAssigneeId = null;
+					{
+						const procOfficers = await prisma.userRole.findMany({
+							where: { role: { name: 'PROCUREMENT' } },
+							include: { user: true }
+						});
+						if (procOfficers.length > 0) {
+							const counts = await Promise.all(procOfficers.map(async (uro) => {
+								const count = await prisma.request.count({
+									where: {
+										currentAssigneeId: uro.user.id,
+										status: { in: ['FINANCE_APPROVED'] }
+									}
+								});
+								return { userId: uro.user.id, count };
+							}));
+							const leastBusy = counts.reduce((min, curr) => (curr.count < min.count ? curr : min));
+							nextAssigneeId = leastBusy.userId;
+						} else {
+							nextAssigneeId = null;
+						}
+					}
 					break;
 				default:
 					// default to closed/approved
@@ -378,6 +408,20 @@ app.post('/requests/:id/action', async (req, res) => {
 			return res.json(updated);
 		}
 
+		// Custom action: SEND_TO_VENDOR — allowed when status is FINANCE_APPROVED by current assignee (Procurement)
+		if (action === 'SEND_TO_VENDOR') {
+			// require that actor is assignee
+			if (!isAssignee) return res.status(403).json({ error: 'only current assignee may send to vendor' });
+			if (request.status !== 'FINANCE_APPROVED') return res.status(400).json({ error: 'request must be FINANCE_APPROVED to send to vendor' });
+
+			await prisma.request.update({ where: { id }, data: { status: 'SENT_TO_VENDOR', currentAssigneeId: null } });
+			await prisma.requestAction.create({ data: { requestId: id, action: 'SEND_TO_VENDOR', comment: comment || 'Sent to vendor', performedById: actorId } });
+			await prisma.requestStatusHistory.create({ data: { requestId: id, status: 'SENT_TO_VENDOR', changedById: actorId, comment: comment || 'Dispatched to vendor' } });
+
+			const updated = await prisma.request.findUnique({ where: { id }, include: { items: true, requester: true, department: true, currentAssignee: true, statusHistory: true } });
+			return res.json(updated);
+		}
+
 		res.status(400).json({ error: 'unknown action' });
 	} catch (err) {
 		console.error(err);
@@ -386,6 +430,97 @@ app.post('/requests/:id/action', async (req, res) => {
 });
 
 app.get('/', (req, res) => res.json({ ok: true }));
+
+// Generate a PDF representation of a request
+app.get('/requests/:id/pdf', async (req, res) => {
+	try {
+		const id = Number(req.params.id);
+		logPdf('start', { id, query: req.query });
+		const request = await prisma.request.findUnique({
+			where: { id },
+			include: { items: true, requester: true, department: true, currentAssignee: true, statusHistory: true }
+		});
+		if (!request) return res.status(404).json({ error: 'Request not found' });
+
+		const templatePath = path.join(process.cwd(), 'server', 'templates', 'request-pdf.html');
+		const tpl = await fs.readFile(templatePath, 'utf8');
+
+		const itemsRows = (request.items || []).map((it, idx) => {
+			const qty = Number(it.quantity || 0);
+			const unit = Number(it.unitPrice || 0);
+			const subtotal = qty * unit;
+			const unitFmt = isNaN(unit) ? '' : unit.toFixed(2);
+			const subFmt = isNaN(subtotal) ? '' : subtotal.toFixed(2);
+			return `<tr><td>${idx + 1}</td><td>${(it.description || '').replace(/</g, '&lt;')}</td><td>${qty}</td><td>${unitFmt}</td><td>${subFmt}</td></tr>`;
+		}).join('');
+
+			const html = tpl
+			.replace(/{{reference}}/g, String(request.reference || request.id))
+			.replace(/{{submittedAt}}/g, request.createdAt ? new Date(request.createdAt).toLocaleString() : '')
+			.replace(/{{requesterName}}/g, request.requester?.name || '')
+			.replace(/{{requesterEmail}}/g, request.requester?.email || '')
+			.replace(/{{departmentName}}/g, request.department?.name || '')
+			.replace(/{{priority}}/g, String(request.priority || ''))
+			.replace(/{{currency}}/g, request.currency || '')
+			.replace(/{{totalEstimated}}/g, request.totalEstimated ? String(request.totalEstimated) : '')
+			.replace(/{{description}}/g, (request.description || '').replace(/</g, '&lt;'))
+			.replace(/{{itemsRows}}/g, itemsRows)
+			.replace(/{{managerName}}/g, request.managerName || '')
+			.replace(/{{headName}}/g, request.headName || '')
+			.replace(/{{budgetOfficerName}}/g, request.budgetOfficerName || '')
+			.replace(/{{budgetManagerName}}/g, request.budgetManagerName || '')
+			.replace(/{{commitmentNumber}}/g, request.commitmentNumber || '')
+			.replace(/{{accountingCode}}/g, request.accountingCode || '')
+			.replace(/{{status}}/g, request.status || '')
+			.replace(/{{assigneeName}}/g, request.currentAssignee?.name || '')
+			.replace(/{{procurementCaseNumber}}/g, request.procurementCaseNumber || '')
+			.replace(/{{receivedBy}}/g, request.receivedBy || '')
+			.replace(/{{dateReceived}}/g, request.dateReceived || '')
+			.replace(/{{actionDate}}/g, request.actionDate || '')
+			.replace(/{{procurementComments}}/g, (request.procurementComments || '').replace(/</g, '&lt;'))
+					.replace(/{{now}}/g, new Date().toLocaleString());
+				logPdf('html-length', html.length);
+
+			// If requested, return just the HTML for preview/debug
+			if ((req.query && (req.query.format === 'html' || req.query.view === 'html'))) {
+				res.setHeader('Content-Type', 'text/html; charset=utf-8');
+					res.setHeader('X-HTML-Length', String(html.length));
+				return res.status(200).send(html);
+			}
+
+			// Launch headless browser and render PDF
+				const t0 = Date.now();
+				const browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+				const page = await browser.newPage();
+				let pdf;
+				try {
+					await page.setContent(html, { waitUntil: 'load' });
+					await page.emulateMediaType('screen');
+					pdf = await page.pdf({ format: 'A4', printBackground: true, margin: { top: '20mm', bottom: '20mm', left: '12mm', right: '12mm' } });
+				} finally {
+					await browser.close().catch(() => {});
+				}
+				const renderMs = Date.now() - t0;
+
+			res.setHeader('Content-Type', 'application/pdf');
+		const filename = `request-${request.reference || request.id}.pdf`;
+			// Open inline in the browser (view first), still suggesting a filename
+			res.setHeader('Content-Disposition', `inline; filename=\"${filename}\"`);
+			// Defensive: ensure we send a valid PDF buffer
+			if (!pdf || !pdf.length || pdf.length < 100) {
+					logPdf('error:small-buffer', { size: pdf ? pdf.length : 0, renderMs });
+				return res.status(500).json({ error: 'PDF generation failed' });
+			}
+				res.setHeader('X-PDF-Size', String(pdf.length));
+				res.setHeader('X-Render-Time', String(renderMs));
+				logPdf('rendered', { size: pdf.length, renderMs });
+			res.setHeader('Content-Length', String(pdf.length));
+			res.status(200).end(pdf);
+	} catch (err) {
+				logPdf('error', err);
+		res.status(500).json({ error: String(err) });
+	}
+});
 
 app.listen(PORT, () => {
 	console.log(`Server listening on ${PORT}`);
