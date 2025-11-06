@@ -9,6 +9,7 @@ import IconEye from '../../../components/Icon/IconEye';
 import packageInfo from '../../../../package.json';
 import { setAuth } from '../../../utils/auth';
 import { loginWithMicrosoft, initializeMsal, isMsalConfigured } from '../../../auth/msal';
+import PlatformFeatures from '../../../components/PlatformFeatures';
 
 const Login = () => {
     const dispatch = useDispatch();
@@ -27,6 +28,7 @@ const Login = () => {
     const [rememberMe, setRememberMe] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const [showMFA, setShowMFA] = useState(false);
+    const [capsLockOn, setCapsLockOn] = useState(false);
     const [mfaCode, setMfaCode] = useState(['', '', '', '', '', '']);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
@@ -81,21 +83,14 @@ const Login = () => {
         }
     };
 
-    const handleMFAVerify = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const verifyMFA = async (codeOverride?: string) => {
         setError('');
         setIsLoading(true);
-
         try {
-            // Simulate API call
-            await new Promise(resolve => setTimeout(resolve, 1000));
-
-            const code = mfaCode.join('');
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+            const code = (codeOverride ?? mfaCode.join(''));
             if (code.length === 6) {
-                // Mock successful MFA verification
                 localStorage.setItem('isAuthenticated', 'true');
-                
-                // Check stored user data for committee role
                 const userData = localStorage.getItem('user') || sessionStorage.getItem('user');
                 if (userData) {
                     const user = JSON.parse(userData);
@@ -108,11 +103,17 @@ const Login = () => {
             } else {
                 setError('Please enter a valid 6-digit code');
             }
-        } catch (err) {
+        } catch (_) {
             setError('MFA verification failed. Please try again.');
         } finally {
             setIsLoading(false);
         }
+    };
+
+    const handleMFAVerify = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (isLoading) return;
+        await verifyMFA();
     };
 
     const handleMFAInput = (index: number, value: string) => {
@@ -122,6 +123,13 @@ const Login = () => {
         const newMfaCode = [...mfaCode];
         newMfaCode[index] = value;
         setMfaCode(newMfaCode);
+
+        // Auto-submit when all 6 digits are present
+        const candidate = newMfaCode.join('');
+        if (candidate.length === 6) {
+            // Slight microtask delay to ensure state commit
+            setTimeout(() => verifyMFA(candidate), 0);
+        }
 
         // Auto-focus next input
         if (value && index < 5) {
@@ -149,6 +157,10 @@ const Login = () => {
         // Focus last filled input
         const lastIndex = Math.min(pastedData.length - 1, 5);
         document.getElementById(`mfa-${lastIndex}`)?.focus();
+
+        if (pastedData.length === 6) {
+            setTimeout(() => verifyMFA(pastedData), 0);
+        }
     };
 
     return (
@@ -169,34 +181,11 @@ const Login = () => {
                                 </div>
                             </div>
                         </div>
-                        <h1 className="text-5xl font-bold mb-6">Procurement Management System</h1>
+                        {/* Heading intentionally removed per branding update */}
                         <p className="text-xl text-white/90 mb-8">
-                            Streamline your procurement process with our comprehensive solution for request management, RFQ handling, and supplier coordination.
+                            Streamline your work across Procurement (PMS), Innovation, and future modules with a unified platform for requests, RFQs, ideas, suppliers, and more.
                         </p>
-                        <div className="space-y-4">
-                            <div className="flex items-center gap-3">
-                                <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
-                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
-                                </div>
-                                <div>
-                                    <h3 className="font-semibold">Secure & Compliant</h3>
-                                    <p className="text-sm text-white/80">Multi-factor authentication enabled</p>
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-3">
-                                <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
-                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                                    </svg>
-                                </div>
-                                <div>
-                                    <h3 className="font-semibold">Fast & Efficient</h3>
-                                    <p className="text-sm text-white/80">Real-time processing & updates</p>
-                                </div>
-                            </div>
-                        </div>
+                        <PlatformFeatures />
                     </div>
                 </div>
             </div>
@@ -219,8 +208,9 @@ const Login = () => {
                             </div>
 
                             {error && (
-                                <div className="mb-6 p-4 bg-danger-light/10 border border-danger rounded-lg text-danger text-sm">
-                                    {error}
+                                <div role="alert" aria-live="polite" className="mb-6 p-4 bg-danger-light/10 border border-danger rounded-lg text-danger text-sm">
+                                    <div className="mb-1">{error}</div>
+                                    <Link to="/help" className="text-xs underline text-danger hover:text-danger/80">Need help? Visit Help Center</Link>
                                 </div>
                             )}
 
@@ -258,6 +248,7 @@ const Login = () => {
                                             type={showPassword ? 'text' : 'password'}
                                             value={password}
                                             onChange={(e) => setPassword(e.target.value)}
+                                            onKeyUp={(e) => setCapsLockOn(e.getModifierState('CapsLock'))}
                                             className="form-input pl-10 pr-10 w-full"
                                             placeholder="Enter your password"
                                             required
@@ -270,6 +261,9 @@ const Login = () => {
                                             <IconEye className="w-5 h-5" />
                                         </button>
                                     </div>
+                                    {capsLockOn && (
+                                        <p className="mt-2 text-xs text-amber-600">Caps Lock is ON</p>
+                                    )}
                                 </div>
 
                                 <div className="flex items-center justify-between">
@@ -374,6 +368,7 @@ const Login = () => {
                                     </svg>
                                     <span className="font-semibold">Sign in with Microsoft</span>
                                 </button>
+                                <p className="text-xs text-gray-500 text-center">Microsoft Entra ID</p>
                                 {!isMsalConfigured && (
                                     <p className="text-xs text-amber-600 mt-2">
                                         Microsoft SSO not configured. Please set VITE_AZURE_CLIENT_ID and VITE_AZURE_TENANT_ID and restart the dev server.
@@ -401,8 +396,9 @@ const Login = () => {
                             </div>
 
                             {error && (
-                                <div className="mb-6 p-4 bg-danger-light/10 border border-danger rounded-lg text-danger text-sm">
-                                    {error}
+                                <div role="alert" aria-live="polite" className="mb-6 p-4 bg-danger-light/10 border border-danger rounded-lg text-danger text-sm">
+                                    <div className="mb-1">{error}</div>
+                                    <Link to="/help" className="text-xs underline text-danger hover:text-danger/80">Need help? Visit Help Center</Link>
                                 </div>
                             )}
 
