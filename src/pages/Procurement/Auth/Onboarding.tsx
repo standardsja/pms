@@ -193,29 +193,35 @@ const Onboarding = () => {
 
             {/* Onboarding Procurement Steps Modal */}
             {showProcurementSteps && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Procurement Process Steps">
-                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-xl w-full relative overflow-hidden">
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/50 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Procurement Process Steps">
+                    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-[92vw] max-w-6xl relative overflow-hidden animate__animated animate__fadeIn">
                         <button
                             type="button"
                             onClick={() => setShowProcurementSteps(false)}
-                            className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                            className="absolute top-3 right-3 w-10 h-10 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                             aria-label="Close procurement steps"
                         >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                         </button>
-                        <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center gap-2">
-                            <span className="text-xl">📊</span>
-                            <h2 className="text-lg font-semibold">7 Steps of the Procurement Process</h2>
+                        <div className="px-6 py-5 border-b border-gray-200 dark:border-gray-700 flex items-center gap-3">
+                            <span className="text-2xl">📊</span>
+                            <h2 className="text-xl font-semibold tracking-wide">7 Steps of the Procurement Process</h2>
                         </div>
-                        <div className="p-4 bg-white dark:bg-gray-800">
-                            {/* Placeholder image: replace with actual procurement steps asset when added to public/assets/images/procurement/steps.jpg */}
-                            <img
-                                src="/assets/images/knowledge/image-8.jpg"
-                                alt="Diagram showing the 7 steps of the procurement process"
-                                className="w-full h-auto rounded-lg shadow"
-                            />
+                        <div className="p-6 bg-white dark:bg-gray-800">
+                            <div className="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 max-h-[75vh]">
+                                {/* Replace src below with final asset if needed */}
+                                <img
+                                    src="/assets/images/procurement/steps.jpg"
+                                    alt="Diagram showing the 7 steps of the procurement process"
+                                    className="w-full h-auto max-h-[70vh] object-contain"
+                                    loading="lazy"
+                                />
+                            </div>
+                            <p className="mt-4 text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
+                                This overview highlights each phase from sourcing methodology through supplier relationship management. Use it as a quick refresher before selecting a module.
+                            </p>
                         </div>
-                        <div className="px-4 pb-4 flex justify-end gap-2">
+                        <div className="px-6 pb-6 flex justify-end gap-3">
                             <button
                                 type="button"
                                 onClick={() => setShowProcurementSteps(false)}
