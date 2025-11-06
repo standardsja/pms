@@ -1,48 +1,91 @@
-import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { setPageTitle } from '../../../store/themeConfigSlice';
 import Swal from 'sweetalert2';
+import { approveIdea, fetchIdeas, Idea, promoteIdea, rejectIdea } from '../../../utils/ideasApi';
+import { getUser } from '../../../utils/auth';
 
-interface PendingIdea {
-    id: string;
-    title: string;
-    description: string;
-    category: string;
-    submittedBy: string;
-    submittedAt: string;
-    status: string;
-}
+type PendingIdea = Idea;
 
 const CommitteeDashboard = () => {
     const dispatch = useDispatch();
+    const navigate = useNavigate();
+    const currentUser = getUser();
+    const isCommittee = currentUser?.role === 'INNOVATION_COMMITTEE';
+
     const [pendingIdeas, setPendingIdeas] = useState<PendingIdea[]>([]);
+    const [approvedIdeas, setApprovedIdeas] = useState<Idea[]>([]);
+    const [promotedIdeas, setPromotedIdeas] = useState<Idea[]>([]);
+    const [loadingList, setLoadingList] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     const [selectedTab, setSelectedTab] = useState<'pending' | 'approved' | 'promoted'>('pending');
+    const [search, setSearch] = useState('');
+    const [category, setCategory] = useState<string>('ALL');
+    const [page, setPage] = useState(1);
+    const pageSize = 5;
+
+    const [counts, setCounts] = useState({ pending: 0, approved: 0, rejected: 0, promoted: 0 });
 
     useEffect(() => {
         dispatch(setPageTitle('Innovation Committee'));
-        // TODO: Fetch from API
-        setPendingIdeas([
-            {
-                id: '1',
-                title: 'Blockchain for Certificate Verification',
-                description: 'Implement blockchain technology to create tamper-proof digital certificates that can be verified instantly by third parties.',
-                category: 'TECHNOLOGY',
-                submittedBy: 'Michael Chen',
-                submittedAt: '2025-11-05',
-                status: 'PENDING_REVIEW',
-            },
-            {
-                id: '2',
-                title: 'Virtual Reality Training Program',
-                description: 'Develop VR training modules for safety procedures and equipment handling, improving training effectiveness.',
-                category: 'PROCESS_IMPROVEMENT',
-                submittedBy: 'Sarah Williams',
-                submittedAt: '2025-11-04',
-                status: 'PENDING_REVIEW',
-            },
-        ]);
     }, [dispatch]);
+
+    // Guard: redirect non-committee roles to Innovation Hub dashboard
+    useEffect(() => {
+        if (!isCommittee) {
+            navigate('/innovation/dashboard', { replace: true });
+        }
+    }, [isCommittee, navigate]);
+
+    // Load counts summary
+    useEffect(() => {
+        let cancelled = false;
+        async function loadCounts() {
+            try {
+                const [pending, approved, rejected, promoted] = await Promise.all([
+                    fetchIdeas({ status: 'PENDING_REVIEW' }),
+                    fetchIdeas({ status: 'APPROVED' }),
+                    fetchIdeas({ status: 'REJECTED' }),
+                    fetchIdeas({ status: 'PROMOTED_TO_PROJECT' }),
+                ]);
+                if (!cancelled) {
+                    setCounts({ pending: pending.length, approved: approved.length, rejected: rejected.length, promoted: promoted.length });
+                }
+            } catch (e) {
+                // Soft-fail counts; leave defaults
+            }
+        }
+        loadCounts();
+        return () => { cancelled = true; };
+    }, []);
+
+    // Load lists per tab
+    useEffect(() => {
+        let cancelled = false;
+        async function loadList() {
+            setLoadingList(true); setError(null);
+            try {
+                if (selectedTab === 'pending') {
+                    const data = await fetchIdeas({ status: 'PENDING_REVIEW' });
+                    if (!cancelled) setPendingIdeas(data);
+                } else if (selectedTab === 'approved') {
+                    const data = await fetchIdeas({ status: 'APPROVED' });
+                    if (!cancelled) setApprovedIdeas(data);
+                } else {
+                    const data = await fetchIdeas({ status: 'PROMOTED_TO_PROJECT' });
+                    if (!cancelled) setPromotedIdeas(data);
+                }
+            } catch (e: any) {
+                if (!cancelled) setError(e?.message || 'Failed to load ideas');
+            } finally {
+                if (!cancelled) setLoadingList(false);
+            }
+        }
+        loadList();
+        // reset pagination on tab change
+        setPage(1);
+    }, [selectedTab]);
 
     const handleApprove = async (ideaId: string, ideaTitle: string) => {
         const result = await Swal.fire({
@@ -57,9 +100,14 @@ const CommitteeDashboard = () => {
         });
 
         if (result.isConfirmed) {
-            // TODO: API call
-            setPendingIdeas(pendingIdeas.filter(idea => idea.id !== ideaId));
-            Swal.fire('Approved!', 'The idea has been approved and is now visible for voting.', 'success');
+            try {
+                await approveIdea(ideaId);
+                setPendingIdeas((prev) => prev.filter((i) => i.id !== ideaId));
+                setCounts((c) => ({ ...c, pending: Math.max(0, c.pending - 1), approved: c.approved + 1 }));
+                Swal.fire('Approved!', 'The idea has been approved and is now visible for viewing.', 'success');
+            } catch (e: any) {
+                Swal.fire('Error', e?.message || 'Failed to approve idea', 'error');
+            }
         }
     };
 
@@ -81,9 +129,14 @@ const CommitteeDashboard = () => {
         });
 
         if (result.isConfirmed) {
-            // TODO: API call
-            setPendingIdeas(pendingIdeas.filter(idea => idea.id !== ideaId));
-            Swal.fire('Rejected', 'The idea has been rejected and the submitter will be notified.', 'success');
+            try {
+                await rejectIdea(ideaId, (result.value as string) || undefined);
+                setPendingIdeas((prev) => prev.filter((i) => i.id !== ideaId));
+                setCounts((c) => ({ ...c, pending: Math.max(0, c.pending - 1), rejected: c.rejected + 1 }));
+                Swal.fire('Rejected', 'The idea has been rejected and the submitter will be notified.', 'success');
+            } catch (e: any) {
+                Swal.fire('Error', e?.message || 'Failed to reject idea', 'error');
+            }
         }
     };
 
@@ -113,12 +166,20 @@ const CommitteeDashboard = () => {
         });
 
         if (result.isConfirmed) {
-            // TODO: API call
-            Swal.fire({
-                icon: 'success',
-                title: 'Promoted!',
-                text: `"${ideaTitle}" has been promoted to BSJ Project ${result.value.projectCode}`,
-            });
+            try {
+                const updated = await promoteIdea(ideaId, (result.value as any)?.projectCode);
+                // If in approved tab, move it out; if in pending, ignore; in promoted tab, add
+                setApprovedIdeas((prev) => prev.filter((i) => i.id !== ideaId));
+                setPromotedIdeas((prev) => [updated, ...prev]);
+                setCounts((c) => ({ ...c, approved: Math.max(0, c.approved - 1), promoted: c.promoted + 1 }));
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Promoted!',
+                    text: `"${ideaTitle}" has been promoted to BSJ Project ${updated.projectCode || ''}`,
+                });
+            } catch (e: any) {
+                Swal.fire('Error', e?.message || 'Failed to promote idea', 'error');
+            }
         }
     };
 
@@ -139,6 +200,40 @@ const CommitteeDashboard = () => {
         return category.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
     };
 
+    const availableCategories = useMemo(() => {
+        const cats = new Set<string>();
+        (selectedTab === 'pending' ? pendingIdeas : selectedTab === 'approved' ? approvedIdeas : promotedIdeas).forEach(i => cats.add(i.category));
+        return ['ALL', ...Array.from(cats)];
+    }, [pendingIdeas, approvedIdeas, promotedIdeas, selectedTab]);
+
+    const filteredPending = useMemo(() => {
+        const src = selectedTab === 'pending' ? pendingIdeas : selectedTab === 'approved' ? approvedIdeas : promotedIdeas;
+        const q = search.trim().toLowerCase();
+        return src.filter(i => {
+            const matchesText = !q || i.title.toLowerCase().includes(q) || i.description.toLowerCase().includes(q) || i.submittedBy.toLowerCase().includes(q);
+            const matchesCategory = category === 'ALL' || i.category === category;
+            return matchesText && matchesCategory;
+        });
+    }, [pendingIdeas, approvedIdeas, promotedIdeas, selectedTab, search, category]);
+
+    const paginated = useMemo(() => {
+        const start = (page - 1) * pageSize;
+        return filteredPending.slice(start, start + pageSize);
+    }, [filteredPending, page]);
+
+    const totalPages = Math.max(1, Math.ceil(filteredPending.length / pageSize));
+
+    const exportCsv = () => {
+        const rows = [['ID','Title','Category','Submitted By','Submitted At','Status']];
+        filteredPending.forEach(i => rows.push([i.id, i.title, i.category, i.submittedBy, i.submittedAt, i.status]));
+        const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = `ideas-${selectedTab}.csv`; a.click();
+        URL.revokeObjectURL(url);
+    };
+
     return (
         <div className="space-y-6">
             {/* Header */}
@@ -153,12 +248,12 @@ const CommitteeDashboard = () => {
             </div>
 
             {/* Stats */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                 <div className="panel">
                     <div className="flex items-center justify-between">
                         <div>
                             <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Pending Review</p>
-                            <h3 className="text-3xl font-bold text-orange-600 dark:text-orange-400">{pendingIdeas.length}</h3>
+                            <h3 className="text-3xl font-bold text-orange-600 dark:text-orange-400">{counts.pending}</h3>
                         </div>
                         <div className="text-5xl text-orange-600 dark:text-orange-400">⏳</div>
                     </div>
@@ -167,7 +262,7 @@ const CommitteeDashboard = () => {
                     <div className="flex items-center justify-between">
                         <div>
                             <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Approved Ideas</p>
-                            <h3 className="text-3xl font-bold text-green-600 dark:text-green-400">24</h3>
+                            <h3 className="text-3xl font-bold text-green-600 dark:text-green-400">{counts.approved}</h3>
                         </div>
                         <div className="text-5xl text-green-600 dark:text-green-400">✅</div>
                     </div>
@@ -176,10 +271,48 @@ const CommitteeDashboard = () => {
                     <div className="flex items-center justify-between">
                         <div>
                             <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">BSJ Projects</p>
-                            <h3 className="text-3xl font-bold text-blue-600 dark:text-blue-400">5</h3>
+                            <h3 className="text-3xl font-bold text-blue-600 dark:text-blue-400">{counts.promoted}</h3>
                         </div>
                         <div className="text-5xl text-blue-600 dark:text-blue-400">🚀</div>
                     </div>
+                </div>
+                <div className="panel">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Rejected</p>
+                            <h3 className="text-3xl font-bold text-red-600 dark:text-red-400">{counts.rejected}</h3>
+                        </div>
+                        <div className="text-5xl text-red-600 dark:text-red-400">❌</div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Toolbar */}
+            <div className="panel flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex items-center gap-2">
+                    <input
+                        type="text"
+                        placeholder="Search by title, description, submitter…"
+                        className="form-input w-72 max-w-full"
+                        value={search}
+                        onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+                        aria-label="Search ideas"
+                    />
+                    <select
+                        className="form-select"
+                        value={category}
+                        onChange={(e) => { setCategory(e.target.value); setPage(1); }}
+                        aria-label="Filter by category"
+                    >
+                        {availableCategories.map(c => (
+                            <option key={c} value={c}>{c === 'ALL' ? 'All Categories' : getCategoryLabel(c)}</option>
+                        ))}
+                    </select>
+                </div>
+                <div className="flex items-center gap-2">
+                    <button className="btn btn-outline-secondary" onClick={exportCsv}>Export CSV</button>
+                    <Link to="/innovation/committee/review" className="btn btn-primary">Open Review Workspace</Link>
+                    <Link to="/innovation/ideas/analytics" className="btn bg-purple-600 hover:bg-purple-700 text-white">Analytics</Link>
                 </div>
             </div>
 
@@ -193,7 +326,7 @@ const CommitteeDashboard = () => {
                             : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
                     }`}
                 >
-                    Pending Review ({pendingIdeas.length})
+                    Pending Review ({counts.pending})
                 </button>
                 <button
                     onClick={() => setSelectedTab('approved')}
@@ -203,7 +336,7 @@ const CommitteeDashboard = () => {
                             : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
                     }`}
                 >
-                    Approved (24)
+                    Approved ({counts.approved})
                 </button>
                 <button
                     onClick={() => setSelectedTab('promoted')}
@@ -213,14 +346,20 @@ const CommitteeDashboard = () => {
                             : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
                     }`}
                 >
-                    BSJ Projects (5)
+                    BSJ Projects ({counts.promoted})
                 </button>
             </div>
 
             {/* Pending Ideas */}
-            {selectedTab === 'pending' && (
+            {(selectedTab === 'pending' || selectedTab === 'approved') && (
                 <div className="space-y-4">
-                    {pendingIdeas.map((idea) => (
+                    {loadingList && (
+                        <div className="panel py-10 text-center text-gray-500">Loading…</div>
+                    )}
+                    {error && (
+                        <div className="panel py-6 text-center text-red-500">{error}</div>
+                    )}
+                    {!loadingList && !error && paginated.map((idea) => (
                         <div key={idea.id} className="panel">
                             <div className="flex items-start justify-between gap-4 mb-4">
                                 <div className="flex-1">
@@ -244,65 +383,106 @@ const CommitteeDashboard = () => {
                                 </div>
                             </div>
                             <div className="flex items-center gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-                                <Link
-                                    to={`/innovation/committee/review/${idea.id}`}
-                                    className="btn btn-outline-primary"
-                                >
-                                    View Full Details
-                                </Link>
-                                <button
-                                    onClick={() => handleApprove(idea.id, idea.title)}
-                                    className="btn bg-green-600 hover:bg-green-700 text-white"
-                                >
-                                    ✅ Approve
-                                </button>
-                                <button
-                                    onClick={() => handleReject(idea.id, idea.title)}
-                                    className="btn bg-red-600 hover:bg-red-700 text-white"
-                                >
-                                    ❌ Reject
-                                </button>
+                                <Link to={`/innovation/committee/review`} className="btn btn-outline-primary">Open in Review</Link>
+                                {selectedTab === 'pending' && (
+                                    <>
+                                        <button
+                                            onClick={() => handleApprove(idea.id, idea.title)}
+                                            className="btn bg-green-600 hover:bg-green-700 text-white"
+                                        >
+                                            ✅ Approve
+                                        </button>
+                                        <button
+                                            onClick={() => handleReject(idea.id, idea.title)}
+                                            className="btn bg-red-600 hover:bg-red-700 text-white"
+                                        >
+                                            ❌ Reject
+                                        </button>
+                                    </>
+                                )}
+                                {selectedTab === 'approved' && (
+                                    <button
+                                        onClick={() => handlePromote(idea.id, idea.title)}
+                                        className="btn bg-blue-600 hover:bg-blue-700 text-white"
+                                    >
+                                        🚀 Promote to Project
+                                    </button>
+                                )}
                             </div>
                         </div>
                     ))}
-                    {pendingIdeas.length === 0 && (
+                    {!loadingList && !error && paginated.length === 0 && (
                         <div className="panel text-center py-12">
                             <div className="text-6xl mb-4">✨</div>
                             <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">All Caught Up!</h3>
                             <p className="text-gray-600 dark:text-gray-400">
-                                No ideas pending review at the moment.
+                                {selectedTab === 'pending' ? 'No ideas pending review at the moment.' : 'No approved ideas to show.'}
                             </p>
+                        </div>
+                    )}
+
+                    {/* Pagination */}
+                    {!loadingList && !error && filteredPending.length > pageSize && (
+                        <div className="flex items-center justify-center gap-2">
+                            <button className="btn btn-outline-secondary" disabled={page === 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>Prev</button>
+                            <span className="text-sm">Page {page} of {totalPages}</span>
+                            <button className="btn btn-outline-secondary" disabled={page === totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>Next</button>
                         </div>
                     )}
                 </div>
             )}
 
-            {/* Approved Ideas */}
-            {selectedTab === 'approved' && (
-                <div className="panel text-center py-12">
-                    <div className="text-6xl mb-4">✅</div>
-                    <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Approved Ideas</h3>
-                    <p className="text-gray-600 dark:text-gray-400 mb-6">
-                        View approved ideas and promote popular ones to BSJ projects
-                    </p>
-                    <button
-                        onClick={() => handlePromote('sample', 'Sample Idea')}
-                        className="btn bg-blue-600 hover:bg-blue-700 text-white gap-2"
-                    >
-                        <span className="text-xl">🚀</span>
-                        Promote Top Ideas to Projects
-                    </button>
-                </div>
-            )}
-
             {/* Promoted Projects */}
             {selectedTab === 'promoted' && (
-                <div className="panel text-center py-12">
-                    <div className="text-6xl mb-4">🚀</div>
-                    <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">BSJ Projects</h3>
-                    <p className="text-gray-600 dark:text-gray-400">
-                        Ideas that have been promoted to official BSJ projects
-                    </p>
+                <div className="space-y-4">
+                    {loadingList && (
+                        <div className="panel py-10 text-center text-gray-500">Loading…</div>
+                    )}
+                    {error && (
+                        <div className="panel py-6 text-center text-red-500">{error}</div>
+                    )}
+                    {!loadingList && !error && paginated.map((idea) => (
+                        <div key={idea.id} className="panel">
+                            <div className="flex items-start justify-between gap-4 mb-2">
+                                <div className="flex-1">
+                                    <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">
+                                        {idea.title}
+                                    </h3>
+                                    <div className="flex items-center gap-3 mb-1 text-sm text-gray-500 dark:text-gray-400">
+                                        <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${getCategoryColor(idea.category)}`}>
+                                            {getCategoryLabel(idea.category)}
+                                        </span>
+                                        <span>Project Code: <strong>{idea.projectCode || 'TBD'}</strong></span>
+                                        <span>Promoted: {idea.promotedAt ? new Date(idea.promotedAt).toLocaleDateString() : '-'}</span>
+                                    </div>
+                                    <p className="text-gray-700 dark:text-gray-300 line-clamp-2">
+                                        {idea.description}
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="pt-3 border-t border-gray-200 dark:border-gray-700 text-sm text-gray-500 dark:text-gray-400">
+                                Submitted by <strong>{idea.submittedBy}</strong> • {new Date(idea.submittedAt).toLocaleDateString()}
+                            </div>
+                        </div>
+                    ))}
+                    {!loadingList && !error && paginated.length === 0 && (
+                        <div className="panel text-center py-12">
+                            <div className="text-6xl mb-4">🚀</div>
+                            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">BSJ Projects</h3>
+                            <p className="text-gray-600 dark:text-gray-400">
+                                Ideas that have been promoted to official BSJ projects
+                            </p>
+                        </div>
+                    )}
+
+                    {/* Pagination */}
+                    {!loadingList && !error && filteredPending.length > pageSize && (
+                        <div className="flex items-center justify-center gap-2">
+                            <button className="btn btn-outline-secondary" disabled={page === 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>Prev</button>
+                            <span className="text-sm">Page {page} of {totalPages}</span>
+                            <button className="btn btn-outline-secondary" disabled={page === totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>Next</button>
+                        </div>
+                    )}
                 </div>
             )}
         </div>

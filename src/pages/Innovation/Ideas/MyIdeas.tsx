@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
+import { useTranslation } from 'react-i18next';
+import Swal from 'sweetalert2';
 import { setPageTitle } from '../../../store/themeConfigSlice';
 
 interface MyIdea {
@@ -14,16 +16,28 @@ interface MyIdea {
     commentCount: number;
     status: 'DRAFT' | 'PENDING' | 'APPROVED' | 'UNDER_REVIEW' | 'IMPLEMENTED' | 'REJECTED';
     feedback?: string;
+    comments?: IdeaComment[];
+}
+
+interface IdeaComment {
+    id: string;
+    author: string;
+    text: string;
+    createdAt: string;
+    isCommittee?: boolean;
 }
 
 const MyIdeas = () => {
     const dispatch = useDispatch();
+    const { t } = useTranslation();
     const navigate = useNavigate();
     const [ideas, setIdeas] = useState<MyIdea[]>([]);
     const [filterStatus, setFilterStatus] = useState<string>('all');
+    const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+    const [newComment, setNewComment] = useState<Record<string, string>>({});
 
     useEffect(() => {
-        dispatch(setPageTitle('My Ideas'));
+        dispatch(setPageTitle(t('innovation.myIdeas.title')));
         // Mock data
         setIdeas([
             {
@@ -37,6 +51,10 @@ const MyIdeas = () => {
                 commentCount: 12,
                 status: 'APPROVED',
                 feedback: 'Great idea! The committee is very interested. We\'re moving forward with a pilot program.',
+                comments: [
+                    { id: 'c1', author: 'Innovation Committee', text: 'Please outline the data privacy controls you envision.', createdAt: '2025-11-02', isCommittee: true },
+                    { id: 'c2', author: 'Jane Smith', text: 'Love this! Could we pilot it in one department first?', createdAt: '2025-11-03' },
+                ],
             },
             {
                 id: '2',
@@ -48,6 +66,9 @@ const MyIdeas = () => {
                 viewCount: 67,
                 commentCount: 8,
                 status: 'UNDER_REVIEW',
+                comments: [
+                    { id: 'c3', author: 'Committee Reviewer', text: 'What budget range are you anticipating?', createdAt: '2025-10-29', isCommittee: true },
+                ],
             },
             {
                 id: '3',
@@ -60,6 +81,9 @@ const MyIdeas = () => {
                 commentCount: 5,
                 status: 'IMPLEMENTED',
                 feedback: 'Successfully implemented! This has reduced report generation time by 60%.',
+                comments: [
+                    { id: 'c4', author: 'Ops Lead', text: 'The rollout was smooth, thanks team!', createdAt: '2025-10-20' },
+                ],
             },
             {
                 id: '4',
@@ -71,23 +95,53 @@ const MyIdeas = () => {
                 viewCount: 24,
                 commentCount: 2,
                 status: 'PENDING',
+                comments: [
+                    { id: 'c5', author: 'Design Team', text: 'We can share wireframes next week.', createdAt: '2025-11-03' },
+                ],
             },
         ]);
-    }, [dispatch]);
+    }, [dispatch, t]);
 
     const getStatusConfig = (status: string) => {
         const configs: Record<string, { color: string; icon: string; bg: string; label: string }> = {
-            DRAFT: { color: 'text-gray-600', icon: '📝', bg: 'bg-gray-100 dark:bg-gray-800', label: 'Draft' },
-            PENDING: { color: 'text-blue-600', icon: '⏰', bg: 'bg-blue-100 dark:bg-blue-900', label: 'Pending Review' },
-            UNDER_REVIEW: { color: 'text-yellow-600', icon: '🔍', bg: 'bg-yellow-100 dark:bg-yellow-900', label: 'Under Review' },
-            APPROVED: { color: 'text-green-600', icon: '✅', bg: 'bg-green-100 dark:bg-green-900', label: 'Approved' },
-            IMPLEMENTED: { color: 'text-purple-600', icon: '🎉', bg: 'bg-purple-100 dark:bg-purple-900', label: 'Implemented' },
-            REJECTED: { color: 'text-red-600', icon: '❌', bg: 'bg-red-100 dark:bg-red-900', label: 'Not Selected' },
+            DRAFT: { color: 'text-gray-600', icon: '📝', bg: 'bg-gray-100 dark:bg-gray-800', label: t('innovation.myIdeas.status.draft') },
+            PENDING: { color: 'text-blue-600', icon: '⏰', bg: 'bg-blue-100 dark:bg-blue-900', label: t('innovation.myIdeas.status.pending') },
+            UNDER_REVIEW: { color: 'text-yellow-600', icon: '🔍', bg: 'bg-yellow-100 dark:bg-yellow-900', label: t('innovation.myIdeas.status.underReview') },
+            APPROVED: { color: 'text-green-600', icon: '✅', bg: 'bg-green-100 dark:bg-green-900', label: t('innovation.myIdeas.status.approved') },
+            IMPLEMENTED: { color: 'text-purple-600', icon: '🎉', bg: 'bg-purple-100 dark:bg-purple-900', label: t('innovation.myIdeas.status.implemented') },
+            REJECTED: { color: 'text-red-600', icon: '❌', bg: 'bg-red-100 dark:bg-red-900', label: t('innovation.myIdeas.status.rejected') },
         };
         return configs[status] || configs.DRAFT;
     };
 
     const filteredIdeas = filterStatus === 'all' ? ideas : ideas.filter(i => i.status === filterStatus);
+
+    const toggleExpanded = (id: string) => setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
+
+    const handleAddComment = (ideaId: string) => {
+        const text = (newComment[ideaId] || '').trim();
+        if (!text) {
+            void Swal.fire({ icon: 'info', title: t('innovation.myIdeas.comments.required', { defaultValue: 'Please enter a comment.' }), timer: 1400, toast: true, position: 'bottom-end', showConfirmButton: false });
+            return;
+        }
+        if (text.length > 500) {
+            void Swal.fire({ icon: 'warning', title: t('innovation.myIdeas.comments.tooLong', { defaultValue: 'Comment is too long (max 500 characters).' }), timer: 1600, toast: true, position: 'bottom-end', showConfirmButton: false });
+            return;
+        }
+        setIdeas((prev) => prev.map((i) => {
+            if (i.id !== ideaId) return i;
+            const newEntry: IdeaComment = {
+                id: `${Date.now()}`,
+                author: 'You',
+                text,
+                createdAt: new Date().toISOString().slice(0, 10),
+            };
+            const comments = [...(i.comments || []), newEntry];
+            return { ...i, comments, commentCount: (i.commentCount || 0) + 1 };
+        }));
+        setNewComment((prev) => ({ ...prev, [ideaId]: '' }));
+        void Swal.fire({ icon: 'success', title: t('innovation.myIdeas.comments.added', { defaultValue: 'Comment added' }), timer: 1200, toast: true, position: 'bottom-end', showConfirmButton: false });
+    };
 
     const stats = {
         total: ideas.length,
@@ -96,6 +150,10 @@ const MyIdeas = () => {
         pending: ideas.filter(i => i.status === 'PENDING' || i.status === 'UNDER_REVIEW').length,
         totalVotes: ideas.reduce((sum, i) => sum + i.voteCount, 0),
         totalViews: ideas.reduce((sum, i) => sum + i.viewCount, 0),
+    };
+
+    const handleEditIdea = (ideaId: string) => {
+        navigate(`/innovation/ideas/edit/${ideaId}`);
     };
 
     return (
@@ -110,32 +168,32 @@ const MyIdeas = () => {
                     <div className="flex items-center justify-between">
                         <div>
                             <h1 className="text-4xl font-black mb-2 flex items-center gap-3">
-                                <span className="text-5xl">💡</span>
-                                My Innovation Portfolio
+                                <span className="text-5xl" role="img" aria-label="lightbulb">💡</span>
+                                {t('innovation.myIdeas.title')}
                             </h1>
                             <p className="text-white/90 text-lg mb-6">
-                                Track your ideas from concept to implementation
+                                {t('innovation.myIdeas.subtitle')}
                             </p>
                             <button
                                 onClick={() => navigate('/innovation/ideas/new')}
                                 className="btn bg-white text-primary hover:bg-gray-100 gap-2 shadow-xl"
                             >
-                                <span className="text-xl">✨</span>
-                                Submit New Idea
+                                <span className="text-xl" role="img" aria-hidden="true">✨</span>
+                                {t('innovation.dashboard.submitNewIdea')}
                             </button>
                         </div>
                         <div className="hidden lg:grid grid-cols-3 gap-4">
                             <div className="bg-white/20 backdrop-blur-sm px-6 py-4 rounded-xl text-center">
                                 <div className="text-4xl font-black">{stats.total}</div>
-                                <div className="text-sm text-white/80 mt-1">Total Ideas</div>
+                                <div className="text-sm text-white/80 mt-1">{t('innovation.myIdeas.filters.allIdeas')}</div>
                             </div>
                             <div className="bg-white/20 backdrop-blur-sm px-6 py-4 rounded-xl text-center">
                                 <div className="text-4xl font-black">{stats.totalVotes}</div>
-                                <div className="text-sm text-white/80 mt-1">Total Votes</div>
+                                <div className="text-sm text-white/80 mt-1">{t('innovation.dashboard.stats.totalVotes')}</div>
                             </div>
                             <div className="bg-white/20 backdrop-blur-sm px-6 py-4 rounded-xl text-center">
                                 <div className="text-4xl font-black">{stats.implemented}</div>
-                                <div className="text-sm text-white/80 mt-1">Implemented</div>
+                                <div className="text-sm text-white/80 mt-1">{t('innovation.myIdeas.stats.completed')}</div>
                             </div>
                         </div>
                     </div>
@@ -145,14 +203,14 @@ const MyIdeas = () => {
             {/* Quick Stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {[
-                    { label: 'Approved', value: stats.approved, icon: '✅', color: 'from-green-500 to-emerald-500' },
-                    { label: 'In Review', value: stats.pending, icon: '🔍', color: 'from-yellow-500 to-orange-500' },
-                    { label: 'Total Views', value: stats.totalViews, icon: '👁️', color: 'from-blue-500 to-cyan-500' },
-                    { label: 'Completed', value: stats.implemented, icon: '🎉', color: 'from-purple-500 to-pink-500' },
+                    { label: t('innovation.myIdeas.stats.approved'), value: stats.approved, icon: '✅', color: 'from-green-500 to-emerald-500' },
+                    { label: t('innovation.myIdeas.stats.inReview'), value: stats.pending, icon: '🔍', color: 'from-yellow-500 to-orange-500' },
+                    { label: t('innovation.myIdeas.stats.totalViews'), value: stats.totalViews, icon: '👁️', color: 'from-blue-500 to-cyan-500' },
+                    { label: t('innovation.myIdeas.stats.completed'), value: stats.implemented, icon: '🎉', color: 'from-purple-500 to-pink-500' },
                 ].map((stat, idx) => (
                     <div key={idx} className="panel hover:shadow-lg transition-shadow">
                         <div className="flex items-center gap-3">
-                            <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${stat.color} flex items-center justify-center text-2xl`}>
+                            <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${stat.color} flex items-center justify-center text-2xl`} role="img" aria-hidden="true">
                                 {stat.icon}
                             </div>
                             <div>
@@ -166,7 +224,7 @@ const MyIdeas = () => {
 
             {/* Filters */}
             <div className="flex items-center gap-3 flex-wrap">
-                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Filter by Status:</span>
+                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{t('innovation.myIdeas.filters.status')}</span>
                 {['all', 'PENDING', 'UNDER_REVIEW', 'APPROVED', 'IMPLEMENTED'].map((status) => (
                     <button
                         key={status}
@@ -176,8 +234,9 @@ const MyIdeas = () => {
                                 ? 'bg-primary text-white shadow-lg scale-105'
                                 : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
                         }`}
+                        aria-pressed={filterStatus === status}
                     >
-                        {status === 'all' ? 'All Ideas' : getStatusConfig(status).icon + ' ' + getStatusConfig(status).label}
+                        {status === 'all' ? t('innovation.myIdeas.filters.allIdeas') : getStatusConfig(status).icon + ' ' + getStatusConfig(status).label}
                     </button>
                 ))}
             </div>
@@ -186,6 +245,7 @@ const MyIdeas = () => {
             <div className="space-y-4">
                 {filteredIdeas.map((idea, index) => {
                     const statusConfig = getStatusConfig(idea.status);
+                    const isOpen = !!expanded[idea.id];
                     return (
                         <div key={idea.id} className="relative">
                             {/* Timeline Connector */}
@@ -251,7 +311,7 @@ const MyIdeas = () => {
                                                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
                                                         </svg>
-                                                        <span className="font-semibold">{idea.commentCount}</span> comments
+                                                        {t('innovation.myIdeas.engagement.comments', { count: idea.commentCount, defaultValue: '{{count}} comments' })}
                                                     </span>
                                                     <span className="flex items-center gap-1 ml-auto">
                                                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -260,6 +320,71 @@ const MyIdeas = () => {
                                                         {new Date(idea.submittedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                                                     </span>
                                                 </div>
+
+                                                {/* Comments Toggle */}
+                                                <div className="mt-3">
+                                                    <button
+                                                        className="text-primary font-semibold inline-flex items-center gap-2"
+                                                        onClick={() => toggleExpanded(idea.id)}
+                                                        aria-expanded={isOpen}
+                                                        aria-controls={`comments-${idea.id}`}
+                                                    >
+                                                        <svg className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                                        </svg>
+                                                        {isOpen
+                                                            ? t('innovation.myIdeas.comments.hide', { defaultValue: 'Hide comments' })
+                                                            : t('innovation.myIdeas.comments.show', { count: idea.commentCount, defaultValue: 'Show comments ({{count}})' })}
+                                                    </button>
+                                                </div>
+
+                                                {/* Comments Section */}
+                                                {isOpen && (
+                                                    <div id={`comments-${idea.id}`} className="mt-3 rounded-lg border border-gray-200 dark:border-gray-700 p-3 bg-gray-50 dark:bg-gray-800/40">
+                                                        <div className="space-y-3">
+                                                            {(idea.comments || []).map((c) => (
+                                                                <div key={c.id} className="flex items-start gap-3">
+                                                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm ${c.isCommittee ? 'bg-primary text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'}`} aria-hidden="true">{c.isCommittee ? 'IC' : c.author[0]}</div>
+                                                                    <div>
+                                                                        <div className="text-sm font-semibold text-gray-900 dark:text-white">
+                                                                            {c.author} <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">{new Date(c.createdAt).toLocaleDateString()}</span>
+                                                                        </div>
+                                                                        <p className="text-sm text-gray-700 dark:text-gray-300">{c.text}</p>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                            {(!idea.comments || idea.comments.length === 0) && (
+                                                                <div className="text-sm text-gray-500 dark:text-gray-400">
+                                                                    {t('innovation.myIdeas.comments.empty', { defaultValue: 'No comments yet' })}
+                                                                </div>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Add Comment */}
+                                                        <div className="mt-4">
+                                                            <label htmlFor={`new-comment-${idea.id}`} className="sr-only">
+                                                                {t('innovation.myIdeas.comments.addLabel', { defaultValue: 'Add a comment' })}
+                                                            </label>
+                                                            <textarea
+                                                                id={`new-comment-${idea.id}`}
+                                                                className="form-textarea w-full"
+                                                                rows={2}
+                                                                maxLength={500}
+                                                                placeholder={t('innovation.myIdeas.comments.placeholder', { defaultValue: 'Write a comment (max 500 characters)' })}
+                                                                value={newComment[idea.id] || ''}
+                                                                onChange={(e) => setNewComment((prev) => ({ ...prev, [idea.id]: e.target.value }))}
+                                                            />
+                                                            <div className="flex items-center justify-between mt-2">
+                                                                <span className="text-xs text-gray-500 dark:text-gray-400">
+                                                                    {(newComment[idea.id]?.length || 0)}/500
+                                                                </span>
+                                                                <button onClick={() => handleAddComment(idea.id)} className="btn btn-sm btn-primary">
+                                                                    {t('innovation.myIdeas.comments.post', { defaultValue: 'Post Comment' })}
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
 
                                             {/* Actions */}
@@ -268,11 +393,14 @@ const MyIdeas = () => {
                                                     to={`/innovation/ideas/${idea.id}`}
                                                     className="btn btn-sm btn-outline-primary"
                                                 >
-                                                    View Details
+                                                    {t('innovation.myIdeas.actions.view')}
                                                 </Link>
                                                 {idea.status === 'DRAFT' && (
-                                                    <button className="btn btn-sm btn-primary">
-                                                        Edit
+                                                    <button 
+                                                        onClick={() => handleEditIdea(idea.id)}
+                                                        className="btn btn-sm btn-primary"
+                                                    >
+                                                        {t('innovation.myIdeas.actions.edit')}
                                                     </button>
                                                 )}
                                             </div>
@@ -288,23 +416,25 @@ const MyIdeas = () => {
             {/* Empty State */}
             {filteredIdeas.length === 0 && (
                 <div className="panel text-center py-16">
-                    <div className="text-6xl mb-4">💭</div>
+                    <div className="text-6xl mb-4" role="img" aria-label="thinking face">💭</div>
                     <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-                        {filterStatus === 'all' ? "You haven't submitted any ideas yet" : `No ${getStatusConfig(filterStatus).label} ideas`}
+                        {filterStatus === 'all' 
+                            ? t('innovation.myIdeas.empty.all.title')
+                            : t('innovation.myIdeas.empty.filtered.title', { status: getStatusConfig(filterStatus).label })}
                     </h3>
                     <p className="text-gray-600 dark:text-gray-400 mb-6">
                         {filterStatus === 'all'
-                            ? 'Start your innovation journey by submitting your first idea!'
-                            : 'Try selecting a different status filter'}
+                            ? t('innovation.myIdeas.empty.all.message')
+                            : t('innovation.myIdeas.empty.filtered.message')}
                     </p>
                     {filterStatus === 'all' ? (
                         <button onClick={() => navigate('/innovation/ideas/new')} className="btn btn-primary gap-2">
-                            <span className="text-xl">✨</span>
-                            Submit Your First Idea
+                            <span className="text-xl" role="img" aria-hidden="true">✨</span>
+                            {t('innovation.myIdeas.empty.all.action')}
                         </button>
                     ) : (
                         <button onClick={() => setFilterStatus('all')} className="btn btn-outline-primary">
-                            View All Ideas
+                            {t('innovation.myIdeas.empty.filtered.action')}
                         </button>
                     )}
                 </div>

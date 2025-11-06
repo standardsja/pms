@@ -1,84 +1,170 @@
-import { useNavigate } from 'react-router-dom';
-import { useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { setPageTitle } from '../../../store/themeConfigSlice';
 import { getUser } from '../../../utils/auth';
+import { useTranslation } from 'react-i18next';
+import { logEvent } from '../../../utils/analytics';
 
 type ModuleKey = 'pms' | 'ih' | 'committee';
 
 const Onboarding = () => {
     const dispatch = useDispatch();
     const navigate = useNavigate();
+    const { t } = useTranslation();
+    const { search } = useLocation();
+    const query = useMemo(() => new URLSearchParams(search), [search]);
+    const forceOnboarding = query.get('force') === '1' || query.get('reset') === '1';
     const currentUser = getUser();
     const isCommittee = currentUser?.role === 'INNOVATION_COMMITTEE';
 
     const [selected, setSelected] = useState<ModuleKey | null>(null);
     const [error, setError] = useState<string>('');
     const [isBusy, setIsBusy] = useState<boolean>(false);
+    const [rememberChoice, setRememberChoice] = useState<boolean>(false);
+    const [lastModule, setLastModule] = useState<ModuleKey | null>(null);
+    const radiosRef = useRef<HTMLDivElement | null>(null);
 
     useEffect(() => {
-        dispatch(setPageTitle('Welcome — Choose Your Module'));
+        dispatch(setPageTitle(t('onboarding.title')));
         // If a committee member somehow lands here, redirect them to their dashboard
         if (isCommittee) {
             navigate('/innovation/committee/dashboard', { replace: true });
+            return;
         }
-    }, [dispatch, isCommittee, navigate]);
+        // Preselect last used module for convenience
+        const last = (localStorage.getItem('lastModule') as ModuleKey | null) || null;
+        if (last) setSelected(last);
+        setLastModule(last);
+
+        // Auto-redirect returning users who completed onboarding and have a last module
+        const done = localStorage.getItem('onboardingComplete') === 'true';
+        // Support override via query param: /onboarding?force=1 or ?reset=1
+        if (query.get('clear') === '1') {
+            localStorage.removeItem('onboardingComplete');
+            localStorage.removeItem('lastModule');
+        } else if (query.get('reset') === '1') {
+            localStorage.removeItem('onboardingComplete');
+        }
+        if (!forceOnboarding && done && last) {
+            // ensure last still exists in modules once computed below
+            setTimeout(() => {
+                const map = modulesMap.current;
+                if (map && map[last]) {
+                    navigate(map[last].path, { replace: true });
+                }
+            }, 0);
+        }
+        // analytics: page viewed
+        logEvent('onboarding_viewed', { role: currentUser?.role ?? 'unknown', force: forceOnboarding, hasLast: !!last, done });
+    }, [dispatch, isCommittee, navigate, query, forceOnboarding, t]);
 
     const modules = useMemo(() => {
         const base = [
             {
                 id: 'pms' as ModuleKey,
-                title: 'Procurement Management System',
-                description: 'Manage requests, RFQs, suppliers, purchase orders, and payments',
+                title: t('onboarding.modules.pms.title'),
+                description: t('onboarding.modules.pms.description'),
                 icon: '📦',
                 gradient: 'from-blue-500 to-blue-700',
                 path: '/procurement/dashboard',
-                features: ['Request Management', 'RFQ & Quotes', 'Supplier Management', 'Purchase Orders', 'Payment Processing'],
+                features: [
+                    t('onboarding.modules.pms.features.0'),
+                    t('onboarding.modules.pms.features.1'),
+                    t('onboarding.modules.pms.features.2'),
+                ],
             },
             {
                 id: 'ih' as ModuleKey,
-                title: 'Innovation Hub',
-                description: 'Submit ideas, vote on innovations, and drive BSJ projects forward',
+                title: t('onboarding.modules.ih.title'),
+                description: t('onboarding.modules.ih.description'),
                 icon: '💡',
                 gradient: 'from-purple-500 to-pink-600',
                 path: '/innovation/dashboard',
-                features: ['Submit Ideas', 'Vote on Innovations', 'Browse Popular Ideas', 'Track Your Submissions', 'Project Promotions'],
+                features: [
+                    t('onboarding.modules.ih.features.0'),
+                    t('onboarding.modules.ih.features.1'),
+                    t('onboarding.modules.ih.features.2'),
+                ],
             },
         ];
         // Only expose Committee module to committee members
         if (isCommittee) {
             base.push({
                 id: 'committee' as ModuleKey,
-                title: 'Committee Dashboard',
-                description: 'Review and approve innovation idea submissions',
+                title: t('onboarding.modules.committee.title'),
+                description: t('onboarding.modules.committee.description'),
                 icon: '⚖️',
                 gradient: 'from-violet-600 to-fuchsia-600',
                 path: '/innovation/committee/dashboard',
-                features: ['Review Submissions', 'Approve/Reject Ideas', 'Set Priorities', 'Manage Implementation', 'View Analytics'],
+                features: [
+                    t('onboarding.modules.committee.features.0'),
+                    t('onboarding.modules.committee.features.1'),
+                    t('onboarding.modules.committee.features.2'),
+                ],
             });
         }
         return base;
-    }, [isCommittee]);
+    }, [isCommittee, t]);
+
+    // Map for quick lookups after render
+    const modulesMap = useRef<{ [k in ModuleKey]?: { path: string; title: string } }>({});
+    modulesMap.current = modules.reduce((acc, m) => {
+        acc[m.id] = { path: m.path, title: m.title };
+        return acc;
+    }, {} as { [k in ModuleKey]?: { path: string; title: string } });
 
     const modulePath = (key: ModuleKey) => modules.find((m) => m.id === key)?.path || '/procurement/dashboard';
+
+    // Auto-route if only one available module (e.g., restricted role)
+    useEffect(() => {
+        if (!isCommittee && modules.length === 1) {
+            navigate(modules[0].path, { replace: true });
+        }
+    }, [modules, navigate, isCommittee]);
 
     const handleContinue = async () => {
         setError('');
         if (!selected) {
-            setError('Please select a module to continue');
+            setError(t('onboarding.errors.selectOne'));
             return;
         }
         try {
             setIsBusy(true);
-            // Mark onboarding as complete
-            localStorage.setItem('onboardingComplete', 'true');
+            // Remember last used module for convenience
+            localStorage.setItem('lastModule', selected);
+            setLastModule(selected);
+            // Persist onboarding completion only if the user opts in
+            if (rememberChoice) {
+                localStorage.setItem('onboardingComplete', 'true');
+            }
             // Small UX delay
             await new Promise((r) => setTimeout(r, 200));
+            // analytics: continue
+            logEvent('onboarding_continue', { selected, rememberChoice });
             navigate(modulePath(selected));
         } finally {
             setIsBusy(false);
         }
     };
+
+    const onKeyDownRadios = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+        if (!modules.length) return;
+        const order = modules.map((m) => m.id);
+        const idx = selected ? order.indexOf(selected) : 0;
+        if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+            e.preventDefault();
+            const next = order[(idx + 1) % order.length];
+            setSelected(next);
+        } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+            e.preventDefault();
+            const prev = order[(idx - 1 + order.length) % order.length];
+            setSelected(prev);
+        } else if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handleContinue();
+        }
+    }, [modules, selected]);
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
@@ -86,11 +172,9 @@ const Onboarding = () => {
             <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
                     <div className="flex items-center gap-4">
-                        <div className="text-5xl animate-[spin_20s_linear_infinite]">🌀</div>
+                        <div className="text-5xl motion-safe:animate-[spin_20s_linear_infinite]">🌀</div>
                         <div>
-                            <h1 className="text-3xl font-black text-gray-900 dark:text-white" style={{ letterSpacing: '0.1em' }}>
-                                SPINX
-                            </h1>
+                            <h1 className="text-3xl font-black text-gray-900 dark:text-white tracking-widest">SPINX</h1>
                             <p className="text-sm text-gray-600 dark:text-gray-400">Bureau of Standards Jamaica</p>
                         </div>
                     </div>
@@ -100,36 +184,54 @@ const Onboarding = () => {
             {/* Main Content */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
                 <div className="text-center mb-12">
-                    <h2 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">Welcome! Let’s get you started</h2>
+                    <h2 id="onboarding-title" className="text-4xl font-bold text-gray-900 dark:text-white mb-4">{t('onboarding.title')}</h2>
                     <p className="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
-                        Choose which module you want to use right now. You can switch anytime from the header.
+                        {t('onboarding.subtitle')}
                     </p>
                 </div>
 
                 {error && (
-                    <div className="max-w-3xl mx-auto mb-6 p-4 bg-danger-light/10 border border-danger rounded-lg text-danger text-sm text-center">
+                    <div role="alert" aria-live="polite" className="max-w-3xl mx-auto mb-6 p-4 bg-danger-light/10 border border-danger rounded-lg text-danger text-sm text-center">
                         {error}
                     </div>
                 )}
 
-                {/* Module Cards */}
-                <div className="grid md:grid-cols-2 gap-8 max-w-6xl mx-auto">
+                {/* Module Cards (radiogroup) */}
+                <div
+                    ref={radiosRef}
+                    role="radiogroup"
+                    aria-labelledby="onboarding-title"
+                    className="grid md:grid-cols-2 gap-8 max-w-6xl mx-auto"
+                    onKeyDown={onKeyDownRadios}
+                    tabIndex={0}
+                >
                     {modules.map((m) => {
                         const isActive = selected === m.id;
                         return (
                             <button
+                                role="radio"
+                                aria-checked={isActive}
+                                tabIndex={isActive ? 0 : -1}
                                 key={m.id}
                                 type="button"
-                                onClick={() => setSelected(m.id)}
-                                className={`group relative text-left bg-white dark:bg-gray-800 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 overflow-hidden border-2 ${
+                                onClick={() => {
+                                    setSelected(m.id);
+                                    logEvent('onboarding_selected', { selected: m.id });
+                                }}
+                                className={`group relative text-left bg-white dark:bg-gray-800 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 overflow-hidden border-2 focus:outline-none focus-visible:ring-4 focus-visible:ring-primary/30 ${
                                     isActive ? 'border-primary' : 'border-transparent hover:border-primary/60'
                                 }`}
                             >
                                 {/* Gradient Header */}
-                                <div className={`bg-gradient-to-r ${m.gradient} p-8 text-white relative overflow-hidden`}>
+                                <div className={`bg-gradient-to-r ${m.gradient} p-6 md:p-8 text-white relative overflow-hidden`}>
+                                    {isActive && (
+                                        <span className="absolute top-3 right-3 bg-white/20 text-white text-xs font-bold px-2 py-1 rounded-full backdrop-blur-sm">
+                                            {t('onboarding.badges.selected')}
+                                        </span>
+                                    )}
                                     <div className="absolute top-0 right-0 text-9xl opacity-10 transform translate-x-4 -translate-y-4">{m.icon}</div>
                                     <div className="relative z-10">
-                                        <div className="text-6xl mb-4">{m.icon}</div>
+                                        <div className="text-5xl md:text-6xl mb-4">{m.icon}</div>
                                         <h3 className="text-2xl font-bold mb-2">{m.title}</h3>
                                         <p className="text-white/90">{m.description}</p>
                                     </div>
@@ -137,7 +239,7 @@ const Onboarding = () => {
 
                                 {/* Features List */}
                                 <div className="p-8">
-                                    <h4 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-4">Key Features</h4>
+                                    <h4 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-4">{t('onboarding.keyFeatures')}</h4>
                                     <ul className="space-y-3">
                                         {m.features.map((feature, idx) => (
                                             <li key={idx} className="flex items-center gap-3 text-gray-700 dark:text-gray-300">
@@ -151,13 +253,25 @@ const Onboarding = () => {
 
                                     {/* Selected Indicator */}
                                     <div className="mt-6 flex items-center justify-between">
-                                        <span className={`text-sm font-medium ${isActive ? 'text-primary' : 'text-gray-500 dark:text-gray-400'}`}>
-                                            {isActive ? 'Selected' : 'Click to select'}
-                                        </span>
+                                        <div className="flex items-center gap-2">
+                                            {/* Recommended badge if last-used */}
+                                            {lastModule === m.id && (
+                                                <span className="px-2 py-0.5 rounded-full text-xs bg-primary/10 text-primary">{t('onboarding.badges.recommended')}</span>
+                                            )}
+                                            <span className={`text-sm font-medium ${isActive ? 'text-primary' : 'text-gray-500 dark:text-gray-400'}`}>
+                                                {isActive ? t('onboarding.selected') : t('onboarding.clickToSelect')}
+                                            </span>
+                                        </div>
                                         {isActive && (
-                                            <svg className="w-6 h-6 text-primary" fill="currentColor" viewBox="0 0 20 20">
-                                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                            </svg>
+                                            <button
+                                                type="button"
+                                                className="btn btn-primary btn-sm"
+                                                onClick={handleContinue}
+                                            >
+                                                {selected === 'pms' && t('onboarding.goTo.pms')}
+                                                {selected === 'ih' && t('onboarding.goTo.ih')}
+                                                {selected === 'committee' && t('onboarding.goTo.committee')}
+                                            </button>
                                         )}
                                     </div>
                                 </div>
@@ -175,7 +289,7 @@ const Onboarding = () => {
                                 className="btn btn-outline-primary w-full sm:w-auto"
                                 onClick={() => navigate('/help')}
                             >
-                                Need Help
+                                {t('onboarding.needHelp')}
                             </button>
                             <button
                                 type="button"
@@ -186,12 +300,26 @@ const Onboarding = () => {
                                 {isBusy ? (
                                     <span className="flex items-center justify-center gap-2">
                                         <span className="animate-spin border-2 border-white border-l-transparent rounded-full w-5 h-5"></span>
-                                        Redirecting...
+                                        {t('onboarding.redirecting')}
                                     </span>
                                 ) : (
-                                    'Continue'
+                                    selected === 'pms' ? t('onboarding.goTo.pms') : selected === 'ih' ? t('onboarding.goTo.ih') : t('onboarding.continue')
                                 )}
                             </button>
+                        </div>
+                        <div className="mt-2 sm:mt-0">
+                            <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    className="form-checkbox"
+                                    checked={rememberChoice}
+                                    onChange={(e) => {
+                                        setRememberChoice(e.target.checked);
+                                        logEvent('onboarding_remember_toggled', { checked: e.target.checked });
+                                    }}
+                                />
+                                {t('onboarding.remember')}
+                            </label>
                         </div>
                     </div>
                 </div>

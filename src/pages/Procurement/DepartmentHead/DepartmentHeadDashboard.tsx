@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useDispatch, useSelector } from 'react-redux';
-import { IRootState } from '../../store';
-import { setPageTitle } from '../../store/themeConfigSlice';
-import IconClipboardText from '../../components/Icon/IconClipboardText';
-import IconChecks from '../../components/Icon/IconChecks';
-import IconClock from '../../components/Icon/IconClock';
-import IconEye from '../../components/Icon/IconEye';
-import IconDollarSignCircle from '../../components/Icon/IconDollarSignCircle';
+import { useDispatch } from 'react-redux';
+import { setPageTitle } from '../../../store/themeConfigSlice';
+import IconClipboardText from '../../../components/Icon/IconClipboardText';
+import IconChecks from '../../../components/Icon/IconChecks';
+import IconClock from '../../../components/Icon/IconClock';
+import IconEye from '../../../components/Icon/IconEye';
+import IconDollarSignCircle from '../../../components/Icon/IconDollarSignCircle';
 
 const DepartmentHeadDashboard = () => {
     const dispatch = useDispatch();
