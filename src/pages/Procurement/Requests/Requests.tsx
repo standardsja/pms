@@ -6,11 +6,11 @@ import IconPlus from '../../../components/Icon/IconPlus';
 import IconEye from '../../../components/Icon/IconEye';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
-import { Request, ApiResponse } from '../../../types/request.types';
+import { Request } from '../../../types/request.types';
 import { getStatusBadge } from '../../../utils/statusBadges';
-import { searchRequests, filterRequests, onlyMine, paginate, formatDate, sortRequestsByDateDesc, adaptRequestsResponse } from '../../../utils/requestUtils';
+import { searchRequests, filterRequests, onlyMine, paginate, formatDate, sortRequestsByDateDesc } from '../../../utils/requestUtils';
 import RequestDetailsContent from '../../../components/RequestDetailsContent';
-import { fetchRequisitions as mockFetch, procurementMockEnabled } from '../../../utils/procurementApi';
+import { fetchRequisitions as mockFetch } from '../../../utils/procurementApi';
 
 const MySwal = withReactContent(Swal);
 
@@ -48,22 +48,8 @@ const Requests = () => {
             setIsLoading(true);
             setError(null);
             try {
-                if (procurementMockEnabled()) {
-                    const data = await mockFetch();
-                    setRequests(data);
-                    return;
-                }
-                const token = localStorage.getItem('auth_token');
-                const headers: Record<string, string> = {};
-                if (token) headers['Authorization'] = `Bearer ${token}`;
-                const res = await fetch('/api/requisitions', { headers, signal: controller.signal });
-                const payload = await res.json().catch(() => null);
-                if (!res.ok) {
-                    const msg = (payload && (payload.message || payload.error)) || res.statusText || 'Failed to load requests';
-                    throw new Error(msg);
-                }
-                const adapted = adaptRequestsResponse(payload);
-                setRequests(adapted);
+                const data = await mockFetch();
+                setRequests(data);
             } catch (e: unknown) {
                 // Ignore abort errors
                 if (e instanceof DOMException && e.name === 'AbortError') return;

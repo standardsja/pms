@@ -7,7 +7,7 @@ import IconChecks from '../../../components/Icon/IconChecks';
 import IconClock from '../../../components/Icon/IconClock';
 import IconEye from '../../../components/Icon/IconEye';
 import IconDollarSignCircle from '../../../components/Icon/IconDollarSignCircle';
-import { fetchRequisitions as mockFetch, procurementMockEnabled } from '../../../utils/procurementApi';
+import { fetchRequisitions as mockFetch } from '../../../utils/procurementApi';
 
 const DepartmentHeadDashboard = () => {
     const dispatch = useDispatch();
@@ -24,35 +24,19 @@ const DepartmentHeadDashboard = () => {
         const controller = new AbortController();
         async function loadRequests() {
             try {
-                if (procurementMockEnabled()) {
-                    const data = await mockFetch();
-                    // Map to the fields used in this dashboard's table
-                    const mapped = data.map(r => ({
-                        id: r.id,
-                        req_number: r.id,
-                        title: r.title,
-                        requester: r.requester,
-                        department: r.department,
-                        created_at: r.date,
-                        total_amount: r.totalEstimated,
-                        status: r.status,
-                    }));
-                    setRequests(mapped);
-                } else {
-                    const apiBase = (import.meta as any).env?.VITE_API_BASE_URL as string | undefined;
-                    const endpoint = apiBase ? `${apiBase.replace(/\/$/, '')}/requisitions` : '/api/requisitions';
-                    const token = localStorage.getItem('auth_token') || '';
-                    const res = await fetch(endpoint, {
-                        headers: { Authorization: token ? `Bearer ${token}` : '' },
-                        signal: controller.signal,
-                    });
-                    if (res.ok) {
-                        const data = await res.json();
-                        if (Array.isArray(data?.data)) {
-                            setRequests(data.data);
-                        }
-                    }
-                }
+                const data = await mockFetch();
+                // Map to the fields used in this dashboard's table
+                const mapped = data.map(r => ({
+                    id: r.id,
+                    req_number: r.id,
+                    title: r.title,
+                    requester: r.requester,
+                    department: r.department,
+                    created_at: r.date,
+                    total_amount: r.totalEstimated,
+                    status: r.status,
+                }));
+                setRequests(mapped);
             } catch (_) {
                 // Error handled silently
             } finally {
