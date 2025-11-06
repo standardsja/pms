@@ -11,14 +11,14 @@
         "prisma:generate": "prisma generate",
         "prisma:studio": "prisma studio",
         "prisma:migrate": "prisma migrate dev",
-        "prisma:db-push": "prisma db push"
+        "prisma:db-push": "prisma db push",
+        "server": "tsx server/index.ts",
+        "seed": "tsx server/prisma/seed.ts",
+        "prisma:seed": "tsx server/prisma/seed.ts",
+        "innovation:seed": "tsx scripts/seedInnovation.ts"
     },
-    "prisma": {
-    "seed": "node --loader ts-node/esm server/prisma/seed.ts"
-  },
-
-
     "dependencies": {
+        "@azure/msal-browser": "^4.26.1",
         "@emotion/react": "^11.10.6",
         "@fullcalendar/core": "^6.1.4",
         "@fullcalendar/daygrid": "^6.1.4",
@@ -28,7 +28,7 @@
         "@mantine/core": "^5.10.5",
         "@mantine/hooks": "^5.10.5",
         "@popperjs/core": "^2.11.6",
-        "@prisma/client": "^6.18.0",
+        "@prisma/client": "^6.19.0",
         "@reduxjs/toolkit": "^2.2.7",
         "@testing-library/jest-dom": "^6.4.8",
         "@testing-library/react": "^16.0.0",
@@ -38,16 +38,22 @@
         "@types/node": "^22.4.0",
         "@types/react-text-mask": "^5.4.11",
         "@x1mrdonut1x/nouislider-react": "^3.4.3",
-        "apexcharts": "^4.0.0",
+        "apexcharts": "^3.54.0",
+        "bcryptjs": "^3.0.3",
         "caniuse-lite": "^1.0.30001752",
+        "cors": "^2.8.5",
+        "dotenv": "^17.2.3",
         "easymde": "^2.18.0",
+        "express": "^5.1.0",
         "formik": "^2.2.9",
         "highlight.js": "^11.6.0",
+        "jsonwebtoken": "^9.0.2",
         "mantine-datatable": "^1.7.17",
+        "morgan": "^1.10.1",
         "nouislider-react": "^3.4.1",
         "react": "^18.3.1",
         "react-18-image-lightbox": "^5.1.4",
-        "react-apexcharts": "^1.8.0",
+        "react-apexcharts": "^1.4.0",
         "react-click-away-listener": "^2.2.2",
         "react-copy-to-clipboard": "^5.1.0",
         "react-countup": "^6.3.2",
@@ -74,7 +80,11 @@
         "@headlessui/react": "^2.1.9",
         "@tailwindcss/forms": "^0.5.3",
         "@tailwindcss/typography": "^0.5.7",
+        "@types/cors": "^2.8.19",
+        "@types/express": "^5.0.5",
+        "@types/jsonwebtoken": "^9.0.10",
         "@types/lodash": "^4.17.10",
+        "@types/morgan": "^1.9.10",
         "@types/react": "^18.0.27",
         "@types/react-copy-to-clipboard": "^5.0.4",
         "@types/react-dom": "^18.3.0",
@@ -89,14 +99,14 @@
         "i18next-http-backend": "^2.5.2",
         "jsdom": "^27.1.0",
         "postcss": "^8.4.35",
-        "prisma": "^6.18.0",
+        "prisma": "^6.19.0",
         "react-animate-height": "^3.0.4",
         "react-i18next": "^15.0.1",
         "react-perfect-scrollbar": "^1.5.8",
         "tailwindcss": "^3.4.1",
+        "tsx": "^4.20.6",
         "typescript": "^5.5.4",
         "vite": "^5.4.1",
         "vitest": "^2.0.5"
     }
-
 }

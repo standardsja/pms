@@ -69,6 +69,18 @@ const Profile = lazy(() => import('../pages/Procurement/Users/Profile'));
 const AccountSetting = lazy(() => import('../pages/Procurement/Users/AccountSetting'));
 const HelpSupport = lazy(() => import('../pages/Pages/HelpSupport'));
 
+// Module Selector (legacy)
+const ModuleSelector = lazy(() => import('../pages/ModuleSelector'));
+
+// Innovation Hub Pages
+const InnovationDashboard = lazy(() => import('../pages/Innovation/InnovationDashboard'));
+const SubmitIdea = lazy(() => import('../pages/Innovation/Ideas/SubmitIdea'));
+const ViewIdeas = lazy(() => import('../pages/Innovation/Ideas/ViewIdeas'));
+const VoteOnIdeas = lazy(() => import('../pages/Innovation/Ideas/VoteOnIdeas'));
+const MyIdeas = lazy(() => import('../pages/Innovation/Ideas/MyIdeas'));
+const CommitteeDashboard = lazy(() => import('../pages/Innovation/Committee/CommitteeDashboard'));
+const CommitteeReviewIdeas = lazy(() => import('../pages/Innovation/Committee/ReviewIdeas'));
+
 
 const routes = [
     // ============================================
@@ -96,10 +108,68 @@ const routes = [
     },
     
     // ============================================
-    // MAIN DASHBOARD
+    // MODULE SELECTOR / ONBOARDING
     // ============================================
     {
         path: '/',
+        element: <Onboarding />,
+        layout: 'blank',
+    },
+    // Optional: keep a direct route to the old selector (not linked)
+    {
+        path: '/modules',
+        element: <ModuleSelector />,
+    },
+    
+    // ============================================
+    // INNOVATION HUB MODULE
+    // ============================================
+    {
+        path: '/innovation/dashboard',
+        element: <InnovationDashboard />,
+    },
+    {
+        path: '/innovation/ideas/new',
+        element: <SubmitIdea />,
+    },
+    {
+        path: '/innovation/ideas/browse',
+        element: <ViewIdeas />,
+    },
+    {
+        path: '/innovation/ideas/mine',
+        element: <MyIdeas />,
+    },
+    {
+        path: '/innovation/ideas/popular',
+        element: <VoteOnIdeas />,
+    },
+    {
+        path: '/innovation/ideas/all',
+        element: <ViewIdeas />,
+    },
+    {
+        path: '/innovation/committee',
+        element: <CommitteeDashboard />,
+    },
+    {
+        path: '/innovation/committee/dashboard',
+        element: <CommitteeDashboard />,
+    },
+    {
+        path: '/innovation/committee/review',
+        element: <CommitteeReviewIdeas />,
+    },
+    {
+        path: '/innovation/committee/review/:id',
+        element: <CommitteeDashboard />, // TODO: Create detailed review page
+    },
+    
+    // ============================================
+    // MAIN DASHBOARD - Now points to module selector
+    // ============================================
+    {
+        path: '/procurement',
         element: <ProcurementDashboard />,
     },
     
@@ -306,10 +376,6 @@ const routes = [
     // ============================================
     // ADMIN ROUTES
     // ============================================
-    {
-        path: '/apps/requests/edit/:id',
-        element: <RequestForm />,
-    },
     {
         path: '/procurement/admin',
         element: <AdminSettings />,
