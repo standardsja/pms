@@ -2,6 +2,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { setPageTitle } from '../../../store/themeConfigSlice';
+import { setSelectedModule, setOnboardingComplete } from '../../../store/moduleSlice';
 import { getUser } from '../../../utils/auth';
 import { useTranslation } from 'react-i18next';
 import { logEvent } from '../../../utils/analytics';
@@ -133,10 +134,15 @@ const Onboarding = () => {
             setIsBusy(true);
             // Remember last used module for convenience
             localStorage.setItem('lastModule', selected);
+            localStorage.setItem('selectedModule', selected);
             setLastModule(selected);
+            dispatch(setSelectedModule(selected));
             // Persist onboarding completion only if the user opts in
             if (rememberChoice) {
                 localStorage.setItem('onboardingComplete', 'true');
+                dispatch(setOnboardingComplete(true));
+            } else {
+                dispatch(setOnboardingComplete(false));
             }
             // Small UX delay
             await new Promise((r) => setTimeout(r, 200));

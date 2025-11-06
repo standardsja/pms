@@ -5,6 +5,7 @@
     "type": "module",
     "scripts": {
         "dev": "vite",
+        "dev:all": "concurrently \"npm run server:dev\" \"npm run dev\" --names \"API,CLIENT\" --prefix-colors \"blue,green\"",
         "build": "vite build && tsc",
         "prisma:seed": "node --loader ts-node/esm server/prisma/seed.ts",
         "preview": "vite preview",

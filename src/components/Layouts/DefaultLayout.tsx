@@ -1,4 +1,5 @@
 import { PropsWithChildren, Suspense, useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import App from '../../App';
 import { IRootState } from '../../store';
@@ -11,6 +12,9 @@ import Portals from '../../components/Portals';
 
 const DefaultLayout = ({ children }: PropsWithChildren) => {
     const themeConfig = useSelector((state: IRootState) => state.themeConfig);
+    const selectedModule = useSelector((state: IRootState) => (state as any).module?.selectedModule);
+    const navigate = useNavigate();
+    const location = useLocation();
     const dispatch = useDispatch();
 
     const [showLoader, setShowLoader] = useState(true);
@@ -44,6 +48,21 @@ const DefaultLayout = ({ children }: PropsWithChildren) => {
             window.removeEventListener('onscroll', onScrollHandler);
         };
     }, []);
+
+    // Guard: enforce authentication then module selection
+    useEffect(() => {
+    const isAuth = !!localStorage.getItem('auth_token') || !!localStorage.getItem('authToken') || !!localStorage.getItem('token');
+        const onOnboarding = location.pathname.startsWith('/onboarding');
+        const onAuth = location.pathname.startsWith('/auth/');
+        if (!isAuth && !onAuth) {
+            navigate('/auth/login', { replace: true });
+            return;
+        }
+        // If authenticated but no module chosen yet and not on onboarding/auth pages
+        if (isAuth && !selectedModule && !onOnboarding && !onAuth) {
+            navigate('/onboarding?force=1', { replace: true });
+        }
+    }, [location.pathname, navigate, selectedModule]);
 
     return (
         <App>

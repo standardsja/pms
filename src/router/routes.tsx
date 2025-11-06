@@ -110,11 +110,10 @@ const routes = [
     },
     
     // ============================================
-    // MODULE SELECTOR / ONBOARDING
-    // ============================================
+    // ROOT: Direct unauthenticated users to login. Authenticated users will be redirected by layout guard.
     {
         path: '/',
-        element: <Onboarding />,
+        element: <Login />,
         layout: 'blank',
     },
     // Optional: keep a direct route to the old selector (not linked)

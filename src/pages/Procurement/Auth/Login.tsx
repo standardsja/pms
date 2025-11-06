@@ -1,12 +1,12 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { useDispatch } from 'react-redux';
-import { setPageTitle } from '../../store/themeConfigSlice';
-import IconMail from '../../components/Icon/IconMail';
-import IconLockDots from '../../components/Icon/IconLockDots';
-import IconEye from '../../components/Icon/IconEye';
+import { setPageTitle } from '../../../store/themeConfigSlice';
+import IconMail from '../../../components/Icon/IconMail';
+import IconLockDots from '../../../components/Icon/IconLockDots';
+import IconEye from '../../../components/Icon/IconEye';
 // @ts-ignore
-import packageInfo from '../../../package.json';
+import packageInfo from '../../../../package.json';
 
 const Login = () => {
     const dispatch = useDispatch();
@@ -31,11 +31,12 @@ const Login = () => {
         setIsLoading(true);
 
         try {
-            // Dev-only: call backend test-login to fetch user + department + roles
-            const resp = await fetch('http://localhost:4000/auth/test-login', {
+            // Call backend login with email/password
+            const base = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
+            const resp = await fetch(`${base}/auth/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email }),
+                body: JSON.stringify({ email, password }),
             });
             if (!resp.ok) {
                 const err = await resp.json().catch(() => ({}));
@@ -55,11 +56,20 @@ const Login = () => {
                 permissions: [],
             };
 
+            // Unified storage keys (token + structured user for header & other components)
+            localStorage.setItem('auth_token', data.token || '');
+            localStorage.setItem('auth_user', JSON.stringify({
+                id: profile.id,
+                email: profile.email,
+                name: profile.name,
+                roles: profile.roles,
+                department: profile.department,
+                primaryRole: profile.primaryRole,
+            }));
             localStorage.setItem('isAuthenticated', 'true');
-            localStorage.setItem('userProfile', JSON.stringify(profile));
-            localStorage.setItem('authToken', data.token || '');
             try { window.dispatchEvent(new Event('userProfileChanged')); } catch {}
-            navigate('/');
+            // Always send user to onboarding after successful primary auth
+            navigate('/onboarding?force=1');
         } catch (err: any) {
             setError(err?.message || 'Login failed. Please try again.');
         } finally {
