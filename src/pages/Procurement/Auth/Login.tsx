@@ -50,6 +50,8 @@ const Login = () => {
             const { token, user } = data || {};
             if (!token || !user) throw new Error('Invalid login response');
             setAuth(token, user, rememberMe);
+            // Flag to show onboarding helper image exactly once after successful login
+            try { sessionStorage.setItem('showOnboardingImage', '1'); } catch {}
             
             // Check if user is committee member - route directly to committee dashboard
             if (user.role === 'INNOVATION_COMMITTEE') {

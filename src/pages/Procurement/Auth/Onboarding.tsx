@@ -24,6 +24,7 @@ const Onboarding = () => {
     const [rememberChoice, setRememberChoice] = useState<boolean>(false);
     const [lastModule, setLastModule] = useState<ModuleKey | null>(null);
     const radiosRef = useRef<HTMLDivElement | null>(null);
+    const [showProcurementSteps, setShowProcurementSteps] = useState<boolean>(false);
 
     useEffect(() => {
         dispatch(setPageTitle(t('onboarding.title')));
@@ -55,6 +56,15 @@ const Onboarding = () => {
                 }
             }, 0);
         }
+        // Show procurement steps image once after login if flagged
+        try {
+            const flag = sessionStorage.getItem('showOnboardingImage');
+            if (flag === '1') {
+                setShowProcurementSteps(true);
+                sessionStorage.removeItem('showOnboardingImage');
+            }
+        } catch {}
+
         // analytics: page viewed
         logEvent('onboarding_viewed', { role: currentUser?.role ?? 'unknown', force: forceOnboarding, hasLast: !!last, done });
     }, [dispatch, isCommittee, navigate, query, forceOnboarding, t]);
@@ -180,6 +190,43 @@ const Onboarding = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Onboarding Procurement Steps Modal */}
+            {showProcurementSteps && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Procurement Process Steps">
+                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-xl w-full relative overflow-hidden">
+                        <button
+                            type="button"
+                            onClick={() => setShowProcurementSteps(false)}
+                            className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                            aria-label="Close procurement steps"
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                        <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center gap-2">
+                            <span className="text-xl">📊</span>
+                            <h2 className="text-lg font-semibold">7 Steps of the Procurement Process</h2>
+                        </div>
+                        <div className="p-4 bg-white dark:bg-gray-800">
+                            {/* Placeholder image: replace with actual procurement steps asset when added to public/assets/images/procurement/steps.jpg */}
+                            <img
+                                src="/assets/images/knowledge/image-8.jpg"
+                                alt="Diagram showing the 7 steps of the procurement process"
+                                className="w-full h-auto rounded-lg shadow"
+                            />
+                        </div>
+                        <div className="px-4 pb-4 flex justify-end gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setShowProcurementSteps(false)}
+                                className="btn btn-outline-secondary btn-sm"
+                            >
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Main Content */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">

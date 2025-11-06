@@ -6,6 +6,7 @@ import { PrismaClient, Prisma } from '@prisma/client';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import puppeteer from 'puppeteer';
+import bcrypt from 'bcryptjs';
 
 // PDF debug logging toggle (default on in non-production, disable with PDF_DEBUG=0)
 const PDF_DEBUG = process.env.PDF_DEBUG !== '0' && process.env.NODE_ENV !== 'production';
@@ -165,6 +166,41 @@ app.post('/auth/test-login', async (req, res) => {
 	} catch (err) {
 		console.error(err);
 		res.status(500).json({ error: String(err) });
+	}
+});
+
+// Password-based login for non-Azure flow (to be replaced/extended later with JWT & AD)
+app.post('/api/auth/login', async (req, res) => {
+	try {
+		const { email, password } = req.body || {};
+		if (!email || !password) return res.status(400).json({ message: 'Email and password required' });
+
+		const user = await prisma.user.findUnique({
+			where: { email },
+			include: {
+				department: true,
+				roles: { include: { role: true } },
+			},
+		});
+		if (!user || !user.passwordHash) return res.status(401).json({ message: 'Invalid credentials' });
+
+		const ok = await bcrypt.compare(String(password), user.passwordHash);
+		if (!ok) return res.status(401).json({ message: 'Invalid credentials' });
+
+		// Simple opaque token placeholder (swap for signed JWT later)
+		const token = Buffer.from(`${user.id}:${Date.now()}:${Math.random().toString(36).slice(2,8)}`).toString('base64');
+		const roles = (user.roles || []).map(r => r.role.name);
+		const userPayload = {
+			id: user.id,
+			email: user.email,
+			name: user.name,
+			roles,
+			department: user.department ? { id: user.department.id, name: user.department.name, code: user.department.code } : null,
+		};
+		return res.json({ token, user: userPayload });
+	} catch (err) {
+		console.error('Login error:', err);
+		return res.status(500).json({ message: 'Login failed' });
 	}
 });
 

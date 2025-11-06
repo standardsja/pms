@@ -112,9 +112,10 @@ const routes = [
     // ============================================
     // MODULE SELECTOR / ONBOARDING
     // ============================================
+    // Root should always redirect to login unless already authenticated
     {
         path: '/',
-        element: <Onboarding />,
+        element: <Login />,
         layout: 'blank',
     },
     // Optional: keep a direct route to the old selector (not linked)

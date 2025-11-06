@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { useNavigate, useParams } from 'react-router-dom';
-import { setPageTitle } from '../../store/themeConfigSlice';
-import IconPlus from '../../components/Icon/IconPlus';
-import IconX from '../../components/Icon/IconX';
+import { setPageTitle } from '@/store/themeConfigSlice';
+import IconPlus from '@/components/Icon/IconPlus';
+import IconX from '@/components/Icon/IconX';
 import Swal from 'sweetalert2';
 
 interface RequestItem {

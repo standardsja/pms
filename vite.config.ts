@@ -16,7 +16,8 @@ export default defineConfig({
         proxy: {
             // Proxy API requests to the local Express server
             '/api': {
-                target: 'http://localhost:3001',
+                // Unified backend running on port 4000 (index.mjs)
+                target: 'http://localhost:4000',
                 changeOrigin: true,
             },
         },
