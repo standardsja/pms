@@ -193,9 +193,17 @@ const Login = () => {
             {/* Right Side - Login Form */}
             <div className="flex w-full lg:w-1/2 items-center justify-center p-8 bg-white dark:bg-black">
                 <div className="w-full max-w-md">
-                    {/* Mobile Logo */}
+                    {/* Mobile Logo (updated to match branding) */}
                     <div className="lg:hidden mb-8 text-center">
-                        <img src="/assets/images/logo.svg" alt="Logo" className="w-16 h-16 mx-auto mb-4" />
+                        <div className="flex items-center justify-center mb-4">
+                            <div className="relative">
+                                <div className="absolute inset-0 bg-primary/10 dark:bg-white/10 blur-xl rounded-full"></div>
+                                <div className="relative flex items-center gap-3 bg-gray-50 dark:bg-white/5 backdrop-blur-sm px-5 py-3 rounded-xl border border-gray-200 dark:border-white/10 shadow">
+                                    <span className="text-4xl drop-shadow-sm animate-[spin_20s_linear_infinite]">🌀</span>
+                                    <span className="text-3xl font-black tracking-[0.15em] text-gray-900 dark:text-white">SPINX</span>
+                                </div>
+                            </div>
+                        </div>
                         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Welcome Back</h2>
                     </div>
 
