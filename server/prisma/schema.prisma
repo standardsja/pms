@@ -142,6 +142,7 @@ model Request {
   totalEstimated   Decimal?  @db.Decimal(12, 2)
   currency         String?   @default("USD")
   priority         Priority? @default(MEDIUM)
+  procurementType  Json?     // Array of procurement types: ['goods', 'consulting', etc.]
   expectedDelivery DateTime?
 
   currentAssignee   User? @relation("requestAssignee", fields: [currentAssigneeId], references: [id])
@@ -153,6 +154,8 @@ model Request {
   // Manager/HOD section fields
   managerName String?
   headName    String?
+  managerApproved Boolean? @default(false)
+  headApproved    Boolean? @default(false)
 
   // Budget section fields
   commitmentNumber  String?
@@ -165,6 +168,7 @@ model Request {
   procurementCaseNumber String?
   receivedBy            String?
   dateReceived          String?
+  procurementApproved   Boolean? @default(false)
   actionDate            String?
   procurementComments   String?
 
@@ -174,14 +178,17 @@ model Request {
 }
 
 model RequestItem {
-  id          Int     @id @default(autoincrement())
-  request     Request @relation(fields: [requestId], references: [id])
-  requestId   Int
-  description String
-  quantity    Int     @default(1)
-  unitPrice   Decimal @db.Decimal(12, 2)
-  totalPrice  Decimal @db.Decimal(12, 2)
-  accountCode String?
+  id            Int     @id @default(autoincrement())
+  request       Request @relation(fields: [requestId], references: [id])
+  requestId     Int
+  description   String
+  quantity      Int     @default(1)
+  unitPrice     Decimal @db.Decimal(12, 2)
+  totalPrice    Decimal @db.Decimal(12, 2)
+  accountCode   String?
+  stockLevel    String?
+  unitOfMeasure String?
+  partNumber    String?
 }
 
 model RequestAttachment {

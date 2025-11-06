@@ -193,28 +193,7 @@ const Requests = () => {
         });
     };
 
-    const approveRequest = async (req: any) => {
-        const raw = localStorage.getItem('userProfile');
-        const profile = raw ? JSON.parse(raw) : null;
-        const userId = profile?.id || profile?.userId || null;
-        if (!userId) { alert('Not logged in'); return; }
-
-        try {
-            const resp = await fetch(`http://localhost:4000/requests/${req.raw.id}/action`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'x-user-id': String(userId) },
-                body: JSON.stringify({ action: 'APPROVE' }),
-            });
-            if (!resp.ok) throw new Error('Approve failed');
-            const updated = await resp.json();
-            // refresh list
-            setRequests(prev => prev.map(p => p.id === req.id ? ({ ...p, raw: updated, status: updated.status }) : p));
-            MySwal.fire({ icon: 'success', title: 'Approved' });
-        } catch (err: any) {
-            console.error(err);
-            MySwal.fire({ icon: 'error', title: 'Approve failed', text: err?.message || String(err) });
-        }
-    };
+    // Approval now handled within the form submit flow when the reviewer checks the approval box.
 
     return (
         <div className="p-6">
@@ -322,20 +301,12 @@ const Requests = () => {
                                                 <IconEye className="w-5 h-5" />
                                             </button>
                                             {currentUserId && (Number(currentUserId) === Number(r.currentAssigneeId)) && (
-                                                <>
-                                                    <button
-                                                        className="px-3 py-1 rounded bg-blue-600 text-white text-sm hover:bg-blue-700"
-                                                        onClick={() => navigate(`/apps/requests/edit/${r.id}`)}
-                                                    >
-                                                        Review
-                                                    </button>
-                                                    <button
-                                                        className="px-3 py-1 rounded bg-emerald-600 text-white text-sm hover:bg-emerald-700"
-                                                        onClick={() => approveRequest(r)}
-                                                    >
-                                                        Approve
-                                                    </button>
-                                                </>
+                                                <button
+                                                    className="px-3 py-1 rounded bg-blue-600 text-white text-sm hover:bg-blue-700"
+                                                    onClick={() => navigate(`/apps/requests/edit/${r.id}`)}
+                                                >
+                                                    Review
+                                                </button>
                                             )}
                                         </div>
                                     </td>

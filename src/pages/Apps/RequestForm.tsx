@@ -48,6 +48,11 @@ const RequestForm = () => {
     const [actionDate, setActionDate] = useState('');
     const [procurementComments, setProcurementComments] = useState('');
     const [attachments, setAttachments] = useState<File[]>([]);
+    // prevent duplicate submissions when network is slow
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [managerApproved, setManagerApproved] = useState(false);
+    const [headApproved, setHeadApproved] = useState(false);
+    const [procurementApproved, setProcurementApproved] = useState(false);
 
     // Current user profile (for edit permissions)
     const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
@@ -63,6 +68,25 @@ const RequestForm = () => {
     const canEditProcurementSection = !!(isAssignee && requestMeta?.status === 'PROCUREMENT_REVIEW');
     const canEditBudgetSection = !!(isAssignee && requestMeta?.status === 'FINANCE_REVIEW');
     const canDispatchToVendors = !!(isAssignee && requestMeta?.status === 'FINANCE_APPROVED');
+
+    // Auto-fill manager/HOD name when they're the assignee and field is empty
+    useEffect(() => {
+        if (!isEditMode) return;
+        
+        const fullName = userProfile?.fullName || userProfile?.name || '';
+        if (!fullName) return;
+
+        // Auto-fill manager name if current user is manager assignee and field is empty
+        if (canEditManagerFields && !managerName) {
+            setManagerName(fullName);
+        }
+
+        // Auto-fill HOD name if current user is HOD assignee and field is empty
+        if (canEditHodFields && !headName) {
+            setHeadName(fullName);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [canEditManagerFields, canEditHodFields, isEditMode]);
 
     useEffect(() => {
         dispatch(setPageTitle(isEditMode ? 'Review Procurement Request' : 'New Procurement Request'));
@@ -106,8 +130,23 @@ const RequestForm = () => {
                 setBranchUnit(request.branchUnit || request.department?.code || '');
                 setRequestedBy(request.requester?.name || '');
                 setEmail(request.requester?.email || '');
-                setPriority(request.priority?.toLowerCase() || 'medium');
+                // Map database enum priority (URGENT/HIGH/MEDIUM/LOW) to form values (urgent/high/medium/low)
+                const priorityValue = request.priority ? request.priority.toLowerCase() : 'medium';
+                setPriority(priorityValue);
                 setCommentsJustification(request.description || '');
+                
+                // Load procurement type from JSON field
+                try {
+                    if (request.procurementType) {
+                        if (Array.isArray(request.procurementType)) {
+                            setProcurementType(request.procurementType);
+                        } else if (typeof request.procurementType === 'string') {
+                            setProcurementType(JSON.parse(request.procurementType));
+                        }
+                    }
+                } catch (e) {
+                    console.error('Failed to parse procurementType:', e);
+                }
                 
                 // Pre-fill items
                 if (request.items && request.items.length > 0) {
@@ -125,6 +164,8 @@ const RequestForm = () => {
                 // Pre-fill manager section (if present)
                 setManagerName(request.managerName || '');
                 setHeadName(request.headName || '');
+                setManagerApproved(!!request.managerApproved);
+                setHeadApproved(!!request.headApproved);
                 
                 // Pre-fill budget section (if present)
                 setCommitmentNumber(request.commitmentNumber || '');
@@ -139,6 +180,7 @@ const RequestForm = () => {
                 setDateReceived(request.dateReceived || '');
                 setActionDate(request.actionDate || '');
                 setProcurementComments(request.procurementComments || '');
+                setProcurementApproved(!!request.procurementApproved);
 
                 // Track status and assignee for edit gating
                 const assigneeId = request.currentAssignee?.id || request.currentAssigneeId || null;
@@ -202,6 +244,11 @@ const RequestForm = () => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
+        // guard against double clicks
+        if (isSubmitting) return;
+
+        setIsSubmitting(true);
+
         // read logged-in profile from localStorage
         const raw = localStorage.getItem('userProfile');
         const profile = raw ? JSON.parse(raw) : null;
@@ -216,9 +263,47 @@ const RequestForm = () => {
         try {
             if (isEditMode && id) {
                 // Update existing request (manager/procurement/finance filling their sections)
+                
+                // Double-confirmation flow: warn on missing approval, confirm when approving
+                if ((requestMeta?.status === 'DEPARTMENT_REVIEW' && managerApproved === false) ||
+                    (requestMeta?.status === 'HOD_REVIEW' && headApproved === false) ||
+                    (requestMeta?.status === 'PROCUREMENT_REVIEW' && procurementApproved === false)) {
+                    const confirmMissing = await Swal.fire({
+                        icon: 'warning',
+                        title: 'Approval not checked',
+                        text: 'You have not checked the approval box. Proceed without approving?',
+                        showCancelButton: true,
+                        confirmButtonText: 'Proceed',
+                        cancelButtonText: 'Cancel'
+                    });
+                    if (!confirmMissing.isConfirmed) {
+                        setIsSubmitting(false);
+                        return;
+                    }
+                }
+
+                if ((requestMeta?.status === 'DEPARTMENT_REVIEW' && managerApproved === true) ||
+                    (requestMeta?.status === 'HOD_REVIEW' && headApproved === true) ||
+                    (requestMeta?.status === 'PROCUREMENT_REVIEW' && procurementApproved === true)) {
+                    const confirmApprove = await Swal.fire({
+                        icon: 'question',
+                        title: 'Confirm approval',
+                        text: 'Are you sure you want to approve this requisition?',
+                        showCancelButton: true,
+                        confirmButtonText: 'Yes, approve',
+                        cancelButtonText: 'Not yet'
+                    });
+                    if (!confirmApprove.isConfirmed) {
+                        setIsSubmitting(false);
+                        return;
+                    }
+                }
+                
                 const updatePayload = {
                     managerName,
                     headName,
+                    managerApproved,
+                    headApproved,
                     commitmentNumber,
                     accountingCode,
                     budgetComments,
@@ -229,6 +314,7 @@ const RequestForm = () => {
                     dateReceived,
                     actionDate,
                     procurementComments,
+                    procurementApproved,
                 };
 
                 const resp = await fetch(`http://localhost:4000/requests/${id}`, {
@@ -244,9 +330,36 @@ const RequestForm = () => {
                     const err = await resp.json().catch(() => ({}));
                     throw new Error(err.error || resp.statusText || 'Update failed');
                 }
+                // Automatically perform approval action if reviewer checked the approval box
+                const isApproving = (
+                    (requestMeta?.status === 'DEPARTMENT_REVIEW' && managerApproved === true) ||
+                    (requestMeta?.status === 'HOD_REVIEW' && headApproved === true) ||
+                    (requestMeta?.status === 'PROCUREMENT_REVIEW' && procurementApproved === true)
+                );
 
-                Swal.fire({ icon: 'success', title: 'Request updated', text: 'Your information has been saved' });
-                navigate('/apps/requests');
+                if (isApproving) {
+                    try {
+                        const approveResp = await fetch(`http://localhost:4000/requests/${id}/action`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'x-user-id': String(userId) },
+                            body: JSON.stringify({ action: 'APPROVE' }),
+                        });
+                        if (!approveResp.ok) {
+                            const err = await approveResp.json().catch(() => ({}));
+                            throw new Error(err.error || approveResp.statusText || 'Approval failed');
+                        }
+                        await approveResp.json();
+                        Swal.fire({ icon: 'success', title: 'Request approved', text: 'Request saved and advanced in workflow.' });
+                        navigate('/apps/requests');
+                    } catch (approveErr: any) {
+                        console.error(approveErr);
+                        Swal.fire({ icon: 'error', title: 'Saved but approval failed', text: approveErr?.message || String(approveErr) });
+                        // Do NOT navigate so user can retry approval without losing context
+                    }
+                } else {
+                    Swal.fire({ icon: 'success', title: 'Request updated', text: 'Your information has been saved' });
+                    navigate('/apps/requests');
+                }
             } else {
                 // Create new request
                 if (!departmentId) {
@@ -254,14 +367,36 @@ const RequestForm = () => {
                     return;
                 }
 
+                // Map form priority values to enum (medium -> MEDIUM, high -> HIGH, etc.)
+                const priorityMap: Record<string, string> = {
+                    'urgent': 'URGENT',
+                    'high': 'HIGH',
+                    'medium': 'MEDIUM',
+                    'low': 'LOW'
+                };
+                const priorityEnum = priority ? (priorityMap[priority] || 'MEDIUM') : 'MEDIUM';
+
                 const payload = {
                     title: `Request - ${formDate} - ${items.length} item(s)`,
                     description: commentsJustification || 'Procurement request created from form',
                     departmentId: Number(departmentId),
-                    items: items.map(it => ({ description: it.description, quantity: it.quantity, unitPrice: it.unitCost, totalPrice: it.quantity * it.unitCost, accountCode: '' })),
+                    items: items.map(it => ({ 
+                        description: it.description, 
+                        quantity: it.quantity, 
+                        unitPrice: it.unitCost, 
+                        totalPrice: it.quantity * it.unitCost, 
+                        accountCode: '',
+                        stockLevel: it.stockLevel || '',
+                        unitOfMeasure: it.unitOfMeasure || '',
+                        partNumber: it.partNumber || ''
+                    })),
                     totalEstimated: estimatedTotal,
-                    currency: 'USD'
+                    currency: 'USD',
+                    priority: priorityEnum,
+                    procurementType: procurementType.length > 0 ? procurementType : null
                 };
+
+                console.log('[debug] Submitting payload with procurementType:', payload.procurementType);
 
                 const resp = await fetch('http://localhost:4000/requests', {
                     method: 'POST',
@@ -284,6 +419,9 @@ const RequestForm = () => {
         } catch (err: any) {
             console.error(err);
             try { (await import('sweetalert2')).default.fire({ icon: 'error', title: 'Submission failed', text: err.message || String(err) }); } catch (e) { alert('Submission failed: ' + (err.message || err)); }
+        } finally {
+            // re-enable submit button after we finish (or navigate away)
+            setIsSubmitting(false);
         }
     };
 
@@ -459,7 +597,8 @@ const RequestForm = () => {
                                             type="checkbox"
                                             checked={procurementType.includes('consulting')}
                                             onChange={() => handleProcurementTypeChange('consulting')}
-                                            className="form-checkbox"
+                                            className="form-checkbox opacity-100"
+                                            disabled={isEditMode}
                                         />
                                         <span className="text-sm">Consulting Service</span>
                                     </label>
@@ -468,7 +607,8 @@ const RequestForm = () => {
                                             type="checkbox"
                                             checked={procurementType.includes('goods')}
                                             onChange={() => handleProcurementTypeChange('goods')}
-                                            className="form-checkbox"
+                                            className="form-checkbox opacity-100"
+                                            disabled={isEditMode}
                                         />
                                         <span className="text-sm">Goods</span>
                                     </label>
@@ -477,7 +617,8 @@ const RequestForm = () => {
                                             type="checkbox"
                                             checked={procurementType.includes('nonConsulting')}
                                             onChange={() => handleProcurementTypeChange('nonConsulting')}
-                                            className="form-checkbox"
+                                            className="form-checkbox opacity-100"
+                                            disabled={isEditMode}
                                         />
                                         <span className="text-sm">Non-Consulting Service</span>
                                     </label>
@@ -486,7 +627,8 @@ const RequestForm = () => {
                                             type="checkbox"
                                             checked={procurementType.includes('works')}
                                             onChange={() => handleProcurementTypeChange('works')}
-                                            className="form-checkbox"
+                                            className="form-checkbox opacity-100"
+                                            disabled={isEditMode}
                                         />
                                         <span className="text-sm">Works</span>
                                     </label>
@@ -501,12 +643,13 @@ const RequestForm = () => {
                                     <input
                                         type="radio"
                                         name="priority"
-                                        value="veryHigh"
-                                        checked={priority === 'veryHigh'}
+                                        value="urgent"
+                                        checked={priority === 'urgent'}
                                         onChange={(e) => setPriority(e.target.value)}
                                         className="form-radio"
+                                        disabled={isEditMode}
                                     />
-                                    <span>Very High</span>
+                                    <span>Urgent</span>
                                 </label>
                                 <label className="flex items-center gap-2">
                                     <input
@@ -516,6 +659,7 @@ const RequestForm = () => {
                                         checked={priority === 'high'}
                                         onChange={(e) => setPriority(e.target.value)}
                                         className="form-radio"
+                                        disabled={isEditMode}
                                     />
                                     <span>High</span>
                                 </label>
@@ -527,6 +671,7 @@ const RequestForm = () => {
                                         checked={priority === 'medium'}
                                         onChange={(e) => setPriority(e.target.value)}
                                         className="form-radio"
+                                        disabled={isEditMode}
                                     />
                                     <span>Medium</span>
                                 </label>
@@ -538,6 +683,7 @@ const RequestForm = () => {
                                         checked={priority === 'low'}
                                         onChange={(e) => setPriority(e.target.value)}
                                         className="form-radio"
+                                        disabled={isEditMode}
                                     />
                                     <span>Low</span>
                                 </label>
@@ -680,6 +826,17 @@ const RequestForm = () => {
                                         placeholder="Enter name of head of department"
                                         disabled={!canEditManagerFields}
                                     />
+                                    {canEditManagerFields && (
+                                        <label className="mt-1 mb-3 flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
+                                            <input
+                                                type="checkbox"
+                                                className="form-checkbox"
+                                                checked={managerApproved}
+                                                onChange={(e) => setManagerApproved(e.target.checked)}
+                                            />
+                                            I approve this requisition
+                                        </label>
+                                    )}
                                     <div className="grid grid-cols-2 gap-3">
                                         <div>
                                             <label className="block text-xs text-gray-500 mb-1">Signature:</label>
@@ -702,6 +859,17 @@ const RequestForm = () => {
                                         placeholder="Enter name of head of department"
                                         disabled={!canEditHodFields}
                                     />
+                                    {canEditHodFields && (
+                                        <label className="mt-1 mb-3 flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
+                                            <input
+                                                type="checkbox"
+                                                className="form-checkbox"
+                                                checked={headApproved}
+                                                onChange={(e) => setHeadApproved(e.target.checked)}
+                                            />
+                                            I approve this requisition
+                                        </label>
+                                    )}
                                     <div className="grid grid-cols-2 gap-3">
                                         <div>
                                             <label className="block text-xs text-gray-500 mb-1">Signature:</label>
@@ -868,6 +1036,20 @@ const RequestForm = () => {
                                     disabled={!canEditProcurementSection}
                                 />
                             </div>
+                            
+                            {canEditProcurementSection && (
+                                <div className="mt-4">
+                                    <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+                                        <input
+                                            type="checkbox"
+                                            className="form-checkbox"
+                                            checked={procurementApproved}
+                                            onChange={(e) => setProcurementApproved(e.target.checked)}
+                                        />
+                                        I approve this requisition and forward to Finance
+                                    </label>
+                                </div>
+                            )}
                         </div>
                     </div>
 
@@ -913,9 +1095,12 @@ const RequestForm = () => {
                     <div className="flex flex-wrap items-center gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
                         <button
                             type="submit"
-                            className="px-6 py-2 rounded bg-primary text-white hover:opacity-95 font-medium"
+                            disabled={isSubmitting}
+                            className={`px-6 py-2 rounded bg-primary text-white font-medium ${isSubmitting ? 'opacity-60 cursor-not-allowed' : 'hover:opacity-95'}`}
                         >
-                            {isEditMode ? 'Save Changes' : 'Submit Procurement Request'}
+                            {isSubmitting
+                                ? (isEditMode ? 'Saving…' : 'Submitting…')
+                                : (isEditMode ? 'Save Changes' : 'Submit Procurement Request')}
                         </button>
                         {isEditMode && canDispatchToVendors && (
                             <>

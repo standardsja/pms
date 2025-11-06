@@ -55,12 +55,18 @@ app.post('/requests', async (req, res) => {
 			totalEstimated,
 			currency,
 			priority,
+			procurementType,
 			vendorId,
 			budgetCode,
 		} = req.body;
 
 		if (!title || !departmentId || !actorId) {
 			return res.status(400).json({ error: 'title, departmentId and x-user-id header are required' });
+		}
+
+		// Debug log the received procurement type
+		if (procurementType) {
+			console.log('[debug] Received procurementType:', procurementType, 'type:', typeof procurementType);
 		}
 
 		const reference = generateReference();
@@ -76,6 +82,7 @@ app.post('/requests', async (req, res) => {
 				totalEstimated: totalEstimated ? new Prisma.Decimal(String(totalEstimated)) : undefined,
 				currency: currency || undefined,
 				priority: priority || undefined,
+				procurementType: procurementType || undefined,
 				vendorId: vendorId || undefined,
 				budgetCode: budgetCode || undefined,
 				status: 'SUBMITTED',
@@ -87,6 +94,9 @@ app.post('/requests', async (req, res) => {
 						unitPrice: it.unitPrice ? new Prisma.Decimal(String(it.unitPrice)) : new Prisma.Decimal('0'),
 						totalPrice: it.totalPrice ? new Prisma.Decimal(String(it.totalPrice)) : new Prisma.Decimal('0'),
 						accountCode: it.accountCode || undefined,
+						stockLevel: it.stockLevel || undefined,
+						unitOfMeasure: it.unitOfMeasure || undefined,
+						partNumber: it.partNumber || undefined,
 					})),
 				},
 			},
@@ -215,6 +225,8 @@ app.put('/requests/:id', async (req, res) => {
 		const updateData = {};
 		if (data.managerName !== undefined) updateData.managerName = data.managerName;
 		if (data.headName !== undefined) updateData.headName = data.headName;
+		if (data.managerApproved !== undefined) updateData.managerApproved = Boolean(data.managerApproved);
+		if (data.headApproved !== undefined) updateData.headApproved = Boolean(data.headApproved);
 		if (data.commitmentNumber !== undefined) updateData.commitmentNumber = data.commitmentNumber;
 		if (data.accountingCode !== undefined) updateData.accountingCode = data.accountingCode;
 		if (data.budgetComments !== undefined) updateData.budgetComments = data.budgetComments;
@@ -225,6 +237,7 @@ app.put('/requests/:id', async (req, res) => {
 		if (data.dateReceived !== undefined) updateData.dateReceived = data.dateReceived;
 		if (data.actionDate !== undefined) updateData.actionDate = data.actionDate;
 		if (data.procurementComments !== undefined) updateData.procurementComments = data.procurementComments;
+		if (data.procurementApproved !== undefined) updateData.procurementApproved = Boolean(data.procurementApproved);
 		
 		const updated = await prisma.request.update({ 
 			where: { id }, 
