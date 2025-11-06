@@ -31,9 +31,10 @@ const Login = () => {
         setIsLoading(true);
 
         try {
-            // Call backend login with email/password
-            const base = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
-            const resp = await fetch(`${base}/auth/login`, {
+            // Call backend login with email/password (use /api proxy when no base configured)
+            const base = (import.meta as any).env?.VITE_API_BASE_URL as string | undefined;
+            const url = base ? `${base.replace(/\/$/, '')}/auth/login` : '/api/auth/login';
+            const resp = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password }),
