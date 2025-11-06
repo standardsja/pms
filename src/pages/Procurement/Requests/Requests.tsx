@@ -50,7 +50,9 @@ const Requests = () => {
                 const token = localStorage.getItem('auth_token');
                 const headers: Record<string, string> = {};
                 if (token) headers['Authorization'] = `Bearer ${token}`;
-                const res = await fetch('/api/requisitions', {
+                // Hitting backend directly on port 4000 since Vite proxy only rewrites '/api' paths.
+                // TODO: Move to an env-driven API base and/or add a Vite proxy for '/requests'.
+                const res = await fetch('http://localhost:4000/requests', {
                     headers,
                     signal: controller.signal,
                 });

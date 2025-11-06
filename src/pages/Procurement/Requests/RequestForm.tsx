@@ -99,10 +99,12 @@ const RequestForm = () => {
     useEffect(() => {
         if (isEditMode) return;
         try {
-            const raw = localStorage.getItem('userProfile');
-            const profile = raw ? JSON.parse(raw) : null;
+            // Prefer new auth_user; fallback to legacy userProfile
+            const authRaw = localStorage.getItem('auth_user') || sessionStorage.getItem('auth_user');
+            const legacyRaw = localStorage.getItem('userProfile');
+            const profile = authRaw ? JSON.parse(authRaw) : legacyRaw ? JSON.parse(legacyRaw) : null;
             if (profile) {
-                setRequestedBy(profile.name || '');
+                setRequestedBy(profile.name || profile.fullName || '');
                 setEmail(profile.email || '');
                 setDivision(profile.department?.name || '');
                 // best-effort for branch/unit using dept code

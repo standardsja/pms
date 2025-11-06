@@ -50,6 +50,18 @@ const Login = () => {
             const { token, user } = data || {};
             if (!token || !user) throw new Error('Invalid login response');
             setAuth(token, user, rememberMe);
+            // Also persist legacy userProfile structure expected by RequestForm & index pages
+            try {
+                const legacyProfile = {
+                    id: user.id,
+                    name: user.name,
+                    email: user.email,
+                    department: user.department || null,
+                    primaryRole: user.role || user.roles?.[0] || '',
+                    roles: user.roles ? (Array.isArray(user.roles) ? user.roles : [user.role]) : (user.role ? [user.role] : []),
+                };
+                localStorage.setItem('userProfile', JSON.stringify(legacyProfile));
+            } catch {}
             // Flag to show onboarding helper image exactly once after successful login
             try { sessionStorage.setItem('showOnboardingImage', '1'); } catch {}
             
@@ -289,78 +301,51 @@ const Login = () => {
                                 </button>
                             </form>
 
-                            {/* Divider */}
-                            <div className="relative my-8">
-                                <div className="absolute inset-0 flex items-center">
-                                    <div className="w-full border-t border-gray-300 dark:border-gray-700"></div>
-                                </div>
-                                <div className="relative flex justify-center text-sm">
-                                    <span className="px-4 bg-white dark:bg-black text-gray-500">Or continue with</span>
-                                </div>
-                            </div>
+                            {/* Optional SSO (hidden when not configured) */}
+                            {isMsalConfigured && (
+                                <>
+                                    <div className="relative my-8">
+                                        <div className="absolute inset-0 flex items-center">
+                                            <div className="w-full border-t border-gray-300 dark:border-gray-700"></div>
+                                        </div>
+                                        <div className="relative flex justify-center text-sm">
+                                            <span className="px-4 bg-white dark:bg-black text-gray-500">Or continue with</span>
+                                        </div>
+                                    </div>
 
-                            {/* SSO Options */}
-                            <div className="space-y-3">
-                                <button
-                                    type="button"
-                                    className="btn btn-outline-primary w-full py-3 flex items-center justify-center gap-3"
-                                    disabled={!isMsalConfigured || isLoading}
-                                    onClick={async () => {
-                                        setError('');
-                                        setIsLoading(true);
-                                        try {
-                                            if (!isMsalConfigured) {
-                                                throw new Error('Microsoft SSO is not configured. Set VITE_AZURE_CLIENT_ID and VITE_AZURE_TENANT_ID.');
-                                            }
-                                            const result = await loginWithMicrosoft();
-                                            const idToken = result.idToken;
-                                            if (!idToken) throw new Error('No idToken from Microsoft');
-                                            
-                                            // Note: Backend endpoint /api/auth/microsoft was removed
-                                            // You'll need to implement a new backend endpoint or use client-side only auth
-                                            // For now, this will fail - placeholder for future implementation
-                                            const res = await fetch('/api/auth/microsoft', {
-                                                method: 'POST',
-                                                headers: { 'Content-Type': 'application/json' },
-                                                body: JSON.stringify({ idToken }),
-                                            });
-                                            const data = await res.json().catch(() => null);
-                                            if (!res.ok) {
-                                                const msg = (data && (data.message || data.error)) || 'Microsoft sign-in failed';
-                                                throw new Error(msg);
-                                            }
-                                            const { token, user } = data || {};
-                                            if (!token || !user) throw new Error('Invalid Microsoft login response');
-                                            setAuth(token, user, rememberMe);
-                                            
-                                            // Check if user is committee member
-                                            if (user.role === 'INNOVATION_COMMITTEE') {
-                                                navigate('/innovation/committee/dashboard');
-                                            } else {
-                                                navigate('/onboarding');
-                                            }
-                                        } catch (e: any) {
-                                            const msg = e?.message || 'Microsoft sign-in failed';
-                                            if (!/Redirecting/.test(msg)) setError(msg);
-                                        } finally {
-                                            setIsLoading(false);
-                                        }
-                                    }}
-                                >
-                                    <svg className="w-5 h-5" viewBox="0 0 23 23" fill="none">
-                                        <path fill="#f25022" d="M1 1h10v10H1z"/>
-                                        <path fill="#00a4ef" d="M12 1h10v10H12z"/>
-                                        <path fill="#7fba00" d="M1 12h10v10H1z"/>
-                                        <path fill="#ffb900" d="M12 12h10v10H12z"/>
-                                    </svg>
-                                    <span className="font-semibold">Sign in with Microsoft</span>
-                                </button>
-                                {!isMsalConfigured && (
-                                    <p className="text-xs text-amber-600 mt-2">
-                                        Microsoft SSO not configured. Please set VITE_AZURE_CLIENT_ID and VITE_AZURE_TENANT_ID and restart the dev server.
-                                    </p>
-                                )}
-                            </div>
+                                    <div className="space-y-3">
+                                        <button
+                                            type="button"
+                                            className="btn btn-outline-primary w-full py-3 flex items-center justify-center gap-3"
+                                            disabled={!isMsalConfigured || isLoading}
+                                            onClick={async () => {
+                                                setError('');
+                                                setIsLoading(true);
+                                                try {
+                                                    const result = await loginWithMicrosoft();
+                                                    const idToken = result.idToken;
+                                                    if (!idToken) throw new Error('No idToken from Microsoft');
+                                                    // TODO: implement backend endpoint for Microsoft login when enabling Azure AD
+                                                    throw new Error('Microsoft SSO is not yet enabled.');
+                                                } catch (e: any) {
+                                                    const msg = e?.message || 'Microsoft sign-in failed';
+                                                    if (!/Redirecting/.test(msg)) setError(msg);
+                                                } finally {
+                                                    setIsLoading(false);
+                                                }
+                                            }}
+                                        >
+                                            <svg className="w-5 h-5" viewBox="0 0 23 23" fill="none">
+                                                <path fill="#f25022" d="M1 1h10v10H1z"/>
+                                                <path fill="#00a4ef" d="M12 1h10v10H12z"/>
+                                                <path fill="#7fba00" d="M1 12h10v10H1z"/>
+                                                <path fill="#ffb900" d="M12 12h10v10H12z"/>
+                                            </svg>
+                                            <span className="font-semibold">Sign in with Microsoft</span>
+                                        </button>
+                                    </div>
+                                </>
+                            )}
                         </div>
                     ) : (
                         // MFA Verification Form
