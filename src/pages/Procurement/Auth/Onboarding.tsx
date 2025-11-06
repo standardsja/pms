@@ -1,4 +1,4 @@
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { setPageTitle } from '../../../store/themeConfigSlice';
@@ -19,6 +19,7 @@ const Onboarding = () => {
     const isCommittee = currentUser?.role === 'INNOVATION_COMMITTEE';
 
     const [selected, setSelected] = useState<ModuleKey | null>(null);
+    const [selectionAnnouncement, setSelectionAnnouncement] = useState('');
     const [error, setError] = useState<string>('');
     const [isBusy, setIsBusy] = useState<boolean>(false);
     const [rememberChoice, setRememberChoice] = useState<boolean>(false);
@@ -58,6 +59,8 @@ const Onboarding = () => {
         // analytics: page viewed
         logEvent('onboarding_viewed', { role: currentUser?.role ?? 'unknown', force: forceOnboarding, hasLast: !!last, done });
     }, [dispatch, isCommittee, navigate, query, forceOnboarding, t]);
+
+    const displayName = useMemo(() => currentUser?.name || currentUser?.email?.split('@')[0] || '', [currentUser]);
 
     const modules = useMemo(() => {
         const base = [
@@ -148,6 +151,13 @@ const Onboarding = () => {
         }
     };
 
+    useEffect(() => {
+        if (selected) {
+            const title = modulesMap.current[selected]?.title || selected;
+            setSelectionAnnouncement(`${title} selected. Press Enter to continue.`);
+        }
+    }, [selected]);
+
     const onKeyDownRadios = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
         if (!modules.length) return;
         const order = modules.map((m) => m.id);
@@ -160,6 +170,13 @@ const Onboarding = () => {
             e.preventDefault();
             const prev = order[(idx - 1 + order.length) % order.length];
             setSelected(prev);
+        } else if (/^[1-9]$/.test(e.key)) {
+            // Number shortcuts 1..N to select modules
+            const n = parseInt(e.key, 10) - 1;
+            if (n >= 0 && n < order.length) {
+                e.preventDefault();
+                setSelected(order[n]);
+            }
         } else if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
             handleContinue();
@@ -175,12 +192,11 @@ const Onboarding = () => {
                         <div className="text-5xl motion-safe:animate-[spin_20s_linear_infinite]">🌀</div>
                         <div>
                             <h1 className="text-3xl font-black text-gray-900 dark:text-white tracking-widest">SPINX</h1>
-                            <p className="text-sm text-gray-600 dark:text-gray-400">Bureau of Standards Jamaica</p>
+                            <p className="text-sm text-gray-600 dark:text-gray-400">Bureau of Standards Jamaica{displayName ? ` • Welcome, ${displayName}` : ''}</p>
                         </div>
                     </div>
                 </div>
             </div>
-
             {/* Main Content */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
                 <div className="text-center mb-12">
@@ -188,6 +204,8 @@ const Onboarding = () => {
                     <p className="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
                         {t('onboarding.subtitle')}
                     </p>
+                    {/* ARIA live region for screen readers */}
+                    <div aria-live="polite" className="sr-only" id="onboarding-selection-announcer">{selectionAnnouncement}</div>
                 </div>
 
                 {error && (
@@ -205,7 +223,7 @@ const Onboarding = () => {
                     onKeyDown={onKeyDownRadios}
                     tabIndex={0}
                 >
-                    {modules.map((m) => {
+                    {modules.map((m, index) => {
                         const isActive = selected === m.id;
                         return (
                             <button
@@ -218,12 +236,17 @@ const Onboarding = () => {
                                     setSelected(m.id);
                                     logEvent('onboarding_selected', { selected: m.id });
                                 }}
+                                onDoubleClick={() => {
+                                    setSelected(m.id);
+                                    handleContinue();
+                                }}
                                 className={`group relative text-left bg-white dark:bg-gray-800 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 overflow-hidden border-2 focus:outline-none focus-visible:ring-4 focus-visible:ring-primary/30 ${
                                     isActive ? 'border-primary' : 'border-transparent hover:border-primary/60'
                                 }`}
                             >
                                 {/* Gradient Header */}
                                 <div className={`bg-gradient-to-r ${m.gradient} p-6 md:p-8 text-white relative overflow-hidden`}>
+                                    <span className="absolute left-4 top-4 inline-flex items-center justify-center w-8 h-8 rounded-full bg-white/20 backdrop-blur-sm text-sm font-semibold">{index + 1}</span>
                                     {isActive && (
                                         <span className="absolute top-3 right-3 bg-white/20 text-white text-xs font-bold px-2 py-1 rounded-full backdrop-blur-sm">
                                             {t('onboarding.badges.selected')}
@@ -238,9 +261,9 @@ const Onboarding = () => {
                                 </div>
 
                                 {/* Features List */}
-                                <div className="p-8">
+                                <div className="p-8 flex flex-col h-full">
                                     <h4 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-4">{t('onboarding.keyFeatures')}</h4>
-                                    <ul className="space-y-3">
+                                    <ul className="space-y-3 flex-1">
                                         {m.features.map((feature, idx) => (
                                             <li key={idx} className="flex items-center gap-3 text-gray-700 dark:text-gray-300">
                                                 <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
@@ -263,15 +286,24 @@ const Onboarding = () => {
                                             </span>
                                         </div>
                                         {isActive && (
-                                            <button
-                                                type="button"
-                                                className="btn btn-primary btn-sm"
-                                                onClick={handleContinue}
-                                            >
-                                                {selected === 'pms' && t('onboarding.goTo.pms')}
-                                                {selected === 'ih' && t('onboarding.goTo.ih')}
-                                                {selected === 'committee' && t('onboarding.goTo.committee')}
-                                            </button>
+                                            <div className="flex items-center gap-3">
+                                                <button
+                                                    type="button"
+                                                    className="btn btn-primary btn-sm"
+                                                    onClick={handleContinue}
+                                                >
+                                                    {selected === 'pms' && t('onboarding.goTo.pms')}
+                                                    {selected === 'ih' && t('onboarding.goTo.ih')}
+                                                    {selected === 'committee' && t('onboarding.goTo.committee')}
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    className="btn btn-outline-secondary btn-sm"
+                                                    onClick={() => navigate(modulePath(selected))}
+                                                >
+                                                    {t('onboarding.continue')}
+                                                </button>
+                                            </div>
                                         )}
                                     </div>
                                 </div>
@@ -282,8 +314,8 @@ const Onboarding = () => {
 
                 {/* Controls */}
                 <div className="max-w-3xl mx-auto mt-10">
-                    <div className="flex items-center justify-center flex-col sm:flex-row gap-4">
-                        <div className="flex gap-3 w-full sm:w-auto">
+                    <div className="flex items-center justify-center flex-col gap-4">
+                        <div className="flex gap-3 w-full sm:w-auto justify-center">
                             <button
                                 type="button"
                                 className="btn btn-outline-primary w-full sm:w-auto"
@@ -306,8 +338,15 @@ const Onboarding = () => {
                                     selected === 'pms' ? t('onboarding.goTo.pms') : selected === 'ih' ? t('onboarding.goTo.ih') : t('onboarding.continue')
                                 )}
                             </button>
+                            <button
+                                type="button"
+                                className="btn btn-outline-secondary w-full sm:w-auto"
+                                onClick={() => navigate(modulePath(selected || lastModule || 'pms'))}
+                            >
+                                Skip for now
+                            </button>
                         </div>
-                        <div className="mt-2 sm:mt-0">
+                        <div className="mt-2 sm:mt-0 flex items-center justify-center">
                             <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 cursor-pointer">
                                 <input
                                     type="checkbox"
@@ -321,6 +360,12 @@ const Onboarding = () => {
                                 {t('onboarding.remember')}
                             </label>
                         </div>
+                    </div>
+                    {/* Centered action links under controls */}
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-3 text-center">
+                        <Link to="/onboarding?reset=1" className="underline">Reset onboarding</Link>
+                        <span className="mx-1">•</span>
+                        <Link to="/onboarding?clear=1" className="underline">Clear saved choice</Link>
                     </div>
                 </div>
             </div>
