@@ -53,13 +53,27 @@ export async function submitIdea(data: {
   expectedBenefits?: string;
   implementationNotes?: string;
 }) {
+  const headers = authHeaders();
+  console.log('[submitIdea] Headers:', headers);
+  console.log('[submitIdea] Data:', data);
+  
   const res = await fetch('/api/ideas', {
     method: 'POST',
-    headers: authHeaders(),
+    headers,
     body: JSON.stringify(data),
   });
-  if (!res.ok) throw new Error(await res.text());
-  return (await res.json()) as Idea;
+  
+  console.log('[submitIdea] Response status:', res.status);
+  
+  if (!res.ok) {
+    const errorText = await res.text();
+    console.error('[submitIdea] Error response:', errorText);
+    throw new Error(errorText);
+  }
+  
+  const result = await res.json();
+  console.log('[submitIdea] Success:', result);
+  return result as Idea;
 }
 
 export async function approveIdea(id: string, notes?: string) {
