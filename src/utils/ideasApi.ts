@@ -15,15 +15,19 @@ export type Idea = {
   promotedAt?: string | null;
   projectCode?: string | null;
   voteCount: number;
+  upvoteCount?: number;
+  downvoteCount?: number;
   viewCount: number;
   commentCount?: number;
   createdAt: string;
   updatedAt: string;
   hasVoted?: boolean;
+  userVoteType?: 'UPVOTE' | 'DOWNVOTE' | null;
   votes?: Array<{
     id: number;
     userId: number;
     userName: string;
+    voteType: 'UPVOTE' | 'DOWNVOTE';
     createdAt: string;
   }>;
 };
@@ -123,10 +127,11 @@ export async function promoteIdea(id: string, projectCode?: string) {
   return (await res.json()) as Idea;
 }
 
-export async function voteForIdea(id: string | number) {
+export async function voteForIdea(id: string | number, voteType: 'UPVOTE' | 'DOWNVOTE' = 'UPVOTE') {
   const res = await fetch(`/api/ideas/${id}/vote`, {
     method: 'POST',
     headers: authHeaders(),
+    body: JSON.stringify({ voteType }),
   });
   if (!res.ok) {
     try {

@@ -807,18 +807,91 @@ app.post('/api/ideas/:id/vote', async (req, res) => {
 	try {
 		const id = Number(req.params.id);
 		const actorId = getActingUserId(req);
+		const { voteType } = req.body || {};
 		if (!actorId) return res.status(400).json({ error: 'x-user-id header required' });
+
+		const type = voteType === 'DOWNVOTE' ? 'DOWNVOTE' : 'UPVOTE';
 
 		// Check if already voted
 		const existing = await prisma.vote.findUnique({ where: { ideaId_userId: { ideaId: id, userId: actorId } } });
-		if (existing) return res.status(400).json({ error: 'already voted' });
+		
+		if (existing) {
+			// If same vote type, treat as unvote
+			if (existing.voteType === type) {
+				return res.status(400).json({ error: 'already voted' });
+			}
+			// If different type, switch the vote
+			await prisma.$transaction([
+				prisma.vote.update({ where: { id: existing.id }, data: { voteType: type } }),
+				prisma.idea.update({
+					where: { id },
+					data: {
+						upvoteCount: type === 'UPVOTE' ? { increment: 1 } : { decrement: 1 },
+						downvoteCount: type === 'DOWNVOTE' ? { increment: 1 } : { decrement: 1 },
+						voteCount: type === 'UPVOTE' ? { increment: 2 } : { decrement: 2 } // net change of 2 when switching
+					}
+				}),
+			]);
+		} else {
+			// Create new vote
+			await prisma.$transaction([
+				prisma.vote.create({ data: { ideaId: id, userId: actorId, voteType: type } }),
+				prisma.idea.update({
+					where: { id },
+					data: {
+						voteCount: type === 'UPVOTE' ? { increment: 1 } : { decrement: 1 },
+						upvoteCount: type === 'UPVOTE' ? { increment: 1 } : undefined,
+						downvoteCount: type === 'DOWNVOTE' ? { increment: 1 } : undefined,
+					}
+				}),
+			]);
+		}
 
-		await prisma.$transaction([
-			prisma.vote.create({ data: { ideaId: id, userId: actorId } }),
-			prisma.idea.update({ where: { id }, data: { voteCount: { increment: 1 } } }),
-		]);
-		const idea = await prisma.idea.findUnique({ where: { id }, include: { submitter: true } });
-		res.json(idea);
+		const idea = await prisma.idea.findUnique({
+			where: { id },
+			include: {
+				submitter: true,
+				votes: {
+					include: {
+						user: { select: { id: true, name: true, email: true } }
+					}
+				},
+				_count: { select: { comments: true } }
+			}
+		});
+
+		const userVote = idea.votes.find(v => v.userId === actorId);
+		res.json({
+			id: idea.id,
+			title: idea.title,
+			description: idea.description,
+			category: idea.category,
+			status: idea.status,
+			submittedById: idea.submittedBy,
+			submittedBy: idea.submitter?.name || idea.submitter?.email || String(idea.submittedBy),
+			submittedAt: idea.submittedAt,
+			reviewedBy: idea.reviewedBy,
+			reviewedAt: idea.reviewedAt,
+			reviewNotes: idea.reviewNotes,
+			promotedAt: idea.promotedAt,
+			projectCode: idea.projectCode,
+			voteCount: idea.voteCount,
+			upvoteCount: idea.upvoteCount || 0,
+			downvoteCount: idea.downvoteCount || 0,
+			viewCount: idea.viewCount,
+			commentCount: idea._count?.comments || 0,
+			createdAt: idea.createdAt,
+			updatedAt: idea.updatedAt,
+			hasVoted: !!userVote,
+			userVoteType: userVote?.voteType || null,
+			votes: idea.votes.map(v => ({
+				id: v.id,
+				userId: v.userId,
+				userName: v.user.name || v.user.email,
+				voteType: v.voteType,
+				createdAt: v.createdAt
+			}))
+		});
 	} catch (err) {
 		console.error('POST /api/ideas/:id/vote error:', err);
 		res.status(500).json({ error: 'failed to vote' });
@@ -835,12 +908,64 @@ app.delete('/api/ideas/:id/vote', async (req, res) => {
 		const existing = await prisma.vote.findUnique({ where: { ideaId_userId: { ideaId: id, userId: actorId } } });
 		if (!existing) return res.status(400).json({ error: 'not voted' });
 
+		const wasUpvote = existing.voteType === 'UPVOTE';
+
 		await prisma.$transaction([
 			prisma.vote.delete({ where: { id: existing.id } }),
-			prisma.idea.update({ where: { id }, data: { voteCount: { decrement: 1 } } }),
+			prisma.idea.update({
+				where: { id },
+				data: {
+					voteCount: wasUpvote ? { decrement: 1 } : { increment: 1 },
+					upvoteCount: wasUpvote ? { decrement: 1 } : undefined,
+					downvoteCount: !wasUpvote ? { decrement: 1 } : undefined,
+				}
+			}),
 		]);
-		const idea = await prisma.idea.findUnique({ where: { id }, include: { submitter: true } });
-		res.json(idea);
+
+		const idea = await prisma.idea.findUnique({
+			where: { id },
+			include: {
+				submitter: true,
+				votes: {
+					include: {
+						user: { select: { id: true, name: true, email: true } }
+					}
+				},
+				_count: { select: { comments: true } }
+			}
+		});
+
+		res.json({
+			id: idea.id,
+			title: idea.title,
+			description: idea.description,
+			category: idea.category,
+			status: idea.status,
+			submittedById: idea.submittedBy,
+			submittedBy: idea.submitter?.name || idea.submitter?.email || String(idea.submittedBy),
+			submittedAt: idea.submittedAt,
+			reviewedBy: idea.reviewedBy,
+			reviewedAt: idea.reviewedAt,
+			reviewNotes: idea.reviewNotes,
+			promotedAt: idea.promotedAt,
+			projectCode: idea.projectCode,
+			voteCount: idea.voteCount,
+			upvoteCount: idea.upvoteCount || 0,
+			downvoteCount: idea.downvoteCount || 0,
+			viewCount: idea.viewCount,
+			commentCount: idea._count?.comments || 0,
+			createdAt: idea.createdAt,
+			updatedAt: idea.updatedAt,
+			hasVoted: false,
+			userVoteType: null,
+			votes: idea.votes.map(v => ({
+				id: v.id,
+				userId: v.userId,
+				userName: v.user.name || v.user.email,
+				voteType: v.voteType,
+				createdAt: v.createdAt
+			}))
+		});
 	} catch (err) {
 		console.error('DELETE /api/ideas/:id/vote error:', err);
 		res.status(500).json({ error: 'failed to remove vote' });
