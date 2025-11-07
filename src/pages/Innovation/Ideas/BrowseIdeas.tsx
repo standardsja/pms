@@ -85,16 +85,39 @@ const BrowseIdeas = () => {
             }
         } catch (error) {
             console.error('[BrowseIdeas] Vote error:', error);
-            const errorMessage = error instanceof Error ? error.message : 'Failed to vote';
-            Swal.fire({
-                icon: 'error',
-                title: 'Error',
-                text: errorMessage,
-                toast: true,
-                position: 'bottom-end',
-                timer: 3000,
-                showConfirmButton: false,
-            });
+            
+            // Check if it's a duplicate vote error
+            if (error instanceof Error && error.message === 'ALREADY_VOTED') {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Already Voted',
+                    text: 'You are only able to vote once per idea',
+                    toast: true,
+                    position: 'top-end',
+                    timer: 4000,
+                    showConfirmButton: false,
+                    timerProgressBar: true,
+                });
+                
+                // Update local state to reflect they've already voted
+                setIdeas(ideas.map(i => 
+                    i.id === ideaId 
+                        ? { ...i, hasVoted: true }
+                        : i
+                ));
+            } else {
+                // Generic error
+                const errorMessage = error instanceof Error ? error.message : 'Failed to vote';
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: errorMessage,
+                    toast: true,
+                    position: 'bottom-end',
+                    timer: 3000,
+                    showConfirmButton: false,
+                });
+            }
         }
     };
 

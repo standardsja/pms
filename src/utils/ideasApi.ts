@@ -112,8 +112,19 @@ export async function voteForIdea(id: string | number) {
     headers: authHeaders(),
   });
   if (!res.ok) {
-    const errorText = await res.text();
-    throw new Error(errorText);
+    try {
+      const errorJson = await res.json();
+      if (errorJson.error === 'already voted') {
+        throw new Error('ALREADY_VOTED');
+      }
+      throw new Error(errorJson.error || 'Failed to vote');
+    } catch (e) {
+      if (e instanceof Error && e.message === 'ALREADY_VOTED') {
+        throw e;
+      }
+      const errorText = await res.text();
+      throw new Error(errorText || 'Failed to vote');
+    }
   }
   return (await res.json()) as Idea;
 }
