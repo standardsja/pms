@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import { setPageTitle } from '../../../store/themeConfigSlice';
+import { fetchIdeas, voteForIdea, removeVote } from '../../../utils/ideasApi';
+import Swal from 'sweetalert2';
 
 interface Idea {
     id: string;
@@ -28,59 +30,72 @@ const BrowseIdeas = () => {
 
     useEffect(() => {
         dispatch(setPageTitle(t('innovation.browse.title')));
-        // TODO: Fetch from API
-        setIsLoading(true);
-        setTimeout(() => {
-            setIdeas([
-                {
-                    id: '1',
-                    title: 'AI-Powered Document Analysis',
-                    description: 'Implement AI to automatically analyze and categorize incoming documents, reducing manual processing time by 70%.',
-                    category: 'TECHNOLOGY',
-                    submittedBy: 'John Doe',
-                    submittedAt: '2025-11-01',
-                    voteCount: 45,
-                    hasVoted: false,
-                    viewCount: 128,
-                },
-                {
-                    id: '2',
-                    title: 'Green Energy Initiative',
-                    description: 'Install solar panels on all BSJ buildings to reduce electricity costs and carbon footprint.',
-                    category: 'SUSTAINABILITY',
-                    submittedBy: 'Jane Smith',
-                    submittedAt: '2025-11-03',
-                    voteCount: 38,
-                    hasVoted: true,
-                    viewCount: 95,
-                },
-                {
-                    id: '3',
-                    title: 'Mobile App for Standards Lookup',
-                    description: 'Create a mobile application that allows customers to quickly search and access standards on the go.',
-                    category: 'CUSTOMER_SERVICE',
-                    submittedBy: 'Bob Johnson',
-                    submittedAt: '2025-11-04',
-                    voteCount: 52,
-                    hasVoted: false,
-                    viewCount: 142,
-                },
-            ]);
-            setIsLoading(false);
-        }, 500);
-    }, [dispatch, t]);
+        loadIdeas();
+    }, [dispatch, t, sortBy]);
 
-    const handleVote = (ideaId: string) => {
-        setIdeas(ideas.map(idea => {
-            if (idea.id === ideaId) {
-                return {
-                    ...idea,
-                    hasVoted: !idea.hasVoted,
-                    voteCount: idea.hasVoted ? idea.voteCount - 1 : idea.voteCount + 1,
-                };
+    const loadIdeas = async () => {
+        setIsLoading(true);
+        try {
+            const sort = sortBy === 'popular' ? 'popularity' : 'recent';
+            const data = await fetchIdeas({ sort });
+            setIdeas(data.map(idea => ({
+                id: String(idea.id),
+                title: idea.title,
+                description: idea.description,
+                category: idea.category,
+                submittedBy: String(idea.submittedBy),
+                submittedAt: idea.submittedAt,
+                voteCount: idea.voteCount,
+                hasVoted: false, // TODO: Check if current user has voted
+                viewCount: idea.viewCount,
+            })));
+        } catch (error) {
+            console.error('[BrowseIdeas] Error loading ideas:', error);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'Failed to load ideas. Please try again.',
+            });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleVote = async (ideaId: string) => {
+        const idea = ideas.find(i => i.id === ideaId);
+        if (!idea) return;
+
+        try {
+            if (idea.hasVoted) {
+                // Remove vote
+                await removeVote(ideaId);
+                setIdeas(ideas.map(i => 
+                    i.id === ideaId 
+                        ? { ...i, hasVoted: false, voteCount: i.voteCount - 1 }
+                        : i
+                ));
+            } else {
+                // Add vote
+                await voteForIdea(ideaId);
+                setIdeas(ideas.map(i => 
+                    i.id === ideaId 
+                        ? { ...i, hasVoted: true, voteCount: i.voteCount + 1 }
+                        : i
+                ));
             }
-            return idea;
-        }));
+        } catch (error) {
+            console.error('[BrowseIdeas] Vote error:', error);
+            const errorMessage = error instanceof Error ? error.message : 'Failed to vote';
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: errorMessage,
+                toast: true,
+                position: 'bottom-end',
+                timer: 3000,
+                showConfirmButton: false,
+            });
+        }
     };
 
     const getCategoryColor = (category: string) => {

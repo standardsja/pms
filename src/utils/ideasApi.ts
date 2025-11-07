@@ -105,3 +105,33 @@ export async function promoteIdea(id: string, projectCode?: string) {
   if (!res.ok) throw new Error(await res.text());
   return (await res.json()) as Idea;
 }
+
+export async function voteForIdea(id: string | number) {
+  const res = await fetch(`/api/ideas/${id}/vote`, {
+    method: 'POST',
+    headers: authHeaders(),
+  });
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(errorText);
+  }
+  return (await res.json()) as Idea;
+}
+
+export async function removeVote(id: string | number) {
+  const res = await fetch(`/api/ideas/${id}/vote`, {
+    method: 'DELETE',
+    headers: authHeaders(),
+  });
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(errorText);
+  }
+  return (await res.json()) as Idea;
+}
+
+export async function checkIfVoted(id: string | number): Promise<boolean> {
+  // The backend doesn't have a specific endpoint for this, so we'll track it client-side
+  // or check via the votes list when fetching ideas
+  return false; // TODO: Implement proper check
+}
