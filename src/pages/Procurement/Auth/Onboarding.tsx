@@ -22,6 +22,7 @@ const Onboarding = () => {
         userRoles.includes('PROCUREMENT_MANAGER') ||
         userRoles.includes('MANAGER') ||
         userRoles.some((r) => r && r.toUpperCase().includes('MANAGER'));
+    const isRequester = !isProcurementManager && userRoles.some((r) => r && r.toUpperCase().includes('REQUEST'));
 
     const [selected, setSelected] = useState<ModuleKey | null>(null);
     const [error, setError] = useState<string>('');
@@ -82,7 +83,7 @@ const Onboarding = () => {
                 description: t('onboarding.modules.pms.description'),
                 icon: '📦',
                 gradient: 'from-blue-500 to-blue-700',
-                path: isProcurementManager ? '/procurement/manager' : '/procurement/dashboard',
+                path: isProcurementManager ? '/procurement/manager' : isRequester ? '/apps/requests' : '/procurement/dashboard',
                 features: [
                     t('onboarding.modules.pms.features.0'),
                     t('onboarding.modules.pms.features.1'),

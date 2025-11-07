@@ -47,6 +47,7 @@ const Header = () => {
         userRoles.includes('MANAGER') ||
         userRoles.some((r: string) => r && r.toUpperCase().includes('MANAGER'));
     const isProcurementOfficer = !isProcurementManager && (userRoles.includes('PROCUREMENT_OFFICER') || userRoles.includes('PROCUREMENT'));
+    const isRequester = !isProcurementManager && !isProcurementOfficer && !isCommitteeMember && userRoles.some(r => r && r.toUpperCase().includes('REQUEST'));
 
     // Determine current module based on route
     const isInnovationHub = location.pathname.startsWith('/innovation');
@@ -59,6 +60,8 @@ const Header = () => {
         ? '/innovation/dashboard'
         : isProcurementManager
         ? '/procurement/manager'
+        : isRequester
+        ? '/apps/requests'
         : '/procurement/dashboard';
     
     useEffect(() => {
@@ -198,16 +201,20 @@ const Header = () => {
                                         <IconMenuDashboard />
                                     </Link>
                                 </li>
-                                <li>
-                                    <Link to="/procurement/rfq/list" className="block p-2 rounded-full bg-white-light/40 dark:bg-dark/40 hover:text-primary hover:bg-white-light/90 dark:hover:bg-dark/60" title="RFQ Management">
-                                        <IconEdit />
-                                    </Link>
-                                </li>
-                                <li>
-                                    <Link to="/procurement/approvals" className="block p-2 rounded-full bg-white-light/40 dark:bg-dark/40 hover:text-primary hover:bg-white-light/90 dark:hover:bg-dark/60" title="Approvals">
-                                        <IconCalendar />
-                                    </Link>
-                                </li>
+                                {!isRequester && (
+                                    <>
+                                        <li>
+                                            <Link to="/procurement/rfq/list" className="block p-2 rounded-full bg-white-light/40 dark:bg-dark/40 hover:text-primary hover:bg-white-light/90 dark:hover:bg-dark/60" title="RFQ Management">
+                                                <IconEdit />
+                                            </Link>
+                                        </li>
+                                        <li>
+                                            <Link to="/procurement/approvals" className="block p-2 rounded-full bg-white-light/40 dark:bg-dark/40 hover:text-primary hover:bg-white-light/90 dark:hover:bg-dark/60" title="Approvals">
+                                                <IconCalendar />
+                                            </Link>
+                                        </li>
+                                    </>
+                                )}
                             </ul>
                         </div>
                     )}
@@ -241,7 +248,7 @@ const Header = () => {
                                             <button
                                                 type="button"
                                                 className={`w-full !py-3 hover:bg-gray-100 dark:hover:bg-gray-800 ${!isInnovationHub ? 'bg-primary/10 text-primary' : ''}`}
-                                                onClick={() => navigate(isProcurementManager ? '/procurement/manager' : '/procurement/dashboard')}
+                                                onClick={() => navigate(isProcurementManager ? '/procurement/manager' : isRequester ? '/apps/requests' : '/procurement/dashboard')}
                                             >
                                                 <div className="flex items-center gap-3 px-4">
                                                     <span className="text-2xl">📦</span>
@@ -482,7 +489,7 @@ const Header = () => {
                                                 <h4 className="text-base">
                                                     {currentUser?.name || 'User'}
                                                     <span className="text-xs bg-success-light rounded text-success px-1 ltr:ml-2 rtl:ml-2">
-                                                        {isCommitteeMember ? 'Committee' : isProcurementManager ? 'Procurement Manager' : 'Procurement Officer'}
+                                                        {isCommitteeMember ? 'Committee' : isProcurementManager ? 'Procurement Manager' : isRequester ? 'User' : 'Procurement Officer'}
                                                     </span>
                                                 </h4>
                                                 <button type="button" className="text-black/60 hover:text-primary dark:text-dark-light/60 dark:hover:text-white text-xs">

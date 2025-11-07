@@ -80,6 +80,8 @@ const Login = () => {
                 userRoles.includes('PROCUREMENT')
             ) {
                 navigate('/procurement/dashboard');
+            } else if (userRoles.some((r: string) => r && r.toUpperCase().includes('REQUEST'))) {
+                navigate('/apps/requests');
             } else {
                 // Fallback to onboarding selector
                 navigate('/onboarding');
