@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
+import Swal from 'sweetalert2';
 import { setPageTitle } from '../../../store/themeConfigSlice';
 import { useDebounce } from '../../../utils/useDebounce';
+import { fetchIdeas } from '../../../utils/ideasApi';
 
 interface Idea {
     id: string;
@@ -31,50 +33,45 @@ const ViewIdeas = () => {
 
     useEffect(() => {
         dispatch(setPageTitle(t('innovation.view.title')));
-        // Mock data
-        setIsLoading(true);
-        setTimeout(() => setIdeas([
-            {
-                id: '1',
-                title: 'AI-Powered Document Analysis',
-                description: 'Implement AI to automatically analyze and categorize incoming documents, reducing manual processing time by 70%.',
-                category: 'TECHNOLOGY',
-                submittedBy: 'John Doe',
-                submittedAt: '2025-11-01',
-                voteCount: 45,
-                hasVoted: false,
-                viewCount: 128,
-                status: 'APPROVED',
-                tags: ['AI', 'Automation', 'Efficiency'],
-            },
-            {
-                id: '2',
-                title: 'Green Energy Initiative',
-                description: 'Install solar panels on all BSJ buildings to reduce electricity costs and carbon footprint.',
-                category: 'SUSTAINABILITY',
-                submittedBy: 'Jane Smith',
-                submittedAt: '2025-11-03',
-                voteCount: 38,
-                hasVoted: true,
-                viewCount: 95,
-                status: 'UNDER_REVIEW',
-                tags: ['Green', 'Sustainability', 'Cost Savings'],
-            },
-            {
-                id: '3',
-                title: 'Mobile App for Standards Lookup',
-                description: 'Create a mobile application that allows customers to quickly search and access standards on the go.',
-                category: 'CUSTOMER_SERVICE',
-                submittedBy: 'Bob Johnson',
-                submittedAt: '2025-11-04',
-                voteCount: 52,
-                hasVoted: false,
-                viewCount: 142,
-                status: 'IMPLEMENTED',
-                tags: ['Mobile', 'Customer Service', 'Digital'],
-            },
-        ]), 400);
-        setTimeout(() => setIsLoading(false), 450);
+        
+        // Load ideas from API
+        const loadIdeas = async () => {
+            setIsLoading(true);
+            try {
+                console.log('[ViewIdeas] Fetching ideas from API...');
+                const apiIdeas = await fetchIdeas();
+                console.log('[ViewIdeas] Ideas loaded:', apiIdeas);
+                
+                setIdeas(apiIdeas.map(idea => ({
+                    id: String(idea.id),
+                    title: idea.title,
+                    description: idea.description,
+                    category: idea.category,
+                    submittedBy: idea.submittedBy || 'Unknown',
+                    submittedAt: idea.createdAt ? new Date(idea.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+                    voteCount: idea.voteCount || 0,
+                    hasVoted: false, // TODO: Track user votes
+                    viewCount: 0,
+                    status: idea.status === 'APPROVED' ? 'APPROVED' : idea.status === 'PROMOTED_TO_PROJECT' ? 'IMPLEMENTED' : 'UNDER_REVIEW',
+                    tags: [], // TODO: Add tags support
+                })));
+            } catch (error) {
+                console.error('[ViewIdeas] Error loading ideas:', error);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error loading ideas',
+                    text: error instanceof Error ? error.message : 'Failed to load ideas',
+                    toast: true,
+                    position: 'bottom-end',
+                    showConfirmButton: false,
+                    timer: 3000,
+                });
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        
+        loadIdeas();
     }, [dispatch, t]);
 
     const getCategoryColor = (category: string) => {
