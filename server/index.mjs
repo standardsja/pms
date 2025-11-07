@@ -549,18 +549,7 @@ app.get('/requests/:id/pdf', async (req, res) => {
 			.replace(/{{financeApprovalDate}}/g, financeApprovalDate)
 			.replace(/{{now}}/g, new Date().toLocaleString());
 		logPdf('html-length', html.length);
-
-			// If requested, return just the HTML for preview/debug
-			if ((req.query && (req.query.format === 'html' || req.query.view === 'html'))) {
-				res.setHeader('Content-Type', 'text/html; charset=utf-8');
-					res.setHeader('X-HTML-Length', String(html.length));
-				return res.status(200).send(html);
-			}
-
-			// Launch headless browser and render PDF
-				const t0 = Date.now();
-				const browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'] });
-				const page = await browser.newPage();
+e();
 				let pdf;
 				try {
 					await page.setContent(html, { waitUntil: 'load' });

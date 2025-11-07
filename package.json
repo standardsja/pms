@@ -8,7 +8,8 @@
         "build": "vite build && tsc",
         "prisma:seed": "node --loader ts-node/esm server/prisma/seed.ts",
         "preview": "vite preview",
-        "server:dev": "node server/index.mjs"
+        "server:dev": "node server/index.mjs",
+        "seed:ideas": "node server/seed-ideas.mjs"
     },
     "prisma": {
         "seed": "node --loader ts-node/esm server/prisma/seed.ts"
