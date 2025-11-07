@@ -18,7 +18,12 @@ export default defineConfig({
             '/api': {
                 target: 'http://localhost:4000',
                 changeOrigin: true,
-                rewrite: (path) => path.replace(/^\/api/, ''),
+                // Don't rewrite the path - keep /api prefix
+            },
+            // Proxy auth requests to the local Express server
+            '/auth': {
+                target: 'http://localhost:4000',
+                changeOrigin: true,
             },
         },
     },

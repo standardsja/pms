@@ -1,4 +1,4 @@
-import { getToken } from './auth';
+import { getToken, getUser } from './auth';
 
 export type Idea = {
   id: string;
@@ -21,8 +21,17 @@ export type Idea = {
 
 function authHeaders(): Record<string, string> {
   const token = getToken();
+  const user = getUser();
   const h: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (token) h['Authorization'] = `Bearer ${token}`;
+  
+  // Backend accepts either x-user-id or Authorization: Bearer <id>
+  if (user?.id) {
+    h['x-user-id'] = user.id;
+  }
+  if (token) {
+    h['Authorization'] = `Bearer ${token}`;
+  }
+  
   return h;
 }
 
@@ -35,6 +44,22 @@ export async function fetchIdeas(params?: { status?: string; sort?: string }) {
   });
   if (!res.ok) throw new Error(await res.text());
   return (await res.json()) as Idea[];
+}
+
+export async function submitIdea(data: {
+  title: string;
+  description: string;
+  category: string;
+  expectedBenefits?: string;
+  implementationNotes?: string;
+}) {
+  const res = await fetch('/api/ideas', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return (await res.json()) as Idea;
 }
 
 export async function approveIdea(id: string, notes?: string) {

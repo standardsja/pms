@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { setPageTitle } from '../../../store/themeConfigSlice';
 import Swal from 'sweetalert2';
 import { useAutoSave, restoreAutoSave, clearAutoSave } from '../../../utils/useAutoSave';
+import { submitIdea } from '../../../utils/ideasApi';
 
 const SubmitIdea = () => {
     const dispatch = useDispatch();
@@ -78,8 +79,14 @@ const SubmitIdea = () => {
         setIsLoading(true);
 
         try {
-            // TODO: Replace with real API call
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            // Submit the idea to the API
+            await submitIdea({
+                title: formData.title,
+                description: formData.description,
+                category: formData.category,
+                expectedBenefits: formData.expectedBenefits,
+                implementationNotes: formData.implementationNotes,
+            });
 
             Swal.fire({
                 icon: 'success',
@@ -93,10 +100,11 @@ const SubmitIdea = () => {
             });
             clearAutoSave('ideaDraft');
         } catch (error) {
+            console.error('Error submitting idea:', error);
             Swal.fire({
                 icon: 'error',
                 title: t('innovation.submit.error.title'),
-                text: t('innovation.submit.error.message'),
+                text: error instanceof Error ? error.message : t('innovation.submit.error.message'),
             });
         } finally {
             setIsLoading(false);

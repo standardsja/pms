@@ -165,13 +165,11 @@ app.post('/auth/test-login', async (req, res) => {
 	}
 });
 
-// Real login endpoint: POST /auth/login { email, password }
-// Validates passwordHash and returns normalized user payload
-app.post('/auth/login', async (req, res) => {
+// Shared login handler logic so we can mount on both /auth/login and /api/auth/login
+async function handleLogin(req, res) {
 	const { email, password } = req.body || {};
 	if (!email || !password) return res.status(400).json({ error: 'email and password required' });
 
-	// Fallback static users (in-memory) for when database is unreachable
 	const fallbackUsers = {
 		'test1@bsj.gov.jm': { password: 'Passw0rd!', name: 'Test User 1', role: 'USER' },
 		'test2@bsj.gov.jm': { password: 'Passw0rd!', name: 'Test User 2', role: 'USER' },
@@ -181,7 +179,6 @@ app.post('/auth/login', async (req, res) => {
 	try {
 		const user = await prisma.user.findUnique({ where: { email } });
 		if (!user || !user.passwordHash) {
-			// Try fallback static users if DB record missing
 			const fb = fallbackUsers[email];
 			if (fb && fb.password === password) {
 				return res.json({ token: 'demo-token', user: { id: `fb-${email}`, email, name: fb.name, department: null, roles: [fb.role] } });
@@ -194,7 +191,6 @@ app.post('/auth/login', async (req, res) => {
 		const roles = userRoles.map(ur => ur.role?.name).filter(Boolean);
 		return res.json({ token: 'demo-token', user: { id: user.id, email: user.email, name: user.name, department: null, roles } });
 	} catch (err) {
-		// If database unreachable, attempt fallback static users
 		console.error('[auth/login] error, attempting fallback', err);
 		const fb = fallbackUsers[email];
 		if (fb && fb.password === password) {
@@ -202,7 +198,11 @@ app.post('/auth/login', async (req, res) => {
 		}
 		return res.status(500).json({ error: 'server error' });
 	}
-});
+}
+
+// Mount legacy and API-prefixed routes for compatibility with frontend calls
+app.post('/auth/login', handleLogin);
+app.post('/api/auth/login', handleLogin);
 
 // Debug endpoint to verify stored user and password hash presence
 app.get('/auth/debug', async (req, res) => {
