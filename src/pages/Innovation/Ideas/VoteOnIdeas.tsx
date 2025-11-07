@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import Swal from 'sweetalert2';
 import { setPageTitle } from '../../../store/themeConfigSlice';
 import { getUser } from '../../../utils/auth';
+import { fetchIdeas, voteForIdea, removeVote } from '../../../utils/ideasApi';
 
 interface Idea {
     id: string;
@@ -33,138 +34,168 @@ const VoteOnIdeas = () => {
     const [voteAnimation, setVoteAnimation] = useState<string | null>(null);
 
     useEffect(() => {
-    if (isCommittee) {
+        if (isCommittee) {
             // Committee members don't need voting; redirect them to their dashboard
             navigate('/innovation/committee/dashboard', { replace: true });
             return;
         }
-    dispatch(setPageTitle(t('innovation.vote.title')));
-        // Mock data
-        setIdeas([
-            {
-                id: '1',
-                title: 'AI-Powered Document Analysis',
-                description: 'Implement AI to automatically analyze and categorize incoming documents, reducing manual processing time by 70%. This will streamline our workflow significantly.',
-                category: 'TECHNOLOGY',
-                submittedBy: 'John Doe',
-                submittedAt: '2025-11-01',
-                upvotes: 45,
-                downvotes: 3,
-                voteCount: 42,
-                hasVoted: null,
-                viewCount: 128,
-                trendingScore: 92,
-            },
-            {
-                id: '2',
-                title: 'Green Energy Initiative',
-                description: 'Install solar panels on all BSJ buildings to reduce electricity costs and carbon footprint. This is a sustainable long-term investment.',
-                category: 'SUSTAINABILITY',
-                submittedBy: 'Jane Smith',
-                submittedAt: '2025-11-03',
-                upvotes: 38,
-                downvotes: 5,
-                voteCount: 33,
-                hasVoted: 'up',
-                viewCount: 95,
-                trendingScore: 85,
-            },
-            {
-                id: '3',
-                title: 'Mobile App for Standards Lookup',
-                description: 'Create a mobile application that allows customers to quickly search and access standards on the go. Improve customer experience dramatically.',
-                category: 'CUSTOMER_SERVICE',
-                submittedBy: 'Bob Johnson',
-                submittedAt: '2025-11-04',
-                upvotes: 52,
-                downvotes: 2,
-                voteCount: 50,
-                hasVoted: null,
-                viewCount: 142,
-                trendingScore: 95,
-            },
-            {
-                id: '4',
-                title: 'Automated Meeting Scheduler',
-                description: 'Develop an intelligent system that automatically schedules meetings based on participant availability and preferences.',
-                category: 'PROCESS_IMPROVEMENT',
-                submittedBy: 'Alice Brown',
-                submittedAt: '2025-11-05',
-                upvotes: 28,
-                downvotes: 8,
-                voteCount: 20,
-                hasVoted: null,
-                viewCount: 67,
-                trendingScore: 78,
-            },
-        ]);
+        dispatch(setPageTitle(t('innovation.vote.title')));
+        
+        // Load ideas from API
+        const loadIdeas = async () => {
+            try {
+                console.log('[VoteOnIdeas] Fetching ideas from API...');
+                const apiIdeas = await fetchIdeas();
+                console.log('[VoteOnIdeas] Ideas loaded:', apiIdeas);
+                
+                setIdeas(apiIdeas.map(idea => ({
+                    id: String(idea.id),
+                    title: idea.title,
+                    description: idea.description,
+                    category: idea.category,
+                    submittedBy: idea.submittedBy || 'Unknown',
+                    submittedAt: idea.createdAt ? new Date(idea.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+                    upvotes: idea.voteCount || 0,
+                    downvotes: 0,
+                    voteCount: idea.voteCount || 0,
+                    hasVoted: null, // TODO: Track user votes
+                    viewCount: 0,
+                    trendingScore: idea.voteCount || 0,
+                })));
+            } catch (error) {
+                console.error('[VoteOnIdeas] Error loading ideas:', error);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error loading ideas',
+                    text: error instanceof Error ? error.message : 'Failed to load ideas',
+                    toast: true,
+                    position: 'bottom-end',
+                    showConfirmButton: false,
+                    timer: 3000,
+                });
+            }
+        };
+        
+        loadIdeas();
     }, [dispatch, t, isCommittee, navigate]);
 
-    const handleVote = (ideaId: string, voteType: 'up' | 'down') => {
+    const handleVote = async (ideaId: string, voteType: 'up' | 'down') => {
+        // For now, we only support simple up/down toggle (backend has voteCount only)
+        // This frontend has up/down but backend is simpler
+        const idea = ideas.find(i => i.id === ideaId);
+        if (!idea) return;
+
         setVoteAnimation(ideaId);
         setTimeout(() => setVoteAnimation(null), 600);
-        const target = ideas.find(i => i.id === ideaId);
-        const previous = target?.hasVoted ?? null;
 
-        setIdeas(ideas.map(idea => {
-            if (idea.id === ideaId) {
-                let newUpvotes = idea.upvotes;
-                let newDownvotes = idea.downvotes;
-                let newHasVoted: 'up' | 'down' | null = voteType;
-
-                // If clicking the same vote type, remove the vote
-                if (idea.hasVoted === voteType) {
-                    newHasVoted = null;
-                    if (voteType === 'up') {
-                        newUpvotes--;
-                    } else {
-                        newDownvotes--;
+        try {
+            // If user already voted this way, remove it
+            if (idea.hasVoted === voteType) {
+                await removeVote(ideaId);
+                setIdeas(ideas.map(i => {
+                    if (i.id === ideaId) {
+                        const newUpvotes = voteType === 'up' ? i.upvotes - 1 : i.upvotes;
+                        const newDownvotes = voteType === 'down' ? i.downvotes - 1 : i.downvotes;
+                        return {
+                            ...i,
+                            upvotes: newUpvotes,
+                            downvotes: newDownvotes,
+                            voteCount: newUpvotes - newDownvotes,
+                            hasVoted: null,
+                        };
                     }
-                } else {
-                    // If switching vote type, remove old vote and add new one
-                    if (idea.hasVoted === 'up') {
-                        newUpvotes--;
-                    } else if (idea.hasVoted === 'down') {
-                        newDownvotes--;
+                    return i;
+                }));
+                
+                void Swal.fire({
+                    toast: true,
+                    position: 'bottom-end',
+                    showConfirmButton: false,
+                    timer: 1500,
+                    icon: 'info',
+                    title: voteType === 'up' 
+                        ? t('innovation.vote.actions.removeUpvote')
+                        : t('innovation.vote.actions.removeDownvote'),
+                });
+            } else {
+                // Add or switch vote
+                await voteForIdea(ideaId);
+                setIdeas(ideas.map(i => {
+                    if (i.id === ideaId) {
+                        let newUpvotes = i.upvotes;
+                        let newDownvotes = i.downvotes;
+                        
+                        // Remove previous vote if switching
+                        if (i.hasVoted === 'up') {
+                            newUpvotes--;
+                        } else if (i.hasVoted === 'down') {
+                            newDownvotes--;
+                        }
+                        
+                        // Add new vote
+                        if (voteType === 'up') {
+                            newUpvotes++;
+                        } else {
+                            newDownvotes++;
+                        }
+                        
+                        return {
+                            ...i,
+                            upvotes: newUpvotes,
+                            downvotes: newDownvotes,
+                            voteCount: newUpvotes - newDownvotes,
+                            hasVoted: voteType,
+                        };
                     }
-                    
-                    if (voteType === 'up') {
-                        newUpvotes++;
-                    } else {
-                        newDownvotes++;
-                    }
-                }
-
-                return {
-                    ...idea,
-                    upvotes: newUpvotes,
-                    downvotes: newDownvotes,
-                    voteCount: newUpvotes - newDownvotes,
-                    hasVoted: newHasVoted,
-                };
+                    return i;
+                }));
+                
+                void Swal.fire({
+                    toast: true,
+                    position: 'bottom-end',
+                    showConfirmButton: false,
+                    timer: 1500,
+                    icon: 'success',
+                    title: voteType === 'up'
+                        ? t('innovation.vote.actions.upvote')
+                        : t('innovation.vote.actions.downvote'),
+                });
             }
-            return idea;
-        }));
-
-        // Toast feedback (upvote/downvote/removed/switch)
-        const isRemoving = previous === voteType;
-        const switched = !!previous && previous !== voteType;
-        const title = isRemoving
-            ? voteType === 'up'
-                ? t('innovation.vote.actions.removeUpvote')
-                : t('innovation.vote.actions.removeDownvote')
-            : voteType === 'up'
-            ? t('innovation.vote.actions.upvote')
-            : t('innovation.vote.actions.downvote');
-        const icon: 'success' | 'info' = isRemoving ? 'info' : 'success';
-        void Swal.fire({
-            toast: true,
-            position: 'bottom-end',
-            showConfirmButton: false,
-            timer: 1500,
-            icon,
-            title,
-        });
+        } catch (error) {
+            console.error('[VoteOnIdeas] Error voting:', error);
+            
+            // Check if it's a duplicate vote error
+            if (error instanceof Error && error.message === 'ALREADY_VOTED') {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Already Voted',
+                    text: 'You are only able to vote once per idea',
+                    toast: true,
+                    position: 'top-end',
+                    timer: 4000,
+                    showConfirmButton: false,
+                    timerProgressBar: true,
+                });
+                
+                // Update local state to reflect they've already voted
+                setIdeas(ideas.map(i => 
+                    i.id === ideaId 
+                        ? { ...i, hasVoted: voteType }
+                        : i
+                ));
+            } else {
+                // Generic error
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: error instanceof Error ? error.message : 'Failed to vote',
+                    toast: true,
+                    position: 'bottom-end',
+                    showConfirmButton: false,
+                    timer: 3000,
+                });
+            }
+        }
     };
 
     const getCategoryIcon = (category: string) => {

@@ -4,6 +4,8 @@ import { useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import Swal from 'sweetalert2';
 import { setPageTitle } from '../../../store/themeConfigSlice';
+import { fetchIdeas, Idea } from '../../../utils/ideasApi';
+import { getUser } from '../../../utils/auth';
 
 interface MyIdea {
     id: string;
@@ -14,7 +16,7 @@ interface MyIdea {
     voteCount: number;
     viewCount: number;
     commentCount: number;
-    status: 'DRAFT' | 'PENDING' | 'APPROVED' | 'UNDER_REVIEW' | 'IMPLEMENTED' | 'REJECTED';
+    status: 'DRAFT' | 'PENDING_REVIEW' | 'APPROVED' | 'UNDER_REVIEW' | 'IMPLEMENTED' | 'REJECTED' | 'PROMOTED_TO_PROJECT';
     feedback?: string;
     comments?: IdeaComment[];
 }
@@ -31,81 +33,59 @@ const MyIdeas = () => {
     const dispatch = useDispatch();
     const { t } = useTranslation();
     const navigate = useNavigate();
+    const currentUser = getUser();
     const [ideas, setIdeas] = useState<MyIdea[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
     const [filterStatus, setFilterStatus] = useState<string>('all');
     const [expanded, setExpanded] = useState<Record<string, boolean>>({});
     const [newComment, setNewComment] = useState<Record<string, string>>({});
 
     useEffect(() => {
         dispatch(setPageTitle(t('innovation.myIdeas.title')));
-        // Mock data
-        setIdeas([
-            {
-                id: '1',
-                title: 'AI-Powered Document Analysis',
-                description: 'Implement AI to automatically analyze and categorize incoming documents, reducing manual processing time by 70%.',
-                category: 'TECHNOLOGY',
-                submittedAt: '2025-11-01',
-                voteCount: 45,
-                viewCount: 128,
-                commentCount: 12,
-                status: 'APPROVED',
-                feedback: 'Great idea! The committee is very interested. We\'re moving forward with a pilot program.',
-                comments: [
-                    { id: 'c1', author: 'Innovation Committee', text: 'Please outline the data privacy controls you envision.', createdAt: '2025-11-02', isCommittee: true },
-                    { id: 'c2', author: 'Jane Smith', text: 'Love this! Could we pilot it in one department first?', createdAt: '2025-11-03' },
-                ],
-            },
-            {
-                id: '2',
-                title: 'Employee Wellness Program',
-                description: 'Introduce a comprehensive wellness program including fitness classes, mental health support, and healthy cafeteria options.',
-                category: 'SUSTAINABILITY',
-                submittedAt: '2025-10-28',
-                voteCount: 23,
-                viewCount: 67,
-                commentCount: 8,
-                status: 'UNDER_REVIEW',
-                comments: [
-                    { id: 'c3', author: 'Committee Reviewer', text: 'What budget range are you anticipating?', createdAt: '2025-10-29', isCommittee: true },
-                ],
-            },
-            {
-                id: '3',
-                title: 'Automated Report Generation',
-                description: 'Create automated monthly reports to save time and reduce errors in data compilation.',
-                category: 'PROCESS_IMPROVEMENT',
-                submittedAt: '2025-10-15',
-                voteCount: 18,
-                viewCount: 45,
-                commentCount: 5,
-                status: 'IMPLEMENTED',
-                feedback: 'Successfully implemented! This has reduced report generation time by 60%.',
-                comments: [
-                    { id: 'c4', author: 'Ops Lead', text: 'The rollout was smooth, thanks team!', createdAt: '2025-10-20' },
-                ],
-            },
-            {
-                id: '4',
-                title: 'Customer Portal Redesign',
-                description: 'Modernize the customer portal with improved UX and mobile responsiveness.',
-                category: 'CUSTOMER_SERVICE',
-                submittedAt: '2025-11-02',
-                voteCount: 8,
-                viewCount: 24,
-                commentCount: 2,
-                status: 'PENDING',
-                comments: [
-                    { id: 'c5', author: 'Design Team', text: 'We can share wireframes next week.', createdAt: '2025-11-03' },
-                ],
-            },
-        ]);
+        loadMyIdeas();
     }, [dispatch, t]);
+
+    const loadMyIdeas = async () => {
+        setIsLoading(false);
+        try {
+            console.log('[MyIdeas] Fetching ideas for user:', currentUser?.id);
+            const allIdeas = await fetchIdeas();
+            
+            // Filter to show only current user's ideas
+            const myIdeas = allIdeas
+                .filter(idea => String(idea.submittedBy) === String(currentUser?.id))
+                .map(idea => ({
+                    id: String(idea.id),
+                    title: idea.title,
+                    description: idea.description,
+                    category: idea.category,
+                    submittedAt: idea.submittedAt,
+                    voteCount: idea.voteCount,
+                    viewCount: idea.viewCount,
+                    commentCount: 0, // TODO: fetch comment count
+                    status: idea.status as any,
+                    feedback: idea.reviewNotes || undefined,
+                    comments: [], // TODO: fetch comments
+                }));
+            
+            console.log('[MyIdeas] Loaded ideas:', myIdeas.length);
+            setIdeas(myIdeas);
+        } catch (error) {
+            console.error('[MyIdeas] Error loading ideas:', error);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'Failed to load your ideas. Please try again.',
+            });
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     const getStatusConfig = (status: string) => {
         const configs: Record<string, { color: string; icon: string; bg: string; label: string }> = {
             DRAFT: { color: 'text-gray-600', icon: '📝', bg: 'bg-gray-100 dark:bg-gray-800', label: t('innovation.myIdeas.status.draft') },
-            PENDING: { color: 'text-blue-600', icon: '⏰', bg: 'bg-blue-100 dark:bg-blue-900', label: t('innovation.myIdeas.status.pending') },
+            PENDING_REVIEW: { color: 'text-blue-600', icon: '⏰', bg: 'bg-blue-100 dark:bg-blue-900', label: t('innovation.myIdeas.status.pending') },
             UNDER_REVIEW: { color: 'text-yellow-600', icon: '🔍', bg: 'bg-yellow-100 dark:bg-yellow-900', label: t('innovation.myIdeas.status.underReview') },
             APPROVED: { color: 'text-green-600', icon: '✅', bg: 'bg-green-100 dark:bg-green-900', label: t('innovation.myIdeas.status.approved') },
             IMPLEMENTED: { color: 'text-purple-600', icon: '🎉', bg: 'bg-purple-100 dark:bg-purple-900', label: t('innovation.myIdeas.status.implemented') },
@@ -147,7 +127,7 @@ const MyIdeas = () => {
         total: ideas.length,
         approved: ideas.filter(i => i.status === 'APPROVED').length,
         implemented: ideas.filter(i => i.status === 'IMPLEMENTED').length,
-        pending: ideas.filter(i => i.status === 'PENDING' || i.status === 'UNDER_REVIEW').length,
+        pending: ideas.filter(i => i.status === 'PENDING_REVIEW' || i.status === 'UNDER_REVIEW').length,
         totalVotes: ideas.reduce((sum, i) => sum + i.voteCount, 0),
         totalViews: ideas.reduce((sum, i) => sum + i.viewCount, 0),
     };
@@ -225,7 +205,7 @@ const MyIdeas = () => {
             {/* Filters */}
             <div className="flex items-center gap-3 flex-wrap">
                 <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{t('innovation.myIdeas.filters.status')}</span>
-                {['all', 'PENDING', 'UNDER_REVIEW', 'APPROVED', 'IMPLEMENTED'].map((status) => (
+                {['all', 'PENDING_REVIEW', 'UNDER_REVIEW', 'APPROVED', 'IMPLEMENTED'].map((status) => (
                     <button
                         key={status}
                         onClick={() => setFilterStatus(status)}
