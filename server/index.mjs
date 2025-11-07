@@ -466,6 +466,273 @@ app.post('/requests/:id/action', async (req, res) => {
 	}
 });
 
+// ========================
+// INNOVATION HUB API ROUTES
+// ========================
+
+// GET /api/ideas - List ideas with optional filters
+app.get('/api/ideas', async (req, res) => {
+	try {
+		const { status, sort } = req.query;
+		const where = {};
+		if (status) where.status = String(status);
+
+		let orderBy = { createdAt: 'desc' };
+		if (sort === 'votes') orderBy = { voteCount: 'desc' };
+		if (sort === 'recent') orderBy = { createdAt: 'desc' };
+
+		const ideas = await prisma.idea.findMany({
+			where,
+			orderBy,
+			include: {
+				submitter: { select: { id: true, name: true, email: true } },
+				votes: { select: { userId: true } },
+			},
+		});
+
+		res.json(ideas);
+	} catch (err) {
+		console.error('[GET /api/ideas] Error:', err);
+		res.status(500).json({ error: String(err) });
+	}
+});
+
+// POST /api/ideas - Submit a new idea
+app.post('/api/ideas', async (req, res) => {
+	try {
+		const actorId = getActingUserId(req);
+		if (!actorId) {
+			return res.status(401).json({ error: 'Authentication required (x-user-id header)' });
+		}
+
+		const { title, description, category, expectedBenefits, implementationNotes } = req.body;
+		
+		if (!title || !description || !category) {
+			return res.status(400).json({ error: 'title, description, and category are required' });
+		}
+
+		// Verify user exists
+		const user = await prisma.user.findUnique({ where: { id: actorId } });
+		if (!user) {
+			return res.status(404).json({ error: 'User not found' });
+		}
+
+		const idea = await prisma.idea.create({
+			data: {
+				title,
+				description,
+				category,
+				status: 'PENDING_REVIEW',
+				submittedBy: actorId,
+				submittedAt: new Date(),
+			},
+			include: {
+				submitter: { select: { id: true, name: true, email: true } },
+				votes: true,
+			},
+		});
+
+		res.status(201).json(idea);
+	} catch (err) {
+		console.error('[POST /api/ideas] Error:', err);
+		res.status(500).json({ error: String(err) });
+	}
+});
+
+// POST /api/ideas/:id/approve - Approve an idea
+app.post('/api/ideas/:id/approve', async (req, res) => {
+	try {
+		const actorId = getActingUserId(req);
+		if (!actorId) {
+			return res.status(401).json({ error: 'Authentication required' });
+		}
+
+		const id = Number(req.params.id);
+		const { notes } = req.body;
+
+		const idea = await prisma.idea.update({
+			where: { id },
+			data: {
+				status: 'APPROVED',
+				reviewedBy: actorId,
+				reviewedAt: new Date(),
+				reviewNotes: notes || null,
+			},
+			include: {
+				submitter: { select: { id: true, name: true, email: true } },
+				votes: true,
+			},
+		});
+
+		res.json(idea);
+	} catch (err) {
+		console.error('[POST /api/ideas/:id/approve] Error:', err);
+		res.status(500).json({ error: String(err) });
+	}
+});
+
+// POST /api/ideas/:id/reject - Reject an idea
+app.post('/api/ideas/:id/reject', async (req, res) => {
+	try {
+		const actorId = getActingUserId(req);
+		if (!actorId) {
+			return res.status(401).json({ error: 'Authentication required' });
+		}
+
+		const id = Number(req.params.id);
+		const { notes } = req.body;
+
+		const idea = await prisma.idea.update({
+			where: { id },
+			data: {
+				status: 'REJECTED',
+				reviewedBy: actorId,
+				reviewedAt: new Date(),
+				reviewNotes: notes || 'Rejected by reviewer',
+			},
+			include: {
+				submitter: { select: { id: true, name: true, email: true } },
+				votes: true,
+			},
+		});
+
+		res.json(idea);
+	} catch (err) {
+		console.error('[POST /api/ideas/:id/reject] Error:', err);
+		res.status(500).json({ error: String(err) });
+	}
+});
+
+// POST /api/ideas/:id/promote - Promote idea to project
+app.post('/api/ideas/:id/promote', async (req, res) => {
+	try {
+		const actorId = getActingUserId(req);
+		if (!actorId) {
+			return res.status(401).json({ error: 'Authentication required' });
+		}
+
+		const id = Number(req.params.id);
+		const { projectCode } = req.body;
+
+		const idea = await prisma.idea.update({
+			where: { id },
+			data: {
+				status: 'PROMOTED_TO_PROJECT',
+				promotedAt: new Date(),
+				projectCode: projectCode || `PROJ-${Date.now()}`,
+			},
+			include: {
+				submitter: { select: { id: true, name: true, email: true } },
+				votes: true,
+			},
+		});
+
+		res.json(idea);
+	} catch (err) {
+		console.error('[POST /api/ideas/:id/promote] Error:', err);
+		res.status(500).json({ error: String(err) });
+	}
+});
+
+// POST /api/ideas/:id/vote - Vote for an idea
+app.post('/api/ideas/:id/vote', async (req, res) => {
+	try {
+		const actorId = getActingUserId(req);
+		if (!actorId) {
+			return res.status(401).json({ error: 'Authentication required' });
+		}
+
+		const id = Number(req.params.id);
+
+		// Verify user exists
+		const user = await prisma.user.findUnique({ where: { id: actorId } });
+		if (!user) {
+			return res.status(404).json({ error: 'User not found' });
+		}
+
+		// Check if already voted
+		const existingVote = await prisma.vote.findUnique({
+			where: {
+				ideaId_userId: {
+					ideaId: id,
+					userId: actorId,
+				},
+			},
+		});
+
+		if (existingVote) {
+			return res.status(400).json({ error: 'already voted' });
+		}
+
+		// Create vote and increment voteCount
+		await prisma.vote.create({
+			data: {
+				ideaId: id,
+				userId: actorId,
+			},
+		});
+
+		const idea = await prisma.idea.update({
+			where: { id },
+			data: {
+				voteCount: { increment: 1 },
+			},
+			include: {
+				submitter: { select: { id: true, name: true, email: true } },
+				votes: true,
+			},
+		});
+
+		res.json(idea);
+	} catch (err) {
+		console.error('[POST /api/ideas/:id/vote] Error:', err);
+		res.status(500).json({ error: String(err) });
+	}
+});
+
+// DELETE /api/ideas/:id/vote - Remove vote from an idea
+app.delete('/api/ideas/:id/vote', async (req, res) => {
+	try {
+		const actorId = getActingUserId(req);
+		if (!actorId) {
+			return res.status(401).json({ error: 'Authentication required' });
+		}
+
+		const id = Number(req.params.id);
+
+		// Delete vote
+		await prisma.vote.delete({
+			where: {
+				ideaId_userId: {
+					ideaId: id,
+					userId: actorId,
+				},
+			},
+		});
+
+		// Decrement voteCount
+		const idea = await prisma.idea.update({
+			where: { id },
+			data: {
+				voteCount: { decrement: 1 },
+			},
+			include: {
+				submitter: { select: { id: true, name: true, email: true } },
+				votes: true,
+			},
+		});
+
+		res.json(idea);
+	} catch (err) {
+		console.error('[DELETE /api/ideas/:id/vote] Error:', err);
+		res.status(500).json({ error: String(err) });
+	}
+});
+
+// ========================
+// END INNOVATION HUB ROUTES
+// ========================
+
 app.get('/', (req, res) => res.json({ ok: true }));
 
 // Generate a PDF representation of a request
