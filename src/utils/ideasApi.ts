@@ -7,6 +7,7 @@ export type Idea = {
   category: string;
   status: 'DRAFT' | 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED' | 'PROMOTED_TO_PROJECT';
   submittedBy: string;
+  submittedById?: number;
   submittedAt: string;
   reviewedBy?: string | null;
   reviewedAt?: string | null;
@@ -15,8 +16,16 @@ export type Idea = {
   projectCode?: string | null;
   voteCount: number;
   viewCount: number;
+  commentCount?: number;
   createdAt: string;
   updatedAt: string;
+  hasVoted?: boolean;
+  votes?: Array<{
+    id: number;
+    userId: number;
+    userName: string;
+    createdAt: string;
+  }>;
 };
 
 function authHeaders(): Record<string, string> {
@@ -44,6 +53,14 @@ export async function fetchIdeas(params?: { status?: string; sort?: string }) {
   });
   if (!res.ok) throw new Error(await res.text());
   return (await res.json()) as Idea[];
+}
+
+export async function fetchIdeaById(id: string | number): Promise<Idea> {
+  const res = await fetch(`/api/ideas/${id}`, {
+    headers: authHeaders(),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return (await res.json()) as Idea;
 }
 
 export async function submitIdea(data: {
@@ -142,7 +159,10 @@ export async function removeVote(id: string | number) {
 }
 
 export async function checkIfVoted(id: string | number): Promise<boolean> {
-  // The backend doesn't have a specific endpoint for this, so we'll track it client-side
-  // or check via the votes list when fetching ideas
-  return false; // TODO: Implement proper check
+  try {
+    const idea = await fetchIdeaById(id);
+    return idea.hasVoted || false;
+  } catch {
+    return false;
+  }
 }

@@ -580,6 +580,266 @@ e();
 	}
 });
 
+// ============================================
+// INNOVATION HUB API ROUTES
+// ============================================
+
+// Get all ideas with optional filtering
+app.get('/api/ideas', async (req, res) => {
+	try {
+		const { status, sort } = req.query || {};
+		const where = {};
+		if (status) where.status = String(status);
+		const orderBy = sort === 'popular' ? { voteCount: 'desc' } : { createdAt: 'desc' };
+
+		const ideas = await prisma.idea.findMany({
+			where,
+			orderBy,
+			include: { submitter: true, _count: { select: { comments: true } } },
+		});
+
+		const payload = ideas.map((i) => ({
+			id: i.id,
+			title: i.title,
+			description: i.description,
+			category: i.category,
+			status: i.status,
+			// Include both submittedById (numeric) and submittedBy (display string) so the frontend can filter reliably
+			submittedById: i.submittedBy,
+			submittedBy: i.submitter?.name || i.submitter?.email || String(i.submittedBy),
+			submittedAt: i.submittedAt,
+			reviewedBy: i.reviewedBy,
+			reviewedAt: i.reviewedAt,
+			reviewNotes: i.reviewNotes,
+			promotedAt: i.promotedAt,
+			projectCode: i.projectCode,
+			voteCount: i.voteCount,
+			viewCount: i.viewCount,
+			commentCount: i._count?.comments || 0,
+			createdAt: i.createdAt,
+			updatedAt: i.updatedAt,
+		}));
+
+		res.json(payload);
+	} catch (err) {
+		console.error('GET /api/ideas error:', err);
+		res.status(500).json({ error: 'failed to fetch ideas' });
+	}
+});
+
+// Get a single idea by ID with votes
+app.get('/api/ideas/:id', async (req, res) => {
+	try {
+		const id = Number(req.params.id);
+		const actorId = getActingUserId(req);
+
+		const idea = await prisma.idea.findUnique({
+			where: { id },
+			include: {
+				submitter: true,
+				votes: {
+					include: {
+						user: {
+							select: { id: true, name: true, email: true }
+						}
+					}
+				}
+			,
+			_count: { select: { comments: true } }
+			},
+		});
+
+		if (!idea) {
+			return res.status(404).json({ error: 'idea not found' });
+		}
+
+		// Increment view count
+		await prisma.idea.update({
+			where: { id },
+			data: { viewCount: { increment: 1 } }
+		});
+
+		// Check if current user has voted
+		const hasVoted = actorId ? idea.votes.some(v => v.userId === actorId) : false;
+
+		const payload = {
+			id: idea.id,
+			title: idea.title,
+			description: idea.description,
+			category: idea.category,
+			status: idea.status,
+			submittedById: idea.submittedBy,
+			submittedBy: idea.submitter?.name || idea.submitter?.email || String(idea.submittedBy),
+			submittedAt: idea.submittedAt,
+			reviewedBy: idea.reviewedBy,
+			reviewedAt: idea.reviewedAt,
+			reviewNotes: idea.reviewNotes,
+			promotedAt: idea.promotedAt,
+			projectCode: idea.projectCode,
+			voteCount: idea.voteCount,
+			viewCount: idea.viewCount + 1, // Return incremented count
+			commentCount: idea._count?.comments || 0,
+			createdAt: idea.createdAt,
+			updatedAt: idea.updatedAt,
+			hasVoted,
+			votes: idea.votes.map(v => ({
+				id: v.id,
+				userId: v.userId,
+				userName: v.user.name || v.user.email,
+				createdAt: v.createdAt
+			}))
+		};
+
+		res.json(payload);
+	} catch (err) {
+		console.error('GET /api/ideas/:id error:', err);
+		res.status(500).json({ error: 'failed to fetch idea' });
+	}
+});
+
+// Submit a new idea
+app.post('/api/ideas', async (req, res) => {
+	try {
+		const actorId = getActingUserId(req);
+		const { title, description, category, expectedBenefits, implementationNotes } = req.body || {};
+		if (!actorId) return res.status(400).json({ error: 'x-user-id header required' });
+		if (!title || !description) return res.status(400).json({ error: 'title and description are required' });
+
+		// Validate category against enum values; default to OTHER if invalid
+		const validCategories = new Set(['PROCESS_IMPROVEMENT','TECHNOLOGY','CUSTOMER_SERVICE','SUSTAINABILITY','COST_REDUCTION','PRODUCT_INNOVATION','OTHER']);
+		const cat = validCategories.has(String(category)) ? String(category) : 'OTHER';
+
+		const idea = await prisma.idea.create({
+			data: {
+				title,
+				description,
+				category: cat,
+				submittedBy: actorId,
+				status: 'PENDING_REVIEW',
+			},
+			include: { submitter: true }
+		});
+
+		res.json({
+			id: idea.id,
+			title: idea.title,
+			description: idea.description,
+			category: idea.category,
+			status: idea.status,
+			submittedBy: idea.submitter?.name || idea.submitter?.email || String(idea.submittedBy),
+			submittedAt: idea.submittedAt,
+			voteCount: idea.voteCount,
+			viewCount: idea.viewCount,
+			createdAt: idea.createdAt,
+			updatedAt: idea.updatedAt,
+		});
+	} catch (err) {
+		console.error('POST /api/ideas error:', err);
+		res.status(500).json({ error: 'failed to create idea' });
+	}
+});
+
+// Approve an idea
+app.post('/api/ideas/:id/approve', async (req, res) => {
+	try {
+		const id = Number(req.params.id);
+		const actorId = getActingUserId(req);
+		const { notes } = req.body || {};
+
+		const idea = await prisma.idea.update({
+			where: { id },
+			data: { status: 'APPROVED', reviewedBy: actorId, reviewedAt: new Date(), reviewNotes: notes || null },
+			include: { submitter: true }
+		});
+		res.json(idea);
+	} catch (err) {
+		console.error('POST /api/ideas/:id/approve error:', err);
+		res.status(500).json({ error: 'failed to approve idea' });
+	}
+});
+
+// Reject an idea
+app.post('/api/ideas/:id/reject', async (req, res) => {
+	try {
+		const id = Number(req.params.id);
+		const actorId = getActingUserId(req);
+		const { notes } = req.body || {};
+
+		const idea = await prisma.idea.update({
+			where: { id },
+			data: { status: 'REJECTED', reviewedBy: actorId, reviewedAt: new Date(), reviewNotes: notes || null },
+			include: { submitter: true }
+		});
+		res.json(idea);
+	} catch (err) {
+		console.error('POST /api/ideas/:id/reject error:', err);
+		res.status(500).json({ error: 'failed to reject idea' });
+	}
+});
+
+// Promote an idea to project
+app.post('/api/ideas/:id/promote', async (req, res) => {
+	try {
+		const id = Number(req.params.id);
+		const { projectCode } = req.body || {};
+
+		const idea = await prisma.idea.update({
+			where: { id },
+			data: { status: 'PROMOTED_TO_PROJECT', promotedAt: new Date(), projectCode: projectCode || null },
+			include: { submitter: true }
+		});
+		res.json(idea);
+	} catch (err) {
+		console.error('POST /api/ideas/:id/promote error:', err);
+		res.status(500).json({ error: 'failed to promote idea' });
+	}
+});
+
+// Vote for an idea
+app.post('/api/ideas/:id/vote', async (req, res) => {
+	try {
+		const id = Number(req.params.id);
+		const actorId = getActingUserId(req);
+		if (!actorId) return res.status(400).json({ error: 'x-user-id header required' });
+
+		// Check if already voted
+		const existing = await prisma.vote.findUnique({ where: { ideaId_userId: { ideaId: id, userId: actorId } } });
+		if (existing) return res.status(400).json({ error: 'already voted' });
+
+		await prisma.$transaction([
+			prisma.vote.create({ data: { ideaId: id, userId: actorId } }),
+			prisma.idea.update({ where: { id }, data: { voteCount: { increment: 1 } } }),
+		]);
+		const idea = await prisma.idea.findUnique({ where: { id }, include: { submitter: true } });
+		res.json(idea);
+	} catch (err) {
+		console.error('POST /api/ideas/:id/vote error:', err);
+		res.status(500).json({ error: 'failed to vote' });
+	}
+});
+
+// Remove vote from an idea
+app.delete('/api/ideas/:id/vote', async (req, res) => {
+	try {
+		const id = Number(req.params.id);
+		const actorId = getActingUserId(req);
+		if (!actorId) return res.status(400).json({ error: 'x-user-id header required' });
+
+		const existing = await prisma.vote.findUnique({ where: { ideaId_userId: { ideaId: id, userId: actorId } } });
+		if (!existing) return res.status(400).json({ error: 'not voted' });
+
+		await prisma.$transaction([
+			prisma.vote.delete({ where: { id: existing.id } }),
+			prisma.idea.update({ where: { id }, data: { voteCount: { decrement: 1 } } }),
+		]);
+		const idea = await prisma.idea.findUnique({ where: { id }, include: { submitter: true } });
+		res.json(idea);
+	} catch (err) {
+		console.error('DELETE /api/ideas/:id/vote error:', err);
+		res.status(500).json({ error: 'failed to remove vote' });
+	}
+});
+
 app.listen(PORT, () => {
 	console.log(`Server listening on ${PORT}`);
 });

@@ -43,17 +43,36 @@ const MyIdeas = () => {
     useEffect(() => {
         dispatch(setPageTitle(t('innovation.myIdeas.title')));
         loadMyIdeas();
+        // Poll every 20s for near real-time updates
+        const id = setInterval(() => {
+            loadMyIdeas(true);
+        }, 20000);
+        return () => clearInterval(id);
     }, [dispatch, t]);
 
-    const loadMyIdeas = async () => {
-        setIsLoading(false);
+    const loadMyIdeas = async (silent = false) => {
+        if (!silent) setIsLoading(true);
         try {
             console.log('[MyIdeas] Fetching ideas for user:', currentUser?.id);
             const allIdeas = await fetchIdeas();
-            
+
             // Filter to show only current user's ideas
+            const userIdStr = String(currentUser?.id ?? '');
+            const userEmail = (currentUser as any)?.email?.toLowerCase?.() as string | undefined;
+            const userName = (currentUser as any)?.name?.toLowerCase?.() as string | undefined;
+
             const myIdeas = allIdeas
-                .filter(idea => String(idea.submittedBy) === String(currentUser?.id))
+                .filter(idea => {
+                    const rawId = (idea as any).submittedById ?? (idea as any).submittedByID ?? (idea as any).submitted_by_id;
+                    if (rawId !== undefined && rawId !== null) {
+                        return String(rawId) === userIdStr;
+                    }
+                    // Fallback: some API variants only provide a display string (name or email)
+                    const submittedByText = ((idea as any).submittedBy || '') as string;
+                    if (!submittedByText) return false;
+                    const sb = submittedByText.toLowerCase();
+                    return (userName && sb.includes(userName)) || (userEmail && sb.includes(userEmail));
+                })
                 .map(idea => ({
                     id: String(idea.id),
                     title: idea.title,
@@ -62,10 +81,10 @@ const MyIdeas = () => {
                     submittedAt: idea.submittedAt,
                     voteCount: idea.voteCount,
                     viewCount: idea.viewCount,
-                    commentCount: 0, // TODO: fetch comment count
+                    commentCount: (idea as any).commentCount || 0,
                     status: idea.status as any,
                     feedback: idea.reviewNotes || undefined,
-                    comments: [], // TODO: fetch comments
+                    comments: [],
                 }));
             
             console.log('[MyIdeas] Loaded ideas:', myIdeas.length);
@@ -78,7 +97,7 @@ const MyIdeas = () => {
                 text: 'Failed to load your ideas. Please try again.',
             });
         } finally {
-            setIsLoading(false);
+            if (!silent) setIsLoading(false);
         }
     };
 

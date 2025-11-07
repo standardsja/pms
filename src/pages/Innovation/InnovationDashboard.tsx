@@ -4,13 +4,22 @@ import { useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import { setPageTitle } from '../../store/themeConfigSlice';
 import { getUser } from '../../utils/auth';
+import { fetchIdeas } from '../../utils/ideasApi';
+
+interface DashboardStats {
+    myIdeas: number;
+    approvedIdeas: number;
+    pendingIdeas: number;
+    promotedProjects: number;
+    totalVotes: number;
+}
 
 const InnovationDashboard = () => {
     const dispatch = useDispatch();
     const { t } = useTranslation();
     const currentUser = getUser();
     const isCommittee = currentUser?.role === 'INNOVATION_COMMITTEE';
-    const [stats, setStats] = useState({
+    const [stats, setStats] = useState<DashboardStats>({
         myIdeas: 0,
         approvedIdeas: 0,
         pendingIdeas: 0,
@@ -18,22 +27,48 @@ const InnovationDashboard = () => {
         totalVotes: 0,
     });
     const [isLoading, setIsLoading] = useState(true);
+    const [recentIdeas, setRecentIdeas] = useState<any[]>([]);
 
     useEffect(() => {
         dispatch(setPageTitle(t('innovation.hub')));
-        // TODO: Fetch stats from API
-        setIsLoading(true);
-        setTimeout(() => {
-            setStats({
-                myIdeas: 3,
-                approvedIdeas: 24,
-                pendingIdeas: 8,
-                promotedProjects: 5,
-                totalVotes: 142,
-            });
-            setIsLoading(false);
-        }, 500);
+        loadDashboardData();
     }, [dispatch, t]);
+
+    async function loadDashboardData() {
+        try {
+            setIsLoading(true);
+            const ideas = await fetchIdeas();
+            
+            // Calculate stats from fetched ideas
+            const myIdeas = ideas.filter(idea => 
+                idea.submittedBy === currentUser?.name || idea.submittedBy === currentUser?.email
+            ).length;
+            
+            const approvedIdeas = ideas.filter(idea => idea.status === 'APPROVED').length;
+            const pendingIdeas = ideas.filter(idea => idea.status === 'PENDING_REVIEW').length;
+            const promotedProjects = ideas.filter(idea => idea.status === 'PROMOTED_TO_PROJECT').length;
+            const totalVotes = ideas.reduce((sum, idea) => sum + (idea.voteCount || 0), 0);
+
+            setStats({
+                myIdeas,
+                approvedIdeas,
+                pendingIdeas,
+                promotedProjects,
+                totalVotes,
+            });
+
+            // Get 3 most recent ideas for activity feed
+            const sortedByDate = [...ideas].sort((a, b) => 
+                new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+            );
+            setRecentIdeas(sortedByDate.slice(0, 3));
+        } catch (error) {
+            console.error('[InnovationDashboard] Error loading data:', error);
+            // Keep default zeros on error
+        } finally {
+            setIsLoading(false);
+        }
+    }
 
     const quickActions = [
         {
@@ -150,7 +185,7 @@ const InnovationDashboard = () => {
             <div className="panel">
                 <div className="flex items-center justify-between mb-6">
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white">{t('innovation.dashboard.recentActivity.title')}</h2>
-                    <Link to="/innovation/ideas/all" className="text-primary hover:underline text-sm font-semibold">
+                    <Link to="/innovation/ideas/browse" className="text-primary hover:underline text-sm font-semibold">
                         {t('innovation.dashboard.recentActivity.viewAll')}
                     </Link>
                 </div>
@@ -166,42 +201,85 @@ const InnovationDashboard = () => {
                             </div>
                         ))}
                     </div>
-                ) : (
+                ) : recentIdeas.length > 0 ? (
                     <div className="space-y-4" role="feed" aria-label={t('innovation.dashboard.recentActivity.title')}>
-                        {/* TODO: Replace with real data */}
-                        <div className="flex items-start gap-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                            <div className="text-2xl" role="img" aria-label="thumbs up">👍</div>
-                            <div className="flex-1">
-                                <p className="text-gray-900 dark:text-white font-medium">
-                                    {t('innovation.dashboard.recentActivity.votesReceived', { title: 'AI-Powered Document Analysis', count: 5 })}
-                                </p>
-                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                                    {t('innovation.dashboard.recentActivity.timeAgo.hours', { count: 2 })}
-                                </p>
-                            </div>
-                        </div>
-                        <div className="flex items-start gap-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                            <div className="text-2xl" role="img" aria-label="checkmark">✅</div>
-                            <div className="flex-1">
-                                <p className="text-gray-900 dark:text-white font-medium">
-                                    {t('innovation.dashboard.recentActivity.ideaApproved', { title: 'Sustainable Packaging Initiative' })}
-                                </p>
-                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                                    {t('innovation.dashboard.recentActivity.timeAgo.days', { count: 1 })}
-                                </p>
-                            </div>
-                        </div>
-                        <div className="flex items-start gap-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                            <div className="text-2xl" role="img" aria-label="rocket">🚀</div>
-                            <div className="flex-1">
-                                <p className="text-gray-900 dark:text-white font-medium">
-                                    {t('innovation.dashboard.recentActivity.ideaPromoted', { title: 'Digital Standards Portal' })}
-                                </p>
-                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                                    {t('innovation.dashboard.recentActivity.timeAgo.days', { count: 3 })}
-                                </p>
-                            </div>
-                        </div>
+                        {recentIdeas.map((idea) => {
+                            const statusIcon = 
+                                idea.status === 'APPROVED' ? '✅' :
+                                idea.status === 'PROMOTED_TO_PROJECT' ? '🚀' :
+                                idea.status === 'REJECTED' ? '❌' :
+                                '⏳';
+                            
+                            const getTimeAgo = (dateStr: string) => {
+                                const now = new Date();
+                                const then = new Date(dateStr);
+                                const diffMs = now.getTime() - then.getTime();
+                                const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+                                const diffDays = Math.floor(diffHours / 24);
+                                
+                                if (diffDays > 0) {
+                                    return t('innovation.dashboard.recentActivity.timeAgo.days', { count: diffDays, defaultValue: `${diffDays} days ago` });
+                                } else if (diffHours > 0) {
+                                    return t('innovation.dashboard.recentActivity.timeAgo.hours', { count: diffHours, defaultValue: `${diffHours} hours ago` });
+                                } else {
+                                    const mins = Math.max(1, Math.floor(diffMs / (1000 * 60)));
+                                    return t('innovation.dashboard.recentActivity.timeAgo.minutes', { count: mins, defaultValue: `${mins} minutes ago` });
+                                }
+                            };
+
+                            return (
+                                <Link 
+                                    key={idea.id} 
+                                    to={`/innovation/ideas/${idea.id}`}
+                                    className="flex items-start gap-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                                >
+                                    <div className="text-2xl" role="img" aria-label="status">{statusIcon}</div>
+                                    <div className="flex-1">
+                                        <p className="text-gray-900 dark:text-white font-medium">
+                                            {idea.title}
+                                        </p>
+                                        <div className="flex items-center gap-3 mt-1 flex-wrap">
+                                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                                                {getTimeAgo(idea.createdAt)}
+                                            </p>
+                                            {/* Category badge */}
+                                            {idea.category && (
+                                                <>
+                                                    <span className="text-gray-400">•</span>
+                                                    <span className="px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-xs text-gray-700 dark:text-gray-200 font-medium">
+                                                        {t(`innovation.categories.${idea.category}`, { defaultValue: idea.category })}
+                                                    </span>
+                                                </>
+                                            )}
+                                            {/* Submitted by */}
+                                            {idea.submittedBy && (
+                                                <>
+                                                    <span className="text-gray-400">•</span>
+                                                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                                                        {t('innovation.browse.submittedBy', { name: idea.submittedBy, defaultValue: `by ${idea.submittedBy}` })}
+                                                    </span>
+                                                </>
+                                            )}
+                                            {idea.voteCount > 0 && (
+                                                <>
+                                                    <span className="text-gray-400">•</span>
+                                                    <span className="text-sm text-gray-600 dark:text-gray-400 flex items-center gap-1">
+                                                        👍 {idea.voteCount === 1
+                                                            ? t('innovation.dashboard.recentActivity.voteSingular', { count: 1, defaultValue: '1 vote' })
+                                                            : t('innovation.dashboard.recentActivity.votePlural', { count: idea.voteCount, defaultValue: `${idea.voteCount} votes` })}
+                                                    </span>
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+                                </Link>
+                            );
+                        })}
+                    </div>
+                ) : (
+                    <div className="text-center py-8">
+                        <div className="text-4xl mb-2">💡</div>
+                        <p className="text-gray-600 dark:text-gray-400">No ideas yet. Be the first to submit one!</p>
                     </div>
                 )}
             </div>

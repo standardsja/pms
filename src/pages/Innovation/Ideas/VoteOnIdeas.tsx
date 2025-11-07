@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import Swal from 'sweetalert2';
 import { setPageTitle } from '../../../store/themeConfigSlice';
 import { getUser } from '../../../utils/auth';
-import { fetchIdeas, voteForIdea, removeVote } from '../../../utils/ideasApi';
+import { fetchIdeas, voteForIdea, removeVote, fetchIdeaById } from '../../../utils/ideasApi';
 
 interface Idea {
     id: string;
@@ -58,8 +58,8 @@ const VoteOnIdeas = () => {
                     upvotes: idea.voteCount || 0,
                     downvotes: 0,
                     voteCount: idea.voteCount || 0,
-                    hasVoted: null, // TODO: Track user votes
-                    viewCount: 0,
+                    hasVoted: idea.hasVoted ? 'up' : null, // Backend only supports simple vote/unvote
+                    viewCount: idea.viewCount || 0,
                     trendingScore: idea.voteCount || 0,
                 })));
             } catch (error) {
@@ -80,32 +80,46 @@ const VoteOnIdeas = () => {
     }, [dispatch, t, isCommittee, navigate]);
 
     const handleVote = async (ideaId: string, voteType: 'up' | 'down') => {
-        // For now, we only support simple up/down toggle (backend has voteCount only)
-        // This frontend has up/down but backend is simpler
         const idea = ideas.find(i => i.id === ideaId);
         if (!idea) return;
+
+        // Backend only supports simple vote toggle (no separate up/down)
+        // We'll use 'up' for vote and ignore 'down' for now
+        if (voteType === 'down') {
+            // For this version, we'll just show a message that downvoting isn't supported
+            void Swal.fire({
+                toast: true,
+                position: 'bottom-end',
+                showConfirmButton: false,
+                timer: 2000,
+                icon: 'info',
+                title: 'Downvoting not supported yet. Use upvote to support ideas!',
+            });
+            return;
+        }
 
         setVoteAnimation(ideaId);
         setTimeout(() => setVoteAnimation(null), 600);
 
         try {
-            // If user already voted this way, remove it
-            if (idea.hasVoted === voteType) {
+            // If user already voted, remove it
+            if (idea.hasVoted === 'up') {
                 await removeVote(ideaId);
-                setIdeas(ideas.map(i => {
-                    if (i.id === ideaId) {
-                        const newUpvotes = voteType === 'up' ? i.upvotes - 1 : i.upvotes;
-                        const newDownvotes = voteType === 'down' ? i.downvotes - 1 : i.downvotes;
-                        return {
+                
+                // Fetch updated idea from server
+                const updatedIdea = await fetchIdeaById(ideaId);
+                
+                setIdeas(ideas.map(i => 
+                    i.id === ideaId 
+                        ? {
                             ...i,
-                            upvotes: newUpvotes,
-                            downvotes: newDownvotes,
-                            voteCount: newUpvotes - newDownvotes,
+                            upvotes: updatedIdea.voteCount || 0,
+                            voteCount: updatedIdea.voteCount || 0,
                             hasVoted: null,
-                        };
-                    }
-                    return i;
-                }));
+                            viewCount: updatedIdea.viewCount || i.viewCount,
+                        }
+                        : i
+                ));
                 
                 void Swal.fire({
                     toast: true,
@@ -113,42 +127,26 @@ const VoteOnIdeas = () => {
                     showConfirmButton: false,
                     timer: 1500,
                     icon: 'info',
-                    title: voteType === 'up' 
-                        ? t('innovation.vote.actions.removeUpvote')
-                        : t('innovation.vote.actions.removeDownvote'),
+                    title: t('innovation.vote.actions.removeUpvote'),
                 });
             } else {
-                // Add or switch vote
+                // Add vote
                 await voteForIdea(ideaId);
-                setIdeas(ideas.map(i => {
-                    if (i.id === ideaId) {
-                        let newUpvotes = i.upvotes;
-                        let newDownvotes = i.downvotes;
-                        
-                        // Remove previous vote if switching
-                        if (i.hasVoted === 'up') {
-                            newUpvotes--;
-                        } else if (i.hasVoted === 'down') {
-                            newDownvotes--;
-                        }
-                        
-                        // Add new vote
-                        if (voteType === 'up') {
-                            newUpvotes++;
-                        } else {
-                            newDownvotes++;
-                        }
-                        
-                        return {
+                
+                // Fetch updated idea from server
+                const updatedIdea = await fetchIdeaById(ideaId);
+                
+                setIdeas(ideas.map(i => 
+                    i.id === ideaId 
+                        ? {
                             ...i,
-                            upvotes: newUpvotes,
-                            downvotes: newDownvotes,
-                            voteCount: newUpvotes - newDownvotes,
-                            hasVoted: voteType,
-                        };
-                    }
-                    return i;
-                }));
+                            upvotes: updatedIdea.voteCount || 0,
+                            voteCount: updatedIdea.voteCount || 0,
+                            hasVoted: 'up' as const,
+                            viewCount: updatedIdea.viewCount || i.viewCount,
+                        }
+                        : i
+                ));
                 
                 void Swal.fire({
                     toast: true,
@@ -156,20 +154,18 @@ const VoteOnIdeas = () => {
                     showConfirmButton: false,
                     timer: 1500,
                     icon: 'success',
-                    title: voteType === 'up'
-                        ? t('innovation.vote.actions.upvote')
-                        : t('innovation.vote.actions.downvote'),
+                    title: t('innovation.vote.actions.upvote'),
                 });
             }
         } catch (error) {
             console.error('[VoteOnIdeas] Error voting:', error);
             
             // Check if it's a duplicate vote error
-            if (error instanceof Error && error.message === 'ALREADY_VOTED') {
-                Swal.fire({
+            if (error instanceof Error && error.message.includes('already voted')) {
+                void Swal.fire({
                     icon: 'warning',
                     title: 'Already Voted',
-                    text: 'You are only able to vote once per idea',
+                    text: 'You have already voted for this idea',
                     toast: true,
                     position: 'top-end',
                     timer: 4000,
@@ -180,12 +176,12 @@ const VoteOnIdeas = () => {
                 // Update local state to reflect they've already voted
                 setIdeas(ideas.map(i => 
                     i.id === ideaId 
-                        ? { ...i, hasVoted: voteType }
+                        ? { ...i, hasVoted: 'up' as const }
                         : i
                 ));
             } else {
                 // Generic error
-                Swal.fire({
+                void Swal.fire({
                     icon: 'error',
                     title: 'Error',
                     text: error instanceof Error ? error.message : 'Failed to vote',
