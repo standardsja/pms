@@ -383,6 +383,10 @@ const routes = [
         path: '/apps/requests/new',
         element: <RequestForm />,
     },
+    {
+        path: '/apps/requests/edit/:id',
+        element: <RequestForm />,
+    },
     
     // ============================================
     // ADMIN ROUTES

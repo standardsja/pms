@@ -30,6 +30,9 @@ export interface Request {
 	totalEstimated: number;
 	fundingSource?: string;
 	budgetCode?: string;
+	// Optional assignee metadata for routing/filters (present when backend includes it)
+	currentAssigneeId?: number | null;
+	currentAssigneeName?: string;
 	justification: string;
 	comments: CommentEntry[];
 	statusHistory: StatusHistoryEntry[];

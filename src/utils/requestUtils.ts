@@ -168,6 +168,14 @@ export const adaptRequestsResponse = (input: unknown): Request[] => {
 		if (t != null && !isNaN(Number(t))) return Number(t);
 		return calculateTotalEstimated(items);
 	};
+	const pickAssigneeId = (r: any): number | null => {
+		const v = r.currentAssigneeId ?? r.current_assignee_id ?? r.assigneeId ?? r.assignee_id ?? r.currentAssignee?.id;
+		return v == null ? null : Number(v);
+	};
+	const pickAssigneeName = (r: any): string => {
+		const v = r.currentAssignee?.name ?? r.currentAssigneeName ?? r.assigneeName ?? r.assignee_name;
+		return toStr(v);
+	};
 
 	return raw.map((r: any): Request => {
 		const items = pickItems(r);
@@ -182,6 +190,8 @@ export const adaptRequestsResponse = (input: unknown): Request[] => {
 			totalEstimated: pickTotal(r, items),
 			fundingSource: r.fundingSource ?? r.funding_source,
 			budgetCode: r.budgetCode ?? r.budget_code,
+			currentAssigneeId: pickAssigneeId(r),
+			currentAssigneeName: pickAssigneeName(r),
 			justification: pickJustification(r),
 			comments: Array.isArray(r.comments) ? r.comments : [],
 			statusHistory: Array.isArray(r.statusHistory ?? r.status_history) ? (r.statusHistory ?? r.status_history) : [],

@@ -491,7 +491,34 @@ app.get('/requests/:id/pdf', async (req, res) => {
 			return `<tr><td>${idx + 1}</td><td>${(it.description || '').replace(/</g, '&lt;')}</td><td>${qty}</td><td>${unitFmt}</td><td>${subFmt}</td></tr>`;
 		}).join('');
 
-			const html = tpl
+		// Extract approval dates from status history
+		const formatDate = (dateStr) => {
+			if (!dateStr) return '—';
+			try {
+				return new Date(dateStr).toLocaleString('en-US', { 
+					year: 'numeric', 
+					month: 'short', 
+					day: '2-digit',
+					hour: '2-digit',
+					minute: '2-digit'
+				});
+			} catch {
+				return String(dateStr);
+			}
+		};
+
+		const getApprovalDate = (status) => {
+			const entry = (request.statusHistory || []).find(h => h.status === status);
+			return entry ? formatDate(entry.createdAt) : '—';
+		};
+
+		const submittedDate = formatDate(request.submittedAt || request.createdAt);
+		const managerApprovalDate = getApprovalDate('DEPARTMENT_REVIEW');
+		const hodApprovalDate = getApprovalDate('HOD_REVIEW');
+		const procurementApprovalDate = getApprovalDate('PROCUREMENT_REVIEW');
+		const financeApprovalDate = getApprovalDate('FINANCE_APPROVED');
+
+		const html = tpl
 			.replace(/{{reference}}/g, String(request.reference || request.id))
 			.replace(/{{submittedAt}}/g, request.createdAt ? new Date(request.createdAt).toLocaleString() : '')
 			.replace(/{{requesterName}}/g, request.requester?.name || '')
@@ -515,8 +542,13 @@ app.get('/requests/:id/pdf', async (req, res) => {
 			.replace(/{{dateReceived}}/g, request.dateReceived || '')
 			.replace(/{{actionDate}}/g, request.actionDate || '')
 			.replace(/{{procurementComments}}/g, (request.procurementComments || '').replace(/</g, '&lt;'))
-					.replace(/{{now}}/g, new Date().toLocaleString());
-				logPdf('html-length', html.length);
+			.replace(/{{submittedDate}}/g, submittedDate)
+			.replace(/{{managerApprovalDate}}/g, managerApprovalDate)
+			.replace(/{{hodApprovalDate}}/g, hodApprovalDate)
+			.replace(/{{procurementApprovalDate}}/g, procurementApprovalDate)
+			.replace(/{{financeApprovalDate}}/g, financeApprovalDate)
+			.replace(/{{now}}/g, new Date().toLocaleString());
+		logPdf('html-length', html.length);
 
 			// If requested, return just the HTML for preview/debug
 			if ((req.query && (req.query.format === 'html' || req.query.view === 'html'))) {
