@@ -57,8 +57,8 @@ const Login = () => {
                     name: user.name,
                     email: user.email,
                     department: user.department || null,
-                    primaryRole: user.role || user.roles?.[0] || '',
-                    roles: user.roles ? (Array.isArray(user.roles) ? user.roles : [user.role]) : (user.role ? [user.role] : []),
+                    primaryRole: user.roles?.[0] || user.role || '',
+                    roles: user.roles || (user.role ? [user.role] : []),
                 };
                 localStorage.setItem('userProfile', JSON.stringify(legacyProfile));
             } catch {}
@@ -66,7 +66,8 @@ const Login = () => {
             try { sessionStorage.setItem('showOnboardingImage', '1'); } catch {}
             
             // Check if user is committee member - route directly to committee dashboard
-            if (user.role === 'INNOVATION_COMMITTEE') {
+            const userRoles = user.roles || (user.role ? [user.role] : []);
+            if (userRoles.includes('INNOVATION_COMMITTEE')) {
                 navigate('/innovation/committee/dashboard');
             } else {
                 // Regular users go to onboarding
@@ -94,10 +95,11 @@ const Login = () => {
                 localStorage.setItem('isAuthenticated', 'true');
                 
                 // Check stored user data for committee role
-                const userData = localStorage.getItem('user') || sessionStorage.getItem('user');
+                const userData = localStorage.getItem('auth_user') || sessionStorage.getItem('auth_user');
                 if (userData) {
                     const user = JSON.parse(userData);
-                    if (user.role === 'INNOVATION_COMMITTEE') {
+                    const userRoles = user.roles || (user.role ? [user.role] : []);
+                    if (userRoles.includes('INNOVATION_COMMITTEE')) {
                         navigate('/innovation/committee/dashboard');
                         return;
                     }

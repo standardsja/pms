@@ -5,6 +5,7 @@ export type AuthUser = {
   email: string; 
   name?: string | null; 
   role?: string;
+  roles?: string[];
 };
 
 const TOKEN_KEY = 'auth_token';

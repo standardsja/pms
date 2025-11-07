@@ -1,44 +1,70 @@
-import { useEffect } from 'react';
+import PerfectScrollbar from 'react-perfect-scrollbar';
+import { useTranslation } from 'react-i18next';
 import { useDispatch, useSelector } from 'react-redux';
 import { NavLink, useLocation } from 'react-router-dom';
-import PerfectScrollbar from 'react-perfect-scrollbar';
 import { toggleSidebar } from '../../store/themeConfigSlice';
+import AnimateHeight from 'react-animate-height';
 import { IRootState } from '../../store';
-import { selectUser, selectUserRoles, selectPrimaryUserRole } from '../../store/authSlice';
-import { UserRole } from '../../types/auth';
-
-// Icon imports - organized by usage
+import { useState, useEffect } from 'react';
 import IconCaretsDown from '../Icon/IconCaretsDown';
+import IconCaretDown from '../Icon/IconCaretDown';
 import IconMenuDashboard from '../Icon/Menu/IconMenuDashboard';
-import IconMenuInvoice from '../Icon/Menu/IconMenuInvoice';
 import IconMinus from '../Icon/IconMinus';
-import IconBarChart from '../Icon/IconBarChart';
-import IconBook from '../Icon/IconBook';
-import IconChecks from '../Icon/IconChecks';
-import IconCircleCheck from '../Icon/IconCircleCheck';
+import IconMenuInvoice from '../Icon/Menu/IconMenuInvoice';
+import IconMenuCharts from '../Icon/Menu/IconMenuCharts';
+import IconMenuWidgets from '../Icon/Menu/IconMenuWidgets';
+import IconMenuFontIcons from '../Icon/Menu/IconMenuFontIcons';
+import IconMenuDragAndDrop from '../Icon/Menu/IconMenuDragAndDrop';
+import IconMenuTables from '../Icon/Menu/IconMenuTables';
+import IconMenuDocumentation from '../Icon/Menu/IconMenuDocumentation';
+import IconEdit from '../Icon/IconEdit';
+import IconDollarSignCircle from '../Icon/IconDollarSignCircle';
 import IconClipboardText from '../Icon/IconClipboardText';
-import IconCreditCard from '../Icon/IconCreditCard';
+import IconChecks from '../Icon/IconChecks';
 import IconFile from '../Icon/IconFile';
-import IconInbox from '../Icon/IconInbox';
-import IconSettings from '../Icon/IconSettings';
 import IconShoppingCart from '../Icon/IconShoppingCart';
 import IconUsersGroup from '../Icon/IconUsersGroup';
+import IconBook from '../Icon/IconBook';
+import IconBarChart from '../Icon/IconBarChart';
+import IconCreditCard from '../Icon/IconCreditCard';
+import IconSettings from '../Icon/IconSettings';
+import IconInbox from '../Icon/IconInbox';
+import IconCircleCheck from '../Icon/IconCircleCheck';
+import IconThumbUp from '../Icon/IconThumbUp';
+import IconPlusCircle from '../Icon/IconPlusCircle';
+import IconUser from '../Icon/IconUser';
+import { getUser } from '../../utils/auth';
 
 const Sidebar = () => {
-    const semidark = useSelector((state: IRootState) => state.themeConfig.semidark);
+    const [currentMenu, setCurrentMenu] = useState<string>('');
+    const [errorSubMenu, setErrorSubMenu] = useState(false);
     const themeConfig = useSelector((state: IRootState) => state.themeConfig);
+    const semidark = useSelector((state: IRootState) => state.themeConfig.semidark);
     const location = useLocation();
     const dispatch = useDispatch();
+    const { t } = useTranslation();
     
-    // Get user and role information
-    const user = useSelector(selectUser);
-    const userRoles = useSelector(selectUserRoles);
+    // Get current user to check role
+    const currentUser = getUser();
+    const userRoles = currentUser?.roles || (currentUser?.role ? [currentUser.role] : []);
+    const isCommitteeMember = userRoles.includes('INNOVATION_COMMITTEE');
+    const isProcurementOfficer = userRoles.includes('PROCUREMENT_OFFICER') || userRoles.includes('PROCUREMENT');
+    const isProcurementManager = userRoles.includes('PROCUREMENT_MANAGER') || userRoles.includes('MANAGER');
     
-    // Check if user is Department Head
-    const isDepartmentHead = userRoles.includes(UserRole.DEPARTMENT_HEAD);
+    // Determine if we're in Innovation Hub
+    const isInnovationHub = location.pathname.startsWith('/innovation');
+    // Compute dashboard path for logo/home
+    const dashboardPath = isCommitteeMember
+        ? '/innovation/committee/dashboard'
+        : isInnovationHub
+        ? '/innovation/dashboard'
+        : '/procurement/dashboard';
     
-    // Check if on Innovation Hub routes
-    const isInnovationHub = location.pathname.startsWith('/innovation/');
+    const toggleMenu = (value: string) => {
+        setCurrentMenu((oldValue) => {
+            return oldValue === value ? '' : value;
+        });
+    };
 
     useEffect(() => {
         const selector = document.querySelector('.sidebar ul a[href="' + window.location.pathname + '"]');
@@ -71,7 +97,7 @@ const Sidebar = () => {
             >
                 <div className="bg-white dark:bg-black h-full">
                     <div className="flex justify-between items-center px-4 py-3">
-                        <NavLink to="/" className="main-logo flex items-center shrink-0">
+                        <NavLink to={dashboardPath} className="main-logo flex items-center shrink-0">
                             <span className="text-3xl">🌀</span>
                             <span className="text-xl ltr:ml-2 rtl:mr-2 font-bold align-middle lg:inline dark:text-white-light tracking-wider">SPINX</span>
                         </NavLink>
@@ -80,24 +106,65 @@ const Sidebar = () => {
                             type="button"
                             className="collapse-icon w-8 h-8 rounded-full flex items-center hover:bg-gray-500/10 dark:hover:bg-dark-light/10 dark:text-white-light transition duration-300 rtl:rotate-180"
                             onClick={() => dispatch(toggleSidebar())}
-                            aria-label="Toggle sidebar"
                         >
                             <IconCaretsDown className="m-auto rotate-90" />
                         </button>
                     </div>
                     <PerfectScrollbar className="h-[calc(100vh-80px)] relative">
                         <ul className="relative font-semibold space-y-0.5 p-4 py-0">
-                            {/* ============================================
-                                INNOVATION HUB SIDEBAR
-                                ============================================ */}
-                            {isInnovationHub ? (
+                            {isCommitteeMember ? (
+                                // Innovation Committee Menu
                                 <>
-                                    <li className="nav-section">
-                                        <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
-                                            <IconMinus className="w-4 h-5 flex-none hidden" />
-                                            <span>💡 Innovation Hub</span>
-                                        </h2>
+                                    <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
+                                        <IconMinus className="w-4 h-5 flex-none hidden" />
+                                        <span>Committee Dashboard</span>
+                                    </h2>
+
+                                    <li className="nav-item">
+                                        <NavLink to="/innovation/committee/dashboard" className="group">
+                                            <div className="flex items-center">
+                                                <IconMenuDashboard className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Dashboard</span>
+                                            </div>
+                                        </NavLink>
                                     </li>
+
+                                    <li className="nav-item">
+                                        <NavLink to="/innovation/committee/review" className="group">
+                                            <div className="flex items-center">
+                                                <IconCircleCheck className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Review Ideas</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+
+                                    <li className="nav-item">
+                                        <NavLink to="/innovation/ideas/browse" className="group">
+                                            <div className="flex items-center">
+                                                <IconBook className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Browse All Ideas</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+
+
+
+                                    <li className="nav-item">
+                                        <NavLink to="/innovation/ideas/analytics" className="group">
+                                            <div className="flex items-center">
+                                                <IconBarChart className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Analytics</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+                                </>
+                            ) : isInnovationHub ? (
+                                // Innovation Hub Menu
+                                <>
+                                    <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
+                                        <IconMinus className="w-4 h-5 flex-none hidden" />
+                                        <span>Innovation Hub</span>
+                                    </h2>
 
                                     <li className="nav-item">
                                         <NavLink to="/innovation/dashboard" className="group">
@@ -111,8 +178,8 @@ const Sidebar = () => {
                                     <li className="nav-item">
                                         <NavLink to="/innovation/ideas/new" className="group">
                                             <div className="flex items-center">
-                                                <span className="shrink-0 text-xl">✨</span>
-                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Submit New Idea</span>
+                                                <IconPlusCircle className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Create an Idea</span>
                                             </div>
                                         </NavLink>
                                     </li>
@@ -120,17 +187,8 @@ const Sidebar = () => {
                                     <li className="nav-item">
                                         <NavLink to="/innovation/ideas/browse" className="group">
                                             <div className="flex items-center">
-                                                <span className="shrink-0 text-xl">🔍</span>
+                                                <IconBook className="group-hover:!text-primary shrink-0" />
                                                 <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Browse Ideas</span>
-                                            </div>
-                                        </NavLink>
-                                    </li>
-
-                                    <li className="nav-item">
-                                        <NavLink to="/innovation/ideas/mine" className="group">
-                                            <div className="flex items-center">
-                                                <span className="shrink-0 text-xl">📝</span>
-                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">My Submissions</span>
                                             </div>
                                         </NavLink>
                                     </li>
@@ -138,118 +196,195 @@ const Sidebar = () => {
                                     <li className="nav-item">
                                         <NavLink to="/innovation/ideas/popular" className="group">
                                             <div className="flex items-center">
-                                                <span className="shrink-0 text-xl">🔥</span>
-                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Popular This Week</span>
+                                                <IconThumbUp className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Vote on Ideas</span>
                                             </div>
                                         </NavLink>
                                     </li>
 
                                     <li className="nav-item">
-                                        <NavLink to="/innovation/ideas/analytics" className="group">
+                                        <NavLink to="/innovation/ideas/mine" className="group">
                                             <div className="flex items-center">
-                                                <IconBarChart className="group-hover:!text-primary shrink-0" />
-                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Analytics</span>
-                                            </div>
-                                        </NavLink>
-                                    </li>
-
-                                    {/* Committee Section - Only show if user has committee role */}
-                                    {userRoles.includes('INNOVATION_COMMITTEE' as UserRole) && (
-                                        <>
-                                            <li className="nav-section">
-                                                <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mt-4 mb-1">
-                                                    <IconMinus className="w-4 h-5 flex-none hidden" />
-                                                    <span>⚖️ Committee</span>
-                                                </h2>
-                                            </li>
-
-                                            <li className="nav-item">
-                                                <NavLink to="/innovation/committee/dashboard" className="group">
-                                                    <div className="flex items-center">
-                                                        <IconMenuDashboard className="group-hover:!text-primary shrink-0" />
-                                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Committee Dashboard</span>
-                                                    </div>
-                                                </NavLink>
-                                            </li>
-
-                                            <li className="nav-item">
-                                                <NavLink to="/innovation/committee/review" className="group">
-                                                    <div className="flex items-center">
-                                                        <IconChecks className="group-hover:!text-primary shrink-0" />
-                                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Review Ideas</span>
-                                                    </div>
-                                                </NavLink>
-                                            </li>
-                                        </>
-                                    )}
-                                </>
-                            ) : (
-                                <>
-                            {/* ============================================
-                                PROCUREMENT SIDEBAR (Original)
-                                ============================================ */}
-                            {/* Show Department Head sections only if user is Department Head */}
-                            {isDepartmentHead ? (
-                                <>
-                                    <li className="nav-section">
-                                        <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
-                                            <IconMinus className="w-4 h-5 flex-none hidden" />
-                                            <span>Department Head</span>
-                                        </h2>
-                                    </li>
-                                    <li className="nav-item">
-                                        <NavLink to="/procurement/department-head-dashboard" className="group">
-                                            <div className="flex items-center">
-                                                <IconMenuDashboard className="group-hover:!text-primary shrink-0" />
-                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Dashboard</span>
-                                            </div>
-                                        </NavLink>
-                                    </li>
-                                    <li className="nav-item list-none">
-                                        <NavLink to="/procurement/department-head/evaluations" className="group">
-                                            <div className="flex items-center">
-                                                <IconChecks className="group-hover:!text-primary shrink-0 w-5 h-5" />
-                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Supplier Approvals</span>
-                                            </div>
-                                        </NavLink>
-                                    </li>
-                                    <li className="nav-item list-none">
-                                        <NavLink to="/procurement/department-head/reports" className="group">
-                                            <div className="flex items-center">
-                                                <IconBarChart className="group-hover:!text-primary shrink-0 w-5 h-5" />
-                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Report Reviews</span>
+                                                <IconUser className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">My Ideas</span>
                                             </div>
                                         </NavLink>
                                     </li>
                                 </>
-                            ) : (
+                            ) : isProcurementOfficer ? (
+                                // Procurement Officer Only Menu
                                 <>
-                                    {/* Show all sections for non-Department Head users */}
-                                    <li className="nav-section">
-                                        <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
-                                            <IconMinus className="w-4 h-5 flex-none hidden" />
-                                            <span>USER</span>
-                                        </h2>
-                                    </li>
+                            <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
+                                <IconMinus className="w-4 h-5 flex-none hidden" />
+                                <span>USER</span>
+                            </h2>
 
-                                    <li className="nav-item">
-                                        <NavLink to="/apps/requests" className="group">
-                                            <div className="flex items-center">
-                                                <IconFile className="group-hover:!text-primary shrink-0" />
-                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Requests</span>
-                                            </div>
-                                        </NavLink>
-                                    </li>
+                            <li className="nav-item">
+                                <NavLink to="/apps/requests" className="group">
+                                    <div className="flex items-center">
+                                        <IconFile className="group-hover:!text-primary shrink-0" />
+                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Requests</span>
+                                    </div>
+                                </NavLink>
+                            </li>
 
-                                    <li className="nav-section">
-                                        <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1 mt-4">
-                                            <IconMinus className="w-4 h-5 flex-none hidden" />
-                                            <span>Procurement Officer</span>
-                                        </h2>
-                                    </li>
+                            <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1 mt-4">
+                                <IconMinus className="w-4 h-5 flex-none hidden" />
+                                <span>Procurement Officer</span>
+                            </h2>
 
-                                    <li className="nav-item">
-                                <NavLink to="/" className="group">
+                            <li className="nav-item">
+                                <NavLink to="/procurement/dashboard" className="group">
+                                    <div className="flex items-center">
+                                        <IconMenuDashboard className="group-hover:!text-primary shrink-0" />
+                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Dashboard</span>
+                                    </div>
+                                </NavLink>
+                            </li>
+
+                            <li className="nav-item">
+                                <NavLink to="/procurement/evaluation" className="group">
+                                    <div className="flex items-center">
+                                        <IconClipboardText className="group-hover:!text-primary shrink-0" />
+                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Evaluation</span>
+                                    </div>
+                                </NavLink>
+                            </li>
+
+                            <li className="nav-item">
+                                <NavLink to="/procurement/review" className="group">
+                                    <div className="flex items-center">
+                                        <IconChecks className="group-hover:!text-primary shrink-0" />
+                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Review</span>
+                                    </div>
+                                </NavLink>
+                            </li>
+
+                            <li className="nav-item">
+                                <NavLink to="/procurement/approvals" className="group">
+                                    <div className="flex items-center">
+                                        <IconFile className="group-hover:!text-primary shrink-0" />
+                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Approvals</span>
+                                    </div>
+                                </NavLink>
+                            </li>
+
+                            <li className="nav-item">
+                                <NavLink to="/procurement/purchase-orders" className="group">
+                                    <div className="flex items-center">
+                                        <IconShoppingCart className="group-hover:!text-primary shrink-0" />
+                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Purchase Orders</span>
+                                    </div>
+                                </NavLink>
+                            </li>
+
+                            <li className="nav-item">
+                                <NavLink to="/procurement/suppliers" className="group">
+                                    <div className="flex items-center">
+                                        <IconUsersGroup className="group-hover:!text-primary shrink-0" />
+                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Suppliers</span>
+                                    </div>
+                                </NavLink>
+                            </li>
+
+                            <li className="nav-item">
+                                <NavLink to="/procurement/catalog" className="group">
+                                    <div className="flex items-center">
+                                        <IconBook className="group-hover:!text-primary shrink-0" />
+                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Catalog</span>
+                                    </div>
+                                </NavLink>
+                            </li>
+
+                            <li className="nav-item">
+                                <NavLink to="/procurement/reports" className="group">
+                                    <div className="flex items-center">
+                                        <IconBarChart className="group-hover:!text-primary shrink-0" />
+                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Reports</span>
+                                    </div>
+                                </NavLink>
+                            </li>
+
+                            <li className="nav-item">
+                                <NavLink to="/procurement/payments" className="group">
+                                    <div className="flex items-center">
+                                        <IconCreditCard className="group-hover:!text-primary shrink-0" />
+                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Payments</span>
+                                    </div>
+                                </NavLink>
+                            </li>
+
+                            <li className="nav-item">
+                                <NavLink to="/procurement/admin" className="group">
+                                    <div className="flex items-center">
+                                        <IconSettings className="group-hover:!text-primary shrink-0" />
+                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Settings</span>
+                                    </div>
+                                </NavLink>
+                            </li>
+                                </>
+                            ) : isProcurementManager ? (
+                                // Procurement Manager Only Menu
+                                <>
+                            <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
+                                <IconMinus className="w-4 h-5 flex-none hidden" />
+                                <span>USER</span>
+                            </h2>
+
+                            <li className="nav-item">
+                                <NavLink to="/apps/requests" className="group">
+                                    <div className="flex items-center">
+                                        <IconFile className="group-hover:!text-primary shrink-0" />
+                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Requests</span>
+                                    </div>
+                                </NavLink>
+                            </li>
+
+                            <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mt-4 mb-1">
+                                <IconMinus className="w-4 h-5 flex-none hidden" />
+                                <span>Procurement Manager</span>
+                            </h2>
+                            <li className="nav-item">
+                                <NavLink to="/procurement/manager" className="group">
+                                    <div className="flex items-center">
+                                        <IconMenuDashboard className="group-hover:!text-primary shrink-0" />
+                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Manager Dashboard</span>
+                                    </div>
+                                </NavLink>
+                            </li>
+                            <li className="nav-item list-none">
+                                <NavLink to="/procurement/manager/evaluations-to-validate" className="group">
+                                    <div className="flex items-center">
+                                        <IconChecks className="group-hover:!text-primary shrink-0 w-5 h-5" />
+                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Evaluations to Validate</span>
+                                    </div>
+                                </NavLink>
+                            </li>
+                                </>
+                            ) : (
+                                // All Roles Menu (Default)
+                                <>
+                            <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
+                                <IconMinus className="w-4 h-5 flex-none hidden" />
+                                <span>USER</span>
+                            </h2>
+
+                            <li className="nav-item">
+                                <NavLink to="/apps/requests" className="group">
+                                    <div className="flex items-center">
+                                        <IconFile className="group-hover:!text-primary shrink-0" />
+                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Requests</span>
+                                    </div>
+                                </NavLink>
+                            </li>
+
+                            <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1 mt-4">
+                                <IconMinus className="w-4 h-5 flex-none hidden" />
+                                <span>Procurement Officer</span>
+                            </h2>
+
+                            <li className="nav-item">
+                                <NavLink to="/procurement/dashboard" className="group">
                                     <div className="flex items-center">
                                         <IconMenuDashboard className="group-hover:!text-primary shrink-0" />
                                         <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Dashboard</span>
@@ -357,12 +492,10 @@ const Sidebar = () => {
                             </li>
 
                             {/* Procurement Manager */}
-                            <li className="nav-section">
-                                <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mt-4 mb-1">
-                                    <IconMinus className="w-4 h-5 flex-none hidden" />
-                                    <span>Procurement Manager</span>
-                                </h2>
-                            </li>
+                            <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mt-4 mb-1">
+                                <IconMinus className="w-4 h-5 flex-none hidden" />
+                                <span>Procurement Manager</span>
+                            </h2>
                             <li className="nav-item">
                                 <NavLink to="/procurement/manager" className="group">
                                     <div className="flex items-center">
@@ -389,12 +522,10 @@ const Sidebar = () => {
                             </li>
 
                             {/* Supplier */}
-                            <li className="nav-section">
-                                <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mt-4 mb-1">
-                                    <IconMinus className="w-4 h-5 flex-none hidden" />
-                                    <span>Supplier</span>
-                                </h2>
-                            </li>
+                            <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mt-4 mb-1">
+                                <IconMinus className="w-4 h-5 flex-none hidden" />
+                                <span>Supplier</span>
+                            </h2>
                             <li className="nav-item">
                                 <NavLink to="/supplier" className="group">
                                     <div className="flex items-center">
@@ -405,12 +536,10 @@ const Sidebar = () => {
                             </li>
 
                             {/* Department Head */}
-                            <li className="nav-section">
-                                <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mt-4 mb-1">
-                                    <IconMinus className="w-4 h-5 flex-none hidden" />
-                                    <span>Department Head</span>
-                                </h2>
-                            </li>
+                            <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mt-4 mb-1">
+                                <IconMinus className="w-4 h-5 flex-none hidden" />
+                                <span>Department Head</span>
+                            </h2>
                             <li className="nav-item">
                                 <NavLink to="/procurement/department-head-dashboard" className="group">
                                     <div className="flex items-center">
@@ -437,12 +566,10 @@ const Sidebar = () => {
                             </li>
 
                             {/* Executive Director */}
-                            <li className="nav-section">
-                                <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mt-4 mb-1">
-                                    <IconMinus className="w-4 h-5 flex-none hidden" />
-                                    <span>Executive Director</span>
-                                </h2>
-                            </li>
+                            <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mt-4 mb-1">
+                                <IconMinus className="w-4 h-5 flex-none hidden" />
+                                <span>Executive Director</span>
+                            </h2>
                             <li className="nav-item">
                                 <NavLink to="/procurement/executive-director-dashboard" className="group">
                                     <div className="flex items-center">
@@ -477,12 +604,10 @@ const Sidebar = () => {
                             </li>
 
                             {/* Finance */}
-                            <li className="nav-section">
-                                <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mt-4 mb-1">
-                                    <IconMinus className="w-4 h-5 flex-none hidden" />
-                                    <span>Finance</span>
-                                </h2>
-                            </li>
+                            <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mt-4 mb-1">
+                                <IconMinus className="w-4 h-5 flex-none hidden" />
+                                <span>Finance</span>
+                            </h2>
                             <li className="nav-item">
                                 <NavLink to="/finance" className="group">
                                     <div className="flex items-center">
@@ -507,17 +632,15 @@ const Sidebar = () => {
                                     </div>
                                 </NavLink>
                             </li>
-                                    <li className="nav-item list-none">
-                                        <NavLink to="/finance/payments-to-process" className="group">
-                                            <div className="flex items-center">
-                                                <IconCreditCard className="group-hover:!text-primary shrink-0 w-5 h-5" />
-                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Payments to Process</span>
-                                            </div>
-                                        </NavLink>
-                                    </li>
+                            <li className="nav-item list-none">
+                                <NavLink to="/finance/payments-to-process" className="group">
+                                    <div className="flex items-center">
+                                        <IconCreditCard className="group-hover:!text-primary shrink-0 w-5 h-5" />
+                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Payments to Process</span>
+                                    </div>
+                                </NavLink>
+                            </li>
                                 </>
-                            )}
-                            </>
                             )}
                         </ul>
                     </PerfectScrollbar>
