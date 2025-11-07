@@ -614,6 +614,8 @@ app.get('/api/ideas', async (req, res) => {
 			promotedAt: i.promotedAt,
 			projectCode: i.projectCode,
 			voteCount: i.voteCount,
+			upvoteCount: i.upvoteCount || 0,
+			downvoteCount: i.downvoteCount || 0,
 			viewCount: i.viewCount,
 			commentCount: i._count?.comments || 0,
 			createdAt: i.createdAt,
@@ -661,6 +663,7 @@ app.get('/api/ideas/:id', async (req, res) => {
 
 		// Check if current user has voted
 		const hasVoted = actorId ? idea.votes.some(v => v.userId === actorId) : false;
+		const userVote = actorId ? idea.votes.find(v => v.userId === actorId) : null;
 
 		const payload = {
 			id: idea.id,
@@ -677,15 +680,19 @@ app.get('/api/ideas/:id', async (req, res) => {
 			promotedAt: idea.promotedAt,
 			projectCode: idea.projectCode,
 			voteCount: idea.voteCount,
+			upvoteCount: idea.upvoteCount || 0,
+			downvoteCount: idea.downvoteCount || 0,
 			viewCount: idea.viewCount + 1, // Return incremented count
 			commentCount: idea._count?.comments || 0,
 			createdAt: idea.createdAt,
 			updatedAt: idea.updatedAt,
 			hasVoted,
+			userVoteType: userVote?.voteType || null,
 			votes: idea.votes.map(v => ({
 				id: v.id,
 				userId: v.userId,
 				userName: v.user.name || v.user.email,
+				voteType: v.voteType,
 				createdAt: v.createdAt
 			}))
 		};
