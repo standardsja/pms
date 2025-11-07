@@ -1,4 +1,5 @@
 import { PropsWithChildren, Suspense, useEffect, useState } from 'react';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import App from '../../App';
 import { IRootState } from '../../store';
@@ -8,6 +9,7 @@ import Header from './Header';
 import Setting from './Setting';
 import Sidebar from './Sidebar';
 import Portals from '../../components/Portals';
+import { getToken, getUser, clearAuth } from '../../utils/auth';
 
 const DefaultLayout = ({ children }: PropsWithChildren) => {
     const themeConfig = useSelector((state: IRootState) => state.themeConfig);
@@ -44,6 +46,18 @@ const DefaultLayout = ({ children }: PropsWithChildren) => {
             window.removeEventListener('onscroll', onScrollHandler);
         };
     }, []);
+
+    // Auth guard: if no token present, redirect to login.
+    // This runs only for routes using DefaultLayout (protected). Blank layout routes (login/onboarding) are unaffected.
+    const location = useLocation();
+    const token = getToken();
+    const user = getUser();
+    if (!token) {
+        if (user) clearAuth();
+        if (location.pathname !== '/auth/login') {
+            return <Navigate to="/auth/login" replace state={{ from: location.pathname }} />;
+        }
+    }
 
     return (
         <App>

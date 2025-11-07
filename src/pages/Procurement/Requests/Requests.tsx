@@ -6,11 +6,10 @@ import IconPlus from '../../../components/Icon/IconPlus';
 import IconEye from '../../../components/Icon/IconEye';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
-import { Request } from '../../../types/request.types';
+import { Request, ApiResponse } from '../../../types/request.types';
 import { getStatusBadge } from '../../../utils/statusBadges';
-import { searchRequests, filterRequests, onlyMine, paginate, formatDate, sortRequestsByDateDesc } from '../../../utils/requestUtils';
+import { searchRequests, filterRequests, onlyMine, paginate, formatDate, sortRequestsByDateDesc, adaptRequestsResponse } from '../../../utils/requestUtils';
 import RequestDetailsContent from '../../../components/RequestDetailsContent';
-import { fetchRequisitions as mockFetch } from '../../../utils/procurementApi';
 
 const MySwal = withReactContent(Swal);
 
@@ -41,15 +40,34 @@ const Requests = () => {
         }
     }, []);
 
-    // Fetch requests from API (or mock when backend is disabled)
+    // Fetch requests from API
     useEffect(() => {
         const controller = new AbortController();
         const fetchRequests = async () => {
             setIsLoading(true);
             setError(null);
             try {
-                const data = await mockFetch();
-                setRequests(data);
+                const token = localStorage.getItem('auth_token');
+                const headers: Record<string, string> = {};
+                if (token) headers['Authorization'] = `Bearer ${token}`;
+                // Hitting backend directly on port 4000 since Vite proxy only rewrites '/api' paths.
+                // TODO: Move to an env-driven API base and/or add a Vite proxy for '/requests'.
+                const res = await fetch('http://localhost:4000/requests', {
+                    headers,
+                    signal: controller.signal,
+                });
+                let payload: any = null;
+                try {
+                    payload = await res.json();
+                } catch {
+                    /* no-op: non-JSON response */
+                }
+                if (!res.ok) {
+                    const msg = (payload && (payload.message || payload.error)) || res.statusText || 'Failed to load requests';
+                    throw new Error(msg);
+                }
+                const adapted = adaptRequestsResponse(payload);
+                setRequests(adapted);
             } catch (e: unknown) {
                 // Ignore abort errors
                 if (e instanceof DOMException && e.name === 'AbortError') return;

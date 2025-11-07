@@ -9,7 +9,6 @@ import IconEye from '../../../components/Icon/IconEye';
 import packageInfo from '../../../../package.json';
 import { setAuth } from '../../../utils/auth';
 import { loginWithMicrosoft, initializeMsal, isMsalConfigured } from '../../../auth/msal';
-import PlatformFeatures from '../../../components/PlatformFeatures';
 
 const Login = () => {
     const dispatch = useDispatch();
@@ -28,11 +27,9 @@ const Login = () => {
     const [rememberMe, setRememberMe] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const [showMFA, setShowMFA] = useState(false);
-    const [capsLockOn, setCapsLockOn] = useState(false);
     const [mfaCode, setMfaCode] = useState(['', '', '', '', '', '']);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
-    const DISABLE_API = (import.meta as any).env?.VITE_DISABLE_API === 'true';
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -40,20 +37,6 @@ const Login = () => {
         setIsLoading(true);
 
         try {
-            if (DISABLE_API) {
-                // Client-only mock login (no backend)
-                const name = email ? email.split('@')[0] : 'User';
-                const mockUser = {
-                    id: 'u-' + Math.random().toString(36).slice(2, 8),
-                    name,
-                    email,
-                    role: /committee/i.test(email) ? 'INNOVATION_COMMITTEE' : 'PROCUREMENT_OFFICER',
-                };
-                setAuth('dev-token', mockUser, rememberMe);
-                navigate(mockUser.role === 'INNOVATION_COMMITTEE' ? '/innovation/committee/dashboard' : '/onboarding');
-                return;
-            }
-
             const res = await fetch('/api/auth/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -67,30 +50,50 @@ const Login = () => {
             const { token, user } = data || {};
             if (!token || !user) throw new Error('Invalid login response');
             setAuth(token, user, rememberMe);
-            navigate(user.role === 'INNOVATION_COMMITTEE' ? '/innovation/committee/dashboard' : '/onboarding');
-        } catch (err: any) {
-            if (DISABLE_API) {
-                // As a fallback, allow offline login even on error
-                const name = email ? email.split('@')[0] : 'User';
-                const mockUser = { id: 'u-offline', name, email, role: 'PROCUREMENT_OFFICER' };
-                setAuth('dev-token', mockUser, rememberMe);
+            // Also persist legacy userProfile structure expected by RequestForm & index pages
+            try {
+                const legacyProfile = {
+                    id: user.id,
+                    name: user.name,
+                    email: user.email,
+                    department: user.department || null,
+                    primaryRole: user.role || user.roles?.[0] || '',
+                    roles: user.roles ? (Array.isArray(user.roles) ? user.roles : [user.role]) : (user.role ? [user.role] : []),
+                };
+                localStorage.setItem('userProfile', JSON.stringify(legacyProfile));
+            } catch {}
+            // Flag to show onboarding helper image exactly once after successful login
+            try { sessionStorage.setItem('showOnboardingImage', '1'); } catch {}
+            
+            // Check if user is committee member - route directly to committee dashboard
+            if (user.role === 'INNOVATION_COMMITTEE') {
+                navigate('/innovation/committee/dashboard');
+            } else {
+                // Regular users go to onboarding
                 navigate('/onboarding');
-                return;
             }
+        } catch (err: any) {
             setError(err?.message || 'Login failed. Please try again.');
         } finally {
             setIsLoading(false);
         }
     };
 
-    const verifyMFA = async (codeOverride?: string) => {
+    const handleMFAVerify = async (e: React.FormEvent) => {
+        e.preventDefault();
         setError('');
         setIsLoading(true);
+
         try {
-            await new Promise((resolve) => setTimeout(resolve, 1000));
-            const code = (codeOverride ?? mfaCode.join(''));
+            // Simulate API call
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            const code = mfaCode.join('');
             if (code.length === 6) {
+                // Mock successful MFA verification
                 localStorage.setItem('isAuthenticated', 'true');
+                
+                // Check stored user data for committee role
                 const userData = localStorage.getItem('user') || sessionStorage.getItem('user');
                 if (userData) {
                     const user = JSON.parse(userData);
@@ -103,17 +106,11 @@ const Login = () => {
             } else {
                 setError('Please enter a valid 6-digit code');
             }
-        } catch (_) {
+        } catch (err) {
             setError('MFA verification failed. Please try again.');
         } finally {
             setIsLoading(false);
         }
-    };
-
-    const handleMFAVerify = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (isLoading) return;
-        await verifyMFA();
     };
 
     const handleMFAInput = (index: number, value: string) => {
@@ -123,13 +120,6 @@ const Login = () => {
         const newMfaCode = [...mfaCode];
         newMfaCode[index] = value;
         setMfaCode(newMfaCode);
-
-        // Auto-submit when all 6 digits are present
-        const candidate = newMfaCode.join('');
-        if (candidate.length === 6) {
-            // Slight microtask delay to ensure state commit
-            setTimeout(() => verifyMFA(candidate), 0);
-        }
 
         // Auto-focus next input
         if (value && index < 5) {
@@ -157,10 +147,6 @@ const Login = () => {
         // Focus last filled input
         const lastIndex = Math.min(pastedData.length - 1, 5);
         document.getElementById(`mfa-${lastIndex}`)?.focus();
-
-        if (pastedData.length === 6) {
-            setTimeout(() => verifyMFA(pastedData), 0);
-        }
     };
 
     return (
@@ -181,11 +167,34 @@ const Login = () => {
                                 </div>
                             </div>
                         </div>
-                        {/* Heading intentionally removed per branding update */}
+                        <h1 className="text-5xl font-bold mb-6">Procurement Management System</h1>
                         <p className="text-xl text-white/90 mb-8">
-                            Streamline your work across Procurement (PMS), Innovation, and future modules with a unified platform for requests, RFQs, ideas, suppliers, and more.
+                            Streamline your procurement process with our comprehensive solution for request management, RFQ handling, and supplier coordination.
                         </p>
-                        <PlatformFeatures />
+                        <div className="space-y-4">
+                            <div className="flex items-center gap-3">
+                                <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
+                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h3 className="font-semibold">Secure & Compliant</h3>
+                                    <p className="text-sm text-white/80">Multi-factor authentication enabled</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
+                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h3 className="font-semibold">Fast & Efficient</h3>
+                                    <p className="text-sm text-white/80">Real-time processing & updates</p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -193,17 +202,9 @@ const Login = () => {
             {/* Right Side - Login Form */}
             <div className="flex w-full lg:w-1/2 items-center justify-center p-8 bg-white dark:bg-black">
                 <div className="w-full max-w-md">
-                    {/* Mobile Logo (updated to match branding) */}
+                    {/* Mobile Logo */}
                     <div className="lg:hidden mb-8 text-center">
-                        <div className="flex items-center justify-center mb-4">
-                            <div className="relative">
-                                <div className="absolute inset-0 bg-primary/10 dark:bg-white/10 blur-xl rounded-full"></div>
-                                <div className="relative flex items-center gap-3 bg-gray-50 dark:bg-white/5 backdrop-blur-sm px-5 py-3 rounded-xl border border-gray-200 dark:border-white/10 shadow">
-                                    <span className="text-4xl drop-shadow-sm animate-[spin_20s_linear_infinite]">🌀</span>
-                                    <span className="text-3xl font-black tracking-[0.15em] text-gray-900 dark:text-white">SPINX</span>
-                                </div>
-                            </div>
-                        </div>
+                        <img src="/assets/images/logo.svg" alt="Logo" className="w-16 h-16 mx-auto mb-4" />
                         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Welcome Back</h2>
                     </div>
 
@@ -216,9 +217,8 @@ const Login = () => {
                             </div>
 
                             {error && (
-                                <div role="alert" aria-live="polite" className="mb-6 p-4 bg-danger-light/10 border border-danger rounded-lg text-danger text-sm">
-                                    <div className="mb-1">{error}</div>
-                                    <Link to="/help" className="text-xs underline text-danger hover:text-danger/80">Need help? Visit Help Center</Link>
+                                <div className="mb-6 p-4 bg-danger-light/10 border border-danger rounded-lg text-danger text-sm">
+                                    {error}
                                 </div>
                             )}
 
@@ -256,7 +256,6 @@ const Login = () => {
                                             type={showPassword ? 'text' : 'password'}
                                             value={password}
                                             onChange={(e) => setPassword(e.target.value)}
-                                            onKeyUp={(e) => setCapsLockOn(e.getModifierState('CapsLock'))}
                                             className="form-input pl-10 pr-10 w-full"
                                             placeholder="Enter your password"
                                             required
@@ -269,9 +268,6 @@ const Login = () => {
                                             <IconEye className="w-5 h-5" />
                                         </button>
                                     </div>
-                                    {capsLockOn && (
-                                        <p className="mt-2 text-xs text-amber-600">Caps Lock is ON</p>
-                                    )}
                                 </div>
 
                                 <div className="flex items-center justify-between">
@@ -305,84 +301,51 @@ const Login = () => {
                                 </button>
                             </form>
 
-                            {/* Divider */}
-                            <div className="relative my-8">
-                                <div className="absolute inset-0 flex items-center">
-                                    <div className="w-full border-t border-gray-300 dark:border-gray-700"></div>
-                                </div>
-                                <div className="relative flex justify-center text-sm">
-                                    <span className="px-4 bg-white dark:bg-black text-gray-500">Or continue with</span>
-                                </div>
-                            </div>
+                            {/* Optional SSO (hidden when not configured) */}
+                            {isMsalConfigured && (
+                                <>
+                                    <div className="relative my-8">
+                                        <div className="absolute inset-0 flex items-center">
+                                            <div className="w-full border-t border-gray-300 dark:border-gray-700"></div>
+                                        </div>
+                                        <div className="relative flex justify-center text-sm">
+                                            <span className="px-4 bg-white dark:bg-black text-gray-500">Or continue with</span>
+                                        </div>
+                                    </div>
 
-                            {/* SSO Options */}
-                            <div className="space-y-3">
-                                <button
-                                    type="button"
-                                    className="btn btn-outline-primary w-full py-3 flex items-center justify-center gap-3"
-                                    disabled={!isMsalConfigured || isLoading}
-                                    onClick={async () => {
-                                        setError('');
-                                        setIsLoading(true);
-                                        try {
-                                            if (!isMsalConfigured) {
-                                                throw new Error('Microsoft SSO is not configured. Set VITE_AZURE_CLIENT_ID and VITE_AZURE_TENANT_ID.');
-                                            }
-                                            const result = await loginWithMicrosoft();
-                                            const idToken = result.idToken;
-                                            if (!idToken) throw new Error('No idToken from Microsoft');
-                                            if (DISABLE_API) {
-                                                // Client-only: create a mock user from the ID token claims
-                                                const emailFromToken = (result?.account?.username || '').toLowerCase();
-                                                const name = result?.account?.name || emailFromToken.split('@')[0] || 'User';
-                                                const mockUser = {
-                                                    id: 'msal-' + Math.random().toString(36).slice(2, 8),
-                                                    name,
-                                                    email: emailFromToken || `${name.replace(/\s+/g,'').toLowerCase()}@example.com`,
-                                                    role: /committee|review|approver/i.test(name) ? 'INNOVATION_COMMITTEE' : 'PROCUREMENT_OFFICER',
-                                                };
-                                                setAuth('dev-token', mockUser, rememberMe);
-                                                navigate(mockUser.role === 'INNOVATION_COMMITTEE' ? '/innovation/committee/dashboard' : '/onboarding');
-                                            } else {
-                                                // Real backend path
-                                                const res = await fetch('/api/auth/microsoft', {
-                                                    method: 'POST',
-                                                    headers: { 'Content-Type': 'application/json' },
-                                                    body: JSON.stringify({ idToken }),
-                                                });
-                                                const data = await res.json().catch(() => null);
-                                                if (!res.ok) {
-                                                    const msg = (data && (data.message || data.error)) || 'Microsoft sign-in failed';
-                                                    throw new Error(msg);
+                                    <div className="space-y-3">
+                                        <button
+                                            type="button"
+                                            className="btn btn-outline-primary w-full py-3 flex items-center justify-center gap-3"
+                                            disabled={!isMsalConfigured || isLoading}
+                                            onClick={async () => {
+                                                setError('');
+                                                setIsLoading(true);
+                                                try {
+                                                    const result = await loginWithMicrosoft();
+                                                    const idToken = result.idToken;
+                                                    if (!idToken) throw new Error('No idToken from Microsoft');
+                                                    // TODO: implement backend endpoint for Microsoft login when enabling Azure AD
+                                                    throw new Error('Microsoft SSO is not yet enabled.');
+                                                } catch (e: any) {
+                                                    const msg = e?.message || 'Microsoft sign-in failed';
+                                                    if (!/Redirecting/.test(msg)) setError(msg);
+                                                } finally {
+                                                    setIsLoading(false);
                                                 }
-                                                const { token, user } = data || {};
-                                                if (!token || !user) throw new Error('Invalid Microsoft login response');
-                                                setAuth(token, user, rememberMe);
-                                                navigate(user.role === 'INNOVATION_COMMITTEE' ? '/innovation/committee/dashboard' : '/onboarding');
-                                            }
-                                        } catch (e: any) {
-                                            const msg = e?.message || 'Microsoft sign-in failed';
-                                            if (!/Redirecting/.test(msg)) setError(msg);
-                                        } finally {
-                                            setIsLoading(false);
-                                        }
-                                    }}
-                                >
-                                    <svg className="w-5 h-5" viewBox="0 0 23 23" fill="none">
-                                        <path fill="#f25022" d="M1 1h10v10H1z"/>
-                                        <path fill="#00a4ef" d="M12 1h10v10H12z"/>
-                                        <path fill="#7fba00" d="M1 12h10v10H1z"/>
-                                        <path fill="#ffb900" d="M12 12h10v10H12z"/>
-                                    </svg>
-                                    <span className="font-semibold">Sign in with Microsoft</span>
-                                </button>
-                                <p className="text-xs text-gray-500 text-center">Microsoft Entra ID</p>
-                                {!isMsalConfigured && (
-                                    <p className="text-xs text-amber-600 mt-2">
-                                        Microsoft SSO not configured. Please set VITE_AZURE_CLIENT_ID and VITE_AZURE_TENANT_ID and restart the dev server.
-                                    </p>
-                                )}
-                            </div>
+                                            }}
+                                        >
+                                            <svg className="w-5 h-5" viewBox="0 0 23 23" fill="none">
+                                                <path fill="#f25022" d="M1 1h10v10H1z"/>
+                                                <path fill="#00a4ef" d="M12 1h10v10H12z"/>
+                                                <path fill="#7fba00" d="M1 12h10v10H1z"/>
+                                                <path fill="#ffb900" d="M12 12h10v10H12z"/>
+                                            </svg>
+                                            <span className="font-semibold">Sign in with Microsoft</span>
+                                        </button>
+                                    </div>
+                                </>
+                            )}
                         </div>
                     ) : (
                         // MFA Verification Form
@@ -404,9 +367,8 @@ const Login = () => {
                             </div>
 
                             {error && (
-                                <div role="alert" aria-live="polite" className="mb-6 p-4 bg-danger-light/10 border border-danger rounded-lg text-danger text-sm">
-                                    <div className="mb-1">{error}</div>
-                                    <Link to="/help" className="text-xs underline text-danger hover:text-danger/80">Need help? Visit Help Center</Link>
+                                <div className="mb-6 p-4 bg-danger-light/10 border border-danger rounded-lg text-danger text-sm">
+                                    {error}
                                 </div>
                             )}
 

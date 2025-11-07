@@ -112,6 +112,7 @@ const routes = [
     // ============================================
     // ROOT / DEFAULT ROUTE
     // ============================================
+    // Root should always redirect to login unless already authenticated
     {
         path: '/',
         element: <Login />,

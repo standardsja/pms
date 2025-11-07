@@ -1,4 +1,4 @@
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { setPageTitle } from '../../../store/themeConfigSlice';
@@ -19,12 +19,12 @@ const Onboarding = () => {
     const isCommittee = currentUser?.role === 'INNOVATION_COMMITTEE';
 
     const [selected, setSelected] = useState<ModuleKey | null>(null);
-    const [selectionAnnouncement, setSelectionAnnouncement] = useState('');
     const [error, setError] = useState<string>('');
     const [isBusy, setIsBusy] = useState<boolean>(false);
     const [rememberChoice, setRememberChoice] = useState<boolean>(false);
     const [lastModule, setLastModule] = useState<ModuleKey | null>(null);
     const radiosRef = useRef<HTMLDivElement | null>(null);
+    const [showProcurementSteps, setShowProcurementSteps] = useState<boolean>(false);
 
     useEffect(() => {
         dispatch(setPageTitle(t('onboarding.title')));
@@ -56,11 +56,18 @@ const Onboarding = () => {
                 }
             }, 0);
         }
+        // Show procurement steps image once after login if flagged
+        try {
+            const flag = sessionStorage.getItem('showOnboardingImage');
+            if (flag === '1') {
+                setShowProcurementSteps(true);
+                sessionStorage.removeItem('showOnboardingImage');
+            }
+        } catch {}
+
         // analytics: page viewed
         logEvent('onboarding_viewed', { role: currentUser?.role ?? 'unknown', force: forceOnboarding, hasLast: !!last, done });
     }, [dispatch, isCommittee, navigate, query, forceOnboarding, t]);
-
-    const displayName = useMemo(() => currentUser?.name || currentUser?.email?.split('@')[0] || '', [currentUser]);
 
     const modules = useMemo(() => {
         const base = [
@@ -151,13 +158,6 @@ const Onboarding = () => {
         }
     };
 
-    useEffect(() => {
-        if (selected) {
-            const title = modulesMap.current[selected]?.title || selected;
-            setSelectionAnnouncement(`${title} selected. Press Enter to continue.`);
-        }
-    }, [selected]);
-
     const onKeyDownRadios = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
         if (!modules.length) return;
         const order = modules.map((m) => m.id);
@@ -170,13 +170,6 @@ const Onboarding = () => {
             e.preventDefault();
             const prev = order[(idx - 1 + order.length) % order.length];
             setSelected(prev);
-        } else if (/^[1-9]$/.test(e.key)) {
-            // Number shortcuts 1..N to select modules
-            const n = parseInt(e.key, 10) - 1;
-            if (n >= 0 && n < order.length) {
-                e.preventDefault();
-                setSelected(order[n]);
-            }
         } else if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
             handleContinue();
@@ -192,11 +185,55 @@ const Onboarding = () => {
                         <div className="text-5xl motion-safe:animate-[spin_20s_linear_infinite]">🌀</div>
                         <div>
                             <h1 className="text-3xl font-black text-gray-900 dark:text-white tracking-widest">SPINX</h1>
-                            <p className="text-sm text-gray-600 dark:text-gray-400">Bureau of Standards Jamaica{displayName ? ` • Welcome, ${displayName}` : ''}</p>
+                            <p className="text-sm text-gray-600 dark:text-gray-400">Bureau of Standards Jamaica</p>
                         </div>
                     </div>
                 </div>
             </div>
+
+            {/* Onboarding Procurement Steps Modal */}
+            {showProcurementSteps && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/50 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Procurement Process Steps">
+                    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-[92vw] max-w-6xl relative overflow-hidden animate__animated animate__fadeIn">
+                        <button
+                            type="button"
+                            onClick={() => setShowProcurementSteps(false)}
+                            className="absolute top-3 right-3 w-10 h-10 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                            aria-label="Close procurement steps"
+                        >
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                        <div className="px-6 py-5 border-b border-gray-200 dark:border-gray-700 flex items-center gap-3">
+                            <span className="text-2xl">📊</span>
+                            <h2 className="text-xl font-semibold tracking-wide">7 Steps of the Procurement Process</h2>
+                        </div>
+                        <div className="p-6 bg-white dark:bg-gray-800">
+                            <div className="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 max-h-[75vh]">
+                                {/* Replace src below with final asset if needed */}
+                                <img
+                                    src="/assets/images/procurement/steps.jpg"
+                                    alt="Diagram showing the 7 steps of the procurement process"
+                                    className="w-full h-auto max-h-[70vh] object-contain"
+                                    loading="lazy"
+                                />
+                            </div>
+                            <p className="mt-4 text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
+                                This overview highlights each phase from sourcing methodology through supplier relationship management. Use it as a quick refresher before selecting a module.
+                            </p>
+                        </div>
+                        <div className="px-6 pb-6 flex justify-end gap-3">
+                            <button
+                                type="button"
+                                onClick={() => setShowProcurementSteps(false)}
+                                className="btn btn-outline-secondary btn-sm"
+                            >
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Main Content */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
                 <div className="text-center mb-12">
@@ -204,8 +241,6 @@ const Onboarding = () => {
                     <p className="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
                         {t('onboarding.subtitle')}
                     </p>
-                    {/* ARIA live region for screen readers */}
-                    <div aria-live="polite" className="sr-only" id="onboarding-selection-announcer">{selectionAnnouncement}</div>
                 </div>
 
                 {error && (
@@ -223,7 +258,7 @@ const Onboarding = () => {
                     onKeyDown={onKeyDownRadios}
                     tabIndex={0}
                 >
-                    {modules.map((m, index) => {
+                    {modules.map((m) => {
                         const isActive = selected === m.id;
                         return (
                             <button
@@ -236,17 +271,12 @@ const Onboarding = () => {
                                     setSelected(m.id);
                                     logEvent('onboarding_selected', { selected: m.id });
                                 }}
-                                onDoubleClick={() => {
-                                    setSelected(m.id);
-                                    handleContinue();
-                                }}
                                 className={`group relative text-left bg-white dark:bg-gray-800 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 overflow-hidden border-2 focus:outline-none focus-visible:ring-4 focus-visible:ring-primary/30 ${
                                     isActive ? 'border-primary' : 'border-transparent hover:border-primary/60'
                                 }`}
                             >
                                 {/* Gradient Header */}
                                 <div className={`bg-gradient-to-r ${m.gradient} p-6 md:p-8 text-white relative overflow-hidden`}>
-                                    <span className="absolute left-4 top-4 inline-flex items-center justify-center w-8 h-8 rounded-full bg-white/20 backdrop-blur-sm text-sm font-semibold">{index + 1}</span>
                                     {isActive && (
                                         <span className="absolute top-3 right-3 bg-white/20 text-white text-xs font-bold px-2 py-1 rounded-full backdrop-blur-sm">
                                             {t('onboarding.badges.selected')}
@@ -261,9 +291,9 @@ const Onboarding = () => {
                                 </div>
 
                                 {/* Features List */}
-                                <div className="p-8 flex flex-col h-full">
+                                <div className="p-8">
                                     <h4 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-4">{t('onboarding.keyFeatures')}</h4>
-                                    <ul className="space-y-3 flex-1">
+                                    <ul className="space-y-3">
                                         {m.features.map((feature, idx) => (
                                             <li key={idx} className="flex items-center gap-3 text-gray-700 dark:text-gray-300">
                                                 <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
@@ -286,24 +316,15 @@ const Onboarding = () => {
                                             </span>
                                         </div>
                                         {isActive && (
-                                            <div className="flex items-center gap-3">
-                                                <button
-                                                    type="button"
-                                                    className="btn btn-primary btn-sm"
-                                                    onClick={handleContinue}
-                                                >
-                                                    {selected === 'pms' && t('onboarding.goTo.pms')}
-                                                    {selected === 'ih' && t('onboarding.goTo.ih')}
-                                                    {selected === 'committee' && t('onboarding.goTo.committee')}
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    className="btn btn-outline-secondary btn-sm"
-                                                    onClick={() => navigate(modulePath(selected))}
-                                                >
-                                                    {t('onboarding.continue')}
-                                                </button>
-                                            </div>
+                                            <button
+                                                type="button"
+                                                className="btn btn-primary btn-sm"
+                                                onClick={handleContinue}
+                                            >
+                                                {selected === 'pms' && t('onboarding.goTo.pms')}
+                                                {selected === 'ih' && t('onboarding.goTo.ih')}
+                                                {selected === 'committee' && t('onboarding.goTo.committee')}
+                                            </button>
                                         )}
                                     </div>
                                 </div>
@@ -314,8 +335,8 @@ const Onboarding = () => {
 
                 {/* Controls */}
                 <div className="max-w-3xl mx-auto mt-10">
-                    <div className="flex items-center justify-center flex-col gap-4">
-                        <div className="flex gap-3 w-full sm:w-auto justify-center">
+                    <div className="flex items-center justify-center flex-col sm:flex-row gap-4">
+                        <div className="flex gap-3 w-full sm:w-auto">
                             <button
                                 type="button"
                                 className="btn btn-outline-primary w-full sm:w-auto"
@@ -338,15 +359,8 @@ const Onboarding = () => {
                                     selected === 'pms' ? t('onboarding.goTo.pms') : selected === 'ih' ? t('onboarding.goTo.ih') : t('onboarding.continue')
                                 )}
                             </button>
-                            <button
-                                type="button"
-                                className="btn btn-outline-secondary w-full sm:w-auto"
-                                onClick={() => navigate(modulePath(selected || lastModule || 'pms'))}
-                            >
-                                Skip for now
-                            </button>
                         </div>
-                        <div className="mt-2 sm:mt-0 flex items-center justify-center">
+                        <div className="mt-2 sm:mt-0">
                             <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 cursor-pointer">
                                 <input
                                     type="checkbox"
@@ -360,12 +374,6 @@ const Onboarding = () => {
                                 {t('onboarding.remember')}
                             </label>
                         </div>
-                    </div>
-                    {/* Centered action links under controls */}
-                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-3 text-center">
-                        <Link to="/onboarding?reset=1" className="underline">Reset onboarding</Link>
-                        <span className="mx-1">•</span>
-                        <Link to="/onboarding?clear=1" className="underline">Clear saved choice</Link>
                     </div>
                 </div>
             </div>
