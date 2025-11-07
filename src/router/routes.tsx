@@ -110,7 +110,7 @@ const routes = [
     },
     
     // ============================================
-    // ROOT / DEFAULT ROUTE
+    // MODULE SELECTOR / ONBOARDING
     // ============================================
     // Root should always redirect to login unless already authenticated
     {

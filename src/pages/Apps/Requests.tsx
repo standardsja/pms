@@ -6,7 +6,6 @@ import IconPlus from '../../components/Icon/IconPlus';
 import IconEye from '../../components/Icon/IconEye';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
-import { fetchRequisitions } from '../../utils/procurementApi';
 
 const MySwal = withReactContent(Swal);
 
@@ -36,29 +35,35 @@ const Requests = () => {
     }, [showMineByPath]);
 
     useEffect(() => {
-        // fetch requests from mock API
+        // fetch requests from backend
         const fetchRequests = async () => {
             setLoading(true);
             try {
-                const data = await fetchRequisitions();
-                // normalize to the shape used by the component
-                setRequests(data.map((r: any) => ({
-                    id: r.id,
-                    title: r.title,
-                    requester: r.requester || '',
-                    department: r.department || '',
-                    status: r.status,
-                    date: r.date,
-                    items: (r.items || []).map((it: any) => ({ description: it.description, quantity: it.quantity, unitPrice: Number(it.unitPrice) })),
-                    totalEstimated: Number(r.totalEstimated || 0),
-                    fundingSource: r.fundingSource || '',
-                    budgetCode: r.budgetCode || '',
-                    justification: r.justification || '',
-                    currentAssigneeId: null,
-                    currentAssigneeName: '',
-                    comments: r.comments || [],
-                    statusHistory: r.statusHistory || [],
-                })));
+                let url = 'http://localhost:4000/requests';
+                if (showMineOnly && currentUserId) url = `${url}?assignee=${currentUserId}`;
+                const resp = await fetch(url, { headers: { 'x-user-id': String(currentUserId || '') } });
+                if (resp.ok) {
+                    const data = await resp.json();
+                    // normalize to the shape used by the component
+                    setRequests(data.map((r: any) => ({
+                        id: r.id,
+                        title: r.title,
+                        requester: r.requester?.name || '',
+                        department: r.department?.name || '',
+                        status: r.status,
+                        date: r.createdAt,
+                        items: (r.items || []).map((it: any) => ({ description: it.description, quantity: it.quantity, unitPrice: Number(it.unitPrice) })),
+                        totalEstimated: Number(r.totalEstimated || 0),
+                        fundingSource: r.fundingSource?.name || '',
+                        budgetCode: r.budgetCode || '',
+                        justification: r.description || '',
+                        currentAssigneeId: r.currentAssignee?.id || r.currentAssigneeId || null,
+                        currentAssigneeName: r.currentAssignee?.name || '',
+                        raw: r,
+                    })));
+                } else {
+                    console.error('Failed to fetch requests', resp.statusText);
+                }
             } catch (err) {
                 console.error(err);
             } finally { setLoading(false); }
@@ -66,6 +71,12 @@ const Requests = () => {
         
         // Initial fetch
         fetchRequests();
+        
+        // Auto-refresh every 5 seconds
+        const interval = setInterval(fetchRequests, 5000);
+        
+        // Cleanup on unmount or dependency change
+        return () => clearInterval(interval);
     }, [showMineOnly, currentUserId]);
 
     const filteredRequests = useMemo(() => {
