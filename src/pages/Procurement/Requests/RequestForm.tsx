@@ -269,11 +269,12 @@ const RequestForm = () => {
                 // Double-confirmation flow: warn on missing approval, confirm when approving
                 if ((requestMeta?.status === 'DEPARTMENT_REVIEW' && managerApproved === false) ||
                     (requestMeta?.status === 'HOD_REVIEW' && headApproved === false) ||
-                    (requestMeta?.status === 'PROCUREMENT_REVIEW' && procurementApproved === false)) {
+                    (requestMeta?.status === 'PROCUREMENT_REVIEW' && procurementApproved === false) ||
+                    (requestMeta?.status === 'FINANCE_REVIEW' && !budgetOfficerName && !budgetManagerName)) {
                     const confirmMissing = await Swal.fire({
                         icon: 'warning',
                         title: 'Approval not checked',
-                        text: 'You have not checked the approval box. Proceed without approving?',
+                        text: 'You have not checked the approval box or filled required fields. Proceed without approving?',
                         showCancelButton: true,
                         confirmButtonText: 'Proceed',
                         cancelButtonText: 'Cancel'
@@ -286,7 +287,8 @@ const RequestForm = () => {
 
                 if ((requestMeta?.status === 'DEPARTMENT_REVIEW' && managerApproved === true) ||
                     (requestMeta?.status === 'HOD_REVIEW' && headApproved === true) ||
-                    (requestMeta?.status === 'PROCUREMENT_REVIEW' && procurementApproved === true)) {
+                    (requestMeta?.status === 'PROCUREMENT_REVIEW' && procurementApproved === true) ||
+                    (requestMeta?.status === 'FINANCE_REVIEW' && (budgetOfficerName || budgetManagerName))) {
                     const confirmApprove = await Swal.fire({
                         icon: 'question',
                         title: 'Confirm approval',
@@ -336,7 +338,8 @@ const RequestForm = () => {
                 const isApproving = (
                     (requestMeta?.status === 'DEPARTMENT_REVIEW' && managerApproved === true) ||
                     (requestMeta?.status === 'HOD_REVIEW' && headApproved === true) ||
-                    (requestMeta?.status === 'PROCUREMENT_REVIEW' && procurementApproved === true)
+                    (requestMeta?.status === 'PROCUREMENT_REVIEW' && procurementApproved === true) ||
+                    (requestMeta?.status === 'FINANCE_REVIEW' && (budgetOfficerName || budgetManagerName))
                 );
 
                 if (isApproving) {
