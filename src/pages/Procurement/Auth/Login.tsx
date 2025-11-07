@@ -80,6 +80,8 @@ const Login = () => {
                 userRoles.includes('PROCUREMENT')
             ) {
                 navigate('/procurement/dashboard');
+            } else if (userRoles.includes('SUPPLIER') || userRoles.some((r: string) => r && r.toUpperCase().includes('SUPPLIER'))) {
+                navigate('/supplier');
             } else if (userRoles.some((r: string) => r && r.toUpperCase().includes('REQUEST'))) {
                 navigate('/apps/requests');
             } else {

@@ -55,8 +55,10 @@ const Sidebar = () => {
                                   userRoles.some((r: string) => r && r.toUpperCase().includes('MANAGER'));
     // Only check for Officer if not a Manager
     const isProcurementOfficer = !isProcurementManager && (userRoles.includes('PROCUREMENT_OFFICER') || userRoles.includes('PROCUREMENT'));
+    // Supplier role
+    const isSupplier = userRoles.includes('SUPPLIER') || userRoles.some(r => r && r.toUpperCase().includes('SUPPLIER'));
     // Requester role (minimal access: Requests only)
-    const isRequester = !isProcurementManager && !isProcurementOfficer && !isCommitteeMember && userRoles.some(r => r.toUpperCase().includes('REQUEST')); // matches REQUESTER / REQUEST_USER etc.
+    const isRequester = !isProcurementManager && !isProcurementOfficer && !isCommitteeMember && !isSupplier && userRoles.some(r => r.toUpperCase().includes('REQUEST')); // matches REQUESTER / REQUEST_USER etc.
     
     // Determine if we're in Innovation Hub
     const isInnovationHub = location.pathname.startsWith('/innovation');
@@ -67,6 +69,8 @@ const Sidebar = () => {
         ? '/innovation/dashboard'
         : isProcurementManager
         ? '/procurement/manager'
+        : isSupplier
+        ? '/supplier'
         : isRequester
         ? '/apps/requests'
         : '/procurement/dashboard';
@@ -218,6 +222,22 @@ const Sidebar = () => {
                                             <div className="flex items-center">
                                                 <IconUser className="group-hover:!text-primary shrink-0" />
                                                 <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">My Ideas</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+                                </>
+                            ) : isSupplier ? (
+                                // Supplier Only Menu
+                                <>
+                                    <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
+                                        <IconMinus className="w-4 h-5 flex-none hidden" />
+                                        <span>SUPPLIER</span>
+                                    </h2>
+                                    <li className="nav-item">
+                                        <NavLink to="/supplier" className="group">
+                                            <div className="flex items-center">
+                                                <IconMenuDashboard className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Supplier Dashboard</span>
                                             </div>
                                         </NavLink>
                                     </li>
