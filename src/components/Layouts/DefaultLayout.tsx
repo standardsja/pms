@@ -54,12 +54,17 @@ const DefaultLayout = ({ children }: PropsWithChildren) => {
     const isAuth = !!localStorage.getItem('auth_token') || !!localStorage.getItem('authToken') || !!localStorage.getItem('token');
         const onOnboarding = location.pathname.startsWith('/onboarding');
         const onAuth = location.pathname.startsWith('/auth/');
+        const onInnovation = location.pathname.startsWith('/innovation/');
+        const onProcurement = location.pathname.startsWith('/procurement/');
+        
         if (!isAuth && !onAuth) {
             navigate('/auth/login', { replace: true });
             return;
         }
+        
         // If authenticated but no module chosen yet and not on onboarding/auth pages
-        if (isAuth && !selectedModule && !onOnboarding && !onAuth) {
+        // Allow direct access to innovation and procurement routes even without explicit module selection
+        if (isAuth && !selectedModule && !onOnboarding && !onAuth && !onInnovation && !onProcurement) {
             navigate('/onboarding?force=1', { replace: true });
         }
     }, [location.pathname, navigate, selectedModule]);

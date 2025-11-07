@@ -36,6 +36,9 @@ const Sidebar = () => {
     
     // Check if user is Department Head
     const isDepartmentHead = userRoles.includes(UserRole.DEPARTMENT_HEAD);
+    
+    // Check if on Innovation Hub routes
+    const isInnovationHub = location.pathname.startsWith('/innovation/');
 
     useEffect(() => {
         const selector = document.querySelector('.sidebar ul a[href="' + window.location.pathname + '"]');
@@ -84,6 +87,107 @@ const Sidebar = () => {
                     </div>
                     <PerfectScrollbar className="h-[calc(100vh-80px)] relative">
                         <ul className="relative font-semibold space-y-0.5 p-4 py-0">
+                            {/* ============================================
+                                INNOVATION HUB SIDEBAR
+                                ============================================ */}
+                            {isInnovationHub ? (
+                                <>
+                                    <li className="nav-section">
+                                        <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
+                                            <IconMinus className="w-4 h-5 flex-none hidden" />
+                                            <span>💡 Innovation Hub</span>
+                                        </h2>
+                                    </li>
+
+                                    <li className="nav-item">
+                                        <NavLink to="/innovation/dashboard" className="group">
+                                            <div className="flex items-center">
+                                                <IconMenuDashboard className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Dashboard</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+
+                                    <li className="nav-item">
+                                        <NavLink to="/innovation/ideas/new" className="group">
+                                            <div className="flex items-center">
+                                                <span className="shrink-0 text-xl">✨</span>
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Submit New Idea</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+
+                                    <li className="nav-item">
+                                        <NavLink to="/innovation/ideas/browse" className="group">
+                                            <div className="flex items-center">
+                                                <span className="shrink-0 text-xl">🔍</span>
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Browse Ideas</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+
+                                    <li className="nav-item">
+                                        <NavLink to="/innovation/ideas/mine" className="group">
+                                            <div className="flex items-center">
+                                                <span className="shrink-0 text-xl">📝</span>
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">My Submissions</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+
+                                    <li className="nav-item">
+                                        <NavLink to="/innovation/ideas/popular" className="group">
+                                            <div className="flex items-center">
+                                                <span className="shrink-0 text-xl">🔥</span>
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Popular This Week</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+
+                                    <li className="nav-item">
+                                        <NavLink to="/innovation/ideas/analytics" className="group">
+                                            <div className="flex items-center">
+                                                <IconBarChart className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Analytics</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+
+                                    {/* Committee Section - Only show if user has committee role */}
+                                    {userRoles.includes('INNOVATION_COMMITTEE' as UserRole) && (
+                                        <>
+                                            <li className="nav-section">
+                                                <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mt-4 mb-1">
+                                                    <IconMinus className="w-4 h-5 flex-none hidden" />
+                                                    <span>⚖️ Committee</span>
+                                                </h2>
+                                            </li>
+
+                                            <li className="nav-item">
+                                                <NavLink to="/innovation/committee/dashboard" className="group">
+                                                    <div className="flex items-center">
+                                                        <IconMenuDashboard className="group-hover:!text-primary shrink-0" />
+                                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Committee Dashboard</span>
+                                                    </div>
+                                                </NavLink>
+                                            </li>
+
+                                            <li className="nav-item">
+                                                <NavLink to="/innovation/committee/review" className="group">
+                                                    <div className="flex items-center">
+                                                        <IconChecks className="group-hover:!text-primary shrink-0" />
+                                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Review Ideas</span>
+                                                    </div>
+                                                </NavLink>
+                                            </li>
+                                        </>
+                                    )}
+                                </>
+                            ) : (
+                                <>
+                            {/* ============================================
+                                PROCUREMENT SIDEBAR (Original)
+                                ============================================ */}
                             {/* Show Department Head sections only if user is Department Head */}
                             {isDepartmentHead ? (
                                 <>
@@ -412,6 +516,8 @@ const Sidebar = () => {
                                         </NavLink>
                                     </li>
                                 </>
+                            )}
+                            </>
                             )}
                         </ul>
                     </PerfectScrollbar>

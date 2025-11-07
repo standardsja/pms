@@ -409,6 +409,274 @@ app.post('/requests/:id/action', async (req, res) => {
 
 app.get('/', (req, res) => res.json({ ok: true }));
 
+// ============================================
+// INNOVATION HUB API ENDPOINTS
+// ============================================
+
+// GET /api/ideas - List ideas with optional filters
+app.get('/api/ideas', async (req, res) => {
+	try {
+		const actorId = getActingUserId(req);
+		if (!actorId) return res.status(401).json({ error: 'unauthorized' });
+
+		const { status, sort } = req.query;
+		const where = {};
+		
+		if (status && status !== 'all') {
+			// Support aliases: pending → PENDING_REVIEW, etc.
+			const map = {
+				pending: 'PENDING_REVIEW',
+				approved: 'APPROVED',
+				rejected: 'REJECTED',
+				promoted: 'PROMOTED_TO_PROJECT',
+			};
+			where.status = map[status] || status;
+		}
+
+		const orderBy = sort === 'popularity' ? { voteCount: 'desc' } : { createdAt: 'desc' };
+		const ideas = await prisma.idea.findMany({ where, orderBy });
+		return res.json(ideas);
+	} catch (err) {
+		console.error('[GET /api/ideas]', err);
+		return res.status(500).json({ error: String(err) });
+	}
+});
+
+// POST /api/ideas - Create a new idea
+app.post('/api/ideas', async (req, res) => {
+	try {
+		const actorId = getActingUserId(req);
+		if (!actorId) return res.status(401).json({ error: 'unauthorized' });
+
+		const { title, description, category, expectedBenefits, implementationNotes } = req.body;
+		if (!title || !description || !category) {
+			return res.status(400).json({ error: 'title, description, and category required' });
+		}
+
+		// Combine additional fields into description if provided
+		let fullDescription = description;
+		if (expectedBenefits) fullDescription += `\n\n**Expected Benefits:**\n${expectedBenefits}`;
+		if (implementationNotes) fullDescription += `\n\n**Implementation Notes:**\n${implementationNotes}`;
+
+		const idea = await prisma.idea.create({
+			data: {
+				title,
+				description: fullDescription,
+				category,
+				status: 'PENDING_REVIEW',
+				submittedBy: actorId,
+			},
+		});
+		return res.status(201).json(idea);
+	} catch (err) {
+		console.error('[POST /api/ideas]', err);
+		return res.status(500).json({ error: String(err) });
+	}
+});
+
+// POST /api/ideas/:id/approve - Approve an idea (Committee only)
+app.post('/api/ideas/:id/approve', async (req, res) => {
+	try {
+		const actorId = getActingUserId(req);
+		if (!actorId) return res.status(401).json({ error: 'unauthorized' });
+
+		// Check if user has INNOVATION_COMMITTEE role
+		const userRoles = await prisma.userRole.findMany({
+			where: { userId: actorId },
+			include: { role: true },
+		});
+		const isCommittee = userRoles.some(ur => ur.role?.name === 'INNOVATION_COMMITTEE');
+		if (!isCommittee) return res.status(403).json({ error: 'forbidden: committee only' });
+
+		const { id } = req.params;
+		const { notes } = req.body || {};
+
+		const updated = await prisma.idea.update({
+			where: { id: Number(id) },
+			data: {
+				status: 'APPROVED',
+				reviewedBy: actorId,
+				reviewedAt: new Date(),
+				reviewNotes: notes || null,
+			},
+		});
+		return res.json(updated);
+	} catch (err) {
+		console.error('[POST /api/ideas/:id/approve]', err);
+		return res.status(500).json({ error: String(err) });
+	}
+});
+
+// POST /api/ideas/:id/reject - Reject an idea (Committee only)
+app.post('/api/ideas/:id/reject', async (req, res) => {
+	try {
+		const actorId = getActingUserId(req);
+		if (!actorId) return res.status(401).json({ error: 'unauthorized' });
+
+		const userRoles = await prisma.userRole.findMany({
+			where: { userId: actorId },
+			include: { role: true },
+		});
+		const isCommittee = userRoles.some(ur => ur.role?.name === 'INNOVATION_COMMITTEE');
+		if (!isCommittee) return res.status(403).json({ error: 'forbidden: committee only' });
+
+		const { id } = req.params;
+		const { notes } = req.body || {};
+
+		const updated = await prisma.idea.update({
+			where: { id: Number(id) },
+			data: {
+				status: 'REJECTED',
+				reviewedBy: actorId,
+				reviewedAt: new Date(),
+				reviewNotes: notes || null,
+			},
+		});
+		return res.json(updated);
+	} catch (err) {
+		console.error('[POST /api/ideas/:id/reject]', err);
+		return res.status(500).json({ error: String(err) });
+	}
+});
+
+// POST /api/ideas/:id/promote - Promote idea to project (Committee only)
+app.post('/api/ideas/:id/promote', async (req, res) => {
+	try {
+		const actorId = getActingUserId(req);
+		if (!actorId) return res.status(401).json({ error: 'unauthorized' });
+
+		const userRoles = await prisma.userRole.findMany({
+			where: { userId: actorId },
+			include: { role: true },
+		});
+		const isCommittee = userRoles.some(ur => ur.role?.name === 'INNOVATION_COMMITTEE');
+		if (!isCommittee) return res.status(403).json({ error: 'forbidden: committee only' });
+
+		const { id } = req.params;
+		const { projectCode } = req.body || {};
+
+		const idea = await prisma.idea.findUnique({ where: { id: Number(id) } });
+		if (!idea) return res.status(404).json({ error: 'idea not found' });
+		if (idea.status !== 'APPROVED') {
+			return res.status(400).json({ error: 'idea must be APPROVED before promotion' });
+		}
+
+		const code = projectCode && String(projectCode).trim().length > 0
+			? String(projectCode).trim()
+			: `BSJ-PROJ-${new Date().getFullYear()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
+
+		const updated = await prisma.idea.update({
+			where: { id: Number(id) },
+			data: {
+				status: 'PROMOTED_TO_PROJECT',
+				promotedAt: new Date(),
+				projectCode: code,
+			},
+		});
+		return res.json(updated);
+	} catch (err) {
+		console.error('[POST /api/ideas/:id/promote]', err);
+		return res.status(500).json({ error: String(err) });
+	}
+});
+
+// POST /api/ideas/:id/vote - Vote for an idea
+app.post('/api/ideas/:id/vote', async (req, res) => {
+	try {
+		const actorId = getActingUserId(req);
+		if (!actorId) return res.status(401).json({ error: 'unauthorized' });
+
+		const { id } = req.params;
+		const ideaId = Number(id);
+
+		// Check if already voted
+		const existing = await prisma.vote.findUnique({
+			where: { ideaId_userId: { ideaId, userId: actorId } },
+		});
+		if (existing) return res.status(400).json({ error: 'already voted' });
+
+		// Create vote and increment count
+		await prisma.vote.create({ data: { ideaId, userId: actorId } });
+		const updated = await prisma.idea.update({
+			where: { id: ideaId },
+			data: { voteCount: { increment: 1 } },
+		});
+		return res.json(updated);
+	} catch (err) {
+		console.error('[POST /api/ideas/:id/vote]', err);
+		return res.status(500).json({ error: String(err) });
+	}
+});
+
+// DELETE /api/ideas/:id/vote - Remove vote
+app.delete('/api/ideas/:id/vote', async (req, res) => {
+	try {
+		const actorId = getActingUserId(req);
+		if (!actorId) return res.status(401).json({ error: 'unauthorized' });
+
+		const { id } = req.params;
+		const ideaId = Number(id);
+
+		const existing = await prisma.vote.findUnique({
+			where: { ideaId_userId: { ideaId, userId: actorId } },
+		});
+		if (!existing) return res.status(404).json({ error: 'vote not found' });
+
+		await prisma.vote.delete({ where: { id: existing.id } });
+		const updated = await prisma.idea.update({
+			where: { id: ideaId },
+			data: { voteCount: { decrement: 1 } },
+		});
+		return res.json(updated);
+	} catch (err) {
+		console.error('[DELETE /api/ideas/:id/vote]', err);
+		return res.status(500).json({ error: String(err) });
+	}
+});
+
+// GET /api/ideas/:id/comments - Get comments for an idea
+app.get('/api/ideas/:id/comments', async (req, res) => {
+	try {
+		const { id } = req.params;
+		const comments = await prisma.ideaComment.findMany({
+			where: { ideaId: Number(id) },
+			include: { user: { select: { id: true, name: true, email: true } } },
+			orderBy: { createdAt: 'asc' },
+		});
+		return res.json(comments);
+	} catch (err) {
+		console.error('[GET /api/ideas/:id/comments]', err);
+		return res.status(500).json({ error: String(err) });
+	}
+});
+
+// POST /api/ideas/:id/comments - Add comment to idea
+app.post('/api/ideas/:id/comments', async (req, res) => {
+	try {
+		const actorId = getActingUserId(req);
+		if (!actorId) return res.status(401).json({ error: 'unauthorized' });
+
+		const { id } = req.params;
+		const { text } = req.body || {};
+		if (!text) return res.status(400).json({ error: 'text required' });
+
+		const comment = await prisma.ideaComment.create({
+			data: {
+				ideaId: Number(id),
+				userId: actorId,
+				text,
+			},
+			include: { user: { select: { id: true, name: true, email: true } } },
+		});
+		return res.status(201).json(comment);
+	} catch (err) {
+		console.error('[POST /api/ideas/:id/comments]', err);
+		return res.status(500).json({ error: String(err) });
+	}
+});
+
+app.get('/', (req, res) => res.json({ ok: true }));
+
 // Generate a PDF representation of a request
 app.get('/requests/:id/pdf', async (req, res) => {
 	try {
