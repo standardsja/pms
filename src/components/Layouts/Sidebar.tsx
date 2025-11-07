@@ -112,35 +112,36 @@ const Sidebar = () => {
                                         <NavLink to="/innovation/ideas/new" className="group">
                                             <div className="flex items-center">
                                                 <span className="shrink-0 text-xl">✨</span>
-                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Submit New Idea</span>
+                                                    <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Create an Idea</span>
                                             </div>
                                         </NavLink>
                                     </li>
 
                                     <li className="nav-item">
                                         <NavLink to="/innovation/ideas/browse" className="group">
-                                            <div className="flex items-center">
-                                                <span className="shrink-0 text-xl">🔍</span>
-                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Browse Ideas</span>
-                                            </div>
+                                                <div className="flex items-center">
+                                                    <span className="shrink-0 text-xl">🔍</span>
+                                                    <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Browse Ideas</span>
+                                                </div>
+                                        </NavLink>
+                                    </li>
+
+
+                                    <li className="nav-item">
+                                        <NavLink to="/innovation/ideas/popular" className="group">
+                                                <div className="flex items-center">
+                                                    <span className="shrink-0 text-xl">�</span>
+                                                    <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Vote on Idea</span>
+                                                </div>
                                         </NavLink>
                                     </li>
 
                                     <li className="nav-item">
                                         <NavLink to="/innovation/ideas/mine" className="group">
-                                            <div className="flex items-center">
-                                                <span className="shrink-0 text-xl">📝</span>
-                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">My Submissions</span>
-                                            </div>
-                                        </NavLink>
-                                    </li>
-
-                                    <li className="nav-item">
-                                        <NavLink to="/innovation/ideas/popular" className="group">
-                                            <div className="flex items-center">
-                                                <span className="shrink-0 text-xl">🔥</span>
-                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Popular This Week</span>
-                                            </div>
+                                                <div className="flex items-center">
+                                                    <span className="shrink-0 text-xl">�</span>
+                                                    <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">My Idea</span>
+                                                </div>
                                         </NavLink>
                                     </li>
 
