@@ -43,6 +43,24 @@ enum Priority {
   URGENT
 }
 
+enum IdeaStatus {
+  DRAFT
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+  PROMOTED_TO_PROJECT
+}
+
+enum IdeaCategory {
+  PROCESS_IMPROVEMENT
+  TECHNOLOGY
+  CUSTOMER_SERVICE
+  SUSTAINABILITY
+  COST_REDUCTION
+  PRODUCT_INNOVATION
+  OTHER
+}
+
 /**
  * ===== Models =====
  */
@@ -66,6 +84,11 @@ model User {
   statusChanges       RequestStatusHistory[] @relation("statusChangedBy")
   createdAt           DateTime               @default(now())
   updatedAt           DateTime               @updatedAt
+
+  // Innovation Hub relations
+  ideas        Idea[]
+  votes        Vote[]
+  ideaComments IdeaComment[]
 }
 
 model Department {
@@ -231,4 +254,87 @@ model RequestStatusHistory {
 
   comment   String?
   createdAt DateTime @default(now())
+}
+
+// ============================================
+// INNOVATION HUB DOMAIN
+// ============================================
+
+model Idea {
+  id             Int          @id @default(autoincrement())
+  title          String
+  description    String       @db.Text
+  category       IdeaCategory
+  status         IdeaStatus   @default(DRAFT)
+  
+  // Submission
+  submittedBy    Int
+  submitter      User         @relation(fields: [submittedBy], references: [id])
+  submittedAt    DateTime     @default(now())
+  
+  // Review
+  reviewedBy     Int?
+  reviewedAt     DateTime?
+  reviewNotes    String?      @db.Text
+  
+  // Promotion
+  promotedAt     DateTime?
+  projectCode    String?      @unique
+  
+  // Metadata
+  voteCount      Int          @default(0)
+  viewCount      Int          @default(0)
+  
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  // Relations
+  votes          Vote[]
+  comments       IdeaComment[]
+  attachments    IdeaAttachment[]
+
+  @@index([status])
+  @@index([category])
+  @@index([submittedBy])
+  @@index([createdAt])
+  @@index([voteCount])
+}
+
+model Vote {
+  id        Int      @id @default(autoincrement())
+  ideaId    Int
+  idea      Idea     @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([ideaId, userId])
+  @@index([ideaId])
+  @@index([userId])
+}
+
+model IdeaComment {
+  id        Int      @id @default(autoincrement())
+  ideaId    Int
+  idea      Idea     @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  text      String   @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([ideaId])
+  @@index([userId])
+}
+
+model IdeaAttachment {
+  id        Int      @id @default(autoincrement())
+  ideaId    Int
+  idea      Idea     @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+  fileName  String
+  fileUrl   String
+  fileSize  Int
+  mimeType  String?
+  uploadedAt DateTime @default(now())
+
+  @@index([ideaId])
 }

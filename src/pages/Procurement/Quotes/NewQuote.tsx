@@ -94,7 +94,7 @@ const NewQuote = () => {
     };
 
     const handleSaveDraft = () => {
-        console.log('Saving quote draft:', { formData, items });
+        // Draft save logic would be implemented here
 
         setAlertType('warning');
         setAlertMessage('Quote has been saved as draft. You can continue editing or submit it later.');
@@ -125,7 +125,7 @@ const NewQuote = () => {
             return;
         }
 
-        console.log('Submitting quote:', { formData, items });
+        // Quote submission logic would be implemented here
 
         setAlertType('success');
         setAlertMessage(`Quote from ${formData.supplierName} has been submitted successfully. Total Amount: ${formData.currency} $${calculateTotal().toLocaleString()}`);

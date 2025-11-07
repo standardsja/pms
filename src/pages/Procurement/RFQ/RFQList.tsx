@@ -110,14 +110,14 @@ const RFQList = () => {
     };
 
     const confirmSendRFQ = () => {
-        console.log('Sending RFQ to vendors:', selectedRFQ);
+        // RFQ send to vendors logic would be implemented here
         // Implement send logic here
         setShowSendModal(false);
         setSelectedRFQ(null);
     };
 
     const handleDownloadRFQ = (rfq: any) => {
-        console.log('Downloading RFQ:', rfq.rfqNumber);
+        // RFQ download logic would be implemented here
         // In a real application, this would generate and download a PDF
         alert(`Downloading ${rfq.rfqNumber}.pdf\n\nRFQ: ${rfq.title}\nStatus: ${rfq.status}\nClosing Date: ${rfq.closingDate}`);
     };

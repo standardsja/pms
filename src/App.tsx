@@ -2,6 +2,7 @@ import { PropsWithChildren, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { IRootState } from './store';
 import { toggleRTL, toggleTheme, toggleLocale, toggleMenu, toggleLayout, toggleAnimation, toggleNavbar, toggleSemidark, toggleAccent } from './store/themeConfigSlice';
+import { verifyToken } from './store/authSlice';
 import store from './store';
 
 function App({ children }: PropsWithChildren) {
@@ -18,6 +19,12 @@ function App({ children }: PropsWithChildren) {
         dispatch(toggleLocale(localStorage.getItem('i18nextLng') || themeConfig.locale));
         dispatch(toggleSemidark(localStorage.getItem('semidark') || themeConfig.semidark));
         dispatch(toggleAccent(localStorage.getItem('accent') || (themeConfig as any).accent || 'blue'));
+
+        // Verify existing token on app load
+        const token = localStorage.getItem('token');
+        if (token) {
+            dispatch(verifyToken() as any);
+        }
     }, [dispatch, themeConfig.theme, themeConfig.menu, themeConfig.layout, themeConfig.rtlClass, themeConfig.animation, themeConfig.navbar, themeConfig.locale, themeConfig.semidark]);
 
     return (

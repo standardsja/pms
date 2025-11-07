@@ -40,8 +40,16 @@ const Header = () => {
     const navigate = useNavigate();
     
     // Get current user to check role
-    const currentUser = getUser();
-    const isCommitteeMember = currentUser?.role === 'INNOVATION_COMMITTEE';
+    // Prefer unified auth_user from localStorage; fallback to getUser helper
+    let currentUser: any = getUser();
+    try {
+        const raw = localStorage.getItem('auth_user');
+        if (raw) {
+            const parsed = JSON.parse(raw);
+            currentUser = { ...currentUser, ...parsed };
+        }
+    } catch {}
+    const isCommitteeMember = (currentUser?.roles || []).includes('INNOVATION_COMMITTEE') || currentUser?.role === 'INNOVATION_COMMITTEE';
     
     // Determine current module based on route
     const isInnovationHub = location.pathname.startsWith('/innovation');
@@ -473,7 +481,7 @@ const Header = () => {
                                             <img className="rounded-md w-10 h-10 object-cover" src="/assets/images/user-profile.jpeg" alt="userProfile" />
                                             <div className="ltr:pl-4 rtl:pr-4 truncate">
                                                 <h4 className="text-base">
-                                                    {currentUser?.name || 'User'}
+                                                    {currentUser?.name || currentUser?.full_name || 'User'}
                                                     <span className="text-xs bg-success-light rounded text-success px-1 ltr:ml-2 rtl:ml-2">
                                                         {isCommitteeMember ? 'Committee' : 'Procurement Officer'}
                                                     </span>
