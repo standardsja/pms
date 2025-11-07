@@ -65,12 +65,23 @@ const Login = () => {
             // Flag to show onboarding helper image exactly once after successful login
             try { sessionStorage.setItem('showOnboardingImage', '1'); } catch {}
             
-            // Check if user is committee member - route directly to committee dashboard
+            // Role-based redirect after login
             const userRoles = user.roles || (user.role ? [user.role] : []);
             if (userRoles.includes('INNOVATION_COMMITTEE')) {
                 navigate('/innovation/committee/dashboard');
+            } else if (
+                userRoles.includes('PROCUREMENT_MANAGER') ||
+                userRoles.includes('MANAGER') ||
+                userRoles.some((r: string) => r && r.toUpperCase().includes('MANAGER'))
+            ) {
+                navigate('/procurement/manager');
+            } else if (
+                userRoles.includes('PROCUREMENT_OFFICER') ||
+                userRoles.includes('PROCUREMENT')
+            ) {
+                navigate('/procurement/dashboard');
             } else {
-                // Regular users go to onboarding
+                // Fallback to onboarding selector
                 navigate('/onboarding');
             }
         } catch (err: any) {

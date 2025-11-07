@@ -16,7 +16,12 @@ const Onboarding = () => {
     const query = useMemo(() => new URLSearchParams(search), [search]);
     const forceOnboarding = query.get('force') === '1' || query.get('reset') === '1';
     const currentUser = getUser();
-    const isCommittee = currentUser?.role === 'INNOVATION_COMMITTEE';
+    const userRoles: string[] = (currentUser as any)?.roles || ((currentUser as any)?.role ? [(currentUser as any).role] : []);
+    const isCommittee = userRoles.includes('INNOVATION_COMMITTEE');
+    const isProcurementManager =
+        userRoles.includes('PROCUREMENT_MANAGER') ||
+        userRoles.includes('MANAGER') ||
+        userRoles.some((r) => r && r.toUpperCase().includes('MANAGER'));
 
     const [selected, setSelected] = useState<ModuleKey | null>(null);
     const [error, setError] = useState<string>('');
@@ -66,8 +71,8 @@ const Onboarding = () => {
         } catch {}
 
         // analytics: page viewed
-        logEvent('onboarding_viewed', { role: currentUser?.role ?? 'unknown', force: forceOnboarding, hasLast: !!last, done });
-    }, [dispatch, isCommittee, navigate, query, forceOnboarding, t]);
+        logEvent('onboarding_viewed', { role: (userRoles && userRoles[0]) || 'unknown', force: forceOnboarding, hasLast: !!last, done });
+    }, [dispatch, isCommittee, navigate, query, forceOnboarding, t, userRoles]);
 
     const modules = useMemo(() => {
         const base = [
@@ -77,7 +82,7 @@ const Onboarding = () => {
                 description: t('onboarding.modules.pms.description'),
                 icon: '📦',
                 gradient: 'from-blue-500 to-blue-700',
-                path: '/procurement/dashboard',
+                path: isProcurementManager ? '/procurement/manager' : '/procurement/dashboard',
                 features: [
                     t('onboarding.modules.pms.features.0'),
                     t('onboarding.modules.pms.features.1'),
