@@ -4,9 +4,18 @@ import mockAuthService from './mockAuthService';
 
 // Use mock auth in development if VITE_USE_MOCK_AUTH is true
 const USE_MOCK_AUTH = import.meta.env.VITE_USE_MOCK_AUTH === 'true';
+// Switchable auth mode (LOCAL | AAD); default LOCAL to avoid breaking current setup
+const AUTH_MODE = (import.meta.env.VITE_AUTH_MODE || 'LOCAL') as 'LOCAL' | 'AAD';
 
 class AuthService {
   async login(credentials: LoginCredentials): Promise<AuthResponse> {
+    // Prevent accidental password login in AAD mode (non-breaking stub)
+    if (AUTH_MODE === 'AAD') {
+      return {
+        success: false,
+        message: 'Password login disabled: Azure AD mode active (stub). Use SSO button.',
+      };
+    }
     // Use mock service if enabled in environment
     if (USE_MOCK_AUTH) {
       console.log('[AuthService] Using mock auth');
