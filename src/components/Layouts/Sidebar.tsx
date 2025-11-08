@@ -33,9 +33,31 @@ const Sidebar = () => {
     // Get user and role information
     const user = useSelector(selectUser);
     const userRoles = useSelector(selectUserRoles);
+    // Debug current roles to help verify admin gating
+    if (userRoles && userRoles.length) {
+        console.debug('[Sidebar] roles:', userRoles);
+    }
     
-    // Check if user is Department Head
-    const isDepartmentHead = userRoles.includes(UserRole.DEPARTMENT_HEAD);
+    // Role helpers (support both backend codes like 'ADMIN' and enum labels like 'Administrator')
+    // Admin detection: supports raw code 'ADMIN', enum label 'Administrator', or any case-insensitive variant containing 'admin'
+    const isAdmin = userRoles.some(r => {
+        const val = String(r);
+        return val === 'ADMIN' || val === UserRole.ADMIN || /admin/i.test(val);
+    });
+    // Department Head (DEPT_MANAGER | HEAD_OF_DIVISION | label contains Department Head/Head of Division)
+    const isDepartmentHead = userRoles.some(r => {
+        const val = String(r);
+        return val === 'DEPT_MANAGER' || val === 'HEAD_OF_DIVISION' || val === UserRole.DEPARTMENT_HEAD || /department\s*head|head\s*of\s*division/i.test(val);
+    });
+    // Finance
+    const isFinance = userRoles.some(r => {
+        const val = String(r);
+        return val === 'FINANCE' || val === UserRole.FINANCE || /finance/i.test(val);
+    });
+    // Executive Director
+    const isExecutive = userRoles.some(r => /EXECUTIVE_DIRECTOR/i.test(String(r)) || /executive\s*director/i.test(String(r)));
+    // Supplier
+    const isSupplier = userRoles.some(r => String(r) === 'SUPPLIER' || /supplier/i.test(String(r)));
     
     // Check if on Innovation Hub routes
     const isInnovationHub = location.pathname.startsWith('/innovation/');
@@ -250,7 +272,7 @@ const Sidebar = () => {
                                     </li>
 
                                     <li className="nav-item">
-                                <NavLink to="/" className="group">
+                                        <NavLink to="/procurement/dashboard" className="group">
                                     <div className="flex items-center">
                                         <IconMenuDashboard className="group-hover:!text-primary shrink-0" />
                                         <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Dashboard</span>
@@ -348,14 +370,16 @@ const Sidebar = () => {
                                 </NavLink>
                             </li>
 
-                            <li className="nav-item">
-                                <NavLink to="/procurement/admin" className="group">
-                                    <div className="flex items-center">
-                                        <IconSettings className="group-hover:!text-primary shrink-0" />
-                                        <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Settings</span>
-                                    </div>
-                                </NavLink>
-                            </li>
+                            {isAdmin && (
+                                <li className="nav-item">
+                                    <NavLink to="/procurement/admin" className="group">
+                                        <div className="flex items-center">
+                                            <IconSettings className="group-hover:!text-primary shrink-0" />
+                                            <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Admin Settings</span>
+                                        </div>
+                                    </NavLink>
+                                </li>
+                            )}
 
                             {/* Procurement Manager */}
                             <li className="nav-section">

@@ -20,6 +20,19 @@ export default defineConfig({
                 target: 'http://localhost:4000',
                 changeOrigin: true,
             },
+            // Also proxy admin/auth and non-prefixed endpoints used by the app
+            '/admin': {
+                target: 'http://localhost:4000',
+                changeOrigin: true,
+            },
+            '/auth': {
+                target: 'http://localhost:4000',
+                changeOrigin: true,
+            },
+            '/requests': {
+                target: 'http://localhost:4000',
+                changeOrigin: true,
+            },
         },
     },
 });

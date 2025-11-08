@@ -60,6 +60,12 @@ class AuthService {
       if (data.token) {
         localStorage.setItem('token', data.token);
       }
+      // Persist user snapshot for downstream services (adminService, etc.)
+      try {
+        if (data.user) {
+          localStorage.setItem('auth_user', JSON.stringify(data.user));
+        }
+      } catch {}
 
       return {
         success: true,

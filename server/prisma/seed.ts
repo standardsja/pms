@@ -188,6 +188,19 @@ async function ensureRole(name: string, description?: string) {
   
   console.log(`[seed] Created admin user: ${admin.email} with role: ADMIN`);
 
+  // Assign REQUESTER role to admin for broader feature access if not already assigned
+  const requesterRole = roles.find(r => r.name === 'REQUESTER');
+  if (requesterRole) {
+    await prisma.userRole.upsert({
+      where: { userId_roleId: { userId: admin.id, roleId: requesterRole.id } },
+      update: {},
+      create: { userId: admin.id, roleId: requesterRole.id }
+    });
+    console.log('[seed] Added REQUESTER role to admin');
+  } else {
+    console.warn('[seed] REQUESTER role not found to add to admin');
+  }
+
   // Shared service officers (load-balanced pools)
   const procurement1 = await prisma.user.upsert({
     where: { email: 'proc1@bsj.gov.jm' },

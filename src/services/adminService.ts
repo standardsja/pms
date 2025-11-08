@@ -40,23 +40,33 @@ function getCurrentUserId(): number | null {
   return null;
 }
 
+const API_BASE = (import.meta.env.VITE_API_BASE || '');
+// Decide whether to prefix; if API_BASE provided and path is relative, join.
+function buildUrl(path: string) {
+  if (path.startsWith('http://') || path.startsWith('https://')) return path;
+  if (API_BASE) return API_BASE.replace(/\/$/, '') + path;
+  return path; // rely on Vite proxy if no base set
+}
+
 async function apiGet<T = any>(path: string): Promise<T> {
   const uid = getCurrentUserId();
-  const res = await fetch(path, {
+  const url = buildUrl(path);
+  const res = await fetch(url, {
     headers: {
       'x-user-id': uid ? String(uid) : '',
     },
   });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(text || `GET ${path} failed: ${res.status}`);
+    throw new Error(text || `GET ${url} failed: ${res.status}`);
   }
   return res.json();
 }
 
 async function apiPost<T = any>(path: string, body: any): Promise<T> {
   const uid = getCurrentUserId();
-  const res = await fetch(path, {
+  const url = buildUrl(path);
+  const res = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -66,7 +76,7 @@ async function apiPost<T = any>(path: string, body: any): Promise<T> {
   });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(text || `POST ${path} failed: ${res.status}`);
+    throw new Error(text || `POST ${url} failed: ${res.status}`);
   }
   return res.json();
 }
