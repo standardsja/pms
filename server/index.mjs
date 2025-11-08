@@ -173,34 +173,63 @@ app.post('/auth/test-login', async (req, res) => {
 // Password-based login for non-Azure flow (to be replaced/extended later with JWT & AD)
 app.post('/api/auth/login', async (req, res) => {
 	try {
+		console.log('[auth] Login attempt:', { email: req.body?.email, body: req.body });
 		const { email, password } = req.body || {};
-		if (!email || !password) return res.status(400).json({ message: 'Email and password required' });
+		if (!email || !password) {
+			console.log('[auth] Missing email or password');
+			return res.status(400).json({ message: 'Email and password required' });
+		}
+		
+		// Normalize email to lowercase
+		const normalizedEmail = email.toLowerCase().trim();
+		console.log('[auth] Normalized email:', { original: email, normalized: normalizedEmail });
 
 		const user = await prisma.user.findUnique({
-			where: { email },
+			where: { email: normalizedEmail },
 			include: {
 				department: true,
 				roles: { include: { role: true } },
 			},
 		});
-		if (!user || !user.passwordHash) return res.status(401).json({ message: 'Invalid credentials' });
+		console.log('[auth] User found:', { found: !!user, hasHash: !!user?.passwordHash });
+		
+		if (!user || !user.passwordHash) {
+			console.log('[auth] User not found or no password hash');
+			return res.status(401).json({ message: 'Invalid credentials' });
+		}
 
 		const ok = await bcrypt.compare(String(password), user.passwordHash);
-		if (!ok) return res.status(401).json({ message: 'Invalid credentials' });
-
-		// Simple opaque token placeholder (swap for signed JWT later)
-		const token = Buffer.from(`${user.id}:${Date.now()}:${Math.random().toString(36).slice(2,8)}`).toString('base64');
+		console.log('[auth] Password check:', { ok });
+		
+		if (!ok) {
+			console.log('[auth] Invalid password');
+			return res.status(401).json({ message: 'Invalid credentials' });
+		}
+		
+		// Authentication successful - prepare user payload
 		const roles = (user.roles || []).map(r => r.role.name);
-		const userPayload = {
-			id: user.id,
-			email: user.email,
-			name: user.name,
-			roles,
-			department: user.department ? { id: user.department.id, name: user.department.name, code: user.department.code } : null,
-		};
-		return res.json({ token, user: userPayload });
+		console.log('[auth] Login successful:', { userId: user.id, roles });
+		
+		// Create simple token (can be enhanced with JWT later)
+		const token = Buffer.from(`${user.id}:${Date.now()}:${Math.random().toString(36).slice(2,8)}`).toString('base64');
+		
+		// Return user info and token
+		return res.json({
+			token,
+			user: {
+				id: user.id,
+				email: user.email,
+				name: user.name,
+				roles,
+				department: user.department ? {
+					id: user.department.id,
+					name: user.department.name,
+					code: user.department.code
+				} : null
+			}
+		});
 	} catch (err) {
-		console.error('Login error:', err);
+		console.error('[auth] Login error:', err);
 		return res.status(500).json({ message: 'Login failed' });
 	}
 });
@@ -762,6 +791,144 @@ app.delete('/api/ideas/:id/vote', async (req, res) => {
 // ========================
 // END INNOVATION HUB ROUTES
 // ========================
+
+// Admin-only endpoints
+// Middleware to check for admin role
+async function requireAdmin(req, res, next) {
+  const userId = getActingUserId(req);
+  if (!userId) return res.status(401).json({ error: 'Authentication required' });
+  
+  const roles = await getRolesForUser(userId);
+  if (!roles.includes('ADMIN')) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  
+  next();
+}
+
+// User management endpoints
+app.get('/admin/users', requireAdmin, async (req, res) => {
+  try {
+    const users = await prisma.user.findMany({
+      include: {
+        department: true,
+        roles: { include: { role: true } },
+      }
+    });
+    res.json(users);
+  } catch (err) {
+    console.error('[admin/users]', err);
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+app.post('/admin/users/:id/roles', requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { roles } = req.body;
+    
+    // First remove all existing roles
+    await prisma.userRole.deleteMany({
+      where: { userId: Number(id) }
+    });
+    
+    // Then add new roles
+    for (const roleName of roles) {
+      const role = await prisma.role.findUnique({ where: { name: roleName } });
+      if (role) {
+        await prisma.userRole.create({
+          data: { userId: Number(id), roleId: role.id }
+        });
+      }
+    }
+    
+    const user = await prisma.user.findUnique({
+      where: { id: Number(id) },
+      include: {
+        department: true,
+        roles: { include: { role: true } }
+      }
+    });
+    
+    res.json(user);
+  } catch (err) {
+    console.error('[admin/users/roles]', err);
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+app.post('/admin/departments', requireAdmin, async (req, res) => {
+  try {
+    const { name, code, managerId } = req.body;
+    const department = await prisma.department.create({
+      data: {
+        name,
+        code,
+        managerId: managerId ? Number(managerId) : undefined
+      },
+      include: {
+        manager: true,
+        users: true
+      }
+    });
+    res.status(201).json(department);
+  } catch (err) {
+    console.error('[admin/departments]', err);
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+app.get('/admin/audit-log', requireAdmin, async (req, res) => {
+  try {
+    const { startDate, endDate, userId } = req.query;
+    const where = {};
+    
+    if (startDate && endDate) {
+      where.createdAt = {
+        gte: new Date(startDate),
+        lte: new Date(endDate)
+      };
+    }
+    
+    if (userId) {
+      where.performedById = Number(userId);
+    }
+    
+    const actions = await prisma.requestAction.findMany({
+      where,
+      include: {
+        request: true,
+        performedBy: true
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 1000
+    });
+    
+    res.json(actions);
+  } catch (err) {
+    console.error('[admin/audit-log]', err);
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+app.post('/admin/reset-password/:id', requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { newPassword } = req.body;
+    
+    const hash = await bcrypt.hash(String(newPassword), 10);
+    const user = await prisma.user.update({
+      where: { id: Number(id) },
+      data: { passwordHash: hash },
+      select: { id: true, email: true, name: true }
+    });
+    
+    res.json({ message: 'Password reset successfully', user });
+  } catch (err) {
+    console.error('[admin/reset-password]', err);
+    res.status(500).json({ error: String(err) });
+  }
+});
 
 app.get('/', (req, res) => res.json({ ok: true }));
 

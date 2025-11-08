@@ -35,6 +35,7 @@ async function ensureRole(name: string, description?: string) {
 
   // Core roles used in workflow logic
   const roles = await Promise.all([
+    ensureRole('ADMIN', 'System administrator with full access'),
     ensureRole('REQUESTER', 'Department staff who can submit requests'),
     ensureRole('DEPT_MANAGER', 'Department manager - first approval'),
     ensureRole('HEAD_OF_DIVISION', 'Head of Division - second approval'),
@@ -148,6 +149,44 @@ async function ensureRole(name: string, description?: string) {
     console.log(`  Manager:  ${manager.email}`);
     console.log(`  HOD:      ${hod.email}`);
   }
+
+  // Create system administrator
+  console.log('[seed] Creating admin user...');
+  const admin = await prisma.user.upsert({
+    where: { email: 'admin@bsj.gov.jm' },
+    update: { 
+      passwordHash: hash,
+      name: 'System Administrator'
+    },
+    create: { 
+      email: 'admin@bsj.gov.jm', 
+      name: 'System Administrator', 
+      passwordHash: hash 
+    },
+  });
+
+  // Find admin role and create UserRole connection
+  const adminRole = roles.find(r => r.name === 'ADMIN');
+  if (!adminRole) {
+    throw new Error('ADMIN role not found');
+  }
+  
+  // Ensure admin role is assigned
+  await prisma.userRole.upsert({
+    where: {
+      userId_roleId: {
+        userId: admin.id,
+        roleId: adminRole.id
+      }
+    },
+    update: {},
+    create: {
+      userId: admin.id,
+      roleId: adminRole.id
+    }
+  });
+  
+  console.log(`[seed] Created admin user: ${admin.email} with role: ADMIN`);
 
   // Shared service officers (load-balanced pools)
   const procurement1 = await prisma.user.upsert({
