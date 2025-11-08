@@ -376,9 +376,15 @@ app.post('/requests/:id/action', async (req, res) => {
 					}
 					break;
 				case 'PROCUREMENT_REVIEW':
-					// move to FINANCE_REVIEW (load-balance across finance officers)
+					// Store current procurement officer ID and move to FINANCE_REVIEW
 					nextStatus = 'FINANCE_REVIEW';
 					{
+						// Save the current procurement officer's ID for later
+						await prisma.request.update({
+							where: { id },
+							data: { procurementOfficerId: actorId }
+						});
+
 						// Get all finance officers
 						const finOfficers = await prisma.userRole.findMany({ 
 							where: { role: { name: 'FINANCE' } }, 
@@ -406,27 +412,51 @@ app.post('/requests/:id/action', async (req, res) => {
 					}
 					break;
 				case 'FINANCE_REVIEW':
-					// Finance approves; mark as FINANCE_APPROVED and assign back to Procurement for dispatch (least-load)
+					// Finance approves; mark as FINANCE_APPROVED and assign back to original Procurement officer
 					nextStatus = 'FINANCE_APPROVED';
 					{
-						const procOfficers = await prisma.userRole.findMany({
-							where: { role: { name: 'PROCUREMENT' } },
-							include: { user: true }
-						});
-						if (procOfficers.length > 0) {
-							const counts = await Promise.all(procOfficers.map(async (uro) => {
-								const count = await prisma.request.count({
-									where: {
-										currentAssigneeId: uro.user.id,
-										status: { in: ['FINANCE_APPROVED'] }
+						// Return to original procurement officer if available
+						if (request.procurementOfficerId) {
+							console.log(`[request:${id}] Returning to original procurement officer: ${request.procurementOfficerId}`);
+							nextAssigneeId = request.procurementOfficerId;
+							
+							// Add a note in the comment about returning to original officer
+							const originalOfficer = await prisma.user.findUnique({ 
+								where: { id: request.procurementOfficerId }
+							});
+							if (originalOfficer) {
+								await prisma.requestAction.create({
+									data: {
+										requestId: id,
+										action: 'ASSIGN',
+										comment: `Returned to original procurement officer: ${originalOfficer.name}`,
+										performedById: actorId,
+										metadata: { returnedTo: request.procurementOfficerId }
 									}
 								});
-								return { userId: uro.user.id, count };
-							}));
-							const leastBusy = counts.reduce((min, curr) => (curr.count < min.count ? curr : min));
-							nextAssigneeId = leastBusy.userId;
+							}
 						} else {
-							nextAssigneeId = null;
+							// Fallback to load balancing if original officer not recorded (shouldn't happen with new logic)
+							console.warn(`[request:${id}] Original procurement officer not found, using load balancing`);
+							const procOfficers = await prisma.userRole.findMany({
+								where: { role: { name: 'PROCUREMENT' } },
+								include: { user: true }
+							});
+							if (procOfficers.length > 0) {
+								const counts = await Promise.all(procOfficers.map(async (uro) => {
+									const count = await prisma.request.count({
+										where: {
+											currentAssigneeId: uro.user.id,
+											status: { in: ['FINANCE_APPROVED'] }
+										}
+									});
+									return { userId: uro.user.id, count };
+								}));
+								const leastBusy = counts.reduce((min, curr) => (curr.count < min.count ? curr : min));
+								nextAssigneeId = leastBusy.userId;
+							} else {
+								nextAssigneeId = null;
+							}
 						}
 					}
 					break;
