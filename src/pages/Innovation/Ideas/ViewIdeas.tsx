@@ -15,6 +15,8 @@ interface Idea {
     submittedBy: string;
     submittedAt: string;
     voteCount: number;
+    upvoteCount: number;
+    downvoteCount: number;
     hasVoted: boolean;
     viewCount: number;
     status: 'APPROVED' | 'UNDER_REVIEW' | 'IMPLEMENTED';
@@ -50,6 +52,8 @@ const ViewIdeas = () => {
                     submittedBy: idea.submittedBy || 'Unknown',
                     submittedAt: idea.createdAt ? new Date(idea.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
                     voteCount: idea.voteCount || 0,
+                    upvoteCount: idea.upvoteCount || 0,
+                    downvoteCount: idea.downvoteCount || 0,
                     hasVoted: idea.hasVoted || false,
                     viewCount: idea.viewCount || 0,
                     status: idea.status === 'APPROVED' ? 'APPROVED' : idea.status === 'PROMOTED_TO_PROJECT' ? 'IMPLEMENTED' : 'UNDER_REVIEW',

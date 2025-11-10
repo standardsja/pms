@@ -55,10 +55,10 @@ const VoteOnIdeas = () => {
                     category: idea.category,
                     submittedBy: idea.submittedBy || 'Unknown',
                     submittedAt: idea.createdAt ? new Date(idea.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-                    upvotes: idea.voteCount || 0,
-                    downvotes: 0,
+                    upvotes: idea.upvoteCount || 0,
+                    downvotes: idea.downvoteCount || 0,
                     voteCount: idea.voteCount || 0,
-                    hasVoted: idea.hasVoted ? 'up' : null, // Backend only supports simple vote/unvote
+                    hasVoted: idea.userVoteType === 'UPVOTE' ? 'up' : idea.userVoteType === 'DOWNVOTE' ? 'down' : null,
                     viewCount: idea.viewCount || 0,
                     trendingScore: idea.voteCount || 0,
                 })));
@@ -83,27 +83,12 @@ const VoteOnIdeas = () => {
         const idea = ideas.find(i => i.id === ideaId);
         if (!idea) return;
 
-        // Backend only supports simple vote toggle (no separate up/down)
-        // We'll use 'up' for vote and ignore 'down' for now
-        if (voteType === 'down') {
-            // For this version, we'll just show a message that downvoting isn't supported
-            void Swal.fire({
-                toast: true,
-                position: 'bottom-end',
-                showConfirmButton: false,
-                timer: 2000,
-                icon: 'info',
-                title: 'Downvoting not supported yet. Use upvote to support ideas!',
-            });
-            return;
-        }
-
         setVoteAnimation(ideaId);
         setTimeout(() => setVoteAnimation(null), 600);
 
         try {
-            // If user already voted, remove it
-            if (idea.hasVoted === 'up') {
+            // If user clicks same vote type, remove vote
+            if (idea.hasVoted === voteType) {
                 await removeVote(ideaId);
                 
                 // Fetch updated idea from server
@@ -113,7 +98,8 @@ const VoteOnIdeas = () => {
                     i.id === ideaId 
                         ? {
                             ...i,
-                            upvotes: updatedIdea.voteCount || 0,
+                            upvotes: updatedIdea.upvoteCount || 0,
+                            downvotes: updatedIdea.downvoteCount || 0,
                             voteCount: updatedIdea.voteCount || 0,
                             hasVoted: null,
                             viewCount: updatedIdea.viewCount || i.viewCount,
@@ -127,11 +113,13 @@ const VoteOnIdeas = () => {
                     showConfirmButton: false,
                     timer: 1500,
                     icon: 'info',
-                    title: t('innovation.vote.actions.removeUpvote'),
+                    title: voteType === 'up' 
+                        ? t('innovation.vote.actions.removeUpvote')
+                        : t('innovation.vote.actions.removeDownvote', { defaultValue: 'Downvote removed' }),
                 });
             } else {
-                // Add vote
-                await voteForIdea(ideaId);
+                // Add or switch vote
+                await voteForIdea(ideaId, voteType === 'up' ? 'UPVOTE' : 'DOWNVOTE');
                 
                 // Fetch updated idea from server
                 const updatedIdea = await fetchIdeaById(ideaId);
@@ -140,9 +128,10 @@ const VoteOnIdeas = () => {
                     i.id === ideaId 
                         ? {
                             ...i,
-                            upvotes: updatedIdea.voteCount || 0,
+                            upvotes: updatedIdea.upvoteCount || 0,
+                            downvotes: updatedIdea.downvoteCount || 0,
                             voteCount: updatedIdea.voteCount || 0,
-                            hasVoted: 'up' as const,
+                            hasVoted: voteType,
                             viewCount: updatedIdea.viewCount || i.viewCount,
                         }
                         : i
@@ -154,7 +143,9 @@ const VoteOnIdeas = () => {
                     showConfirmButton: false,
                     timer: 1500,
                     icon: 'success',
-                    title: t('innovation.vote.actions.upvote'),
+                    title: voteType === 'up'
+                        ? t('innovation.vote.actions.upvote')
+                        : t('innovation.vote.actions.downvote', { defaultValue: 'Downvoted!' }),
                 });
             }
         } catch (error) {
@@ -173,12 +164,21 @@ const VoteOnIdeas = () => {
                     timerProgressBar: true,
                 });
                 
-                // Update local state to reflect they've already voted
-                setIdeas(ideas.map(i => 
-                    i.id === ideaId 
-                        ? { ...i, hasVoted: 'up' as const }
-                        : i
-                ));
+                // Refresh from server to get correct state
+                try {
+                    const updatedIdea = await fetchIdeaById(ideaId);
+                    setIdeas(ideas.map(i => 
+                        i.id === ideaId 
+                            ? {
+                                ...i,
+                                upvotes: updatedIdea.upvoteCount || 0,
+                                downvotes: updatedIdea.downvoteCount || 0,
+                                voteCount: updatedIdea.voteCount || 0,
+                                hasVoted: updatedIdea.userVoteType === 'UPVOTE' ? 'up' : updatedIdea.userVoteType === 'DOWNVOTE' ? 'down' : null,
+                            }
+                            : i
+                    ));
+                } catch {}
             } else {
                 // Generic error
                 void Swal.fire({
