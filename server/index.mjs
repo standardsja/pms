@@ -173,63 +173,34 @@ app.post('/auth/test-login', async (req, res) => {
 // Password-based login for non-Azure flow (to be replaced/extended later with JWT & AD)
 app.post('/api/auth/login', async (req, res) => {
 	try {
-		console.log('[auth] Login attempt:', { email: req.body?.email, body: req.body });
 		const { email, password } = req.body || {};
-		if (!email || !password) {
-			console.log('[auth] Missing email or password');
-			return res.status(400).json({ message: 'Email and password required' });
-		}
-		
-		// Normalize email to lowercase
-		const normalizedEmail = email.toLowerCase().trim();
-		console.log('[auth] Normalized email:', { original: email, normalized: normalizedEmail });
+		if (!email || !password) return res.status(400).json({ message: 'Email and password required' });
 
 		const user = await prisma.user.findUnique({
-			where: { email: normalizedEmail },
+			where: { email },
 			include: {
 				department: true,
 				roles: { include: { role: true } },
 			},
 		});
-		console.log('[auth] User found:', { found: !!user, hasHash: !!user?.passwordHash });
-		
-		if (!user || !user.passwordHash) {
-			console.log('[auth] User not found or no password hash');
-			return res.status(401).json({ message: 'Invalid credentials' });
-		}
+		if (!user || !user.passwordHash) return res.status(401).json({ message: 'Invalid credentials' });
 
 		const ok = await bcrypt.compare(String(password), user.passwordHash);
-		console.log('[auth] Password check:', { ok });
-		
-		if (!ok) {
-			console.log('[auth] Invalid password');
-			return res.status(401).json({ message: 'Invalid credentials' });
-		}
-		
-		// Authentication successful - prepare user payload
-		const roles = (user.roles || []).map(r => r.role.name);
-		console.log('[auth] Login successful:', { userId: user.id, roles });
-		
-		// Create simple token (can be enhanced with JWT later)
+		if (!ok) return res.status(401).json({ message: 'Invalid credentials' });
+
+		// Simple opaque token placeholder (swap for signed JWT later)
 		const token = Buffer.from(`${user.id}:${Date.now()}:${Math.random().toString(36).slice(2,8)}`).toString('base64');
-		
-		// Return user info and token
-		return res.json({
-			token,
-			user: {
-				id: user.id,
-				email: user.email,
-				name: user.name,
-				roles,
-				department: user.department ? {
-					id: user.department.id,
-					name: user.department.name,
-					code: user.department.code
-				} : null
-			}
-		});
+		const roles = (user.roles || []).map(r => r.role.name);
+		const userPayload = {
+			id: user.id,
+			email: user.email,
+			name: user.name,
+			roles,
+			department: user.department ? { id: user.department.id, name: user.department.name, code: user.department.code } : null,
+		};
+		return res.json({ token, user: userPayload });
 	} catch (err) {
-		console.error('[auth] Login error:', err);
+		console.error('Login error:', err);
 		return res.status(500).json({ message: 'Login failed' });
 	}
 });
@@ -405,15 +376,9 @@ app.post('/requests/:id/action', async (req, res) => {
 					}
 					break;
 				case 'PROCUREMENT_REVIEW':
-					// Store current procurement officer ID and move to FINANCE_REVIEW
+					// move to FINANCE_REVIEW (load-balance across finance officers)
 					nextStatus = 'FINANCE_REVIEW';
 					{
-						// Save the current procurement officer's ID for later
-						await prisma.request.update({
-							where: { id },
-							data: { procurementOfficerId: actorId }
-						});
-
 						// Get all finance officers
 						const finOfficers = await prisma.userRole.findMany({ 
 							where: { role: { name: 'FINANCE' } }, 
@@ -441,51 +406,27 @@ app.post('/requests/:id/action', async (req, res) => {
 					}
 					break;
 				case 'FINANCE_REVIEW':
-					// Finance approves; mark as FINANCE_APPROVED and assign back to original Procurement officer
+					// Finance approves; mark as FINANCE_APPROVED and assign back to Procurement for dispatch (least-load)
 					nextStatus = 'FINANCE_APPROVED';
 					{
-						// Return to original procurement officer if available
-						if (request.procurementOfficerId) {
-							console.log(`[request:${id}] Returning to original procurement officer: ${request.procurementOfficerId}`);
-							nextAssigneeId = request.procurementOfficerId;
-							
-							// Add a note in the comment about returning to original officer
-							const originalOfficer = await prisma.user.findUnique({ 
-								where: { id: request.procurementOfficerId }
-							});
-							if (originalOfficer) {
-								await prisma.requestAction.create({
-									data: {
-										requestId: id,
-										action: 'ASSIGN',
-										comment: `Returned to original procurement officer: ${originalOfficer.name}`,
-										performedById: actorId,
-										metadata: { returnedTo: request.procurementOfficerId }
+						const procOfficers = await prisma.userRole.findMany({
+							where: { role: { name: 'PROCUREMENT' } },
+							include: { user: true }
+						});
+						if (procOfficers.length > 0) {
+							const counts = await Promise.all(procOfficers.map(async (uro) => {
+								const count = await prisma.request.count({
+									where: {
+										currentAssigneeId: uro.user.id,
+										status: { in: ['FINANCE_APPROVED'] }
 									}
 								});
-							}
+								return { userId: uro.user.id, count };
+							}));
+							const leastBusy = counts.reduce((min, curr) => (curr.count < min.count ? curr : min));
+							nextAssigneeId = leastBusy.userId;
 						} else {
-							// Fallback to load balancing if original officer not recorded (shouldn't happen with new logic)
-							console.warn(`[request:${id}] Original procurement officer not found, using load balancing`);
-							const procOfficers = await prisma.userRole.findMany({
-								where: { role: { name: 'PROCUREMENT' } },
-								include: { user: true }
-							});
-							if (procOfficers.length > 0) {
-								const counts = await Promise.all(procOfficers.map(async (uro) => {
-									const count = await prisma.request.count({
-										where: {
-											currentAssigneeId: uro.user.id,
-											status: { in: ['FINANCE_APPROVED'] }
-										}
-									});
-									return { userId: uro.user.id, count };
-								}));
-								const leastBusy = counts.reduce((min, curr) => (curr.count < min.count ? curr : min));
-								nextAssigneeId = leastBusy.userId;
-							} else {
-								nextAssigneeId = null;
-							}
+							nextAssigneeId = null;
 						}
 					}
 					break;
@@ -523,411 +464,6 @@ app.post('/requests/:id/action', async (req, res) => {
 		console.error(err);
 		res.status(500).json({ error: String(err) });
 	}
-});
-
-// ========================
-// INNOVATION HUB API ROUTES
-// ========================
-
-// GET /api/ideas - List ideas with optional filters
-app.get('/api/ideas', async (req, res) => {
-	try {
-		const { status, sort } = req.query;
-		const where = {};
-		if (status) where.status = String(status);
-
-		let orderBy = { createdAt: 'desc' };
-		if (sort === 'votes') orderBy = { voteCount: 'desc' };
-		if (sort === 'recent') orderBy = { createdAt: 'desc' };
-
-		const ideas = await prisma.idea.findMany({
-			where,
-			orderBy,
-			include: {
-				submitter: { select: { id: true, name: true, email: true } },
-				votes: { select: { userId: true } },
-			},
-		});
-
-		res.json(ideas);
-	} catch (err) {
-		console.error('[GET /api/ideas] Error:', err);
-		res.status(500).json({ error: String(err) });
-	}
-});
-
-// POST /api/ideas - Submit a new idea
-app.post('/api/ideas', async (req, res) => {
-	try {
-		const actorId = getActingUserId(req);
-		if (!actorId) {
-			return res.status(401).json({ error: 'Authentication required (x-user-id header)' });
-		}
-
-		const { title, description, category, expectedBenefits, implementationNotes } = req.body;
-		
-		if (!title || !description || !category) {
-			return res.status(400).json({ error: 'title, description, and category are required' });
-		}
-
-		// Verify user exists
-		const user = await prisma.user.findUnique({ where: { id: actorId } });
-		if (!user) {
-			return res.status(404).json({ error: 'User not found' });
-		}
-
-		const idea = await prisma.idea.create({
-			data: {
-				title,
-				description,
-				category,
-				status: 'PENDING_REVIEW',
-				submittedBy: actorId,
-				submittedAt: new Date(),
-			},
-			include: {
-				submitter: { select: { id: true, name: true, email: true } },
-				votes: true,
-			},
-		});
-
-		res.status(201).json(idea);
-	} catch (err) {
-		console.error('[POST /api/ideas] Error:', err);
-		res.status(500).json({ error: String(err) });
-	}
-});
-
-// POST /api/ideas/:id/approve - Approve an idea
-app.post('/api/ideas/:id/approve', async (req, res) => {
-	try {
-		const actorId = getActingUserId(req);
-		if (!actorId) {
-			return res.status(401).json({ error: 'Authentication required' });
-		}
-
-		const id = Number(req.params.id);
-		const { notes } = req.body;
-
-		const idea = await prisma.idea.update({
-			where: { id },
-			data: {
-				status: 'APPROVED',
-				reviewedBy: actorId,
-				reviewedAt: new Date(),
-				reviewNotes: notes || null,
-			},
-			include: {
-				submitter: { select: { id: true, name: true, email: true } },
-				votes: true,
-			},
-		});
-
-		res.json(idea);
-	} catch (err) {
-		console.error('[POST /api/ideas/:id/approve] Error:', err);
-		res.status(500).json({ error: String(err) });
-	}
-});
-
-// POST /api/ideas/:id/reject - Reject an idea
-app.post('/api/ideas/:id/reject', async (req, res) => {
-	try {
-		const actorId = getActingUserId(req);
-		if (!actorId) {
-			return res.status(401).json({ error: 'Authentication required' });
-		}
-
-		const id = Number(req.params.id);
-		const { notes } = req.body;
-
-		const idea = await prisma.idea.update({
-			where: { id },
-			data: {
-				status: 'REJECTED',
-				reviewedBy: actorId,
-				reviewedAt: new Date(),
-				reviewNotes: notes || 'Rejected by reviewer',
-			},
-			include: {
-				submitter: { select: { id: true, name: true, email: true } },
-				votes: true,
-			},
-		});
-
-		res.json(idea);
-	} catch (err) {
-		console.error('[POST /api/ideas/:id/reject] Error:', err);
-		res.status(500).json({ error: String(err) });
-	}
-});
-
-// POST /api/ideas/:id/promote - Promote idea to project
-app.post('/api/ideas/:id/promote', async (req, res) => {
-	try {
-		const actorId = getActingUserId(req);
-		if (!actorId) {
-			return res.status(401).json({ error: 'Authentication required' });
-		}
-
-		const id = Number(req.params.id);
-		const { projectCode } = req.body;
-
-		const idea = await prisma.idea.update({
-			where: { id },
-			data: {
-				status: 'PROMOTED_TO_PROJECT',
-				promotedAt: new Date(),
-				projectCode: projectCode || `PROJ-${Date.now()}`,
-			},
-			include: {
-				submitter: { select: { id: true, name: true, email: true } },
-				votes: true,
-			},
-		});
-
-		res.json(idea);
-	} catch (err) {
-		console.error('[POST /api/ideas/:id/promote] Error:', err);
-		res.status(500).json({ error: String(err) });
-	}
-});
-
-// POST /api/ideas/:id/vote - Vote for an idea
-app.post('/api/ideas/:id/vote', async (req, res) => {
-	try {
-		const actorId = getActingUserId(req);
-		if (!actorId) {
-			return res.status(401).json({ error: 'Authentication required' });
-		}
-
-		const id = Number(req.params.id);
-
-		// Verify user exists
-		const user = await prisma.user.findUnique({ where: { id: actorId } });
-		if (!user) {
-			return res.status(404).json({ error: 'User not found' });
-		}
-
-		// Check if already voted
-		const existingVote = await prisma.vote.findUnique({
-			where: {
-				ideaId_userId: {
-					ideaId: id,
-					userId: actorId,
-				},
-			},
-		});
-
-		if (existingVote) {
-			return res.status(400).json({ error: 'already voted' });
-		}
-
-		// Create vote and increment voteCount
-		await prisma.vote.create({
-			data: {
-				ideaId: id,
-				userId: actorId,
-			},
-		});
-
-		const idea = await prisma.idea.update({
-			where: { id },
-			data: {
-				voteCount: { increment: 1 },
-			},
-			include: {
-				submitter: { select: { id: true, name: true, email: true } },
-				votes: true,
-			},
-		});
-
-		res.json(idea);
-	} catch (err) {
-		console.error('[POST /api/ideas/:id/vote] Error:', err);
-		res.status(500).json({ error: String(err) });
-	}
-});
-
-// DELETE /api/ideas/:id/vote - Remove vote from an idea
-app.delete('/api/ideas/:id/vote', async (req, res) => {
-	try {
-		const actorId = getActingUserId(req);
-		if (!actorId) {
-			return res.status(401).json({ error: 'Authentication required' });
-		}
-
-		const id = Number(req.params.id);
-
-		// Delete vote
-		await prisma.vote.delete({
-			where: {
-				ideaId_userId: {
-					ideaId: id,
-					userId: actorId,
-				},
-			},
-		});
-
-		// Decrement voteCount
-		const idea = await prisma.idea.update({
-			where: { id },
-			data: {
-				voteCount: { decrement: 1 },
-			},
-			include: {
-				submitter: { select: { id: true, name: true, email: true } },
-				votes: true,
-			},
-		});
-
-		res.json(idea);
-	} catch (err) {
-		console.error('[DELETE /api/ideas/:id/vote] Error:', err);
-		res.status(500).json({ error: String(err) });
-	}
-});
-
-// ========================
-// END INNOVATION HUB ROUTES
-// ========================
-
-// Admin-only endpoints
-// Middleware to check for admin role
-async function requireAdmin(req, res, next) {
-  const userId = getActingUserId(req);
-  if (!userId) return res.status(401).json({ error: 'Authentication required' });
-  
-  const roles = await getRolesForUser(userId);
-  if (!roles.includes('ADMIN')) {
-    return res.status(403).json({ error: 'Admin access required' });
-  }
-  
-  next();
-}
-
-// User management endpoints
-app.get('/admin/users', requireAdmin, async (req, res) => {
-  try {
-    const users = await prisma.user.findMany({
-      include: {
-        department: true,
-        roles: { include: { role: true } },
-      }
-    });
-    res.json(users);
-  } catch (err) {
-    console.error('[admin/users]', err);
-    res.status(500).json({ error: String(err) });
-  }
-});
-
-app.post('/admin/users/:id/roles', requireAdmin, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { roles } = req.body;
-    
-    // First remove all existing roles
-    await prisma.userRole.deleteMany({
-      where: { userId: Number(id) }
-    });
-    
-    // Then add new roles
-    for (const roleName of roles) {
-      const role = await prisma.role.findUnique({ where: { name: roleName } });
-      if (role) {
-        await prisma.userRole.create({
-          data: { userId: Number(id), roleId: role.id }
-        });
-      }
-    }
-    
-    const user = await prisma.user.findUnique({
-      where: { id: Number(id) },
-      include: {
-        department: true,
-        roles: { include: { role: true } }
-      }
-    });
-    
-    res.json(user);
-  } catch (err) {
-    console.error('[admin/users/roles]', err);
-    res.status(500).json({ error: String(err) });
-  }
-});
-
-app.post('/admin/departments', requireAdmin, async (req, res) => {
-  try {
-    const { name, code, managerId } = req.body;
-    const department = await prisma.department.create({
-      data: {
-        name,
-        code,
-        managerId: managerId ? Number(managerId) : undefined
-      },
-      include: {
-        manager: true,
-        users: true
-      }
-    });
-    res.status(201).json(department);
-  } catch (err) {
-    console.error('[admin/departments]', err);
-    res.status(500).json({ error: String(err) });
-  }
-});
-
-app.get('/admin/audit-log', requireAdmin, async (req, res) => {
-  try {
-    const { startDate, endDate, userId } = req.query;
-    const where = {};
-    
-    if (startDate && endDate) {
-      where.createdAt = {
-        gte: new Date(startDate),
-        lte: new Date(endDate)
-      };
-    }
-    
-    if (userId) {
-      where.performedById = Number(userId);
-    }
-    
-    const actions = await prisma.requestAction.findMany({
-      where,
-      include: {
-        request: true,
-        performedBy: true
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 1000
-    });
-    
-    res.json(actions);
-  } catch (err) {
-    console.error('[admin/audit-log]', err);
-    res.status(500).json({ error: String(err) });
-  }
-});
-
-app.post('/admin/reset-password/:id', requireAdmin, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { newPassword } = req.body;
-    
-    const hash = await bcrypt.hash(String(newPassword), 10);
-    const user = await prisma.user.update({
-      where: { id: Number(id) },
-      data: { passwordHash: hash },
-      select: { id: true, email: true, name: true }
-    });
-    
-    res.json({ message: 'Password reset successfully', user });
-  } catch (err) {
-    console.error('[admin/reset-password]', err);
-    res.status(500).json({ error: String(err) });
-  }
 });
 
 app.get('/', (req, res) => res.json({ ok: true }));
@@ -1013,18 +549,7 @@ app.get('/requests/:id/pdf', async (req, res) => {
 			.replace(/{{financeApprovalDate}}/g, financeApprovalDate)
 			.replace(/{{now}}/g, new Date().toLocaleString());
 		logPdf('html-length', html.length);
-
-			// If requested, return just the HTML for preview/debug
-			if ((req.query && (req.query.format === 'html' || req.query.view === 'html'))) {
-				res.setHeader('Content-Type', 'text/html; charset=utf-8');
-					res.setHeader('X-HTML-Length', String(html.length));
-				return res.status(200).send(html);
-			}
-
-			// Launch headless browser and render PDF
-				const t0 = Date.now();
-				const browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'] });
-				const page = await browser.newPage();
+e();
 				let pdf;
 				try {
 					await page.setContent(html, { waitUntil: 'load' });
@@ -1052,6 +577,398 @@ app.get('/requests/:id/pdf', async (req, res) => {
 	} catch (err) {
 				logPdf('error', err);
 		res.status(500).json({ error: String(err) });
+	}
+});
+
+// ============================================
+// INNOVATION HUB API ROUTES
+// ============================================
+
+// Get all ideas with optional filtering
+app.get('/api/ideas', async (req, res) => {
+	try {
+		const { status, sort } = req.query || {};
+		const where = {};
+		if (status) where.status = String(status);
+		const orderBy = sort === 'popular' ? { voteCount: 'desc' } : { createdAt: 'desc' };
+
+		const ideas = await prisma.idea.findMany({
+			where,
+			orderBy,
+			include: { submitter: true, _count: { select: { comments: true } } },
+		});
+
+		const payload = ideas.map((i) => ({
+			id: i.id,
+			title: i.title,
+			description: i.description,
+			category: i.category,
+			status: i.status,
+			// Include both submittedById (numeric) and submittedBy (display string) so the frontend can filter reliably
+			submittedById: i.submittedBy,
+			submittedBy: i.submitter?.name || i.submitter?.email || String(i.submittedBy),
+			submittedAt: i.submittedAt,
+			reviewedBy: i.reviewedBy,
+			reviewedAt: i.reviewedAt,
+			reviewNotes: i.reviewNotes,
+			promotedAt: i.promotedAt,
+			projectCode: i.projectCode,
+			voteCount: i.voteCount,
+			upvoteCount: i.upvoteCount || 0,
+			downvoteCount: i.downvoteCount || 0,
+			viewCount: i.viewCount,
+			commentCount: i._count?.comments || 0,
+			createdAt: i.createdAt,
+			updatedAt: i.updatedAt,
+		}));
+
+		res.json(payload);
+	} catch (err) {
+		console.error('GET /api/ideas error:', err);
+		res.status(500).json({ error: 'failed to fetch ideas' });
+	}
+});
+
+// Get a single idea by ID with votes
+app.get('/api/ideas/:id', async (req, res) => {
+	try {
+		const id = Number(req.params.id);
+		const actorId = getActingUserId(req);
+
+		const idea = await prisma.idea.findUnique({
+			where: { id },
+			include: {
+				submitter: true,
+				votes: {
+					include: {
+						user: {
+							select: { id: true, name: true, email: true }
+						}
+					}
+				}
+			,
+			_count: { select: { comments: true } }
+			},
+		});
+
+		if (!idea) {
+			return res.status(404).json({ error: 'idea not found' });
+		}
+
+		// Increment view count
+		await prisma.idea.update({
+			where: { id },
+			data: { viewCount: { increment: 1 } }
+		});
+
+		// Check if current user has voted
+		const hasVoted = actorId ? idea.votes.some(v => v.userId === actorId) : false;
+		const userVote = actorId ? idea.votes.find(v => v.userId === actorId) : null;
+
+		const payload = {
+			id: idea.id,
+			title: idea.title,
+			description: idea.description,
+			category: idea.category,
+			status: idea.status,
+			submittedById: idea.submittedBy,
+			submittedBy: idea.submitter?.name || idea.submitter?.email || String(idea.submittedBy),
+			submittedAt: idea.submittedAt,
+			reviewedBy: idea.reviewedBy,
+			reviewedAt: idea.reviewedAt,
+			reviewNotes: idea.reviewNotes,
+			promotedAt: idea.promotedAt,
+			projectCode: idea.projectCode,
+			voteCount: idea.voteCount,
+			upvoteCount: idea.upvoteCount || 0,
+			downvoteCount: idea.downvoteCount || 0,
+			viewCount: idea.viewCount + 1, // Return incremented count
+			commentCount: idea._count?.comments || 0,
+			createdAt: idea.createdAt,
+			updatedAt: idea.updatedAt,
+			hasVoted,
+			userVoteType: userVote?.voteType || null,
+			votes: idea.votes.map(v => ({
+				id: v.id,
+				userId: v.userId,
+				userName: v.user.name || v.user.email,
+				voteType: v.voteType,
+				createdAt: v.createdAt
+			}))
+		};
+
+		res.json(payload);
+	} catch (err) {
+		console.error('GET /api/ideas/:id error:', err);
+		res.status(500).json({ error: 'failed to fetch idea' });
+	}
+});
+
+// Submit a new idea
+app.post('/api/ideas', async (req, res) => {
+	try {
+		const actorId = getActingUserId(req);
+		const { title, description, category, expectedBenefits, implementationNotes } = req.body || {};
+		if (!actorId) return res.status(400).json({ error: 'x-user-id header required' });
+		if (!title || !description) return res.status(400).json({ error: 'title and description are required' });
+
+		// Validate category against enum values; default to OTHER if invalid
+		const validCategories = new Set(['PROCESS_IMPROVEMENT','TECHNOLOGY','CUSTOMER_SERVICE','SUSTAINABILITY','COST_REDUCTION','PRODUCT_INNOVATION','OTHER']);
+		const cat = validCategories.has(String(category)) ? String(category) : 'OTHER';
+
+		const idea = await prisma.idea.create({
+			data: {
+				title,
+				description,
+				category: cat,
+				submittedBy: actorId,
+				status: 'PENDING_REVIEW',
+			},
+			include: { submitter: true }
+		});
+
+		res.json({
+			id: idea.id,
+			title: idea.title,
+			description: idea.description,
+			category: idea.category,
+			status: idea.status,
+			submittedBy: idea.submitter?.name || idea.submitter?.email || String(idea.submittedBy),
+			submittedAt: idea.submittedAt,
+			voteCount: idea.voteCount,
+			viewCount: idea.viewCount,
+			createdAt: idea.createdAt,
+			updatedAt: idea.updatedAt,
+		});
+	} catch (err) {
+		console.error('POST /api/ideas error:', err);
+		res.status(500).json({ error: 'failed to create idea' });
+	}
+});
+
+// Approve an idea
+app.post('/api/ideas/:id/approve', async (req, res) => {
+	try {
+		const id = Number(req.params.id);
+		const actorId = getActingUserId(req);
+		const { notes } = req.body || {};
+
+		const idea = await prisma.idea.update({
+			where: { id },
+			data: { status: 'APPROVED', reviewedBy: actorId, reviewedAt: new Date(), reviewNotes: notes || null },
+			include: { submitter: true }
+		});
+		res.json(idea);
+	} catch (err) {
+		console.error('POST /api/ideas/:id/approve error:', err);
+		res.status(500).json({ error: 'failed to approve idea' });
+	}
+});
+
+// Reject an idea
+app.post('/api/ideas/:id/reject', async (req, res) => {
+	try {
+		const id = Number(req.params.id);
+		const actorId = getActingUserId(req);
+		const { notes } = req.body || {};
+
+		const idea = await prisma.idea.update({
+			where: { id },
+			data: { status: 'REJECTED', reviewedBy: actorId, reviewedAt: new Date(), reviewNotes: notes || null },
+			include: { submitter: true }
+		});
+		res.json(idea);
+	} catch (err) {
+		console.error('POST /api/ideas/:id/reject error:', err);
+		res.status(500).json({ error: 'failed to reject idea' });
+	}
+});
+
+// Promote an idea to project
+app.post('/api/ideas/:id/promote', async (req, res) => {
+	try {
+		const id = Number(req.params.id);
+		const { projectCode } = req.body || {};
+
+		const idea = await prisma.idea.update({
+			where: { id },
+			data: { status: 'PROMOTED_TO_PROJECT', promotedAt: new Date(), projectCode: projectCode || null },
+			include: { submitter: true }
+		});
+		res.json(idea);
+	} catch (err) {
+		console.error('POST /api/ideas/:id/promote error:', err);
+		res.status(500).json({ error: 'failed to promote idea' });
+	}
+});
+
+// Vote for an idea
+app.post('/api/ideas/:id/vote', async (req, res) => {
+	try {
+		const id = Number(req.params.id);
+		const actorId = getActingUserId(req);
+		const { voteType } = req.body || {};
+		if (!actorId) return res.status(400).json({ error: 'x-user-id header required' });
+
+		const type = voteType === 'DOWNVOTE' ? 'DOWNVOTE' : 'UPVOTE';
+
+		// Check if already voted
+		const existing = await prisma.vote.findUnique({ where: { ideaId_userId: { ideaId: id, userId: actorId } } });
+		
+		if (existing) {
+			// If same vote type, treat as unvote
+			if (existing.voteType === type) {
+				return res.status(400).json({ error: 'already voted' });
+			}
+			// If different type, switch the vote
+			await prisma.$transaction([
+				prisma.vote.update({ where: { id: existing.id }, data: { voteType: type } }),
+				prisma.idea.update({
+					where: { id },
+					data: {
+						upvoteCount: type === 'UPVOTE' ? { increment: 1 } : { decrement: 1 },
+						downvoteCount: type === 'DOWNVOTE' ? { increment: 1 } : { decrement: 1 },
+						voteCount: type === 'UPVOTE' ? { increment: 2 } : { decrement: 2 } // net change of 2 when switching
+					}
+				}),
+			]);
+		} else {
+			// Create new vote
+			await prisma.$transaction([
+				prisma.vote.create({ data: { ideaId: id, userId: actorId, voteType: type } }),
+				prisma.idea.update({
+					where: { id },
+					data: {
+						voteCount: type === 'UPVOTE' ? { increment: 1 } : { decrement: 1 },
+						upvoteCount: type === 'UPVOTE' ? { increment: 1 } : undefined,
+						downvoteCount: type === 'DOWNVOTE' ? { increment: 1 } : undefined,
+					}
+				}),
+			]);
+		}
+
+		const idea = await prisma.idea.findUnique({
+			where: { id },
+			include: {
+				submitter: true,
+				votes: {
+					include: {
+						user: { select: { id: true, name: true, email: true } }
+					}
+				},
+				_count: { select: { comments: true } }
+			}
+		});
+
+		const userVote = idea.votes.find(v => v.userId === actorId);
+		res.json({
+			id: idea.id,
+			title: idea.title,
+			description: idea.description,
+			category: idea.category,
+			status: idea.status,
+			submittedById: idea.submittedBy,
+			submittedBy: idea.submitter?.name || idea.submitter?.email || String(idea.submittedBy),
+			submittedAt: idea.submittedAt,
+			reviewedBy: idea.reviewedBy,
+			reviewedAt: idea.reviewedAt,
+			reviewNotes: idea.reviewNotes,
+			promotedAt: idea.promotedAt,
+			projectCode: idea.projectCode,
+			voteCount: idea.voteCount,
+			upvoteCount: idea.upvoteCount || 0,
+			downvoteCount: idea.downvoteCount || 0,
+			viewCount: idea.viewCount,
+			commentCount: idea._count?.comments || 0,
+			createdAt: idea.createdAt,
+			updatedAt: idea.updatedAt,
+			hasVoted: !!userVote,
+			userVoteType: userVote?.voteType || null,
+			votes: idea.votes.map(v => ({
+				id: v.id,
+				userId: v.userId,
+				userName: v.user.name || v.user.email,
+				voteType: v.voteType,
+				createdAt: v.createdAt
+			}))
+		});
+	} catch (err) {
+		console.error('POST /api/ideas/:id/vote error:', err);
+		res.status(500).json({ error: 'failed to vote' });
+	}
+});
+
+// Remove vote from an idea
+app.delete('/api/ideas/:id/vote', async (req, res) => {
+	try {
+		const id = Number(req.params.id);
+		const actorId = getActingUserId(req);
+		if (!actorId) return res.status(400).json({ error: 'x-user-id header required' });
+
+		const existing = await prisma.vote.findUnique({ where: { ideaId_userId: { ideaId: id, userId: actorId } } });
+		if (!existing) return res.status(400).json({ error: 'not voted' });
+
+		const wasUpvote = existing.voteType === 'UPVOTE';
+
+		await prisma.$transaction([
+			prisma.vote.delete({ where: { id: existing.id } }),
+			prisma.idea.update({
+				where: { id },
+				data: {
+					voteCount: wasUpvote ? { decrement: 1 } : { increment: 1 },
+					upvoteCount: wasUpvote ? { decrement: 1 } : undefined,
+					downvoteCount: !wasUpvote ? { decrement: 1 } : undefined,
+				}
+			}),
+		]);
+
+		const idea = await prisma.idea.findUnique({
+			where: { id },
+			include: {
+				submitter: true,
+				votes: {
+					include: {
+						user: { select: { id: true, name: true, email: true } }
+					}
+				},
+				_count: { select: { comments: true } }
+			}
+		});
+
+		res.json({
+			id: idea.id,
+			title: idea.title,
+			description: idea.description,
+			category: idea.category,
+			status: idea.status,
+			submittedById: idea.submittedBy,
+			submittedBy: idea.submitter?.name || idea.submitter?.email || String(idea.submittedBy),
+			submittedAt: idea.submittedAt,
+			reviewedBy: idea.reviewedBy,
+			reviewedAt: idea.reviewedAt,
+			reviewNotes: idea.reviewNotes,
+			promotedAt: idea.promotedAt,
+			projectCode: idea.projectCode,
+			voteCount: idea.voteCount,
+			upvoteCount: idea.upvoteCount || 0,
+			downvoteCount: idea.downvoteCount || 0,
+			viewCount: idea.viewCount,
+			commentCount: idea._count?.comments || 0,
+			createdAt: idea.createdAt,
+			updatedAt: idea.updatedAt,
+			hasVoted: false,
+			userVoteType: null,
+			votes: idea.votes.map(v => ({
+				id: v.id,
+				userId: v.userId,
+				userName: v.user.name || v.user.email,
+				voteType: v.voteType,
+				createdAt: v.createdAt
+			}))
+		});
+	} catch (err) {
+		console.error('DELETE /api/ideas/:id/vote error:', err);
+		res.status(500).json({ error: 'failed to remove vote' });
 	}
 });
 

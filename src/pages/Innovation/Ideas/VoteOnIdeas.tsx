@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import Swal from 'sweetalert2';
 import { setPageTitle } from '../../../store/themeConfigSlice';
 import { getUser } from '../../../utils/auth';
-import { fetchIdeas, voteForIdea, removeVote } from '../../../utils/ideasApi';
+import { fetchIdeas, voteForIdea, removeVote, fetchIdeaById } from '../../../utils/ideasApi';
 
 interface Idea {
     id: string;
@@ -55,11 +55,11 @@ const VoteOnIdeas = () => {
                     category: idea.category,
                     submittedBy: idea.submittedBy || 'Unknown',
                     submittedAt: idea.createdAt ? new Date(idea.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-                    upvotes: idea.voteCount || 0,
-                    downvotes: 0,
+                    upvotes: Math.max(0, idea.upvoteCount || 0),
+                    downvotes: Math.max(0, idea.downvoteCount || 0),
                     voteCount: idea.voteCount || 0,
-                    hasVoted: null, // TODO: Track user votes
-                    viewCount: 0,
+                    hasVoted: idea.userVoteType === 'UPVOTE' ? 'up' : idea.userVoteType === 'DOWNVOTE' ? 'down' : null,
+                    viewCount: idea.viewCount || 0,
                     trendingScore: idea.voteCount || 0,
                 })));
             } catch (error) {
@@ -77,11 +77,14 @@ const VoteOnIdeas = () => {
         };
         
         loadIdeas();
+        // Polling for real-time updates
+        const intervalId = setInterval(() => {
+            loadIdeas();
+        }, 15000);
+        return () => clearInterval(intervalId);
     }, [dispatch, t, isCommittee, navigate]);
 
     const handleVote = async (ideaId: string, voteType: 'up' | 'down') => {
-        // For now, we only support simple up/down toggle (backend has voteCount only)
-        // This frontend has up/down but backend is simpler
         const idea = ideas.find(i => i.id === ideaId);
         if (!idea) return;
 
@@ -89,23 +92,25 @@ const VoteOnIdeas = () => {
         setTimeout(() => setVoteAnimation(null), 600);
 
         try {
-            // If user already voted this way, remove it
+            // If user clicks same vote type, remove vote
             if (idea.hasVoted === voteType) {
                 await removeVote(ideaId);
-                setIdeas(ideas.map(i => {
-                    if (i.id === ideaId) {
-                        const newUpvotes = voteType === 'up' ? i.upvotes - 1 : i.upvotes;
-                        const newDownvotes = voteType === 'down' ? i.downvotes - 1 : i.downvotes;
-                        return {
+                
+                // Fetch updated idea from server
+                const updatedIdea = await fetchIdeaById(ideaId);
+                
+                setIdeas(ideas.map(i => 
+                    i.id === ideaId 
+                        ? {
                             ...i,
-                            upvotes: newUpvotes,
-                            downvotes: newDownvotes,
-                            voteCount: newUpvotes - newDownvotes,
+                            upvotes: updatedIdea.upvoteCount || 0,
+                            downvotes: updatedIdea.downvoteCount || 0,
+                            voteCount: updatedIdea.voteCount || 0,
                             hasVoted: null,
-                        };
-                    }
-                    return i;
-                }));
+                            viewCount: updatedIdea.viewCount || i.viewCount,
+                        }
+                        : i
+                ));
                 
                 void Swal.fire({
                     toast: true,
@@ -115,40 +120,27 @@ const VoteOnIdeas = () => {
                     icon: 'info',
                     title: voteType === 'up' 
                         ? t('innovation.vote.actions.removeUpvote')
-                        : t('innovation.vote.actions.removeDownvote'),
+                        : t('innovation.vote.actions.removeDownvote', { defaultValue: 'Downvote removed' }),
                 });
             } else {
                 // Add or switch vote
-                await voteForIdea(ideaId);
-                setIdeas(ideas.map(i => {
-                    if (i.id === ideaId) {
-                        let newUpvotes = i.upvotes;
-                        let newDownvotes = i.downvotes;
-                        
-                        // Remove previous vote if switching
-                        if (i.hasVoted === 'up') {
-                            newUpvotes--;
-                        } else if (i.hasVoted === 'down') {
-                            newDownvotes--;
-                        }
-                        
-                        // Add new vote
-                        if (voteType === 'up') {
-                            newUpvotes++;
-                        } else {
-                            newDownvotes++;
-                        }
-                        
-                        return {
+                await voteForIdea(ideaId, voteType === 'up' ? 'UPVOTE' : 'DOWNVOTE');
+                
+                // Fetch updated idea from server
+                const updatedIdea = await fetchIdeaById(ideaId);
+                
+                setIdeas(ideas.map(i => 
+                    i.id === ideaId 
+                        ? {
                             ...i,
-                            upvotes: newUpvotes,
-                            downvotes: newDownvotes,
-                            voteCount: newUpvotes - newDownvotes,
+                            upvotes: updatedIdea.upvoteCount || 0,
+                            downvotes: updatedIdea.downvoteCount || 0,
+                            voteCount: updatedIdea.voteCount || 0,
                             hasVoted: voteType,
-                        };
-                    }
-                    return i;
-                }));
+                            viewCount: updatedIdea.viewCount || i.viewCount,
+                        }
+                        : i
+                ));
                 
                 void Swal.fire({
                     toast: true,
@@ -158,18 +150,18 @@ const VoteOnIdeas = () => {
                     icon: 'success',
                     title: voteType === 'up'
                         ? t('innovation.vote.actions.upvote')
-                        : t('innovation.vote.actions.downvote'),
+                        : t('innovation.vote.actions.downvote', { defaultValue: 'Downvoted!' }),
                 });
             }
         } catch (error) {
             console.error('[VoteOnIdeas] Error voting:', error);
             
             // Check if it's a duplicate vote error
-            if (error instanceof Error && error.message === 'ALREADY_VOTED') {
-                Swal.fire({
+            if (error instanceof Error && error.message.includes('already voted')) {
+                void Swal.fire({
                     icon: 'warning',
                     title: 'Already Voted',
-                    text: 'You are only able to vote once per idea',
+                    text: 'You have already voted for this idea',
                     toast: true,
                     position: 'top-end',
                     timer: 4000,
@@ -177,15 +169,24 @@ const VoteOnIdeas = () => {
                     timerProgressBar: true,
                 });
                 
-                // Update local state to reflect they've already voted
-                setIdeas(ideas.map(i => 
-                    i.id === ideaId 
-                        ? { ...i, hasVoted: voteType }
-                        : i
-                ));
+                // Refresh from server to get correct state
+                try {
+                    const updatedIdea = await fetchIdeaById(ideaId);
+                    setIdeas(ideas.map(i => 
+                        i.id === ideaId 
+                            ? {
+                                ...i,
+                                upvotes: updatedIdea.upvoteCount || 0,
+                                downvotes: updatedIdea.downvoteCount || 0,
+                                voteCount: updatedIdea.voteCount || 0,
+                                hasVoted: updatedIdea.userVoteType === 'UPVOTE' ? 'up' : updatedIdea.userVoteType === 'DOWNVOTE' ? 'down' : null,
+                            }
+                            : i
+                    ));
+                } catch {}
             } else {
                 // Generic error
-                Swal.fire({
+                void Swal.fire({
                     icon: 'error',
                     title: 'Error',
                     text: error instanceof Error ? error.message : 'Failed to vote',
@@ -375,6 +376,22 @@ const VoteOnIdeas = () => {
                                         {idea.voteCount > 0 ? '▲' : idea.voteCount < 0 ? '▼' : '•'} {idea.voteCount > 0 ? '+' : ''}{idea.voteCount}
                                     </div>
                                     <div className="text-xs text-gray-500 dark:text-gray-400">score</div>
+                                    {/* Vote breakdown */}
+                                    <div className="flex items-center justify-center gap-2 mt-2 text-xs">
+                                        <span className="flex items-center gap-1 text-green-600 dark:text-green-400 font-semibold">
+                                            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                                <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008.943 18h5.416a2 2 0 001.962-1.608l1.2-6A2 2 0 0015.56 8H12V4a2 2 0 00-2-2 1 1 0 00-1 1v.667a4 4 0 01-.8 2.4L6.8 7.933a4 4 0 00-.8 2.4z" />
+                                            </svg>
+                                            {idea.upvotes}
+                                        </span>
+                                        <span className="text-gray-400">|</span>
+                                        <span className="flex items-center gap-1 text-red-600 dark:text-red-400 font-semibold">
+                                            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                                <path d="M18 9.5a1.5 1.5 0 11-3 0v-6a1.5 1.5 0 013 0v6zM14 9.667v-5.43a2 2 0 00-1.105-1.79l-.05-.025A4 4 0 0011.055 2H5.64a2 2 0 00-1.962 1.608l-1.2 6A2 2 0 004.44 12H8v4a2 2 0 002 2 1 1 0 001-1v-.667a4 4 0 01.8-2.4l1.4-1.866a4 4 0 00.8-2.4z" />
+                                            </svg>
+                                            {idea.downvotes}
+                                        </span>
+                                    </div>
                                 </div>
 
                                 {sortBy === 'trending' && (

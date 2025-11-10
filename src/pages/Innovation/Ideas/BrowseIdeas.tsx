@@ -31,6 +31,11 @@ const BrowseIdeas = () => {
     useEffect(() => {
         dispatch(setPageTitle(t('innovation.browse.title')));
         loadIdeas();
+        // Polling for near real-time updates
+        const intervalId = setInterval(() => {
+            loadIdeas();
+        }, 15000);
+        return () => clearInterval(intervalId);
     }, [dispatch, t, sortBy]);
 
     const loadIdeas = async () => {
@@ -69,19 +74,16 @@ const BrowseIdeas = () => {
             if (idea.hasVoted) {
                 // Remove vote
                 await removeVote(ideaId);
-                setIdeas(ideas.map(i => 
-                    i.id === ideaId 
-                        ? { ...i, hasVoted: false, voteCount: i.voteCount - 1 }
-                        : i
-                ));
+                // Refetch single idea for authoritative counts
+                const updated = await fetchIdeas();
+                const fresh = updated.find(i => String(i.id) === ideaId);
+                setIdeas(prev => prev.map(i => i.id === ideaId && fresh ? { ...i, voteCount: fresh.voteCount, hasVoted: false } : i));
             } else {
                 // Add vote
                 await voteForIdea(ideaId);
-                setIdeas(ideas.map(i => 
-                    i.id === ideaId 
-                        ? { ...i, hasVoted: true, voteCount: i.voteCount + 1 }
-                        : i
-                ));
+                const updated = await fetchIdeas();
+                const fresh = updated.find(i => String(i.id) === ideaId);
+                setIdeas(prev => prev.map(i => i.id === ideaId && fresh ? { ...i, voteCount: fresh.voteCount, hasVoted: true } : i));
             }
         } catch (error) {
             console.error('[BrowseIdeas] Vote error:', error);
@@ -100,11 +102,10 @@ const BrowseIdeas = () => {
                 });
                 
                 // Update local state to reflect they've already voted
-                setIdeas(ideas.map(i => 
-                    i.id === ideaId 
-                        ? { ...i, hasVoted: true }
-                        : i
-                ));
+                // Sync state with backend counts
+                const updated = await fetchIdeas();
+                const fresh = updated.find(i => String(i.id) === ideaId);
+                setIdeas(prev => prev.map(i => i.id === ideaId && fresh ? { ...i, voteCount: fresh.voteCount, hasVoted: true } : i));
             } else {
                 // Generic error
                 const errorMessage = error instanceof Error ? error.message : 'Failed to vote';
