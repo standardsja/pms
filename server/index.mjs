@@ -171,39 +171,86 @@ app.post('/auth/test-login', async (req, res) => {
 });
 
 // Password-based login for non-Azure flow (to be replaced/extended later with JWT & AD)
-app.post('/api/auth/login', async (req, res) => {
-	try {
-		const { email, password } = req.body || {};
-		if (!email || !password) return res.status(400).json({ message: 'Email and password required' });
+async function handleLogin(req, res) {
+	const { email, password } = req.body || {};
+	if (!email || !password) return res.status(400).json({ message: 'Email and password required' });
 
+	// Fallback users for when database is unavailable
+	const fallbackUsers = {
+		'committee@bsj.gov.jm': { id: 14, password: 'Passw0rd!', name: 'Innovation Committee', roles: ['INNOVATION_COMMITTEE'] },
+		'test1@bsj.gov.jm': { id: 101, password: 'Passw0rd!', name: 'Test User 1', roles: ['USER'] },
+		'test2@bsj.gov.jm': { id: 102, password: 'Passw0rd!', name: 'Test User 2', roles: ['USER'] },
+	};
+
+	try {
 		const user = await prisma.user.findUnique({
-			where: { email },
+			where: { email: email.toLowerCase().trim() },
 			include: {
 				department: true,
 				roles: { include: { role: true } },
 			},
 		});
-		if (!user || !user.passwordHash) return res.status(401).json({ message: 'Invalid credentials' });
+		
+		if (user && user.passwordHash) {
+			const ok = await bcrypt.compare(String(password), user.passwordHash);
+			if (!ok) return res.status(401).json({ message: 'Invalid credentials' });
 
-		const ok = await bcrypt.compare(String(password), user.passwordHash);
-		if (!ok) return res.status(401).json({ message: 'Invalid credentials' });
-
-		// Simple opaque token placeholder (swap for signed JWT later)
-		const token = Buffer.from(`${user.id}:${Date.now()}:${Math.random().toString(36).slice(2,8)}`).toString('base64');
-		const roles = (user.roles || []).map(r => r.role.name);
-		const userPayload = {
-			id: user.id,
-			email: user.email,
-			name: user.name,
-			roles,
-			department: user.department ? { id: user.department.id, name: user.department.name, code: user.department.code } : null,
-		};
-		return res.json({ token, user: userPayload });
+			// Simple opaque token placeholder (swap for signed JWT later)
+			const token = Buffer.from(`${user.id}:${Date.now()}:${Math.random().toString(36).slice(2,8)}`).toString('base64');
+			const roles = (user.roles || []).map(r => r.role.name);
+			const userPayload = {
+				id: user.id,
+				email: user.email,
+				name: user.name,
+				roles,
+				department: user.department ? { id: user.department.id, name: user.department.name, code: user.department.code } : null,
+			};
+			return res.json({ token, user: userPayload });
+		}
+		
+		// Fallback to hardcoded users if database user not found or no password
+		const fallback = fallbackUsers[email.toLowerCase().trim()];
+		if (fallback && fallback.password === password) {
+			const token = Buffer.from(`fb-${fallback.id}:${Date.now()}:${Math.random().toString(36).slice(2,8)}`).toString('base64');
+			return res.json({
+				token,
+				user: {
+					id: fallback.id,
+					email,
+					name: fallback.name,
+					roles: fallback.roles,
+					department: null,
+				}
+			});
+		}
+		
+		return res.status(401).json({ message: 'Invalid credentials' });
 	} catch (err) {
-		console.error('Login error:', err);
-		return res.status(500).json({ message: 'Login failed' });
+		console.error('[Login] Database error, trying fallback users:', err.message);
+		
+		// If database error, try fallback users
+		const fallback = fallbackUsers[email.toLowerCase().trim()];
+		if (fallback && fallback.password === password) {
+			const token = Buffer.from(`fb-${fallback.id}:${Date.now()}:${Math.random().toString(36).slice(2,8)}`).toString('base64');
+			return res.json({
+				token,
+				user: {
+					id: fallback.id,
+					email,
+					name: fallback.name,
+					roles: fallback.roles,
+					department: null,
+				}
+			});
+		}
+		
+		return res.status(500).json({ message: 'Login service unavailable. Please try again later.' });
 	}
-});
+}
+
+// Mount login handler on both routes for compatibility
+app.post('/auth/login', handleLogin);
+app.post('/api/auth/login', handleLogin);
 
 // ============================================
 // ADMIN ENDPOINTS
@@ -668,7 +715,51 @@ app.get('/api/ideas', async (req, res) => {
 			include: { submitter: true, _count: { select: { comments: true } } },
 		});
 
-		const payload = ideas.map((i) => ({
+		// Dynamically compute up/down vote counts from Vote table to avoid stale columns
+		const ideaIds = ideas.map(i => i.id);
+		let computedCounts = {};
+		if (ideaIds.length) {
+			// groupBy returns counts per ideaId + voteType
+			const grouped = await prisma.vote.groupBy({
+				by: ['ideaId', 'voteType'],
+				where: { ideaId: { in: ideaIds } },
+				_count: { voteType: true }
+			});
+			for (const g of grouped) {
+				const cur = computedCounts[g.ideaId] || { up: 0, down: 0 };
+				if (g.voteType === 'UPVOTE') cur.up = g._count.voteType; else cur.down = g._count.voteType;
+				computedCounts[g.ideaId] = cur;
+			}
+		}
+
+		// Optional lazy backfill: if stored counts differ from computed, update in background (fire and forget)
+		Promise.resolve().then(async () => {
+			try {
+				for (const i of ideas) {
+					const comp = computedCounts[i.id] || { up: 0, down: 0 };
+					const expectedScore = comp.up - comp.down;
+					if (i.upvoteCount !== comp.up || i.downvoteCount !== comp.down || i.voteCount !== expectedScore) {
+						await prisma.idea.update({
+							where: { id: i.id },
+							data: { upvoteCount: comp.up, downvoteCount: comp.down, voteCount: expectedScore }
+						});
+					}
+				}
+			} catch (e) {
+				console.warn('[api/ideas] lazy backfill failed:', e?.message);
+			}
+		});
+
+		const payload = ideas.map((i) => {
+			const comp = computedCounts[i.id] || null;
+			let up = comp?.up ?? (i.upvoteCount || 0);
+			let down = comp?.down ?? (i.downvoteCount || 0);
+			// If both are zero but score exists (legacy data), infer counts from score
+			if ((up === 0 && down === 0) && i.voteCount) {
+				if (i.voteCount > 0) up = i.voteCount; else down = Math.abs(i.voteCount);
+			}
+
+			return {
 			id: i.id,
 			title: i.title,
 			description: i.description,
@@ -683,14 +774,15 @@ app.get('/api/ideas', async (req, res) => {
 			reviewNotes: i.reviewNotes,
 			promotedAt: i.promotedAt,
 			projectCode: i.projectCode,
-			voteCount: i.voteCount,
-			upvoteCount: i.upvoteCount || 0,
-			downvoteCount: i.downvoteCount || 0,
+			voteCount: up - down,
+			upvoteCount: up,
+			downvoteCount: down,
 			viewCount: i.viewCount,
 			commentCount: i._count?.comments || 0,
 			createdAt: i.createdAt,
 			updatedAt: i.updatedAt,
-		}));
+			};
+		});
 
 		res.json(payload);
 	} catch (err) {
@@ -1042,7 +1134,21 @@ app.delete('/api/ideas/:id/vote', async (req, res) => {
 	}
 });
 
-app.listen(PORT, () => {
-	console.log(`Server listening on ${PORT}`);
+// Database connectivity check
+async function checkDatabaseConnection() {
+	try {
+		await prisma.$connect();
+		console.log('✓ Database connected successfully');
+		return true;
+	} catch (error) {
+		console.warn('⚠️  Database connection failed:', error.message);
+		console.warn('⚠️  Server will continue with fallback user authentication');
+		return false;
+	}
+}
+
+app.listen(PORT, async () => {
+	console.log(`🚀 Server listening on port ${PORT}`);
+	await checkDatabaseConnection();
 });
 

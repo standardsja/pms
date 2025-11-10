@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { setPageTitle } from '../../../store/themeConfigSlice';
 import { fetchIdeaById, voteForIdea, removeVote, type Idea } from '../../../utils/ideasApi';
 import IconThumbUp from '../../../components/Icon/IconThumbUp';
+import { getUser } from '../../../utils/auth';
 
 export default function IdeaDetails() {
   const { t } = useTranslation();
@@ -14,6 +15,10 @@ export default function IdeaDetails() {
   const [idea, setIdea] = useState<Idea | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isVoting, setIsVoting] = useState(false);
+
+  // Check if current user is a committee member
+  const currentUser = getUser();
+  const isCommittee = currentUser?.roles?.includes('INNOVATION_COMMITTEE');
 
   useEffect(() => {
     const title = idea ? `${idea.title}` : t('innovation.view.title');
@@ -148,27 +153,29 @@ export default function IdeaDetails() {
           </span>
         </div>
         
-        {/* Vote Button */}
-        <div className="pt-2 flex gap-3">
-          <button
-            type="button"
-            onClick={() => handleVote('UPVOTE')}
-            disabled={isVoting}
-            className={`btn ${idea.userVoteType === 'UPVOTE' ? 'btn-primary' : 'btn-outline-primary'} gap-2`}
-          >
-            <IconThumbUp className="w-4 h-4" />
-            {isVoting && idea.userVoteType === 'UPVOTE' ? 'Processing...' : idea.userVoteType === 'UPVOTE' ? 'Upvoted' : 'Upvote'}
-          </button>
-          <button
-            type="button"
-            onClick={() => handleVote('DOWNVOTE')}
-            disabled={isVoting}
-            className={`btn ${idea.userVoteType === 'DOWNVOTE' ? 'btn-danger' : 'btn-outline-danger'} gap-2`}
-          >
-            <IconThumbUp className="w-4 h-4 rotate-180" />
-            {isVoting && idea.userVoteType === 'DOWNVOTE' ? 'Processing...' : idea.userVoteType === 'DOWNVOTE' ? 'Downvoted' : 'Downvote'}
-          </button>
-        </div>
+        {/* Vote Button - Only visible for non-committee members */}
+        {!isCommittee && (
+          <div className="pt-2 flex gap-3">
+            <button
+              type="button"
+              onClick={() => handleVote('UPVOTE')}
+              disabled={isVoting}
+              className={`btn ${idea.userVoteType === 'UPVOTE' ? 'btn-primary' : 'btn-outline-primary'} gap-2`}
+            >
+              <IconThumbUp className="w-4 h-4" />
+              {isVoting && idea.userVoteType === 'UPVOTE' ? 'Processing...' : idea.userVoteType === 'UPVOTE' ? 'Upvoted' : 'Upvote'}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleVote('DOWNVOTE')}
+              disabled={isVoting}
+              className={`btn ${idea.userVoteType === 'DOWNVOTE' ? 'btn-danger' : 'btn-outline-danger'} gap-2`}
+            >
+              <IconThumbUp className="w-4 h-4 rotate-180" />
+              {isVoting && idea.userVoteType === 'DOWNVOTE' ? 'Processing...' : idea.userVoteType === 'DOWNVOTE' ? 'Downvoted' : 'Downvote'}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Votes Section */}

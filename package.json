@@ -9,7 +9,8 @@
         "prisma:seed": "node --loader ts-node/esm server/prisma/seed.ts",
         "preview": "vite preview",
         "server:dev": "node server/index.mjs",
-        "seed:ideas": "node server/seed-ideas.mjs"
+        "seed:ideas": "node server/seed-ideas.mjs",
+        "backfill:votes": "node server/scripts/backfill-vote-counts.mjs"
     },
     "prisma": {
         "seed": "node --loader ts-node/esm server/prisma/seed.ts"

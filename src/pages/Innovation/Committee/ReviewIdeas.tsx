@@ -303,7 +303,7 @@ export default function ReviewIdeas() {
       
       setIdeas(optimisticIdeas);
       const updated = await promoteIdea(idea.id, projectCode || undefined);
-      Swal.fire({ icon: 'success', title: `Promoted to ${updated.projectCode}`, toast: true, position: 'bottom-end', timer: 2000, showConfirmButton: false });
+      Swal.fire({ icon: 'success', title: updated.projectCode ? `Promoted to ${updated.projectCode}` : 'Promoted successfully!', toast: true, position: 'bottom-end', timer: 2000, showConfirmButton: false });
     } catch (e: any) {
       setIdeas(rollbackIdeas);
       Swal.fire({ icon: 'error', title: 'Promote failed', text: e?.message || 'Please try again', toast: true, position: 'bottom-end', timer: 2200, showConfirmButton: false });

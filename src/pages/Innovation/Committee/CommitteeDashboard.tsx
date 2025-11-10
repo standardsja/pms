@@ -270,7 +270,7 @@ const CommitteeDashboard = () => {
             
             Swal.fire({ 
                 icon: 'success', 
-                title: `Promoted to ${updated.projectCode}`, 
+                title: updated.projectCode ? `Promoted to ${updated.projectCode}` : 'Promoted successfully!', 
                 toast: true, 
                 position: 'bottom-end', 
                 timer: 2000, 
