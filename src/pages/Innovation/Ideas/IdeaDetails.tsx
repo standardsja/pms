@@ -29,7 +29,7 @@ export default function IdeaDetails() {
     try {
       setIsLoading(true);
       setError(null);
-      const data = await fetchIdeaById(id);
+      const data = await fetchIdeaById(id, { includeAttachments: true });
       setIdea(data);
     } catch (err) {
       console.error('[IdeaDetails] Error loading idea:', err);
@@ -128,6 +128,42 @@ export default function IdeaDetails() {
       {/* Content */}
       <div className="panel space-y-4">
         <p className="text-gray-700 dark:text-gray-300 leading-relaxed">{idea.description}</p>
+        
+        {/* Attachments/Images */}
+        {idea.attachments && idea.attachments.length > 0 && (
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
+              {t('innovation.view.attachments', { defaultValue: 'Attachments' })} ({idea.attachments.length})
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {idea.attachments.map((attachment) => (
+                <div key={attachment.id} className="group relative overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-shadow">
+                  {attachment.mimeType?.startsWith('image/') ? (
+                    <img
+                      src={attachment.fileUrl}
+                      alt={attachment.fileName}
+                      className="w-full h-48 object-cover cursor-pointer hover:scale-105 transition-transform"
+                      loading="lazy"
+                      onClick={() => window.open(attachment.fileUrl, '_blank')}
+                    />
+                  ) : (
+                    <div className="w-full h-48 bg-gray-100 dark:bg-gray-800 flex flex-col items-center justify-center">
+                      <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                      </svg>
+                      <span className="mt-2 text-xs text-gray-500">{attachment.fileName}</span>
+                    </div>
+                  )}
+                  <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-white px-3 py-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <p className="text-xs truncate">{attachment.fileName}</p>
+                    <p className="text-xs text-gray-300">{(attachment.fileSize / 1024).toFixed(1)} KB</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        
         <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
           <span className="px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 font-medium">
             {t(`innovation.categories.${idea.category}`)}

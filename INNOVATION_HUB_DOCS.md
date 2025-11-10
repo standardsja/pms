@@ -199,6 +199,41 @@ npm run dev
    - ❌ Rejected
    - 🚀 Promoted to Project
 
+  ## 📸 Image Upload in Idea Submission (Added 2025-11-10)
+
+  You can attach an optional image when submitting a new idea.
+
+  - Frontend: The form at `src/pages/Innovation/Ideas/SubmitIdea.tsx` accepts an image, shows a preview, and submits using `multipart/form-data` via `submitIdea()`.
+  - API: `POST /api/ideas` now supports `multipart/form-data` with a single file field named `image`. If provided, the file is validated (image mimetype) and limited to 5MB.
+  - Storage: Uploaded files are saved to `/uploads` and served statically at `/uploads/<filename>`.
+  - Database: An `IdeaAttachment` row is created with metadata and `fileUrl` pointing to the uploaded file.
+
+  Request fields (multipart):
+  - title (required)
+  - description (required)
+  - category (required; IdeaCategory enum value)
+  - expectedBenefits (optional)
+  - implementationNotes (optional)
+  - image (optional, single file)
+
+  Client event: After a successful submit, the app dispatches `idea:created` CustomEvent so the "My Ideas" page can optimistically reflect the new idea before polling refresh.
+
+  Future enhancements:
+  - Return attachments in the creation response
+  - Multiple file uploads
+  - Image deletion & lifecycle cleanup
+  - Thumbnails and image optimization
+
+  ## 📎 Attachment Retrieval (Added 2025-11-10)
+
+  You can request ideas with their attachments included using a query parameter.
+
+  - List: `GET /api/ideas?include=attachments`
+  - Single: `GET /api/ideas/:id?include=attachments`
+
+  Response will include an `attachments` array with `{ id, fileName, fileUrl, fileSize, mimeType, uploadedAt }`.
+  On the frontend, `fetchIdeas({ includeAttachments: true })` and `fetchIdeaById(id, { includeAttachments: true })` populate `idea.attachments` and a convenience `firstAttachmentUrl`.
+
 ### As Innovation Committee Member
 
 #### Review Pending Ideas

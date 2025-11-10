@@ -3,6 +3,9 @@ import cors from 'cors';
 import morgan from 'morgan';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 import { prisma, ensureDbConnection } from './prismaClient';
 import { IdeaStatus } from '../src/generated/prisma/client';
 
@@ -13,6 +16,28 @@ const JWT_SECRET = process.env.JWT_SECRET || 'devsecret-change-me';
 app.use(cors());
 app.use(express.json());
 app.use(morgan('dev'));
+// Static files for uploads
+const UPLOAD_DIR = path.resolve(process.cwd(), 'uploads');
+if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+app.use('/uploads', express.static(UPLOAD_DIR));
+
+// Multer storage for idea images
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    const base = path.basename(file.originalname, ext).replace(/[^a-z0-9_-]+/gi, '_');
+    cb(null, `idea_${Date.now()}_${base}${ext}`);
+  },
+});
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  fileFilter: (_req, file, cb) => {
+    if (/^image\//.test(file.mimetype)) cb(null, true);
+    else cb(new Error('Only image uploads are allowed'));
+  },
+});
 
 app.get('/health', async (_req, res) => {
   try {
@@ -83,7 +108,7 @@ app.get('/api/auth/me', authMiddleware, async (req, res) => {
 // List ideas with optional filters: status, sort
 app.get('/api/ideas', authMiddleware, async (req, res) => {
   try {
-    const { status, sort } = req.query as { status?: string; sort?: string };
+    const { status, sort, include } = req.query as { status?: string; sort?: string; include?: string };
 
     const where: any = {};
     if (status && status !== 'all') {
@@ -100,14 +125,79 @@ app.get('/api/ideas', authMiddleware, async (req, res) => {
 
     const orderBy: any = sort === 'popularity' ? { voteCount: 'desc' } : { createdAt: 'desc' };
 
+    const includeAttachments = include === 'attachments';
     const ideas = await prisma.idea.findMany({
       where,
       orderBy,
+      include: includeAttachments ? { attachments: true } : undefined,
     });
     return res.json(ideas);
   } catch (e: any) {
     console.error('GET /api/ideas error:', e);
     return res.status(500).json({ message: e?.message || 'Failed to fetch ideas' });
+  }
+});
+
+// Get single idea (optionally with attachments)
+app.get('/api/ideas/:id', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params as { id: string };
+    const { include } = req.query as { include?: string };
+    const includeAttachments = include === 'attachments';
+    const idea = await prisma.idea.findUnique({
+      where: { id },
+      include: includeAttachments ? { attachments: true } : undefined,
+    });
+    if (!idea) return res.status(404).json({ message: 'Idea not found' });
+    return res.json(idea);
+  } catch (e: any) {
+    console.error('GET /api/ideas/:id error:', e);
+    return res.status(500).json({ message: e?.message || 'Failed to fetch idea' });
+  }
+});
+
+// Create a new idea (optional single image upload)
+app.post('/api/ideas', authMiddleware, upload.single('image'), async (req, res) => {
+  try {
+    const user = (req as any).user as { sub: number | string };
+    const { title, description, category } = (req.body || {}) as Record<string, string>;
+
+    if (!title || !description || !category) {
+      return res.status(400).json({ message: 'title, description and category are required' });
+    }
+
+    let submittedBy: number = typeof user.sub === 'number' ? user.sub : parseInt(String(user.sub), 10);
+    if (!Number.isFinite(submittedBy)) return res.status(400).json({ message: 'Invalid user id' });
+
+    const idea = await prisma.idea.create({
+      data: {
+        title: String(title),
+        description: String(description),
+        category: category as any,
+        status: 'PENDING_REVIEW',
+        submittedBy: submittedBy as any, // Type mismatch - regenerate Prisma client to fix
+      },
+    });
+
+    if (req.file) {
+      const fileUrl = `/uploads/${req.file.filename}`;
+      await prisma.ideaAttachment.create({
+        data: {
+          ideaId: idea.id,
+          fileName: req.file.originalname,
+          fileUrl,
+          fileSize: req.file.size,
+          mimeType: req.file.mimetype,
+        },
+      });
+    }
+
+    // Reload with attachments included
+    const created = await prisma.idea.findUnique({ where: { id: idea.id }, include: { attachments: true } });
+    return res.status(201).json(created);
+  } catch (e: any) {
+    console.error('POST /api/ideas error:', e);
+    return res.status(500).json({ error: 'failed to create idea', details: e?.message });
   }
 });
 

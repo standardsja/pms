@@ -6,8 +6,13 @@ import cors from 'cors';
 import { PrismaClient, Prisma } from '@prisma/client';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import puppeteer from 'puppeteer';
 import bcrypt from 'bcryptjs';
+import multer from 'multer';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // PDF debug logging toggle (default on in non-production, disable with PDF_DEBUG=0)
 const PDF_DEBUG = process.env.PDF_DEBUG !== '0' && process.env.NODE_ENV !== 'production';
@@ -17,6 +22,33 @@ const prisma = new PrismaClient();
 const app = express();
 app.use(cors());
 app.use(bodyParser.json());
+
+// Static files for uploads
+const UPLOAD_DIR = path.resolve(process.cwd(), 'uploads');
+try {
+	await fs.access(UPLOAD_DIR);
+} catch {
+	await fs.mkdir(UPLOAD_DIR, { recursive: true });
+}
+app.use('/uploads', express.static(UPLOAD_DIR));
+
+// Multer storage for idea images
+const storage = multer.diskStorage({
+	destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
+	filename: (_req, file, cb) => {
+		const ext = path.extname(file.originalname);
+		const base = path.basename(file.originalname, ext).replace(/[^a-z0-9_-]+/gi, '_');
+		cb(null, `idea_${Date.now()}_${base}${ext}`);
+	},
+});
+const upload = multer({
+	storage,
+	limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+	fileFilter: (_req, file, cb) => {
+		if (/^image\//.test(file.mimetype)) cb(null, true);
+		else cb(new Error('Only image uploads are allowed'));
+	},
+});
 
 const PORT = process.env.PORT || 4000;
 
@@ -587,8 +619,8 @@ e();
 // Get all ideas with optional filtering
 app.get('/api/ideas', async (req, res) => {
 	try {
-		const { status, sort } = req.query || {};
-		
+		const { status, sort, include } = req.query || {};
+		const includeAttachments = include === 'attachments';
 		// Map frontend status values to Prisma enum values
 		const statusMap = {
 			'pending': 'PENDING_REVIEW',
@@ -603,7 +635,6 @@ app.get('/api/ideas', async (req, res) => {
 			'DRAFT': 'DRAFT',
 			'PROMOTED_TO_PROJECT': 'PROMOTED_TO_PROJECT',
 		};
-		
 		const where = {};
 		if (status) {
 			const mappedStatus = statusMap[String(status).toLowerCase()] || statusMap[String(status)];
@@ -614,23 +645,19 @@ app.get('/api/ideas', async (req, res) => {
 			where.status = mappedStatus;
 			console.log('[api/ideas] Status filter:', status, '→', mappedStatus);
 		}
-		
 		const orderBy = sort === 'popular' || sort === 'popularity' ? { voteCount: 'desc' } : { createdAt: 'desc' };
-		console.log('[api/ideas] Query:', { where, orderBy, sort });
-
+		console.log('[api/ideas] Query:', { where, orderBy, sort, includeAttachments });
 		const ideas = await prisma.idea.findMany({
 			where,
 			orderBy,
-			include: { submitter: true, _count: { select: { comments: true } } },
+			include: { submitter: true, attachments: includeAttachments, _count: { select: { comments: true } } },
 		});
-
 		const payload = ideas.map((i) => ({
 			id: i.id,
 			title: i.title,
 			description: i.description,
 			category: i.category,
 			status: i.status,
-			// Include both submittedById (numeric) and submittedBy (display string) so the frontend can filter reliably
 			submittedById: i.submittedBy,
 			submittedBy: i.submitter?.name || i.submitter?.email || String(i.submittedBy),
 			submittedAt: i.submittedAt,
@@ -646,8 +673,11 @@ app.get('/api/ideas', async (req, res) => {
 			commentCount: i._count?.comments || 0,
 			createdAt: i.createdAt,
 			updatedAt: i.updatedAt,
+			...(includeAttachments && {
+				attachments: i.attachments,
+				firstAttachmentUrl: i.attachments?.[0]?.fileUrl || null,
+			}),
 		}));
-
 		res.json(payload);
 	} catch (err) {
 		console.error('GET /api/ideas error:', err);
@@ -660,6 +690,7 @@ app.get('/api/ideas/:id', async (req, res) => {
 	try {
 		const id = Number(req.params.id);
 		const actorId = getActingUserId(req);
+		const includeAttachments = req.query.include === 'attachments';
 
 		const idea = await prisma.idea.findUnique({
 			where: { id },
@@ -671,9 +702,9 @@ app.get('/api/ideas/:id', async (req, res) => {
 							select: { id: true, name: true, email: true }
 						}
 					}
-				}
-			,
-			_count: { select: { comments: true } }
+				},
+				attachments: includeAttachments,
+				_count: { select: { comments: true } }
 			},
 		});
 
@@ -720,7 +751,17 @@ app.get('/api/ideas/:id', async (req, res) => {
 				userName: v.user.name || v.user.email,
 				voteType: v.voteType,
 				createdAt: v.createdAt
-			}))
+			})),
+			...(includeAttachments && idea.attachments && {
+				attachments: idea.attachments.map(a => ({
+					id: a.id,
+					fileName: a.fileName,
+					fileUrl: a.fileUrl,
+					fileSize: a.fileSize,
+					mimeType: a.mimeType,
+					uploadedAt: a.uploadedAt
+				}))
+			})
 		};
 
 		res.json(payload);
@@ -731,7 +772,8 @@ app.get('/api/ideas/:id', async (req, res) => {
 });
 
 // Submit a new idea
-app.post('/api/ideas', async (req, res) => {
+// Multi-file upload: accept legacy single image (field 'image') and new 'files' array (max 5)
+app.post('/api/ideas', upload.fields([{ name: 'files', maxCount: 5 }, { name: 'image', maxCount: 1 }]), async (req, res) => {
 	try {
 		const actorId = getActingUserId(req);
 		const { title, description, category, expectedBenefits, implementationNotes } = req.body || {};
@@ -753,22 +795,53 @@ app.post('/api/ideas', async (req, res) => {
 			include: { submitter: true }
 		});
 
+		// Gather uploaded files (new multi-files or legacy single image)
+		const uploadedFiles = [];
+		const filesField = req.files?.files;
+		const legacyImageField = req.files?.image;
+		if (Array.isArray(filesField)) uploadedFiles.push(...filesField);
+		if (Array.isArray(legacyImageField)) uploadedFiles.push(...legacyImageField);
+
+		for (const f of uploadedFiles) {
+			const fileUrl = `/uploads/${f.filename}`;
+			try {
+				await prisma.ideaAttachment.create({
+					data: {
+						ideaId: idea.id,
+						fileName: f.originalname,
+						fileUrl,
+						fileSize: f.size,
+						mimeType: f.mimetype,
+					},
+				});
+			} catch (createErr) {
+				console.error('[attachments] Failed to persist attachment:', createErr);
+			}
+		}
+
+		// Reload with attachments
+		const created = await prisma.idea.findUnique({
+			where: { id: idea.id },
+			include: { submitter: true, attachments: true }
+		});
+
 		res.json({
-			id: idea.id,
-			title: idea.title,
-			description: idea.description,
-			category: idea.category,
-			status: idea.status,
-			submittedBy: idea.submitter?.name || idea.submitter?.email || String(idea.submittedBy),
-			submittedAt: idea.submittedAt,
-			voteCount: idea.voteCount,
-			viewCount: idea.viewCount,
-			createdAt: idea.createdAt,
-			updatedAt: idea.updatedAt,
+			id: created.id,
+			title: created.title,
+			description: created.description,
+			category: created.category,
+			status: created.status,
+			submittedBy: created.submitter?.name || created.submitter?.email || String(created.submittedBy),
+			submittedAt: created.submittedAt,
+			voteCount: created.voteCount,
+			viewCount: created.viewCount,
+			createdAt: created.createdAt,
+			updatedAt: created.updatedAt,
+			attachments: created.attachments,
 		});
 	} catch (err) {
 		console.error('POST /api/ideas error:', err);
-		res.status(500).json({ error: 'failed to create idea' });
+		res.status(500).json({ error: 'failed to create idea', details: err?.message });
 	}
 });
 

@@ -30,6 +30,15 @@ export type Idea = {
     voteType: 'UPVOTE' | 'DOWNVOTE';
     createdAt: string;
   }>;
+  attachments?: Array<{
+    id: number;
+    fileName: string;
+    fileUrl: string;
+    fileSize: number;
+    mimeType?: string | null;
+    uploadedAt: string;
+  }>;
+  firstAttachmentUrl?: string | null;
 };
 
 function authHeaders(): Record<string, string> {
@@ -48,10 +57,11 @@ function authHeaders(): Record<string, string> {
   return h;
 }
 
-export async function fetchIdeas(params?: { status?: string; sort?: string }) {
+export async function fetchIdeas(params?: { status?: string; sort?: string; includeAttachments?: boolean }) {
   const qs = new URLSearchParams();
   if (params?.status) qs.set('status', params.status);
   if (params?.sort) qs.set('sort', params.sort);
+  if (params?.includeAttachments) qs.set('include', 'attachments');
   // Cache busting to ensure fresh data in all environments
   qs.set('t', Date.now().toString());
   const res = await fetch(`/api/ideas${qs.toString() ? `?${qs.toString()}` : ''}`, {
@@ -63,11 +73,15 @@ export async function fetchIdeas(params?: { status?: string; sort?: string }) {
     cache: 'no-store',
   });
   if (!res.ok) throw new Error(await res.text());
-  return (await res.json()) as Idea[];
+  const list = (await res.json()) as Idea[];
+  return list.map(i => ({ ...i, firstAttachmentUrl: i.attachments?.[0]?.fileUrl || null }));
 }
 
-export async function fetchIdeaById(id: string | number): Promise<Idea> {
-  const url = `/api/ideas/${id}?t=${Date.now()}`;
+export async function fetchIdeaById(id: string | number, opts?: { includeAttachments?: boolean }): Promise<Idea> {
+  const qs = new URLSearchParams();
+  if (opts?.includeAttachments) qs.set('include', 'attachments');
+  qs.set('t', Date.now().toString());
+  const url = `/api/ideas/${id}?${qs.toString()}`;
   const res = await fetch(url, {
     headers: {
       ...authHeaders(),
@@ -77,31 +91,60 @@ export async function fetchIdeaById(id: string | number): Promise<Idea> {
     cache: 'no-store',
   });
   if (!res.ok) throw new Error(await res.text());
-  return (await res.json()) as Idea;
+  const idea = (await res.json()) as Idea;
+  return { ...idea, firstAttachmentUrl: idea.attachments?.[0]?.fileUrl || null };
 }
 
-export async function submitIdea(data: {
-  title: string;
-  description: string;
-  category: string;
-  expectedBenefits?: string;
-  implementationNotes?: string;
-}) {
+export async function submitIdea(
+  data: {
+    title: string;
+    description: string;
+    category: string;
+    expectedBenefits?: string;
+    implementationNotes?: string;
+  },
+  opts?: { image?: File; images?: File[] }
+) {
+  const token = getToken();
+  const user = getUser();
+
+  // Use multipart/form-data if any file(s) provided
+  if (opts?.image || (opts?.images && opts.images.length)) {
+    const form = new FormData();
+    form.append('title', data.title);
+    form.append('description', data.description);
+    form.append('category', data.category);
+    if (data.expectedBenefits) form.append('expectedBenefits', data.expectedBenefits);
+    if (data.implementationNotes) form.append('implementationNotes', data.implementationNotes);
+    if (opts?.image) form.append('image', opts.image);
+    if (opts?.images) {
+      for (const f of opts.images) {
+        form.append('files', f);
+      }
+    }
+
+    const headers: Record<string, string> = {};
+    if (user?.id) headers['x-user-id'] = user.id;
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const res = await fetch('/api/ideas', {
+      method: 'POST',
+      headers,
+      body: form,
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return (await res.json()) as Idea;
+  }
+
+  // Fallback to JSON
   const headers = authHeaders();
-  
   const res = await fetch('/api/ideas', {
     method: 'POST',
     headers,
     body: JSON.stringify(data),
   });
-  
-  if (!res.ok) {
-    const errorText = await res.text();
-    throw new Error(errorText);
-  }
-  
-  const result = await res.json();
-  return result as Idea;
+  if (!res.ok) throw new Error(await res.text());
+  return (await res.json()) as Idea;
 }
 
 export async function approveIdea(id: string, notes?: string) {
