@@ -63,7 +63,6 @@ const MyIdeas = () => {
     const loadMyIdeas = async (silent = false) => {
         if (!silent) setIsLoading(true);
         try {
-            console.log('[MyIdeas] Fetching ideas for user:', currentUser?.id);
             const allIdeas = await fetchIdeas();
 
             // Filter to show only current user's ideas
@@ -99,7 +98,6 @@ const MyIdeas = () => {
                     comments: [],
                 }));
             
-            console.log('[MyIdeas] Loaded ideas:', myIdeas.length);
             setIdeas(myIdeas);
         } catch (error) {
             console.error('[MyIdeas] Error loading ideas:', error);

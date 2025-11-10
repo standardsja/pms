@@ -44,9 +44,7 @@ const VoteOnIdeas = () => {
         // Load ideas from API
         const loadIdeas = async () => {
             try {
-                console.log('[VoteOnIdeas] Fetching ideas from API...');
                 const apiIdeas = await fetchIdeas();
-                console.log('[VoteOnIdeas] Ideas loaded:', apiIdeas);
                 
                 setIdeas(apiIdeas.map(idea => ({
                     id: String(idea.id),

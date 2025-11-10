@@ -88,8 +88,6 @@ export async function submitIdea(data: {
   implementationNotes?: string;
 }) {
   const headers = authHeaders();
-  console.log('[submitIdea] Headers:', headers);
-  console.log('[submitIdea] Data:', data);
   
   const res = await fetch('/api/ideas', {
     method: 'POST',
@@ -97,16 +95,12 @@ export async function submitIdea(data: {
     body: JSON.stringify(data),
   });
   
-  console.log('[submitIdea] Response status:', res.status);
-  
   if (!res.ok) {
     const errorText = await res.text();
-    console.error('[submitIdea] Error response:', errorText);
     throw new Error(errorText);
   }
   
   const result = await res.json();
-  console.log('[submitIdea] Success:', result);
   return result as Idea;
 }
 
