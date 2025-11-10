@@ -29,6 +29,7 @@ async function main() {
     ensureRole('HEAD_OF_DIVISION', 'Head of Division / Department reviewer'),
     ensureRole('PROCUREMENT', 'Procurement officer'),
     ensureRole('FINANCE', 'Finance officer'),
+    ensureRole('INNOVATION_COMMITTEE', 'Innovation Committee reviewer'),
   ]);
   console.log('[seed] Roles ensured:', roles.map(r => r.name).join(', '));
 
@@ -76,6 +77,12 @@ async function main() {
     create: { email: 'fin2@bsj.gov.jm', name: 'Finance Officer 2', passwordHash: hash },
   });
 
+  const committee = await prisma.user.upsert({
+    where: { email: 'committee@bsj.gov.jm' },
+    update: { passwordHash: hash },
+    create: { email: 'committee@bsj.gov.jm', name: 'Innovation Committee', passwordHash: hash },
+  });
+
   // Helper: assign role to user if not already
   async function assign(userId: number, roleName: string) {
     const role = roles.find(r => r.name === roleName);
@@ -92,6 +99,7 @@ async function main() {
   await assign(procurement2.id, 'PROCUREMENT');
   await assign(finance1.id, 'FINANCE');
   await assign(finance2.id, 'FINANCE');
+  await assign(committee.id, 'INNOVATION_COMMITTEE');
 
   console.log('[seed] Users ready:');
   console.log('  requester@bsj.gov.jm  (Password: Passw0rd!)');
@@ -100,6 +108,7 @@ async function main() {
   console.log('  proc2@bsj.gov.jm       (Password: Passw0rd!) [PROCUREMENT]');
   console.log('  fin1@bsj.gov.jm        (Password: Passw0rd!) [FINANCE]');
   console.log('  fin2@bsj.gov.jm        (Password: Passw0rd!) [FINANCE]');
+  console.log('  committee@bsj.gov.jm   (Password: Passw0rd!) [INNOVATION_COMMITTEE]');
   console.log('[seed] Complete');
 }
 
