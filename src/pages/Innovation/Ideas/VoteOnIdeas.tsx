@@ -320,10 +320,16 @@ const VoteOnIdeas = () => {
                     </div>
                 </div>
                 <div className="flex items-center gap-3 flex-wrap">
-                    <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{t('innovation.view.filters.status')}</span>
+                    <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Status:</span>
                     <div className="flex flex-wrap gap-2">
                         {['PENDING_REVIEW','APPROVED','REJECTED','PROMOTED_TO_PROJECT'].map((s) => {
                             const active = statusFilters.includes(s);
+                            const labels: Record<string, string> = {
+                                'PENDING_REVIEW': 'Pending Review',
+                                'APPROVED': 'Approved',
+                                'REJECTED': 'Rejected',
+                                'PROMOTED_TO_PROJECT': 'Promoted'
+                            };
                             return (
                                 <button
                                     key={s}
@@ -331,25 +337,26 @@ const VoteOnIdeas = () => {
                                     className={`px-3 py-1 rounded-full text-xs font-medium transition ${active ? 'bg-secondary text-white shadow' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
                                     aria-pressed={active}
                                 >
-                                    {t(`innovation.view.statusFilter.${s}`, { defaultValue: s })}
+                                    {labels[s] || s}
                                 </button>
                             );
                         })}
                     </div>
                 </div>
                 <div className="flex items-center gap-3 flex-wrap">
-                    <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{t('innovation.view.filters.category')}</span>
+                    <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Category:</span>
                     <div className="flex flex-wrap gap-2">
-                        {['PROCESS_IMPROVEMENT','TECHNOLOGY','CUSTOMER_SERVICE','SUSTAINABILITY','COST_REDUCTION','PRODUCT_INNOVATION','OTHER'].map((cat) => {
-                            const active = categoryFilters.includes(cat);
+                        {['Process Improvement','Technology','Customer Service','Sustainability','Cost Reduction','Product Innovation','Other'].map((cat, idx) => {
+                            const catKey = ['PROCESS_IMPROVEMENT','TECHNOLOGY','CUSTOMER_SERVICE','SUSTAINABILITY','COST_REDUCTION','PRODUCT_INNOVATION','OTHER'][idx];
+                            const active = categoryFilters.includes(catKey);
                             return (
                                 <button
-                                    key={cat}
-                                    onClick={() => setCategoryFilters(active ? categoryFilters.filter(c => c !== cat) : [...categoryFilters, cat])}
+                                    key={catKey}
+                                    onClick={() => setCategoryFilters(active ? categoryFilters.filter(c => c !== catKey) : [...categoryFilters, catKey])}
                                     className={`px-3 py-1 rounded-full text-xs font-medium transition ${active ? 'bg-primary text-white shadow' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
                                     aria-pressed={active}
                                 >
-                                    {t(`innovation.categories.${cat}`)}
+                                    {cat}
                                 </button>
                             );
                         })}
@@ -363,14 +370,14 @@ const VoteOnIdeas = () => {
                         onChange={(e) => setShowVotedOnly(e.target.checked)}
                         aria-checked={showVotedOnly}
                     />
-                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('innovation.vote.filters.showVotedOnly')}</span>
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Show only voted ideas</span>
                 </label>
                 <button
                     type="button"
                     onClick={() => { setStatusFilters(['PENDING_REVIEW']); setCategoryFilters([]); setSortBy('trending'); setShowVotedOnly(false); }}
                     className="btn btn-outline-danger btn-sm"
                 >
-                    {t('innovation.view.filters.clearAll', { defaultValue: 'Clear Filters' })}
+                    Clear Filters
                 </button>
             </div>
 
