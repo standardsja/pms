@@ -178,8 +178,8 @@ async function handleLogin(req, res) {
 	// Fallback users for when database is unavailable
 	const fallbackUsers = {
 		'committee@bsj.gov.jm': { id: 14, password: 'Passw0rd!', name: 'Innovation Committee', roles: ['INNOVATION_COMMITTEE'] },
-		'test1@bsj.gov.jm': { id: 101, password: 'Passw0rd!', name: 'Test User 1', roles: ['USER'] },
-		'test2@bsj.gov.jm': { id: 102, password: 'Passw0rd!', name: 'Test User 2', roles: ['USER'] },
+		'test1@bsj.gov.jm': { id: 38, password: 'Passw0rd!', name: 'Test User 1', roles: ['USER'] },
+		'test2@bsj.gov.jm': { id: 39, password: 'Passw0rd!', name: 'Test User 2', roles: ['USER'] },
 	};
 
 	try {
@@ -251,6 +251,66 @@ async function handleLogin(req, res) {
 // Mount login handler on both routes for compatibility
 app.post('/auth/login', handleLogin);
 app.post('/api/auth/login', handleLogin);
+
+// DB health check endpoint
+app.get('/api/db/health', async (req, res) => {
+	const started = Date.now();
+	try {
+		// Simple queries to validate connectivity and basic tables
+		const [userCount, ideaCount, voteCount] = await Promise.all([
+			prisma.user.count(),
+			prisma.idea.count().catch(() => null),
+			prisma.vote.count().catch(() => null),
+		]);
+
+		const sampleUser = await prisma.user.findFirst({ select: { id: true, email: true } });
+		res.json({
+			status: 'PASS',
+			durationMs: Date.now() - started,
+			dbUrlRedacted: process.env.DATABASE_URL ? process.env.DATABASE_URL.replace(/:(?:[^:@]*?)@/, ':***@') : null,
+			userCount,
+			ideaCount,
+			voteCount,
+			sampleUser,
+			serverTime: new Date().toISOString(),
+		});
+	} catch (err) {
+		console.error('[DB Health] Error:', err);
+		res.status(500).json({
+			status: 'FAIL',
+			durationMs: Date.now() - started,
+			error: err.message,
+		});
+	}
+});
+
+// Debug endpoint to check current user
+app.get('/api/auth/me', async (req, res) => {
+	try {
+		const actorId = getActingUserId(req);
+		if (!actorId) {
+			return res.status(401).json({ error: 'Not authenticated', userId: null });
+		}
+		
+		const user = await prisma.user.findUnique({ 
+			where: { id: actorId },
+			select: { id: true, email: true, name: true }
+		});
+		
+		if (!user) {
+			return res.json({ 
+				error: 'User ID from header exists but not found in database', 
+				userIdFromHeader: actorId,
+				userExists: false 
+			});
+		}
+		
+		res.json({ user, userExists: true });
+	} catch (err) {
+		console.error('GET /api/auth/me error:', err);
+		res.status(500).json({ error: 'Server error', details: err.message });
+	}
+});
 
 // ============================================
 // ADMIN ENDPOINTS
@@ -967,15 +1027,26 @@ app.post('/api/ideas/:id/promote', async (req, res) => {
 // Vote for an idea
 app.post('/api/ideas/:id/vote', async (req, res) => {
 	try {
+		console.log('[Vote] Request received:', { ideaId: req.params.id, body: req.body, userId: getActingUserId(req) });
 		const id = Number(req.params.id);
 		const actorId = getActingUserId(req);
 		const { voteType } = req.body || {};
 		if (!actorId) return res.status(400).json({ error: 'x-user-id header required' });
 
+		// Check if user exists in database (handle fallback auth users)
+		const userExists = await prisma.user.findUnique({ where: { id: actorId } });
+		if (!userExists) {
+			console.error(`[Vote] User ${actorId} does not exist in database`);
+			return res.status(400).json({ error: 'User not found. Please log in with a valid account.' });
+		}
+		console.log('[Vote] User exists:', userExists.email);
+
 		const type = voteType === 'DOWNVOTE' ? 'DOWNVOTE' : 'UPVOTE';
+		console.log('[Vote] Vote type:', type);
 
 		// Check if already voted
 		const existing = await prisma.vote.findUnique({ where: { ideaId_userId: { ideaId: id, userId: actorId } } });
+		console.log('[Vote] Existing vote:', existing);
 		
 		if (existing) {
 			// If same vote type, treat as unvote
@@ -1002,8 +1073,7 @@ app.post('/api/ideas/:id/vote', async (req, res) => {
 					where: { id },
 					data: {
 						voteCount: type === 'UPVOTE' ? { increment: 1 } : { decrement: 1 },
-						upvoteCount: type === 'UPVOTE' ? { increment: 1 } : undefined,
-						downvoteCount: type === 'DOWNVOTE' ? { increment: 1 } : undefined,
+						...(type === 'UPVOTE' ? { upvoteCount: { increment: 1 } } : { downvoteCount: { increment: 1 } }),
 					}
 				}),
 			]);
@@ -1056,7 +1126,9 @@ app.post('/api/ideas/:id/vote', async (req, res) => {
 		});
 	} catch (err) {
 		console.error('POST /api/ideas/:id/vote error:', err);
-		res.status(500).json({ error: 'failed to vote' });
+		console.error('Error details:', err.message);
+		console.error('Error stack:', err.stack);
+		res.status(500).json({ error: 'failed to vote', details: err.message });
 	}
 });
 
@@ -1131,6 +1203,114 @@ app.delete('/api/ideas/:id/vote', async (req, res) => {
 	} catch (err) {
 		console.error('DELETE /api/ideas/:id/vote error:', err);
 		res.status(500).json({ error: 'failed to remove vote' });
+	}
+});
+
+// Innovation Hub Analytics endpoint
+app.get('/api/innovation/analytics', async (req, res) => {
+	try {
+		// Total counts by status
+		const statusCounts = await prisma.idea.groupBy({
+			by: ['status'],
+			_count: { status: true }
+		});
+		
+		// Category breakdown
+		const categoryBreakdown = await prisma.idea.groupBy({
+			by: ['category'],
+			_count: { category: true }
+		});
+		
+		// Top contributors
+		const topContributors = await prisma.idea.groupBy({
+			by: ['submittedBy'],
+			_count: { submittedBy: true },
+			orderBy: { _count: { submittedBy: 'desc' } },
+			take: 5
+		});
+		
+		// Get user names for top contributors
+		const contributorIds = topContributors.map(c => c.submittedBy);
+		const users = await prisma.user.findMany({
+			where: { id: { in: contributorIds } },
+			select: { id: true, name: true, email: true }
+		});
+		
+		const contributorsWithNames = topContributors.map(c => {
+			const user = users.find(u => u.id === c.submittedBy);
+			return {
+				name: user?.name || user?.email || `User ${c.submittedBy}`,
+				count: c._count.submittedBy
+			};
+		});
+		
+		// Submissions by month (last 12 months)
+		const twelveMonthsAgo = new Date();
+		twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
+		
+		const allIdeas = await prisma.idea.findMany({
+			where: { submittedAt: { gte: twelveMonthsAgo } },
+			select: { submittedAt: true }
+		});
+		
+		const monthlySubmissions = Array(12).fill(0);
+		const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+		const currentMonth = new Date().getMonth();
+		
+		allIdeas.forEach(idea => {
+			const monthDiff = Math.floor((new Date().getTime() - new Date(idea.submittedAt).getTime()) / (1000 * 60 * 60 * 24 * 30));
+			if (monthDiff < 12) {
+				const index = 11 - monthDiff;
+				if (index >= 0 && index < 12) monthlySubmissions[index]++;
+			}
+		});
+		
+		// Calculate monthly labels
+		const monthLabels = [];
+		for (let i = 0; i < 12; i++) {
+			const monthIndex = (currentMonth - 11 + i + 12) % 12;
+			monthLabels.push(monthNames[monthIndex]);
+		}
+		
+		// Total engagement (views + votes)
+		const totalIdeas = await prisma.idea.count();
+		const aggregates = await prisma.idea.aggregate({
+			_sum: { viewCount: true, voteCount: true }
+		});
+		
+		const totalEngagement = (aggregates._sum.viewCount || 0) + Math.abs(aggregates._sum.voteCount || 0);
+		
+		// Status counts for KPIs
+		const statusMap = {};
+		statusCounts.forEach(s => {
+			statusMap[s.status] = s._count.status;
+		});
+		
+		res.json({
+			kpis: {
+				totalIdeas,
+				underReview: statusMap.PENDING_REVIEW || 0,
+				approved: statusMap.APPROVED || 0,
+				promoted: statusMap.PROMOTED_TO_PROJECT || 0,
+				totalEngagement
+			},
+			monthlySubmissions: {
+				labels: monthLabels,
+				data: monthlySubmissions
+			},
+			categoryBreakdown: categoryBreakdown.map(c => ({
+				category: c.category,
+				count: c._count.category
+			})),
+			statusCounts: statusCounts.map(s => ({
+				status: s.status,
+				count: s._count.status
+			})),
+			topContributors: contributorsWithNames
+		});
+	} catch (err) {
+		console.error('GET /api/innovation/analytics error:', err);
+		res.status(500).json({ error: 'failed to fetch analytics' });
 	}
 });
 

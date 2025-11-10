@@ -15,6 +15,8 @@ interface Idea {
     submittedBy: string;
     submittedAt: string;
     voteCount: number;
+    upvoteCount?: number;
+    downvoteCount?: number;
     hasVoted: boolean;
     viewCount: number;
 }
@@ -47,8 +49,21 @@ const BrowseIdeas = () => {
         setIsLoading(true);
         try {
             const sort = sortBy === 'popular' ? 'popularity' : 'recent';
-            const data = await fetchIdeas({ sort });
-            setIdeas(data.map(idea => ({
+            // Fetch both APPROVED and PROMOTED ideas - users can see/vote on approved and promoted ideas
+            const [approvedIdeas, promotedIdeas] = await Promise.all([
+                fetchIdeas({ status: 'APPROVED', sort }),
+                fetchIdeas({ status: 'PROMOTED_TO_PROJECT', sort })
+            ]);
+            const data = [...approvedIdeas, ...promotedIdeas];
+            
+            setIdeas(data.map(idea => {
+                // Fallback inference: if per-type counts missing but score exists, infer from voteCount
+                let up = idea.upvoteCount ?? 0;
+                let down = idea.downvoteCount ?? 0;
+                if ((up === 0 && down === 0) && (idea.voteCount || 0) !== 0) {
+                    if (idea.voteCount > 0) up = idea.voteCount; else down = Math.abs(idea.voteCount);
+                }
+                return {
                 id: String(idea.id),
                 title: idea.title,
                 description: idea.description,
@@ -56,9 +71,12 @@ const BrowseIdeas = () => {
                 submittedBy: String(idea.submittedBy),
                 submittedAt: idea.submittedAt,
                 voteCount: idea.voteCount,
+                upvoteCount: up,
+                downvoteCount: down,
                 hasVoted: false, // TODO: Check if current user has voted
                 viewCount: idea.viewCount,
-            })));
+                };
+            }));
         } catch (error) {
             console.error('[BrowseIdeas] Error loading ideas:', error);
             Swal.fire({
@@ -247,9 +265,9 @@ const BrowseIdeas = () => {
                     {paginatedIdeas.map((idea) => (
                         <div key={idea.id} className="panel hover:shadow-lg transition-shadow">
                             <div className="flex gap-6">
-                                {/* Vote Section - Only visible for non-committee members */}
-                                {!isCommittee && (
-                                    <div className="flex flex-col items-center gap-2 min-w-[80px]">
+                                {/* Vote Section - show per-type counts; buttons only for non-committee */}
+                                <div className="flex flex-col items-center gap-2 min-w-[80px]">
+                                    {!isCommittee && (
                                         <button
                                             onClick={() => handleVote(idea.id)}
                                             className={`p-3 rounded-lg transition-all ${
@@ -264,27 +282,22 @@ const BrowseIdeas = () => {
                                                 <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008.943 18h5.416a2 2 0 001.962-1.608l1.2-6A2 2 0 0015.56 8H12V4a2 2 0 00-2-2 1 1 0 00-1 1v.667a4 4 0 01-.8 2.4L6.8 7.933a4 4 0 00-.8 2.4z" />
                                             </svg>
                                         </button>
-                                    <span className="text-2xl font-bold text-gray-900 dark:text-white">
-                                        {idea.voteCount}
-                                    </span>
-                                    <span className="text-xs text-gray-500 dark:text-gray-400">{t('innovation.browse.vote.votes')}</span>
-                                </div>
-                                )}
-
-                                {/* Vote Count Display for Committee Members */}
-                                {isCommittee && (
-                                    <div className="flex flex-col items-center gap-2 min-w-[80px]">
-                                        <div className="p-3 rounded-lg bg-gray-100 dark:bg-gray-800">
-                                            <svg className="w-6 h-6 text-gray-600 dark:text-gray-400" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
-                                                <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008.943 18h5.416a2 2 0 001.962-1.608l1.2-6A2 2 0 0015.56 8H12V4a2 2 0 00-2-2 1 1 0 00-1 1v.667a4 4 0 01-.8 2.4L6.8 7.933a4 4 0 00-.8 2.4z" />
-                                            </svg>
-                                        </div>
-                                        <span className="text-2xl font-bold text-gray-900 dark:text-white">
-                                            {idea.voteCount}
+                                    )}
+                                    {/* Up/Down counts with fallback from score */}
+                                    <div className="flex items-center gap-3 mt-1">
+                                        <span className="flex items-center gap-1 text-green-600 dark:text-green-400 text-sm font-medium">
+                                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008.943 18h5.416a2 2 0 001.962-1.608l1.2-6A2 2 0 0015.56 8H12V4a2 2 0 00-2-2 1 1 0 00-1 1v.667a4 4 0 01-.8 2.4L6.8 7.933a4 4 0 00-.8 2.4z"/></svg>
+                                            {idea.upvoteCount ?? 0}
                                         </span>
-                                        <span className="text-xs text-gray-500 dark:text-gray-400">{t('innovation.browse.vote.votes')}</span>
+                                        <span className="flex items-center gap-1 text-red-600 dark:text-red-400 text-sm font-medium">
+                                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" transform="rotate(180)"><path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008.943 18h5.416a2 2 0 001.962-1.608l1.2-6A2 2 0 0015.56 8H12V4a2 2 0 00-2-2 1 1 0 00-1 1v.667a4 4 0 01-.8 2.4L6.8 7.933a4 4 0 00-.8 2.4z"/></svg>
+                                            {idea.downvoteCount ?? 0}
+                                        </span>
+                                        <span className="text-xs text-gray-600 dark:text-gray-400">Score: {idea.voteCount > 0 ? `+${idea.voteCount}` : idea.voteCount}</span>
                                     </div>
-                                )}
+                                </div>
+
+                                {/* Committee members see counts (no buttons shown above) */}
 
                                 {/* Content */}
                                 <div className="flex-1">

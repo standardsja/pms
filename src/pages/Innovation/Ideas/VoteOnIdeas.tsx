@@ -44,9 +44,14 @@ const VoteOnIdeas = () => {
         // Load ideas from API
         const loadIdeas = async () => {
             try {
-                console.log('[VoteOnIdeas] Fetching ideas from API...');
-                const apiIdeas = await fetchIdeas();
-                console.log('[VoteOnIdeas] Ideas loaded:', apiIdeas);
+                console.log('[VoteOnIdeas] Fetching approved and promoted ideas from API...');
+                // Fetch both APPROVED and PROMOTED ideas - users can vote on committee-approved ideas
+                const [approvedIdeas, promotedIdeas] = await Promise.all([
+                    fetchIdeas({ status: 'APPROVED' }),
+                    fetchIdeas({ status: 'PROMOTED_TO_PROJECT' })
+                ]);
+                const apiIdeas = [...approvedIdeas, ...promotedIdeas];
+                console.log('[VoteOnIdeas] Ideas loaded:', apiIdeas.length);
                 
                 setIdeas(apiIdeas.map(idea => ({
                     id: String(idea.id),
