@@ -17,7 +17,13 @@ const Onboarding = () => {
     const query = useMemo(() => new URLSearchParams(search), [search]);
     const forceOnboarding = query.get('force') === '1' || query.get('reset') === '1';
     const currentUser = getUser();
-    const isCommittee = currentUser?.role === 'INNOVATION_COMMITTEE';
+    const userRoles: string[] = (currentUser as any)?.roles || ((currentUser as any)?.role ? [(currentUser as any).role] : []);
+    const isCommittee = userRoles.includes('INNOVATION_COMMITTEE');
+    const isProcurementManager =
+        userRoles.includes('PROCUREMENT_MANAGER') ||
+        userRoles.includes('MANAGER') ||
+        userRoles.some((r) => r && r.toUpperCase().includes('MANAGER'));
+    const isRequester = !isProcurementManager && userRoles.some((r) => r && r.toUpperCase().includes('REQUEST'));
 
     const [selected, setSelected] = useState<ModuleKey | null>(null);
     const [error, setError] = useState<string>('');
@@ -25,6 +31,7 @@ const Onboarding = () => {
     const [rememberChoice, setRememberChoice] = useState<boolean>(false);
     const [lastModule, setLastModule] = useState<ModuleKey | null>(null);
     const radiosRef = useRef<HTMLDivElement | null>(null);
+    const [showProcurementSteps, setShowProcurementSteps] = useState<boolean>(false);
 
     useEffect(() => {
         dispatch(setPageTitle(t('onboarding.title')));
@@ -56,9 +63,18 @@ const Onboarding = () => {
                 }
             }, 0);
         }
+        // Show procurement steps image once after login if flagged
+        try {
+            const flag = sessionStorage.getItem('showOnboardingImage');
+            if (flag === '1') {
+                setShowProcurementSteps(true);
+                sessionStorage.removeItem('showOnboardingImage');
+            }
+        } catch {}
+
         // analytics: page viewed
-        logEvent('onboarding_viewed', { role: currentUser?.role ?? 'unknown', force: forceOnboarding, hasLast: !!last, done });
-    }, [dispatch, isCommittee, navigate, query, forceOnboarding, t]);
+        logEvent('onboarding_viewed', { role: (userRoles && userRoles[0]) || 'unknown', force: forceOnboarding, hasLast: !!last, done });
+    }, [dispatch, isCommittee, navigate, query, forceOnboarding, t, userRoles]);
 
     const modules = useMemo(() => {
         const base = [
@@ -68,7 +84,7 @@ const Onboarding = () => {
                 description: t('onboarding.modules.pms.description'),
                 icon: '📦',
                 gradient: 'from-blue-500 to-blue-700',
-                path: '/procurement/dashboard',
+                path: isProcurementManager ? '/procurement/manager' : isRequester ? '/apps/requests' : '/procurement/dashboard',
                 features: [
                     t('onboarding.modules.pms.features.0'),
                     t('onboarding.modules.pms.features.1'),
@@ -186,6 +202,49 @@ const Onboarding = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Onboarding Procurement Steps Modal */}
+            {showProcurementSteps && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/50 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Procurement Process Steps">
+                    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-[92vw] max-w-6xl relative overflow-hidden animate__animated animate__fadeIn">
+                        <button
+                            type="button"
+                            onClick={() => setShowProcurementSteps(false)}
+                            className="absolute top-3 right-3 w-10 h-10 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                            aria-label="Close procurement steps"
+                        >
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                        <div className="px-6 py-5 border-b border-gray-200 dark:border-gray-700 flex items-center gap-3">
+                            <span className="text-2xl">📊</span>
+                            <h2 className="text-xl font-semibold tracking-wide">7 Steps of the Procurement Process</h2>
+                        </div>
+                        <div className="p-6 bg-white dark:bg-gray-800">
+                            <div className="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 max-h-[75vh]">
+                                {/* Replace src below with final asset if needed */}
+                                <img
+                                    src="/assets/images/procurement/steps.jpg"
+                                    alt="Diagram showing the 7 steps of the procurement process"
+                                    className="w-full h-auto max-h-[70vh] object-contain"
+                                    loading="lazy"
+                                />
+                            </div>
+                            <p className="mt-4 text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
+                                This overview highlights each phase from sourcing methodology through supplier relationship management. Use it as a quick refresher before selecting a module.
+                            </p>
+                        </div>
+                        <div className="px-6 pb-6 flex justify-end gap-3">
+                            <button
+                                type="button"
+                                onClick={() => setShowProcurementSteps(false)}
+                                className="btn btn-outline-secondary btn-sm"
+                            >
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Main Content */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">

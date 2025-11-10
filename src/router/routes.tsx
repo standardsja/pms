@@ -110,7 +110,9 @@ const routes = [
     },
     
     // ============================================
-    // ROOT: Direct unauthenticated users to login. Authenticated users will be redirected by layout guard.
+    // MODULE SELECTOR / ONBOARDING
+    // ============================================
+    // Root should always redirect to login unless already authenticated
     {
         path: '/',
         element: <Login />,
@@ -379,6 +381,10 @@ const routes = [
     },
     {
         path: '/apps/requests/new',
+        element: <RequestForm />,
+    },
+    {
+        path: '/apps/requests/edit/:id',
         element: <RequestForm />,
     },
     

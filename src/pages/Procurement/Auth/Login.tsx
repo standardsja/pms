@@ -7,6 +7,8 @@ import IconLockDots from '../../../components/Icon/IconLockDots';
 import IconEye from '../../../components/Icon/IconEye';
 // @ts-ignore
 import packageInfo from '../../../../package.json';
+import { setAuth } from '../../../utils/auth';
+import { loginWithMicrosoft, initializeMsal, isMsalConfigured } from '../../../auth/msal';
 
 const Login = () => {
     const dispatch = useDispatch();
@@ -14,6 +16,10 @@ const Login = () => {
 
     useEffect(() => {
         dispatch(setPageTitle('Login'));
+        // Initialize MSAL early so button clicks don't race initialization
+        if (isMsalConfigured) {
+            initializeMsal().catch(() => {});
+        }
     });
 
     const [email, setEmail] = useState('');
@@ -31,46 +37,57 @@ const Login = () => {
         setIsLoading(true);
 
         try {
-            // Call backend login with email/password (use /api proxy when no base configured)
-            const base = (import.meta as any).env?.VITE_API_BASE_URL as string | undefined;
-            const url = base ? `${base.replace(/\/$/, '')}/auth/login` : '/api/auth/login';
-            const resp = await fetch(url, {
+            const res = await fetch('/api/auth/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password }),
             });
-            if (!resp.ok) {
-                const err = await resp.json().catch(() => ({}));
-                throw new Error(err.error || resp.statusText || 'Login failed');
+            const data = await res.json().catch(() => null);
+            if (!res.ok) {
+                const msg = (data && (data.message || data.error)) || 'Login failed';
+                throw new Error(msg);
             }
-            const data = await resp.json();
-            const user = data.user || {};
-
-            // Normalize profile
-            const profile = {
-                id: user.id,
-                email: user.email,
-                name: user.name,
-                department: user.department || null,
-                roles: Array.isArray(user.roles) ? user.roles : [],
-                primaryRole: Array.isArray(user.roles) && user.roles.length ? user.roles[0] : '',
-                permissions: [],
-            };
-
-            // Unified storage keys (token + structured user for header & other components)
-            localStorage.setItem('auth_token', data.token || '');
-            localStorage.setItem('auth_user', JSON.stringify({
-                id: profile.id,
-                email: profile.email,
-                name: profile.name,
-                roles: profile.roles,
-                department: profile.department,
-                primaryRole: profile.primaryRole,
-            }));
-            localStorage.setItem('isAuthenticated', 'true');
-            try { window.dispatchEvent(new Event('userProfileChanged')); } catch {}
-            // Always send user to onboarding after successful primary auth
-            navigate('/onboarding?force=1');
+            const { token, user } = data || {};
+            if (!token || !user) throw new Error('Invalid login response');
+            setAuth(token, user, rememberMe);
+            // Also persist legacy userProfile structure expected by RequestForm & index pages
+            try {
+                const legacyProfile = {
+                    id: user.id,
+                    name: user.name,
+                    email: user.email,
+                    department: user.department || null,
+                    primaryRole: user.roles?.[0] || user.role || '',
+                    roles: user.roles || (user.role ? [user.role] : []),
+                };
+                localStorage.setItem('userProfile', JSON.stringify(legacyProfile));
+            } catch {}
+            // Flag to show onboarding helper image exactly once after successful login
+            try { sessionStorage.setItem('showOnboardingImage', '1'); } catch {}
+            
+            // Role-based redirect after login
+            const userRoles = user.roles || (user.role ? [user.role] : []);
+            if (userRoles.includes('INNOVATION_COMMITTEE')) {
+                navigate('/innovation/committee/dashboard');
+            } else if (
+                userRoles.includes('PROCUREMENT_MANAGER') ||
+                userRoles.includes('MANAGER') ||
+                userRoles.some((r: string) => r && r.toUpperCase().includes('MANAGER'))
+            ) {
+                navigate('/procurement/manager');
+            } else if (
+                userRoles.includes('PROCUREMENT_OFFICER') ||
+                userRoles.includes('PROCUREMENT')
+            ) {
+                navigate('/procurement/dashboard');
+            } else if (userRoles.includes('SUPPLIER') || userRoles.some((r: string) => r && r.toUpperCase().includes('SUPPLIER'))) {
+                navigate('/supplier');
+            } else if (userRoles.some((r: string) => r && r.toUpperCase().includes('REQUEST'))) {
+                navigate('/apps/requests');
+            } else {
+                // Fallback to onboarding selector
+                navigate('/onboarding');
+            }
         } catch (err: any) {
             setError(err?.message || 'Login failed. Please try again.');
         } finally {
@@ -91,7 +108,18 @@ const Login = () => {
             if (code.length === 6) {
                 // Mock successful MFA verification
                 localStorage.setItem('isAuthenticated', 'true');
-                navigate('/');
+                
+                // Check stored user data for committee role
+                const userData = localStorage.getItem('auth_user') || sessionStorage.getItem('auth_user');
+                if (userData) {
+                    const user = JSON.parse(userData);
+                    const userRoles = user.roles || (user.role ? [user.role] : []);
+                    if (userRoles.includes('INNOVATION_COMMITTEE')) {
+                        navigate('/innovation/committee/dashboard');
+                        return;
+                    }
+                }
+                navigate('/onboarding');
             } else {
                 setError('Please enter a valid 6-digit code');
             }
@@ -290,35 +318,51 @@ const Login = () => {
                                 </button>
                             </form>
 
-                            {/* Divider */}
-                            <div className="relative my-8">
-                                <div className="absolute inset-0 flex items-center">
-                                    <div className="w-full border-t border-gray-300 dark:border-gray-700"></div>
-                                </div>
-                                <div className="relative flex justify-center text-sm">
-                                    <span className="px-4 bg-white dark:bg-black text-gray-500">Or continue with</span>
-                                </div>
-                            </div>
+                            {/* Optional SSO (hidden when not configured) */}
+                            {isMsalConfigured && (
+                                <>
+                                    <div className="relative my-8">
+                                        <div className="absolute inset-0 flex items-center">
+                                            <div className="w-full border-t border-gray-300 dark:border-gray-700"></div>
+                                        </div>
+                                        <div className="relative flex justify-center text-sm">
+                                            <span className="px-4 bg-white dark:bg-black text-gray-500">Or continue with</span>
+                                        </div>
+                                    </div>
 
-                            {/* SSO Options */}
-                            <div className="space-y-3">
-                                <button
-                                    type="button"
-                                    className="btn btn-outline-primary w-full py-3 flex items-center justify-center gap-3"
-                                    onClick={() => {
-                                        // Microsoft SSO integration
-                                        // Microsoft SSO integration would go here
-                                    }}
-                                >
-                                    <svg className="w-5 h-5" viewBox="0 0 23 23" fill="none">
-                                        <path fill="#f25022" d="M1 1h10v10H1z"/>
-                                        <path fill="#00a4ef" d="M12 1h10v10H12z"/>
-                                        <path fill="#7fba00" d="M1 12h10v10H1z"/>
-                                        <path fill="#ffb900" d="M12 12h10v10H12z"/>
-                                    </svg>
-                                    <span className="font-semibold">Sign in with Microsoft</span>
-                                </button>
-                            </div>
+                                    <div className="space-y-3">
+                                        <button
+                                            type="button"
+                                            className="btn btn-outline-primary w-full py-3 flex items-center justify-center gap-3"
+                                            disabled={!isMsalConfigured || isLoading}
+                                            onClick={async () => {
+                                                setError('');
+                                                setIsLoading(true);
+                                                try {
+                                                    const result = await loginWithMicrosoft();
+                                                    const idToken = result.idToken;
+                                                    if (!idToken) throw new Error('No idToken from Microsoft');
+                                                    // TODO: implement backend endpoint for Microsoft login when enabling Azure AD
+                                                    throw new Error('Microsoft SSO is not yet enabled.');
+                                                } catch (e: any) {
+                                                    const msg = e?.message || 'Microsoft sign-in failed';
+                                                    if (!/Redirecting/.test(msg)) setError(msg);
+                                                } finally {
+                                                    setIsLoading(false);
+                                                }
+                                            }}
+                                        >
+                                            <svg className="w-5 h-5" viewBox="0 0 23 23" fill="none">
+                                                <path fill="#f25022" d="M1 1h10v10H1z"/>
+                                                <path fill="#00a4ef" d="M12 1h10v10H12z"/>
+                                                <path fill="#7fba00" d="M1 12h10v10H1z"/>
+                                                <path fill="#ffb900" d="M12 12h10v10H12z"/>
+                                            </svg>
+                                            <span className="font-semibold">Sign in with Microsoft</span>
+                                        </button>
+                                    </div>
+                                </>
+                            )}
                         </div>
                     ) : (
                         // MFA Verification Form

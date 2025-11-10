@@ -260,6 +260,11 @@ model RequestStatusHistory {
 // INNOVATION HUB DOMAIN
 // ============================================
 
+enum VoteType {
+  UPVOTE
+  DOWNVOTE
+}
+
 model Idea {
   id             Int          @id @default(autoincrement())
   title          String
@@ -283,6 +288,8 @@ model Idea {
   
   // Metadata
   voteCount      Int          @default(0)
+  upvoteCount    Int          @default(0)
+  downvoteCount  Int          @default(0)
   viewCount      Int          @default(0)
   
   createdAt      DateTime     @default(now())
@@ -306,6 +313,7 @@ model Vote {
   idea      Idea     @relation(fields: [ideaId], references: [id], onDelete: Cascade)
   userId    Int
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  voteType  VoteType @default(UPVOTE)
   createdAt DateTime @default(now())
 
   @@unique([ideaId, userId])

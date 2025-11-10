@@ -219,8 +219,11 @@
                 "ideaPromoted": "\"{{title}}\" was promoted to BSJ Project!",
                 "timeAgo": {
                     "hours": "{{count}} hours ago",
-                    "days": "{{count}} days ago"
+                        "days": "{{count}} days ago",
+                        "minutes": "{{count}} minutes ago"
                 },
+                    "voteSingular": "{{count}} vote",
+                    "votePlural": "{{count}} votes",
                 "empty": "No recent activity"
             },
             "proTip": {

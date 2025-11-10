@@ -38,28 +38,33 @@ import { getUser, clearAuth } from '../../utils/auth';
 const Header = () => {
     const location = useLocation();
     const navigate = useNavigate();
-    
-    // Get current user to check role
-    // Prefer unified auth_user from localStorage; fallback to getUser helper
-    let currentUser: any = getUser();
-    try {
-        const raw = localStorage.getItem('auth_user');
-        if (raw) {
-            const parsed = JSON.parse(raw);
-            currentUser = { ...currentUser, ...parsed };
-        }
-    } catch {}
-    const isCommitteeMember = (currentUser?.roles || []).includes('INNOVATION_COMMITTEE') || currentUser?.role === 'INNOVATION_COMMITTEE';
-    
+
+    // Current user & role derivations (align with Sidebar logic)
+    const currentUser = getUser();
+    const userRoles = currentUser?.roles || (currentUser?.role ? [currentUser.role] : []);
+    const isCommitteeMember = userRoles.includes('INNOVATION_COMMITTEE');
+    const isProcurementManager = userRoles.includes('PROCUREMENT_MANAGER') ||
+        userRoles.includes('MANAGER') ||
+        userRoles.some((r: string) => r && r.toUpperCase().includes('MANAGER'));
+    const isProcurementOfficer = !isProcurementManager && (userRoles.includes('PROCUREMENT_OFFICER') || userRoles.includes('PROCUREMENT'));
+    const isSupplier = userRoles.includes('SUPPLIER') || userRoles.some(r => r && r.toUpperCase().includes('SUPPLIER'));
+    const isRequester = !isProcurementManager && !isProcurementOfficer && !isCommitteeMember && !isSupplier && userRoles.some(r => r && r.toUpperCase().includes('REQUEST'));
+
     // Determine current module based on route
     const isInnovationHub = location.pathname.startsWith('/innovation');
     const currentModule = isInnovationHub ? 'innovation' : 'procurement';
-    
-    // Set dashboard path based on user role
-    const dashboardPath = isCommitteeMember 
-        ? '/innovation/committee/dashboard' 
-        : isInnovationHub 
-        ? '/innovation/dashboard' 
+
+    // Set dashboard path based on user role (Manager takes precedence over Officer)
+    const dashboardPath = isCommitteeMember
+        ? '/innovation/committee/dashboard'
+        : isInnovationHub
+        ? '/innovation/dashboard'
+        : isProcurementManager
+        ? '/procurement/manager'
+        : isSupplier
+        ? '/supplier'
+        : isRequester
+        ? '/apps/requests'
         : '/procurement/dashboard';
     
     useEffect(() => {
@@ -176,7 +181,7 @@ const Header = () => {
             <div className="shadow-sm">
                 <div className="relative bg-white flex w-full items-center px-5 py-2.5 dark:bg-black">
                     <div className="horizontal-logo flex lg:hidden justify-between items-center ltr:mr-2 rtl:ml-2">
-                        <Link to={dashboardPath} className="main-logo flex items-center shrink-0">
+                        <Link to={dashboardPath} className="main-logo flex items-center shrink-0" title="Home">
                             <span className="text-2xl">🌀</span>
                             <span className="text-lg ltr:ml-1.5 rtl:mr-1.5 font-bold align-middle hidden md:inline dark:text-white-light transition-all duration-300 tracking-wider">SPINX</span>
                         </Link>
@@ -191,24 +196,28 @@ const Header = () => {
                         </button>
                     </div>
 
-                    {!isInnovationHub && (
+                    {!isInnovationHub && !isSupplier && (
                         <div className="ltr:mr-2 rtl:ml-2 hidden sm:block">
                             <ul className="flex items-center space-x-2 rtl:space-x-reverse dark:text-[#d0d2d6]">
                                 <li>
-                                    <Link to={dashboardPath} className="block p-2 rounded-full bg-white-light/40 dark:bg-dark/40 hover:text-primary hover:bg-white-light/90 dark:hover:bg-dark/60" title="Dashboard">
+                                    <Link to={dashboardPath} className="block p-2 rounded-full bg-white-light/40 dark:bg-dark/40 hover:text-primary hover:bg-white-light/90 dark:hover:bg-dark/60" title="Dashboard Home">
                                         <IconMenuDashboard />
                                     </Link>
                                 </li>
-                                <li>
-                                    <Link to="/procurement/rfq/list" className="block p-2 rounded-full bg-white-light/40 dark:bg-dark/40 hover:text-primary hover:bg-white-light/90 dark:hover:bg-dark/60" title="RFQ Management">
-                                        <IconEdit />
-                                    </Link>
-                                </li>
-                                <li>
-                                    <Link to="/procurement/approvals" className="block p-2 rounded-full bg-white-light/40 dark:bg-dark/40 hover:text-primary hover:bg-white-light/90 dark:hover:bg-dark/60" title="Approvals">
-                                        <IconCalendar />
-                                    </Link>
-                                </li>
+                                {!isRequester && (
+                                    <>
+                                        <li>
+                                            <Link to="/procurement/rfq/list" className="block p-2 rounded-full bg-white-light/40 dark:bg-dark/40 hover:text-primary hover:bg-white-light/90 dark:hover:bg-dark/60" title="RFQ Management">
+                                                <IconEdit />
+                                            </Link>
+                                        </li>
+                                        <li>
+                                            <Link to="/procurement/approvals" className="block p-2 rounded-full bg-white-light/40 dark:bg-dark/40 hover:text-primary hover:bg-white-light/90 dark:hover:bg-dark/60" title="Approvals">
+                                                <IconCalendar />
+                                            </Link>
+                                        </li>
+                                    </>
+                                )}
                             </ul>
                         </div>
                     )}
@@ -216,7 +225,7 @@ const Header = () => {
                         <div className="sm:ltr:mr-auto sm:rtl:ml-auto">
                             {/* Hidden search bar to maintain spacing */}
                         </div>
-                        {!isCommitteeMember && (
+                        {!isCommitteeMember && !isSupplier && (
                             <div className="dropdown shrink-0">
                                 <Dropdown
                                     offset={[0, 8]}
@@ -242,7 +251,7 @@ const Header = () => {
                                             <button
                                                 type="button"
                                                 className={`w-full !py-3 hover:bg-gray-100 dark:hover:bg-gray-800 ${!isInnovationHub ? 'bg-primary/10 text-primary' : ''}`}
-                                                onClick={() => navigate('/procurement/dashboard')}
+                                                onClick={() => navigate(isProcurementManager ? '/procurement/manager' : isRequester ? '/apps/requests' : '/procurement/dashboard')}
                                             >
                                                 <div className="flex items-center gap-3 px-4">
                                                     <span className="text-2xl">📦</span>
@@ -481,9 +490,9 @@ const Header = () => {
                                             <img className="rounded-md w-10 h-10 object-cover" src="/assets/images/user-profile.jpeg" alt="userProfile" />
                                             <div className="ltr:pl-4 rtl:pr-4 truncate">
                                                 <h4 className="text-base">
-                                                    {currentUser?.name || currentUser?.full_name || 'User'}
+                                                    {currentUser?.name || 'User'}
                                                     <span className="text-xs bg-success-light rounded text-success px-1 ltr:ml-2 rtl:ml-2">
-                                                        {isCommitteeMember ? 'Committee' : 'Procurement Officer'}
+                                                        {isCommitteeMember ? 'Committee' : isProcurementManager ? 'Procurement Manager' : isSupplier ? 'Supplier' : isRequester ? 'User' : 'Procurement Officer'}
                                                     </span>
                                                 </h4>
                                                 <button type="button" className="text-black/60 hover:text-primary dark:text-dark-light/60 dark:hover:text-white text-xs">

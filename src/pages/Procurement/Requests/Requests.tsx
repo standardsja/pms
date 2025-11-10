@@ -28,15 +28,20 @@ const Requests = () => {
 
     // Current user from localStorage (aligns with RequestForm pattern)
     const [currentUserName, setCurrentUserName] = useState<string>('');
+    const [currentUserId, setCurrentUserId] = useState<number|null>(null);
     const showMineOnly = location.pathname.endsWith('/mine');
 
-    // Load current user
+    // Load current user (supports session/local storage + legacy userProfile)
     useEffect(() => {
         try {
-            const user = JSON.parse(localStorage.getItem('auth_user') || '{}');
-            setCurrentUserName(user?.name || '');
+            const authRaw = localStorage.getItem('auth_user') || sessionStorage.getItem('auth_user');
+            const legacyRaw = localStorage.getItem('userProfile');
+            const user = authRaw ? JSON.parse(authRaw) : legacyRaw ? JSON.parse(legacyRaw) : null;
+            setCurrentUserName(user?.name || user?.fullName || '');
+            setCurrentUserId(user?.id ? Number(user.id) : (user?.userId ? Number(user.userId) : null));
         } catch {
             setCurrentUserName('');
+            setCurrentUserId(null);
         }
     }, []);
 
@@ -47,10 +52,12 @@ const Requests = () => {
             setIsLoading(true);
             setError(null);
             try {
-                const token = localStorage.getItem('auth_token');
+                const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
                 const headers: Record<string, string> = {};
                 if (token) headers['Authorization'] = `Bearer ${token}`;
-                const res = await fetch('/api/requisitions', {
+                // Hitting backend directly on port 4000 since Vite proxy only rewrites '/api' paths.
+                // TODO: Move to an env-driven API base and/or add a Vite proxy for '/requests'.
+                const res = await fetch('http://localhost:4000/requests', {
                     headers,
                     signal: controller.signal,
                 });
@@ -92,9 +99,17 @@ const Requests = () => {
         () => filterRequests(searched, { status: statusFilter, department: departmentFilter }),
         [searched, statusFilter, departmentFilter]
     );
+    // Show requests where user is requester or current assignee
     const filteredRequests = useMemo(
-        () => (showMineOnly ? onlyMine(filteredByMeta, currentUserName) : filteredByMeta),
-        [showMineOnly, filteredByMeta, currentUserName]
+        () => {
+            if (!showMineOnly) return filteredByMeta;
+            return filteredByMeta.filter(r => {
+                // @ts-ignore: backend may return string or number for id
+                const assigneeId = r.currentAssigneeId ? Number(r.currentAssigneeId) : null;
+                return (r.requester === currentUserName) || (currentUserId && assigneeId === currentUserId);
+            });
+        },
+        [showMineOnly, filteredByMeta, currentUserName, currentUserId]
     );
 
     // Pagination
@@ -256,14 +271,24 @@ const Requests = () => {
                                     </td>
                                     <td className="px-4 py-3">{formatDate(r.date)}</td>
                                     <td className="px-4 py-3">
-                                        <button
-                                            className="p-1.5 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600"
-                                            onClick={() => viewDetails(r)}
-                                            title="View Details"
-                                            aria-label={`View details for ${r.id}`}
-                                        >
-                                            <IconEye className="w-5 h-5" />
-                                        </button>
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                className="p-1.5 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600"
+                                                onClick={() => viewDetails(r)}
+                                                title="View Details"
+                                                aria-label={`View details for ${r.id}`}
+                                            >
+                                                <IconEye className="w-5 h-5" />
+                                            </button>
+                                            {currentUserId && r.currentAssigneeId != null && Number(r.currentAssigneeId) === Number(currentUserId) && (
+                                                <button
+                                                    className="px-3 py-1 rounded bg-blue-600 text-white text-sm hover:bg-blue-700"
+                                                    onClick={() => navigate(`/apps/requests/edit/${r.id}`)}
+                                                >
+                                                    Review
+                                                </button>
+                                            )}
+                                        </div>
                                     </td>
                                 </tr>
                             );

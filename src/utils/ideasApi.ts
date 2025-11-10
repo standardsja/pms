@@ -7,6 +7,7 @@ export type Idea = {
   category: string;
   status: 'DRAFT' | 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED' | 'PROMOTED_TO_PROJECT';
   submittedBy: string;
+  submittedById?: number;
   submittedAt: string;
   reviewedBy?: string | null;
   reviewedAt?: string | null;
@@ -14,9 +15,21 @@ export type Idea = {
   promotedAt?: string | null;
   projectCode?: string | null;
   voteCount: number;
+  upvoteCount?: number;
+  downvoteCount?: number;
   viewCount: number;
+  commentCount?: number;
   createdAt: string;
   updatedAt: string;
+  hasVoted?: boolean;
+  userVoteType?: 'UPVOTE' | 'DOWNVOTE' | null;
+  votes?: Array<{
+    id: number;
+    userId: number;
+    userName: string;
+    voteType: 'UPVOTE' | 'DOWNVOTE';
+    createdAt: string;
+  }>;
 };
 
 function authHeaders(): Record<string, string> {
@@ -39,11 +52,32 @@ export async function fetchIdeas(params?: { status?: string; sort?: string }) {
   const qs = new URLSearchParams();
   if (params?.status) qs.set('status', params.status);
   if (params?.sort) qs.set('sort', params.sort);
+  // Cache busting to ensure fresh data in all environments
+  qs.set('t', Date.now().toString());
   const res = await fetch(`/api/ideas${qs.toString() ? `?${qs.toString()}` : ''}`, {
-    headers: authHeaders(),
+    headers: {
+      ...authHeaders(),
+      'Cache-Control': 'no-store',
+      Pragma: 'no-cache',
+    },
+    cache: 'no-store',
   });
   if (!res.ok) throw new Error(await res.text());
   return (await res.json()) as Idea[];
+}
+
+export async function fetchIdeaById(id: string | number): Promise<Idea> {
+  const url = `/api/ideas/${id}?t=${Date.now()}`;
+  const res = await fetch(url, {
+    headers: {
+      ...authHeaders(),
+      'Cache-Control': 'no-store',
+      Pragma: 'no-cache',
+    },
+    cache: 'no-store',
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return (await res.json()) as Idea;
 }
 
 export async function submitIdea(data: {
@@ -106,25 +140,27 @@ export async function promoteIdea(id: string, projectCode?: string) {
   return (await res.json()) as Idea;
 }
 
-export async function voteForIdea(id: string | number) {
+export async function voteForIdea(id: string | number, voteType: 'UPVOTE' | 'DOWNVOTE' = 'UPVOTE') {
   const res = await fetch(`/api/ideas/${id}/vote`, {
     method: 'POST',
     headers: authHeaders(),
+    body: JSON.stringify({ voteType }),
   });
   if (!res.ok) {
+    let errorMessage = 'Failed to vote';
     try {
       const errorJson = await res.json();
       if (errorJson.error === 'already voted') {
         throw new Error('ALREADY_VOTED');
       }
-      throw new Error(errorJson.error || 'Failed to vote');
+      errorMessage = errorJson.error || errorMessage;
     } catch (e) {
       if (e instanceof Error && e.message === 'ALREADY_VOTED') {
         throw e;
       }
-      const errorText = await res.text();
-      throw new Error(errorText || 'Failed to vote');
+      // If JSON parsing failed, leave errorMessage as is
     }
+    throw new Error(errorMessage);
   }
   return (await res.json()) as Idea;
 }
@@ -142,7 +178,10 @@ export async function removeVote(id: string | number) {
 }
 
 export async function checkIfVoted(id: string | number): Promise<boolean> {
-  // The backend doesn't have a specific endpoint for this, so we'll track it client-side
-  // or check via the votes list when fetching ideas
-  return false; // TODO: Implement proper check
+  try {
+    const idea = await fetchIdeaById(id);
+    return idea.hasVoted || false;
+  } catch {
+    return false;
+  }
 }

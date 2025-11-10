@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { useNavigate, useParams } from 'react-router-dom';
-import { setPageTitle } from '../../store/themeConfigSlice';
-import IconPlus from '../../components/Icon/IconPlus';
-import IconX from '../../components/Icon/IconX';
+import { setPageTitle } from '@/store/themeConfigSlice';
+import IconPlus from '@/components/Icon/IconPlus';
+import IconX from '@/components/Icon/IconX';
 import Swal from 'sweetalert2';
 
 interface RequestItem {
@@ -99,10 +99,12 @@ const RequestForm = () => {
     useEffect(() => {
         if (isEditMode) return;
         try {
-            const raw = localStorage.getItem('userProfile');
-            const profile = raw ? JSON.parse(raw) : null;
+            // Prefer new auth_user; fallback to legacy userProfile
+            const authRaw = localStorage.getItem('auth_user') || sessionStorage.getItem('auth_user');
+            const legacyRaw = localStorage.getItem('userProfile');
+            const profile = authRaw ? JSON.parse(authRaw) : legacyRaw ? JSON.parse(legacyRaw) : null;
             if (profile) {
-                setRequestedBy(profile.name || '');
+                setRequestedBy(profile.name || profile.fullName || '');
                 setEmail(profile.email || '');
                 setDivision(profile.department?.name || '');
                 // best-effort for branch/unit using dept code
@@ -267,11 +269,12 @@ const RequestForm = () => {
                 // Double-confirmation flow: warn on missing approval, confirm when approving
                 if ((requestMeta?.status === 'DEPARTMENT_REVIEW' && managerApproved === false) ||
                     (requestMeta?.status === 'HOD_REVIEW' && headApproved === false) ||
-                    (requestMeta?.status === 'PROCUREMENT_REVIEW' && procurementApproved === false)) {
+                    (requestMeta?.status === 'PROCUREMENT_REVIEW' && procurementApproved === false) ||
+                    (requestMeta?.status === 'FINANCE_REVIEW' && !budgetOfficerName && !budgetManagerName)) {
                     const confirmMissing = await Swal.fire({
                         icon: 'warning',
                         title: 'Approval not checked',
-                        text: 'You have not checked the approval box. Proceed without approving?',
+                        text: 'You have not checked the approval box or filled required fields. Proceed without approving?',
                         showCancelButton: true,
                         confirmButtonText: 'Proceed',
                         cancelButtonText: 'Cancel'
@@ -284,7 +287,8 @@ const RequestForm = () => {
 
                 if ((requestMeta?.status === 'DEPARTMENT_REVIEW' && managerApproved === true) ||
                     (requestMeta?.status === 'HOD_REVIEW' && headApproved === true) ||
-                    (requestMeta?.status === 'PROCUREMENT_REVIEW' && procurementApproved === true)) {
+                    (requestMeta?.status === 'PROCUREMENT_REVIEW' && procurementApproved === true) ||
+                    (requestMeta?.status === 'FINANCE_REVIEW' && (budgetOfficerName || budgetManagerName))) {
                     const confirmApprove = await Swal.fire({
                         icon: 'question',
                         title: 'Confirm approval',
@@ -334,7 +338,8 @@ const RequestForm = () => {
                 const isApproving = (
                     (requestMeta?.status === 'DEPARTMENT_REVIEW' && managerApproved === true) ||
                     (requestMeta?.status === 'HOD_REVIEW' && headApproved === true) ||
-                    (requestMeta?.status === 'PROCUREMENT_REVIEW' && procurementApproved === true)
+                    (requestMeta?.status === 'PROCUREMENT_REVIEW' && procurementApproved === true) ||
+                    (requestMeta?.status === 'FINANCE_REVIEW' && (budgetOfficerName || budgetManagerName))
                 );
 
                 if (isApproving) {

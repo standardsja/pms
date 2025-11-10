@@ -1,5 +1,5 @@
 import { PropsWithChildren, Suspense, useEffect, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import App from '../../App';
 import { IRootState } from '../../store';
@@ -9,12 +9,10 @@ import Header from './Header';
 import Setting from './Setting';
 import Sidebar from './Sidebar';
 import Portals from '../../components/Portals';
+import { getToken, getUser, clearAuth } from '../../utils/auth';
 
 const DefaultLayout = ({ children }: PropsWithChildren) => {
     const themeConfig = useSelector((state: IRootState) => state.themeConfig);
-    const selectedModule = useSelector((state: IRootState) => (state as any).module?.selectedModule);
-    const navigate = useNavigate();
-    const location = useLocation();
     const dispatch = useDispatch();
 
     const [showLoader, setShowLoader] = useState(true);
@@ -49,25 +47,17 @@ const DefaultLayout = ({ children }: PropsWithChildren) => {
         };
     }, []);
 
-    // Guard: enforce authentication then module selection
-    useEffect(() => {
-    const isAuth = !!localStorage.getItem('auth_token') || !!localStorage.getItem('authToken') || !!localStorage.getItem('token');
-        const onOnboarding = location.pathname.startsWith('/onboarding');
-        const onAuth = location.pathname.startsWith('/auth/');
-        const onInnovation = location.pathname.startsWith('/innovation/');
-        const onProcurement = location.pathname.startsWith('/procurement/');
-        
-        if (!isAuth && !onAuth) {
-            navigate('/auth/login', { replace: true });
-            return;
+    // Auth guard: if no token present, redirect to login.
+    // This runs only for routes using DefaultLayout (protected). Blank layout routes (login/onboarding) are unaffected.
+    const location = useLocation();
+    const token = getToken();
+    const user = getUser();
+    if (!token) {
+        if (user) clearAuth();
+        if (location.pathname !== '/auth/login') {
+            return <Navigate to="/auth/login" replace state={{ from: location.pathname }} />;
         }
-        
-        // If authenticated but no module chosen yet and not on onboarding/auth pages
-        // Allow direct access to innovation and procurement routes even without explicit module selection
-        if (isAuth && !selectedModule && !onOnboarding && !onAuth && !onInnovation && !onProcurement) {
-            navigate('/onboarding?force=1', { replace: true });
-        }
-    }, [location.pathname, navigate, selectedModule]);
+    }
 
     return (
         <App>

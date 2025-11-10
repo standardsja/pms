@@ -8,12 +8,14 @@
         "build": "vite build && tsc",
         "prisma:seed": "node --loader ts-node/esm server/prisma/seed.ts",
         "preview": "vite preview",
-        "server:dev": "node server/index.mjs"
+        "server:dev": "node server/index.mjs",
+        "seed:ideas": "node server/seed-ideas.mjs"
     },
     "prisma": {
         "seed": "node --loader ts-node/esm server/prisma/seed.ts"
     },
     "dependencies": {
+        "@azure/msal-browser": "^4.26.1",
         "@emotion/react": "^11.10.6",
         "@fullcalendar/core": "^6.1.4",
         "@fullcalendar/daygrid": "^6.1.4",
@@ -38,6 +40,7 @@
         "body-parser": "^1.20.2",
         "caniuse-lite": "^1.0.30001752",
         "cors": "^2.8.5",
+        "dotenv": "^17.2.3",
         "easymde": "^2.18.0",
         "express": "^4.19.2",
         "formik": "^2.2.9",
@@ -45,7 +48,7 @@
         "mantine-datatable": "^1.7.17",
         "nouislider-react": "^3.4.1",
         "pdfkit": "^0.13.0",
-        "puppeteer": "^23.7.0",
+        "puppeteer": "^23.11.1",
         "react": "^18.3.1",
         "react-18-image-lightbox": "^5.1.4",
         "react-apexcharts": "^1.8.0",
@@ -84,6 +87,8 @@
         "@types/sortablejs": "^1.15.0",
         "@types/styled-components": "^5.1.26",
         "@vitejs/plugin-react": "^4.3.1",
+        "@vitest/coverage-v8": "^4.0.7",
+        "@vitest/ui": "^4.0.7",
         "autoprefixer": "^10.4.17",
         "i18next": "^23.13.0",
         "i18next-browser-languagedetector": "^8.0.0",
@@ -96,6 +101,7 @@
         "tailwindcss": "^3.4.1",
         "ts-node": "^10.9.2",
         "typescript": "^5.9.3",
-        "vite": "^5.4.1"
+        "vite": "^5.4.1",
+        "vitest": "^4.0.7"
     }
 }
