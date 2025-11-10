@@ -80,6 +80,7 @@ const ViewIdeas = lazy(() => import('../pages/Innovation/Ideas/ViewIdeas'));
 const VoteOnIdeas = lazy(() => import('../pages/Innovation/Ideas/VoteOnIdeas'));
 const MyIdeas = lazy(() => import('../pages/Innovation/Ideas/MyIdeas'));
 const IdeaDetails = lazy(() => import('../pages/Innovation/Ideas/IdeaDetails'));
+const BSJProjects = lazy(() => import('../pages/Innovation/Projects/BSJProjects'));
 const CommitteeDashboard = lazy(() => import('../pages/Innovation/Committee/CommitteeDashboard'));
 const CommitteeReviewIdeas = lazy(() => import('../pages/Innovation/Committee/ReviewIdeas'));
 const InnovationAnalytics = lazy(() => import('../pages/Innovation/Ideas/Analytics'));
@@ -158,6 +159,10 @@ const routes = [
     {
         path: '/innovation/ideas/:id',
         element: <IdeaDetails />,
+    },
+    {
+        path: '/innovation/projects',
+        element: <BSJProjects />,
     },
     {
         path: '/innovation/committee',

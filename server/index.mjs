@@ -632,9 +632,35 @@ e();
 app.get('/api/ideas', async (req, res) => {
 	try {
 		const { status, sort } = req.query || {};
+		
+		// Map frontend status values to Prisma enum values
+		const statusMap = {
+			'pending': 'PENDING_REVIEW',
+			'approved': 'APPROVED',
+			'rejected': 'REJECTED',
+			'draft': 'DRAFT',
+			'promoted': 'PROMOTED_TO_PROJECT',
+			// Also support direct enum values
+			'PENDING_REVIEW': 'PENDING_REVIEW',
+			'APPROVED': 'APPROVED',
+			'REJECTED': 'REJECTED',
+			'DRAFT': 'DRAFT',
+			'PROMOTED_TO_PROJECT': 'PROMOTED_TO_PROJECT',
+		};
+		
 		const where = {};
-		if (status) where.status = String(status);
-		const orderBy = sort === 'popular' ? { voteCount: 'desc' } : { createdAt: 'desc' };
+		if (status) {
+			const mappedStatus = statusMap[String(status).toLowerCase()] || statusMap[String(status)];
+			if (!mappedStatus) {
+				console.log('[api/ideas] Invalid status received:', status);
+				return res.status(400).json({ error: `Invalid status: ${status}. Valid values: pending, approved, rejected, draft, promoted` });
+			}
+			where.status = mappedStatus;
+			console.log('[api/ideas] Status filter:', status, '→', mappedStatus);
+		}
+		
+		const orderBy = sort === 'popular' || sort === 'popularity' ? { voteCount: 'desc' } : { createdAt: 'desc' };
+		console.log('[api/ideas] Query:', { where, orderBy, sort });
 
 		const ideas = await prisma.idea.findMany({
 			where,
