@@ -1,4 +1,5 @@
 import { lazy } from 'react';
+import AdminRoute from '../components/AdminRoute';
 
 // Main Pages
 const Index = lazy(() => import('../pages/Index'));
@@ -112,11 +113,10 @@ const routes = [
     // ============================================
     // MODULE SELECTOR / ONBOARDING
     // ============================================
-    // Root should always redirect to login unless already authenticated
+    // Root should redirect to dashboard when authenticated; otherwise to login
     {
         path: '/',
-        element: <Login />,
-        layout: 'blank',
+        element: <Index />, // Index can decide or be a lightweight landing; keep as is to avoid blank layout login forcing
     },
     // Optional: keep a direct route to the old selector (not linked)
     {
@@ -393,7 +393,11 @@ const routes = [
     // ============================================
     {
         path: '/procurement/admin',
-        element: <AdminSettings />,
+        element: (
+            <AdminRoute>
+                <AdminSettings />
+            </AdminRoute>
+        ),
     },
     
     // ============================================

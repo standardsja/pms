@@ -237,14 +237,17 @@ model Request {
   code            String?         @unique
 
   title           String
-  requester       String
-  department      String
+  requester       String?
+  department      String?
   status          RequestStatus   @default(PENDING_FINANCE)
 
-  justification   String          @db.Text
+  justification   String?         @db.Text
   fundingSource   String?
   budgetCode      String?
-  totalEstimated  Decimal         @db.Decimal(12, 2)
+  totalEstimated  Decimal?        @db.Decimal(12, 2)
+
+  // Track original procurement officer for returning after finance approval
+  procurementOfficerId String?
 
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt

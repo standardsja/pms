@@ -8,6 +8,7 @@ import IconEye from '../../../components/Icon/IconEye';
 // @ts-ignore
 import packageInfo from '../../../../package.json';
 import { setAuth } from '../../../utils/auth';
+import { setUser } from '../../../store/authSlice';
 import { loginWithMicrosoft, initializeMsal, isMsalConfigured } from '../../../auth/msal';
 
 const Login = () => {
@@ -50,6 +51,11 @@ const Login = () => {
             const { token, user } = data || {};
             if (!token || !user) throw new Error('Invalid login response');
             setAuth(token, user, rememberMe);
+            // Also persist common key 'auth_user' used by Redux hydration
+            try {
+                const store = rememberMe ? localStorage : sessionStorage;
+                store.setItem('auth_user', JSON.stringify(user));
+            } catch {}
             // Also persist legacy userProfile structure expected by RequestForm & index pages
             try {
                 const legacyProfile = {
@@ -62,6 +68,19 @@ const Login = () => {
                 };
                 localStorage.setItem('userProfile', JSON.stringify(legacyProfile));
             } catch {}
+            // Immediately hydrate Redux store so sidebar sees roles without refresh
+            dispatch(setUser({
+                id: user.id,
+                email: user.email,
+                full_name: user.name || user.email,
+                department_id: user.department?.id,
+                department_name: user.department?.name,
+                status: 'active',
+                roles: user.roles || (user.role ? [user.role] : []),
+                last_login_at: undefined,
+                created_at: undefined,
+                updated_at: undefined,
+            }));
             // Flag to show onboarding helper image exactly once after successful login
             try { sessionStorage.setItem('showOnboardingImage', '1'); } catch {}
             
