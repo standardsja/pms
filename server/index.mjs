@@ -401,6 +401,7 @@ app.put('/requests/:id', async (req, res) => {
 		if (data.headApproved !== undefined) updateData.headApproved = Boolean(data.headApproved);
 		if (data.commitmentNumber !== undefined) updateData.commitmentNumber = data.commitmentNumber;
 		if (data.accountingCode !== undefined) updateData.accountingCode = data.accountingCode;
+		if (data.currency !== undefined) updateData.currency = data.currency;
 		if (data.budgetComments !== undefined) updateData.budgetComments = data.budgetComments;
 		if (data.budgetOfficerName !== undefined) updateData.budgetOfficerName = data.budgetOfficerName;
 		if (data.budgetManagerName !== undefined) updateData.budgetManagerName = data.budgetManagerName;
@@ -729,6 +730,7 @@ app.get('/requests/:id/pdf', async (req, res) => {
 		const procurementApprovalDate = getApprovalDate('PROCUREMENT_REVIEW');
 		const financeApprovalDate = getApprovalDate('FINANCE_APPROVED');
 
+		const effectiveCurrency = request.currency || 'JMD';
 		const html = tpl
 			.replace(/{{reference}}/g, String(request.reference || request.id))
 			.replace(/{{submittedAt}}/g, request.createdAt ? new Date(request.createdAt).toLocaleString() : '')
@@ -736,8 +738,8 @@ app.get('/requests/:id/pdf', async (req, res) => {
 			.replace(/{{requesterEmail}}/g, request.requester?.email || '')
 			.replace(/{{departmentName}}/g, request.department?.name || '')
 			.replace(/{{priority}}/g, String(request.priority || ''))
-			.replace(/{{currency}}/g, request.currency || '')
-			.replace(/{{totalEstimated}}/g, request.totalEstimated ? String(request.totalEstimated) : '')
+			.replace(/{{currency}}/g, effectiveCurrency)
+			.replace(/{{totalEstimated}}/g, request.totalEstimated ? `${effectiveCurrency} ${request.totalEstimated}` : '')
 			.replace(/{{description}}/g, (request.description || '').replace(/</g, '&lt;'))
 			.replace(/{{itemsRows}}/g, itemsRows)
 			.replace(/{{managerName}}/g, request.managerName || '')
@@ -760,7 +762,13 @@ app.get('/requests/:id/pdf', async (req, res) => {
 			.replace(/{{financeApprovalDate}}/g, financeApprovalDate)
 			.replace(/{{now}}/g, new Date().toLocaleString());
 		logPdf('html-length', html.length);
-e();
+		// Render PDF via headless Chromium
+		const t0 = Date.now();
+		const browser = await puppeteer.launch({
+			headless: 'new',
+			args: ['--no-sandbox', '--disable-setuid-sandbox']
+		});
+		const page = await browser.newPage();
 				let pdf;
 				try {
 					await page.setContent(html, { waitUntil: 'load' });

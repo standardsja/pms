@@ -164,7 +164,7 @@ model Request {
 
   budgetCode       String?
   totalEstimated   Decimal?  @db.Decimal(12, 2)
-  currency         String?   @default("USD")
+  currency         String?   @default("JMD")
   priority         Priority? @default(MEDIUM)
   procurementType  Json?     // Array of procurement types: ['goods', 'consulting', etc.]
   expectedDelivery DateTime?

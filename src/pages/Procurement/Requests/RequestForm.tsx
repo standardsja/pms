@@ -42,6 +42,7 @@ const RequestForm = () => {
     const [budgetComments, setBudgetComments] = useState('');
     const [budgetOfficerName, setBudgetOfficerName] = useState('');
     const [budgetManagerName, setBudgetManagerName] = useState('');
+    const [currency, setCurrency] = useState<'JMD' | 'USD'>('JMD');
     const [procurementCaseNumber, setProcurementCaseNumber] = useState('');
     const [receivedBy, setReceivedBy] = useState('');
     const [dateReceived, setDateReceived] = useState('');
@@ -163,6 +164,7 @@ const RequestForm = () => {
                 // Map database enum priority (URGENT/HIGH/MEDIUM/LOW) to form values (urgent/high/medium/low)
                 const priorityValue = request.priority ? request.priority.toLowerCase() : 'medium';
                 setPriority(priorityValue);
+                if (request.currency) setCurrency(request.currency === 'USD' ? 'USD' : 'JMD');
                 setCommentsJustification(request.description || '');
                 
                 // Load procurement type from JSON field
@@ -429,7 +431,7 @@ const RequestForm = () => {
                         partNumber: it.partNumber || ''
                     })),
                     totalEstimated: estimatedTotal,
-                    currency: 'USD',
+                    currency: currency,
                     priority: priorityEnum,
                     procurementType: procurementType.length > 0 ? procurementType : null
                 };
@@ -532,9 +534,20 @@ const RequestForm = () => {
                                 />
                             </div>
                             <div>
+                                <label className="block text-sm font-medium mb-2">Currency</label>
+                                <select
+                                    className="form-select w-full"
+                                    value={currency}
+                                    onChange={(e) => setCurrency(e.target.value as 'JMD' | 'USD')}
+                                >
+                                    <option value="JMD">JMD - Jamaican Dollar</option>
+                                    <option value="USD">USD - US Dollar</option>
+                                </select>
+                            </div>
+                            <div>
                                 <label className="block text-sm font-medium mb-2">Estimated Cost (Total)</label>
                                 <div className="flex items-center gap-2">
-                                    <span className="font-semibold">JMD $</span>
+                                    <span className="font-semibold">{currency} $</span>
                                     <input
                                         type="number"
                                         value={estimatedTotal}
