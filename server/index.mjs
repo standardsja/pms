@@ -205,6 +205,50 @@ app.post('/api/auth/login', async (req, res) => {
 	}
 });
 
+// ============================================
+// ADMIN ENDPOINTS
+// ============================================
+
+// GET /admin/users - List all users with their roles
+app.get('/admin/users', async (req, res) => {
+	try {
+		const users = await prisma.user.findMany({
+			include: {
+				roles: {
+					include: {
+						role: true
+					}
+				},
+				department: true
+			},
+			orderBy: {
+				createdAt: 'desc'
+			}
+		});
+		
+		// Transform to include role names
+		const usersWithRoles = users.map(user => ({
+			id: user.id,
+			email: user.email,
+			name: user.name,
+			departmentId: user.departmentId,
+			department: user.department,
+			roles: user.roles.map(ur => ur.role.name),
+			createdAt: user.createdAt,
+			updatedAt: user.updatedAt
+		}));
+		
+		res.json(usersWithRoles);
+	} catch (err) {
+		console.error('[GET /admin/users]', err);
+		res.status(500).json({ error: String(err) });
+	}
+});
+
+// ============================================
+// REQUEST ENDPOINTS
+// ============================================
+
 // List requests with simple filters
 app.get('/requests', async (req, res) => {
 	try {

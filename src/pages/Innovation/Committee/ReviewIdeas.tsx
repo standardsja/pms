@@ -7,10 +7,10 @@ import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 
 const tabs = [
-  { key: 'pending', label: 'Pending Review' },
-  { key: 'approved', label: 'Approved' },
-  { key: 'rejected', label: 'Rejected' },
-  { key: 'popular', label: 'Popular' },
+  { key: 'pending', label: 'Pending Review', apiStatus: 'PENDING_REVIEW' },
+  { key: 'approved', label: 'Approved', apiStatus: 'APPROVED' },
+  { key: 'rejected', label: 'Rejected', apiStatus: 'REJECTED' },
+  { key: 'popular', label: 'Popular', apiStatus: null },
 ] as const;
 
 export default function ReviewIdeas() {
@@ -41,10 +41,11 @@ export default function ReviewIdeas() {
       if (showLoader) setLoading(true);
       setError(null);
       try {
+        const activeTab = tabs.find(t => t.key === active);
         const data = await fetchIdeas(
           active === 'popular'
             ? { sort: 'popularity' }
-            : { status: active }
+            : { status: activeTab?.apiStatus || active }
         );
         if (!cancelled) setIdeas(data);
       } catch (e: any) {
