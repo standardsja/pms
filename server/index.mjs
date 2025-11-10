@@ -205,6 +205,141 @@ app.post('/api/auth/login', async (req, res) => {
 	}
 });
 
+// ========================
+// ADMIN API ROUTES
+// ========================
+
+// GET /admin/users - List all users with their roles and departments
+app.get('/admin/users', async (req, res) => {
+	try {
+		const users = await prisma.user.findMany({
+			include: {
+				department: { select: { id: true, name: true, code: true } },
+				roles: {
+					include: {
+						role: { select: { id: true, name: true, description: true } },
+					},
+				},
+			},
+			orderBy: { email: 'asc' },
+		});
+		res.json(users);
+	} catch (err) {
+		console.error('[GET /admin/users] Error:', err);
+		res.status(500).json({ error: String(err) });
+	}
+});
+
+// POST /admin/users/:id/roles - Update user roles
+app.post('/admin/users/:id/roles', async (req, res) => {
+	try {
+		const userId = Number(req.params.id);
+		const { roles } = req.body;
+
+		if (!Array.isArray(roles)) {
+			return res.status(400).json({ error: 'roles must be an array of role names' });
+		}
+
+		// Get all role records
+		const roleRecords = await prisma.role.findMany({
+			where: { name: { in: roles } },
+		});
+
+		// Delete existing user roles
+		await prisma.userRole.deleteMany({ where: { userId } });
+
+		// Create new user roles
+		await prisma.userRole.createMany({
+			data: roleRecords.map(role => ({
+				userId,
+				roleId: role.id,
+			})),
+		});
+
+		// Return updated user with roles
+		const user = await prisma.user.findUnique({
+			where: { id: userId },
+			include: {
+				department: { select: { id: true, name: true, code: true } },
+				roles: {
+					include: {
+						role: { select: { id: true, name: true, description: true } },
+					},
+				},
+			},
+		});
+
+		res.json(user);
+	} catch (err) {
+		console.error('[POST /admin/users/:id/roles] Error:', err);
+		res.status(500).json({ error: String(err) });
+	}
+});
+
+// POST /admin/departments - Create a new department
+app.post('/admin/departments', async (req, res) => {
+	try {
+		const { name, code, managerId } = req.body;
+
+		if (!name || !code) {
+			return res.status(400).json({ error: 'name and code are required' });
+		}
+
+		const department = await prisma.department.create({
+			data: {
+				name,
+				code,
+				managerId: managerId || null,
+			},
+			include: {
+				manager: { select: { id: true, name: true, email: true } },
+			},
+		});
+
+		res.status(201).json(department);
+	} catch (err) {
+		console.error('[POST /admin/departments] Error:', err);
+		res.status(500).json({ error: String(err) });
+	}
+});
+
+// GET /admin/audit-log - Get audit log entries
+app.get('/admin/audit-log', async (req, res) => {
+	try {
+		const { startDate, endDate, userId } = req.query;
+		const where = {};
+
+		if (startDate) {
+			where.createdAt = { gte: new Date(String(startDate)) };
+		}
+		if (endDate) {
+			where.createdAt = { ...where.createdAt, lte: new Date(String(endDate)) };
+		}
+		if (userId) {
+			where.performedById = Number(userId);
+		}
+
+		const auditLog = await prisma.requestAction.findMany({
+			where,
+			include: {
+				performedBy: { select: { id: true, name: true, email: true } },
+				request: { select: { id: true, reference: true, title: true } },
+			},
+			orderBy: { createdAt: 'desc' },
+			take: 100, // Limit to 100 most recent entries
+		});
+
+		res.json(auditLog);
+	} catch (err) {
+		console.error('[GET /admin/audit-log] Error:', err);
+		res.status(500).json({ error: String(err) });
+	}
+});
+
+// ========================
+// END ADMIN ROUTES
+// ========================
+
 // List requests with simple filters
 app.get('/requests', async (req, res) => {
 	try {
