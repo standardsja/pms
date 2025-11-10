@@ -27,7 +27,7 @@ const VoteOnIdeas = () => {
     const { t } = useTranslation();
     const navigate = useNavigate();
     const currentUser = getUser();
-    const isCommittee = currentUser?.role === 'INNOVATION_COMMITTEE';
+    const isCommittee = currentUser?.roles?.includes('INNOVATION_COMMITTEE') || currentUser?.role === 'INNOVATION_COMMITTEE';
     const [ideas, setIdeas] = useState<Idea[]>([]);
     const [sortBy, setSortBy] = useState<'trending' | 'popular' | 'recent'>('trending');
     const [showVotedOnly, setShowVotedOnly] = useState(false);

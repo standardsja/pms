@@ -12,7 +12,7 @@ const CommitteeDashboard = () => {
     const dispatch = useDispatch();
     const navigate = useNavigate();
     const currentUser = getUser();
-    const isCommittee = currentUser?.role === 'INNOVATION_COMMITTEE';
+    const isCommittee = currentUser?.roles?.includes('INNOVATION_COMMITTEE') || currentUser?.role === 'INNOVATION_COMMITTEE';
 
     const [pendingIdeas, setPendingIdeas] = useState<PendingIdea[]>([]);
     const [approvedIdeas, setApprovedIdeas] = useState<Idea[]>([]);

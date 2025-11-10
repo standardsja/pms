@@ -46,9 +46,20 @@ class AuthService {
         localStorage.setItem('token', data.token);
       }
 
+      // Transform backend user to frontend User type
+      const user = data.user ? {
+        id: data.user.id,
+        email: data.user.email,
+        full_name: data.user.name || data.user.email,
+        status: 'active' as const,
+        roles: data.user.roles || [],
+        department_id: data.user.department?.id,
+        department_name: data.user.department?.name,
+      } : undefined;
+
       return {
         success: true,
-        user: data.user,
+        user,
         token: data.token,
         message: 'Login successful',
       };
