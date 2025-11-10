@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useParams } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import { setPageTitle } from '../../../store/themeConfigSlice';
-import { fetchIdeaById, voteForIdea, removeVote, type Idea } from '../../../utils/ideasApi';
+import { fetchIdeaById, voteForIdea, removeVote, fetchRelatedIdeas, type Idea } from '../../../utils/ideasApi';
+import Comments from '../../../components/Comments';
 import IconThumbUp from '../../../components/Icon/IconThumbUp';
 
 export default function IdeaDetails() {
@@ -14,6 +16,45 @@ export default function IdeaDetails() {
   const [idea, setIdea] = useState<Idea | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isVoting, setIsVoting] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [related, setRelated] = useState<Array<{ id: number; title: string; snippet: string; score: number; firstAttachmentUrl?: string | null }>>([]);
+
+  const images = idea?.attachments?.filter(a => a.mimeType?.startsWith('image/')) || [];
+
+  const closeLightbox = useCallback(() => setLightboxIndex(null), []);
+  const showPrev = useCallback(() => {
+    if (lightboxIndex === null || !images.length) return;
+    setLightboxIndex((prev) => {
+      if (prev === null) return null;
+      return (prev - 1 + images.length) % images.length;
+    });
+  }, [lightboxIndex, images.length]);
+  const showNext = useCallback(() => {
+    if (lightboxIndex === null || !images.length) return;
+    setLightboxIndex((prev) => {
+      if (prev === null) return null;
+      return (prev + 1) % images.length;
+    });
+  }, [lightboxIndex, images.length]);
+
+  // Keyboard navigation for lightbox
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (lightboxIndex === null) return;
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closeLightbox();
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        showPrev();
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        showNext();
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [lightboxIndex, closeLightbox, showPrev, showNext]);
 
   useEffect(() => {
     const title = idea ? `${idea.title}` : t('innovation.view.title');
@@ -31,6 +72,8 @@ export default function IdeaDetails() {
       setError(null);
       const data = await fetchIdeaById(id, { includeAttachments: true });
       setIdea(data);
+      // fire-and-forget related ideas (no block)
+      fetchRelatedIdeas(id).then(setRelated).catch(() => {});
     } catch (err) {
       console.error('[IdeaDetails] Error loading idea:', err);
       setError(err instanceof Error ? err.message : 'Failed to load idea');
@@ -125,9 +168,17 @@ export default function IdeaDetails() {
         </div>
       </div>
 
-      {/* Content */}
-      <div className="panel space-y-4">
-        <p className="text-gray-700 dark:text-gray-300 leading-relaxed">{idea.description}</p>
+      {/* Content + Related sidebar */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="panel space-y-4 lg:col-span-8">
+        {idea.descriptionHtml ? (
+          <div
+            className="prose dark:prose-invert max-w-none"
+            dangerouslySetInnerHTML={{ __html: idea.descriptionHtml }}
+          />
+        ) : (
+          <p className="text-gray-700 dark:text-gray-300 leading-relaxed">{idea.description}</p>
+        )}
         
         {/* Attachments/Images */}
         {idea.attachments && idea.attachments.length > 0 && (
@@ -136,26 +187,43 @@ export default function IdeaDetails() {
               {t('innovation.view.attachments', { defaultValue: 'Attachments' })} ({idea.attachments.length})
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {idea.attachments.map((attachment) => (
-                <div key={attachment.id} className="group relative overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-shadow">
+              {idea.attachments.map((attachment, idx) => (
+                <div
+                  key={attachment.id}
+                  className="group relative overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-shadow"
+                >
                   {attachment.mimeType?.startsWith('image/') ? (
-                    <img
-                      src={attachment.fileUrl}
-                      alt={attachment.fileName}
-                      className="w-full h-48 object-cover cursor-pointer hover:scale-105 transition-transform"
-                      loading="lazy"
-                      onClick={() => window.open(attachment.fileUrl, '_blank')}
-                    />
+                    <button
+                      type="button"
+                      aria-label={`Open image ${attachment.fileName} in lightbox`}
+                      className="block w-full text-left"
+                      onClick={() => setLightboxIndex(images.findIndex(a => a.id === attachment.id))}
+                    >
+                      <img
+                        src={attachment.fileUrl}
+                        alt={attachment.fileName}
+                        className="w-full h-48 object-cover cursor-zoom-in hover:scale-105 transition-transform"
+                        loading="lazy"
+                      />
+                    </button>
                   ) : (
-                    <div className="w-full h-48 bg-gray-100 dark:bg-gray-800 flex flex-col items-center justify-center">
+                    <div className="w-full h-48 bg-gray-100 dark:bg-gray-800 flex flex-col items-center justify-center p-3 text-center">
                       <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                       </svg>
-                      <span className="mt-2 text-xs text-gray-500">{attachment.fileName}</span>
+                      <span className="mt-2 text-xs text-gray-600 dark:text-gray-300 truncate w-full" title={attachment.fileName}>{attachment.fileName}</span>
+                      <a
+                        href={attachment.fileUrl}
+                        download
+                        className="mt-2 inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 11l5 5 5-5M12 4v12" /></svg>
+                        Download
+                      </a>
                     </div>
                   )}
                   <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-white px-3 py-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <p className="text-xs truncate">{attachment.fileName}</p>
+                    <p className="text-xs truncate" title={attachment.fileName}>{attachment.fileName}</p>
                     <p className="text-xs text-gray-300">{(attachment.fileSize / 1024).toFixed(1)} KB</p>
                   </div>
                 </div>
@@ -205,7 +273,38 @@ export default function IdeaDetails() {
             {isVoting && idea.userVoteType === 'DOWNVOTE' ? 'Processing...' : idea.userVoteType === 'DOWNVOTE' ? 'Downvoted' : 'Downvote'}
           </button>
         </div>
+        </div>
+        {/* Related */}
+        <aside className="lg:col-span-4">
+          <div className="panel">
+            <h3 className="text-base font-semibold mb-3">Related ideas</h3>
+            {related.length === 0 ? (
+              <p className="text-sm text-gray-500">No related ideas found.</p>
+            ) : (
+              <ul className="space-y-3">
+                {related.map(r => (
+                  <li key={r.id} className="flex items-center gap-3">
+                    <div className="w-14 h-14 rounded overflow-hidden bg-gray-100 dark:bg-gray-800 flex-shrink-0">
+                      {r.firstAttachmentUrl ? (
+                        <img src={r.firstAttachmentUrl} alt="thumb" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-400">📌</div>
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <Link to={`/innovation/ideas/${r.id}`} className="font-medium hover:underline line-clamp-1">{r.title}</Link>
+                      <div className="text-xs text-gray-500 line-clamp-2">{r.snippet}</div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </aside>
       </div>
+
+      {/* Comments */}
+      <Comments ideaId={Number(id)} />
 
       {/* Votes Section */}
       {idea.votes && idea.votes.length > 0 && (
@@ -227,6 +326,80 @@ export default function IdeaDetails() {
             ))}
           </div>
         </div>
+      )}
+      {lightboxIndex !== null && images[lightboxIndex] && createPortal(
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Image preview"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+          onClick={closeLightbox}
+        >
+          <div
+            className="relative max-w-5xl w-full max-h-[90vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center mb-2 text-white text-sm">
+              <span className="truncate" title={images[lightboxIndex].fileName}>{images[lightboxIndex].fileName}</span>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => window.open(images[lightboxIndex!].fileUrl, '_blank')}
+                  className="px-2 py-1 rounded bg-white/10 hover:bg-white/20"
+                >Open in new tab</button>
+                <a
+                  href={images[lightboxIndex!].fileUrl}
+                  download
+                  className="px-2 py-1 rounded bg-white/10 hover:bg-white/20"
+                >Download</a>
+                <button
+                  type="button"
+                  onClick={closeLightbox}
+                  className="px-2 py-1 rounded bg-white/10 hover:bg-white/20"
+                  aria-label="Close lightbox"
+                >✕</button>
+              </div>
+            </div>
+            <div className="flex-1 flex items-center justify-center overflow-auto">
+              <img
+                src={images[lightboxIndex].fileUrl}
+                alt={images[lightboxIndex].fileName}
+                className="max-h-[75vh] object-contain rounded shadow-lg"
+                draggable={false}
+              />
+            </div>
+            {images.length > 1 && (
+              <div className="mt-4 flex justify-between items-center text-white text-xs">
+                <button
+                  type="button"
+                  onClick={showPrev}
+                  className="px-3 py-1 rounded bg-white/10 hover:bg-white/20"
+                  aria-label="Previous image"
+                >Prev</button>
+                <span>{lightboxIndex + 1} / {images.length}</span>
+                <button
+                  type="button"
+                  onClick={showNext}
+                  className="px-3 py-1 rounded bg-white/10 hover:bg-white/20"
+                  aria-label="Next image"
+                >Next</button>
+              </div>
+            )}
+            <div className="absolute top-2 left-2 flex gap-2">
+              {images.map((img, i) => (
+                <button
+                  key={img.id}
+                  onClick={() => setLightboxIndex(i)}
+                  className={`w-12 h-12 rounded border overflow-hidden ${i === lightboxIndex ? 'ring-2 ring-primary' : 'opacity-60 hover:opacity-100'}`}
+                  aria-label={`Show image ${img.fileName}`}
+                >
+                  <img src={img.fileUrl} alt="thumb" className="w-full h-full object-cover" />
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>,
+        document.getElementById('modal-portal') as HTMLElement
       )}
     </div>
   );

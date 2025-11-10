@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import { setPageTitle } from '../../../store/themeConfigSlice';
 import Swal from 'sweetalert2';
 import { useAutoSave, restoreAutoSave, clearAutoSave } from '../../../utils/useAutoSave';
-import { submitIdea } from '../../../utils/ideasApi';
+import { submitIdea, fetchTags, createTag, fetchChallenges } from '../../../utils/ideasApi';
+import { useDebounce } from '../../../utils/useDebounce';
 
 const SubmitIdea = () => {
     const dispatch = useDispatch();
@@ -21,8 +24,12 @@ const SubmitIdea = () => {
         title: '',
         category: '',
         description: '',
+        descriptionHtml: '',
         expectedBenefits: '',
         implementationNotes: '',
+        isAnonymous: false,
+        challengeId: '',
+        tagIds: [] as number[],
     });
 
     // Attachments state (multi-file)
@@ -30,6 +37,10 @@ const SubmitIdea = () => {
     const [imagePreview, setImagePreview] = useState<string | null>(null);
     const [files, setFiles] = useState<File[]>([]);
     const [previews, setPreviews] = useState<string[]>([]);
+    const [duplicateMatches, setDuplicateMatches] = useState<{ id: number; title: string; snippet: string; score: number; submittedAt: string }[]>([]);
+    const [checkingDuplicates, setCheckingDuplicates] = useState(false);
+    const debouncedTitle = useDebounce(formData.title, 400);
+    const debouncedDesc = useDebounce(formData.description, 600);
     const MAX_IMAGE_MB = 5;
     const MAX_FILES = 5;
 
@@ -96,6 +107,76 @@ const SubmitIdea = () => {
         return Object.keys(next).length === 0;
     };
 
+    // Tags & Challenges
+    const [allTags, setAllTags] = useState<Array<{ id: number; name: string }>>([]);
+    const [tagSearch, setTagSearch] = useState('');
+    const [creatingTag, setCreatingTag] = useState(false);
+    const [challenges, setChallenges] = useState<Array<{ id: number; title: string }>>([]);
+
+    useEffect(() => {
+        (async () => {
+            try {
+                const [tags, chals] = await Promise.all([fetchTags().catch(() => []), fetchChallenges().catch(() => [])]);
+                setAllTags(tags);
+                setChallenges(chals);
+            } catch {}
+        })();
+    }, []);
+
+    async function handleCreateTag() {
+        if (!tagSearch.trim()) return;
+        try {
+            setCreatingTag(true);
+            const exists = allTags.find(t => t.name.toLowerCase() === tagSearch.toLowerCase());
+            if (exists) {
+                if (!formData.tagIds.includes(exists.id)) setFormData(prev => ({ ...prev, tagIds: [...prev.tagIds, exists.id] }));
+                setTagSearch('');
+                setCreatingTag(false);
+                return;
+            }
+            const created = await createTag(tagSearch.trim());
+            setAllTags(prev => [...prev, created].sort((a,b) => a.name.localeCompare(b.name)));
+            setFormData(prev => ({ ...prev, tagIds: [...prev.tagIds, created.id] }));
+            setTagSearch('');
+        } catch (e) {
+            console.error('Failed to create tag', e);
+        } finally {
+            setCreatingTag(false);
+        }
+    }
+
+    const selectedTags = allTags.filter(t => formData.tagIds.includes(t.id));
+    const filteredTags = allTags.filter(t => !formData.tagIds.includes(t.id) && (!tagSearch || t.name.toLowerCase().includes(tagSearch.toLowerCase()))).slice(0, 10);
+
+    // Duplicate detection auto-trigger
+    useEffect(() => {
+        let active = true;
+        async function check() {
+            if (debouncedTitle.length < 10 || debouncedDesc.length < 50) {
+                if (active) setDuplicateMatches([]);
+                return;
+            }
+            setCheckingDuplicates(true);
+            try {
+                const res = await fetch('/api/ideas/check-duplicates', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title: debouncedTitle, description: debouncedDesc }),
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (active) setDuplicateMatches(data.matches || []);
+                }
+            } catch (err) {
+                console.warn('[SubmitIdea] duplicate check failed:', err);
+            } finally {
+                if (active) setCheckingDuplicates(false);
+            }
+        }
+        check();
+        return () => { active = false; };
+    }, [debouncedTitle, debouncedDesc]);
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!validate()) return;
@@ -106,9 +187,13 @@ const SubmitIdea = () => {
             const created = await submitIdea({
                 title: formData.title,
                 description: formData.description,
+                descriptionHtml: formData.descriptionHtml || undefined,
                 category: formData.category,
                 expectedBenefits: formData.expectedBenefits,
                 implementationNotes: formData.implementationNotes,
+                isAnonymous: formData.isAnonymous,
+                challengeId: formData.challengeId ? Number(formData.challengeId) : undefined,
+                tagIds: formData.tagIds,
             }, (imageFile || files.length) ? { image: imageFile || undefined, images: files } : undefined);
 
             // Optimistic event so MyIdeas can reflect immediately
@@ -222,6 +307,34 @@ const SubmitIdea = () => {
             {/* Form */}
             <form onSubmit={handleSubmit} className="panel">
                 <div className="space-y-6">
+                    {/* Potential Duplicates */}
+                    {duplicateMatches.length > 0 && (
+                        <div className="rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 p-4">
+                            <div className="flex items-start gap-3">
+                                <span className="text-2xl" role="img" aria-label="warning">⚠️</span>
+                                <div className="flex-1">
+                                    <h3 className="text-sm font-bold text-amber-900 dark:text-amber-300 mb-2">Possible Similar Ideas</h3>
+                                    <p className="text-xs text-amber-800 dark:text-amber-400 mb-3">Review these before submitting to avoid duplicates. You can still proceed.</p>
+                                    <ul className="space-y-2 max-h-48 overflow-auto pr-1">
+                                        {duplicateMatches.map(m => (
+                                            <li key={m.id} className="text-xs bg-white dark:bg-gray-800 rounded p-2 border border-amber-200 dark:border-amber-700">
+                                                <div className="font-semibold line-clamp-1" title={m.title}>{m.title}</div>
+                                                <div className="text-gray-600 dark:text-gray-400 line-clamp-2" title={m.snippet}>{m.snippet}</div>
+                                                <div className="mt-1 flex items-center justify-between text-[10px] text-amber-600 dark:text-amber-400">
+                                                    <span>Similarity: {(m.score * 100).toFixed(0)}%</span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => window.open(`/innovation/ideas/${m.id}`, '_blank')}
+                                                        className="text-primary hover:underline"
+                                                    >View</button>
+                                                </div>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                     {/* Title */}
                     <div>
                         <label htmlFor="title" className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
@@ -270,20 +383,25 @@ const SubmitIdea = () => {
                         )}
                     </div>
 
-                    {/* Description */}
+                    {/* Description (Rich Text) */}
                     <div>
-                        <label htmlFor="description" className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                        <label htmlFor="descriptionHtml" className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                             {t('innovation.submit.form.description.label')} <span className="text-danger">{t('innovation.submit.form.required')}</span>
                         </label>
-                        <textarea
-                            id="description"
-                            value={formData.description}
-                            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                            className="form-textarea min-h-[150px]"
-                            placeholder={t('innovation.submit.form.description.placeholder')}
-                            aria-invalid={!!errors.description}
-                            aria-describedby="description-error description-hint"
-                        />
+                        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded">
+                            <ReactQuill
+                                theme="snow"
+                                value={formData.descriptionHtml}
+                                onChange={(html) => {
+                                    // strip tags to maintain plain text for validation/preview
+                                    const tmp = document.createElement('div');
+                                    tmp.innerHTML = html;
+                                    const text = (tmp.textContent || tmp.innerText || '').trim();
+                                    setFormData((prev) => ({ ...prev, descriptionHtml: html, description: text }));
+                                }}
+                                placeholder={t('innovation.submit.form.description.placeholder')}
+                            />
+                        </div>
                         <p id="description-hint" className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                             {t('innovation.submit.form.description.hint')} • {t('innovation.submit.form.charactersRemaining', { count: descRemaining })}
                         </p>
@@ -385,6 +503,72 @@ const SubmitIdea = () => {
                         />
                     </div>
 
+                    {/* Challenge Selector */}
+                    {challenges.length > 0 && (
+                        <div>
+                            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Challenge</label>
+                            <select
+                                value={formData.challengeId}
+                                onChange={(e) => setFormData(prev => ({ ...prev, challengeId: e.target.value }))}
+                                className="form-select"
+                            >
+                                <option value="">No challenge</option>
+                                {challenges.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
+                            </select>
+                        </div>
+                    )}
+
+                    {/* Tags */}
+                    <div>
+                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Tags</label>
+                        <div className="flex flex-wrap gap-2 mb-2">
+                            {selectedTags.map(tag => (
+                                <span key={tag.id} className="inline-flex items-center gap-1 bg-primary/10 text-primary px-2 py-1 rounded-full text-xs">
+                                    {tag.name}
+                                    <button type="button" aria-label="Remove tag" className="hover:text-red-600" onClick={() => setFormData(prev => ({ ...prev, tagIds: prev.tagIds.filter(id => id !== tag.id) }))}>×</button>
+                                </span>
+                            ))}
+                            {selectedTags.length === 0 && <span className="text-xs text-gray-500">No tags selected</span>}
+                        </div>
+                        <div className="flex gap-2 items-center">
+                            <input
+                                type="text"
+                                value={tagSearch}
+                                onChange={(e) => setTagSearch(e.target.value)}
+                                placeholder="Search or create tag"
+                                className="form-input flex-1"
+                            />
+                            <button type="button" onClick={handleCreateTag} disabled={!tagSearch.trim() || creatingTag} className="btn btn-outline-primary text-nowrap">
+                                {creatingTag ? 'Adding...' : 'Add'}
+                            </button>
+                        </div>
+                        {filteredTags.length > 0 && (
+                            <div className="mt-2 flex flex-wrap gap-2">
+                                {filteredTags.map(tg => (
+                                    <button
+                                        key={tg.id}
+                                        type="button"
+                                        onClick={() => setFormData(prev => ({ ...prev, tagIds: [...prev.tagIds, tg.id] }))}
+                                        className="px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-xs hover:bg-gray-100 dark:hover:bg-gray-700"
+                                    >{tg.name}</button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Anonymous toggle */}
+                    <div className="flex items-center gap-3">
+                        <label className="inline-flex items-center gap-2 text-sm">
+                            <input
+                                type="checkbox"
+                                checked={formData.isAnonymous}
+                                onChange={(e) => setFormData(prev => ({ ...prev, isAnonymous: e.target.checked }))}
+                                className="form-checkbox"
+                            />
+                            <span>Submit anonymously (your name hidden publicly)</span>
+                        </label>
+                    </div>
+
                     {/* Buttons */}
                     <div className="flex items-center justify-end gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
                         <button
@@ -408,7 +592,7 @@ const SubmitIdea = () => {
                             ) : (
                                 <>
                                     <span className="text-xl" role="img" aria-hidden="true">✨</span>
-                                    {t('innovation.submit.actions.submit')}
+                                    {checkingDuplicates ? 'Checking...' : t('innovation.submit.actions.submit')}
                                 </>
                             )}
                         </button>
