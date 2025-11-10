@@ -35,30 +35,33 @@ const ViewIdeas = () => {
 
     useEffect(() => {
         dispatch(setPageTitle(t('innovation.view.title')));
-        
-        // Load ideas from API
-        const loadIdeas = async () => {
-            setIsLoading(true);
+        let active = true;
+
+        const mapIdeas = (apiIdeas: any[]): Idea[] => apiIdeas.map(idea => ({
+            id: String(idea.id),
+            title: idea.title,
+            description: idea.description,
+            category: idea.category,
+            submittedBy: idea.submittedBy || 'Unknown',
+            submittedAt: idea.createdAt ? new Date(idea.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+            voteCount: idea.voteCount || 0,
+            upvoteCount: Math.max(0, idea.upvoteCount || 0),
+            downvoteCount: Math.max(0, idea.downvoteCount || 0),
+            hasVoted: idea.hasVoted || false,
+            viewCount: idea.viewCount || 0,
+            status: (idea.status === 'APPROVED'
+                ? 'APPROVED'
+                : idea.status === 'PROMOTED_TO_PROJECT'
+                ? 'IMPLEMENTED'
+                : 'UNDER_REVIEW') as Idea['status'],
+            tags: [],
+        }));
+
+        const loadIdeas = async (showLoader = true) => {
+            if (showLoader) setIsLoading(true);
             try {
-                console.log('[ViewIdeas] Fetching ideas from API...');
                 const apiIdeas = await fetchIdeas();
-                console.log('[ViewIdeas] Ideas loaded:', apiIdeas);
-                
-                setIdeas(apiIdeas.map(idea => ({
-                    id: String(idea.id),
-                    title: idea.title,
-                    description: idea.description,
-                    category: idea.category,
-                    submittedBy: idea.submittedBy || 'Unknown',
-                    submittedAt: idea.createdAt ? new Date(idea.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-                    voteCount: idea.voteCount || 0,
-                    upvoteCount: idea.upvoteCount || 0,
-                    downvoteCount: idea.downvoteCount || 0,
-                    hasVoted: idea.hasVoted || false,
-                    viewCount: idea.viewCount || 0,
-                    status: idea.status === 'APPROVED' ? 'APPROVED' : idea.status === 'PROMOTED_TO_PROJECT' ? 'IMPLEMENTED' : 'UNDER_REVIEW',
-                    tags: [], // TODO: Add tags support
-                })));
+                if (active) setIdeas(mapIdeas(apiIdeas));
             } catch (error) {
                 console.error('[ViewIdeas] Error loading ideas:', error);
                 Swal.fire({
@@ -71,11 +74,21 @@ const ViewIdeas = () => {
                     timer: 3000,
                 });
             } finally {
-                setIsLoading(false);
+                if (active) setIsLoading(false);
             }
         };
-        
+
         loadIdeas();
+        const intervalId = setInterval(() => loadIdeas(false), 15000);
+        const visibilityHandler = () => {
+            if (document.visibilityState === 'visible') loadIdeas(false);
+        };
+        document.addEventListener('visibilitychange', visibilityHandler);
+        return () => {
+            active = false;
+            clearInterval(intervalId);
+            document.removeEventListener('visibilitychange', visibilityHandler);
+        };
     }, [dispatch, t]);
 
     const getCategoryColor = (category: string) => {
@@ -233,11 +246,17 @@ const ViewIdeas = () => {
                                     {/* Stats + CTA */}
                                     <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
                                         <div className="flex items-center gap-4 text-sm">
-                                            <span className="flex items-center gap-1 text-gray-600 dark:text-gray-400">
-                                                <svg className="w-4 h-4 text-primary" fill="currentColor" viewBox="0 0 20 20">
+                                            <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
+                                                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                                                     <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008.943 18h5.416a2 2 0 001.962-1.608l1.2-6A2 2 0 0015.56 8H12V4a2 2 0 00-2-2 1 1 0 00-1 1v.667a4 4 0 01-.8 2.4L6.8 7.933a4 4 0 00-.8 2.4z" />
                                                 </svg>
-                                                {t('innovation.view.engagement.votes', { count: idea.voteCount })}
+                                                {idea.upvoteCount}
+                                            </span>
+                                            <span className="flex items-center gap-1 text-red-600 dark:text-red-400">
+                                                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" transform="rotate(180)">
+                                                    <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008.943 18h5.416a2 2 0 001.962-1.608l1.2-6A2 2 0 0015.56 8H12V4a2 2 0 00-2-2 1 1 0 00-1 1v.667a4 4 0 01-.8 2.4L6.8 7.933a4 4 0 00-.8 2.4z" />
+                                                </svg>
+                                                {idea.downvoteCount}
                                             </span>
                                             <span className="flex items-center gap-1 text-gray-600 dark:text-gray-400">
                                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -298,11 +317,17 @@ const ViewIdeas = () => {
                                                 ))}
                                             </div>
                                             <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
-                                                <span className="flex items-center gap-1">
+                                                <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
                                                     <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                                                         <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008.943 18h5.416a2 2 0 001.962-1.608l1.2-6A2 2 0 0015.56 8H12V4a2 2 0 00-2-2 1 1 0 00-1 1v.667a4 4 0 01-.8 2.4L6.8 7.933a4 4 0 00-.8 2.4z" />
                                                     </svg>
-                                                    {t('innovation.view.engagement.votes', { count: idea.voteCount })}
+                                                    {idea.upvoteCount}
+                                                </span>
+                                                <span className="flex items-center gap-1 text-red-600 dark:text-red-400">
+                                                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" transform="rotate(180)">
+                                                        <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008.943 18h5.416a2 2 0 001.962-1.608l1.2-6A2 2 0 0015.56 8H12V4a2 2 0 00-2-2 1 1 0 00-1 1v.667a4 4 0 01-.8 2.4L6.8 7.933a4 4 0 00-.8 2.4z" />
+                                                    </svg>
+                                                    {idea.downvoteCount}
                                                 </span>
                                                 <span className="flex items-center gap-1">
                                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

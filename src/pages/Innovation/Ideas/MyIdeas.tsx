@@ -14,6 +14,8 @@ interface MyIdea {
     category: string;
     submittedAt: string;
     voteCount: number;
+    upvoteCount: number;
+    downvoteCount: number;
     viewCount: number;
     commentCount: number;
     status: 'DRAFT' | 'PENDING_REVIEW' | 'APPROVED' | 'UNDER_REVIEW' | 'IMPLEMENTED' | 'REJECTED' | 'PROMOTED_TO_PROJECT';
@@ -42,12 +44,20 @@ const MyIdeas = () => {
 
     useEffect(() => {
         dispatch(setPageTitle(t('innovation.myIdeas.title')));
+        let active = true;
         loadMyIdeas();
-        // Poll every 20s for near real-time updates
         const id = setInterval(() => {
-            loadMyIdeas(true);
-        }, 20000);
-        return () => clearInterval(id);
+            if (active) loadMyIdeas(true);
+        }, 15000);
+        const visibilityHandler = () => {
+            if (document.visibilityState === 'visible') loadMyIdeas(true);
+        };
+        document.addEventListener('visibilitychange', visibilityHandler);
+        return () => {
+            active = false;
+            clearInterval(id);
+            document.removeEventListener('visibilitychange', visibilityHandler);
+        };
     }, [dispatch, t]);
 
     const loadMyIdeas = async (silent = false) => {
@@ -80,6 +90,8 @@ const MyIdeas = () => {
                     category: idea.category,
                     submittedAt: idea.submittedAt,
                     voteCount: idea.voteCount,
+                    upvoteCount: Math.max(0, idea.upvoteCount || 0),
+                    downvoteCount: Math.max(0, idea.downvoteCount || 0),
                     viewCount: idea.viewCount,
                     commentCount: (idea as any).commentCount || 0,
                     status: idea.status as any,
@@ -293,11 +305,17 @@ const MyIdeas = () => {
 
                                                 {/* Meta Info */}
                                                 <div className="flex items-center flex-wrap gap-4 text-sm text-gray-600 dark:text-gray-400">
-                                                    <span className="flex items-center gap-1">
-                                                        <svg className="w-4 h-4 text-primary" fill="currentColor" viewBox="0 0 20 20">
+                                                    <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
+                                                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                                                             <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008.943 18h5.416a2 2 0 001.962-1.608l1.2-6A2 2 0 0015.56 8H12V4a2 2 0 00-2-2 1 1 0 00-1 1v.667a4 4 0 01-.8 2.4L6.8 7.933a4 4 0 00-.8 2.4z" />
                                                         </svg>
-                                                        <span className="font-semibold">{idea.voteCount}</span> votes
+                                                        <span className="font-semibold">{idea.upvoteCount}</span>
+                                                    </span>
+                                                    <span className="flex items-center gap-1 text-red-600 dark:text-red-400">
+                                                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" transform="rotate(180)">
+                                                            <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008.943 18h5.416a2 2 0 001.962-1.608l1.2-6A2 2 0 0015.56 8H12V4a2 2 0 00-2-2 1 1 0 00-1 1v.667a4 4 0 01-.8 2.4L6.8 7.933a4 4 0 00-.8 2.4z" />
+                                                        </svg>
+                                                        <span className="font-semibold">{idea.downvoteCount}</span>
                                                     </span>
                                                     <span className="flex items-center gap-1">
                                                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

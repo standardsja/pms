@@ -52,16 +52,29 @@ export async function fetchIdeas(params?: { status?: string; sort?: string }) {
   const qs = new URLSearchParams();
   if (params?.status) qs.set('status', params.status);
   if (params?.sort) qs.set('sort', params.sort);
+  // Cache busting to ensure fresh data in all environments
+  qs.set('t', Date.now().toString());
   const res = await fetch(`/api/ideas${qs.toString() ? `?${qs.toString()}` : ''}`, {
-    headers: authHeaders(),
+    headers: {
+      ...authHeaders(),
+      'Cache-Control': 'no-store',
+      Pragma: 'no-cache',
+    },
+    cache: 'no-store',
   });
   if (!res.ok) throw new Error(await res.text());
   return (await res.json()) as Idea[];
 }
 
 export async function fetchIdeaById(id: string | number): Promise<Idea> {
-  const res = await fetch(`/api/ideas/${id}`, {
-    headers: authHeaders(),
+  const url = `/api/ideas/${id}?t=${Date.now()}`;
+  const res = await fetch(url, {
+    headers: {
+      ...authHeaders(),
+      'Cache-Control': 'no-store',
+      Pragma: 'no-cache',
+    },
+    cache: 'no-store',
   });
   if (!res.ok) throw new Error(await res.text());
   return (await res.json()) as Idea;
@@ -134,19 +147,20 @@ export async function voteForIdea(id: string | number, voteType: 'UPVOTE' | 'DOW
     body: JSON.stringify({ voteType }),
   });
   if (!res.ok) {
+    let errorMessage = 'Failed to vote';
     try {
       const errorJson = await res.json();
       if (errorJson.error === 'already voted') {
         throw new Error('ALREADY_VOTED');
       }
-      throw new Error(errorJson.error || 'Failed to vote');
+      errorMessage = errorJson.error || errorMessage;
     } catch (e) {
       if (e instanceof Error && e.message === 'ALREADY_VOTED') {
         throw e;
       }
-      const errorText = await res.text();
-      throw new Error(errorText || 'Failed to vote');
+      // If JSON parsing failed, leave errorMessage as is
     }
+    throw new Error(errorMessage);
   }
   return (await res.json()) as Idea;
 }
