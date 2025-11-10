@@ -19,6 +19,7 @@ enum RequestStatus {
   HOD_REVIEW
   PROCUREMENT_REVIEW
   FINANCE_REVIEW
+  BUDGET_MANAGER_REVIEW
   FINANCE_RETURNED
   FINANCE_APPROVED
   SENT_TO_VENDOR
@@ -186,6 +187,8 @@ model Request {
   budgetComments    String?
   budgetOfficerName String?
   budgetManagerName String?
+  budgetOfficerApproved Boolean? @default(false)
+  budgetManagerApproved Boolean? @default(false)
 
   // Procurement section fields
   procurementCaseNumber String?

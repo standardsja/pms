@@ -404,6 +404,8 @@ app.put('/requests/:id', async (req, res) => {
 		if (data.budgetComments !== undefined) updateData.budgetComments = data.budgetComments;
 		if (data.budgetOfficerName !== undefined) updateData.budgetOfficerName = data.budgetOfficerName;
 		if (data.budgetManagerName !== undefined) updateData.budgetManagerName = data.budgetManagerName;
+		if (data.budgetOfficerApproved !== undefined) updateData.budgetOfficerApproved = Boolean(data.budgetOfficerApproved);
+		if (data.budgetManagerApproved !== undefined) updateData.budgetManagerApproved = Boolean(data.budgetManagerApproved);
 		if (data.procurementCaseNumber !== undefined) updateData.procurementCaseNumber = data.procurementCaseNumber;
 		if (data.receivedBy !== undefined) updateData.receivedBy = data.receivedBy;
 		if (data.dateReceived !== undefined) updateData.dateReceived = data.dateReceived;
@@ -474,6 +476,19 @@ app.post('/requests/:id/action', async (req, res) => {
 				case 'SUBMITTED':
 					// move to HOD_REVIEW (find head of division in same department)
 					nextStatus = 'HOD_REVIEW';
+					// Auto-populate manager name
+					{
+						const manager = await prisma.user.findUnique({ where: { id: actorId } });
+						if (manager) {
+							await prisma.request.update({
+								where: { id },
+								data: { 
+									managerName: manager.name || manager.email,
+									managerApproved: true
+								}
+							});
+						}
+					}
 					// find user with role HEAD_OF_DIVISION in same department
 					{
 						const hodUserRole = await prisma.userRole.findFirst({ where: { role: { name: 'HEAD_OF_DIVISION' }, user: { departmentId: request.departmentId } }, include: { user: true } });
@@ -483,6 +498,19 @@ app.post('/requests/:id/action', async (req, res) => {
 				case 'HOD_REVIEW':
 					// move to PROCUREMENT_REVIEW (load-balance across procurement officers)
 					nextStatus = 'PROCUREMENT_REVIEW';
+					// Auto-populate HOD name
+					{
+						const hod = await prisma.user.findUnique({ where: { id: actorId } });
+						if (hod) {
+							await prisma.request.update({
+								where: { id },
+								data: { 
+									headName: hod.name || hod.email,
+									headApproved: true
+								}
+							});
+						}
+					}
 					{
 						// Get all procurement officers
 						const procOfficers = await prisma.userRole.findMany({ 
@@ -541,8 +569,56 @@ app.post('/requests/:id/action', async (req, res) => {
 					}
 					break;
 				case 'FINANCE_REVIEW':
-					// Finance approves; mark as FINANCE_APPROVED and assign back to Procurement for dispatch (least-load)
+					// Budget Officer approves; move to BUDGET_MANAGER_REVIEW (load-balance across finance managers)
+					nextStatus = 'BUDGET_MANAGER_REVIEW';
+					// Auto-populate Budget Officer name
+					{
+						const budgetOfficer = await prisma.user.findUnique({ where: { id: actorId } });
+						if (budgetOfficer) {
+							await prisma.request.update({
+								where: { id },
+								data: { 
+									budgetOfficerName: budgetOfficer.name || budgetOfficer.email,
+									budgetOfficerApproved: true
+								}
+							});
+						}
+					}
+					{
+						// Assign directly to the Finance Department Manager (budget manager)
+						const financeDept = await prisma.department.findUnique({ where: { code: 'FIN' }, include: { manager: true } });
+						if (financeDept && financeDept.managerId) {
+							// Extra guard: do not assign to a user that also has PROCUREMENT role
+							const isProc = await prisma.userRole.findFirst({ where: { userId: financeDept.managerId, role: { name: 'PROCUREMENT' } } });
+							if (!isProc) {
+								nextAssigneeId = financeDept.managerId;
+								console.log('[workflow] Assigned Budget Manager (Finance Manager) userId=', nextAssigneeId);
+							} else {
+								console.warn('[workflow] Finance manager also has PROCUREMENT role. Not assigning. Please adjust roles.');
+								nextAssigneeId = null;
+							}
+						} else {
+							console.warn('[workflow] Finance department manager not set. Unable to auto-assign Budget Manager.');
+							nextAssigneeId = null;
+						}
+					}
+					break;
+				case 'BUDGET_MANAGER_REVIEW':
+					// Budget Manager approves; mark as FINANCE_APPROVED and assign back to Procurement for dispatch
 					nextStatus = 'FINANCE_APPROVED';
+					// Auto-populate Budget Manager name
+					{
+						const budgetManager = await prisma.user.findUnique({ where: { id: actorId } });
+						if (budgetManager) {
+							await prisma.request.update({
+								where: { id },
+								data: { 
+									budgetManagerName: budgetManager.name || budgetManager.email,
+									budgetManagerApproved: true
+								}
+							});
+						}
+					}
 					{
 						const procOfficers = await prisma.userRole.findMany({
 							where: { role: { name: 'PROCUREMENT' } },

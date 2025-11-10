@@ -41,6 +41,8 @@ async function ensureRole(name: string, description?: string) {
     ensureRole('HEAD_OF_DIVISION', 'Head of Division - second approval'),
     ensureRole('PROCUREMENT', 'Procurement officer - third review and final processing'),
     ensureRole('FINANCE', 'Finance officer - fourth review'),
+    ensureRole('BUDGET_MANAGER', 'Finance budget manager - approves after officer'),
+    ensureRole('FINANCE_MANAGER', 'Alternate finance manager role for budget sign-off'),
   ]);
   console.log('[seed] Roles ensured:', roles.map(r => r.name).join(', '));
 
@@ -143,6 +145,15 @@ async function ensureRole(name: string, description?: string) {
       assignRole(manager.id, 'DEPT_MANAGER', roles),
       assignRole(hod.id, 'HEAD_OF_DIVISION', roles)
     ]);
+
+    // If Finance department, tag its Manager as a Budget Manager for two-step finance approval
+    if (dept.code === 'FIN') {
+      try {
+        await assignRole(manager.id, 'BUDGET_MANAGER', roles);
+      } catch (e) {
+        console.warn('[seed] Could not assign BUDGET_MANAGER role to Finance manager:', e);
+      }
+    }
 
     console.log(`[seed] Created ${dept.code} department users:`);
     console.log(`  Staff:    ${staff1.email}, ${staff2.email}`);

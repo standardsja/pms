@@ -53,10 +53,24 @@ const RequestForm = () => {
     const [managerApproved, setManagerApproved] = useState(false);
     const [headApproved, setHeadApproved] = useState(false);
     const [procurementApproved, setProcurementApproved] = useState(false);
+    const [budgetOfficerApproved, setBudgetOfficerApproved] = useState(false);
+    const [budgetManagerApproved, setBudgetManagerApproved] = useState(false);
 
     // Current user profile (for edit permissions)
     const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
     const currentUserId = userProfile?.id || userProfile?.userId || null;
+    const currentUserName = userProfile?.fullName || userProfile?.name || '';
+    
+    // Get user roles to determine if they're Budget Officer or Budget Manager
+    const userRoles = (userProfile?.roles || []).map((r: any) => {
+        if (typeof r === 'string') return r;
+        return r?.role?.name || r?.name || '';
+    });
+    
+    // Check if user is a budget officer (FINANCE role) vs budget manager
+    // For now, we'll use a simple check: if they have FINANCE role, they're a budget officer
+    // Budget managers would need a separate role or identification method
+    const isBudgetOfficer = userRoles.some((r: string) => r === 'FINANCE' || /finance/i.test(r));
 
     // Track request metadata to gate editing by stage & assignee
     const [requestMeta, setRequestMeta] = useState<{ status?: string; currentAssigneeId?: number } | null>(null);
@@ -66,10 +80,14 @@ const RequestForm = () => {
     const canEditManagerFields = !!(isAssignee && requestMeta?.status === 'DEPARTMENT_REVIEW');
     const canEditHodFields = !!(isAssignee && requestMeta?.status === 'HOD_REVIEW');
     const canEditProcurementSection = !!(isAssignee && requestMeta?.status === 'PROCUREMENT_REVIEW');
-    const canEditBudgetSection = !!(isAssignee && requestMeta?.status === 'FINANCE_REVIEW');
+    const canEditBudgetSection = !!(isAssignee && (requestMeta?.status === 'FINANCE_REVIEW' || requestMeta?.status === 'BUDGET_MANAGER_REVIEW'));
+    
+    // Budget Officer can only approve as officer (during FINANCE_REVIEW), Budget Manager can only approve as manager (during BUDGET_MANAGER_REVIEW)
+    const canApproveBudgetOfficer = !!(isAssignee && requestMeta?.status === 'FINANCE_REVIEW' && isBudgetOfficer);
+    const canApproveBudgetManager = !!(isAssignee && requestMeta?.status === 'BUDGET_MANAGER_REVIEW' && !isBudgetOfficer);
     const canDispatchToVendors = !!(isAssignee && requestMeta?.status === 'FINANCE_APPROVED');
 
-    // Auto-fill manager/HOD name when they're the assignee and field is empty
+    // Auto-fill manager/HOD/Budget names when they're the assignee and field is empty
     useEffect(() => {
         if (!isEditMode) return;
         
@@ -85,8 +103,18 @@ const RequestForm = () => {
         if (canEditHodFields && !headName) {
             setHeadName(fullName);
         }
+
+        // Auto-fill budget officer name if current user is budget officer and field is empty
+        if (canApproveBudgetOfficer && !budgetOfficerName) {
+            setBudgetOfficerName(fullName);
+        }
+
+        // Auto-fill budget manager name if current user is budget manager and field is empty
+        if (canApproveBudgetManager && !budgetManagerName) {
+            setBudgetManagerName(fullName);
+        }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [canEditManagerFields, canEditHodFields, isEditMode]);
+    }, [canEditManagerFields, canEditHodFields, canApproveBudgetOfficer, canApproveBudgetManager, isEditMode]);
 
     useEffect(() => {
         dispatch(setPageTitle(isEditMode ? 'Review Procurement Request' : 'New Procurement Request'));
@@ -270,7 +298,8 @@ const RequestForm = () => {
                 if ((requestMeta?.status === 'DEPARTMENT_REVIEW' && managerApproved === false) ||
                     (requestMeta?.status === 'HOD_REVIEW' && headApproved === false) ||
                     (requestMeta?.status === 'PROCUREMENT_REVIEW' && procurementApproved === false) ||
-                    (requestMeta?.status === 'FINANCE_REVIEW' && !budgetOfficerName && !budgetManagerName)) {
+                    (requestMeta?.status === 'FINANCE_REVIEW' && !budgetOfficerApproved) ||
+                    (requestMeta?.status === 'BUDGET_MANAGER_REVIEW' && !budgetManagerApproved)) {
                     const confirmMissing = await Swal.fire({
                         icon: 'warning',
                         title: 'Approval not checked',
@@ -288,7 +317,8 @@ const RequestForm = () => {
                 if ((requestMeta?.status === 'DEPARTMENT_REVIEW' && managerApproved === true) ||
                     (requestMeta?.status === 'HOD_REVIEW' && headApproved === true) ||
                     (requestMeta?.status === 'PROCUREMENT_REVIEW' && procurementApproved === true) ||
-                    (requestMeta?.status === 'FINANCE_REVIEW' && (budgetOfficerName || budgetManagerName))) {
+                    (requestMeta?.status === 'FINANCE_REVIEW' && budgetOfficerApproved) ||
+                    (requestMeta?.status === 'BUDGET_MANAGER_REVIEW' && budgetManagerApproved)) {
                     const confirmApprove = await Swal.fire({
                         icon: 'question',
                         title: 'Confirm approval',
@@ -313,6 +343,8 @@ const RequestForm = () => {
                     budgetComments,
                     budgetOfficerName,
                     budgetManagerName,
+                    budgetOfficerApproved,
+                    budgetManagerApproved,
                     procurementCaseNumber,
                     receivedBy,
                     dateReceived,
@@ -339,7 +371,8 @@ const RequestForm = () => {
                     (requestMeta?.status === 'DEPARTMENT_REVIEW' && managerApproved === true) ||
                     (requestMeta?.status === 'HOD_REVIEW' && headApproved === true) ||
                     (requestMeta?.status === 'PROCUREMENT_REVIEW' && procurementApproved === true) ||
-                    (requestMeta?.status === 'FINANCE_REVIEW' && (budgetOfficerName || budgetManagerName))
+                    (requestMeta?.status === 'FINANCE_REVIEW' && budgetOfficerApproved) ||
+                    (requestMeta?.status === 'BUDGET_MANAGER_REVIEW' && budgetManagerApproved)
                 );
 
                 if (isApproving) {
@@ -939,10 +972,25 @@ const RequestForm = () => {
                                     type="text"
                                     value={budgetOfficerName}
                                     onChange={(e) => setBudgetOfficerName(e.target.value)}
-                                    className="form-input w-full mb-3"
-                                    placeholder=""
-                                    disabled={!canEditBudgetSection}
+                                    className="form-input w-full mb-3 bg-gray-50"
+                                    placeholder={canApproveBudgetOfficer ? "Auto-populated on review" : ""}
+                                    disabled={true}
+                                    readOnly
                                 />
+                                <div className="mb-3">
+                                    <label className="flex items-center cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={budgetOfficerApproved}
+                                            onChange={(e) => setBudgetOfficerApproved(e.target.checked)}
+                                            disabled={!canApproveBudgetOfficer}
+                                            className="form-checkbox text-success rounded"
+                                        />
+                                        <span className="ml-2 text-sm font-medium">
+                                            {budgetOfficerApproved ? '✓ Approved by Budget Officer' : 'Approve as Budget Officer'}
+                                        </span>
+                                    </label>
+                                </div>
                                 <div className="grid grid-cols-2 gap-3">
                                     <div>
                                         <label className="block text-xs text-gray-500 mb-1">Signature:</label>
@@ -960,10 +1008,25 @@ const RequestForm = () => {
                                     type="text"
                                     value={budgetManagerName}
                                     onChange={(e) => setBudgetManagerName(e.target.value)}
-                                    className="form-input w-full mb-3"
-                                    placeholder=""
-                                    disabled={!canEditBudgetSection}
+                                    className="form-input w-full mb-3 bg-gray-50"
+                                    placeholder={canApproveBudgetManager ? "Auto-populated on review" : ""}
+                                    disabled={true}
+                                    readOnly
                                 />
+                                <div className="mb-3">
+                                    <label className="flex items-center cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={budgetManagerApproved}
+                                            onChange={(e) => setBudgetManagerApproved(e.target.checked)}
+                                            disabled={!canApproveBudgetManager}
+                                            className="form-checkbox text-success rounded"
+                                        />
+                                        <span className="ml-2 text-sm font-medium">
+                                            {budgetManagerApproved ? '✓ Approved by Budget Manager' : 'Approve as Budget Manager'}
+                                        </span>
+                                    </label>
+                                </div>
                                 <div className="grid grid-cols-2 gap-3">
                                     <div>
                                         <label className="block text-xs text-gray-500 mb-1">Signature:</label>
