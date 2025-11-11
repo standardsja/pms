@@ -434,6 +434,71 @@ app.get('/requests', async (_req, res) => {
   }
 });
 
+// POST /requests - create a new procurement request
+app.post('/requests', async (req, res) => {
+  try {
+    const userId = req.headers['x-user-id'];
+    if (!userId) {
+      return res.status(401).json({ message: 'User ID required' });
+    }
+
+    const { 
+      title, 
+      description, 
+      departmentId, 
+      items = [], 
+      totalEstimated, 
+      currency,
+      priority,
+      procurementType 
+    } = req.body || {};
+
+    if (!title || !departmentId) {
+      return res.status(400).json({ message: 'Title and department are required' });
+    }
+
+    // Generate reference
+    const reference = `REQ-${Date.now()}`;
+
+    const created = await prisma.request.create({
+      data: {
+        reference,
+        title,
+        description: description || null,
+        requesterId: parseInt(String(userId), 10),
+        departmentId: parseInt(String(departmentId), 10),
+        totalEstimated: totalEstimated ? parseFloat(String(totalEstimated)) : null,
+        currency: currency || 'JMD',
+        priority: priority || 'MEDIUM',
+        procurementType: procurementType || null,
+        status: 'DRAFT',
+        items: {
+          create: items.map((it: any) => ({
+            description: String(it.description || ''),
+            quantity: Number(it.quantity || 1),
+            unitPrice: parseFloat(String(it.unitPrice || 0)),
+            totalPrice: parseFloat(String(it.totalPrice || 0)),
+            accountCode: it.accountCode || null,
+            stockLevel: it.stockLevel || null,
+            unitOfMeasure: it.unitOfMeasure || null,
+            partNumber: it.partNumber || null,
+          })),
+        },
+      },
+      include: { 
+        items: true,
+        requester: { select: { id: true, name: true, email: true } },
+        department: { select: { id: true, name: true, code: true } },
+      },
+    });
+
+    return res.status(201).json(created);
+  } catch (e: any) {
+    console.error('POST /requests error:', e);
+    return res.status(500).json({ message: e?.message || 'Failed to create request' });
+  }
+});
+
 // GET /api/tags - return empty array for now (Innovation Hub expects this)
 app.get('/api/tags', async (_req, res) => {
   try {
