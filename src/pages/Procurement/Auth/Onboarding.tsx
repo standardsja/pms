@@ -6,8 +6,9 @@ import { setSelectedModule, setOnboardingComplete } from '../../../store/moduleS
 import { getUser } from '../../../utils/auth';
 import { useTranslation } from 'react-i18next';
 import { logEvent } from '../../../utils/analytics';
+import Swal from 'sweetalert2';
 
-type ModuleKey = 'pms' | 'ih' | 'committee';
+type ModuleKey = 'pms' | 'ih' | 'committee' | 'budgeting';
 
 const Onboarding = () => {
     const dispatch = useDispatch();
@@ -94,6 +95,7 @@ const Onboarding = () => {
                     t('onboarding.modules.pms.features.1'),
                     t('onboarding.modules.pms.features.2'),
                 ],
+                comingSoon: false,
             },
             {
                 id: 'ih' as ModuleKey,
@@ -107,6 +109,21 @@ const Onboarding = () => {
                     t('onboarding.modules.ih.features.1'),
                     t('onboarding.modules.ih.features.2'),
                 ],
+                comingSoon: false,
+            },
+            {
+                id: 'budgeting' as ModuleKey,
+                title: 'Budgeting & Financial Planning',
+                description: 'Comprehensive budget management and financial forecasting',
+                icon: '💰',
+                gradient: 'from-green-500 to-emerald-700',
+                path: '#',
+                features: [
+                    'Create and track departmental budgets',
+                    'Real-time expense monitoring and alerts',
+                    'Financial forecasting and variance analysis',
+                ],
+                comingSoon: true,
             },
         ];
         // Only expose Committee module to committee members
@@ -123,10 +140,11 @@ const Onboarding = () => {
                     t('onboarding.modules.committee.features.1'),
                     t('onboarding.modules.committee.features.2'),
                 ],
+                comingSoon: false,
             });
         }
         return base;
-    }, [isCommittee, t]);
+    }, [isCommittee, t, isProcurementManager, isRequester]);
 
     // Map for quick lookups after render
     const modulesMap = useRef<{ [k in ModuleKey]?: { path: string; title: string } }>({});
@@ -150,6 +168,18 @@ const Onboarding = () => {
             setError(t('onboarding.errors.selectOne'));
             return;
         }
+
+        // Show "coming soon" popup for budgeting module
+        if (selected === 'budgeting') {
+            Swal.fire({
+                icon: 'info',
+                title: 'Coming Soon!',
+                text: 'The Budgeting & Financial Planning module is currently under development. Stay tuned for updates!',
+                confirmButtonText: 'OK',
+            });
+            return;
+        }
+
         try {
             setIsBusy(true);
             // Remember last used module for convenience (per-user)

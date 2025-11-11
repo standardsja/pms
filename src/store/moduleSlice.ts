@@ -2,7 +2,7 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { getUser } from '../utils/auth';
 
 // Shared module keys across onboarding and guards
-export type ModuleKey = 'pms' | 'ih' | 'committee';
+export type ModuleKey = 'pms' | 'ih' | 'committee' | 'budgeting';
 
 interface ModuleState {
     selectedModule: ModuleKey | null;
