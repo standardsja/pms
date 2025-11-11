@@ -51,7 +51,7 @@ const BrowseIdeas = () => {
                 submittedBy: String(idea.submittedBy),
                 submittedAt: idea.submittedAt,
                 voteCount: idea.voteCount,
-                hasVoted: false, // TODO: Check if current user has voted
+                hasVoted: idea.hasVoted || false,
                 viewCount: idea.viewCount,
             })));
         } catch (error) {

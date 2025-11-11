@@ -21,6 +21,7 @@ interface MyIdea {
     status: 'DRAFT' | 'PENDING_REVIEW' | 'APPROVED' | 'UNDER_REVIEW' | 'IMPLEMENTED' | 'REJECTED' | 'PROMOTED_TO_PROJECT';
     feedback?: string;
     comments?: IdeaComment[];
+    firstAttachmentUrl?: string | null;
 }
 
 interface IdeaComment {
@@ -52,19 +53,45 @@ const MyIdeas = () => {
         const visibilityHandler = () => {
             if (document.visibilityState === 'visible') loadMyIdeas(true);
         };
+        const createdHandler = (e: Event) => {
+            const detail = (e as CustomEvent).detail as Partial<Idea> | undefined;
+            if (detail && detail.id && detail.title) {
+                setIdeas(prev => {
+                    // Avoid duplicates
+                    if (prev.some(i => i.id === String(detail.id))) return prev;
+                    const optimistic: MyIdea = {
+                        id: String(detail.id),
+                        title: detail.title || 'Untitled',
+                        description: detail.description || '',
+                        category: (detail as any).category || 'OTHER',
+                        submittedAt: new Date().toISOString(),
+                        voteCount: 0,
+                        upvoteCount: 0,
+                        downvoteCount: 0,
+                        viewCount: 0,
+                        commentCount: 0,
+                        status: 'PENDING_REVIEW',
+                        feedback: undefined,
+                        comments: [],
+                    };
+                    return [optimistic, ...prev];
+                });
+            }
+        };
         document.addEventListener('visibilitychange', visibilityHandler);
+        document.addEventListener('idea:created', createdHandler as EventListener);
         return () => {
             active = false;
             clearInterval(id);
             document.removeEventListener('visibilitychange', visibilityHandler);
+            document.removeEventListener('idea:created', createdHandler as EventListener);
         };
     }, [dispatch, t]);
 
     const loadMyIdeas = async (silent = false) => {
         if (!silent) setIsLoading(true);
         try {
-            console.log('[MyIdeas] Fetching ideas for user:', currentUser?.id);
-            const allIdeas = await fetchIdeas();
+            const allIdeas = await fetchIdeas({ includeAttachments: true });
 
             // Filter to show only current user's ideas
             const userIdStr = String(currentUser?.id ?? '');
@@ -97,9 +124,11 @@ const MyIdeas = () => {
                     status: idea.status as any,
                     feedback: idea.reviewNotes || undefined,
                     comments: [],
+                    // include first attachment url if available from API
+                    // @ts-ignore
+                    firstAttachmentUrl: (idea as any).firstAttachmentUrl || (idea as any).attachments?.[0]?.fileUrl || null,
                 }));
             
-            console.log('[MyIdeas] Loaded ideas:', myIdeas.length);
             setIdeas(myIdeas);
         } catch (error) {
             console.error('[MyIdeas] Error loading ideas:', error);
@@ -276,6 +305,18 @@ const MyIdeas = () => {
                                         <div className="flex items-start justify-between gap-4 mb-2">
                                             <div className="flex-1">
                                                 <div className="flex items-center gap-3 mb-2">
+                                                    {/* Thumbnail if present */}
+                                                    {/** @ts-ignore */}
+                                                    {idea.firstAttachmentUrl ? (
+                                                        <img
+                                                            src={idea.firstAttachmentUrl as any}
+                                                            alt={t('innovation.myIdeas.thumbnailAlt', { defaultValue: 'Idea image' })}
+                                                            className="w-12 h-12 rounded object-cover border"
+                                                            loading="lazy"
+                                                        />
+                                                    ) : (
+                                                        <div className="w-12 h-12 rounded bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-400" aria-hidden="true">🖼️</div>
+                                                    )}
                                                     <Link
                                                         to={`/innovation/ideas/${idea.id}`}
                                                         className="text-2xl font-bold text-gray-900 dark:text-white hover:text-primary transition-colors"

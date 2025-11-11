@@ -4,6 +4,7 @@ export type Idea = {
   id: string;
   title: string;
   description: string;
+  descriptionHtml?: string | null;
   category: string;
   status: 'DRAFT' | 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED' | 'PROMOTED_TO_PROJECT';
   submittedBy: string;
@@ -30,6 +31,19 @@ export type Idea = {
     voteType: 'UPVOTE' | 'DOWNVOTE';
     createdAt: string;
   }>;
+  attachments?: Array<{
+    id: number;
+    fileName: string;
+    fileUrl: string;
+    fileSize: number;
+    mimeType?: string | null;
+    uploadedAt: string;
+  }>;
+  firstAttachmentUrl?: string | null;
+  stage?: string;
+  isAnonymous?: boolean;
+  challenge?: { id: number; title: string } | null;
+  tags?: Array<{ id: number; name: string }>;
 };
 
 function authHeaders(): Record<string, string> {
@@ -48,10 +62,28 @@ function authHeaders(): Record<string, string> {
   return h;
 }
 
-export async function fetchIdeas(params?: { status?: string; sort?: string }) {
+export async function fetchIdeas(params?: { 
+  status?: string | string[];
+  category?: string | string[];
+  sort?: 'recent' | 'popular' | 'trending' | string;
+  includeAttachments?: boolean;
+  tag?: string | string[];
+}) {
   const qs = new URLSearchParams();
-  if (params?.status) qs.set('status', params.status);
+  const pushParam = (key: string, value?: string | string[]) => {
+    if (!value) return;
+    if (Array.isArray(value)) {
+      value.forEach((v) => v && qs.append(key, v));
+    } else {
+      qs.append(key, value);
+    }
+  };
+
+  pushParam('status', params?.status);
+  pushParam('category', params?.category);
+  pushParam('tag', params?.tag);
   if (params?.sort) qs.set('sort', params.sort);
+  if (params?.includeAttachments) qs.set('include', 'attachments');
   // Cache busting to ensure fresh data in all environments
   qs.set('t', Date.now().toString());
   const res = await fetch(`/api/ideas${qs.toString() ? `?${qs.toString()}` : ''}`, {
@@ -63,11 +95,15 @@ export async function fetchIdeas(params?: { status?: string; sort?: string }) {
     cache: 'no-store',
   });
   if (!res.ok) throw new Error(await res.text());
-  return (await res.json()) as Idea[];
+  const list = (await res.json()) as Idea[];
+  return list.map(i => ({ ...i, firstAttachmentUrl: i.attachments?.[0]?.fileUrl || null }));
 }
 
-export async function fetchIdeaById(id: string | number): Promise<Idea> {
-  const url = `/api/ideas/${id}?t=${Date.now()}`;
+export async function fetchIdeaById(id: string | number, opts?: { includeAttachments?: boolean }): Promise<Idea> {
+  const qs = new URLSearchParams();
+  if (opts?.includeAttachments) qs.set('include', 'attachments');
+  qs.set('t', Date.now().toString());
+  const url = `/api/ideas/${id}?${qs.toString()}`;
   const res = await fetch(url, {
     headers: {
       ...authHeaders(),
@@ -77,37 +113,196 @@ export async function fetchIdeaById(id: string | number): Promise<Idea> {
     cache: 'no-store',
   });
   if (!res.ok) throw new Error(await res.text());
-  return (await res.json()) as Idea;
+  const idea = (await res.json()) as Idea;
+  return { ...idea, firstAttachmentUrl: idea.attachments?.[0]?.fileUrl || null };
 }
 
-export async function submitIdea(data: {
-  title: string;
-  description: string;
-  category: string;
-  expectedBenefits?: string;
-  implementationNotes?: string;
-}) {
+// (type defined above near comments helpers)
+
+export async function fetchComments(ideaId: number | string): Promise<IdeaComment[]> {
+  const res = await fetch(`/api/ideas/${ideaId}/comments?t=${Date.now()}`, {
+    headers: authHeaders(),
+    cache: 'no-store',
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return (await res.json()) as IdeaComment[];
+}
+
+export async function postComment(ideaId: number | string, data: { text: string; parentId?: number | null }): Promise<IdeaComment> {
+  const res = await fetch(`/api/ideas/${ideaId}/comments`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ text: data.text, parentId: data.parentId ?? null }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return (await res.json()) as IdeaComment;
+}
+
+export async function deleteComment(commentId: number): Promise<{ ok: boolean }> {
+  const res = await fetch(`/api/ideas/comments/${commentId}`, {
+    method: 'DELETE',
+    headers: authHeaders(),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return (await res.json()) as { ok: boolean };
+}
+
+export type MentionUser = { id: number; name: string; email: string };
+export async function searchUsers(term: string, take = 8): Promise<MentionUser[]> {
+  const qs = new URLSearchParams({ search: term, take: String(take), t: Date.now().toString() });
+  const res = await fetch(`/api/users?${qs.toString()}`, { headers: authHeaders(), cache: 'no-store' });
+  if (!res.ok) throw new Error(await res.text());
+  return (await res.json()) as MentionUser[];
+}
+
+export type RelatedIdea = { id: number; title: string; snippet: string; score: number; firstAttachmentUrl?: string | null };
+export async function fetchRelatedIdeas(id: number | string): Promise<RelatedIdea[]> {
+  const res = await fetch(`/api/ideas/${id}/related?t=${Date.now()}`, { headers: authHeaders(), cache: 'no-store' });
+  if (!res.ok) throw new Error(await res.text());
+  const data = await res.json();
+  return data.related as RelatedIdea[];
+}
+
+export type LeaderboardRow = { userId: number; name: string; email: string; ideaCount: number; upvotes: number; comments: number; points: number; badge: string | null };
+export async function fetchLeaderboard(): Promise<LeaderboardRow[]> {
+  const res = await fetch(`/api/leaderboard?t=${Date.now()}`, { headers: authHeaders(), cache: 'no-store' });
+  if (!res.ok) throw new Error(await res.text());
+  const data = await res.json();
+  return data.leaderboard as LeaderboardRow[];
+}
+
+export async function submitIdea(
+  data: {
+    title: string;
+    description: string;
+    descriptionHtml?: string; // optional rich text HTML
+    category: string;
+    expectedBenefits?: string;
+    implementationNotes?: string;
+    isAnonymous?: boolean;
+    challengeId?: number;
+    tagIds?: number[];
+  },
+  opts?: { image?: File; images?: File[] }
+) {
+  const token = getToken();
+  const user = getUser();
+
+  // Use multipart/form-data if any file(s) provided
+  if (opts?.image || (opts?.images && opts.images.length)) {
+    const form = new FormData();
+    form.append('title', data.title);
+    form.append('description', data.description);
+    if (data.descriptionHtml) form.append('descriptionHtml', data.descriptionHtml);
+    form.append('category', data.category);
+    if (data.expectedBenefits) form.append('expectedBenefits', data.expectedBenefits);
+    if (data.implementationNotes) form.append('implementationNotes', data.implementationNotes);
+    if (opts?.image) form.append('image', opts.image);
+    if (opts?.images) {
+      for (const f of opts.images) {
+        form.append('files', f);
+      }
+    }
+    if (data.isAnonymous) form.append('isAnonymous', String(data.isAnonymous));
+    if (data.challengeId) form.append('challengeId', String(data.challengeId));
+    if (data.tagIds && data.tagIds.length) form.append('tagIds', data.tagIds.join(','));
+
+    const headers: Record<string, string> = {};
+    if (user?.id) headers['x-user-id'] = user.id;
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const res = await fetch('/api/ideas', {
+      method: 'POST',
+      headers,
+      body: form,
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return (await res.json()) as Idea;
+  }
+
+  // Fallback to JSON
   const headers = authHeaders();
-  console.log('[submitIdea] Headers:', headers);
-  console.log('[submitIdea] Data:', data);
-  
   const res = await fetch('/api/ideas', {
     method: 'POST',
     headers,
     body: JSON.stringify(data),
   });
-  
-  console.log('[submitIdea] Response status:', res.status);
-  
-  if (!res.ok) {
-    const errorText = await res.text();
-    console.error('[submitIdea] Error response:', errorText);
-    throw new Error(errorText);
-  }
-  
-  const result = await res.json();
-  console.log('[submitIdea] Success:', result);
-  return result as Idea;
+  if (!res.ok) throw new Error(await res.text());
+  return (await res.json()) as Idea;
+}
+
+export type IdeaComment = {
+  id: number;
+  ideaId: number;
+  userId: number;
+  userName: string;
+  text: string;
+  parentId: number | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export async function fetchTags(): Promise<Array<{ id: number; name: string }>> {
+  const res = await fetch(`/api/tags?t=${Date.now()}`, { headers: authHeaders(), cache: 'no-store' });
+  if (!res.ok) throw new Error(await res.text());
+  return await res.json();
+}
+export async function createTag(name: string) {
+  const res = await fetch('/api/tags', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ name }) });
+  if (!res.ok) throw new Error(await res.text());
+  return await res.json();
+}
+
+export async function fetchChallenges(): Promise<Array<{ id: number; title: string; description?: string; isActive: boolean }>> {
+  const res = await fetch(`/api/challenges?t=${Date.now()}`, { headers: authHeaders(), cache: 'no-store' });
+  if (!res.ok) throw new Error(await res.text());
+  return await res.json();
+}
+export async function fetchChallenge(id: number | string) {
+  const res = await fetch(`/api/challenges/${id}?t=${Date.now()}`, { headers: authHeaders(), cache: 'no-store' });
+  if (!res.ok) throw new Error(await res.text());
+  return await res.json();
+}
+
+export async function transitionStage(ideaId: number | string, toStage: string, note?: string) {
+  const res = await fetch(`/api/ideas/${ideaId}/stage-transition`, { method: 'POST', headers: authHeaders(), body: JSON.stringify({ toStage, note }) });
+  if (!res.ok) throw new Error(await res.text());
+  return await res.json();
+}
+export async function fetchStageHistory(ideaId: number | string) {
+  const res = await fetch(`/api/ideas/${ideaId}/stage-history?t=${Date.now()}`, { headers: authHeaders(), cache: 'no-store' });
+  if (!res.ok) throw new Error(await res.text());
+  return await res.json();
+}
+
+export async function fetchAuditLog(ideaId: number | string) {
+  const res = await fetch(`/api/ideas/${ideaId}/audit?t=${Date.now()}`, { headers: authHeaders(), cache: 'no-store' });
+  if (!res.ok) throw new Error(await res.text());
+  return await res.json();
+}
+
+export async function fetchNotifications() {
+  const res = await fetch(`/api/notifications?t=${Date.now()}`, { headers: authHeaders(), cache: 'no-store' });
+  if (!res.ok) throw new Error(await res.text());
+  return await res.json();
+}
+export async function markNotificationRead(id: number) {
+  const res = await fetch(`/api/notifications/${id}/read`, { method: 'POST', headers: authHeaders() });
+  if (!res.ok) throw new Error(await res.text());
+  return await res.json();
+}
+
+export async function searchIdeas(q: string) {
+  const qs = new URLSearchParams({ q, t: Date.now().toString() });
+  const res = await fetch(`/api/ideas/search?${qs.toString()}`, { headers: authHeaders(), cache: 'no-store' });
+  if (!res.ok) throw new Error(await res.text());
+  return await res.json();
+}
+
+export async function fetchInnovationStats() {
+  const res = await fetch(`/api/innovation/stats?t=${Date.now()}`, { headers: authHeaders(), cache: 'no-store' });
+  if (!res.ok) throw new Error(await res.text());
+  return await res.json();
 }
 
 export async function approveIdea(id: string, notes?: string) {

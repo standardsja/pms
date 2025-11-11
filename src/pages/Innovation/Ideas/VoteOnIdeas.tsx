@@ -20,6 +20,8 @@ interface Idea {
     hasVoted: 'up' | 'down' | null;
     viewCount: number;
     trendingScore: number;
+    firstAttachmentUrl?: string | null;
+    attachmentsCount?: number;
 }
 
 const VoteOnIdeas = () => {
@@ -31,6 +33,8 @@ const VoteOnIdeas = () => {
     const [ideas, setIdeas] = useState<Idea[]>([]);
     const [sortBy, setSortBy] = useState<'trending' | 'popular' | 'recent'>('trending');
     const [showVotedOnly, setShowVotedOnly] = useState(false);
+    const [statusFilters, setStatusFilters] = useState<string[]>(['PENDING_REVIEW']);
+    const [categoryFilters, setCategoryFilters] = useState<string[]>([]);
     const [voteAnimation, setVoteAnimation] = useState<string | null>(null);
 
     useEffect(() => {
@@ -44,9 +48,12 @@ const VoteOnIdeas = () => {
         // Load ideas from API
         const loadIdeas = async () => {
             try {
-                console.log('[VoteOnIdeas] Fetching ideas from API...');
-                const apiIdeas = await fetchIdeas();
-                console.log('[VoteOnIdeas] Ideas loaded:', apiIdeas);
+                const apiIdeas = await fetchIdeas({ 
+                    includeAttachments: true,
+                    status: statusFilters.length ? statusFilters : undefined,
+                    category: categoryFilters.length ? categoryFilters : undefined,
+                    sort: sortBy,
+                });
                 
                 setIdeas(apiIdeas.map(idea => ({
                     id: String(idea.id),
@@ -61,6 +68,8 @@ const VoteOnIdeas = () => {
                     hasVoted: idea.userVoteType === 'UPVOTE' ? 'up' : idea.userVoteType === 'DOWNVOTE' ? 'down' : null,
                     viewCount: idea.viewCount || 0,
                     trendingScore: idea.voteCount || 0,
+                    firstAttachmentUrl: (idea as any).firstAttachmentUrl || (idea as any).attachments?.[0]?.fileUrl || null,
+                    attachmentsCount: (idea as any).attachments?.length || 0,
                 })));
             } catch (error) {
                 console.error('[VoteOnIdeas] Error loading ideas:', error);
@@ -82,7 +91,25 @@ const VoteOnIdeas = () => {
             loadIdeas();
         }, 15000);
         return () => clearInterval(intervalId);
-    }, [dispatch, t, isCommittee, navigate]);
+    }, [dispatch, t, isCommittee, navigate, statusFilters, categoryFilters, sortBy]);
+
+    // Persist filters
+    useEffect(() => {
+        const saved = localStorage.getItem('voteIdeasFilters');
+        if (saved) {
+            try {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed.status)) setStatusFilters(parsed.status);
+                if (Array.isArray(parsed.category)) setCategoryFilters(parsed.category);
+                if (parsed.sort) setSortBy(parsed.sort);
+                if (typeof parsed.votedOnly === 'boolean') setShowVotedOnly(parsed.votedOnly);
+            } catch {}
+        }
+    }, []);
+    useEffect(() => {
+        const payload = JSON.stringify({ status: statusFilters, category: categoryFilters, sort: sortBy, votedOnly: showVotedOnly });
+        localStorage.setItem('voteIdeasFilters', payload);
+    }, [statusFilters, categoryFilters, sortBy, showVotedOnly]);
 
     const handleVote = async (ideaId: string, voteType: 'up' | 'down') => {
         const idea = ideas.find(i => i.id === ideaId);
@@ -292,6 +319,49 @@ const VoteOnIdeas = () => {
                         ))}
                     </div>
                 </div>
+                <div className="flex items-center gap-3 flex-wrap">
+                    <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Status:</span>
+                    <div className="flex flex-wrap gap-2">
+                        {['PENDING_REVIEW','APPROVED','REJECTED','PROMOTED_TO_PROJECT'].map((s) => {
+                            const active = statusFilters.includes(s);
+                            const labels: Record<string, string> = {
+                                'PENDING_REVIEW': 'Pending Review',
+                                'APPROVED': 'Approved',
+                                'REJECTED': 'Rejected',
+                                'PROMOTED_TO_PROJECT': 'Promoted'
+                            };
+                            return (
+                                <button
+                                    key={s}
+                                    onClick={() => setStatusFilters(active ? statusFilters.filter(x => x !== s) : [...statusFilters, s])}
+                                    className={`px-3 py-1 rounded-full text-xs font-medium transition ${active ? 'bg-secondary text-white shadow' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
+                                    aria-pressed={active}
+                                >
+                                    {labels[s] || s}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+                <div className="flex items-center gap-3 flex-wrap">
+                    <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Category:</span>
+                    <div className="flex flex-wrap gap-2">
+                        {['Process Improvement','Technology','Customer Service','Sustainability','Cost Reduction','Product Innovation','Other'].map((cat, idx) => {
+                            const catKey = ['PROCESS_IMPROVEMENT','TECHNOLOGY','CUSTOMER_SERVICE','SUSTAINABILITY','COST_REDUCTION','PRODUCT_INNOVATION','OTHER'][idx];
+                            const active = categoryFilters.includes(catKey);
+                            return (
+                                <button
+                                    key={catKey}
+                                    onClick={() => setCategoryFilters(active ? categoryFilters.filter(c => c !== catKey) : [...categoryFilters, catKey])}
+                                    className={`px-3 py-1 rounded-full text-xs font-medium transition ${active ? 'bg-primary text-white shadow' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
+                                    aria-pressed={active}
+                                >
+                                    {cat}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
                 <label className="flex items-center gap-2 cursor-pointer">
                     <input
                         type="checkbox"
@@ -300,8 +370,15 @@ const VoteOnIdeas = () => {
                         onChange={(e) => setShowVotedOnly(e.target.checked)}
                         aria-checked={showVotedOnly}
                     />
-                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('innovation.vote.filters.showVotedOnly')}</span>
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Show only voted ideas</span>
                 </label>
+                <button
+                    type="button"
+                    onClick={() => { setStatusFilters(['PENDING_REVIEW']); setCategoryFilters([]); setSortBy('trending'); setShowVotedOnly(false); }}
+                    className="btn btn-outline-danger btn-sm"
+                >
+                    Clear Filters
+                </button>
             </div>
 
             {/* Ideas Cards */}
@@ -416,6 +493,14 @@ const VoteOnIdeas = () => {
                                             <span>{t('innovation.view.submittedBy', { name: idea.submittedBy })}</span>
                                             <span>•</span>
                                             <span>{new Date(idea.submittedAt).toLocaleDateString()}</span>
+                                            {idea.firstAttachmentUrl && (
+                                                <span className="ml-2 inline-flex items-center gap-1">
+                                                    <img src={idea.firstAttachmentUrl} alt="thumb" className="w-6 h-6 rounded object-cover border" loading="lazy" />
+                                                    {idea.attachmentsCount && idea.attachmentsCount > 1 && (
+                                                        <span className="text-xs text-gray-400">+{idea.attachmentsCount - 1}</span>
+                                                    )}
+                                                </span>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
