@@ -471,7 +471,16 @@ const Header = () => {
                                                     <IconInfoCircle fill={true} className="w-10 h-10" />
                                                 </div>
                                                 No data available.
-ttom-end'}`}
+                                            </button>
+                                        </li>
+                                    )}
+                                </ul>
+                            </Dropdown>
+                        </div>
+                        <div className="dropdown shrink-0">
+                            <Dropdown
+                                offset={[0, 8]}
+                                placement={`${isRtl ? 'bottom-start' : 'bottom-end'}`}
                                 btnClassName="relative group block"
                                 button={<img className="w-9 h-9 rounded-full object-cover saturate-50 group-hover:saturate-100" src="/assets/images/user-profile.jpeg" alt="userProfile" />}
                             >

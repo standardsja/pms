@@ -58,7 +58,10 @@ const SubmitIdea = () => {
     useEffect(() => {
         const saved = restoreAutoSave<typeof formData>('ideaDraft');
         if (saved) {
-            setFormData(saved);
+            setFormData({
+                ...saved,
+                tagIds: Array.isArray(saved.tagIds) ? saved.tagIds : [], // Ensure tagIds is always an array
+            });
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
@@ -145,8 +148,8 @@ const SubmitIdea = () => {
         }
     }
 
-    const selectedTags = allTags.filter(t => formData.tagIds.includes(t.id));
-    const filteredTags = allTags.filter(t => !formData.tagIds.includes(t.id) && (!tagSearch || t.name.toLowerCase().includes(tagSearch.toLowerCase()))).slice(0, 10);
+    const selectedTags = allTags.filter(t => (formData.tagIds || []).includes(t.id));
+    const filteredTags = allTags.filter(t => !(formData.tagIds || []).includes(t.id) && (!tagSearch || t.name.toLowerCase().includes(tagSearch.toLowerCase()))).slice(0, 10);
 
     // Duplicate detection auto-trigger
     useEffect(() => {

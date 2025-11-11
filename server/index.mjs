@@ -649,6 +649,12 @@ app.get('/api/ideas', async (req, res) => {
 	try {
 		const { status, sort, include, category, tag } = req.query || {};
 		const includeAttachments = include === 'attachments';
+		
+		// Get user ID and check if they're committee
+		const actorId = getActingUserId(req);
+		const userRoles = actorId ? await getRolesForUser(actorId) : [];
+		const isCommittee = userRoles.includes('INNOVATION_COMMITTEE');
+		
 		// Map frontend status values to Prisma enum values
 		const statusMap = {
 			'pending': 'PENDING_REVIEW',
@@ -674,12 +680,17 @@ app.get('/api/ideas', async (req, res) => {
 		const mappedStatuses = rawStatuses
 			.map((s) => statusMap[s] || statusMap[String(s).toUpperCase()] || statusMap[String(s).toLowerCase()])
 			.filter(Boolean);
-		if (mappedStatuses.length === 1) {
+		
+		// IMPORTANT: If user is NOT committee, only show APPROVED ideas
+		if (!isCommittee) {
+			where.status = 'APPROVED';
+			console.log('[api/ideas] Non-committee user - showing only APPROVED ideas');
+		} else if (mappedStatuses.length === 1) {
 			where.status = mappedStatuses[0];
-			console.log('[api/ideas] Status filter:', rawStatuses, '→', mappedStatuses[0]);
+			console.log('[api/ideas] Committee - Status filter:', rawStatuses, '→', mappedStatuses[0]);
 		} else if (mappedStatuses.length > 1) {
 			where.status = { in: mappedStatuses };
-			console.log('[api/ideas] Status filter:', rawStatuses, '→', mappedStatuses);
+			console.log('[api/ideas] Committee - Status filter:', rawStatuses, '→', mappedStatuses);
 		}
 
 		// Parse categories similarly
