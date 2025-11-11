@@ -1,11 +1,13 @@
 #!/usr/bin/env node
-import 'dotenv/config';
+// Ensure Prisma DATABASE_URL is available at runtime from server/prisma/.env
+import dotenv from 'dotenv';
+import path from 'node:path';
+dotenv.config({ path: path.resolve(process.cwd(), 'server', 'prisma', '.env') });
 import express from 'express';
 import bodyParser from 'body-parser';
 import cors from 'cors';
 import { PrismaClient, Prisma } from '@prisma/client';
 import fs from 'node:fs/promises';
-import path from 'node:path';
 import puppeteer from 'puppeteer';
 import bcrypt from 'bcryptjs';
 

@@ -1,129 +1,48 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider = "prisma-client-js"
 }
-
-// Also generate default client into node_modules for runtime dependencies
-// Note: Single client output to src/generated/prisma
 
 datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
-// Request lifecycle statuses
+/**
+ * ===== Enums =====
+ */
 enum RequestStatus {
-  PENDING_FINANCE
-  FINANCE_VERIFIED
-  PENDING_PROCUREMENT
-  APPROVED
-  RETURNED_BY_FINANCE
-  REJECTED
-  FULFILLED
-}
-
-// Procurement domain enums
-enum SupplierStatus {
-  ACTIVE
-  INACTIVE
-}
-
-enum RfqStatus {
   DRAFT
-  SENT
-  RECEIVED
+  SUBMITTED
+  DEPARTMENT_REVIEW
+  DEPARTMENT_RETURNED
+  DEPARTMENT_APPROVED
+  HOD_REVIEW
+  PROCUREMENT_REVIEW
+  FINANCE_REVIEW
+  BUDGET_MANAGER_REVIEW
+  FINANCE_RETURNED
+  FINANCE_APPROVED
+  SENT_TO_VENDOR
   CLOSED
-  CANCELLED
-}
-
-enum QuoteStatus {
-  SUBMITTED
-  ACCEPTED
-  REJECTED
-  WITHDRAWN
-}
-
-enum POStatus {
-  DRAFT
-  APPROVED
-  SENT
-  PARTIALLY_RECEIVED
-  FULFILLED
-  CANCELLED
-}
-
-enum PaymentStatus {
-  PENDING
-  APPROVED
-  PAID
-  FAILED
-}
-
-enum ApprovalEntity {
-  REQUEST
-  RFQ
-  QUOTE
-  PURCHASE_ORDER
-  PAYMENT
-}
-
-enum ApprovalRole {
-  DEPARTMENT_HEAD
-  FINANCE
-  EXECUTIVE_DIRECTOR
-  PROCUREMENT_MANAGER
-}
-
-enum ApprovalStatus {
-  PENDING
-  APPROVED
   REJECTED
 }
 
-enum EvaluationStatus {
-  DRAFT
-  SUBMITTED
-  APPROVED
-  REJECTED
+enum RequestActionType {
+  SUBMIT
+  APPROVE
+  RETURN
+  ASSIGN
+  EDIT_BUDGET
+  COMMENT
+  SEND_TO_VENDOR
 }
 
-// Users & Auth
-enum Role {
-  USER
-  MANAGER
-  ADMIN
-  INNOVATION_COMMITTEE
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
 }
-
-model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  name         String
-  passwordHash String
-  role         Role     @default(USER)
-  mfaEnabled   Boolean  @default(false)
-  mfaSecret    String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  // Innovative Hub relations
-  ideas        Idea[]
-  votes        Vote[]
-  ideaComments IdeaComment[]
-
-  @@index([role])
-  @@index([createdAt])
-}
-
-// ============================================
-// INNOVATIVE HUB DOMAIN
-// ============================================
 
 enum IdeaStatus {
   DRAFT
@@ -143,25 +62,226 @@ enum IdeaCategory {
   OTHER
 }
 
+/**
+ * ===== Models =====
+ */
+
+model User {
+  id           Int     @id @default(autoincrement())
+  externalId   String? @unique
+  email        String  @unique
+  name         String?
+  passwordHash String? // ← for local email/password testing
+
+  department   Department? @relation("userDepartment", fields: [departmentId], references: [id])
+  departmentId Int?
+
+  managedDepartment   Department?            @relation("departmentManager")
+  roles               UserRole[]
+  requests            Request[]              @relation("requestRequester")
+  assignedRequests    Request[]              @relation("requestAssignee")
+  actions             RequestAction[]        @relation("actionPerformedBy")
+  attachmentsUploaded RequestAttachment[]    @relation("attachmentUploadedBy")
+  statusChanges       RequestStatusHistory[] @relation("statusChangedBy")
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+
+  // Innovation Hub relations
+  ideas        Idea[]
+  votes        Vote[]
+  ideaComments IdeaComment[]
+}
+
+model Department {
+  id   Int     @id @default(autoincrement())
+  name String
+  code String? @unique
+
+  // one manager per department
+  manager   User? @relation("departmentManager", fields: [managerId], references: [id], onDelete: SetNull)
+  managerId Int?  @unique // <-- make the FK unique
+
+  users    User[]    @relation("userDepartment")
+  requests Request[]
+}
+
+model Role {
+  id          Int        @id @default(autoincrement())
+  name        String     @unique
+  description String?
+  users       UserRole[]
+}
+
+model UserRole {
+  id     Int  @id @default(autoincrement())
+  user   User @relation(fields: [userId], references: [id])
+  userId Int
+  role   Role @relation(fields: [roleId], references: [id])
+  roleId Int
+
+  @@unique([userId, roleId])
+}
+
+model FundingSource {
+  id       Int       @id @default(autoincrement())
+  name     String
+  code     String?
+  notes    String?
+  requests Request[] // back-relation for Request.fundingSource
+}
+
+model Vendor {
+  id        Int       @id @default(autoincrement())
+  name      String
+  contact   Json?
+  address   String?
+  website   String?
+  createdAt DateTime  @default(now())
+  requests  Request[] // back-relation for Request.vendor
+}
+
+model Request {
+  id          Int     @id @default(autoincrement())
+  reference   String  @unique
+  title       String
+  description String?
+
+  requester   User @relation("requestRequester", fields: [requesterId], references: [id])
+  requesterId Int
+
+  department   Department? @relation(fields: [departmentId], references: [id])
+  departmentId Int?
+
+  items         RequestItem[]
+  attachments   RequestAttachment[]
+  actions       RequestAction[]
+  statusHistory RequestStatusHistory[]
+
+  status RequestStatus @default(DRAFT)
+
+  fundingSource   FundingSource? @relation(fields: [fundingSourceId], references: [id])
+  fundingSourceId Int?
+
+  budgetCode       String?
+  totalEstimated   Decimal?  @db.Decimal(12, 2)
+  currency         String?   @default("JMD")
+  priority         Priority? @default(MEDIUM)
+  procurementType  Json?     // Array of procurement types: ['goods', 'consulting', etc.]
+  expectedDelivery DateTime?
+
+  currentAssignee   User? @relation("requestAssignee", fields: [currentAssigneeId], references: [id])
+  currentAssigneeId Int?
+
+  vendor   Vendor? @relation(fields: [vendorId], references: [id])
+  vendorId Int?
+
+  // Manager/HOD section fields
+  managerName String?
+  headName    String?
+  managerApproved Boolean? @default(false)
+  headApproved    Boolean? @default(false)
+
+  // Budget section fields
+  commitmentNumber  String?
+  accountingCode    String?
+  budgetComments    String?
+  budgetOfficerName String?
+  budgetManagerName String?
+  budgetOfficerApproved Boolean? @default(false)
+  budgetManagerApproved Boolean? @default(false)
+
+  // Procurement section fields
+  procurementCaseNumber String?
+  receivedBy            String?
+  dateReceived          String?
+  procurementApproved   Boolean? @default(false)
+  actionDate            String?
+  procurementComments   String?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  submittedAt DateTime?
+}
+
+model RequestItem {
+  id            Int     @id @default(autoincrement())
+  request       Request @relation(fields: [requestId], references: [id])
+  requestId     Int
+  description   String
+  quantity      Int     @default(1)
+  unitPrice     Decimal @db.Decimal(12, 2)
+  totalPrice    Decimal @db.Decimal(12, 2)
+  accountCode   String?
+  stockLevel    String?
+  unitOfMeasure String?
+  partNumber    String?
+}
+
+model RequestAttachment {
+  id        Int     @id @default(autoincrement())
+  request   Request @relation(fields: [requestId], references: [id])
+  requestId Int
+  filename  String
+  url       String
+  mimeType  String?
+
+  uploadedBy   User? @relation("attachmentUploadedBy", fields: [uploadedById], references: [id])
+  uploadedById Int?
+
+  uploadedAt DateTime @default(now())
+}
+
+model RequestAction {
+  id        Int     @id @default(autoincrement())
+  request   Request @relation(fields: [requestId], references: [id])
+  requestId Int
+
+  action  RequestActionType
+  comment String?
+
+  performedBy   User? @relation("actionPerformedBy", fields: [performedById], references: [id])
+  performedById Int?
+
+  metadata  Json?
+  createdAt DateTime @default(now())
+}
+
+model RequestStatusHistory {
+  id        Int           @id @default(autoincrement())
+  request   Request       @relation(fields: [requestId], references: [id])
+  requestId Int
+  status    RequestStatus
+
+  changedBy   User? @relation("statusChangedBy", fields: [changedById], references: [id])
+  changedById Int?
+
+  comment   String?
+  createdAt DateTime @default(now())
+}
+
+// ============================================
+// INNOVATION HUB DOMAIN
+// ============================================
+
 enum VoteType {
   UPVOTE
   DOWNVOTE
 }
 
 model Idea {
-  id             String       @id @default(cuid())
+  id             Int          @id @default(autoincrement())
   title          String
   description    String       @db.Text
   category       IdeaCategory
   status         IdeaStatus   @default(DRAFT)
   
   // Submission
-  submittedBy    String
+  submittedBy    Int
   submitter      User         @relation(fields: [submittedBy], references: [id])
   submittedAt    DateTime     @default(now())
   
   // Review
-  reviewedBy     String?
+  reviewedBy     Int?
   reviewedAt     DateTime?
   reviewNotes    String?      @db.Text
   
@@ -192,9 +312,9 @@ model Idea {
 
 model Vote {
   id        Int      @id @default(autoincrement())
-  ideaId    String
+  ideaId    Int
   idea      Idea     @relation(fields: [ideaId], references: [id], onDelete: Cascade)
-  userId    String
+  userId    Int
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   voteType  VoteType @default(UPVOTE)
   createdAt DateTime @default(now())
@@ -206,9 +326,9 @@ model Vote {
 
 model IdeaComment {
   id        Int      @id @default(autoincrement())
-  ideaId    String
+  ideaId    Int
   idea      Idea     @relation(fields: [ideaId], references: [id], onDelete: Cascade)
-  userId    String
+  userId    Int
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   text      String   @db.Text
   createdAt DateTime @default(now())
@@ -219,7 +339,7 @@ model IdeaComment {
 
 model IdeaAttachment {
   id        Int      @id @default(autoincrement())
-  ideaId    String
+  ideaId    Int
   idea      Idea     @relation(fields: [ideaId], references: [id], onDelete: Cascade)
   fileName  String
   fileUrl   String
@@ -228,291 +348,4 @@ model IdeaAttachment {
   uploadedAt DateTime @default(now())
 
   @@index([ideaId])
-}
-
-model Request {
-  // String id to align with frontend expectations; generated via cuid()
-  id              String          @id @default(cuid())
-  // Optional human-readable code (e.g., REQ-0001)
-  code            String?         @unique
-
-  title           String
-  requester       String?
-  department      String?
-  status          RequestStatus   @default(PENDING_FINANCE)
-
-  justification   String?         @db.Text
-  fundingSource   String?
-  budgetCode      String?
-  totalEstimated  Decimal?        @db.Decimal(12, 2)
-
-  // Track original procurement officer for returning after finance approval
-  procurementOfficerId String?
-
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-
-  // Relations
-  items           RequestItem[]
-  comments        Comment[]
-  statusHistory   StatusHistory[]
-
-  // Back-relations
-  purchaseOrders  PurchaseOrder[]
-  evaluations     Evaluation[]
-
-  @@index([requester])
-  @@index([department])
-  @@index([status])
-  @@index([createdAt])
-}
-
-model RequestItem {
-  id         Int      @id @default(autoincrement())
-
-  requestId  String
-  request    Request  @relation(fields: [requestId], references: [id], onDelete: Cascade)
-
-  description String
-  quantity    Int
-  unitPrice   Decimal  @db.Decimal(12, 2)
-}
-
-model Comment {
-  id         Int       @id @default(autoincrement())
-
-  requestId  String
-  request    Request   @relation(fields: [requestId], references: [id], onDelete: Cascade)
-
-  actor      String
-  date       DateTime  @default(now())
-  text       String    @db.Text
-}
-
-model StatusHistory {
-  id         Int            @id @default(autoincrement())
-
-  requestId  String
-  request    Request        @relation(fields: [requestId], references: [id], onDelete: Cascade)
-
-  status     RequestStatus
-  date       DateTime       @default(now())
-  actor      String
-  note       String?        @db.Text
-}
-
-// Reference tables
-model Department {
-  id        Int      @id @default(autoincrement())
-  name      String   @unique
-  createdAt DateTime @default(now())
-}
-
-// Suppliers
-model Supplier {
-  id        String         @id @default(cuid())
-  name      String
-  email     String?
-  phone     String?
-  address   String?
-  taxId     String?
-  status    SupplierStatus @default(ACTIVE)
-  createdAt DateTime       @default(now())
-
-  catalogItems CatalogItem[]
-  quotes       Quote[]
-  rfqInvites   RfqInvitation[]
-  purchaseOrders PurchaseOrder[]
-  evaluations    Evaluation[]
-
-  @@index([name])
-  @@index([status])
-}
-
-// Catalog
-model CatalogItem {
-  id          Int       @id @default(autoincrement())
-  sku         String?   @unique
-  name        String
-  description String?
-  unitPrice   Decimal   @db.Decimal(12, 2)
-  active      Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-
-  supplierId  String?
-  supplier    Supplier? @relation(fields: [supplierId], references: [id])
-
-  // Back-relations
-  rfqItems    RFQItem[]
-
-  @@index([name])
-  @@index([supplierId])
-}
-
-// RFQ
-model RFQ {
-  id          String      @id @default(cuid())
-  code        String?     @unique
-  title       String
-  requester   String
-  department  String
-  status      RfqStatus   @default(DRAFT)
-  dueDate     DateTime?
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-
-  items       RFQItem[]
-  invitations RfqInvitation[]
-  quotes      Quote[]
-  purchaseOrders PurchaseOrder[]
-
-  @@index([requester])
-  @@index([department])
-  @@index([status])
-  @@index([createdAt])
-}
-
-model RFQItem {
-  id          Int      @id @default(autoincrement())
-  rfqId       String
-  rfq         RFQ      @relation(fields: [rfqId], references: [id], onDelete: Cascade)
-
-  catalogItemId Int?
-  catalogItem   CatalogItem? @relation(fields: [catalogItemId], references: [id])
-
-  description String
-  quantity    Int
-  unit        String?
-  notes       String?  @db.Text
-
-  @@index([rfqId])
-  @@index([catalogItemId])
-}
-
-model RfqInvitation {
-  id         Int      @id @default(autoincrement())
-  rfqId      String
-  rfq        RFQ      @relation(fields: [rfqId], references: [id], onDelete: Cascade)
-  supplierId String
-  supplier   Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
-  sentAt     DateTime @default(now())
-  respondedAt DateTime?
-
-  @@unique([rfqId, supplierId])
-  @@index([supplierId])
-}
-
-// Quotes
-model Quote {
-  id          String      @id @default(cuid())
-  rfqId       String
-  rfq         RFQ         @relation(fields: [rfqId], references: [id], onDelete: Cascade)
-  supplierId  String
-  supplier    Supplier    @relation(fields: [supplierId], references: [id], onDelete: Cascade)
-  status      QuoteStatus @default(SUBMITTED)
-  total       Decimal     @db.Decimal(12, 2)
-  submittedAt DateTime    @default(now())
-
-  items       QuoteItem[]
-
-  @@index([rfqId])
-  @@index([supplierId])
-  @@index([status])
-}
-
-model QuoteItem {
-  id        Int      @id @default(autoincrement())
-  quoteId   String
-  quote     Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
-  description String
-  quantity    Int
-  unitPrice   Decimal @db.Decimal(12, 2)
-
-  @@index([quoteId])
-}
-
-// Purchase Orders
-model PurchaseOrder {
-  id           String   @id @default(cuid())
-  code         String?  @unique
-  rfqId        String?
-  rfq          RFQ?     @relation(fields: [rfqId], references: [id])
-  requestId    String?
-  request      Request? @relation(fields: [requestId], references: [id])
-  supplierId   String
-  supplier     Supplier @relation(fields: [supplierId], references: [id])
-  status       POStatus @default(DRAFT)
-  total        Decimal  @db.Decimal(12, 2)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  expectedDate DateTime?
-
-  items        PurchaseOrderItem[]
-  payments     Payment[]
-
-  @@index([rfqId])
-  @@index([requestId])
-  @@index([supplierId])
-  @@index([status])
-}
-
-model PurchaseOrderItem {
-  id             Int           @id @default(autoincrement())
-  purchaseOrderId String
-  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
-  description     String
-  quantity        Int
-  unitPrice       Decimal @db.Decimal(12, 2)
-
-  @@index([purchaseOrderId])
-}
-
-// Payments
-model Payment {
-  id              String        @id @default(cuid())
-  purchaseOrderId String
-  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
-  amount          Decimal       @db.Decimal(12, 2)
-  status          PaymentStatus @default(PENDING)
-  method          String?
-  referenceNo     String?
-  paidAt          DateTime?
-  createdAt       DateTime      @default(now())
-
-  @@index([purchaseOrderId])
-  @@index([status])
-}
-
-// Approvals (generic across entities)
-model Approval {
-  id         Int            @id @default(autoincrement())
-  entityType ApprovalEntity
-  entityId   String
-  role       ApprovalRole
-  status     ApprovalStatus @default(PENDING)
-  actedBy    String?
-  actedAt    DateTime?
-  note       String?        @db.Text
-
-  @@index([entityType, entityId])
-  @@index([role])
-  @@index([status])
-}
-
-// Evaluations (simplified)
-model Evaluation {
-  id          String           @id @default(cuid())
-  requestId   String?
-  request     Request?         @relation(fields: [requestId], references: [id])
-  supplierId  String?
-  supplier    Supplier?        @relation(fields: [supplierId], references: [id])
-  createdBy   String
-  status      EvaluationStatus @default(DRAFT)
-  score       Int?
-  notes       String?          @db.Text
-  createdAt   DateTime         @default(now())
-
-  @@index([requestId])
-  @@index([supplierId])
-  @@index([status])
 }

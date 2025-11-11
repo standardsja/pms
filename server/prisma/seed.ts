@@ -212,6 +212,34 @@ async function ensureRole(name: string, description?: string) {
     console.warn('[seed] REQUESTER role not found to add to admin');
   }
 
+  // Ensure previously bookmarked named users remain (Diana + Eric)
+  const diana = await prisma.user.upsert({
+    where: { email: 'diana.procurement@bsj.gov.jm' },
+    update: { passwordHash: hash, name: 'Diana Procurement' },
+    create: { email: 'diana.procurement@bsj.gov.jm', name: 'Diana Procurement', passwordHash: hash }
+  });
+  const eric = await prisma.user.upsert({
+    where: { email: 'eric.finance@bsj.gov.jm' },
+    update: { passwordHash: hash, name: 'Eric Finance' },
+    create: { email: 'eric.finance@bsj.gov.jm', name: 'Eric Finance', passwordHash: hash }
+  });
+  // Additional explicitly named legacy accounts requested
+  const alice = await prisma.user.upsert({
+    where: { email: 'alice.requester@bsj.gov.jm' },
+    update: { passwordHash: hash, name: 'Alice Requester' },
+    create: { email: 'alice.requester@bsj.gov.jm', name: 'Alice Requester', passwordHash: hash }
+  });
+  const bobManager = await prisma.user.upsert({
+    where: { email: 'bob.manager@bsj.gov.jm' },
+    update: { passwordHash: hash, name: 'Bob Manager' },
+    create: { email: 'bob.manager@bsj.gov.jm', name: 'Bob Manager', passwordHash: hash }
+  });
+  const charlieHod = await prisma.user.upsert({
+    where: { email: 'charlie.hod@bsj.gov.jm' },
+    update: { passwordHash: hash, name: 'Charlie HOD' },
+    create: { email: 'charlie.hod@bsj.gov.jm', name: 'Charlie HOD', passwordHash: hash }
+  });
+
   // Shared service officers (load-balanced pools)
   const procurement1 = await prisma.user.upsert({
     where: { email: 'proc1@bsj.gov.jm' },
@@ -263,6 +291,11 @@ async function ensureRole(name: string, description?: string) {
     assignRole(procurement2.id, 'PROCUREMENT', roles),
     assignRole(procurement3.id, 'PROCUREMENT', roles)
   ]);
+  // Diana (procurement) explicit role
+  await assignRole(diana.id, 'PROCUREMENT', roles);
+  await assignRole(alice.id, 'REQUESTER', roles);
+  await assignRole(bobManager.id, 'DEPT_MANAGER', roles);
+  await assignRole(charlieHod.id, 'HEAD_OF_DIVISION', roles);
   
   // Finance pool
   await Promise.all([
@@ -270,6 +303,9 @@ async function ensureRole(name: string, description?: string) {
     assignRole(finance2.id, 'FINANCE', roles),
     assignRole(finance3.id, 'FINANCE', roles)
   ]);
+  // Eric (finance) explicit roles
+  await assignRole(eric.id, 'FINANCE', roles);
+  try { await assignRole(eric.id, 'BUDGET_MANAGER', roles); } catch {}
 
   console.log('[seed] Users ready:');
   console.log('\nDepartment Staff:');
@@ -282,10 +318,15 @@ async function ensureRole(name: string, description?: string) {
   console.log('  proc1@bsj.gov.jm       (Password: Passw0rd!) [PROCUREMENT]');
   console.log('  proc2@bsj.gov.jm       (Password: Passw0rd!) [PROCUREMENT]');
   console.log('  proc3@bsj.gov.jm       (Password: Passw0rd!) [PROCUREMENT]');
+  console.log('  diana.procurement@bsj.gov.jm (Password: Passw0rd!) [PROCUREMENT]');
+  console.log('  alice.requester@bsj.gov.jm (Password: Passw0rd!) [REQUESTER]');
+  console.log('  bob.manager@bsj.gov.jm (Password: Passw0rd!) [DEPT_MANAGER]');
+  console.log('  charlie.hod@bsj.gov.jm (Password: Passw0rd!) [HEAD_OF_DIVISION]');
   console.log('\nFinance Pool:');
   console.log('  fin1@bsj.gov.jm        (Password: Passw0rd!) [FINANCE]');
   console.log('  fin2@bsj.gov.jm        (Password: Passw0rd!) [FINANCE]');
   console.log('  fin3@bsj.gov.jm        (Password: Passw0rd!) [FINANCE]');
+  console.log('  eric.finance@bsj.gov.jm (Password: Passw0rd!) [FINANCE,BUDGET_MANAGER]');
   console.log('[seed] Complete');
 }
 
