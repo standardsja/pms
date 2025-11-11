@@ -1,7 +1,7 @@
 {
     "name": "vristo-react-vite",
     "private": true,
-    "version": "1.0.0",
+    "version": "1.0.1 Alpha",
     "type": "module",
     "scripts": {
         "dev": "vite",
