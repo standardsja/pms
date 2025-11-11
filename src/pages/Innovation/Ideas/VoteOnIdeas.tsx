@@ -73,15 +73,18 @@ const VoteOnIdeas = () => {
                 })));
             } catch (error) {
                 console.error('[VoteOnIdeas] Error loading ideas:', error);
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Error loading ideas',
-                    text: error instanceof Error ? error.message : 'Failed to load ideas',
-                    toast: true,
-                    position: 'bottom-end',
-                    showConfirmButton: false,
-                    timer: 3000,
-                });
+                // Only show error on first load, not background polling
+                if (!ideas.length) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Unable to Load Ideas',
+                        text: 'We encountered a problem loading ideas. Please check your connection and try again.',
+                        toast: true,
+                        position: 'bottom-end',
+                        showConfirmButton: false,
+                        timer: 3500,
+                    });
+                }
             }
         };
         
@@ -163,7 +166,7 @@ const VoteOnIdeas = () => {
                             upvotes: updatedIdea.upvoteCount || 0,
                             downvotes: updatedIdea.downvoteCount || 0,
                             voteCount: updatedIdea.voteCount || 0,
-                            hasVoted: voteType,
+                            hasVoted: updatedIdea.userVoteType === 'UPVOTE' ? 'up' : updatedIdea.userVoteType === 'DOWNVOTE' ? 'down' : null,
                             viewCount: updatedIdea.viewCount || i.viewCount,
                         }
                         : i
@@ -182,6 +185,17 @@ const VoteOnIdeas = () => {
             }
         } catch (error) {
             console.error('[VoteOnIdeas] Error voting:', error);
+            
+            // Check if vote limit reached
+            if (error instanceof Error && error.message === 'VOTE_LIMIT_REACHED') {
+                void Swal.fire({
+                    icon: 'warning',
+                    title: t('innovation.vote.warning.noVotesLeft.title'),
+                    text: t('innovation.vote.warning.noVotesLeft.message'),
+                    confirmButtonText: 'OK',
+                });
+                return;
+            }
             
             // Check if it's a duplicate vote error
             if (error instanceof Error && error.message.includes('already voted')) {
@@ -215,8 +229,8 @@ const VoteOnIdeas = () => {
                 // Generic error
                 void Swal.fire({
                     icon: 'error',
-                    title: 'Error',
-                    text: error instanceof Error ? error.message : 'Failed to vote',
+                    title: 'Vote Failed',
+                    text: 'We were unable to process your vote. Please try again.',
                     toast: true,
                     position: 'bottom-end',
                     showConfirmButton: false,
@@ -471,7 +485,7 @@ const VoteOnIdeas = () => {
                                     </div>
                                 </div>
 
-                                {sortBy === 'trending' && (
+                                {sortBy === 'trending' && idea.trendingScore > 0 && (
                                     <div className="mt-1 px-2 py-1 bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-300 rounded text-xs font-bold">
                                         🔥 {idea.trendingScore}
                                     </div>

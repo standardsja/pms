@@ -86,6 +86,9 @@ const LoginBoxed = () => {
                     case UserRole.FINANCE:
                         navigate('/finance');
                         break;
+                    case UserRole.INNOVATION_COMMITTEE:
+                        navigate('/innovation/committee/dashboard');
+                        break;
                     default:
                         navigate(from);
                 }

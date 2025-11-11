@@ -1,15 +1,24 @@
 #!/usr/bin/env node
-// Ensure Prisma DATABASE_URL is available at runtime from server/prisma/.env
-import dotenv from 'dotenv';
-import path from 'node:path';
-dotenv.config({ path: path.resolve(process.cwd(), 'server', 'prisma', '.env') });
+import 'dotenv/config';
 import express from 'express';
 import bodyParser from 'body-parser';
 import cors from 'cors';
 import { PrismaClient, Prisma } from '@prisma/client';
 import fs from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import puppeteer from 'puppeteer';
 import bcrypt from 'bcryptjs';
+import multer from 'multer';
+let sharp = null;
+try {
+	// optional dependency
+	sharp = (await import('sharp')).default;
+} catch {}
+import sanitizeHtml from 'sanitize-html';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // PDF debug logging toggle (default on in non-production, disable with PDF_DEBUG=0)
 const PDF_DEBUG = process.env.PDF_DEBUG !== '0' && process.env.NODE_ENV !== 'production';
@@ -19,6 +28,35 @@ const prisma = new PrismaClient();
 const app = express();
 app.use(cors());
 app.use(bodyParser.json());
+
+// Static files for uploads
+const UPLOAD_DIR = path.resolve(process.cwd(), 'uploads');
+try {
+	await fs.access(UPLOAD_DIR);
+} catch {
+	await fs.mkdir(UPLOAD_DIR, { recursive: true });
+}
+app.use('/uploads', express.static(UPLOAD_DIR));
+const THUMB_DIR = path.join(UPLOAD_DIR, 'thumbs');
+try { await fs.mkdir(THUMB_DIR, { recursive: true }); } catch {}
+
+// Multer storage for idea images
+const storage = multer.diskStorage({
+	destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
+	filename: (_req, file, cb) => {
+		const ext = path.extname(file.originalname);
+		const base = path.basename(file.originalname, ext).replace(/[^a-z0-9_-]+/gi, '_');
+		cb(null, `idea_${Date.now()}_${base}${ext}`);
+	},
+});
+const upload = multer({
+	storage,
+	limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+	fileFilter: (_req, file, cb) => {
+		if (/^image\//.test(file.mimetype)) cb(null, true);
+		else cb(new Error('Only image uploads are allowed'));
+	},
+});
 
 const PORT = process.env.PORT || 4000;
 
@@ -207,141 +245,6 @@ app.post('/api/auth/login', async (req, res) => {
 	}
 });
 
-// ========================
-// ADMIN API ROUTES
-// ========================
-
-// GET /admin/users - List all users with their roles and departments
-app.get('/admin/users', async (req, res) => {
-	try {
-		const users = await prisma.user.findMany({
-			include: {
-				department: { select: { id: true, name: true, code: true } },
-				roles: {
-					include: {
-						role: { select: { id: true, name: true, description: true } },
-					},
-				},
-			},
-			orderBy: { email: 'asc' },
-		});
-		res.json(users);
-	} catch (err) {
-		console.error('[GET /admin/users] Error:', err);
-		res.status(500).json({ error: String(err) });
-	}
-});
-
-// POST /admin/users/:id/roles - Update user roles
-app.post('/admin/users/:id/roles', async (req, res) => {
-	try {
-		const userId = Number(req.params.id);
-		const { roles } = req.body;
-
-		if (!Array.isArray(roles)) {
-			return res.status(400).json({ error: 'roles must be an array of role names' });
-		}
-
-		// Get all role records
-		const roleRecords = await prisma.role.findMany({
-			where: { name: { in: roles } },
-		});
-
-		// Delete existing user roles
-		await prisma.userRole.deleteMany({ where: { userId } });
-
-		// Create new user roles
-		await prisma.userRole.createMany({
-			data: roleRecords.map(role => ({
-				userId,
-				roleId: role.id,
-			})),
-		});
-
-		// Return updated user with roles
-		const user = await prisma.user.findUnique({
-			where: { id: userId },
-			include: {
-				department: { select: { id: true, name: true, code: true } },
-				roles: {
-					include: {
-						role: { select: { id: true, name: true, description: true } },
-					},
-				},
-			},
-		});
-
-		res.json(user);
-	} catch (err) {
-		console.error('[POST /admin/users/:id/roles] Error:', err);
-		res.status(500).json({ error: String(err) });
-	}
-});
-
-// POST /admin/departments - Create a new department
-app.post('/admin/departments', async (req, res) => {
-	try {
-		const { name, code, managerId } = req.body;
-
-		if (!name || !code) {
-			return res.status(400).json({ error: 'name and code are required' });
-		}
-
-		const department = await prisma.department.create({
-			data: {
-				name,
-				code,
-				managerId: managerId || null,
-			},
-			include: {
-				manager: { select: { id: true, name: true, email: true } },
-			},
-		});
-
-		res.status(201).json(department);
-	} catch (err) {
-		console.error('[POST /admin/departments] Error:', err);
-		res.status(500).json({ error: String(err) });
-	}
-});
-
-// GET /admin/audit-log - Get audit log entries
-app.get('/admin/audit-log', async (req, res) => {
-	try {
-		const { startDate, endDate, userId } = req.query;
-		const where = {};
-
-		if (startDate) {
-			where.createdAt = { gte: new Date(String(startDate)) };
-		}
-		if (endDate) {
-			where.createdAt = { ...where.createdAt, lte: new Date(String(endDate)) };
-		}
-		if (userId) {
-			where.performedById = Number(userId);
-		}
-
-		const auditLog = await prisma.requestAction.findMany({
-			where,
-			include: {
-				performedBy: { select: { id: true, name: true, email: true } },
-				request: { select: { id: true, reference: true, title: true } },
-			},
-			orderBy: { createdAt: 'desc' },
-			take: 100, // Limit to 100 most recent entries
-		});
-
-		res.json(auditLog);
-	} catch (err) {
-		console.error('[GET /admin/audit-log] Error:', err);
-		res.status(500).json({ error: String(err) });
-	}
-});
-
-// ========================
-// END ADMIN ROUTES
-// ========================
-
 // List requests with simple filters
 app.get('/requests', async (req, res) => {
 	try {
@@ -403,12 +306,9 @@ app.put('/requests/:id', async (req, res) => {
 		if (data.headApproved !== undefined) updateData.headApproved = Boolean(data.headApproved);
 		if (data.commitmentNumber !== undefined) updateData.commitmentNumber = data.commitmentNumber;
 		if (data.accountingCode !== undefined) updateData.accountingCode = data.accountingCode;
-		if (data.currency !== undefined) updateData.currency = data.currency;
 		if (data.budgetComments !== undefined) updateData.budgetComments = data.budgetComments;
 		if (data.budgetOfficerName !== undefined) updateData.budgetOfficerName = data.budgetOfficerName;
 		if (data.budgetManagerName !== undefined) updateData.budgetManagerName = data.budgetManagerName;
-		if (data.budgetOfficerApproved !== undefined) updateData.budgetOfficerApproved = Boolean(data.budgetOfficerApproved);
-		if (data.budgetManagerApproved !== undefined) updateData.budgetManagerApproved = Boolean(data.budgetManagerApproved);
 		if (data.procurementCaseNumber !== undefined) updateData.procurementCaseNumber = data.procurementCaseNumber;
 		if (data.receivedBy !== undefined) updateData.receivedBy = data.receivedBy;
 		if (data.dateReceived !== undefined) updateData.dateReceived = data.dateReceived;
@@ -479,19 +379,6 @@ app.post('/requests/:id/action', async (req, res) => {
 				case 'SUBMITTED':
 					// move to HOD_REVIEW (find head of division in same department)
 					nextStatus = 'HOD_REVIEW';
-					// Auto-populate manager name
-					{
-						const manager = await prisma.user.findUnique({ where: { id: actorId } });
-						if (manager) {
-							await prisma.request.update({
-								where: { id },
-								data: { 
-									managerName: manager.name || manager.email,
-									managerApproved: true
-								}
-							});
-						}
-					}
 					// find user with role HEAD_OF_DIVISION in same department
 					{
 						const hodUserRole = await prisma.userRole.findFirst({ where: { role: { name: 'HEAD_OF_DIVISION' }, user: { departmentId: request.departmentId } }, include: { user: true } });
@@ -501,19 +388,6 @@ app.post('/requests/:id/action', async (req, res) => {
 				case 'HOD_REVIEW':
 					// move to PROCUREMENT_REVIEW (load-balance across procurement officers)
 					nextStatus = 'PROCUREMENT_REVIEW';
-					// Auto-populate HOD name
-					{
-						const hod = await prisma.user.findUnique({ where: { id: actorId } });
-						if (hod) {
-							await prisma.request.update({
-								where: { id },
-								data: { 
-									headName: hod.name || hod.email,
-									headApproved: true
-								}
-							});
-						}
-					}
 					{
 						// Get all procurement officers
 						const procOfficers = await prisma.userRole.findMany({ 
@@ -572,56 +446,8 @@ app.post('/requests/:id/action', async (req, res) => {
 					}
 					break;
 				case 'FINANCE_REVIEW':
-					// Budget Officer approves; move to BUDGET_MANAGER_REVIEW (load-balance across finance managers)
-					nextStatus = 'BUDGET_MANAGER_REVIEW';
-					// Auto-populate Budget Officer name
-					{
-						const budgetOfficer = await prisma.user.findUnique({ where: { id: actorId } });
-						if (budgetOfficer) {
-							await prisma.request.update({
-								where: { id },
-								data: { 
-									budgetOfficerName: budgetOfficer.name || budgetOfficer.email,
-									budgetOfficerApproved: true
-								}
-							});
-						}
-					}
-					{
-						// Assign directly to the Finance Department Manager (budget manager)
-						const financeDept = await prisma.department.findUnique({ where: { code: 'FIN' }, include: { manager: true } });
-						if (financeDept && financeDept.managerId) {
-							// Extra guard: do not assign to a user that also has PROCUREMENT role
-							const isProc = await prisma.userRole.findFirst({ where: { userId: financeDept.managerId, role: { name: 'PROCUREMENT' } } });
-							if (!isProc) {
-								nextAssigneeId = financeDept.managerId;
-								console.log('[workflow] Assigned Budget Manager (Finance Manager) userId=', nextAssigneeId);
-							} else {
-								console.warn('[workflow] Finance manager also has PROCUREMENT role. Not assigning. Please adjust roles.');
-								nextAssigneeId = null;
-							}
-						} else {
-							console.warn('[workflow] Finance department manager not set. Unable to auto-assign Budget Manager.');
-							nextAssigneeId = null;
-						}
-					}
-					break;
-				case 'BUDGET_MANAGER_REVIEW':
-					// Budget Manager approves; mark as FINANCE_APPROVED and assign back to Procurement for dispatch
+					// Finance approves; mark as FINANCE_APPROVED and assign back to Procurement for dispatch (least-load)
 					nextStatus = 'FINANCE_APPROVED';
-					// Auto-populate Budget Manager name
-					{
-						const budgetManager = await prisma.user.findUnique({ where: { id: actorId } });
-						if (budgetManager) {
-							await prisma.request.update({
-								where: { id },
-								data: { 
-									budgetManagerName: budgetManager.name || budgetManager.email,
-									budgetManagerApproved: true
-								}
-							});
-						}
-					}
 					{
 						const procOfficers = await prisma.userRole.findMany({
 							where: { role: { name: 'PROCUREMENT' } },
@@ -732,7 +558,6 @@ app.get('/requests/:id/pdf', async (req, res) => {
 		const procurementApprovalDate = getApprovalDate('PROCUREMENT_REVIEW');
 		const financeApprovalDate = getApprovalDate('FINANCE_APPROVED');
 
-		const effectiveCurrency = request.currency || 'JMD';
 		const html = tpl
 			.replace(/{{reference}}/g, String(request.reference || request.id))
 			.replace(/{{submittedAt}}/g, request.createdAt ? new Date(request.createdAt).toLocaleString() : '')
@@ -740,8 +565,8 @@ app.get('/requests/:id/pdf', async (req, res) => {
 			.replace(/{{requesterEmail}}/g, request.requester?.email || '')
 			.replace(/{{departmentName}}/g, request.department?.name || '')
 			.replace(/{{priority}}/g, String(request.priority || ''))
-			.replace(/{{currency}}/g, effectiveCurrency)
-			.replace(/{{totalEstimated}}/g, request.totalEstimated ? `${effectiveCurrency} ${request.totalEstimated}` : '')
+			.replace(/{{currency}}/g, request.currency || '')
+			.replace(/{{totalEstimated}}/g, request.totalEstimated ? String(request.totalEstimated) : '')
 			.replace(/{{description}}/g, (request.description || '').replace(/</g, '&lt;'))
 			.replace(/{{itemsRows}}/g, itemsRows)
 			.replace(/{{managerName}}/g, request.managerName || '')
@@ -764,13 +589,7 @@ app.get('/requests/:id/pdf', async (req, res) => {
 			.replace(/{{financeApprovalDate}}/g, financeApprovalDate)
 			.replace(/{{now}}/g, new Date().toLocaleString());
 		logPdf('html-length', html.length);
-		// Render PDF via headless Chromium
-		const t0 = Date.now();
-		const browser = await puppeteer.launch({
-			headless: 'new',
-			args: ['--no-sandbox', '--disable-setuid-sandbox']
-		});
-		const page = await browser.newPage();
+e();
 				let pdf;
 				try {
 					await page.setContent(html, { waitUntil: 'load' });
@@ -805,48 +624,155 @@ app.get('/requests/:id/pdf', async (req, res) => {
 // INNOVATION HUB API ROUTES
 // ============================================
 
+// Utility: extract @mentions (simple heuristic). Returns array of usernames (raw) and matched user IDs.
+async function extractMentions(prisma, text) {
+	if (!text) return { raw: [], userIds: [] };
+	const raw = Array.from(new Set(String(text).match(/@[a-zA-Z0-9._-]+/g) || []));
+	if (raw.length === 0) return { raw: [], userIds: [] };
+	// Attempt to match by exact name (case-insensitive) or email prefix before @
+	const cleaned = raw.map(r => r.slice(1));
+	const users = await prisma.user.findMany({
+		where: {
+			OR: [
+				{ name: { in: cleaned, mode: 'insensitive' } },
+				{ email: { in: cleaned.map(c => c.includes('.') ? c : `${c}%`), mode: 'insensitive' } },
+			],
+		},
+		select: { id: true, name: true, email: true }
+	});
+	const userIds = users.map(u => u.id);
+	return { raw, userIds };
+}
+
 // Get all ideas with optional filtering
 app.get('/api/ideas', async (req, res) => {
 	try {
-		const { status, sort } = req.query || {};
+		const { status, sort, include, category, tag } = req.query || {};
+		const includeAttachments = include === 'attachments';
+		
+		// Get user ID and check if they're committee
+		const actorId = getActingUserId(req);
+		const userRoles = actorId ? await getRolesForUser(actorId) : [];
+		const isCommittee = userRoles.includes('INNOVATION_COMMITTEE');
+		
+		// Map frontend status values to Prisma enum values
+		const statusMap = {
+			'pending': 'PENDING_REVIEW',
+			'approved': 'APPROVED',
+			'rejected': 'REJECTED',
+			'draft': 'DRAFT',
+			'promoted': 'PROMOTED_TO_PROJECT',
+			// Also support direct enum values
+			'PENDING_REVIEW': 'PENDING_REVIEW',
+			'APPROVED': 'APPROVED',
+			'REJECTED': 'REJECTED',
+			'DRAFT': 'DRAFT',
+			'PROMOTED_TO_PROJECT': 'PROMOTED_TO_PROJECT',
+		};
 		const where = {};
-		if (status) where.status = String(status);
-		const orderBy = sort === 'popular' ? { voteCount: 'desc' } : { createdAt: 'desc' };
 
+		// Parse multi-status: repeated ?status=APPROVED or comma-separated
+		const rawStatuses = Array.isArray(status)
+			? status
+			: typeof status === 'string'
+			? status.split(',').map((s) => s.trim()).filter(Boolean)
+			: [];
+		const mappedStatuses = rawStatuses
+			.map((s) => statusMap[s] || statusMap[String(s).toUpperCase()] || statusMap[String(s).toLowerCase()])
+			.filter(Boolean);
+		
+		// IMPORTANT: If user is NOT committee, only show APPROVED ideas
+		if (!isCommittee) {
+			where.status = 'APPROVED';
+			console.log('[api/ideas] Non-committee user - showing only APPROVED ideas');
+		} else if (mappedStatuses.length === 1) {
+			where.status = mappedStatuses[0];
+			console.log('[api/ideas] Committee - Status filter:', rawStatuses, '→', mappedStatuses[0]);
+		} else if (mappedStatuses.length > 1) {
+			where.status = { in: mappedStatuses };
+			console.log('[api/ideas] Committee - Status filter:', rawStatuses, '→', mappedStatuses);
+		}
+
+		// Parse categories similarly
+		const rawCats = Array.isArray(category)
+			? category
+			: typeof category === 'string'
+			? category.split(',').map((c) => c.trim()).filter(Boolean)
+			: [];
+		const validCategories = new Set(['PROCESS_IMPROVEMENT','TECHNOLOGY','CUSTOMER_SERVICE','SUSTAINABILITY','COST_REDUCTION','PRODUCT_INNOVATION','OTHER']);
+		const mappedCats = rawCats.filter((c) => validCategories.has(String(c)));
+		if (mappedCats.length === 1) where.category = mappedCats[0];
+		if (mappedCats.length > 1) where.category = { in: mappedCats };
+
+		// Filter by tag (single or multiple)
+		const rawTags = Array.isArray(tag)
+			? tag
+			: typeof tag === 'string'
+			? tag.split(',').map((t) => t.trim()).filter(Boolean)
+			: [];
+		if (rawTags.length) {
+			where.tags = { some: { tagId: { in: rawTags.map((x) => Number(x)).filter((n) => Number.isFinite(n)) } } };
+		}
+
+		let orderBy = { createdAt: 'desc' };
+		if (sort === 'popular' || sort === 'popularity') orderBy = { voteCount: 'desc' };
+		if (sort === 'trending') orderBy = [{ voteCount: 'desc' }, { createdAt: 'desc' }];
+
+		console.log('[api/ideas] Query:', { where, orderBy, sort, includeAttachments });
 		const ideas = await prisma.idea.findMany({
 			where,
 			orderBy,
-			include: { submitter: true, _count: { select: { comments: true } } },
+			include: { 
+				submitter: true, 
+				attachments: includeAttachments, 
+				tags: { include: { tag: true } }, 
+				challenge: true, 
+				votes: actorId ? { where: { userId: actorId } } : false,
+				_count: { select: { comments: true } } 
+			},
 		});
-
-		const payload = ideas.map((i) => ({
-			id: i.id,
-			title: i.title,
-			description: i.description,
-			category: i.category,
-			status: i.status,
-			// Include both submittedById (numeric) and submittedBy (display string) so the frontend can filter reliably
-			submittedById: i.submittedBy,
-			submittedBy: i.submitter?.name || i.submitter?.email || String(i.submittedBy),
-			submittedAt: i.submittedAt,
-			reviewedBy: i.reviewedBy,
-			reviewedAt: i.reviewedAt,
-			reviewNotes: i.reviewNotes,
-			promotedAt: i.promotedAt,
-			projectCode: i.projectCode,
-			voteCount: i.voteCount,
-			upvoteCount: i.upvoteCount || 0,
-			downvoteCount: i.downvoteCount || 0,
-			viewCount: i.viewCount,
-			commentCount: i._count?.comments || 0,
-			createdAt: i.createdAt,
-			updatedAt: i.updatedAt,
-		}));
-
+		const payload = ideas.map((i) => {
+			// Check if current user has voted
+			const userVote = actorId && i.votes ? i.votes.find(v => v.userId === actorId) : null;
+			
+			return {
+				id: i.id,
+				title: i.title,
+				description: i.description,
+				descriptionHtml: i.descriptionHtml || null,
+				category: i.category,
+				status: i.status,
+				stage: i.stage,
+				isAnonymous: i.isAnonymous,
+				submittedById: i.submittedBy,
+				submittedBy: i.submitter?.name || i.submitter?.email || String(i.submittedBy),
+				submittedAt: i.submittedAt,
+				reviewedBy: i.reviewedBy,
+				reviewedAt: i.reviewedAt,
+				reviewNotes: i.reviewNotes,
+				promotedAt: i.promotedAt,
+				projectCode: i.projectCode,
+				voteCount: i.voteCount,
+				upvoteCount: i.upvoteCount || 0,
+				downvoteCount: i.downvoteCount || 0,
+				viewCount: i.viewCount,
+				commentCount: i._count?.comments || 0,
+				hasVoted: !!userVote,
+				userVoteType: userVote?.voteType || null,
+				challenge: i.challenge ? { id: i.challenge.id, title: i.challenge.title } : null,
+				tags: (i.tags || []).map(it => ({ id: it.tag.id, name: it.tag.name })),
+				createdAt: i.createdAt,
+				updatedAt: i.updatedAt,
+				...(includeAttachments && {
+					attachments: i.attachments,
+					firstAttachmentUrl: i.attachments?.[0]?.fileUrl || null,
+				}),
+			};
+		});
 		res.json(payload);
 	} catch (err) {
 		console.error('GET /api/ideas error:', err);
-		res.status(500).json({ error: 'failed to fetch ideas' });
+		res.status(500).json({ error: 'Unable to load ideas', message: 'Unable to load ideas. Please try again later.' });
 	}
 });
 
@@ -855,6 +781,7 @@ app.get('/api/ideas/:id', async (req, res) => {
 	try {
 		const id = Number(req.params.id);
 		const actorId = getActingUserId(req);
+		const includeAttachments = req.query.include === 'attachments';
 
 		const idea = await prisma.idea.findUnique({
 			where: { id },
@@ -866,9 +793,11 @@ app.get('/api/ideas/:id', async (req, res) => {
 							select: { id: true, name: true, email: true }
 						}
 					}
-				}
-			,
-			_count: { select: { comments: true } }
+				},
+				attachments: includeAttachments,
+				tags: { include: { tag: true } },
+				challenge: true,
+				_count: { select: { comments: true } }
 			},
 		});
 
@@ -890,8 +819,11 @@ app.get('/api/ideas/:id', async (req, res) => {
 			id: idea.id,
 			title: idea.title,
 			description: idea.description,
+			descriptionHtml: idea.descriptionHtml || null,
 			category: idea.category,
 			status: idea.status,
+			stage: idea.stage,
+			isAnonymous: idea.isAnonymous,
 			submittedById: idea.submittedBy,
 			submittedBy: idea.submitter?.name || idea.submitter?.email || String(idea.submittedBy),
 			submittedAt: idea.submittedAt,
@@ -905,6 +837,8 @@ app.get('/api/ideas/:id', async (req, res) => {
 			downvoteCount: idea.downvoteCount || 0,
 			viewCount: idea.viewCount + 1, // Return incremented count
 			commentCount: idea._count?.comments || 0,
+			challenge: idea.challenge ? { id: idea.challenge.id, title: idea.challenge.title } : null,
+			tags: (idea.tags || []).map(it => ({ id: it.tag.id, name: it.tag.name })),
 			createdAt: idea.createdAt,
 			updatedAt: idea.updatedAt,
 			hasVoted,
@@ -915,23 +849,55 @@ app.get('/api/ideas/:id', async (req, res) => {
 				userName: v.user.name || v.user.email,
 				voteType: v.voteType,
 				createdAt: v.createdAt
-			}))
+			})),
+			...(includeAttachments && idea.attachments && {
+				attachments: idea.attachments.map(a => ({
+					id: a.id,
+					fileName: a.fileName,
+					fileUrl: a.fileUrl,
+					fileSize: a.fileSize,
+					mimeType: a.mimeType,
+					uploadedAt: a.uploadedAt
+				}))
+			})
 		};
 
 		res.json(payload);
 	} catch (err) {
 		console.error('GET /api/ideas/:id error:', err);
-		res.status(500).json({ error: 'failed to fetch idea' });
+		res.status(500).json({ error: 'Unable to load idea', message: 'Unable to load idea details. Please try again later.' });
 	}
 });
 
 // Submit a new idea
-app.post('/api/ideas', async (req, res) => {
+// Multi-file upload: accept legacy single image (field 'image') and new 'files' array (max 5)
+app.post('/api/ideas', upload.fields([{ name: 'files', maxCount: 5 }, { name: 'image', maxCount: 1 }]), async (req, res) => {
 	try {
 		const actorId = getActingUserId(req);
-		const { title, description, category, expectedBenefits, implementationNotes } = req.body || {};
+		const { title, description, descriptionHtml, category, expectedBenefits, implementationNotes, isAnonymous, challengeId } = req.body || {};
 		if (!actorId) return res.status(400).json({ error: 'x-user-id header required' });
 		if (!title || !description) return res.status(400).json({ error: 'title and description are required' });
+
+		// Sanitize optional HTML, and keep plain text
+		let safeHtml = null;
+		if (descriptionHtml) {
+			safeHtml = sanitizeHtml(String(descriptionHtml), {
+				allowedTags: sanitizeHtml.defaults.allowedTags.concat(['img','h1','h2','h3','u','s','ins']),
+				allowedAttributes: {
+					...sanitizeHtml.defaults.allowedAttributes,
+					img: ['src','alt','title','width','height'],
+					a: ['href','name','target','rel'],
+				},
+				allowedSchemes: ['http','https','data','mailto'],
+				allowProtocolRelative: false,
+				transformTags: {
+					a: (tagName, attribs) => ({
+						tagName: 'a',
+						attribs: { ...attribs, rel: 'noopener noreferrer', target: '_blank' }
+					}),
+				},
+			});
+		}
 
 		// Validate category against enum values; default to OTHER if invalid
 		const validCategories = new Set(['PROCESS_IMPROVEMENT','TECHNOLOGY','CUSTOMER_SERVICE','SUSTAINABILITY','COST_REDUCTION','PRODUCT_INNOVATION','OTHER']);
@@ -941,29 +907,137 @@ app.post('/api/ideas', async (req, res) => {
 			data: {
 				title,
 				description,
+				descriptionHtml: safeHtml,
 				category: cat,
 				submittedBy: actorId,
 				status: 'PENDING_REVIEW',
+				isAnonymous: Boolean(isAnonymous),
+				challengeId: challengeId ? Number(challengeId) : null,
 			},
 			include: { submitter: true }
 		});
 
+		// Gather uploaded files (new multi-files or legacy single image)
+		const uploadedFiles = [];
+		const filesField = req.files?.files;
+		const legacyImageField = req.files?.image;
+		if (Array.isArray(filesField)) uploadedFiles.push(...filesField);
+		if (Array.isArray(legacyImageField)) uploadedFiles.push(...legacyImageField);
+
+		for (const f of uploadedFiles) {
+			const fileUrl = `/uploads/${f.filename}`;
+			try {
+				await prisma.ideaAttachment.create({
+					data: {
+						ideaId: idea.id,
+						fileName: f.originalname,
+						fileUrl,
+						fileSize: f.size,
+						mimeType: f.mimetype,
+					},
+				});
+			} catch (createErr) {
+				console.error('[attachments] Failed to persist attachment:', createErr);
+			}
+
+			// Optional thumbnail generation for images
+			if (sharp && f.mimetype && f.mimetype.startsWith('image/')) {
+				try {
+					const inputPath = path.join(UPLOAD_DIR, f.filename);
+					const thumbName = `thumb_${f.filename}`;
+					const outPath = path.join(THUMB_DIR, thumbName);
+					await sharp(inputPath).resize({ width: 480 }).jpeg({ quality: 80 }).toFile(outPath);
+				} catch (thumbErr) {
+					console.warn('[thumbs] generation failed:', thumbErr?.message);
+				}
+			}
+		}
+
+		// Tags assignment: accept tagIds (comma-separated) or tags[] fields
+		const tagIds = [];
+		const body = req.body || {};
+		if (Array.isArray(body.tagIds)) {
+			for (const v of body.tagIds) {
+				const n = Number(v); if (Number.isFinite(n)) tagIds.push(n);
+			}
+		} else if (typeof body.tagIds === 'string') {
+			for (const part of String(body.tagIds).split(',').map(s => s.trim())) {
+				const n = Number(part); if (Number.isFinite(n)) tagIds.push(n);
+			}
+		}
+		if (tagIds.length) {
+			await prisma.$transaction(tagIds.map((tid) => prisma.ideaTag.upsert({
+				where: { ideaId_tagId: { ideaId: idea.id, tagId: tid } },
+				update: {},
+				create: { ideaId: idea.id, tagId: tid },
+			})));
+			// Audit log
+			await prisma.auditLog.create({ data: { ideaId: idea.id, userId: actorId, action: 'TAGS_UPDATED', message: `Tags set: ${tagIds.join(',')}` } });
+		}
+
+		// Reload with attachments
+		const created = await prisma.idea.findUnique({
+			where: { id: idea.id },
+			include: { submitter: true, attachments: true, tags: { include: { tag: true } }, challenge: true }
+		});
+
 		res.json({
-			id: idea.id,
-			title: idea.title,
-			description: idea.description,
-			category: idea.category,
-			status: idea.status,
-			submittedBy: idea.submitter?.name || idea.submitter?.email || String(idea.submittedBy),
-			submittedAt: idea.submittedAt,
-			voteCount: idea.voteCount,
-			viewCount: idea.viewCount,
-			createdAt: idea.createdAt,
-			updatedAt: idea.updatedAt,
+			id: created.id,
+			title: created.title,
+			description: created.description,
+			descriptionHtml: created.descriptionHtml || null,
+			category: created.category,
+			status: created.status,
+			stage: created.stage,
+			isAnonymous: created.isAnonymous,
+			submittedBy: created.submitter?.name || created.submitter?.email || String(created.submittedBy),
+			submittedAt: created.submittedAt,
+			voteCount: created.voteCount,
+			viewCount: created.viewCount,
+			createdAt: created.createdAt,
+			updatedAt: created.updatedAt,
+			attachments: created.attachments,
+			challenge: created.challenge ? { id: created.challenge.id, title: created.challenge.title } : null,
+			tags: (created.tags || []).map(it => ({ id: it.tag.id, name: it.tag.name })),
 		});
 	} catch (err) {
 		console.error('POST /api/ideas error:', err);
-		res.status(500).json({ error: 'failed to create idea' });
+		res.status(500).json({ error: 'failed to create idea', details: err?.message });
+	}
+});
+
+// Duplicate detection: naive similarity on title+description
+app.post('/api/ideas/check-duplicates', async (req, res) => {
+	try {
+		const { title, description } = req.body || {};
+		if (!title && !description) return res.status(400).json({ error: 'title or description required' });
+
+		// Fetch recent ideas to compare against (limit 200 for performance)
+		const ideas = await prisma.idea.findMany({
+			orderBy: { createdAt: 'desc' },
+			take: 200,
+			include: { submitter: true },
+		});
+
+		const textA = `${title || ''} ${description || ''}`.toLowerCase();
+		const tokensA = new Set(textA.split(/[^a-z0-9]+/).filter(Boolean));
+
+		const scored = ideas.map((i) => {
+			const textB = `${i.title} ${i.description}`.toLowerCase();
+			const tokensB = new Set(textB.split(/[^a-z0-9]+/).filter(Boolean));
+			let inter = 0;
+			for (const tok of tokensA) if (tokensB.has(tok)) inter++;
+			const union = tokensA.size + tokensB.size - inter || 1;
+			const jaccard = inter / union;
+			return { id: i.id, title: i.title, snippet: i.description.slice(0, 180), score: jaccard, submittedAt: i.createdAt };
+		}).filter(x => x.score > 0.25) // only keep somewhat similar
+		  .sort((a, b) => b.score - a.score)
+		  .slice(0, 5);
+
+		res.json({ matches: scored });
+	} catch (err) {
+		console.error('POST /api/ideas/check-duplicates error:', err);
+		res.status(500).json({ error: 'failed to check duplicates' });
 	}
 });
 
@@ -1036,23 +1110,43 @@ app.post('/api/ideas/:id/vote', async (req, res) => {
 		// Check if already voted
 		const existing = await prisma.vote.findUnique({ where: { ideaId_userId: { ideaId: id, userId: actorId } } });
 		
-		if (existing) {
-			// If same vote type, treat as unvote
-			if (existing.voteType === type) {
-				return res.status(400).json({ error: 'already voted' });
+		// If creating a new vote (not switching), check the 10-vote limit
+		if (!existing) {
+			const userVoteCount = await prisma.vote.count({ where: { userId: actorId } });
+			if (userVoteCount >= 10) {
+				return res.status(400).json({ error: 'vote limit reached', message: 'You can only vote on up to 10 ideas. Remove a vote to vote on this idea.' });
 			}
-			// If different type, switch the vote
-			await prisma.$transaction([
-				prisma.vote.update({ where: { id: existing.id }, data: { voteType: type } }),
-				prisma.idea.update({
-					where: { id },
-					data: {
-						upvoteCount: type === 'UPVOTE' ? { increment: 1 } : { decrement: 1 },
-						downvoteCount: type === 'DOWNVOTE' ? { increment: 1 } : { decrement: 1 },
-						voteCount: type === 'UPVOTE' ? { increment: 2 } : { decrement: 2 } // net change of 2 when switching
-					}
-				}),
-			]);
+		}
+		
+		if (existing) {
+			// If same vote type, remove the vote (toggle behavior)
+			if (existing.voteType === type) {
+				const wasUpvote = existing.voteType === 'UPVOTE';
+				await prisma.$transaction([
+					prisma.vote.delete({ where: { id: existing.id } }),
+					prisma.idea.update({
+						where: { id },
+						data: {
+							voteCount: wasUpvote ? { decrement: 1 } : { increment: 1 },
+							upvoteCount: wasUpvote ? { decrement: 1 } : undefined,
+							downvoteCount: !wasUpvote ? { decrement: 1 } : undefined,
+						}
+					}),
+				]);
+			} else {
+				// If different type, switch the vote
+				await prisma.$transaction([
+					prisma.vote.update({ where: { id: existing.id }, data: { voteType: type } }),
+					prisma.idea.update({
+						where: { id },
+						data: {
+							upvoteCount: type === 'UPVOTE' ? { increment: 1 } : { decrement: 1 },
+							downvoteCount: type === 'DOWNVOTE' ? { increment: 1 } : { decrement: 1 },
+							voteCount: type === 'UPVOTE' ? { increment: 2 } : { decrement: 2 } // net change of 2 when switching
+						}
+					}),
+				]);
+			}
 		} else {
 			// Create new vote
 			await prisma.$transaction([
@@ -1115,7 +1209,7 @@ app.post('/api/ideas/:id/vote', async (req, res) => {
 		});
 	} catch (err) {
 		console.error('POST /api/ideas/:id/vote error:', err);
-		res.status(500).json({ error: 'failed to vote' });
+		res.status(500).json({ error: 'Unable to vote', message: 'We were unable to process your vote. Please try again.' });
 	}
 });
 
@@ -1189,7 +1283,416 @@ app.delete('/api/ideas/:id/vote', async (req, res) => {
 		});
 	} catch (err) {
 		console.error('DELETE /api/ideas/:id/vote error:', err);
-		res.status(500).json({ error: 'failed to remove vote' });
+		res.status(500).json({ error: 'Unable to remove vote', message: 'We were unable to remove your vote. Please try again.' });
+	}
+});
+
+// Lightweight user search for mentions (no schema changes required)
+app.get('/api/users', async (req, res) => {
+	try {
+		const { search, take } = req.query || {};
+		const where = search ? {
+			OR: [
+				{ name: { contains: String(search), mode: 'insensitive' } },
+				{ email: { contains: String(search), mode: 'insensitive' } },
+			]
+		} : {};
+		const users = await prisma.user.findMany({
+			where,
+			orderBy: { name: 'asc' },
+			take: Math.min(Number(take) || 10, 50),
+			select: { id: true, name: true, email: true }
+		});
+		res.json(users.map(u => ({ id: u.id, name: u.name || u.email, email: u.email })));
+	} catch (err) {
+		console.error('GET /api/users error:', err);
+		res.status(500).json({ error: 'failed to list users' });
+	}
+});
+
+// Related ideas based on Jaccard similarity of title+description
+app.get('/api/ideas/:id/related', async (req, res) => {
+	try {
+		const id = Number(req.params.id);
+		const base = await prisma.idea.findUnique({ where: { id }, select: { id: true, title: true, description: true } });
+		if (!base) return res.status(404).json({ error: 'idea not found' });
+		const others = await prisma.idea.findMany({
+			where: { id: { not: id }, status: { in: ['PENDING_REVIEW','APPROVED','PROMOTED_TO_PROJECT'] } },
+			orderBy: { createdAt: 'desc' },
+			take: 250,
+			include: { attachments: true }
+		});
+		const tokens = (s) => new Set(String(s || '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean));
+		const A = tokens(`${base.title} ${base.description}`);
+		const scored = others.map(o => {
+			const B = tokens(`${o.title} ${o.description}`);
+			let inter = 0; for (const t of A) if (B.has(t)) inter++;
+			const union = A.size + B.size - inter || 1;
+			const score = inter / union;
+			return {
+				id: o.id,
+				title: o.title,
+				snippet: String(o.description || '').slice(0, 160),
+				score,
+				firstAttachmentUrl: o.attachments?.[0]?.fileUrl || null,
+			};
+		}).filter(x => x.score > 0.15)
+		  .sort((a,b) => b.score - a.score)
+		  .slice(0, 5);
+		res.json({ related: scored });
+	} catch (err) {
+		console.error('GET /api/ideas/:id/related error:', err);
+		res.status(500).json({ error: 'failed to fetch related ideas' });
+	}
+});
+
+// Leaderboard — compute from existing aggregates (no schema change)
+app.get('/api/leaderboard', async (_req, res) => {
+	try {
+		// Gather users with counts
+		const users = await prisma.user.findMany({ select: { id: true, name: true, email: true } });
+		const [ideasByUser, upvotesByIdea, commentsByUser] = await Promise.all([
+			prisma.idea.groupBy({ by: ['submittedBy'], _count: { _all: true } }),
+			prisma.idea.findMany({ select: { id: true, submittedBy: true, upvoteCount: true } }),
+			prisma.ideaComment.groupBy({ by: ['userId'], _count: { _all: true } })
+		]);
+		const ideasMap = new Map(ideasByUser.map(r => [r.submittedBy, r._count._all]));
+		const upvoteMap = new Map();
+		for (const i of upvotesByIdea) {
+			upvoteMap.set(i.submittedBy, (upvoteMap.get(i.submittedBy) || 0) + (i.upvoteCount || 0));
+		}
+		const commentsMap = new Map(commentsByUser.map(r => [r.userId, r._count._all]));
+		const rows = users.map(u => {
+			const ideaCount = ideasMap.get(u.id) || 0;
+			const upvotes = upvoteMap.get(u.id) || 0;
+			const comments = commentsMap.get(u.id) || 0;
+			const points = ideaCount * 5 + upvotes * 1 + comments * 2;
+			const badge = points >= 200 ? 'Platinum' : points >= 100 ? 'Gold' : points >= 50 ? 'Silver' : points >= 25 ? 'Bronze' : null;
+			return { userId: u.id, name: u.name || u.email, email: u.email, ideaCount, upvotes, comments, points, badge };
+		}).sort((a,b) => b.points - a.points).slice(0, 50);
+		res.json({ leaderboard: rows });
+	} catch (err) {
+		console.error('GET /api/leaderboard error:', err);
+		res.status(500).json({ error: 'failed to compute leaderboard' });
+	}
+});
+// ============================================
+// Threaded Comments (Idea Comments)
+// ============================================
+
+// List comments for an idea (flat with parentId; client can build tree)
+app.get('/api/ideas/:id/comments', async (req, res) => {
+	try {
+		const ideaId = Number(req.params.id);
+		if (!Number.isFinite(ideaId)) return res.status(400).json({ error: 'invalid idea id' });
+		const comments = await prisma.ideaComment.findMany({
+			where: { ideaId },
+			orderBy: { createdAt: 'asc' },
+			include: { user: { select: { id: true, name: true, email: true } } }
+		});
+		res.json(comments.map(c => ({
+			id: c.id,
+			ideaId: c.ideaId,
+			userId: c.userId,
+			userName: c.user.name || c.user.email,
+			text: c.text,
+			parentId: c.parentId || null,
+			createdAt: c.createdAt,
+			updatedAt: c.updatedAt,
+		})));
+	} catch (err) {
+		console.error('GET /api/ideas/:id/comments error:', err);
+		res.status(500).json({ error: 'Unable to load comments', message: 'Unable to load comments. Please try again.' });
+	}
+});
+
+// Create a comment (optional parentId for threading)
+app.post('/api/ideas/:id/comments', async (req, res) => {
+	try {
+		const ideaId = Number(req.params.id);
+		const actorId = getActingUserId(req);
+		if (!actorId) return res.status(400).json({ error: 'x-user-id header required' });
+		const { text, parentId } = req.body || {};
+		if (!text || !String(text).trim()) return res.status(400).json({ error: 'text required' });
+		// Basic existence check
+		const idea = await prisma.idea.findUnique({ where: { id: ideaId }, select: { id: true } });
+		if (!idea) return res.status(404).json({ error: 'idea not found' });
+		if (parentId) {
+			const parent = await prisma.ideaComment.findUnique({ where: { id: Number(parentId) }, select: { id: true, ideaId: true } });
+			if (!parent || parent.ideaId !== ideaId) return res.status(400).json({ error: 'invalid parentId' });
+		}
+		// Sanitize text (strip dangerous HTML if any)
+		const safeText = sanitizeHtml(String(text), { allowedTags: [], allowedAttributes: {} });
+		const mentions = await extractMentions(prisma, safeText);
+		const created = await prisma.ideaComment.create({
+			data: { ideaId, userId: actorId, text: safeText, parentId: parentId ? Number(parentId) : null },
+			include: { user: { select: { id: true, name: true, email: true } } }
+		});
+		// Audit log
+		await prisma.auditLog.create({ data: { ideaId, userId: actorId, action: 'COMMENT_CREATED', message: 'Comment added' } });
+		// Notifications for mentions
+		if (mentions.userIds && mentions.userIds.length) {
+			await prisma.$transaction(mentions.userIds.map(uid => prisma.notification.create({
+				data: {
+					userId: uid,
+					type: 'MENTION',
+					message: `You were mentioned in idea #${ideaId}`,
+					data: { ideaId, commentId: created.id }
+				}
+			})));
+		}
+		// TODO: Notifications (Task 28) — create notification records for mentions.userIds
+		res.status(201).json({
+			id: created.id,
+			ideaId: created.ideaId,
+			userId: created.userId,
+			userName: created.user.name || created.user.email,
+			text: created.text,
+			parentId: created.parentId || null,
+			createdAt: created.createdAt,
+			updatedAt: created.updatedAt,
+			mentions: mentions.raw,
+			mentionUserIds: mentions.userIds,
+		});
+	} catch (err) {
+		console.error('POST /api/ideas/:id/comments error:', err);
+		res.status(500).json({ error: 'failed to create comment' });
+	}
+});
+
+// Tags
+app.get('/api/tags', async (_req, res) => {
+	try {
+		const tags = await prisma.tag.findMany({ orderBy: { name: 'asc' } });
+		res.json(tags);
+	} catch (err) { res.status(500).json({ error: 'failed to list tags' }); }
+});
+app.post('/api/tags', async (req, res) => {
+	try {
+		const { name } = req.body || {};
+		if (!name) return res.status(400).json({ error: 'name required' });
+		const tag = await prisma.tag.create({ data: { name: String(name) } });
+		res.status(201).json(tag);
+	} catch (err) { res.status(500).json({ error: 'failed to create tag' }); }
+});
+
+// Challenges
+app.get('/api/challenges', async (_req, res) => {
+	try {
+		const list = await prisma.challenge.findMany({ orderBy: { createdAt: 'desc' } });
+		res.json(list);
+	} catch (err) { res.status(500).json({ error: 'failed to list challenges' }); }
+});
+app.get('/api/challenges/:id', async (req, res) => {
+	try {
+		const id = Number(req.params.id);
+		const ch = await prisma.challenge.findUnique({ where: { id }, include: { ideas: true } });
+		if (!ch) return res.status(404).json({ error: 'challenge not found' });
+		res.json(ch);
+	} catch (err) { res.status(500).json({ error: 'failed to load challenge' }); }
+});
+
+// Stage transitions
+app.get('/api/ideas/:id/stage-history', async (req, res) => {
+	try {
+		const ideaId = Number(req.params.id);
+		const rows = await prisma.ideaStageHistory.findMany({ where: { ideaId }, orderBy: { createdAt: 'asc' } });
+		res.json(rows);
+	} catch (err) { res.status(500).json({ error: 'failed to list stage history' }); }
+});
+app.post('/api/ideas/:id/stage-transition', async (req, res) => {
+	try {
+		const ideaId = Number(req.params.id);
+		const actorId = getActingUserId(req);
+		const { toStage, note } = req.body || {};
+		if (!toStage) return res.status(400).json({ error: 'toStage required' });
+		const current = await prisma.idea.findUnique({ where: { id: ideaId }, select: { stage: true } });
+		if (!current) return res.status(404).json({ error: 'idea not found' });
+		await prisma.$transaction([
+			prisma.idea.update({ where: { id: ideaId }, data: { stage: toStage } }),
+			prisma.ideaStageHistory.create({ data: { ideaId, fromStage: current.stage, toStage, note: note || null, userId: actorId || null } }),
+			prisma.auditLog.create({ data: { ideaId, userId: actorId || null, action: 'STAGE_CHANGED', message: `Stage → ${toStage}`, metadata: { note } } }),
+		]);
+		res.json({ ok: true });
+	} catch (err) { res.status(500).json({ error: 'failed to transition stage' }); }
+});
+
+// Audit log
+app.get('/api/ideas/:id/audit', async (req, res) => {
+	try {
+		const ideaId = Number(req.params.id);
+		const rows = await prisma.auditLog.findMany({ where: { ideaId }, orderBy: { createdAt: 'desc' }, include: { user: { select: { id: true, name: true, email: true } } } });
+		res.json(rows.map(r => ({ id: r.id, action: r.action, message: r.message, createdAt: r.createdAt, userName: r.user?.name || r.user?.email || '—', metadata: r.metadata })));
+	} catch (err) { res.status(500).json({ error: 'failed to fetch audit' }); }
+});
+
+// Notifications
+app.get('/api/notifications', async (req, res) => {
+	try {
+		const userId = getActingUserId(req);
+		if (!userId) return res.status(400).json({ error: 'x-user-id header required' });
+		const rows = await prisma.notification.findMany({ where: { userId }, orderBy: { createdAt: 'desc' } });
+		res.json(rows);
+	} catch (err) { res.status(500).json({ error: 'failed to list notifications' }); }
+});
+app.post('/api/notifications/:id/read', async (req, res) => {
+	try {
+		const id = Number(req.params.id);
+		await prisma.notification.update({ where: { id }, data: { readAt: new Date() } });
+		res.json({ ok: true });
+	} catch (err) { res.status(500).json({ error: 'failed to mark read' }); }
+});
+
+// Full-text like search (naive)
+app.get('/api/ideas/search', async (req, res) => {
+	try {
+		const q = String(req.query.q || '').trim();
+		if (!q) return res.json({ results: [] });
+		const ideas = await prisma.idea.findMany({
+			where: {
+				OR: [
+					{ title: { contains: q, mode: 'insensitive' } },
+					{ description: { contains: q, mode: 'insensitive' } },
+				]
+			},
+			orderBy: { createdAt: 'desc' },
+			take: 50,
+			include: { attachments: true }
+		});
+		res.json({ results: ideas.map(i => ({ id: i.id, title: i.title, snippet: String(i.description || '').slice(0, 180), firstAttachmentUrl: i.attachments?.[0]?.fileUrl || null })) });
+	} catch (err) { res.status(500).json({ error: 'failed to search' }); }
+});
+
+// Innovation dashboard aggregates
+app.get('/api/innovation/stats', async (_req, res) => {
+	try {
+		const [byStatus, byCategory, byStage, totalIdeas] = await Promise.all([
+			prisma.idea.groupBy({ by: ['status'], _count: { _all: true } }),
+			prisma.idea.groupBy({ by: ['category'], _count: { _all: true } }),
+			prisma.idea.groupBy({ by: ['stage'], _count: { _all: true } }),
+			prisma.idea.count(),
+		]);
+		res.json({
+			totalIdeas,
+			byStatus: byStatus.map(r => ({ status: r.status, count: r._count._all })),
+			byCategory: byCategory.map(r => ({ category: r.category, count: r._count._all })),
+			byStage: byStage.map(r => ({ stage: r.stage, count: r._count._all })),
+		});
+	} catch (err) { res.status(500).json({ error: 'failed to compute stats' }); }
+});
+
+// Innovation analytics - comprehensive metrics for committee dashboard
+app.get('/api/innovation/analytics', async (_req, res) => {
+	try {
+		// Get all ideas with votes and comments count
+		const ideas = await prisma.idea.findMany({
+			include: {
+				votes: true,
+				_count: { select: { comments: true } }
+			}
+		});
+
+		// Calculate KPIs
+		const totalIdeas = ideas.length;
+		const underReview = ideas.filter(i => i.status === 'PENDING_REVIEW').length;
+		const approved = ideas.filter(i => i.status === 'APPROVED').length;
+		const totalVotes = ideas.reduce((sum, i) => sum + i.votes.length, 0);
+		const totalComments = ideas.reduce((sum, i) => sum + (i._count?.comments || 0), 0);
+		const totalEngagement = totalVotes + totalComments;
+
+		// Submissions by month (last 12 months)
+		const monthlySubmissions = Array(12).fill(0);
+		const now = new Date();
+		ideas.forEach(idea => {
+			const createdAt = new Date(idea.createdAt);
+			const monthsDiff = (now.getFullYear() - createdAt.getFullYear()) * 12 + (now.getMonth() - createdAt.getMonth());
+			if (monthsDiff >= 0 && monthsDiff < 12) {
+				monthlySubmissions[11 - monthsDiff]++;
+			}
+		});
+
+		// Ideas by category
+		const categoryMap = {};
+		ideas.forEach(idea => {
+			categoryMap[idea.category] = (categoryMap[idea.category] || 0) + 1;
+		});
+
+		// Status pipeline
+		const statusPipeline = {
+			submitted: ideas.filter(i => i.status === 'PENDING_REVIEW' || i.status === 'DRAFT').length,
+			underReview: ideas.filter(i => i.status === 'PENDING_REVIEW').length,
+			approved: ideas.filter(i => i.status === 'APPROVED').length,
+			rejected: ideas.filter(i => i.status === 'REJECTED').length,
+			promoted: ideas.filter(i => i.status === 'PROMOTED_TO_PROJECT').length,
+		};
+
+		// Top contributors
+		const submitterMap = {};
+		ideas.forEach(idea => {
+			const submitter = idea.submittedBy || 'Unknown';
+			if (!submitterMap[submitter]) {
+				submitterMap[submitter] = { name: submitter, ideas: 0, votes: 0 };
+			}
+			submitterMap[submitter].ideas++;
+			submitterMap[submitter].votes += idea.votes.length;
+		});
+		const topContributors = Object.values(submitterMap)
+			.sort((a, b) => b.ideas - a.ideas)
+			.slice(0, 5);
+
+		// Weekly engagement (last 8 weeks)
+		const weeklyViews = Array(8).fill(0);
+		const weeklyVotes = Array(8).fill(0);
+		const weeksAgo = 8;
+		const msPerWeek = 7 * 24 * 60 * 60 * 1000;
+		
+		ideas.forEach(idea => {
+			const createdAt = new Date(idea.createdAt).getTime();
+			const weeksDiff = Math.floor((now.getTime() - createdAt) / msPerWeek);
+			if (weeksDiff >= 0 && weeksDiff < weeksAgo) {
+				const index = weeksAgo - 1 - weeksDiff;
+				weeklyViews[index] += idea.viewCount || 0;
+				weeklyVotes[index] += idea.votes.length;
+			}
+		});
+
+		res.json({
+			kpis: {
+				totalIdeas,
+				underReview,
+				approved,
+				promoted: statusPipeline.promoted,
+				totalEngagement,
+			},
+			submissionsByMonth: monthlySubmissions,
+			ideasByCategory: categoryMap,
+			statusPipeline,
+			topContributors,
+			weeklyEngagement: {
+				views: weeklyViews,
+				votes: weeklyVotes,
+			}
+		});
+	} catch (err) {
+		console.error('GET /api/innovation/analytics error:', err);
+		res.status(500).json({ error: 'Unable to compute analytics', message: 'Unable to load analytics data. Please try again later.' });
+	}
+});
+
+// Delete a comment (owner-only for now; later extend to moderators/admin roles)
+app.delete('/api/ideas/comments/:commentId', async (req, res) => {
+	try {
+		const commentId = Number(req.params.commentId);
+		const actorId = getActingUserId(req);
+		if (!actorId) return res.status(400).json({ error: 'x-user-id header required' });
+		const comment = await prisma.ideaComment.findUnique({ where: { id: commentId } });
+		if (!comment) return res.status(404).json({ error: 'comment not found' });
+		if (comment.userId !== actorId) return res.status(403).json({ error: 'not allowed to delete this comment' });
+		await prisma.ideaComment.delete({ where: { id: commentId } });
+		res.json({ ok: true });
+	} catch (err) {
+		console.error('DELETE /api/ideas/comments/:commentId error:', err);
+		res.status(500).json({ error: 'failed to delete comment' });
 	}
 });
 

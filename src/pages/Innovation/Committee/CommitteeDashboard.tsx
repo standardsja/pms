@@ -117,16 +117,21 @@ const CommitteeDashboard = () => {
                 setPromotedIdeas(data);
             }
         } catch (e: any) {
-            setError(e?.message || 'Failed to load ideas');
-            Swal.fire({ 
-                icon: 'error', 
-                title: 'Failed to load', 
-                text: e?.message, 
-                toast: true, 
-                position: 'bottom-end', 
-                timer: 2500, 
-                showConfirmButton: false 
-            });
+            const errorMessage = e?.message || 'Unable to load ideas';
+            setError(errorMessage);
+            
+            // Only show toast for foreground loads, not background polling
+            if (showLoader) {
+                Swal.fire({ 
+                    icon: 'error', 
+                    title: 'Unable to Load Ideas', 
+                    text: 'We encountered a problem loading the ideas. Please try refreshing the page.', 
+                    toast: true, 
+                    position: 'bottom-end', 
+                    timer: 3500, 
+                    showConfirmButton: false 
+                });
+            }
         } finally {
             if (showLoader) setLoadingList(false);
         }
@@ -219,11 +224,11 @@ const CommitteeDashboard = () => {
             setCounts(rollbackCounts);
             Swal.fire({ 
                 icon: 'error', 
-                title: 'Action failed', 
-                text: e?.message, 
+                title: 'Action Failed', 
+                text: 'We were unable to process your request. Please try again.', 
                 toast: true, 
                 position: 'bottom-end', 
-                timer: 2200, 
+                timer: 3000, 
                 showConfirmButton: false 
             });
         } finally {
@@ -270,7 +275,7 @@ const CommitteeDashboard = () => {
             
             Swal.fire({ 
                 icon: 'success', 
-                title: `Promoted to ${updated.projectCode}`, 
+                title: updated.projectCode ? `Promoted to ${updated.projectCode}` : 'Promoted successfully!', 
                 toast: true, 
                 position: 'bottom-end', 
                 timer: 2000, 
@@ -283,11 +288,11 @@ const CommitteeDashboard = () => {
             setCounts(rollbackCounts);
             Swal.fire({ 
                 icon: 'error', 
-                title: 'Promote failed', 
-                text: e?.message, 
+                title: 'Promotion Failed', 
+                text: 'We were unable to promote this idea. Please try again.', 
                 toast: true, 
                 position: 'bottom-end', 
-                timer: 2200, 
+                timer: 3000, 
                 showConfirmButton: false 
             });
         } finally {
@@ -624,10 +629,25 @@ const CommitteeDashboard = () => {
                     )}
                     
                     {error && (
-                        <div className="py-8 text-center">
-                            <div className="text-5xl mb-3">⚠️</div>
-                            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Error Loading Ideas</h3>
-                            <p className="text-red-500">{error}</p>
+                        <div className="py-12 text-center">
+                            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/20 mb-4">
+                                <svg className="w-8 h-8 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                            </div>
+                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Connection Issue</h3>
+                            <p className="text-gray-600 dark:text-gray-400 mb-4 max-w-md mx-auto">
+                                We're having trouble loading the ideas. This might be a temporary network issue.
+                            </p>
+                            <button 
+                                onClick={() => loadList(true)} 
+                                className="btn btn-primary"
+                            >
+                                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                                Try Again
+                            </button>
                         </div>
                     )}
 

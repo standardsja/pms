@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import { config as dotenvConfig } from 'dotenv';
 import path from 'path';
-import { PrismaClient } from '../src/generated/prisma/client';
+import { PrismaClient } from '@prisma/client';
 
 // Load .env at project root for DATABASE_URL
 dotenvConfig({ path: path.resolve(process.cwd(), '.env') });

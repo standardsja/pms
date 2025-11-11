@@ -67,17 +67,46 @@ class AuthService {
         }
       } catch {}
 
+      // Transform backend user to frontend User type
+      const user = data.user ? {
+        id: data.user.id,
+        email: data.user.email,
+        full_name: data.user.name || data.user.email,
+        status: 'active' as const,
+        roles: data.user.roles || [],
+        department_id: data.user.department?.id,
+        department_name: data.user.department?.name,
+      } : undefined;
+
       return {
         success: true,
-        user: data.user,
+        user,
         token: data.token,
         message: 'Login successful',
       };
     } catch (error) {
       console.error('[AuthService] Network error:', error);
+      
+      // Provide user-friendly error messages for network issues
+      let errorMessage = 'Network error';
+      
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        errorMessage = 'Unable to connect to server. Please check your internet connection and try again.';
+      } else if (error instanceof Error) {
+        // Check for common network error patterns
+        const msg = error.message.toLowerCase();
+        if (msg.includes('failed to fetch') || msg.includes('network request failed')) {
+          errorMessage = 'Connection failed. Please check your internet connection and ensure the server is running.';
+        } else if (msg.includes('timeout')) {
+          errorMessage = 'Connection timeout. Please check your internet connection and try again.';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
       return {
         success: false,
-        message: error instanceof Error ? error.message : 'Network error',
+        message: errorMessage,
       };
     }
   }

@@ -1,15 +1,16 @@
 {
     "name": "vristo-react-vite",
     "private": true,
-    "version": "1.0.0",
+    "version": "1.0.1 Alpha",
     "type": "module",
     "scripts": {
         "dev": "vite",
         "build": "vite build && tsc",
         "prisma:seed": "npx tsx server/prisma/seed.ts",
         "preview": "vite preview",
-        "server:dev": "npx tsx watch server/index.ts",
-        "seed:ideas": "node server/seed-ideas.mjs"
+        "server:dev": "node server/index.mjs",
+        "seed:ideas": "node server/seed-ideas.mjs",
+        "backfill:votes": "node server/scripts/backfill-vote-counts.mjs"
     },
     "prisma": {
         "seed": "npx tsx server/prisma/seed.ts",
