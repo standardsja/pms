@@ -758,7 +758,7 @@ app.get('/api/ideas', async (req, res) => {
 		res.json(payload);
 	} catch (err) {
 		console.error('GET /api/ideas error:', err);
-		res.status(500).json({ error: 'failed to fetch ideas' });
+		res.status(500).json({ error: 'Unable to load ideas', message: 'Unable to load ideas. Please try again later.' });
 	}
 });
 
@@ -851,7 +851,7 @@ app.get('/api/ideas/:id', async (req, res) => {
 		res.json(payload);
 	} catch (err) {
 		console.error('GET /api/ideas/:id error:', err);
-		res.status(500).json({ error: 'failed to fetch idea' });
+		res.status(500).json({ error: 'Unable to load idea', message: 'Unable to load idea details. Please try again later.' });
 	}
 });
 
@@ -1183,7 +1183,7 @@ app.post('/api/ideas/:id/vote', async (req, res) => {
 		});
 	} catch (err) {
 		console.error('POST /api/ideas/:id/vote error:', err);
-		res.status(500).json({ error: 'failed to vote' });
+		res.status(500).json({ error: 'Unable to vote', message: 'We were unable to process your vote. Please try again.' });
 	}
 });
 
@@ -1257,7 +1257,7 @@ app.delete('/api/ideas/:id/vote', async (req, res) => {
 		});
 	} catch (err) {
 		console.error('DELETE /api/ideas/:id/vote error:', err);
-		res.status(500).json({ error: 'failed to remove vote' });
+		res.status(500).json({ error: 'Unable to remove vote', message: 'We were unable to remove your vote. Please try again.' });
 	}
 });
 
@@ -1376,7 +1376,7 @@ app.get('/api/ideas/:id/comments', async (req, res) => {
 		})));
 	} catch (err) {
 		console.error('GET /api/ideas/:id/comments error:', err);
-		res.status(500).json({ error: 'failed to fetch comments' });
+		res.status(500).json({ error: 'Unable to load comments', message: 'Unable to load comments. Please try again.' });
 	}
 });
 
@@ -1553,6 +1553,104 @@ app.get('/api/innovation/stats', async (_req, res) => {
 			byStage: byStage.map(r => ({ stage: r.stage, count: r._count._all })),
 		});
 	} catch (err) { res.status(500).json({ error: 'failed to compute stats' }); }
+});
+
+// Innovation analytics - comprehensive metrics for committee dashboard
+app.get('/api/innovation/analytics', async (_req, res) => {
+	try {
+		// Get all ideas with votes and comments count
+		const ideas = await prisma.idea.findMany({
+			include: {
+				votes: true,
+				_count: { select: { comments: true } }
+			}
+		});
+
+		// Calculate KPIs
+		const totalIdeas = ideas.length;
+		const underReview = ideas.filter(i => i.status === 'PENDING_REVIEW').length;
+		const approved = ideas.filter(i => i.status === 'APPROVED').length;
+		const totalVotes = ideas.reduce((sum, i) => sum + i.votes.length, 0);
+		const totalComments = ideas.reduce((sum, i) => sum + (i._count?.comments || 0), 0);
+		const totalEngagement = totalVotes + totalComments;
+
+		// Submissions by month (last 12 months)
+		const monthlySubmissions = Array(12).fill(0);
+		const now = new Date();
+		ideas.forEach(idea => {
+			const createdAt = new Date(idea.createdAt);
+			const monthsDiff = (now.getFullYear() - createdAt.getFullYear()) * 12 + (now.getMonth() - createdAt.getMonth());
+			if (monthsDiff >= 0 && monthsDiff < 12) {
+				monthlySubmissions[11 - monthsDiff]++;
+			}
+		});
+
+		// Ideas by category
+		const categoryMap = {};
+		ideas.forEach(idea => {
+			categoryMap[idea.category] = (categoryMap[idea.category] || 0) + 1;
+		});
+
+		// Status pipeline
+		const statusPipeline = {
+			submitted: ideas.filter(i => i.status === 'PENDING_REVIEW' || i.status === 'DRAFT').length,
+			underReview: ideas.filter(i => i.status === 'PENDING_REVIEW').length,
+			approved: ideas.filter(i => i.status === 'APPROVED').length,
+			rejected: ideas.filter(i => i.status === 'REJECTED').length,
+			promoted: ideas.filter(i => i.status === 'PROMOTED_TO_PROJECT').length,
+		};
+
+		// Top contributors
+		const submitterMap = {};
+		ideas.forEach(idea => {
+			const submitter = idea.submittedBy || 'Unknown';
+			if (!submitterMap[submitter]) {
+				submitterMap[submitter] = { name: submitter, ideas: 0, votes: 0 };
+			}
+			submitterMap[submitter].ideas++;
+			submitterMap[submitter].votes += idea.votes.length;
+		});
+		const topContributors = Object.values(submitterMap)
+			.sort((a, b) => b.ideas - a.ideas)
+			.slice(0, 5);
+
+		// Weekly engagement (last 8 weeks)
+		const weeklyViews = Array(8).fill(0);
+		const weeklyVotes = Array(8).fill(0);
+		const weeksAgo = 8;
+		const msPerWeek = 7 * 24 * 60 * 60 * 1000;
+		
+		ideas.forEach(idea => {
+			const createdAt = new Date(idea.createdAt).getTime();
+			const weeksDiff = Math.floor((now.getTime() - createdAt) / msPerWeek);
+			if (weeksDiff >= 0 && weeksDiff < weeksAgo) {
+				const index = weeksAgo - 1 - weeksDiff;
+				weeklyViews[index] += idea.viewCount || 0;
+				weeklyVotes[index] += idea.votes.length;
+			}
+		});
+
+		res.json({
+			kpis: {
+				totalIdeas,
+				underReview,
+				approved,
+				promoted: statusPipeline.promoted,
+				totalEngagement,
+			},
+			submissionsByMonth: monthlySubmissions,
+			ideasByCategory: categoryMap,
+			statusPipeline,
+			topContributors,
+			weeklyEngagement: {
+				views: weeklyViews,
+				votes: weeklyVotes,
+			}
+		});
+	} catch (err) {
+		console.error('GET /api/innovation/analytics error:', err);
+		res.status(500).json({ error: 'Unable to compute analytics', message: 'Unable to load analytics data. Please try again later.' });
+	}
 });
 
 // Delete a comment (owner-only for now; later extend to moderators/admin roles)

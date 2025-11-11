@@ -120,14 +120,35 @@ export default function IdeaDetails() {
   if (error || !idea) {
     return (
       <div className="panel text-center py-16">
-        <div className="text-6xl mb-3" role="img" aria-label="magnify">🔎</div>
-        <h2 className="text-2xl font-bold mb-2">{t('innovation.view.empty.title')}</h2>
-        <p className="mb-6 text-gray-600 dark:text-gray-400">
-          {error || t('innovation.view.empty.message')}
+        <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-red-100 dark:bg-red-900/20 mb-4">
+          <svg className="w-10 h-10 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+        </div>
+        <h2 className="text-2xl font-bold mb-2 text-gray-900 dark:text-white">
+          {error ? 'Unable to Load Idea' : t('innovation.view.empty.title')}
+        </h2>
+        <p className="mb-6 text-gray-600 dark:text-gray-400 max-w-md mx-auto">
+          {error 
+            ? 'We encountered a problem loading this idea. It may not exist or there may be a connection issue.' 
+            : t('innovation.view.empty.message')}
         </p>
-        <Link to="/innovation/ideas/browse" className="btn btn-primary">
-          {t('innovation.browse.viewDetails', { defaultValue: 'Back to Ideas' })}
-        </Link>
+        <div className="flex items-center justify-center gap-3">
+          {error && (
+            <button 
+              onClick={() => loadIdea()} 
+              className="btn btn-primary"
+            >
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              Try Again
+            </button>
+          )}
+          <Link to="/innovation/ideas/browse" className="btn btn-outline-primary">
+            {t('innovation.browse.viewDetails', { defaultValue: 'Back to Ideas' })}
+          </Link>
+        </div>
       </div>
     );
   }

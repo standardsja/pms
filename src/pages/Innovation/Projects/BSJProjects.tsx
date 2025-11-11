@@ -33,16 +33,20 @@ const BSJProjects = () => {
             const data = await fetchIdeas({ status: 'promoted' });
             setProjects(data);
         } catch (e: any) {
-            setError(e?.message || 'Failed to load projects');
-            Swal.fire({
-                icon: 'error',
-                title: 'Failed to load projects',
-                text: e?.message,
-                toast: true,
-                position: 'bottom-end',
-                timer: 2500,
-                showConfirmButton: false
-            });
+            const errorMessage = e?.message || 'Unable to load projects';
+            setError(errorMessage);
+            // Only show toast on foreground loads, not background polling
+            if (showLoader) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Unable to Load Projects',
+                    text: 'We encountered a problem loading BSJ projects. Please try again.',
+                    toast: true,
+                    position: 'bottom-end',
+                    timer: 3500,
+                    showConfirmButton: false
+                });
+            }
         } finally {
             if (showLoader) setLoading(false);
         }
@@ -322,10 +326,19 @@ const BSJProjects = () => {
             {/* Error State */}
             {error && (
                 <div className="panel text-center py-12">
-                    <div className="text-6xl mb-4">⚠️</div>
-                    <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Error Loading Projects</h3>
-                    <p className="text-red-500">{error}</p>
-                    <button className="btn btn-primary mt-4" onClick={() => loadProjects()}>
+                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/20 mb-4">
+                        <svg className="w-8 h-8 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                    </div>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Unable to Load Projects</h3>
+                    <p className="text-gray-600 dark:text-gray-400 mb-4 max-w-md mx-auto">
+                        We encountered a problem loading BSJ projects. Please try again.
+                    </p>
+                    <button className="btn btn-primary" onClick={() => loadProjects()}>
+                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
                         Try Again
                     </button>
                 </div>

@@ -6,8 +6,9 @@ import { setSelectedModule, setOnboardingComplete } from '../../../store/moduleS
 import { getUser } from '../../../utils/auth';
 import { useTranslation } from 'react-i18next';
 import { logEvent } from '../../../utils/analytics';
+import Swal from 'sweetalert2';
 
-type ModuleKey = 'pms' | 'ih' | 'committee';
+type ModuleKey = 'pms' | 'ih' | 'committee' | 'budgeting';
 
 const Onboarding = () => {
     const dispatch = useDispatch();
@@ -17,6 +18,8 @@ const Onboarding = () => {
     const query = useMemo(() => new URLSearchParams(search), [search]);
     const forceOnboarding = query.get('force') === '1' || query.get('reset') === '1';
     const currentUser = getUser();
+    const keySuffix = (currentUser && (currentUser.id || currentUser.email)) || 'anon';
+    const key = (base: string) => `${base}:${keySuffix}`;
     const userRoles: string[] = (currentUser as any)?.roles || ((currentUser as any)?.role ? [(currentUser as any).role] : []);
     const isCommittee = userRoles.includes('INNOVATION_COMMITTEE');
     const isProcurementManager =
@@ -32,6 +35,7 @@ const Onboarding = () => {
     const [lastModule, setLastModule] = useState<ModuleKey | null>(null);
     const radiosRef = useRef<HTMLDivElement | null>(null);
     const [showProcurementSteps, setShowProcurementSteps] = useState<boolean>(false);
+    const [visibleModules, setVisibleModules] = useState<Set<string>>(new Set());
 
     useEffect(() => {
         dispatch(setPageTitle(t('onboarding.title')));
@@ -40,19 +44,21 @@ const Onboarding = () => {
             navigate('/innovation/committee/dashboard', { replace: true });
             return;
         }
-        // Preselect last used module for convenience
-        const last = (localStorage.getItem('lastModule') as ModuleKey | null) || null;
+        
+        // Preselect last used module for convenience (per-user)
+        const last = (localStorage.getItem(key('lastModule')) as ModuleKey | null) || null;
         if (last) setSelected(last);
         setLastModule(last);
 
-        // Auto-redirect returning users who completed onboarding and have a last module
-        const done = localStorage.getItem('onboardingComplete') === 'true';
+        // Auto-redirect returning users who completed onboarding and have a last module (per-user)
+        const done = localStorage.getItem(key('onboardingComplete')) === 'true';
+        
         // Support override via query param: /onboarding?force=1 or ?reset=1
         if (query.get('clear') === '1') {
-            localStorage.removeItem('onboardingComplete');
-            localStorage.removeItem('lastModule');
+            localStorage.removeItem(key('onboardingComplete'));
+            localStorage.removeItem(key('lastModule'));
         } else if (query.get('reset') === '1') {
-            localStorage.removeItem('onboardingComplete');
+            localStorage.removeItem(key('onboardingComplete'));
         }
         if (!forceOnboarding && done && last) {
             // ensure last still exists in modules once computed below
@@ -90,6 +96,7 @@ const Onboarding = () => {
                     t('onboarding.modules.pms.features.1'),
                     t('onboarding.modules.pms.features.2'),
                 ],
+                comingSoon: false,
             },
             {
                 id: 'ih' as ModuleKey,
@@ -103,6 +110,21 @@ const Onboarding = () => {
                     t('onboarding.modules.ih.features.1'),
                     t('onboarding.modules.ih.features.2'),
                 ],
+                comingSoon: false,
+            },
+            {
+                id: 'budgeting' as ModuleKey,
+                title: 'Budgeting & Financial Planning',
+                description: 'Comprehensive budget management and financial forecasting',
+                icon: '💰',
+                gradient: 'from-green-500 to-emerald-700',
+                path: '#',
+                features: [
+                    'Create and track departmental budgets',
+                    'Real-time expense monitoring and alerts',
+                    'Financial forecasting and variance analysis',
+                ],
+                comingSoon: true,
             },
         ];
         // Only expose Committee module to committee members
@@ -119,10 +141,11 @@ const Onboarding = () => {
                     t('onboarding.modules.committee.features.1'),
                     t('onboarding.modules.committee.features.2'),
                 ],
+                comingSoon: false,
             });
         }
         return base;
-    }, [isCommittee, t]);
+    }, [isCommittee, t, isProcurementManager, isRequester]);
 
     // Map for quick lookups after render
     const modulesMap = useRef<{ [k in ModuleKey]?: { path: string; title: string } }>({});
@@ -140,22 +163,60 @@ const Onboarding = () => {
         }
     }, [modules, navigate, isCommittee]);
 
+    // Scroll animation: Intersection Observer for module cards
+    useEffect(() => {
+        const observer = new IntersectionObserver(
+            (entries) => {
+                entries.forEach((entry) => {
+                    if (entry.isIntersecting) {
+                        const moduleId = entry.target.getAttribute('data-module-id');
+                        if (moduleId) {
+                            setVisibleModules((prev) => new Set(prev).add(moduleId));
+                        }
+                    }
+                });
+            },
+            {
+                threshold: 0.1,
+                rootMargin: '0px 0px -50px 0px',
+            }
+        );
+
+        // Observe all module cards
+        const moduleCards = document.querySelectorAll('[data-module-card]');
+        moduleCards.forEach((card) => observer.observe(card));
+
+        return () => observer.disconnect();
+    }, [modules]);
+
     const handleContinue = async () => {
         setError('');
         if (!selected) {
             setError(t('onboarding.errors.selectOne'));
             return;
         }
+
+        // Show "coming soon" popup for budgeting module
+        if (selected === 'budgeting') {
+            Swal.fire({
+                icon: 'info',
+                title: 'Coming Soon!',
+                text: 'The Budgeting & Financial Planning module is currently under development. Stay tuned for updates!',
+                confirmButtonText: 'OK',
+            });
+            return;
+        }
+
         try {
             setIsBusy(true);
-            // Remember last used module for convenience
-            localStorage.setItem('lastModule', selected);
-            localStorage.setItem('selectedModule', selected);
+            // Remember last used module for convenience (per-user)
+            localStorage.setItem(key('lastModule'), selected);
+            localStorage.setItem(key('selectedModule'), selected);
             setLastModule(selected);
             dispatch(setSelectedModule(selected));
             // Persist onboarding completion only if the user opts in
             if (rememberChoice) {
-                localStorage.setItem('onboardingComplete', 'true');
+                localStorage.setItem(key('onboardingComplete'), 'true');
                 dispatch(setOnboardingComplete(true));
             } else {
                 dispatch(setOnboardingComplete(false));
@@ -270,8 +331,9 @@ const Onboarding = () => {
                     onKeyDown={onKeyDownRadios}
                     tabIndex={0}
                 >
-                    {modules.map((m) => {
+                    {modules.map((m, index) => {
                         const isActive = selected === m.id;
+                        const isVisible = visibleModules.has(m.id);
                         return (
                             <button
                                 role="radio"
@@ -279,12 +341,21 @@ const Onboarding = () => {
                                 tabIndex={isActive ? 0 : -1}
                                 key={m.id}
                                 type="button"
+                                data-module-card
+                                data-module-id={m.id}
                                 onClick={() => {
                                     setSelected(m.id);
                                     logEvent('onboarding_selected', { selected: m.id });
                                 }}
-                                className={`group relative text-left bg-white dark:bg-gray-800 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 overflow-hidden border-2 focus:outline-none focus-visible:ring-4 focus-visible:ring-primary/30 ${
+                                style={{
+                                    transitionDelay: `${index * 150}ms`,
+                                }}
+                                className={`group relative text-left bg-white dark:bg-gray-800 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-700 overflow-hidden border-2 focus:outline-none focus-visible:ring-4 focus-visible:ring-primary/30 ${
                                     isActive ? 'border-primary' : 'border-transparent hover:border-primary/60'
+                                } ${
+                                    isVisible
+                                        ? 'opacity-100 translate-y-0'
+                                        : 'opacity-0 translate-y-8'
                                 }`}
                             >
                                 {/* Gradient Header */}
