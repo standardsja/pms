@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { setPageTitle } from '../../../store/themeConfigSlice';
 import IconSettings from '../../../components/Icon/IconSettings';
@@ -6,6 +6,7 @@ import IconFile from '../../../components/Icon/IconFile';
 import IconPlus from '../../../components/Icon/IconPlus';
 import IconPencil from '../../../components/Icon/IconPencil';
 import IconTrash from '../../../components/Icon/IconTrash';
+import adminService, { ADMIN_ROLE_NAMES, type AdminUser } from '../../../services/adminService';
 
 const AdminSettings = () => {
     const dispatch = useDispatch();
@@ -13,7 +14,7 @@ const AdminSettings = () => {
         dispatch(setPageTitle('Admin Settings'));
     });
 
-    const [activeTab, setActiveTab] = useState('workflows');
+    const [activeTab, setActiveTab] = useState<'users' | 'departments' | 'workflows' | 'templates' | 'approvals' | 'general'>('users');
 
     // Modal states
     const [showModal, setShowModal] = useState<{ open: boolean; title: string; message: string; tone: 'success' | 'warning' | 'danger' }>(
@@ -48,6 +49,80 @@ const AdminSettings = () => {
         paymentProcessing: 30,
     });
 
+    // ------- Users & Departments (backend wired) -------
+    const [users, setUsers] = useState<AdminUser[]>([]);
+    const [usersLoading, setUsersLoading] = useState(false);
+    const [usersError, setUsersError] = useState<string | null>(null);
+
+    const [deptName, setDeptName] = useState('');
+    const [deptCode, setDeptCode] = useState('');
+    const [deptManagerId, setDeptManagerId] = useState<number | ''>('');
+    const [deptLoading, setDeptLoading] = useState(false);
+    const [deptError, setDeptError] = useState<string | null>(null);
+    const [deptSuccess, setDeptSuccess] = useState<string | null>(null);
+
+    const flatUsers = useMemo(() => {
+        return users.map(u => ({
+            id: u.id,
+            email: u.email,
+            name: u.name || '',
+            dept: u.department?.name || '',
+            roles: (u.roles || []).map(r => r.role?.name).filter(Boolean) as string[],
+        }));
+    }, [users]);
+
+    async function loadUsers() {
+        setUsersLoading(true);
+        setUsersError(null);
+        try {
+            const list = await adminService.getUsers();
+            setUsers(list);
+        } catch (e: any) {
+            setUsersError(e?.message || 'Failed to load users');
+        } finally {
+            setUsersLoading(false);
+        }
+    }
+
+    useEffect(() => {
+        if (activeTab === 'users' || activeTab === 'departments') {
+            loadUsers();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeTab]);
+
+    async function handleSaveRoles(userId: number, roles: string[]) {
+        try {
+            await adminService.updateUserRoles(userId, roles);
+            await loadUsers();
+            openModal('success', 'Roles Updated', 'User roles have been updated.');
+        } catch (e: any) {
+            openModal('danger', 'Update Failed', e?.message || 'Failed to update roles');
+        }
+    }
+
+    async function handleCreateDepartment(e: React.FormEvent) {
+        e.preventDefault();
+        setDeptError(null);
+        setDeptSuccess(null);
+        setDeptLoading(true);
+        try {
+            const payload: any = { name: deptName.trim(), code: deptCode.trim().toUpperCase() };
+            if (deptManagerId) payload.managerId = Number(deptManagerId);
+            const created = await adminService.createDepartment(payload);
+            setDeptSuccess(`Department created: ${created?.name || ''} (${created?.code || ''})`);
+            setDeptName('');
+            setDeptCode('');
+            setDeptManagerId('');
+            await loadUsers();
+        } catch (e: any) {
+            setDeptError(e?.message || 'Failed to create department');
+        } finally {
+            setDeptLoading(false);
+        }
+    }
+
+    // ------- Existing demo UI actions below (not wired) -------
     // Action handlers
     const handleCreateWorkflow = () => {
         openModal('success', 'Create Workflow', 'New workflow creation form would open here. This feature allows you to define custom approval workflows.');
@@ -128,6 +203,28 @@ const AdminSettings = () => {
                 <ul className="flex flex-wrap border-b border-white-light dark:border-[#191e3a]">
                     <li>
                         <button
+                            onClick={() => setActiveTab('users')}
+                            className={`-mb-[1px] flex items-center gap-2 border-b border-transparent p-5 py-3 hover:text-primary ${
+                                activeTab === 'users' ? '!border-primary text-primary' : ''
+                            }`}
+                        >
+                            <IconSettings className="h-5 w-5" />
+                            Users
+                        </button>
+                    </li>
+                    <li>
+                        <button
+                            onClick={() => setActiveTab('departments')}
+                            className={`-mb-[1px] flex items-center gap-2 border-b border-transparent p-5 py-3 hover:text-primary ${
+                                activeTab === 'departments' ? '!border-primary text-primary' : ''
+                            }`}
+                        >
+                            <IconSettings className="h-5 w-5" />
+                            Departments
+                        </button>
+                    </li>
+                    <li>
+                        <button
                             onClick={() => setActiveTab('workflows')}
                             className={`-mb-[1px] flex items-center gap-2 border-b border-transparent p-5 py-3 hover:text-primary ${
                                 activeTab === 'workflows' ? '!border-primary text-primary' : ''
@@ -172,6 +269,119 @@ const AdminSettings = () => {
                     </li>
                 </ul>
             </div>
+
+            {/* Users Tab (wired) */}
+            {activeTab === 'users' && (
+                <div className="panel">
+                    <div className="mb-4 flex items-center justify-between">
+                        <h5 className="text-lg font-semibold">Users</h5>
+                        <button type="button" className="btn btn-outline-primary" onClick={loadUsers} disabled={usersLoading}>
+                            Refresh
+                        </button>
+                    </div>
+                    {usersError && (
+                        <div className="mb-4 rounded border border-danger bg-danger-light p-3 text-danger">{usersError}</div>
+                    )}
+                    {usersLoading ? (
+                        <div>Loading users…</div>
+                    ) : (
+                        <div className="table-responsive">
+                            <table className="table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Email</th>
+                                        <th>Name</th>
+                                        <th>Department</th>
+                                        <th>Roles</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {flatUsers.map((u) => (
+                                        <UserRow key={u.id} user={u} onSave={handleSaveRoles} />
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Departments Tab (wired) */}
+            {activeTab === 'departments' && (
+                <div className="grid gap-6 lg:grid-cols-2">
+                    <div className="panel">
+                        <h5 className="mb-4 text-lg font-semibold">Create Department</h5>
+                        {deptError && (
+                            <div className="mb-4 rounded border border-danger bg-danger-light p-3 text-danger">{deptError}</div>
+                        )}
+                        {deptSuccess && (
+                            <div className="mb-4 rounded border border-success bg-success/10 p-3 text-success">{deptSuccess}</div>
+                        )}
+                        <form className="space-y-4" onSubmit={handleCreateDepartment}>
+                            <div>
+                                <label className="mb-1 block">Name</label>
+                                <input className="form-input" value={deptName} onChange={(e) => setDeptName(e.target.value)} required />
+                            </div>
+                            <div>
+                                <label className="mb-1 block">Code</label>
+                                <input className="form-input" value={deptCode} onChange={(e) => setDeptCode(e.target.value)} required />
+                            </div>
+                            <div>
+                                <label className="mb-1 block">Manager (optional)</label>
+                                <select
+                                    className="form-select"
+                                    value={deptManagerId}
+                                    onChange={(e) => setDeptManagerId(e.target.value ? Number(e.target.value) : '')}
+                                >
+                                    <option value="">-- none --</option>
+                                    {flatUsers.map((u) => (
+                                        <option key={u.id} value={u.id}>
+                                            {u.name || u.email} ({u.email})
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="flex justify-end gap-2">
+                                <button type="button" className="btn btn-outline-danger" onClick={() => { setDeptName(''); setDeptCode(''); setDeptManagerId(''); setDeptError(null); setDeptSuccess(null); }}>
+                                    Reset
+                                </button>
+                                <button type="submit" className="btn btn-primary" disabled={deptLoading}>
+                                    {deptLoading ? 'Creating…' : 'Create Department'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <div className="panel">
+                        <h5 className="mb-4 text-lg font-semibold">Managers Quick View</h5>
+                        <div className="table-responsive">
+                            <table className="table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Email</th>
+                                        <th>Name</th>
+                                        <th>Department</th>
+                                        <th>Roles</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {flatUsers
+                                        .filter(u => u.roles.includes('DEPT_MANAGER') || u.roles.includes('HEAD_OF_DIVISION'))
+                                        .map((u) => (
+                                            <tr key={u.id}>
+                                                <td className="font-mono">{u.email}</td>
+                                                <td>{u.name}</td>
+                                                <td>{u.dept}</td>
+                                                <td>{u.roles.join(', ')}</td>
+                                            </tr>
+                                        ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Workflows Tab */}
             {activeTab === 'workflows' && (
@@ -516,3 +726,57 @@ const AdminSettings = () => {
 };
 
 export default AdminSettings;
+
+// Local sub-component: editable user row with role checkboxes
+type FlatUser = { id: number; email: string; name: string; dept: string; roles: string[] };
+
+function UserRow({ user, onSave }: { user: FlatUser; onSave: (userId: number, roles: string[]) => void }) {
+    const [localRoles, setLocalRoles] = useState<string[]>(user.roles);
+    const [saving, setSaving] = useState(false);
+    const changed = useMemo(() => {
+        const a = [...localRoles].sort().join(',');
+        const b = [...user.roles].sort().join(',');
+        return a !== b;
+    }, [localRoles, user.roles]);
+
+    function toggleRole(role: string) {
+        setLocalRoles((prev) => (prev.includes(role) ? prev.filter((r) => r !== role) : [...prev, role]));
+    }
+
+    async function handleSave() {
+        setSaving(true);
+        try {
+            await onSave(user.id, localRoles);
+        } finally {
+            setSaving(false);
+        }
+    }
+
+    return (
+        <tr>
+            <td className="font-mono">{user.email}</td>
+            <td>{user.name}</td>
+            <td>{user.dept}</td>
+            <td>
+                <div className="flex flex-wrap gap-2">
+                    {ADMIN_ROLE_NAMES.map((r) => (
+                        <label key={r} className="inline-flex items-center gap-1">
+                            <input
+                                type="checkbox"
+                                className="form-checkbox"
+                                checked={localRoles.includes(r)}
+                                onChange={() => toggleRole(r)}
+                            />
+                            <span className="text-xs">{r}</span>
+                        </label>
+                    ))}
+                </div>
+            </td>
+            <td>
+                <button className="btn btn-sm btn-primary" onClick={handleSave} disabled={!changed || saving}>
+                    {saving ? 'Saving…' : 'Save'}
+                </button>
+            </td>
+        </tr>
+    );
+}

@@ -7,7 +7,8 @@ export enum UserRole {
     SUPPLIER = 'Supplier',
     EXECUTIVE_DIRECTOR = 'Executive Director',
     FINANCE = 'Finance Officer',
-    USER = 'User'
+    USER = 'User',
+    INNOVATION_COMMITTEE = 'INNOVATION_COMMITTEE'
 }
 
 // User interface matching your schema

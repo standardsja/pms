@@ -1,15 +1,22 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { setPageTitle } from '../store/themeConfigSlice';
+import { selectUser } from '../store/authSlice';
 
 const ModuleSelector = () => {
     const dispatch = useDispatch();
     const navigate = useNavigate();
+    const user = useSelector(selectUser);
 
     useEffect(() => {
         dispatch(setPageTitle('Select Module'));
-    }, [dispatch]);
+        
+        // Redirect committee users directly to their dashboard
+        if (user?.roles?.includes('INNOVATION_COMMITTEE')) {
+            navigate('/innovation/committee/dashboard', { replace: true });
+        }
+    }, [dispatch, user, navigate]);
 
     const modules = [
         {
