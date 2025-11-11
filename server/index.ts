@@ -417,9 +417,52 @@ app.post('/api/requisitions', async (req, res) => {
   }
 });
 
-(async () => {
-  await ensureDbConnection();
-  app.listen(PORT, () => {
-    console.log(`API server listening on http://localhost:${PORT}`);
+import http from 'http';
+let server: http.Server | null = null;
+
+async function start() {
+  try {
+    await ensureDbConnection();
+    server = app.listen(PORT, () => {
+      console.log(`API server listening on http://localhost:${PORT}`);
+    });
+  } catch (err) {
+    console.error('Startup error:', err);
+    // Fail fast so tsx watch can restart cleanly
+    process.exit(1);
+  }
+}
+
+function gracefulShutdown(signal: string) {
+  console.log(`\n${signal} received. Shutting down gracefully...`);
+  const closeServer = () => new Promise<void>((resolve) => {
+    if (server) {
+      server.close(() => resolve());
+    } else {
+      resolve();
+    }
   });
-})();
+  Promise.all([
+    closeServer(),
+    prisma.$disconnect().catch(() => undefined),
+  ]).then(() => {
+    console.log('Cleanup complete. Exiting.');
+    process.exit(0);
+  });
+}
+
+['SIGINT','SIGTERM','SIGUSR2'].forEach(sig => {
+  process.on(sig as NodeJS.Signals, () => gracefulShutdown(sig));
+});
+
+// Handle unhandled rejections so watch mode doesn't hang
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled Rejection:', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+  // Let the process exit; tsx will restart
+  process.exit(1);
+});
+
+start();
