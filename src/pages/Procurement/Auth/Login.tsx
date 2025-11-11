@@ -2,6 +2,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { setPageTitle } from '../../../store/themeConfigSlice';
+import { clearModule } from '../../../store/moduleSlice';
 import IconMail from '../../../components/Icon/IconMail';
 import IconLockDots from '../../../components/Icon/IconLockDots';
 import IconEye from '../../../components/Icon/IconEye';
@@ -49,6 +50,10 @@ const Login = () => {
             }
             const { token, user } = data || {};
             if (!token || !user) throw new Error('Invalid login response');
+            
+            // Clear Redux module state before setting new auth (forces re-initialization with new user)
+            dispatch(clearModule());
+            
             setAuth(token, user, rememberMe);
             // Also persist legacy userProfile structure expected by RequestForm & index pages
             try {
@@ -80,27 +85,39 @@ const Login = () => {
             // Flag to show onboarding helper image exactly once after successful login
             try { sessionStorage.setItem('showOnboardingImage', '1'); } catch {}
             
-            // Role-based redirect after login
+            // Check if user has completed onboarding (per-user check)
+            const userSuffix = user.id || user.email || 'anon';
+            const hasCompletedOnboarding = localStorage.getItem(`onboardingComplete:${userSuffix}`) === 'true';
+            const hasLastModule = localStorage.getItem(`lastModule:${userSuffix}`) !== null;
+            
+            // Role-based redirect after login - BUT respect onboarding for first-time/non-remembered users
             const userRoles = user.roles || (user.role ? [user.role] : []);
-            if (userRoles.includes('INNOVATION_COMMITTEE')) {
-                navigate('/innovation/committee/dashboard');
-            } else if (
-                userRoles.includes('PROCUREMENT_MANAGER') ||
-                userRoles.includes('MANAGER') ||
-                userRoles.some((r: string) => r && r.toUpperCase().includes('MANAGER'))
-            ) {
-                navigate('/procurement/manager');
-            } else if (
-                userRoles.includes('PROCUREMENT_OFFICER') ||
-                userRoles.includes('PROCUREMENT')
-            ) {
-                navigate('/procurement/dashboard');
-            } else if (userRoles.includes('SUPPLIER') || userRoles.some((r: string) => r && r.toUpperCase().includes('SUPPLIER'))) {
-                navigate('/supplier');
-            } else if (userRoles.some((r: string) => r && r.toUpperCase().includes('REQUEST'))) {
-                navigate('/apps/requests');
+            
+            // Only auto-redirect to role-specific dashboards if user has completed onboarding
+            if (hasCompletedOnboarding && hasLastModule) {
+                if (userRoles.includes('INNOVATION_COMMITTEE')) {
+                    navigate('/innovation/committee/dashboard');
+                } else if (
+                    userRoles.includes('PROCUREMENT_MANAGER') ||
+                    userRoles.includes('MANAGER') ||
+                    userRoles.some((r: string) => r && r.toUpperCase().includes('MANAGER'))
+                ) {
+                    navigate('/procurement/manager');
+                } else if (
+                    userRoles.includes('PROCUREMENT_OFFICER') ||
+                    userRoles.includes('PROCUREMENT')
+                ) {
+                    navigate('/procurement/dashboard');
+                } else if (userRoles.includes('SUPPLIER') || userRoles.some((r: string) => r && r.toUpperCase().includes('SUPPLIER'))) {
+                    navigate('/supplier');
+                } else if (userRoles.some((r: string) => r && r.toUpperCase().includes('REQUEST'))) {
+                    navigate('/apps/requests');
+                } else {
+                    // Fallback to onboarding selector
+                    navigate('/onboarding');
+                }
             } else {
-                // Fallback to onboarding selector
+                // First time or user didn't check "Remember" - always show onboarding
                 navigate('/onboarding');
             }
         } catch (err: any) {
