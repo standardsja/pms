@@ -132,7 +132,7 @@ const HelpSupport = () => {
                 {/* Header */}
                 <div className="mb-6">
                     <h2 className="text-2xl font-bold mb-2">Help & Support Center</h2>
-                    <p className="text-white-dark">Find answers to common questions and get assistance with the Procurement Management System</p>
+                    <p className="text-white-dark">Find answers to common questions and get assistance with the Smart Portal for Information Exchange</p>
                 </div>
 
                 {/* Contact Support */}

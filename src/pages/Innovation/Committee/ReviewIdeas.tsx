@@ -7,10 +7,10 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import Swal from 'sweetalert2';
 
 const tabs = [
-  { key: 'pending', label: 'Pending Review', apiStatus: 'PENDING_REVIEW' },
-  { key: 'approved', label: 'Approved', apiStatus: 'APPROVED' },
-  { key: 'rejected', label: 'Rejected', apiStatus: 'REJECTED' },
-  { key: 'popular', label: 'Popular', apiStatus: null },
+  { key: 'pending', label: 'Pending Review' },
+  { key: 'approved', label: 'Approved' },
+  { key: 'rejected', label: 'Rejected' },
+  { key: 'popular', label: 'Popular' },
 ] as const;
 
 export default function ReviewIdeas() {
@@ -104,11 +104,10 @@ export default function ReviewIdeas() {
       if (showLoader) setLoading(true);
       setError(null);
       try {
-        const activeTab = tabs.find(t => t.key === active);
         const data = await fetchIdeas(
           active === 'popular'
             ? { sort: 'popularity' }
-            : { status: activeTab?.apiStatus || active }
+            : { status: active }
         );
         if (!cancelled) {
           setIdeas(data);
@@ -294,16 +293,29 @@ export default function ReviewIdeas() {
         if (!isConfirmed) return;
         await approveIdea(idea.id);
       }
+      
+      // Generate a default project code
+      const year = new Date().getFullYear();
+      const randomPart = Math.random().toString(36).substring(2, 7).toUpperCase();
+      const defaultCode = `INNO-${year}-${randomPart}`;
+      
       const { value: projectCode } = await Swal.fire({
-        title: 'Project Code', input: 'text', inputLabel: 'Optional - leave blank to auto-generate',
-        inputPlaceholder: 'e.g. INNO-2025-001', showCancelButton: true
+        title: 'Project Code',
+        input: 'text',
+        inputLabel: 'Enter project code or leave blank to auto-generate',
+        inputValue: defaultCode,
+        inputPlaceholder: 'e.g. INNO-2025-001',
+        showCancelButton: true
       });
       
       if (projectCode === undefined) return; // User cancelled
       
+      // If user cleared the field, use the default code
+      const finalCode = projectCode && projectCode.trim() ? projectCode.trim() : defaultCode;
+      
       setIdeas(optimisticIdeas);
-      const updated = await promoteIdea(idea.id, projectCode || undefined);
-      Swal.fire({ icon: 'success', title: updated.projectCode ? `Promoted to ${updated.projectCode}` : 'Promoted successfully!', toast: true, position: 'bottom-end', timer: 2000, showConfirmButton: false });
+      const updated = await promoteIdea(idea.id, finalCode);
+      Swal.fire({ icon: 'success', title: `Promoted to ${updated.projectCode}`, toast: true, position: 'bottom-end', timer: 2000, showConfirmButton: false });
     } catch (e: any) {
       setIdeas(rollbackIdeas);
       Swal.fire({ icon: 'error', title: 'Promote failed', text: e?.message || 'Please try again', toast: true, position: 'bottom-end', timer: 2200, showConfirmButton: false });

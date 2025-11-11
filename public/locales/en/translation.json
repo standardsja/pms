@@ -375,12 +375,26 @@
             },
             "filters": {
                 "category": "Category:",
+                "status": "Status:",
+                "sort": "Sort by:",
                 "all": "All"
+            },
+            "sort": {
+                "recent": "Most Recent",
+                "popular": "Most Popular",
+                "trending": "Trending"
             },
             "status": {
                 "approved": "Approved",
                 "underReview": "Under Review",
                 "implemented": "Implemented"
+            },
+            "statusFilter": {
+                "PENDING_REVIEW": "Pending Review",
+                "APPROVED": "Approved",
+                "REJECTED": "Rejected",
+                "PROMOTED_TO_PROJECT": "Implemented",
+                "DRAFT": "Draft"
             },
             "engagement": {
                 "votes": "{{count}} votes",
