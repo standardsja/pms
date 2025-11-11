@@ -1096,6 +1096,14 @@ app.post('/api/ideas/:id/vote', async (req, res) => {
 		// Check if already voted
 		const existing = await prisma.vote.findUnique({ where: { ideaId_userId: { ideaId: id, userId: actorId } } });
 		
+		// If creating a new vote (not switching), check the 10-vote limit
+		if (!existing) {
+			const userVoteCount = await prisma.vote.count({ where: { userId: actorId } });
+			if (userVoteCount >= 10) {
+				return res.status(400).json({ error: 'vote limit reached', message: 'You can only vote on up to 10 ideas. Remove a vote to vote on this idea.' });
+			}
+		}
+		
 		if (existing) {
 			// If same vote type, treat as unvote
 			if (existing.voteType === type) {

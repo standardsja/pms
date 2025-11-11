@@ -183,6 +183,17 @@ const VoteOnIdeas = () => {
         } catch (error) {
             console.error('[VoteOnIdeas] Error voting:', error);
             
+            // Check if vote limit reached
+            if (error instanceof Error && error.message === 'VOTE_LIMIT_REACHED') {
+                void Swal.fire({
+                    icon: 'warning',
+                    title: t('innovation.vote.warning.noVotesLeft.title'),
+                    text: t('innovation.vote.warning.noVotesLeft.message'),
+                    confirmButtonText: 'OK',
+                });
+                return;
+            }
+            
             // Check if it's a duplicate vote error
             if (error instanceof Error && error.message.includes('already voted')) {
                 void Swal.fire({

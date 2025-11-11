@@ -348,9 +348,12 @@ export async function voteForIdea(id: string | number, voteType: 'UPVOTE' | 'DOW
       if (errorJson.error === 'already voted') {
         throw new Error('ALREADY_VOTED');
       }
-      errorMessage = errorJson.error || errorMessage;
+      if (errorJson.error === 'vote limit reached') {
+        throw new Error('VOTE_LIMIT_REACHED');
+      }
+      errorMessage = errorJson.message || errorJson.error || errorMessage;
     } catch (e) {
-      if (e instanceof Error && e.message === 'ALREADY_VOTED') {
+      if (e instanceof Error && (e.message === 'ALREADY_VOTED' || e.message === 'VOTE_LIMIT_REACHED')) {
         throw e;
       }
       // If JSON parsing failed, leave errorMessage as is
