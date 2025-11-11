@@ -722,7 +722,10 @@ app.get('/api/ideas', async (req, res) => {
 		const ideas = await prisma.idea.findMany({
 			where,
 			orderBy,
-			include: { submitter: true, attachments: includeAttachments, tags: { include: { tag: true } }, challenge: true, _count: { select: { comments: true } } },
+			include: { 
+				submitter: true, 
+				_count: { select: { comments: true } } 
+			},
 		});
 		const payload = ideas.map((i) => ({
 			id: i.id,
@@ -731,8 +734,8 @@ app.get('/api/ideas', async (req, res) => {
 			descriptionHtml: i.descriptionHtml || null,
 			category: i.category,
 			status: i.status,
-			stage: i.stage,
-			isAnonymous: i.isAnonymous,
+			stage: i.stage || 'DISCOVERY',
+			isAnonymous: i.isAnonymous || false,
 			submittedById: i.submittedBy,
 			submittedBy: i.submitter?.name || i.submitter?.email || String(i.submittedBy),
 			submittedAt: i.submittedAt,
@@ -746,14 +749,11 @@ app.get('/api/ideas', async (req, res) => {
 			downvoteCount: i.downvoteCount || 0,
 			viewCount: i.viewCount,
 			commentCount: i._count?.comments || 0,
-			challenge: i.challenge ? { id: i.challenge.id, title: i.challenge.title } : null,
-			tags: (i.tags || []).map(it => ({ id: it.tag.id, name: it.tag.name })),
+			challenge: null,
+			tags: [],
+			attachments: [],
 			createdAt: i.createdAt,
 			updatedAt: i.updatedAt,
-			...(includeAttachments && {
-				attachments: i.attachments,
-				firstAttachmentUrl: i.attachments?.[0]?.fileUrl || null,
-			}),
 		}));
 		res.json(payload);
 	} catch (err) {
@@ -1574,5 +1574,25 @@ app.delete('/api/ideas/comments/:commentId', async (req, res) => {
 
 app.listen(PORT, () => {
 	console.log(`Server listening on ${PORT}`);
+	console.log(`Database: Connected to ${process.env.DATABASE_URL ? process.env.DATABASE_URL.split('@')[1] : 'default'}`);
+	console.log(`Upload directory: ${UPLOAD_DIR}`);
+	console.log('\n✅ Server ready - Press Ctrl+C to stop\n');
 });
 
+// Keep process alive
+setInterval(() => {
+	// Heartbeat to prevent process from exiting
+}, 60000);
+
+// Error handlers to prevent silent crashes
+process.on('uncaughtException', (err) => {
+	console.error('\n❌ UNCAUGHT EXCEPTION:', err);
+	console.error('Stack:', err.stack);
+	// Keep server running for debugging
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+	console.error('\n❌ UNHANDLED REJECTION at:', promise);
+	console.error('Reason:', reason);
+	// Keep server running for debugging
+});
