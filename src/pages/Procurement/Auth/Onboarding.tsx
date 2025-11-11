@@ -17,6 +17,8 @@ const Onboarding = () => {
     const query = useMemo(() => new URLSearchParams(search), [search]);
     const forceOnboarding = query.get('force') === '1' || query.get('reset') === '1';
     const currentUser = getUser();
+    const keySuffix = (currentUser && (currentUser.id || currentUser.email)) || 'anon';
+    const key = (base: string) => `${base}:${keySuffix}`;
     const userRoles: string[] = (currentUser as any)?.roles || ((currentUser as any)?.role ? [(currentUser as any).role] : []);
     const isCommittee = userRoles.includes('INNOVATION_COMMITTEE');
     const isProcurementManager =
@@ -40,19 +42,19 @@ const Onboarding = () => {
             navigate('/innovation/committee/dashboard', { replace: true });
             return;
         }
-        // Preselect last used module for convenience
-        const last = (localStorage.getItem('lastModule') as ModuleKey | null) || null;
+        // Preselect last used module for convenience (per-user)
+        const last = (localStorage.getItem(key('lastModule')) as ModuleKey | null) || null;
         if (last) setSelected(last);
         setLastModule(last);
 
-        // Auto-redirect returning users who completed onboarding and have a last module
-        const done = localStorage.getItem('onboardingComplete') === 'true';
+        // Auto-redirect returning users who completed onboarding and have a last module (per-user)
+        const done = localStorage.getItem(key('onboardingComplete')) === 'true';
         // Support override via query param: /onboarding?force=1 or ?reset=1
         if (query.get('clear') === '1') {
-            localStorage.removeItem('onboardingComplete');
-            localStorage.removeItem('lastModule');
+            localStorage.removeItem(key('onboardingComplete'));
+            localStorage.removeItem(key('lastModule'));
         } else if (query.get('reset') === '1') {
-            localStorage.removeItem('onboardingComplete');
+            localStorage.removeItem(key('onboardingComplete'));
         }
         if (!forceOnboarding && done && last) {
             // ensure last still exists in modules once computed below
@@ -148,14 +150,14 @@ const Onboarding = () => {
         }
         try {
             setIsBusy(true);
-            // Remember last used module for convenience
-            localStorage.setItem('lastModule', selected);
-            localStorage.setItem('selectedModule', selected);
+            // Remember last used module for convenience (per-user)
+            localStorage.setItem(key('lastModule'), selected);
+            localStorage.setItem(key('selectedModule'), selected);
             setLastModule(selected);
             dispatch(setSelectedModule(selected));
             // Persist onboarding completion only if the user opts in
             if (rememberChoice) {
-                localStorage.setItem('onboardingComplete', 'true');
+                localStorage.setItem(key('onboardingComplete'), 'true');
                 dispatch(setOnboardingComplete(true));
             } else {
                 dispatch(setOnboardingComplete(false));

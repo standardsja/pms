@@ -62,6 +62,21 @@ const Login = () => {
                 };
                 localStorage.setItem('userProfile', JSON.stringify(legacyProfile));
             } catch {}
+            // Migrate legacy global onboarding keys to per-user to avoid cross-user leakage
+            try {
+                const suffix = user.id || user.email || 'anon';
+                const k = (base: string) => `${base}:${suffix}`;
+                const legacyKeys = ['onboardingComplete', 'selectedModule', 'lastModule'] as const;
+                legacyKeys.forEach((base) => {
+                    const legacyVal = localStorage.getItem(base);
+                    if (legacyVal !== null && localStorage.getItem(k(base)) === null) {
+                        localStorage.setItem(k(base), legacyVal);
+                    }
+                    // Remove legacy key to prevent affecting other users on the same device
+                    if (legacyVal !== null) localStorage.removeItem(base);
+                });
+            } catch {}
+
             // Flag to show onboarding helper image exactly once after successful login
             try { sessionStorage.setItem('showOnboardingImage', '1'); } catch {}
             
