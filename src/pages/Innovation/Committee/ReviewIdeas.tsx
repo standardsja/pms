@@ -18,7 +18,9 @@ export default function ReviewIdeas() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const currentUser = getUser();
-  const roles: string[] = (currentUser?.roles as any) || (currentUser?.role ? [currentUser.role] : []);
+  const roles: string[] = Array.isArray(currentUser?.roles) 
+    ? currentUser.roles 
+    : (currentUser?.role ? [currentUser.role] : []);
   const isCommittee = roles?.includes?.('INNOVATION_COMMITTEE');
 
   const [active, setActive] = useState<(typeof tabs)[number]['key']>('pending');
@@ -70,7 +72,9 @@ export default function ReviewIdeas() {
     const urlSubmitter = searchParams.get('submitter');
     const urlPage = searchParams.get('page');
     
-    if (urlTab && tabs.some(t => t.key === urlTab)) setActive(urlTab as any);
+    if (urlTab && tabs.some(t => t.key === urlTab)) {
+      setActive(urlTab as typeof tabs[number]['key']);
+    }
     if (urlSearch) setSearch(urlSearch);
     if (urlCategory) setCategoryFilter(urlCategory);
     if (urlDateFrom) setDateFrom(urlDateFrom);
@@ -82,7 +86,7 @@ export default function ReviewIdeas() {
 
   // Update URL params when filters change
   const updateUrlParams = useCallback(() => {
-    const params: any = {};
+    const params: Record<string, string> = {};
     if (active !== 'pending') params.tab = active;
     if (search) params.search = search;
     if (categoryFilter !== 'all') params.category = categoryFilter;
@@ -113,8 +117,8 @@ export default function ReviewIdeas() {
           setIdeas(data);
           setTotalCount(data.length);
         }
-      } catch (e: any) {
-        if (!cancelled) setError(e?.message || 'Unable to load ideas');
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : 'Unable to load ideas');
         // Only show error on foreground loads, not background polling
         if (showLoader) {
           Swal.fire({ 
@@ -149,7 +153,7 @@ export default function ReviewIdeas() {
       }
       
       // Skip if typing in input/textarea
-      if (['INPUT', 'TEXTAREA'].includes((e.target as any)?.tagName)) return;
+      if (e.target instanceof HTMLElement && ['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
       
       const visibleIdeas = paginatedIdeas;
       
@@ -213,10 +217,11 @@ export default function ReviewIdeas() {
         if (active === 'rejected') setIdeas((prev) => [updated, ...prev]);
         Swal.fire({ icon: 'success', title: 'Rejected', toast: true, position: 'bottom-end', timer: 1800, showConfirmButton: false });
       }
-    } catch (e: any) {
+    } catch (e) {
       // Rollback on failure
       setIdeas(rollbackIdeas);
-      Swal.fire({ icon: 'error', title: 'Action failed', text: e?.message || 'Please try again', toast: true, position: 'bottom-end', timer: 2200, showConfirmButton: false });
+      const errorMsg = e instanceof Error ? e.message : 'Please try again';
+      Swal.fire({ icon: 'error', title: 'Action failed', text: errorMsg, toast: true, position: 'bottom-end', timer: 2200, showConfirmButton: false });
     } finally {
       setShowNotes(false);
       setSelectedIdea(null);
@@ -280,9 +285,10 @@ export default function ReviewIdeas() {
       
       Swal.fire({ icon: 'success', title: `${bulkAction === 'approve' ? 'Approved' : 'Rejected'} ${selectedIds.size} idea(s)`, toast: true, position: 'bottom-end', timer: 2000, showConfirmButton: false });
       setSelectedIds(new Set());
-    } catch (e: any) {
+    } catch (e) {
       setIdeas(rollbackIdeas);
-      Swal.fire({ icon: 'error', title: 'Bulk action failed', text: e?.message || 'Some items may not have been processed', toast: true, position: 'bottom-end', timer: 2500, showConfirmButton: false });
+      const errorMsg = e instanceof Error ? e.message : 'Some items may not have been processed';
+      Swal.fire({ icon: 'error', title: 'Bulk action failed', text: errorMsg, toast: true, position: 'bottom-end', timer: 2500, showConfirmButton: false });
     } finally {
       setShowBulkNotes(false);
       setBulkAction(null);
@@ -327,9 +333,10 @@ export default function ReviewIdeas() {
       setIdeas(optimisticIdeas);
       const updated = await promoteIdea(idea.id, finalCode);
       Swal.fire({ icon: 'success', title: `Promoted to ${updated.projectCode}`, toast: true, position: 'bottom-end', timer: 2000, showConfirmButton: false });
-    } catch (e: any) {
+    } catch (e) {
       setIdeas(rollbackIdeas);
-      Swal.fire({ icon: 'error', title: 'Promote failed', text: e?.message || 'Please try again', toast: true, position: 'bottom-end', timer: 2200, showConfirmButton: false });
+      const errorMsg = e instanceof Error ? e.message : 'Please try again';
+      Swal.fire({ icon: 'error', title: 'Promote failed', text: errorMsg, toast: true, position: 'bottom-end', timer: 2200, showConfirmButton: false });
     }
   };
 
@@ -642,7 +649,7 @@ export default function ReviewIdeas() {
                         </span>
                         <span>Score {idea.voteCount > 0 ? `+${idea.voteCount}` : idea.voteCount}</span>
                         <span>Views {idea.viewCount}</span>
-                        <span>Comments {(idea as any).commentCount ?? 0}</span>
+                        <span>Comments {idea.commentCount ?? 0}</span>
                       </div>
                     </div>
                   </div>
