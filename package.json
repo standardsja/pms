@@ -9,7 +9,8 @@
         "prisma:seed": "node --loader ts-node/esm server/prisma/seed.ts",
         "preview": "vite preview",
         "server:dev": "node server/index.mjs",
-        "seed:ideas": "node server/seed-ideas.mjs"
+        "seed:ideas": "node server/seed-ideas.mjs",
+        "backfill:votes": "node server/scripts/backfill-vote-counts.mjs"
     },
     "prisma": {
         "seed": "node --loader ts-node/esm server/prisma/seed.ts"
@@ -41,7 +42,6 @@
         "body-parser": "^1.20.2",
         "caniuse-lite": "^1.0.30001752",
         "cors": "^2.8.5",
-        "dotenv": "^17.2.3",
         "easymde": "^2.18.0",
         "express": "^4.19.2",
         "formik": "^2.2.9",
@@ -95,6 +95,7 @@
         "@vitest/coverage-v8": "^4.0.7",
         "@vitest/ui": "^4.0.7",
         "autoprefixer": "^10.4.17",
+        "dotenv": "^17.2.3",
         "i18next": "^23.13.0",
         "i18next-browser-languagedetector": "^8.0.0",
         "i18next-http-backend": "^2.5.2",

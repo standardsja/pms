@@ -10,10 +10,50 @@ interface AuthState {
     error: string | null;
 }
 
+// Rehydrate minimal auth state from localStorage so role-gated UI (e.g., Admin Settings)
+// is immediately available after refresh. We persist `auth_user` at login.
+let hydratedUser: User | null = null;
+try {
+    // Prefer sessionStorage (active session) then localStorage fallback
+    const rawSession = sessionStorage.getItem('auth_user');
+    const rawLocal = localStorage.getItem('auth_user');
+    const raw = rawSession || rawLocal;
+    hydratedUser = raw ? (JSON.parse(raw) as User) : null;
+    // Fallback: legacy userProfile shape used elsewhere
+    if (!hydratedUser) {
+        const legacy = localStorage.getItem('userProfile');
+        if (legacy) {
+            const lp = JSON.parse(legacy);
+            hydratedUser = {
+                id: lp.id,
+                email: lp.email,
+                full_name: lp.name || lp.email,
+                department_id: lp.department?.id,
+                department_name: lp.department?.name,
+                status: 'active',
+                roles: lp.roles || (lp.primaryRole ? [lp.primaryRole] : []),
+                last_login_at: undefined,
+                created_at: undefined,
+                updated_at: undefined,
+            };
+        }
+    }
+} catch {
+    hydratedUser = null;
+}
+
+// Support both legacy 'token' and new 'auth_token' keys (session or local storage)
+const cachedToken =
+    sessionStorage.getItem('token') ||
+    localStorage.getItem('token') ||
+    sessionStorage.getItem('auth_token') ||
+    localStorage.getItem('auth_token');
+
 const initialState: AuthState = {
-    user: null,
-    token: localStorage.getItem('token'),
-    isAuthenticated: false,
+    user: hydratedUser,
+    token: cachedToken || null,
+    // Consider user authenticated if any cached token exists
+    isAuthenticated: !!cachedToken,
     isLoading: false,
     error: null,
 };

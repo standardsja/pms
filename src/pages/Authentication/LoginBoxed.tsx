@@ -52,6 +52,20 @@ const LoginBoxed = () => {
             
             if (result.type === 'auth/login/fulfilled') {
                 const user = result.payload.user;
+                // Persist minimal user snapshot so backend admin endpoints receive x-user-id
+                try {
+                    localStorage.setItem('auth_user', JSON.stringify(user));
+                    // Legacy compatibility for modules expecting userProfile shape
+                    const legacyProfile = {
+                        id: user.id,
+                        name: user.name,
+                        email: user.email,
+                        department: user.department || null,
+                        primaryRole: user.roles?.[0] || user.role || '',
+                        roles: user.roles || (user.role ? [user.role] : []),
+                    };
+                    localStorage.setItem('userProfile', JSON.stringify(legacyProfile));
+                } catch {}
                 const from = (location.state as any)?.from?.pathname || '/';
                 
                 // Redirect based on user's primary role
@@ -71,6 +85,9 @@ const LoginBoxed = () => {
                         break;
                     case UserRole.FINANCE:
                         navigate('/finance');
+                        break;
+                    case UserRole.INNOVATION_COMMITTEE:
+                        navigate('/innovation/committee/dashboard');
                         break;
                     default:
                         navigate(from);
