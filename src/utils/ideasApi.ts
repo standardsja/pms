@@ -236,6 +236,64 @@ export async function fetchLeaderboard(): Promise<LeaderboardRow[]> {
   return data.leaderboard as LeaderboardRow[];
 }
 
+export type AnalyticsData = {
+  kpis: {
+    totalIdeas: number;
+    underReview: number;
+    approved: number;
+    promoted: number;
+    totalEngagement: number;
+  };
+  submissionsByMonth: number[];
+  ideasByCategory: Record<string, number>;
+  statusPipeline: {
+    submitted: number;
+    underReview: number;
+    approved: number;
+    rejected: number;
+    promoted: number;
+  };
+  topContributors: Array<{ name: string; ideas: number; votes: number }>;
+  weeklyEngagement: {
+    views: number[];
+    votes: number[];
+  };
+};
+
+export async function fetchAnalytics(): Promise<AnalyticsData> {
+  try {
+    const res = await fetch(`/api/innovation/analytics?t=${Date.now()}`, {
+      headers: {
+        ...authHeaders(),
+        'Cache-Control': 'no-store',
+        Pragma: 'no-cache',
+      },
+      cache: 'no-store',
+    });
+    
+    if (!res.ok) {
+      let errorMessage = 'Unable to load analytics data. Please try again later.';
+      try {
+        const errorData = await res.json();
+        errorMessage = errorData.message || errorData.error || errorMessage;
+      } catch {
+        errorMessage = res.status === 404 ? 'Analytics not available' : 
+                      res.status === 403 ? 'Access denied' :
+                      res.status === 401 ? 'Please log in to continue' :
+                      'Unable to load analytics data. Please try again later.';
+      }
+      throw new Error(errorMessage);
+    }
+    
+    return (await res.json()) as AnalyticsData;
+  } catch (error) {
+    if (error instanceof Error && error.message) {
+      throw error;
+    }
+    throw new Error('Network error. Please check your connection and try again.');
+  }
+}
+
 export async function submitIdea(
   data: {
     title: string;
