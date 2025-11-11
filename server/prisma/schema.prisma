@@ -102,6 +102,12 @@ model User {
   name         String?
   passwordHash String? // ← for local email/password testing
 
+  // Profile fields
+  profilePicture String?
+  phoneNumber    String?
+  location       String?
+  joinedAt       DateTime? @default(now())
+
   department   Department? @relation("userDepartment", fields: [departmentId], references: [id])
   departmentId Int?
 
