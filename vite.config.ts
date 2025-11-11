@@ -14,9 +14,9 @@ export default defineConfig({
     },
     server: {
         proxy: {
-            // Proxy API requests to the local Express server
+            // Proxy API requests to the unified TypeScript backend
             '/api': {
-                // Unified backend running on port 4000 (index.mjs)
+                // Unified backend on port 4000 (server/index.ts)
                 target: 'http://localhost:4000',
                 changeOrigin: true,
             },

@@ -6,13 +6,14 @@
     "scripts": {
         "dev": "vite",
         "build": "vite build && tsc",
-        "prisma:seed": "node --loader ts-node/esm server/prisma/seed.ts",
+        "prisma:seed": "npx tsx server/prisma/seed.ts",
         "preview": "vite preview",
-        "server:dev": "node server/index.mjs",
+        "server:dev": "npx tsx watch server/index.ts",
         "seed:ideas": "node server/seed-ideas.mjs"
     },
     "prisma": {
-        "seed": "node --loader ts-node/esm server/prisma/seed.ts"
+        "seed": "npx tsx server/prisma/seed.ts",
+        "schema": "server/prisma/schema.prisma"
     },
     "dependencies": {
         "@azure/msal-browser": "^4.26.1",
@@ -44,7 +45,9 @@
         "express": "^4.19.2",
         "formik": "^2.2.9",
         "highlight.js": "^11.6.0",
+        "jsonwebtoken": "^9.0.2",
         "mantine-datatable": "^1.7.17",
+        "morgan": "^1.10.1",
         "multer": "^2.0.2",
         "mysql2": "^3.15.3",
         "nouislider-react": "^3.4.1",
@@ -79,7 +82,12 @@
         "@headlessui/react": "^2.1.9",
         "@tailwindcss/forms": "^0.5.3",
         "@tailwindcss/typography": "^0.5.7",
+        "@types/bcryptjs": "^2.4.6",
+        "@types/express": "^5.0.5",
+        "@types/jsonwebtoken": "^9.0.10",
         "@types/lodash": "^4.17.10",
+        "@types/morgan": "^1.9.10",
+        "@types/multer": "^2.0.0",
         "@types/react": "^18.0.27",
         "@types/react-copy-to-clipboard": "^5.0.4",
         "@types/react-dom": "^18.3.0",
