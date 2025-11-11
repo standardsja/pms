@@ -90,10 +90,6 @@ const Login = () => {
             const hasCompletedOnboarding = localStorage.getItem(`onboardingComplete:${userSuffix}`) === 'true';
             const hasLastModule = localStorage.getItem(`lastModule:${userSuffix}`) !== null;
             
-            console.log('[Login] User:', userSuffix);
-            console.log('[Login] Has completed onboarding?', hasCompletedOnboarding);
-            console.log('[Login] Has last module?', hasLastModule);
-            
             // Role-based redirect after login - BUT respect onboarding for first-time/non-remembered users
             const userRoles = user.roles || (user.role ? [user.role] : []);
             

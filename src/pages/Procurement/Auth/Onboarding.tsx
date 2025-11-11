@@ -43,20 +43,13 @@ const Onboarding = () => {
             return;
         }
         
-        // DEBUG: Log current user for troubleshooting
-        console.log('[Onboarding] Current user:', currentUser?.id || currentUser?.email || 'anon');
-        console.log('[Onboarding] Key suffix:', keySuffix);
-        
         // Preselect last used module for convenience (per-user)
         const last = (localStorage.getItem(key('lastModule')) as ModuleKey | null) || null;
-        console.log('[Onboarding] Last module for this user:', last);
         if (last) setSelected(last);
         setLastModule(last);
 
         // Auto-redirect returning users who completed onboarding and have a last module (per-user)
         const done = localStorage.getItem(key('onboardingComplete')) === 'true';
-        console.log('[Onboarding] Onboarding complete for this user?', done);
-        console.log('[Onboarding] Will auto-redirect?', !forceOnboarding && done && last);
         
         // Support override via query param: /onboarding?force=1 or ?reset=1
         if (query.get('clear') === '1') {
@@ -70,7 +63,6 @@ const Onboarding = () => {
             setTimeout(() => {
                 const map = modulesMap.current;
                 if (map && map[last]) {
-                    console.log('[Onboarding] Auto-redirecting to:', map[last].path);
                     navigate(map[last].path, { replace: true });
                 }
             }, 0);
