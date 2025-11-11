@@ -135,7 +135,7 @@ const themeConfigSlice = createSlice({
         },
 
         setPageTitle(state, { payload }) {
-            document.title = `${payload} | VRISTO - Multipurpose Tailwind Dashboard Template`;
+            document.title = `${payload} | SPINX - Procurement Management System`;
         },
 
         toggleAccent(state, { payload }) {

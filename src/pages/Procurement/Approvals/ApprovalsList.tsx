@@ -33,9 +33,9 @@ const ApprovalsList = () => {
         },
         {
             id: 2,
-            type: 'RFQ',
-            number: 'RFQ-2024-012',
-            description: 'IT Services Contract',
+            type: 'Evaluation',
+            number: 'EVAL-2024-012',
+            description: 'IT Services Evaluation',
             requester: 'Jane Smith',
             department: 'Operations',
             amount: 15000,
@@ -90,7 +90,7 @@ const ApprovalsList = () => {
     const getTypeBadge = (type: string) => {
         const badges: Record<string, string> = {
             Request: 'bg-primary',
-            RFQ: 'bg-warning',
+            Evaluation: 'bg-warning',
             PO: 'bg-success',
             Payment: 'bg-info',
         };
@@ -177,13 +177,7 @@ const ApprovalsList = () => {
                     >
                         Requests ({approvals.filter((a) => a.type === 'Request').length})
                     </button>
-                    <button
-                        type="button"
-                        onClick={() => setFilter('RFQ')}
-                        className={`btn btn-sm ${filter === 'RFQ' ? 'btn-warning' : 'btn-outline-warning'}`}
-                    >
-                        RFQs ({approvals.filter((a) => a.type === 'RFQ').length})
-                    </button>
+                    
                     <button
                         type="button"
                         onClick={() => setFilter('PO')}

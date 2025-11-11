@@ -5,13 +5,10 @@ import { IRootState } from '../../store';
 import { setPageTitle } from '../../store/themeConfigSlice';
 import ReactApexChart from 'react-apexcharts';
 import PerfectScrollbar from 'react-perfect-scrollbar';
-import IconShoppingCart from '../../components/Icon/IconShoppingCart';
 import IconDollarSignCircle from '../../components/Icon/IconDollarSignCircle';
 import IconInbox from '../../components/Icon/IconInbox';
-import IconTag from '../../components/Icon/IconTag';
 import IconCreditCard from '../../components/Icon/IconCreditCard';
 import IconClipboardText from '../../components/Icon/IconClipboardText';
-import IconFile from '../../components/Icon/IconFile';
 import IconFolder from '../../components/Icon/IconFolder';
 import IconUser from '../../components/Icon/IconUser';
 import IconSettings from '../../components/Icon/IconSettings';
@@ -44,21 +41,20 @@ const ProcurementOfficerDashboard = () => {
         workflowTemplates: 12,
     };
 
-    // Recent activities
+    // Recent activities (RFQ/Quote references removed)
     const recentActivities = [
-        { id: 1, action: 'RFQ Created', description: 'RFQ-2024-045 - Office Supplies', time: '5 min ago', status: 'success' },
-        { id: 2, action: 'Quote Received', description: 'Q-2024-123 from ABC Corp', time: '15 min ago', status: 'info' },
+        { id: 1, action: 'Request Submitted', description: 'REQ-2024-045 - Office Supplies', time: '5 min ago', status: 'success' },
+        { id: 2, action: 'Evaluation Assigned', description: 'EVAL-2024-033 - IT Equipment', time: '20 min ago', status: 'info' },
         { id: 3, action: 'Evaluation Completed', description: 'EVAL-2024-032 - IT Equipment', time: '1 hour ago', status: 'success' },
         { id: 4, action: 'PO Approved', description: 'PO-2024-098 - $15,240', time: '2 hours ago', status: 'success' },
         { id: 5, action: 'Supplier Added', description: 'XYZ Suppliers Ltd', time: '3 hours ago', status: 'primary' },
     ];
 
-    // Pending approvals
+    // Pending approvals (RFQ/Quote entries removed)
     const pendingApprovals = [
-        { id: 1, type: 'RFQ', number: 'RFQ-2024-046', description: 'Furniture Purchase', amount: 12500, dueDate: '2024-10-25' },
-        { id: 2, type: 'Quote', number: 'Q-2024-124', description: 'IT Services', amount: 8900, dueDate: '2024-10-26' },
-        { id: 3, type: 'Evaluation', number: 'EVAL-2024-033', description: 'Cleaning Supplies', amount: 3200, dueDate: '2024-10-27' },
-        { id: 4, type: 'PO', number: 'PO-2024-099', description: 'Security Equipment', amount: 22100, dueDate: '2024-10-28' },
+        { id: 1, type: 'Evaluation', number: 'EVAL-2024-033', description: 'Cleaning Supplies', amount: 3200, dueDate: '2024-10-27' },
+        { id: 2, type: 'PO', number: 'PO-2024-099', description: 'Security Equipment', amount: 22100, dueDate: '2024-10-28' },
+        { id: 3, type: 'Contract', number: 'CON-2024-021', description: 'Facilities Maintenance', amount: 45200, dueDate: '2024-11-05' },
     ];
 
     // Top suppliers by spend
@@ -149,44 +145,7 @@ const ProcurementOfficerDashboard = () => {
         },
     };
 
-    // RFQ status distribution
-    const rfqStatusChart: any = {
-        series: [stats.activeRFQs, stats.pendingQuotes, stats.pendingEvaluations],
-        options: {
-            chart: {
-                type: 'donut',
-                height: 250,
-                fontFamily: 'Nunito, sans-serif',
-            },
-            dataLabels: {
-                enabled: false,
-            },
-            stroke: {
-                show: true,
-                width: 15,
-                colors: isDark ? '#0e1726' : '#fff',
-            },
-            colors: isDark ? ['#5c1ac3', '#e2a03f', '#00ab55'] : ['#e2a03f', '#5c1ac3', '#00ab55'],
-            legend: {
-                position: 'bottom',
-                horizontalAlign: 'center',
-                fontSize: '14px',
-                markers: {
-                    width: 10,
-                    height: 10,
-                },
-            },
-            labels: ['Active RFQs', 'Pending Quotes', 'Evaluations'],
-            states: {
-                hover: {
-                    filter: {
-                        type: 'none',
-                        value: 0.15,
-                    },
-                },
-            },
-        },
-    };
+    // RFQ Pipeline removed as requested
 
     return (
         <div>
@@ -197,34 +156,8 @@ const ProcurementOfficerDashboard = () => {
             </div>
 
             {/* Key Metrics Grid */}
-            <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-                {/* RFQs */}
-                <div className="panel">
-                    <div className="mb-4 flex items-center justify-between">
-                        <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                            <IconShoppingCart className="h-5 w-5" />
-                        </div>
-                        <Link to="/procurement/rfq/list" className="text-xs font-semibold text-primary hover:underline">
-                            View All
-                        </Link>
-                    </div>
-                    <div className="text-2xl font-bold text-primary">{stats.activeRFQs}</div>
-                    <div className="text-sm font-semibold">Active RFQs</div>
-                </div>
-
-                {/* Quotes */}
-                <div className="panel">
-                    <div className="mb-4 flex items-center justify-between">
-                        <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-warning/10 text-warning">
-                            <IconTag className="h-5 w-5" />
-                        </div>
-                        <Link to="/procurement/quotes" className="text-xs font-semibold text-warning hover:underline">
-                            View All
-                        </Link>
-                    </div>
-                    <div className="text-2xl font-bold text-warning">{stats.pendingQuotes}</div>
-                    <div className="text-sm font-semibold">Pending Quotes</div>
-                </div>
+            <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {/* Removed Active RFQs and Pending Quotes cards as requested */}
 
                 {/* Evaluations */}
                 <div className="panel">
@@ -270,24 +203,14 @@ const ProcurementOfficerDashboard = () => {
             </div>
 
             {/* Charts Row */}
-            <div className="mb-6 grid gap-6 lg:grid-cols-3">
+            <div className="mb-6 grid gap-6 lg:grid-cols-1">
                 {/* Procurement Spend Chart */}
-                <div className="panel lg:col-span-2">
+                <div className="panel">
                     <div className="mb-5 flex items-center justify-between">
                         <h5 className="text-lg font-semibold dark:text-white-light">Procurement Spend vs Budget</h5>
                     </div>
                     <div className="rounded-lg bg-white dark:bg-black">
                         <ReactApexChart series={procurementSpendChart.series} options={procurementSpendChart.options} type="area" height={300} />
-                    </div>
-                </div>
-
-                {/* RFQ Status Distribution */}
-                <div className="panel">
-                    <div className="mb-5 flex items-center justify-between">
-                        <h5 className="text-lg font-semibold dark:text-white-light">RFQ Pipeline</h5>
-                    </div>
-                    <div className="rounded-lg bg-white dark:bg-black">
-                        <ReactApexChart series={rfqStatusChart.series} options={rfqStatusChart.options} type="donut" height={250} />
                     </div>
                 </div>
             </div>
@@ -296,29 +219,7 @@ const ProcurementOfficerDashboard = () => {
             <div className="mb-6">
                 <h5 className="mb-4 text-lg font-semibold">Quick Access</h5>
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-                    {/* RFQ Management */}
-                    <Link
-                        to="/procurement/rfq/list"
-                        className="panel group cursor-pointer border-2 border-transparent hover:border-primary"
-                    >
-                        <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white">
-                            <IconShoppingCart className="h-6 w-6" />
-                        </div>
-                        <h6 className="mb-1 font-semibold">RFQs</h6>
-                        <p className="text-xs text-white-dark">Manage Requests for Quotations</p>
-                    </Link>
-
-                    {/* Quotes */}
-                    <Link
-                        to="/procurement/quotes"
-                        className="panel group cursor-pointer border-2 border-transparent hover:border-warning"
-                    >
-                        <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-warning/10 text-warning group-hover:bg-warning group-hover:text-white">
-                            <IconTag className="h-6 w-6" />
-                        </div>
-                        <h6 className="mb-1 font-semibold">Quotes</h6>
-                        <p className="text-xs text-white-dark">Review supplier quotations</p>
-                    </Link>
+                    {/* Removed RFQs and Quotes from Quick Access as requested */}
 
                     {/* Evaluations */}
                     <Link
@@ -329,7 +230,7 @@ const ProcurementOfficerDashboard = () => {
                             <IconClipboardText className="h-6 w-6" />
                         </div>
                         <h6 className="mb-1 font-semibold">Evaluations</h6>
-                        <p className="text-xs text-white-dark">Evaluate and compare quotes</p>
+                        <p className="text-xs text-white-dark">Evaluate and compare supplier offers</p>
                     </Link>
 
                     {/* Procurement Review */}
@@ -486,9 +387,7 @@ const ProcurementOfficerDashboard = () => {
                                         <td>
                                             <span
                                                 className={`badge ${
-                                                    item.type === 'RFQ'
-                                                        ? 'bg-primary'
-                                                        : item.type === 'Quote'
+                                                    item.type === 'Evaluation'
                                                         ? 'bg-warning'
                                                         : item.type === 'Evaluation'
                                                         ? 'bg-info'

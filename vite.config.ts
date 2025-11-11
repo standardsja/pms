@@ -12,4 +12,27 @@ export default defineConfig({
             '@': path.resolve(__dirname, './src'),
         },
     },
+    server: {
+        proxy: {
+            // Proxy API requests to the local Express server
+            '/api': {
+                // Unified backend running on port 4000 (index.mjs)
+                target: 'http://localhost:4000',
+                changeOrigin: true,
+            },
+            // Also proxy admin/auth and non-prefixed endpoints used by the app
+            '/admin': {
+                target: 'http://localhost:4000',
+                changeOrigin: true,
+            },
+            '/auth': {
+                target: 'http://localhost:4000',
+                changeOrigin: true,
+            },
+            '/requests': {
+                target: 'http://localhost:4000',
+                changeOrigin: true,
+            },
+        },
+    },
 });

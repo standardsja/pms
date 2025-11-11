@@ -124,7 +124,7 @@ const QuoteDetail = () => {
     };
 
     const handleDownloadPDF = () => {
-        console.log('Downloading Quote PDF for:', quote.quoteNumber);
+        // Quote PDF download logic would be implemented here
         alert(`Downloading ${quote.quoteNumber}.pdf`);
     };
 

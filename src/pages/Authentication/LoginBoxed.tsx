@@ -1,8 +1,10 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { IRootState } from '../../store';
 import { useEffect, useState } from 'react';
 import { setPageTitle, toggleRTL } from '../../store/themeConfigSlice';
+import { loginUser, selectAuthLoading, selectAuthError, clearError } from '../../store/authSlice';
+import { UserRole } from '../../types/auth';
 import Dropdown from '../../components/Dropdown';
 import i18next from 'i18next';
 import IconCaretDown from '../../components/Icon/IconCaretDown';
@@ -31,10 +33,75 @@ const LoginBoxed = () => {
         }
     };
     const [flag, setFlag] = useState(themeConfig.locale);
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    
+    const isLoading = useSelector(selectAuthLoading);
+    const error = useSelector(selectAuthError);
+    const location = useLocation();
 
-    const submitForm = () => {
-        navigate('/');
+    const submitForm = async (e: React.FormEvent) => {
+        e.preventDefault();
+        
+        if (!email || !password) {
+            return;
+        }
+
+        try {
+            const result = await dispatch(loginUser({ email, password }) as any);
+            
+            if (result.type === 'auth/login/fulfilled') {
+                const user = result.payload.user;
+                // Persist minimal user snapshot so backend admin endpoints receive x-user-id
+                try {
+                    localStorage.setItem('auth_user', JSON.stringify(user));
+                    // Legacy compatibility for modules expecting userProfile shape
+                    const legacyProfile = {
+                        id: user.id,
+                        name: user.name,
+                        email: user.email,
+                        department: user.department || null,
+                        primaryRole: user.roles?.[0] || user.role || '',
+                        roles: user.roles || (user.role ? [user.role] : []),
+                    };
+                    localStorage.setItem('userProfile', JSON.stringify(legacyProfile));
+                } catch {}
+                const from = (location.state as any)?.from?.pathname || '/';
+                
+                // Redirect based on user's primary role
+                const primaryRole = user?.roles?.[0];
+                switch (primaryRole) {
+                    case UserRole.DEPARTMENT_HEAD:
+                        navigate('/procurement/department-head-dashboard');
+                        break;
+                    case UserRole.PROCUREMENT_MANAGER:
+                        navigate('/procurement/manager');
+                        break;
+                    case UserRole.EXECUTIVE_DIRECTOR:
+                        navigate('/procurement/executive-director-dashboard');
+                        break;
+                    case UserRole.SUPPLIER:
+                        navigate('/supplier');
+                        break;
+                    case UserRole.FINANCE:
+                        navigate('/finance');
+                        break;
+                    case UserRole.INNOVATION_COMMITTEE:
+                        navigate('/innovation/committee/dashboard');
+                        break;
+                    default:
+                        navigate(from);
+                }
+            }
+        } catch (error) {
+            // Login error handled by auth service
+        }
     };
+
+    useEffect(() => {
+        // Clear any existing errors when component mounts
+        dispatch(clearError());
+    }, [dispatch]);
 
     return (
         <div>
@@ -96,10 +163,23 @@ const LoginBoxed = () => {
                                 <p className="text-base font-bold leading-normal text-white-dark">Enter your email and password to login</p>
                             </div>
                             <form className="space-y-5 dark:text-white" onSubmit={submitForm}>
+                                {error && (
+                                    <div className="bg-danger-light border border-danger text-danger px-4 py-3 rounded mb-4">
+                                        {error}
+                                    </div>
+                                )}
                                 <div>
                                     <label htmlFor="Email">Email</label>
                                     <div className="relative text-white-dark">
-                                        <input id="Email" type="email" placeholder="Enter Email" className="form-input ps-10 placeholder:text-white-dark" />
+                                        <input 
+                                            id="Email" 
+                                            type="email" 
+                                            placeholder="Enter Email Address" 
+                                            className="form-input ps-10 placeholder:text-white-dark"
+                                            value={email}
+                                            onChange={(e) => setEmail(e.target.value)}
+                                            required
+                                        />
                                         <span className="absolute start-4 top-1/2 -translate-y-1/2">
                                             <IconMail fill={true} />
                                         </span>
@@ -108,20 +188,26 @@ const LoginBoxed = () => {
                                 <div>
                                     <label htmlFor="Password">Password</label>
                                     <div className="relative text-white-dark">
-                                        <input id="Password" type="password" placeholder="Enter Password" className="form-input ps-10 placeholder:text-white-dark" />
+                                        <input 
+                                            id="Password" 
+                                            type="password" 
+                                            placeholder="Enter Password" 
+                                            className="form-input ps-10 placeholder:text-white-dark"
+                                            value={password}
+                                            onChange={(e) => setPassword(e.target.value)}
+                                            required
+                                        />
                                         <span className="absolute start-4 top-1/2 -translate-y-1/2">
                                             <IconLockDots fill={true} />
                                         </span>
                                     </div>
                                 </div>
-                                <div>
-                                    <label className="flex cursor-pointer items-center">
-                                        <input type="checkbox" className="form-checkbox bg-white dark:bg-black" />
-                                        <span className="text-white-dark">Subscribe to weekly newsletter</span>
-                                    </label>
-                                </div>
-                                <button type="submit" className="btn btn-gradient !mt-6 w-full border-0 uppercase shadow-[0_10px_20px_-10px_rgba(67,97,238,0.44)]">
-                                    Sign in
+                                <button 
+                                    type="submit" 
+                                    className="btn btn-gradient !mt-6 w-full border-0 uppercase shadow-[0_10px_20px_-10px_rgba(67,97,238,0.44)]"
+                                    disabled={isLoading}
+                                >
+                                    {isLoading ? 'Signing in...' : 'Sign in'}
                                 </button>
                             </form>
                             <div className="relative my-7 text-center md:mb-9">
