@@ -166,7 +166,7 @@ const VoteOnIdeas = () => {
                             upvotes: updatedIdea.upvoteCount || 0,
                             downvotes: updatedIdea.downvoteCount || 0,
                             voteCount: updatedIdea.voteCount || 0,
-                            hasVoted: voteType,
+                            hasVoted: updatedIdea.userVoteType === 'UPVOTE' ? 'up' : updatedIdea.userVoteType === 'DOWNVOTE' ? 'down' : null,
                             viewCount: updatedIdea.viewCount || i.viewCount,
                         }
                         : i
@@ -485,7 +485,7 @@ const VoteOnIdeas = () => {
                                     </div>
                                 </div>
 
-                                {sortBy === 'trending' && (
+                                {sortBy === 'trending' && idea.trendingScore > 0 && (
                                     <div className="mt-1 px-2 py-1 bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-300 rounded text-xs font-bold">
                                         🔥 {idea.trendingScore}
                                     </div>

@@ -722,39 +722,53 @@ app.get('/api/ideas', async (req, res) => {
 		const ideas = await prisma.idea.findMany({
 			where,
 			orderBy,
-			include: { submitter: true, attachments: includeAttachments, tags: { include: { tag: true } }, challenge: true, _count: { select: { comments: true } } },
+			include: { 
+				submitter: true, 
+				attachments: includeAttachments, 
+				tags: { include: { tag: true } }, 
+				challenge: true, 
+				votes: actorId ? { where: { userId: actorId } } : false,
+				_count: { select: { comments: true } } 
+			},
 		});
-		const payload = ideas.map((i) => ({
-			id: i.id,
-			title: i.title,
-			description: i.description,
-			descriptionHtml: i.descriptionHtml || null,
-			category: i.category,
-			status: i.status,
-			stage: i.stage,
-			isAnonymous: i.isAnonymous,
-			submittedById: i.submittedBy,
-			submittedBy: i.submitter?.name || i.submitter?.email || String(i.submittedBy),
-			submittedAt: i.submittedAt,
-			reviewedBy: i.reviewedBy,
-			reviewedAt: i.reviewedAt,
-			reviewNotes: i.reviewNotes,
-			promotedAt: i.promotedAt,
-			projectCode: i.projectCode,
-			voteCount: i.voteCount,
-			upvoteCount: i.upvoteCount || 0,
-			downvoteCount: i.downvoteCount || 0,
-			viewCount: i.viewCount,
-			commentCount: i._count?.comments || 0,
-			challenge: i.challenge ? { id: i.challenge.id, title: i.challenge.title } : null,
-			tags: (i.tags || []).map(it => ({ id: it.tag.id, name: it.tag.name })),
-			createdAt: i.createdAt,
-			updatedAt: i.updatedAt,
-			...(includeAttachments && {
-				attachments: i.attachments,
-				firstAttachmentUrl: i.attachments?.[0]?.fileUrl || null,
-			}),
-		}));
+		const payload = ideas.map((i) => {
+			// Check if current user has voted
+			const userVote = actorId && i.votes ? i.votes.find(v => v.userId === actorId) : null;
+			
+			return {
+				id: i.id,
+				title: i.title,
+				description: i.description,
+				descriptionHtml: i.descriptionHtml || null,
+				category: i.category,
+				status: i.status,
+				stage: i.stage,
+				isAnonymous: i.isAnonymous,
+				submittedById: i.submittedBy,
+				submittedBy: i.submitter?.name || i.submitter?.email || String(i.submittedBy),
+				submittedAt: i.submittedAt,
+				reviewedBy: i.reviewedBy,
+				reviewedAt: i.reviewedAt,
+				reviewNotes: i.reviewNotes,
+				promotedAt: i.promotedAt,
+				projectCode: i.projectCode,
+				voteCount: i.voteCount,
+				upvoteCount: i.upvoteCount || 0,
+				downvoteCount: i.downvoteCount || 0,
+				viewCount: i.viewCount,
+				commentCount: i._count?.comments || 0,
+				hasVoted: !!userVote,
+				userVoteType: userVote?.voteType || null,
+				challenge: i.challenge ? { id: i.challenge.id, title: i.challenge.title } : null,
+				tags: (i.tags || []).map(it => ({ id: it.tag.id, name: it.tag.name })),
+				createdAt: i.createdAt,
+				updatedAt: i.updatedAt,
+				...(includeAttachments && {
+					attachments: i.attachments,
+					firstAttachmentUrl: i.attachments?.[0]?.fileUrl || null,
+				}),
+			};
+		});
 		res.json(payload);
 	} catch (err) {
 		console.error('GET /api/ideas error:', err);
@@ -1105,22 +1119,34 @@ app.post('/api/ideas/:id/vote', async (req, res) => {
 		}
 		
 		if (existing) {
-			// If same vote type, treat as unvote
+			// If same vote type, remove the vote (toggle behavior)
 			if (existing.voteType === type) {
-				return res.status(400).json({ error: 'already voted' });
+				const wasUpvote = existing.voteType === 'UPVOTE';
+				await prisma.$transaction([
+					prisma.vote.delete({ where: { id: existing.id } }),
+					prisma.idea.update({
+						where: { id },
+						data: {
+							voteCount: wasUpvote ? { decrement: 1 } : { increment: 1 },
+							upvoteCount: wasUpvote ? { decrement: 1 } : undefined,
+							downvoteCount: !wasUpvote ? { decrement: 1 } : undefined,
+						}
+					}),
+				]);
+			} else {
+				// If different type, switch the vote
+				await prisma.$transaction([
+					prisma.vote.update({ where: { id: existing.id }, data: { voteType: type } }),
+					prisma.idea.update({
+						where: { id },
+						data: {
+							upvoteCount: type === 'UPVOTE' ? { increment: 1 } : { decrement: 1 },
+							downvoteCount: type === 'DOWNVOTE' ? { increment: 1 } : { decrement: 1 },
+							voteCount: type === 'UPVOTE' ? { increment: 2 } : { decrement: 2 } // net change of 2 when switching
+						}
+					}),
+				]);
 			}
-			// If different type, switch the vote
-			await prisma.$transaction([
-				prisma.vote.update({ where: { id: existing.id }, data: { voteType: type } }),
-				prisma.idea.update({
-					where: { id },
-					data: {
-						upvoteCount: type === 'UPVOTE' ? { increment: 1 } : { decrement: 1 },
-						downvoteCount: type === 'DOWNVOTE' ? { increment: 1 } : { decrement: 1 },
-						voteCount: type === 'UPVOTE' ? { increment: 2 } : { decrement: 2 } // net change of 2 when switching
-					}
-				}),
-			]);
 		} else {
 			// Create new vote
 			await prisma.$transaction([
