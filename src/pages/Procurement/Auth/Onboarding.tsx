@@ -35,6 +35,7 @@ const Onboarding = () => {
     const [lastModule, setLastModule] = useState<ModuleKey | null>(null);
     const radiosRef = useRef<HTMLDivElement | null>(null);
     const [showProcurementSteps, setShowProcurementSteps] = useState<boolean>(false);
+    const [visibleModules, setVisibleModules] = useState<Set<string>>(new Set());
 
     useEffect(() => {
         dispatch(setPageTitle(t('onboarding.title')));
@@ -161,6 +162,32 @@ const Onboarding = () => {
             navigate(modules[0].path, { replace: true });
         }
     }, [modules, navigate, isCommittee]);
+
+    // Scroll animation: Intersection Observer for module cards
+    useEffect(() => {
+        const observer = new IntersectionObserver(
+            (entries) => {
+                entries.forEach((entry) => {
+                    if (entry.isIntersecting) {
+                        const moduleId = entry.target.getAttribute('data-module-id');
+                        if (moduleId) {
+                            setVisibleModules((prev) => new Set(prev).add(moduleId));
+                        }
+                    }
+                });
+            },
+            {
+                threshold: 0.1,
+                rootMargin: '0px 0px -50px 0px',
+            }
+        );
+
+        // Observe all module cards
+        const moduleCards = document.querySelectorAll('[data-module-card]');
+        moduleCards.forEach((card) => observer.observe(card));
+
+        return () => observer.disconnect();
+    }, [modules]);
 
     const handleContinue = async () => {
         setError('');
@@ -304,8 +331,9 @@ const Onboarding = () => {
                     onKeyDown={onKeyDownRadios}
                     tabIndex={0}
                 >
-                    {modules.map((m) => {
+                    {modules.map((m, index) => {
                         const isActive = selected === m.id;
+                        const isVisible = visibleModules.has(m.id);
                         return (
                             <button
                                 role="radio"
@@ -313,12 +341,21 @@ const Onboarding = () => {
                                 tabIndex={isActive ? 0 : -1}
                                 key={m.id}
                                 type="button"
+                                data-module-card
+                                data-module-id={m.id}
                                 onClick={() => {
                                     setSelected(m.id);
                                     logEvent('onboarding_selected', { selected: m.id });
                                 }}
-                                className={`group relative text-left bg-white dark:bg-gray-800 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 overflow-hidden border-2 focus:outline-none focus-visible:ring-4 focus-visible:ring-primary/30 ${
+                                style={{
+                                    transitionDelay: `${index * 150}ms`,
+                                }}
+                                className={`group relative text-left bg-white dark:bg-gray-800 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-700 overflow-hidden border-2 focus:outline-none focus-visible:ring-4 focus-visible:ring-primary/30 ${
                                     isActive ? 'border-primary' : 'border-transparent hover:border-primary/60'
+                                } ${
+                                    isVisible
+                                        ? 'opacity-100 translate-y-0'
+                                        : 'opacity-0 translate-y-8'
                                 }`}
                             >
                                 {/* Gradient Header */}
