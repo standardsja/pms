@@ -86,15 +86,14 @@ export default function IdeaDetails() {
     if (!id || !idea || isVoting) return;
     try {
       setIsVoting(true);
+      let updated;
       if (idea.userVoteType === voteType) {
-        const updated = await removeVote(id);
+        // Remove vote if clicking same type
+        updated = await removeVote(id);
         setIdea({ ...updated, hasVoted: false, userVoteType: null });
-      } else if (idea.userVoteType && idea.userVoteType !== voteType) {
-        // Switch vote
-        const updated = await voteForIdea(id, voteType);
-        setIdea({ ...updated, hasVoted: true });
       } else {
-        const updated = await voteForIdea(id, voteType);
+        // Add new vote or switch vote type
+        updated = await voteForIdea(id, voteType);
         setIdea({ ...updated, hasVoted: true });
       }
     } catch (err) {

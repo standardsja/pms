@@ -33,8 +33,6 @@ const SubmitIdea = () => {
     });
 
     // Attachments state (multi-file)
-    const [imageFile, setImageFile] = useState<File | null>(null); // legacy single image (kept for backward compatibility)
-    const [imagePreview, setImagePreview] = useState<string | null>(null);
     const [files, setFiles] = useState<File[]>([]);
     const [previews, setPreviews] = useState<string[]>([]);
     const [duplicateMatches, setDuplicateMatches] = useState<{ id: number; title: string; snippet: string; score: number; submittedAt: string }[]>([]);
@@ -90,12 +88,6 @@ const SubmitIdea = () => {
         }
         if (!formData.expectedBenefits) {
             next.expectedBenefits = t('innovation.submit.form.benefits.error');
-        }
-        if (imageFile) {
-            const isImage = imageFile.type.startsWith('image/');
-            const sizeOk = imageFile.size <= MAX_IMAGE_MB * 1024 * 1024;
-            if (!isImage) next.image = t('innovation.submit.form.image.typeError') || 'Please upload a valid image file.';
-            if (!sizeOk) next.image = t('innovation.submit.form.image.sizeError', { mb: MAX_IMAGE_MB }) || `Image must be <= ${MAX_IMAGE_MB}MB.`;
         }
         if (files.length) {
             if (files.length > MAX_FILES) next.files = t('innovation.submit.form.files.countError', { max: MAX_FILES }) || `You can upload up to ${MAX_FILES} files.`;
@@ -197,7 +189,7 @@ const SubmitIdea = () => {
                 isAnonymous: formData.isAnonymous,
                 challengeId: formData.challengeId ? Number(formData.challengeId) : undefined,
                 tagIds: formData.tagIds,
-            }, (imageFile || files.length) ? { image: imageFile || undefined, images: files } : undefined);
+            }, files.length ? { images: files } : undefined);
 
             // Optimistic event so MyIdeas can reflect immediately
             document.dispatchEvent(new CustomEvent('idea:created', { detail: created }));
@@ -213,9 +205,6 @@ const SubmitIdea = () => {
                 }
             });
             clearAutoSave('ideaDraft');
-            setImageFile(null);
-            if (imagePreview) URL.revokeObjectURL(imagePreview);
-            setImagePreview(null);
             previews.forEach((p) => URL.revokeObjectURL(p));
             setPreviews([]);
             setFiles([]);
@@ -228,18 +217,6 @@ const SubmitIdea = () => {
             });
         } finally {
             setIsLoading(false);
-        }
-    };
-
-    const onImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0] || null;
-        setImageFile(file);
-        if (imagePreview) {
-            URL.revokeObjectURL(imagePreview);
-            setImagePreview(null);
-        }
-        if (file) {
-            setImagePreview(URL.createObjectURL(file));
         }
     };
 

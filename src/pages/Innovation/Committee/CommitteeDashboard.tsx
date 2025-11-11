@@ -16,7 +16,9 @@ const CommitteeDashboard = () => {
     const dispatch = useDispatch();
     const navigate = useNavigate();
     const currentUser = getUser();
-    const roles: string[] = (currentUser?.roles as any) || (currentUser?.role ? [currentUser.role] : []);
+    const roles: string[] = Array.isArray(currentUser?.roles) 
+        ? currentUser.roles 
+        : (currentUser?.role ? [currentUser.role] : []);
     const isCommittee = roles?.includes?.('INNOVATION_COMMITTEE');
 
     // State for ideas lists
@@ -116,8 +118,8 @@ const CommitteeDashboard = () => {
                 const data = await fetchIdeas({ status: 'promoted' });
                 setPromotedIdeas(data);
             }
-        } catch (e: any) {
-            const errorMessage = e?.message || 'Unable to load ideas';
+        } catch (e) {
+            const errorMessage = e instanceof Error ? e.message : 'Unable to load ideas';
             setError(errorMessage);
             
             // Only show toast for foreground loads, not background polling
@@ -218,14 +220,14 @@ const CommitteeDashboard = () => {
                     showConfirmButton: false 
                 });
             }
-        } catch (e: any) {
+        } catch (e) {
             // Rollback on error
             setPendingIdeas(rollbackPending);
             setCounts(rollbackCounts);
             Swal.fire({ 
                 icon: 'error', 
                 title: 'Action Failed', 
-                text: 'We were unable to process your request. Please try again.', 
+                text: e instanceof Error ? e.message : 'We were unable to process your request. Please try again.', 
                 toast: true, 
                 position: 'bottom-end', 
                 timer: 3000, 
@@ -281,7 +283,7 @@ const CommitteeDashboard = () => {
                 timer: 2000, 
                 showConfirmButton: false 
             });
-        } catch (e: any) {
+        } catch (e) {
             // Rollback
             setApprovedIdeas(rollbackApproved);
             setPromotedIdeas(rollbackPromoted);
@@ -289,7 +291,7 @@ const CommitteeDashboard = () => {
             Swal.fire({ 
                 icon: 'error', 
                 title: 'Promotion Failed', 
-                text: 'We were unable to promote this idea. Please try again.', 
+                text: e instanceof Error ? e.message : 'We were unable to promote this idea. Please try again.', 
                 toast: true, 
                 position: 'bottom-end', 
                 timer: 3000, 
@@ -716,7 +718,7 @@ const CommitteeDashboard = () => {
                                                 <span>•</span>
                                                 <span>{idea.viewCount} views</span>
                                                 <span>•</span>
-                                                <span>{(idea as any).commentCount ?? 0} comments</span>
+                                                <span>{idea.commentCount ?? 0} comments</span>
                                             </div>
                                         </div>
                                     </div>

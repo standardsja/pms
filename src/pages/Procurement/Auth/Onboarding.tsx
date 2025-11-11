@@ -328,15 +328,26 @@ const Onboarding = () => {
                                             </span>
                                         </div>
                                         {isActive && (
-                                            <button
-                                                type="button"
-                                                className="btn btn-primary btn-sm"
-                                                onClick={handleContinue}
+                                            <div
+                                                role="button"
+                                                tabIndex={0}
+                                                className="btn btn-primary btn-sm cursor-pointer"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleContinue();
+                                                }}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter' || e.key === ' ') {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                        handleContinue();
+                                                    }
+                                                }}
                                             >
                                                 {selected === 'pms' && t('onboarding.goTo.pms')}
                                                 {selected === 'ih' && t('onboarding.goTo.ih')}
                                                 {selected === 'committee' && t('onboarding.goTo.committee')}
-                                            </button>
+                                            </div>
                                         )}
                                     </div>
                                 </div>
