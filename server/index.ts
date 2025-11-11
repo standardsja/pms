@@ -10,7 +10,7 @@ import { prisma, ensureDbConnection } from './prismaClient';
 import { IdeaStatus } from '@prisma/client';
 
 const app = express();
-const PORT = process.env.PORT ? Number(process.env.PORT) : 3001;
+const PORT = process.env.PORT ? Number(process.env.PORT) : 4000;
 const JWT_SECRET = process.env.JWT_SECRET || 'devsecret-change-me';
 
 app.use(cors());
@@ -303,6 +303,66 @@ app.post('/api/ideas/:id/promote', authMiddleware, requireCommittee, async (req,
   } catch (e: any) {
     console.error('POST /api/ideas/:id/promote error:', e);
     return res.status(500).json({ message: e?.message || 'Failed to promote idea' });
+  }
+});
+
+// GET /api/tags - return empty array for now (Innovation Hub expects this)
+app.get('/api/tags', async (_req, res) => {
+  try {
+    // TODO: Implement tags table if needed
+    res.json([]);
+  } catch (e: any) {
+    console.error('GET /api/tags error:', e);
+    res.status(500).json({ message: 'Failed to fetch tags' });
+  }
+});
+
+// GET /api/challenges - return empty array for now
+app.get('/api/challenges', async (_req, res) => {
+  try {
+    // TODO: Implement challenges table if needed
+    res.json([]);
+  } catch (e: any) {
+    console.error('GET /api/challenges error:', e);
+    res.status(500).json({ message: 'Failed to fetch challenges' });
+  }
+});
+
+// GET /api/requests - list procurement requests (different from /api/requisitions)
+app.get('/api/requests', async (_req, res) => {
+  try {
+    // Select only safe core fields to avoid schema drift issues with legacy databases
+    const requests = await prisma.request.findMany({
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        reference: true,
+        title: true,
+        requesterId: true,
+        departmentId: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+        requester: { select: { id: true, name: true, email: true } },
+        department: { select: { id: true, name: true, code: true } },
+      },
+    });
+    return res.json(requests);
+  } catch (e: any) {
+    // If a column is missing on the connected database (e.g., P2022), fall back to a raw query
+    console.error('GET /api/requests error:', e);
+    if (e?.code === 'P2022') {
+      try {
+        const rows = await prisma.$queryRawUnsafe(
+          'SELECT id, reference, title, requesterId, departmentId, status, createdAt, updatedAt FROM Request ORDER BY createdAt DESC'
+        );
+        // rows will not include requester/department objects; return as-is
+        return res.json(rows);
+      } catch (rawErr: any) {
+        console.error('GET /api/requests fallback raw query failed:', rawErr);
+      }
+    }
+    return res.status(500).json({ message: 'Failed to fetch requests' });
   }
 });
 
