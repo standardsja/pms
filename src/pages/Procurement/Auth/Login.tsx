@@ -85,27 +85,43 @@ const Login = () => {
             // Flag to show onboarding helper image exactly once after successful login
             try { sessionStorage.setItem('showOnboardingImage', '1'); } catch {}
             
-            // Role-based redirect after login
+            // Check if user has completed onboarding (per-user check)
+            const userSuffix = user.id || user.email || 'anon';
+            const hasCompletedOnboarding = localStorage.getItem(`onboardingComplete:${userSuffix}`) === 'true';
+            const hasLastModule = localStorage.getItem(`lastModule:${userSuffix}`) !== null;
+            
+            console.log('[Login] User:', userSuffix);
+            console.log('[Login] Has completed onboarding?', hasCompletedOnboarding);
+            console.log('[Login] Has last module?', hasLastModule);
+            
+            // Role-based redirect after login - BUT respect onboarding for first-time/non-remembered users
             const userRoles = user.roles || (user.role ? [user.role] : []);
-            if (userRoles.includes('INNOVATION_COMMITTEE')) {
-                navigate('/innovation/committee/dashboard');
-            } else if (
-                userRoles.includes('PROCUREMENT_MANAGER') ||
-                userRoles.includes('MANAGER') ||
-                userRoles.some((r: string) => r && r.toUpperCase().includes('MANAGER'))
-            ) {
-                navigate('/procurement/manager');
-            } else if (
-                userRoles.includes('PROCUREMENT_OFFICER') ||
-                userRoles.includes('PROCUREMENT')
-            ) {
-                navigate('/procurement/dashboard');
-            } else if (userRoles.includes('SUPPLIER') || userRoles.some((r: string) => r && r.toUpperCase().includes('SUPPLIER'))) {
-                navigate('/supplier');
-            } else if (userRoles.some((r: string) => r && r.toUpperCase().includes('REQUEST'))) {
-                navigate('/apps/requests');
+            
+            // Only auto-redirect to role-specific dashboards if user has completed onboarding
+            if (hasCompletedOnboarding && hasLastModule) {
+                if (userRoles.includes('INNOVATION_COMMITTEE')) {
+                    navigate('/innovation/committee/dashboard');
+                } else if (
+                    userRoles.includes('PROCUREMENT_MANAGER') ||
+                    userRoles.includes('MANAGER') ||
+                    userRoles.some((r: string) => r && r.toUpperCase().includes('MANAGER'))
+                ) {
+                    navigate('/procurement/manager');
+                } else if (
+                    userRoles.includes('PROCUREMENT_OFFICER') ||
+                    userRoles.includes('PROCUREMENT')
+                ) {
+                    navigate('/procurement/dashboard');
+                } else if (userRoles.includes('SUPPLIER') || userRoles.some((r: string) => r && r.toUpperCase().includes('SUPPLIER'))) {
+                    navigate('/supplier');
+                } else if (userRoles.some((r: string) => r && r.toUpperCase().includes('REQUEST'))) {
+                    navigate('/apps/requests');
+                } else {
+                    // Fallback to onboarding selector
+                    navigate('/onboarding');
+                }
             } else {
-                // Fallback to onboarding selector
+                // First time or user didn't check "Remember" - always show onboarding
                 navigate('/onboarding');
             }
         } catch (err: any) {
