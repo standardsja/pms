@@ -293,15 +293,28 @@ export default function ReviewIdeas() {
         if (!isConfirmed) return;
         await approveIdea(idea.id);
       }
+      
+      // Generate a default project code
+      const year = new Date().getFullYear();
+      const randomPart = Math.random().toString(36).substring(2, 7).toUpperCase();
+      const defaultCode = `INNO-${year}-${randomPart}`;
+      
       const { value: projectCode } = await Swal.fire({
-        title: 'Project Code', input: 'text', inputLabel: 'Optional - leave blank to auto-generate',
-        inputPlaceholder: 'e.g. INNO-2025-001', showCancelButton: true
+        title: 'Project Code',
+        input: 'text',
+        inputLabel: 'Enter project code or leave blank to auto-generate',
+        inputValue: defaultCode,
+        inputPlaceholder: 'e.g. INNO-2025-001',
+        showCancelButton: true
       });
       
       if (projectCode === undefined) return; // User cancelled
       
+      // If user cleared the field, use the default code
+      const finalCode = projectCode && projectCode.trim() ? projectCode.trim() : defaultCode;
+      
       setIdeas(optimisticIdeas);
-      const updated = await promoteIdea(idea.id, projectCode || undefined);
+      const updated = await promoteIdea(idea.id, finalCode);
       Swal.fire({ icon: 'success', title: `Promoted to ${updated.projectCode}`, toast: true, position: 'bottom-end', timer: 2000, showConfirmButton: false });
     } catch (e: any) {
       setIdeas(rollbackIdeas);

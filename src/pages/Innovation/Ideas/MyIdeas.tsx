@@ -145,11 +145,12 @@ const MyIdeas = () => {
     const getStatusConfig = (status: string) => {
         const configs: Record<string, { color: string; icon: string; bg: string; label: string }> = {
             DRAFT: { color: 'text-gray-600', icon: '📝', bg: 'bg-gray-100 dark:bg-gray-800', label: t('innovation.myIdeas.status.draft') },
-            PENDING_REVIEW: { color: 'text-blue-600', icon: '⏰', bg: 'bg-blue-100 dark:bg-blue-900', label: t('innovation.myIdeas.status.pending') },
+            PENDING_REVIEW: { color: 'text-yellow-600', icon: '🔍', bg: 'bg-yellow-100 dark:bg-yellow-900', label: t('innovation.myIdeas.status.underReview') },
             UNDER_REVIEW: { color: 'text-yellow-600', icon: '🔍', bg: 'bg-yellow-100 dark:bg-yellow-900', label: t('innovation.myIdeas.status.underReview') },
             APPROVED: { color: 'text-green-600', icon: '✅', bg: 'bg-green-100 dark:bg-green-900', label: t('innovation.myIdeas.status.approved') },
             IMPLEMENTED: { color: 'text-purple-600', icon: '🎉', bg: 'bg-purple-100 dark:bg-purple-900', label: t('innovation.myIdeas.status.implemented') },
             REJECTED: { color: 'text-red-600', icon: '❌', bg: 'bg-red-100 dark:bg-red-900', label: t('innovation.myIdeas.status.rejected') },
+            PROMOTED_TO_PROJECT: { color: 'text-purple-600', icon: '🚀', bg: 'bg-purple-100 dark:bg-purple-900', label: t('innovation.myIdeas.status.implemented') },
         };
         return configs[status] || configs.DRAFT;
     };
