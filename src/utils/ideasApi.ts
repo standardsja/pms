@@ -86,17 +86,42 @@ export async function fetchIdeas(params?: {
   if (params?.includeAttachments) qs.set('include', 'attachments');
   // Cache busting to ensure fresh data in all environments
   qs.set('t', Date.now().toString());
-  const res = await fetch(`/api/ideas${qs.toString() ? `?${qs.toString()}` : ''}`, {
-    headers: {
-      ...authHeaders(),
-      'Cache-Control': 'no-store',
-      Pragma: 'no-cache',
-    },
-    cache: 'no-store',
-  });
-  if (!res.ok) throw new Error(await res.text());
-  const list = (await res.json()) as Idea[];
-  return list.map(i => ({ ...i, firstAttachmentUrl: i.attachments?.[0]?.fileUrl || null }));
+  
+  try {
+    const res = await fetch(`/api/ideas${qs.toString() ? `?${qs.toString()}` : ''}`, {
+      headers: {
+        ...authHeaders(),
+        'Cache-Control': 'no-store',
+        Pragma: 'no-cache',
+      },
+      cache: 'no-store',
+    });
+    
+    if (!res.ok) {
+      // Try to parse error response
+      let errorMessage = 'Unable to load ideas. Please try again later.';
+      try {
+        const errorData = await res.json();
+        errorMessage = errorData.message || errorData.error || errorMessage;
+      } catch {
+        // If JSON parsing fails, use status text
+        errorMessage = res.status === 404 ? 'Ideas not found' : 
+                      res.status === 403 ? 'Access denied' :
+                      res.status === 401 ? 'Please log in to continue' :
+                      'Unable to load ideas. Please try again later.';
+      }
+      throw new Error(errorMessage);
+    }
+    
+    const list = (await res.json()) as Idea[];
+    return list.map(i => ({ ...i, firstAttachmentUrl: i.attachments?.[0]?.fileUrl || null }));
+  } catch (error) {
+    // Network or other fetch errors
+    if (error instanceof Error && error.message) {
+      throw error;
+    }
+    throw new Error('Network error. Please check your connection and try again.');
+  }
 }
 
 export async function fetchIdeaById(id: string | number, opts?: { includeAttachments?: boolean }): Promise<Idea> {
@@ -104,28 +129,68 @@ export async function fetchIdeaById(id: string | number, opts?: { includeAttachm
   if (opts?.includeAttachments) qs.set('include', 'attachments');
   qs.set('t', Date.now().toString());
   const url = `/api/ideas/${id}?${qs.toString()}`;
-  const res = await fetch(url, {
-    headers: {
-      ...authHeaders(),
-      'Cache-Control': 'no-store',
-      Pragma: 'no-cache',
-    },
-    cache: 'no-store',
-  });
-  if (!res.ok) throw new Error(await res.text());
-  const idea = (await res.json()) as Idea;
-  return { ...idea, firstAttachmentUrl: idea.attachments?.[0]?.fileUrl || null };
+  
+  try {
+    const res = await fetch(url, {
+      headers: {
+        ...authHeaders(),
+        'Cache-Control': 'no-store',
+        Pragma: 'no-cache',
+      },
+      cache: 'no-store',
+    });
+    
+    if (!res.ok) {
+      let errorMessage = 'Unable to load idea details. Please try again later.';
+      try {
+        const errorData = await res.json();
+        errorMessage = errorData.message || errorData.error || errorMessage;
+      } catch {
+        errorMessage = res.status === 404 ? 'Idea not found' : 
+                      res.status === 403 ? 'Access denied' :
+                      res.status === 401 ? 'Please log in to continue' :
+                      'Unable to load idea details. Please try again later.';
+      }
+      throw new Error(errorMessage);
+    }
+    
+    const idea = (await res.json()) as Idea;
+    return { ...idea, firstAttachmentUrl: idea.attachments?.[0]?.fileUrl || null };
+  } catch (error) {
+    if (error instanceof Error && error.message) {
+      throw error;
+    }
+    throw new Error('Network error. Please check your connection and try again.');
+  }
 }
 
 // (type defined above near comments helpers)
 
 export async function fetchComments(ideaId: number | string): Promise<IdeaComment[]> {
-  const res = await fetch(`/api/ideas/${ideaId}/comments?t=${Date.now()}`, {
-    headers: authHeaders(),
-    cache: 'no-store',
-  });
-  if (!res.ok) throw new Error(await res.text());
-  return (await res.json()) as IdeaComment[];
+  try {
+    const res = await fetch(`/api/ideas/${ideaId}/comments?t=${Date.now()}`, {
+      headers: authHeaders(),
+      cache: 'no-store',
+    });
+    
+    if (!res.ok) {
+      let errorMessage = 'Unable to load comments.';
+      try {
+        const errorData = await res.json();
+        errorMessage = errorData.message || errorData.error || errorMessage;
+      } catch {
+        errorMessage = res.status === 404 ? 'Comments not found' : 'Unable to load comments.';
+      }
+      throw new Error(errorMessage);
+    }
+    
+    return (await res.json()) as IdeaComment[];
+  } catch (error) {
+    if (error instanceof Error && error.message) {
+      throw error;
+    }
+    throw new Error('Unable to load comments. Please try again.');
+  }
 }
 
 export async function postComment(ideaId: number | string, data: { text: string; parentId?: number | null }): Promise<IdeaComment> {

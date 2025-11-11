@@ -64,7 +64,7 @@ const InnovationDashboard = () => {
             setRecentIdeas(sortedByDate.slice(0, 3));
         } catch (error) {
             console.error('[InnovationDashboard] Error loading data:', error);
-            // Keep default zeros on error
+            // Keep default zeros on error - don't show error message for dashboard stats
         } finally {
             setIsLoading(false);
         }

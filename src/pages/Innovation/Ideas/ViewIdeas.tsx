@@ -76,15 +76,18 @@ const ViewIdeas = () => {
                 if (active) setIdeas(mapIdeas(apiIdeas));
             } catch (error) {
                 console.error('[ViewIdeas] Error loading ideas:', error);
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Error loading ideas',
-                    text: error instanceof Error ? error.message : 'Failed to load ideas',
-                    toast: true,
-                    position: 'bottom-end',
-                    showConfirmButton: false,
-                    timer: 3000,
-                });
+                // Only show error on initial load, not background polling
+                if (active && !ideas.length) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Unable to Load Ideas',
+                        text: 'We encountered a problem loading ideas. Please check your connection and try again.',
+                        toast: true,
+                        position: 'bottom-end',
+                        showConfirmButton: false,
+                        timer: 3500,
+                    });
+                }
             } finally {
                 if (active) setIsLoading(false);
             }

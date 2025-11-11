@@ -162,7 +162,7 @@ app.get('/api/ideas', authMiddleware, async (req, res) => {
     return res.json(ideas);
   } catch (e: any) {
     console.error('GET /api/ideas error:', e);
-    return res.status(500).json({ message: e?.message || 'Failed to fetch ideas' });
+    return res.status(500).json({ error: 'Unable to load ideas', message: 'Unable to load ideas. Please try again later.' });
   }
 });
 
@@ -180,7 +180,7 @@ app.get('/api/ideas/:id', authMiddleware, async (req, res) => {
     return res.json(idea);
   } catch (e: any) {
     console.error('GET /api/ideas/:id error:', e);
-    return res.status(500).json({ message: e?.message || 'Failed to fetch idea' });
+    return res.status(500).json({ error: 'Unable to load idea', message: 'Unable to load idea details. Please try again later.' });
   }
 });
 

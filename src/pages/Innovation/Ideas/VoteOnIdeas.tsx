@@ -73,15 +73,18 @@ const VoteOnIdeas = () => {
                 })));
             } catch (error) {
                 console.error('[VoteOnIdeas] Error loading ideas:', error);
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Error loading ideas',
-                    text: error instanceof Error ? error.message : 'Failed to load ideas',
-                    toast: true,
-                    position: 'bottom-end',
-                    showConfirmButton: false,
-                    timer: 3000,
-                });
+                // Only show error on first load, not background polling
+                if (!ideas.length) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Unable to Load Ideas',
+                        text: 'We encountered a problem loading ideas. Please check your connection and try again.',
+                        toast: true,
+                        position: 'bottom-end',
+                        showConfirmButton: false,
+                        timer: 3500,
+                    });
+                }
             }
         };
         
@@ -226,8 +229,8 @@ const VoteOnIdeas = () => {
                 // Generic error
                 void Swal.fire({
                     icon: 'error',
-                    title: 'Error',
-                    text: error instanceof Error ? error.message : 'Failed to vote',
+                    title: 'Vote Failed',
+                    text: 'We were unable to process your vote. Please try again.',
                     toast: true,
                     position: 'bottom-end',
                     showConfirmButton: false,

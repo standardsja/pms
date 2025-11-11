@@ -758,7 +758,7 @@ app.get('/api/ideas', async (req, res) => {
 		res.json(payload);
 	} catch (err) {
 		console.error('GET /api/ideas error:', err);
-		res.status(500).json({ error: 'failed to fetch ideas' });
+		res.status(500).json({ error: 'Unable to load ideas', message: 'Unable to load ideas. Please try again later.' });
 	}
 });
 
@@ -851,7 +851,7 @@ app.get('/api/ideas/:id', async (req, res) => {
 		res.json(payload);
 	} catch (err) {
 		console.error('GET /api/ideas/:id error:', err);
-		res.status(500).json({ error: 'failed to fetch idea' });
+		res.status(500).json({ error: 'Unable to load idea', message: 'Unable to load idea details. Please try again later.' });
 	}
 });
 
@@ -1183,7 +1183,7 @@ app.post('/api/ideas/:id/vote', async (req, res) => {
 		});
 	} catch (err) {
 		console.error('POST /api/ideas/:id/vote error:', err);
-		res.status(500).json({ error: 'failed to vote' });
+		res.status(500).json({ error: 'Unable to vote', message: 'We were unable to process your vote. Please try again.' });
 	}
 });
 
@@ -1257,7 +1257,7 @@ app.delete('/api/ideas/:id/vote', async (req, res) => {
 		});
 	} catch (err) {
 		console.error('DELETE /api/ideas/:id/vote error:', err);
-		res.status(500).json({ error: 'failed to remove vote' });
+		res.status(500).json({ error: 'Unable to remove vote', message: 'We were unable to remove your vote. Please try again.' });
 	}
 });
 
@@ -1376,7 +1376,7 @@ app.get('/api/ideas/:id/comments', async (req, res) => {
 		})));
 	} catch (err) {
 		console.error('GET /api/ideas/:id/comments error:', err);
-		res.status(500).json({ error: 'failed to fetch comments' });
+		res.status(500).json({ error: 'Unable to load comments', message: 'Unable to load comments. Please try again.' });
 	}
 });
 

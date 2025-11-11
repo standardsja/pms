@@ -132,11 +132,18 @@ const MyIdeas = () => {
             setIdeas(myIdeas);
         } catch (error) {
             console.error('[MyIdeas] Error loading ideas:', error);
-            Swal.fire({
-                icon: 'error',
-                title: 'Error',
-                text: 'Failed to load your ideas. Please try again.',
-            });
+            // Only show error on initial load, not silent background refreshes
+            if (!silent && !ideas.length) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Unable to Load Ideas',
+                    text: 'We encountered a problem loading your ideas. Please try again.',
+                    toast: true,
+                    position: 'bottom-end',
+                    timer: 3500,
+                    showConfirmButton: false,
+                });
+            }
         } finally {
             if (!silent) setIsLoading(false);
         }
