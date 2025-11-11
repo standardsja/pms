@@ -14,7 +14,7 @@ const ModuleSelector = () => {
     const modules = [
         {
             id: 'pms',
-            title: 'Procurement Management System',
+            title: 'Smart Portal for Information Exchange',
             description: 'Manage requests, RFQs, suppliers, purchase orders, and payments',
             icon: '📦',
             gradient: 'from-blue-500 to-blue-700',
