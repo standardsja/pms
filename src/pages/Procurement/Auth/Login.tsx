@@ -2,6 +2,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { setPageTitle } from '../../../store/themeConfigSlice';
+import { clearModule } from '../../../store/moduleSlice';
 import IconMail from '../../../components/Icon/IconMail';
 import IconLockDots from '../../../components/Icon/IconLockDots';
 import IconEye from '../../../components/Icon/IconEye';
@@ -49,6 +50,10 @@ const Login = () => {
             }
             const { token, user } = data || {};
             if (!token || !user) throw new Error('Invalid login response');
+            
+            // Clear Redux module state before setting new auth (forces re-initialization with new user)
+            dispatch(clearModule());
+            
             setAuth(token, user, rememberMe);
             // Also persist legacy userProfile structure expected by RequestForm & index pages
             try {
