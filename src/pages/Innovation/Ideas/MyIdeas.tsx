@@ -104,10 +104,14 @@ const MyIdeas = () => {
                     if (rawId !== undefined && rawId !== null) {
                         return String(rawId) === userIdStr;
                     }
-                    // Fallback: some API variants only provide a display string (name or email)
-                    const submittedByText = ((idea as any).submittedBy || '') as string;
-                    if (!submittedByText) return false;
-                    const sb = submittedByText.toLowerCase();
+                    // Fallback: some API variants provide an object or array (name/email) instead of a string
+                    const submittedByRaw: any = (idea as any).submittedBy ?? '';
+                    let submittedByText = '';
+                    if (typeof submittedByRaw === 'string') submittedByText = submittedByRaw;
+                    else if (submittedByRaw && typeof submittedByRaw === 'object') submittedByText = submittedByRaw.name || submittedByRaw.email || '';
+                    else if (Array.isArray(submittedByRaw)) submittedByText = submittedByRaw.filter(Boolean).join(' ');
+                    const sb = String(submittedByText || '').toLowerCase();
+                    if (!sb) return false;
                     return (userName && sb.includes(userName)) || (userEmail && sb.includes(userEmail));
                 })
                 .map(idea => ({

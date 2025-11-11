@@ -61,7 +61,8 @@ app.post('/api/auth/login', async (req, res) => {
           include: {
             role: true
           }
-        }
+        },
+        department: true
       }
     });
     if (!user) return res.status(401).json({ message: 'Invalid credentials' });
@@ -80,7 +81,17 @@ app.post('/api/auth/login', async (req, res) => {
 
     return res.json({
       token,
-      user: { id: user.id, email: user.email, name: user.name, roles: roles },
+      user: { 
+        id: user.id, 
+        email: user.email, 
+        name: user.name, 
+        roles: roles,
+        department: user.department ? {
+          id: user.department.id,
+          name: user.department.name,
+          code: user.department.code
+        } : null
+      },
     });
   } catch (e: any) {
     console.error('Login error:', e);
@@ -118,12 +129,23 @@ app.get('/api/auth/me', authMiddleware, async (req, res) => {
         include: {
           role: true
         }
-      }
+      },
+      department: true
     }
   });
   if (!user) return res.status(404).json({ message: 'Not found' });
   const roles = user.roles.map(r => r.role.name);
-  return res.json({ id: user.id, email: user.email, name: user.name, roles: roles });
+  return res.json({ 
+    id: user.id, 
+    email: user.email, 
+    name: user.name, 
+    roles: roles,
+    department: user.department ? {
+      id: user.department.id,
+      name: user.department.name,
+      code: user.department.code
+    } : null
+  });
 });
 
 // =============== Innovation Hub: Ideas (Committee) ===============
@@ -303,6 +325,112 @@ app.post('/api/ideas/:id/promote', authMiddleware, requireCommittee, async (req,
   } catch (e: any) {
     console.error('POST /api/ideas/:id/promote error:', e);
     return res.status(500).json({ message: e?.message || 'Failed to promote idea' });
+  }
+});
+
+// POST /api/ideas/:id/vote - upvote/downvote an idea
+app.post('/api/ideas/:id/vote', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params as { id: string };
+    const { voteType } = (req.body || {}) as { voteType?: 'UPVOTE' | 'DOWNVOTE' };
+    const userId = (req as any).userId;
+
+    const idea = await prisma.idea.findUnique({ where: { id: parseInt(id, 10) } });
+    if (!idea) return res.status(404).json({ message: 'Idea not found' });
+
+    const type = voteType === 'DOWNVOTE' ? 'DOWNVOTE' : 'UPVOTE';
+
+    // Check existing vote
+    const existing = await prisma.vote.findFirst({
+      where: { ideaId: parseInt(id, 10), userId },
+    });
+
+    if (existing) {
+      if (existing.voteType === type) {
+        return res.status(400).json({ error: 'already voted', message: 'You have already voted on this idea' });
+      }
+      // Change vote type
+      await prisma.vote.update({
+        where: { id: existing.id },
+        data: { voteType: type },
+      });
+    } else {
+      // Create new vote
+      await prisma.vote.create({
+        data: { ideaId: parseInt(id, 10), userId, voteType: type },
+      });
+    }
+
+    // Recalculate counts
+    const upvotes = await prisma.vote.count({ where: { ideaId: parseInt(id, 10), voteType: 'UPVOTE' } });
+    const downvotes = await prisma.vote.count({ where: { ideaId: parseInt(id, 10), voteType: 'DOWNVOTE' } });
+
+    const updated = await prisma.idea.update({
+      where: { id: parseInt(id, 10) },
+      data: { upvoteCount: upvotes, downvoteCount: downvotes, voteCount: upvotes - downvotes },
+    });
+
+    return res.json(updated);
+  } catch (e: any) {
+    console.error('POST /api/ideas/:id/vote error:', e);
+    return res.status(500).json({ message: e?.message || 'Failed to vote' });
+  }
+});
+
+// DELETE /api/ideas/:id/vote - remove vote
+app.delete('/api/ideas/:id/vote', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params as { id: string };
+    const userId = (req as any).userId;
+
+    const existing = await prisma.vote.findFirst({
+      where: { ideaId: parseInt(id, 10), userId },
+    });
+
+    if (!existing) {
+      return res.status(404).json({ message: 'Vote not found' });
+    }
+
+    await prisma.vote.delete({ where: { id: existing.id } });
+
+    // Recalculate
+    const upvotes = await prisma.vote.count({ where: { ideaId: parseInt(id, 10), voteType: 'UPVOTE' } });
+    const downvotes = await prisma.vote.count({ where: { ideaId: parseInt(id, 10), voteType: 'DOWNVOTE' } });
+
+    const updated = await prisma.idea.update({
+      where: { id: parseInt(id, 10) },
+      data: { upvoteCount: upvotes, downvoteCount: downvotes, voteCount: upvotes - downvotes },
+    });
+
+    return res.json(updated);
+  } catch (e: any) {
+    console.error('DELETE /api/ideas/:id/vote error:', e);
+    return res.status(500).json({ message: e?.message || 'Failed to remove vote' });
+  }
+});
+
+// GET /requests - alias for direct backend access (frontend may call this without /api prefix)
+app.get('/requests', async (_req, res) => {
+  try {
+    const requests = await prisma.request.findMany({
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        reference: true,
+        title: true,
+        requesterId: true,
+        departmentId: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+        requester: { select: { id: true, name: true, email: true } },
+        department: { select: { id: true, name: true, code: true } },
+      },
+    });
+    return res.json(requests);
+  } catch (e: any) {
+    console.error('GET /requests error:', e);
+    return res.status(500).json({ message: 'Failed to fetch requests' });
   }
 });
 
