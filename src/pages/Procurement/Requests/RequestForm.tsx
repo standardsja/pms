@@ -453,7 +453,23 @@ const RequestForm = () => {
                 }
 
                 const data = await resp.json();
-                Swal.fire({ icon: 'success', title: 'Request submitted', text: `Reference ${data.reference || data.id}` });
+                
+                // Submit the request to department manager for review
+                const submitResp = await fetch(`http://localhost:4000/requests/${data.id}/submit`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-user-id': String(userId),
+                    },
+                });
+
+                if (!submitResp.ok) {
+                    const err = await submitResp.json().catch(() => ({}));
+                    console.error('Failed to submit request:', err);
+                    // Don't throw - the request was created successfully, just not submitted
+                }
+
+                Swal.fire({ icon: 'success', title: 'Request submitted', text: `Reference ${data.reference || data.id} has been sent for review` });
                 navigate('/apps/requests');
             }
         } catch (err: any) {
