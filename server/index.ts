@@ -21,6 +21,23 @@ const UPLOAD_DIR = path.resolve(process.cwd(), 'uploads');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 app.use('/uploads', express.static(UPLOAD_DIR));
 
+// Utility: attempt to repair invalid Request.status values that break Prisma enum queries
+async function fixInvalidRequestStatuses(): Promise<number | null> {
+  try {
+    // Normalize NULL or empty string statuses to a safe default
+    const patched: any = await prisma.$executeRawUnsafe(
+      'UPDATE Request SET status = \'DRAFT\' WHERE status IS NULL OR status = \'\''
+    );
+    // $executeRaw returns number of affected rows in some drivers or a Result object; coerce to number when possible
+    if (typeof patched === 'number') return patched;
+    if (patched && typeof patched.rowCount === 'number') return patched.rowCount;
+    return 0;
+  } catch (err) {
+    console.warn('fixInvalidRequestStatuses: failed to patch invalid statuses:', err);
+    return null;
+  }
+}
+
 // Multer storage for idea images
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
@@ -432,6 +449,35 @@ app.get('/requests', async (_req, res) => {
     return res.json(requests);
   } catch (e: any) {
     console.error('GET /requests error:', e);
+    // Handle invalid enum values in legacy rows by attempting an automatic repair then retrying once
+    const message = String(e?.message || '');
+    if (message.includes("not found in enum 'RequestStatus'")) {
+      const patched = await fixInvalidRequestStatuses();
+      if (patched !== null) {
+        try {
+          const requests = await prisma.request.findMany({
+            orderBy: { createdAt: 'desc' },
+            select: {
+              id: true,
+              reference: true,
+              title: true,
+              requesterId: true,
+              departmentId: true,
+              status: true,
+              currentAssigneeId: true,
+              createdAt: true,
+              updatedAt: true,
+              requester: { select: { id: true, name: true, email: true } },
+              department: { select: { id: true, name: true, code: true } },
+              currentAssignee: { select: { id: true, name: true, email: true } },
+            },
+          });
+          return res.json(requests);
+        } catch (retryErr: any) {
+          console.error('GET /requests retry after patch failed:', retryErr);
+        }
+      }
+    }
     return res.status(500).json({ message: 'Failed to fetch requests' });
   }
 });
@@ -560,6 +606,66 @@ app.get('/requests/:id', async (req, res) => {
     return res.json(request);
   } catch (e: any) {
     console.error('GET /requests/:id error:', e);
+    const message = String(e?.message || '');
+    if (message.includes("not found in enum 'RequestStatus'")) {
+      const patched = await fixInvalidRequestStatuses();
+      if (patched !== null) {
+        try {
+          const { id } = req.params;
+          const request = await prisma.request.findUnique({
+            where: { id: parseInt(id, 10) },
+            select: {
+              id: true,
+              reference: true,
+              title: true,
+              description: true,
+              requesterId: true,
+              departmentId: true,
+              status: true,
+              fundingSourceId: true,
+              budgetCode: true,
+              totalEstimated: true,
+              currency: true,
+              priority: true,
+              procurementType: true,
+              expectedDelivery: true,
+              currentAssigneeId: true,
+              vendorId: true,
+              managerName: true,
+              headName: true,
+              managerApproved: true,
+              headApproved: true,
+              commitmentNumber: true,
+              accountingCode: true,
+              budgetComments: true,
+              budgetOfficerName: true,
+              budgetManagerName: true,
+              budgetOfficerApproved: true,
+              budgetManagerApproved: true,
+              procurementCaseNumber: true,
+              receivedBy: true,
+              dateReceived: true,
+              procurementApproved: true,
+              actionDate: true,
+              procurementComments: true,
+              createdAt: true,
+              updatedAt: true,
+              submittedAt: true,
+              items: true,
+              requester: { select: { id: true, name: true, email: true } },
+              department: { select: { id: true, name: true, code: true } },
+              currentAssignee: { select: { id: true, name: true, email: true } },
+              statusHistory: true,
+              actions: true,
+            },
+          });
+          if (!request) return res.status(404).json({ message: 'Request not found' });
+          return res.json(request);
+        } catch (retryErr: any) {
+          console.error('GET /requests/:id retry after patch failed:', retryErr);
+        }
+      }
+    }
     return res.status(500).json({ message: 'Failed to fetch request' });
   }
 });
@@ -732,10 +838,19 @@ app.post('/requests/:id/action', async (req, res) => {
         nextStatus = 'BUDGET_MANAGER_REVIEW';
         nextAssigneeId = budgetMgr?.id || null;
       } else if (request.status === 'BUDGET_MANAGER_REVIEW') {
-        // Final approval
-        nextStatus = 'FINANCE_APPROVED';
-        nextAssigneeId = null;
+            // Final finance approval -> assign back to Procurement to dispatch to vendors/PO
+            nextStatus = 'FINANCE_APPROVED';
+            const procurement = await prisma.user.findFirst({
+              where: { roles: { some: { role: { name: 'PROCUREMENT' } } } }
+            });
+            nextAssigneeId = procurement?.id || null;
       }
+    } else if (action === 'SEND_TO_VENDOR') {
+      if (request.status !== 'FINANCE_APPROVED') {
+        return res.status(400).json({ message: 'Can only send to vendor after finance approval' });
+      }
+      nextStatus = 'SENT_TO_VENDOR';
+      nextAssigneeId = null;
     } else if (action === 'REJECT') {
       // Rejected -> send back to requester as DRAFT
       nextStatus = 'DRAFT';
@@ -816,6 +931,32 @@ app.get('/api/requests', async (_req, res) => {
   } catch (e: any) {
     // If a column is missing on the connected database (e.g., P2022), fall back to a raw query
     console.error('GET /api/requests error:', e);
+    const message = String(e?.message || '');
+    if (message.includes("not found in enum 'RequestStatus'")) {
+      const patched = await fixInvalidRequestStatuses();
+      if (patched !== null) {
+        try {
+          const requests = await prisma.request.findMany({
+            orderBy: { createdAt: 'desc' },
+            select: {
+              id: true,
+              reference: true,
+              title: true,
+              requesterId: true,
+              departmentId: true,
+              status: true,
+              createdAt: true,
+              updatedAt: true,
+              requester: { select: { id: true, name: true, email: true } },
+              department: { select: { id: true, name: true, code: true } },
+            },
+          });
+          return res.json(requests);
+        } catch (retryErr: any) {
+          console.error('GET /api/requests retry after patch failed:', retryErr);
+        }
+      }
+    }
     if (e?.code === 'P2022') {
       try {
         const rows = await prisma.$queryRawUnsafe(
@@ -916,34 +1057,71 @@ app.get('/admin/users', async (req, res) => {
 app.post('/admin/requests/:id/reassign', async (req, res) => {
   try {
     const { id } = req.params;
-    const { assigneeId, comment } = req.body;
+    const { assigneeId, comment, newStatus } = req.body || {};
     const userId = req.headers['x-user-id'];
+    if (!userId) return res.status(401).json({ message: 'User ID required' });
 
-    if (!userId) {
-      return res.status(401).json({ message: 'User ID required' });
-    }
-
-    // Verify the requester is an admin
+    // Verify admin
     const admin = await prisma.user.findUnique({
       where: { id: parseInt(String(userId), 10) },
-      include: { roles: { include: { role: true } } }
+      include: { roles: { include: { role: true } } },
     });
-
     const isAdmin = admin?.roles.some(r => r.role.name === 'ADMIN');
-    if (!isAdmin) {
-      return res.status(403).json({ message: 'Admin access required' });
+    if (!isAdmin) return res.status(403).json({ message: 'Admin access required' });
+
+    const request = await prisma.request.findUnique({
+      where: { id: parseInt(id, 10) },
+      include: { currentAssignee: true, department: true },
+    });
+    if (!request) return res.status(404).json({ message: 'Request not found' });
+
+    // Validate optional newStatus against known enum values
+    const VALID_STATUSES = [
+      'DRAFT','SUBMITTED','DEPARTMENT_REVIEW','DEPARTMENT_RETURNED','DEPARTMENT_APPROVED','HOD_REVIEW','PROCUREMENT_REVIEW','FINANCE_REVIEW','BUDGET_MANAGER_REVIEW','FINANCE_RETURNED','FINANCE_APPROVED','SENT_TO_VENDOR','CLOSED','REJECTED'
+    ];
+    let targetStatus: string = request.status;
+    if (newStatus) {
+      const upper = String(newStatus).toUpperCase();
+      if (!VALID_STATUSES.includes(upper)) {
+        return res.status(400).json({ message: `Invalid status '${newStatus}'` });
+      }
+      targetStatus = upper;
+    } else if (!newStatus && assigneeId) {
+      // Optional auto inference: advance if assignment implies next stage (light heuristic)
+      // Map role -> implied status if current stage precedes it
+      const assignee = await prisma.user.findUnique({
+        where: { id: parseInt(String(assigneeId), 10) },
+        include: { roles: { include: { role: true } }, department: true },
+      });
+      const roleNames = assignee?.roles.map(r => r.role.name) || [];
+      const has = (r: string) => roleNames.includes(r);
+      // Progression chain heuristics
+      if (request.status === 'DRAFT' && has('DEPT_MANAGER')) targetStatus = 'DEPARTMENT_REVIEW';
+      else if (request.status === 'DEPARTMENT_REVIEW' && has('HEAD_OF_DIVISION')) targetStatus = 'HOD_REVIEW';
+      else if (request.status === 'HOD_REVIEW' && has('PROCUREMENT')) targetStatus = 'PROCUREMENT_REVIEW';
+      else if (request.status === 'PROCUREMENT_REVIEW' && has('FINANCE')) targetStatus = 'FINANCE_REVIEW';
+      else if (request.status === 'FINANCE_REVIEW' && has('BUDGET_MANAGER')) targetStatus = 'BUDGET_MANAGER_REVIEW';
+      else if (request.status === 'BUDGET_MANAGER_REVIEW' && !assigneeId) targetStatus = 'FINANCE_APPROVED';
     }
 
-    // Update the request assignment
     const updated = await prisma.request.update({
       where: { id: parseInt(id, 10) },
       data: {
         currentAssigneeId: assigneeId ? parseInt(String(assigneeId), 10) : null,
+        status: targetStatus as any,
         statusHistory: {
           create: {
-            status: await prisma.request.findUnique({ where: { id: parseInt(id, 10) } }).then(r => r?.status || 'DRAFT'),
+            status: targetStatus as any,
             changedById: parseInt(String(userId), 10),
-            comment: comment || 'Request manually reassigned by admin',
+            comment: comment || (newStatus ? `Status set to ${targetStatus} and reassigned by admin` : 'Request manually reassigned by admin'),
+          },
+        },
+        actions: {
+          create: {
+            action: 'ASSIGN',
+            performedById: parseInt(String(userId), 10),
+            comment: comment || 'Admin reassignment',
+            metadata: { previousAssigneeId: request.currentAssigneeId, newAssigneeId: assigneeId ? parseInt(String(assigneeId), 10) : null },
           },
         },
       },
@@ -952,13 +1130,40 @@ app.post('/admin/requests/:id/reassign', async (req, res) => {
         requester: { select: { id: true, name: true, email: true } },
         department: { select: { id: true, name: true, code: true } },
         currentAssignee: { select: { id: true, name: true, email: true } },
+        statusHistory: true,
+        actions: true,
       },
     });
 
-    res.json(updated);
+    return res.json(updated);
   } catch (e: any) {
     console.error('POST /admin/requests/:id/reassign error:', e);
-    res.status(500).json({ message: 'Failed to reassign request' });
+    return res.status(500).json({ message: 'Failed to reassign request' });
+  }
+});
+
+// POST /admin/maintenance/fix-invalid-request-statuses - Admin maintenance to repair invalid enum values
+app.post('/admin/maintenance/fix-invalid-request-statuses', async (req, res) => {
+  try {
+    const userId = req.headers['x-user-id'];
+    if (!userId) {
+      return res.status(401).json({ message: 'User ID required' });
+    }
+    const admin = await prisma.user.findUnique({
+      where: { id: parseInt(String(userId), 10) },
+      include: { roles: { include: { role: true } } },
+    });
+    const isAdmin = admin?.roles.some(r => r.role.name === 'ADMIN');
+    if (!isAdmin) {
+      return res.status(403).json({ message: 'Admin access required' });
+    }
+
+    const patched = await fixInvalidRequestStatuses();
+    if (patched === null) return res.status(500).json({ message: 'Failed to perform maintenance' });
+    return res.json({ patched });
+  } catch (e: any) {
+    console.error('POST /admin/maintenance/fix-invalid-request-statuses error:', e);
+    res.status(500).json({ message: 'Failed to run maintenance task' });
   }
 });
 

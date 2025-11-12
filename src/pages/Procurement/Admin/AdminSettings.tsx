@@ -747,6 +747,7 @@ function ReassignRequestsTab() {
     const [users, setUsers] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [selectedRequest, setSelectedRequest] = useState<number | null>(null);
+    const [selectedStatus, setSelectedStatus] = useState<string>('');
 
     useEffect(() => {
         loadData();
@@ -781,7 +782,7 @@ function ReassignRequestsTab() {
                     'Content-Type': 'application/json',
                     'x-user-id': String(user?.id || ''),
                 },
-                body: JSON.stringify({ assigneeId, comment: 'Manually reassigned by admin' }),
+                body: JSON.stringify({ assigneeId, comment: 'Manually reassigned by admin', newStatus: selectedStatus || undefined }),
             });
 
             if (!res.ok) throw new Error('Failed to reassign');
@@ -836,6 +837,32 @@ function ReassignRequestsTab() {
                 {/* Users List */}
                 <div>
                     <h6 className="mb-3 font-semibold">Users {selectedRequest ? '(Click to reassign)' : ''}</h6>
+                    {/* Optional status change during reassignment */}
+                    <div className="mb-3">
+                        <label className="block text-sm mb-1">Set Status (optional)</label>
+                        <select
+                            className="form-select"
+                            value={selectedStatus}
+                            onChange={(e) => setSelectedStatus(e.target.value)}
+                            disabled={!selectedRequest}
+                        >
+                            <option value="">— No change —</option>
+                            <option value="DRAFT">DRAFT</option>
+                            <option value="SUBMITTED">SUBMITTED</option>
+                            <option value="DEPARTMENT_REVIEW">DEPARTMENT_REVIEW</option>
+                            <option value="DEPARTMENT_RETURNED">DEPARTMENT_RETURNED</option>
+                            <option value="DEPARTMENT_APPROVED">DEPARTMENT_APPROVED</option>
+                            <option value="HOD_REVIEW">HOD_REVIEW</option>
+                            <option value="PROCUREMENT_REVIEW">PROCUREMENT_REVIEW</option>
+                            <option value="FINANCE_REVIEW">FINANCE_REVIEW</option>
+                            <option value="BUDGET_MANAGER_REVIEW">BUDGET_MANAGER_REVIEW</option>
+                            <option value="FINANCE_RETURNED">FINANCE_RETURNED</option>
+                            <option value="FINANCE_APPROVED">FINANCE_APPROVED</option>
+                            <option value="SENT_TO_VENDOR">SENT_TO_VENDOR</option>
+                            <option value="CLOSED">CLOSED</option>
+                            <option value="REJECTED">REJECTED</option>
+                        </select>
+                    </div>
                     <div className="space-y-2 max-h-96 overflow-y-auto">
                         {users.map((user) => (
                             <div
