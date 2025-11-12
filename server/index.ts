@@ -464,9 +464,21 @@ app.post('/api/ideas/:id/vote', authMiddleware, async (req, res) => {
 
     if (existing) {
       if (existing.voteType === type) {
-        return res.status(400).json({ error: 'already voted', message: 'You have already voted on this idea' });
+        // User is clicking same vote button - this is handled by frontend (they should use DELETE)
+        // Just return current state without error
+        const idea = await prisma.idea.findUnique({
+          where: { id: parseInt(id, 10) },
+        });
+        
+        // Add hasVoted field
+        const userVote = await prisma.vote.findFirst({
+          where: { ideaId: parseInt(id, 10), userId },
+        });
+        const hasVoted = userVote ? (userVote.voteType === 'UPVOTE' ? 'up' : 'down') : null;
+        
+        return res.json({ ...idea, hasVoted });
       }
-      // Change vote type
+      // Change vote type (from upvote to downvote or vice versa)
       await prisma.vote.update({
         where: { id: existing.id },
         data: { voteType: type },
@@ -487,7 +499,13 @@ app.post('/api/ideas/:id/vote', authMiddleware, async (req, res) => {
       data: { upvoteCount: upvotes, downvoteCount: downvotes, voteCount: upvotes - downvotes },
     });
 
-    return res.json(updated);
+    // Add hasVoted field to response
+    const userVote = await prisma.vote.findFirst({
+      where: { ideaId: parseInt(id, 10), userId },
+    });
+    const hasVoted = userVote ? (userVote.voteType === 'UPVOTE' ? 'up' : 'down') : null;
+
+    return res.json({ ...updated, hasVoted });
   } catch (e: any) {
     console.error('POST /api/ideas/:id/vote error:', e);
     return res.status(500).json({ message: e?.message || 'Failed to vote' });
@@ -522,7 +540,8 @@ app.delete('/api/ideas/:id/vote', authMiddleware, async (req, res) => {
       data: { upvoteCount: upvotes, downvoteCount: downvotes, voteCount: upvotes - downvotes },
     });
 
-    return res.json(updated);
+    // After deletion, hasVoted should be null
+    return res.json({ ...updated, hasVoted: null });
   } catch (e: any) {
     console.error('DELETE /api/ideas/:id/vote error:', e);
     return res.status(500).json({ message: e?.message || 'Failed to remove vote' });
