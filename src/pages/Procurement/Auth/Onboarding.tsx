@@ -39,8 +39,9 @@ const Onboarding = () => {
 
     useEffect(() => {
         dispatch(setPageTitle(t('onboarding.title')));
-        // If a committee member somehow lands here, redirect them to their dashboard
-        if (isCommittee) {
+        // If a committee-ONLY member lands here, redirect them to their dashboard
+        const isCommitteeOnly = isCommittee && userRoles.length === 1;
+        if (isCommitteeOnly) {
             navigate('/innovation/committee/dashboard', { replace: true });
             return;
         }

@@ -252,7 +252,7 @@ app.get('/requests', async (req, res) => {
 		const where = {};
 		if (assignee) where.currentAssigneeId = Number(assignee);
 		if (requester) where.requesterId = Number(requester);
-		if (status) where.status = String(status);
+		if (status && status !== '') where.status = String(status);
 		if (departmentId) where.departmentId = Number(departmentId);
 
 		const list = await prisma.request.findMany({ where, orderBy: { createdAt: 'desc' }, include: { items: true, requester: true, department: true, currentAssignee: true, statusHistory: true } });

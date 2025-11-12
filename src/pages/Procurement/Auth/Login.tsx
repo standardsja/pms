@@ -93,31 +93,34 @@ const Login = () => {
             // Role-based redirect after login - BUT respect onboarding for first-time/non-remembered users
             const userRoles = user.roles || (user.role ? [user.role] : []);
             
-            // Only auto-redirect to role-specific dashboards if user has completed onboarding
-            if (hasCompletedOnboarding && hasLastModule) {
-                if (userRoles.includes('INNOVATION_COMMITTEE')) {
+            // Committee members with ONLY committee role go directly to committee dashboard
+            const isCommitteeOnly = userRoles.includes('INNOVATION_COMMITTEE') && userRoles.length === 1;
+            
+            if (isCommitteeOnly) {
+                // Committee-only users always go to their dashboard
+                navigate('/innovation/committee/dashboard');
+            } else if (hasCompletedOnboarding && hasLastModule) {
+                // Returning users with saved preference - go to their last module
+                const lastMod = localStorage.getItem(`lastModule:${userSuffix}`);
+                if (lastMod === 'pms') {
+                    if (userRoles.includes('PROCUREMENT_MANAGER') || userRoles.includes('MANAGER') || userRoles.some((r: string) => r && r.toUpperCase().includes('MANAGER'))) {
+                        navigate('/procurement/manager');
+                    } else if (userRoles.includes('PROCUREMENT_OFFICER') || userRoles.includes('PROCUREMENT')) {
+                        navigate('/procurement/dashboard');
+                    } else if (userRoles.some((r: string) => r && r.toUpperCase().includes('REQUEST'))) {
+                        navigate('/apps/requests');
+                    } else {
+                        navigate('/procurement/dashboard');
+                    }
+                } else if (lastMod === 'ih') {
+                    navigate('/innovation/dashboard');
+                } else if (lastMod === 'committee') {
                     navigate('/innovation/committee/dashboard');
-                } else if (
-                    userRoles.includes('PROCUREMENT_MANAGER') ||
-                    userRoles.includes('MANAGER') ||
-                    userRoles.some((r: string) => r && r.toUpperCase().includes('MANAGER'))
-                ) {
-                    navigate('/procurement/manager');
-                } else if (
-                    userRoles.includes('PROCUREMENT_OFFICER') ||
-                    userRoles.includes('PROCUREMENT')
-                ) {
-                    navigate('/procurement/dashboard');
-                } else if (userRoles.includes('SUPPLIER') || userRoles.some((r: string) => r && r.toUpperCase().includes('SUPPLIER'))) {
-                    navigate('/supplier');
-                } else if (userRoles.some((r: string) => r && r.toUpperCase().includes('REQUEST'))) {
-                    navigate('/apps/requests');
                 } else {
-                    // Fallback to onboarding selector
                     navigate('/onboarding');
                 }
             } else {
-                // First time or user didn't check "Remember" - always show onboarding
+                // First time or user didn't check "Remember" - show module selector
                 navigate('/onboarding');
             }
         } catch (err: any) {
