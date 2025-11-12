@@ -145,6 +145,15 @@ model Role {
   users       UserRole[]
 }
 
+// Common role names used by the application (for reference):
+// - ADMIN
+// - REQUESTER
+// - DEPT_MANAGER
+// - HEAD_OF_DIVISION
+// - PROCUREMENT
+// - FINANCE
+// - INNOVATION_COMMITTEE
+
 model UserRole {
   id     Int  @id @default(autoincrement())
   user   User @relation(fields: [userId], references: [id])
@@ -341,12 +350,14 @@ model Idea {
   tags           IdeaTag[]
   stageHistory   IdeaStageHistory[]
   auditLogs      AuditLog[]
-
   @@index([status])
   @@index([category])
   @@index([submittedBy])
   @@index([createdAt])
   @@index([voteCount])
+  // Composite index to speed up queries that filter by status and order by createdAt
+  @@index([status, createdAt])
+  @@index([promotedAt])
 }
 
 model Vote {
@@ -410,6 +421,14 @@ model IdeaTag {
 
   @@id([ideaId, tagId])
   @@index([tagId])
+}
+
+// Lightweight table to persist idea counts by status for fast reads
+model IdeaCount {
+  id        Int        @id @default(autoincrement())
+  status    IdeaStatus @unique
+  count     Int        @default(0)
+  updatedAt DateTime   @default(now()) @updatedAt
 }
 
 model Challenge {
