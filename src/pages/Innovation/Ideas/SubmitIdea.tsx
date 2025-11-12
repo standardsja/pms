@@ -33,8 +33,6 @@ const SubmitIdea = () => {
     });
 
     // Attachments state (multi-file)
-    const [imageFile, setImageFile] = useState<File | null>(null); // legacy single image (kept for backward compatibility)
-    const [imagePreview, setImagePreview] = useState<string | null>(null);
     const [files, setFiles] = useState<File[]>([]);
     const [previews, setPreviews] = useState<string[]>([]);
     const [duplicateMatches, setDuplicateMatches] = useState<{ id: number; title: string; snippet: string; score: number; submittedAt: string }[]>([]);
@@ -90,12 +88,6 @@ const SubmitIdea = () => {
         }
         if (!formData.expectedBenefits) {
             next.expectedBenefits = t('innovation.submit.form.benefits.error');
-        }
-        if (imageFile) {
-            const isImage = imageFile.type.startsWith('image/');
-            const sizeOk = imageFile.size <= MAX_IMAGE_MB * 1024 * 1024;
-            if (!isImage) next.image = t('innovation.submit.form.image.typeError') || 'Please upload a valid image file.';
-            if (!sizeOk) next.image = t('innovation.submit.form.image.sizeError', { mb: MAX_IMAGE_MB }) || `Image must be <= ${MAX_IMAGE_MB}MB.`;
         }
         if (files.length) {
             if (files.length > MAX_FILES) next.files = t('innovation.submit.form.files.countError', { max: MAX_FILES }) || `You can upload up to ${MAX_FILES} files.`;
@@ -197,7 +189,7 @@ const SubmitIdea = () => {
                 isAnonymous: formData.isAnonymous,
                 challengeId: formData.challengeId ? Number(formData.challengeId) : undefined,
                 tagIds: formData.tagIds,
-            }, (imageFile || files.length) ? { image: imageFile || undefined, images: files } : undefined);
+            }, files.length ? { images: files } : undefined);
 
             // Optimistic event so MyIdeas can reflect immediately
             document.dispatchEvent(new CustomEvent('idea:created', { detail: created }));
@@ -213,9 +205,6 @@ const SubmitIdea = () => {
                 }
             });
             clearAutoSave('ideaDraft');
-            setImageFile(null);
-            if (imagePreview) URL.revokeObjectURL(imagePreview);
-            setImagePreview(null);
             previews.forEach((p) => URL.revokeObjectURL(p));
             setPreviews([]);
             setFiles([]);
@@ -228,18 +217,6 @@ const SubmitIdea = () => {
             });
         } finally {
             setIsLoading(false);
-        }
-    };
-
-    const onImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0] || null;
-        setImageFile(file);
-        if (imagePreview) {
-            URL.revokeObjectURL(imagePreview);
-            setImagePreview(null);
-        }
-        if (file) {
-            setImagePreview(URL.createObjectURL(file));
         }
     };
 
@@ -413,36 +390,10 @@ const SubmitIdea = () => {
                         )}
                     </div>
 
-                    {/* Optional Image Upload (legacy single) */}
-                    <div>
-                        <label htmlFor="idea-image" className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                            {t('innovation.submit.form.image.label', 'Attach an image (optional)')}
-                        </label>
-                        <input
-                            id="idea-image"
-                            type="file"
-                            accept="image/*"
-                            onChange={onImageChange}
-                            className="form-input"
-                            aria-describedby="image-hint image-error"
-                        />
-                        <p id="image-hint" className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                            {t('innovation.submit.form.image.hint', 'Max size 5MB. PNG or JPG recommended.')}
-                        </p>
-                        {errors.image && (
-                            <p id="image-error" role="alert" className="text-xs text-danger mt-1">{errors.image}</p>
-                        )}
-                        {imagePreview && (
-                            <div className="mt-3">
-                                <img src={imagePreview} alt={t('innovation.submit.form.image.previewAlt', 'Image preview')} className="max-h-48 rounded border" />
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Multi-file Upload */}
+                    {/* Attach images (multi-file) */}
                     <div>
                         <label htmlFor="idea-files" className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                            {t('innovation.submit.form.files.label', 'Attach more images (up to 5)')}
+                            {t('innovation.submit.form.files.label', 'Attach images (up to 5)')}
                         </label>
                         <input
                             id="idea-files"
@@ -464,7 +415,12 @@ const SubmitIdea = () => {
                                 {previews.map((src, idx) => (
                                     <div key={idx} className="relative group">
                                         <img src={src} alt={t('innovation.submit.form.files.previewAlt', 'Attachment preview')} className="h-24 w-full object-cover rounded border" />
-                                        <button type="button" onClick={() => removeFileAt(idx)} className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition" aria-label={t('innovation.submit.form.files.remove', 'Remove file')}>
+                                        <button
+                                            type="button"
+                                            onClick={() => removeFileAt(idx)}
+                                            className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
+                                            aria-label={t('innovation.submit.form.files.remove', 'Remove file')}
+                                        >
                                             ×
                                         </button>
                                     </div>

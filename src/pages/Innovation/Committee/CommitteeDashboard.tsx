@@ -5,7 +5,8 @@ import { setPageTitle } from '../../../store/themeConfigSlice';
 import Swal from 'sweetalert2';
 import { 
     approveIdea, 
-    fetchIdeas, 
+    fetchIdeas,
+    fetchIdeaCounts,
     Idea, 
     promoteIdea as promoteIdeaApi, 
     rejectIdea 
@@ -16,7 +17,9 @@ const CommitteeDashboard = () => {
     const dispatch = useDispatch();
     const navigate = useNavigate();
     const currentUser = getUser();
-    const roles: string[] = (currentUser?.roles as any) || (currentUser?.role ? [currentUser.role] : []);
+    const roles: string[] = Array.isArray(currentUser?.roles) 
+        ? currentUser.roles 
+        : (currentUser?.role ? [currentUser.role] : []);
     const isCommittee = roles?.includes?.('INNOVATION_COMMITTEE');
 
     // State for ideas lists
@@ -29,6 +32,7 @@ const CommitteeDashboard = () => {
     // UI state
     const [selectedTab, setSelectedTab] = useState<'pending' | 'approved' | 'promoted'>('pending');
     const [search, setSearch] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
     const [category, setCategory] = useState<string>('ALL');
     const [page, setPage] = useState(1);
     const pageSize = 6;
@@ -68,20 +72,23 @@ const CommitteeDashboard = () => {
         }
     }, [isCommittee, navigate]);
 
-    // Real-time counts refresh
+    // Debounce search input (500ms delay)
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearch(search);
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [search]);
+
+    // Real-time counts refresh - optimized with counts endpoint
     const loadCounts = useCallback(async () => {
         try {
-            const [pending, approved, rejected, promoted] = await Promise.all([
-                fetchIdeas({ status: 'pending' }),
-                fetchIdeas({ status: 'approved' }),
-                fetchIdeas({ status: 'rejected' }),
-                fetchIdeas({ status: 'promoted' }),
-            ]);
+            const counts = await fetchIdeaCounts();
             setCounts({ 
-                pending: pending.length, 
-                approved: approved.length, 
-                rejected: rejected.length, 
-                promoted: promoted.length 
+                pending: counts.pending || 0, 
+                approved: counts.approved || 0, 
+                rejected: counts.rejected || 0, 
+                promoted: counts.promoted || 0 
             });
         } catch (e) {
             console.error('Failed to load counts:', e);
@@ -90,7 +97,8 @@ const CommitteeDashboard = () => {
 
     useEffect(() => {
         loadCounts();
-        const interval = setInterval(() => loadCounts(), 15000);
+        // Reduced polling from 15s to 60s
+        const interval = setInterval(() => loadCounts(), 60000);
         const handleVisibility = () => {
             if (document.visibilityState === 'visible') loadCounts();
         };
@@ -116,8 +124,8 @@ const CommitteeDashboard = () => {
                 const data = await fetchIdeas({ status: 'promoted' });
                 setPromotedIdeas(data);
             }
-        } catch (e: any) {
-            const errorMessage = e?.message || 'Unable to load ideas';
+        } catch (e) {
+            const errorMessage = e instanceof Error ? e.message : 'Unable to load ideas';
             setError(errorMessage);
             
             // Only show toast for foreground loads, not background polling
@@ -140,7 +148,8 @@ const CommitteeDashboard = () => {
     useEffect(() => {
         loadList();
         setPage(1);
-        const interval = setInterval(() => loadList(false), 15000);
+        // Reduced polling from 15s to 60s
+        const interval = setInterval(() => loadList(false), 60000);
         const handleVisibility = () => {
             if (document.visibilityState === 'visible') loadList(false);
         };
@@ -218,14 +227,14 @@ const CommitteeDashboard = () => {
                     showConfirmButton: false 
                 });
             }
-        } catch (e: any) {
+        } catch (e) {
             // Rollback on error
             setPendingIdeas(rollbackPending);
             setCounts(rollbackCounts);
             Swal.fire({ 
                 icon: 'error', 
                 title: 'Action Failed', 
-                text: 'We were unable to process your request. Please try again.', 
+                text: e instanceof Error ? e.message : 'We were unable to process your request. Please try again.', 
                 toast: true, 
                 position: 'bottom-end', 
                 timer: 3000, 
@@ -281,7 +290,7 @@ const CommitteeDashboard = () => {
                 timer: 2000, 
                 showConfirmButton: false 
             });
-        } catch (e: any) {
+        } catch (e) {
             // Rollback
             setApprovedIdeas(rollbackApproved);
             setPromotedIdeas(rollbackPromoted);
@@ -289,7 +298,7 @@ const CommitteeDashboard = () => {
             Swal.fire({ 
                 icon: 'error', 
                 title: 'Promotion Failed', 
-                text: 'We were unable to promote this idea. Please try again.', 
+                text: e instanceof Error ? e.message : 'We were unable to promote this idea. Please try again.', 
                 toast: true, 
                 position: 'bottom-end', 
                 timer: 3000, 
@@ -329,7 +338,7 @@ const CommitteeDashboard = () => {
 
     const filteredIdeas = useMemo(() => {
         const src = selectedTab === 'pending' ? pendingIdeas : selectedTab === 'approved' ? approvedIdeas : promotedIdeas;
-        const q = search.trim().toLowerCase();
+        const q = debouncedSearch.trim().toLowerCase();
         return src.filter(i => {
             const matchesText = !q || i.title.toLowerCase().includes(q) || 
                                i.description.toLowerCase().includes(q) || 
@@ -337,7 +346,7 @@ const CommitteeDashboard = () => {
             const matchesCategory = category === 'ALL' || i.category === category;
             return matchesText && matchesCategory;
         });
-    }, [pendingIdeas, approvedIdeas, promotedIdeas, selectedTab, search, category]);
+    }, [pendingIdeas, approvedIdeas, promotedIdeas, selectedTab, debouncedSearch, category]);
 
     const paginatedIdeas = useMemo(() => {
         const start = (page - 1) * pageSize;
@@ -716,7 +725,7 @@ const CommitteeDashboard = () => {
                                                 <span>•</span>
                                                 <span>{idea.viewCount} views</span>
                                                 <span>•</span>
-                                                <span>{(idea as any).commentCount ?? 0} comments</span>
+                                                <span>{idea.commentCount ?? 0} comments</span>
                                             </div>
                                         </div>
                                     </div>

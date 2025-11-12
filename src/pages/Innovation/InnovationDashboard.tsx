@@ -4,7 +4,7 @@ import { useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import { setPageTitle } from '../../store/themeConfigSlice';
 import { getUser } from '../../utils/auth';
-import { fetchIdeas } from '../../utils/ideasApi';
+import { fetchIdeas, fetchIdeaCounts } from '../../utils/ideasApi';
 
 interface DashboardStats {
     myIdeas: number;
@@ -37,31 +37,28 @@ const InnovationDashboard = () => {
     async function loadDashboardData() {
         try {
             setIsLoading(true);
-            const ideas = await fetchIdeas();
             
-            // Calculate stats from fetched ideas
+            // Use optimized counts endpoint for stats
+            const counts = await fetchIdeaCounts();
+            
+            // Fetch only recent ideas with server-side sorting
+            const ideas = await fetchIdeas({ sort: 'recent' });
+            
+            // Calculate myIdeas count (still need to filter client-side for this)
             const myIdeas = ideas.filter(idea => 
                 idea.submittedBy === currentUser?.name || idea.submittedBy === currentUser?.email
             ).length;
-            
-            const approvedIdeas = ideas.filter(idea => idea.status === 'APPROVED').length;
-            const pendingIdeas = ideas.filter(idea => idea.status === 'PENDING_REVIEW').length;
-            const promotedProjects = ideas.filter(idea => idea.status === 'PROMOTED_TO_PROJECT').length;
-            const totalVotes = ideas.reduce((sum, idea) => sum + (idea.voteCount || 0), 0);
 
             setStats({
                 myIdeas,
-                approvedIdeas,
-                pendingIdeas,
-                promotedProjects,
-                totalVotes,
+                approvedIdeas: counts.approved || 0,
+                pendingIdeas: counts.pending || 0,
+                promotedProjects: counts.promoted || 0,
+                totalVotes: ideas.reduce((sum, idea) => sum + (idea.voteCount || 0), 0),
             });
 
-            // Get 3 most recent ideas for activity feed
-            const sortedByDate = [...ideas].sort((a, b) => 
-                new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-            );
-            setRecentIdeas(sortedByDate.slice(0, 3));
+            // Get 3 most recent ideas for activity feed (already sorted by API)
+            setRecentIdeas(ideas.slice(0, 3));
         } catch (error) {
             console.error('[InnovationDashboard] Error loading data:', error);
             // Keep default zeros on error - don't show error message for dashboard stats

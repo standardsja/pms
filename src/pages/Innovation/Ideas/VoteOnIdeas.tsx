@@ -114,6 +114,22 @@ const VoteOnIdeas = () => {
         localStorage.setItem('voteIdeasFilters', payload);
     }, [statusFilters, categoryFilters, sortBy, showVotedOnly]);
 
+    // Helper function to update idea state from server response
+    const updateIdeaState = (updatedIdea: any) => {
+        setIdeas(ideas.map(i => 
+            i.id === String(updatedIdea.id)
+                ? {
+                    ...i,
+                    upvotes: updatedIdea.upvoteCount || 0,
+                    downvotes: updatedIdea.downvoteCount || 0,
+                    voteCount: updatedIdea.voteCount || 0,
+                    hasVoted: updatedIdea.userVoteType === 'UPVOTE' ? 'up' : updatedIdea.userVoteType === 'DOWNVOTE' ? 'down' : null,
+                    viewCount: updatedIdea.viewCount || i.viewCount,
+                }
+                : i
+        ));
+    };
+
     const handleVote = async (ideaId: string, voteType: 'up' | 'down') => {
         const idea = ideas.find(i => i.id === ideaId);
         if (!idea) return;
@@ -125,22 +141,8 @@ const VoteOnIdeas = () => {
             // If user clicks same vote type, remove vote
             if (idea.hasVoted === voteType) {
                 await removeVote(ideaId);
-                
-                // Fetch updated idea from server
                 const updatedIdea = await fetchIdeaById(ideaId);
-                
-                setIdeas(ideas.map(i => 
-                    i.id === ideaId 
-                        ? {
-                            ...i,
-                            upvotes: updatedIdea.upvoteCount || 0,
-                            downvotes: updatedIdea.downvoteCount || 0,
-                            voteCount: updatedIdea.voteCount || 0,
-                            hasVoted: null,
-                            viewCount: updatedIdea.viewCount || i.viewCount,
-                        }
-                        : i
-                ));
+                updateIdeaState(updatedIdea);
                 
                 void Swal.fire({
                     toast: true,
@@ -155,22 +157,8 @@ const VoteOnIdeas = () => {
             } else {
                 // Add or switch vote
                 await voteForIdea(ideaId, voteType === 'up' ? 'UPVOTE' : 'DOWNVOTE');
-                
-                // Fetch updated idea from server
                 const updatedIdea = await fetchIdeaById(ideaId);
-                
-                setIdeas(ideas.map(i => 
-                    i.id === ideaId 
-                        ? {
-                            ...i,
-                            upvotes: updatedIdea.upvoteCount || 0,
-                            downvotes: updatedIdea.downvoteCount || 0,
-                            voteCount: updatedIdea.voteCount || 0,
-                            hasVoted: voteType,
-                            viewCount: updatedIdea.viewCount || i.viewCount,
-                        }
-                        : i
-                ));
+                updateIdeaState(updatedIdea);
                 
                 void Swal.fire({
                     toast: true,
@@ -213,17 +201,7 @@ const VoteOnIdeas = () => {
                 // Refresh from server to get correct state
                 try {
                     const updatedIdea = await fetchIdeaById(ideaId);
-                    setIdeas(ideas.map(i => 
-                        i.id === ideaId 
-                            ? {
-                                ...i,
-                                upvotes: updatedIdea.upvoteCount || 0,
-                                downvotes: updatedIdea.downvoteCount || 0,
-                                voteCount: updatedIdea.voteCount || 0,
-                                hasVoted: updatedIdea.userVoteType === 'UPVOTE' ? 'up' : updatedIdea.userVoteType === 'DOWNVOTE' ? 'down' : null,
-                            }
-                            : i
-                    ));
+                    updateIdeaState(updatedIdea);
                 } catch {}
             } else {
                 // Generic error
@@ -485,7 +463,7 @@ const VoteOnIdeas = () => {
                                     </div>
                                 </div>
 
-                                {sortBy === 'trending' && (
+                                {sortBy === 'trending' && idea.trendingScore > 0 && (
                                     <div className="mt-1 px-2 py-1 bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-300 rounded text-xs font-bold">
                                         🔥 {idea.trendingScore}
                                     </div>
