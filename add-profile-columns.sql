@@ -1,0 +1,6 @@
+-- Add profile fields to User table if they don't exist
+ALTER TABLE `User` 
+  ADD COLUMN IF NOT EXISTS `profilePicture` VARCHAR(191) NULL,
+  ADD COLUMN IF NOT EXISTS `phoneNumber` VARCHAR(191) NULL,
+  ADD COLUMN IF NOT EXISTS `location` VARCHAR(191) NULL,
+  ADD COLUMN IF NOT EXISTS `joinedAt` DATETIME(3) NULL DEFAULT CURRENT_TIMESTAMP(3);

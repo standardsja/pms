@@ -250,6 +250,7 @@ const Requests = () => {
                             <th className="px-4 py-3 text-left">Title</th>
                             <th className="px-4 py-3 text-left">Requester</th>
                             <th className="px-4 py-3 text-left">Department</th>
+                            <th className="px-4 py-3 text-left">Assigned To</th>
                             <th className="px-4 py-3 text-left">Status</th>
                             <th className="px-4 py-3 text-left">Date</th>
                             <th className="px-4 py-3 text-left">Actions</th>
@@ -264,6 +265,15 @@ const Requests = () => {
                                     <td className="px-4 py-3">{r.title}</td>
                                     <td className="px-4 py-3">{r.requester}</td>
                                     <td className="px-4 py-3">{r.department}</td>
+                                    <td className="px-4 py-3">
+                                        {r.currentAssigneeName ? (
+                                            <span className="text-blue-600 dark:text-blue-400 font-medium">
+                                                {r.currentAssigneeName}
+                                            </span>
+                                        ) : (
+                                            <span className="text-gray-400 dark:text-gray-500 italic">—</span>
+                                        )}
+                                    </td>
                                     <td className="px-4 py-3">
                                         <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${badge.bg} ${badge.text}`} aria-label={`Status: ${badge.label}`}>
                                             {badge.label}
