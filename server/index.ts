@@ -10,7 +10,7 @@ import { prisma, ensureDbConnection } from './prismaClient';
 import { IdeaStatus } from '@prisma/client';
 
 const app = express();
-const PORT = process.env.PORT ? Number(process.env.PORT) : 3001;
+const PORT = process.env.PORT ? Number(process.env.PORT) : 4000;
 const JWT_SECRET = process.env.JWT_SECRET || 'devsecret-change-me';
 
 app.use(cors());
@@ -61,7 +61,8 @@ app.post('/api/auth/login', async (req, res) => {
           include: {
             role: true
           }
-        }
+        },
+        department: true
       }
     });
     if (!user) return res.status(401).json({ message: 'Invalid credentials' });
@@ -80,7 +81,17 @@ app.post('/api/auth/login', async (req, res) => {
 
     return res.json({
       token,
-      user: { id: user.id, email: user.email, name: user.name, roles: roles },
+      user: { 
+        id: user.id, 
+        email: user.email, 
+        name: user.name, 
+        roles: roles,
+        department: user.department ? {
+          id: user.department.id,
+          name: user.department.name,
+          code: user.department.code
+        } : null
+      },
     });
   } catch (e: any) {
     console.error('Login error:', e);
@@ -118,12 +129,23 @@ app.get('/api/auth/me', authMiddleware, async (req, res) => {
         include: {
           role: true
         }
-      }
+      },
+      department: true
     }
   });
   if (!user) return res.status(404).json({ message: 'Not found' });
   const roles = user.roles.map(r => r.role.name);
-  return res.json({ id: user.id, email: user.email, name: user.name, roles: roles });
+  return res.json({ 
+    id: user.id, 
+    email: user.email, 
+    name: user.name, 
+    roles: roles,
+    department: user.department ? {
+      id: user.department.id,
+      name: user.department.name,
+      code: user.department.code
+    } : null
+  });
 });
 
 // =============== Innovation Hub: Ideas (Committee) ===============
@@ -306,6 +328,509 @@ app.post('/api/ideas/:id/promote', authMiddleware, requireCommittee, async (req,
   }
 });
 
+// POST /api/ideas/:id/vote - upvote/downvote an idea
+app.post('/api/ideas/:id/vote', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params as { id: string };
+    const { voteType } = (req.body || {}) as { voteType?: 'UPVOTE' | 'DOWNVOTE' };
+    const userId = (req as any).userId;
+
+    const idea = await prisma.idea.findUnique({ where: { id: parseInt(id, 10) } });
+    if (!idea) return res.status(404).json({ message: 'Idea not found' });
+
+    const type = voteType === 'DOWNVOTE' ? 'DOWNVOTE' : 'UPVOTE';
+
+    // Check existing vote
+    const existing = await prisma.vote.findFirst({
+      where: { ideaId: parseInt(id, 10), userId },
+    });
+
+    if (existing) {
+      if (existing.voteType === type) {
+        return res.status(400).json({ error: 'already voted', message: 'You have already voted on this idea' });
+      }
+      // Change vote type
+      await prisma.vote.update({
+        where: { id: existing.id },
+        data: { voteType: type },
+      });
+    } else {
+      // Create new vote
+      await prisma.vote.create({
+        data: { ideaId: parseInt(id, 10), userId, voteType: type },
+      });
+    }
+
+    // Recalculate counts
+    const upvotes = await prisma.vote.count({ where: { ideaId: parseInt(id, 10), voteType: 'UPVOTE' } });
+    const downvotes = await prisma.vote.count({ where: { ideaId: parseInt(id, 10), voteType: 'DOWNVOTE' } });
+
+    const updated = await prisma.idea.update({
+      where: { id: parseInt(id, 10) },
+      data: { upvoteCount: upvotes, downvoteCount: downvotes, voteCount: upvotes - downvotes },
+    });
+
+    return res.json(updated);
+  } catch (e: any) {
+    console.error('POST /api/ideas/:id/vote error:', e);
+    return res.status(500).json({ message: e?.message || 'Failed to vote' });
+  }
+});
+
+// DELETE /api/ideas/:id/vote - remove vote
+app.delete('/api/ideas/:id/vote', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params as { id: string };
+    const userId = (req as any).userId;
+
+    const existing = await prisma.vote.findFirst({
+      where: { ideaId: parseInt(id, 10), userId },
+    });
+
+    if (!existing) {
+      return res.status(404).json({ message: 'Vote not found' });
+    }
+
+    await prisma.vote.delete({ where: { id: existing.id } });
+
+    // Recalculate
+    const upvotes = await prisma.vote.count({ where: { ideaId: parseInt(id, 10), voteType: 'UPVOTE' } });
+    const downvotes = await prisma.vote.count({ where: { ideaId: parseInt(id, 10), voteType: 'DOWNVOTE' } });
+
+    const updated = await prisma.idea.update({
+      where: { id: parseInt(id, 10) },
+      data: { upvoteCount: upvotes, downvoteCount: downvotes, voteCount: upvotes - downvotes },
+    });
+
+    return res.json(updated);
+  } catch (e: any) {
+    console.error('DELETE /api/ideas/:id/vote error:', e);
+    return res.status(500).json({ message: e?.message || 'Failed to remove vote' });
+  }
+});
+
+// GET /requests - alias for direct backend access (frontend may call this without /api prefix)
+app.get('/requests', async (_req, res) => {
+  try {
+    const requests = await prisma.request.findMany({
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        reference: true,
+        title: true,
+        requesterId: true,
+        departmentId: true,
+        status: true,
+        currentAssigneeId: true,
+        createdAt: true,
+        updatedAt: true,
+        requester: { select: { id: true, name: true, email: true } },
+        department: { select: { id: true, name: true, code: true } },
+        currentAssignee: { select: { id: true, name: true, email: true } },
+      },
+    });
+    return res.json(requests);
+  } catch (e: any) {
+    console.error('GET /requests error:', e);
+    return res.status(500).json({ message: 'Failed to fetch requests' });
+  }
+});
+
+// POST /requests - create a new procurement request
+app.post('/requests', async (req, res) => {
+  try {
+    const userId = req.headers['x-user-id'];
+    if (!userId) {
+      return res.status(401).json({ message: 'User ID required' });
+    }
+
+    const { 
+      title, 
+      description, 
+      departmentId, 
+      items = [], 
+      totalEstimated, 
+      currency,
+      priority,
+      procurementType 
+    } = req.body || {};
+
+    if (!title || !departmentId) {
+      return res.status(400).json({ message: 'Title and department are required' });
+    }
+
+    // Generate reference
+    const reference = `REQ-${Date.now()}`;
+
+    const created = await prisma.request.create({
+      data: {
+        reference,
+        title,
+        description: description || null,
+        requesterId: parseInt(String(userId), 10),
+        departmentId: parseInt(String(departmentId), 10),
+        totalEstimated: totalEstimated ? parseFloat(String(totalEstimated)) : null,
+        currency: currency || 'JMD',
+        priority: priority || 'MEDIUM',
+        procurementType: procurementType || null,
+        status: 'DRAFT',
+        items: {
+          create: items.map((it: any) => ({
+            description: String(it.description || ''),
+            quantity: Number(it.quantity || 1),
+            unitPrice: parseFloat(String(it.unitPrice || 0)),
+            totalPrice: parseFloat(String(it.totalPrice || 0)),
+            accountCode: it.accountCode || null,
+            stockLevel: it.stockLevel || null,
+            unitOfMeasure: it.unitOfMeasure || null,
+            partNumber: it.partNumber || null,
+          })),
+        },
+      },
+      include: { 
+        items: true,
+        requester: { select: { id: true, name: true, email: true } },
+        department: { select: { id: true, name: true, code: true } },
+      },
+    });
+
+    return res.status(201).json(created);
+  } catch (e: any) {
+    console.error('POST /requests error:', e);
+    return res.status(500).json({ message: e?.message || 'Failed to create request' });
+  }
+});
+
+// GET /requests/:id - fetch a single request by ID for editing
+app.get('/requests/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const request = await prisma.request.findUnique({
+      where: { id: parseInt(id, 10) },
+      select: {
+        id: true,
+        reference: true,
+        title: true,
+        description: true,
+        requesterId: true,
+        departmentId: true,
+        status: true,
+        fundingSourceId: true,
+        budgetCode: true,
+        totalEstimated: true,
+        currency: true,
+        priority: true,
+        procurementType: true,
+        expectedDelivery: true,
+        currentAssigneeId: true,
+        vendorId: true,
+        managerName: true,
+        headName: true,
+        managerApproved: true,
+        headApproved: true,
+        commitmentNumber: true,
+        accountingCode: true,
+        budgetComments: true,
+        budgetOfficerName: true,
+        budgetManagerName: true,
+        budgetOfficerApproved: true,
+        budgetManagerApproved: true,
+        procurementCaseNumber: true,
+        receivedBy: true,
+        dateReceived: true,
+        procurementApproved: true,
+        actionDate: true,
+        procurementComments: true,
+        createdAt: true,
+        updatedAt: true,
+        submittedAt: true,
+        items: true,
+        requester: { select: { id: true, name: true, email: true } },
+        department: { select: { id: true, name: true, code: true } },
+        currentAssignee: { select: { id: true, name: true, email: true } },
+        statusHistory: true,
+        actions: true,
+      },
+    });
+
+    if (!request) {
+      return res.status(404).json({ message: 'Request not found' });
+    }
+
+    return res.json(request);
+  } catch (e: any) {
+    console.error('GET /requests/:id error:', e);
+    return res.status(500).json({ message: 'Failed to fetch request' });
+  }
+});
+
+// PATCH /requests/:id - update an existing request
+app.patch('/requests/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updates = req.body || {};
+
+    const updated = await prisma.request.update({
+      where: { id: parseInt(id, 10) },
+      data: updates,
+      include: {
+        items: true,
+        requester: { select: { id: true, name: true, email: true } },
+        department: { select: { id: true, name: true, code: true } },
+      },
+    });
+
+    return res.json(updated);
+  } catch (e: any) {
+    console.error('PATCH /requests/:id error:', e);
+    return res.status(500).json({ message: e?.message || 'Failed to update request' });
+  }
+});
+
+// PUT /requests/:id - alias for PATCH (frontend uses PUT for updates)
+app.put('/requests/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updates = req.body || {};
+
+    const updated = await prisma.request.update({
+      where: { id: parseInt(id, 10) },
+      data: updates,
+      include: {
+        items: true,
+        requester: { select: { id: true, name: true, email: true } },
+        department: { select: { id: true, name: true, code: true } },
+      },
+    });
+
+    return res.json(updated);
+  } catch (e: any) {
+    console.error('PUT /requests/:id error:', e);
+    return res.status(500).json({ message: e?.message || 'Failed to update request' });
+  }
+});
+
+// POST /requests/:id/submit - submit a draft request for approval workflow
+app.post('/requests/:id/submit', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const request = await prisma.request.findUnique({
+      where: { id: parseInt(id, 10) },
+      include: { department: true },
+    });
+
+    if (!request) {
+      return res.status(404).json({ message: 'Request not found' });
+    }
+
+    if (request.status !== 'DRAFT') {
+      return res.status(400).json({ message: 'Only draft requests can be submitted' });
+    }
+
+    // Find department manager
+    const deptManager = await prisma.user.findFirst({
+      where: {
+        departmentId: request.departmentId,
+        roles: {
+          some: {
+            role: {
+              name: 'DEPT_MANAGER'
+            }
+          }
+        }
+      },
+    });
+
+    const updated = await prisma.request.update({
+      where: { id: parseInt(id, 10) },
+      data: {
+        status: 'DEPARTMENT_REVIEW',
+        currentAssigneeId: deptManager?.id || null,
+        submittedAt: new Date(),
+        statusHistory: {
+          create: {
+            status: 'DEPARTMENT_REVIEW',
+            changedById: request.requesterId,
+            comment: 'Request submitted for department manager review',
+          },
+        },
+      },
+      include: {
+        items: true,
+        requester: { select: { id: true, name: true, email: true } },
+        department: { select: { id: true, name: true, code: true } },
+        currentAssignee: { select: { id: true, name: true, email: true } },
+      },
+    });
+
+    return res.json(updated);
+  } catch (e: any) {
+    console.error('POST /requests/:id/submit error:', e);
+    return res.status(500).json({ message: e?.message || 'Failed to submit request' });
+  }
+});
+
+// POST /requests/:id/action - approve/reject requests (manager, HOD, procurement, finance)
+app.post('/requests/:id/action', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { action } = req.body; // 'APPROVE' or 'REJECT'
+    const userId = req.headers['x-user-id'];
+
+    if (!userId) {
+      return res.status(401).json({ message: 'User ID required' });
+    }
+
+    const request = await prisma.request.findUnique({
+      where: { id: parseInt(id, 10) },
+      include: { department: true },
+    });
+
+    if (!request) {
+      return res.status(404).json({ message: 'Request not found' });
+    }
+
+    // Verify user is the current assignee
+    if (request.currentAssigneeId !== parseInt(String(userId), 10)) {
+      return res.status(403).json({ message: 'Not authorized to approve this request' });
+    }
+
+    let nextStatus = request.status;
+    let nextAssigneeId = null;
+
+    if (action === 'APPROVE') {
+      // Determine next workflow stage based on current status
+      if (request.status === 'DEPARTMENT_REVIEW') {
+        // Department Manager approved -> send to HOD
+        const hod = await prisma.user.findFirst({
+          where: {
+            departmentId: request.departmentId,
+            roles: { some: { role: { name: 'HEAD_OF_DIVISION' } } }
+          }
+        });
+        nextStatus = 'HOD_REVIEW';
+        nextAssigneeId = hod?.id || null;
+      } else if (request.status === 'HOD_REVIEW') {
+        // HOD approved -> send to Procurement
+        const procurement = await prisma.user.findFirst({
+          where: { roles: { some: { role: { name: 'PROCUREMENT' } } } }
+        });
+        nextStatus = 'PROCUREMENT_REVIEW';
+        nextAssigneeId = procurement?.id || null;
+      } else if (request.status === 'PROCUREMENT_REVIEW') {
+        // Procurement approved -> send to Finance
+        const finance = await prisma.user.findFirst({
+          where: { roles: { some: { role: { name: 'FINANCE' } } } }
+        });
+        nextStatus = 'FINANCE_REVIEW';
+        nextAssigneeId = finance?.id || null;
+      } else if (request.status === 'FINANCE_REVIEW') {
+        // Finance approved -> send to Budget Manager
+        const budgetMgr = await prisma.user.findFirst({
+          where: { roles: { some: { role: { name: 'BUDGET_MANAGER' } } } }
+        });
+        nextStatus = 'BUDGET_MANAGER_REVIEW';
+        nextAssigneeId = budgetMgr?.id || null;
+      } else if (request.status === 'BUDGET_MANAGER_REVIEW') {
+        // Final approval
+        nextStatus = 'FINANCE_APPROVED';
+        nextAssigneeId = null;
+      }
+    } else if (action === 'REJECT') {
+      // Rejected -> send back to requester as DRAFT
+      nextStatus = 'DRAFT';
+      nextAssigneeId = request.requesterId;
+    }
+
+    // Update request with new status
+    const updated = await prisma.request.update({
+      where: { id: parseInt(id, 10) },
+      data: {
+        status: nextStatus,
+        currentAssigneeId: nextAssigneeId,
+        statusHistory: {
+          create: {
+            status: nextStatus,
+            changedById: parseInt(String(userId), 10),
+            comment: `${action === 'APPROVE' ? 'Approved' : 'Rejected'} at ${request.status} stage`,
+          },
+        },
+      },
+      include: {
+        items: true,
+        requester: { select: { id: true, name: true, email: true } },
+        department: { select: { id: true, name: true, code: true } },
+        currentAssignee: { select: { id: true, name: true, email: true } },
+      },
+    });
+
+    return res.json(updated);
+  } catch (e: any) {
+    console.error('POST /requests/:id/action error:', e);
+    return res.status(500).json({ message: e?.message || 'Failed to process action' });
+  }
+});
+
+// GET /api/tags - return empty array for now (Innovation Hub expects this)
+app.get('/api/tags', async (_req, res) => {
+  try {
+    // TODO: Implement tags table if needed
+    res.json([]);
+  } catch (e: any) {
+    console.error('GET /api/tags error:', e);
+    res.status(500).json({ message: 'Failed to fetch tags' });
+  }
+});
+
+// GET /api/challenges - return empty array for now
+app.get('/api/challenges', async (_req, res) => {
+  try {
+    // TODO: Implement challenges table if needed
+    res.json([]);
+  } catch (e: any) {
+    console.error('GET /api/challenges error:', e);
+    res.status(500).json({ message: 'Failed to fetch challenges' });
+  }
+});
+
+// GET /api/requests - list procurement requests (different from /api/requisitions)
+app.get('/api/requests', async (_req, res) => {
+  try {
+    // Select only safe core fields to avoid schema drift issues with legacy databases
+    const requests = await prisma.request.findMany({
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        reference: true,
+        title: true,
+        requesterId: true,
+        departmentId: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+        requester: { select: { id: true, name: true, email: true } },
+        department: { select: { id: true, name: true, code: true } },
+      },
+    });
+    return res.json(requests);
+  } catch (e: any) {
+    // If a column is missing on the connected database (e.g., P2022), fall back to a raw query
+    console.error('GET /api/requests error:', e);
+    if (e?.code === 'P2022') {
+      try {
+        const rows = await prisma.$queryRawUnsafe(
+          'SELECT id, reference, title, requesterId, departmentId, status, createdAt, updatedAt FROM Request ORDER BY createdAt DESC'
+        );
+        // rows will not include requester/department objects; return as-is
+        return res.json(rows);
+      } catch (rawErr: any) {
+        console.error('GET /api/requests fallback raw query failed:', rawErr);
+      }
+    }
+    return res.status(500).json({ message: 'Failed to fetch requests' });
+  }
+});
+
 // GET /api/requisitions - list requests (basic demo)
 app.get('/api/requisitions', async (_req, res) => {
   try {
@@ -357,9 +882,142 @@ app.post('/api/requisitions', async (req, res) => {
   }
 });
 
-(async () => {
-  await ensureDbConnection();
-  app.listen(PORT, () => {
-    console.log(`API server listening on http://localhost:${PORT}`);
+// ============================================
+// ADMIN ENDPOINTS
+// ============================================
+
+// GET /admin/users - Get all users with their roles and departments
+app.get('/admin/users', async (req, res) => {
+  try {
+    const users = await prisma.user.findMany({
+      include: {
+        department: { select: { id: true, name: true, code: true } },
+        roles: { include: { role: true } }
+      },
+      orderBy: { email: 'asc' }
+    });
+    
+    const formatted = users.map(u => ({
+      id: u.id,
+      email: u.email,
+      name: u.name,
+      department: u.department?.name || null,
+      roles: u.roles.map(r => r.role.name)
+    }));
+    
+    res.json(formatted);
+  } catch (e: any) {
+    console.error('GET /admin/users error:', e);
+    res.status(500).json({ message: 'Failed to fetch users' });
+  }
+});
+
+// POST /admin/requests/:id/reassign - Admin can reassign any request to any user
+app.post('/admin/requests/:id/reassign', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { assigneeId, comment } = req.body;
+    const userId = req.headers['x-user-id'];
+
+    if (!userId) {
+      return res.status(401).json({ message: 'User ID required' });
+    }
+
+    // Verify the requester is an admin
+    const admin = await prisma.user.findUnique({
+      where: { id: parseInt(String(userId), 10) },
+      include: { roles: { include: { role: true } } }
+    });
+
+    const isAdmin = admin?.roles.some(r => r.role.name === 'ADMIN');
+    if (!isAdmin) {
+      return res.status(403).json({ message: 'Admin access required' });
+    }
+
+    // Update the request assignment
+    const updated = await prisma.request.update({
+      where: { id: parseInt(id, 10) },
+      data: {
+        currentAssigneeId: assigneeId ? parseInt(String(assigneeId), 10) : null,
+        statusHistory: {
+          create: {
+            status: await prisma.request.findUnique({ where: { id: parseInt(id, 10) } }).then(r => r?.status || 'DRAFT'),
+            changedById: parseInt(String(userId), 10),
+            comment: comment || 'Request manually reassigned by admin',
+          },
+        },
+      },
+      include: {
+        items: true,
+        requester: { select: { id: true, name: true, email: true } },
+        department: { select: { id: true, name: true, code: true } },
+        currentAssignee: { select: { id: true, name: true, email: true } },
+      },
+    });
+
+    res.json(updated);
+  } catch (e: any) {
+    console.error('POST /admin/requests/:id/reassign error:', e);
+    res.status(500).json({ message: 'Failed to reassign request' });
+  }
+});
+
+// GET /api/auth/login - For compatibility (some parts of app may call this)
+app.get('/api/auth/login', (req, res) => {
+  res.status(405).json({ message: 'Use POST method' });
+});
+
+// GET /api/auth/test-login - Test endpoint
+app.get('/api/auth/test-login', (req, res) => {
+  res.status(405).json({ message: 'Use POST method' });
+});
+
+import http from 'http';
+let server: http.Server | null = null;
+
+async function start() {
+  try {
+    await ensureDbConnection();
+    server = app.listen(PORT, () => {
+      console.log(`API server listening on http://localhost:${PORT}`);
+    });
+  } catch (err) {
+    console.error('Startup error:', err);
+    // Fail fast so tsx watch can restart cleanly
+    process.exit(1);
+  }
+}
+
+function gracefulShutdown(signal: string) {
+  console.log(`\n${signal} received. Shutting down gracefully...`);
+  const closeServer = () => new Promise<void>((resolve) => {
+    if (server) {
+      server.close(() => resolve());
+    } else {
+      resolve();
+    }
   });
-})();
+  Promise.all([
+    closeServer(),
+    prisma.$disconnect().catch(() => undefined),
+  ]).then(() => {
+    console.log('Cleanup complete. Exiting.');
+    process.exit(0);
+  });
+}
+
+['SIGINT','SIGTERM','SIGUSR2'].forEach(sig => {
+  process.on(sig as NodeJS.Signals, () => gracefulShutdown(sig));
+});
+
+// Handle unhandled rejections so watch mode doesn't hang
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled Rejection:', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+  // Let the process exit; tsx will restart
+  process.exit(1);
+});
+
+start();

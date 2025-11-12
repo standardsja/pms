@@ -14,7 +14,7 @@ const AdminSettings = () => {
         dispatch(setPageTitle('Admin Settings'));
     });
 
-    const [activeTab, setActiveTab] = useState<'users' | 'departments' | 'workflows' | 'templates' | 'approvals' | 'general'>('users');
+    const [activeTab, setActiveTab] = useState<'users' | 'departments' | 'workflows' | 'templates' | 'approvals' | 'general' | 'reassign'>('users');
 
     // Modal states
     const [showModal, setShowModal] = useState<{ open: boolean; title: string; message: string; tone: 'success' | 'warning' | 'danger' }>(
@@ -254,6 +254,17 @@ const AdminSettings = () => {
                         >
                             <IconSettings className="h-5 w-5" />
                             Approval Limits
+                        </button>
+                    </li>
+                    <li>
+                        <button
+                            onClick={() => setActiveTab('reassign')}
+                            className={`-mb-[1px] flex items-center gap-2 border-b border-transparent p-5 py-3 hover:text-primary ${
+                                activeTab === 'reassign' ? '!border-primary text-primary' : ''
+                            }`}
+                        >
+                            <IconSettings className="h-5 w-5" />
+                            Reassign Requests
                         </button>
                     </li>
                     <li>
@@ -538,6 +549,9 @@ const AdminSettings = () => {
                 </div>
             )}
 
+            {/* Reassign Requests Tab */}
+            {activeTab === 'reassign' && <ReassignRequestsTab />}
+
             {/* General Settings Tab */}
             {activeTab === 'general' && (
                 <div className="grid gap-6 lg:grid-cols-2">
@@ -726,6 +740,136 @@ const AdminSettings = () => {
 };
 
 export default AdminSettings;
+
+// Reassign Requests Tab Component
+function ReassignRequestsTab() {
+    const [requests, setRequests] = useState<any[]>([]);
+    const [users, setUsers] = useState<any[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [selectedRequest, setSelectedRequest] = useState<number | null>(null);
+
+    useEffect(() => {
+        loadData();
+    }, []);
+
+    async function loadData() {
+        setLoading(true);
+        try {
+            const [reqsRes, usersRes] = await Promise.all([
+                fetch('http://localhost:4000/requests'),
+                fetch('http://localhost:4000/admin/users')
+            ]);
+            const reqs = await reqsRes.json();
+            const usrs = await usersRes.json();
+            setRequests(reqs);
+            setUsers(usrs);
+        } catch (e) {
+            console.error('Failed to load data:', e);
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    async function reassignRequest(requestId: number, assigneeId: number | null) {
+        try {
+            const userProfile = localStorage.getItem('auth_user') || sessionStorage.getItem('auth_user');
+            const user = userProfile ? JSON.parse(userProfile) : null;
+            
+            const res = await fetch(`http://localhost:4000/admin/requests/${requestId}/reassign`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-user-id': String(user?.id || ''),
+                },
+                body: JSON.stringify({ assigneeId, comment: 'Manually reassigned by admin' }),
+            });
+
+            if (!res.ok) throw new Error('Failed to reassign');
+            
+            await loadData();
+            alert('Request reassigned successfully!');
+        } catch (e: any) {
+            alert(e?.message || 'Failed to reassign request');
+        }
+    }
+
+    if (loading) return <div className="panel">Loading...</div>;
+
+    return (
+        <div className="panel">
+            <h5 className="mb-4 text-lg font-semibold">Reassign Requests</h5>
+            <p className="mb-4 text-sm text-white-dark">Click on a request, then click on a user to reassign it</p>
+            
+            <div className="grid gap-6 lg:grid-cols-2">
+                {/* Requests List */}
+                <div>
+                    <h6 className="mb-3 font-semibold">Requests</h6>
+                    <div className="space-y-2 max-h-96 overflow-y-auto">
+                        {requests.map((req) => (
+                            <div
+                                key={req.id}
+                                onClick={() => setSelectedRequest(req.id)}
+                                className={`cursor-pointer rounded border p-3 hover:bg-primary/10 ${
+                                    selectedRequest === req.id ? 'border-primary bg-primary/10' : 'border-white-light dark:border-dark'
+                                }`}
+                            >
+                                <div className="flex justify-between">
+                                    <div>
+                                        <div className="font-semibold">REQ-{req.id}: {req.title}</div>
+                                        <div className="text-xs text-white-dark">
+                                            Status: {req.status} | Requester: {req.requester?.name}
+                                        </div>
+                                    </div>
+                                    <div className="text-xs">
+                                        {req.currentAssignee ? (
+                                            <span className="badge bg-success">{req.currentAssignee.name}</span>
+                                        ) : (
+                                            <span className="badge bg-danger">Unassigned</span>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Users List */}
+                <div>
+                    <h6 className="mb-3 font-semibold">Users {selectedRequest ? '(Click to reassign)' : ''}</h6>
+                    <div className="space-y-2 max-h-96 overflow-y-auto">
+                        {users.map((user) => (
+                            <div
+                                key={user.id}
+                                onClick={() => selectedRequest && reassignRequest(selectedRequest, user.id)}
+                                className={`rounded border p-3 ${
+                                    selectedRequest
+                                        ? 'cursor-pointer hover:bg-success/10 border-white-light dark:border-dark'
+                                        : 'opacity-50 cursor-not-allowed border-white-light dark:border-dark'
+                                }`}
+                            >
+                                <div className="font-semibold">{user.name}</div>
+                                <div className="text-xs text-white-dark">{user.email}</div>
+                                <div className="mt-1 flex flex-wrap gap-1">
+                                    {user.roles?.map((role: string) => (
+                                        <span key={role} className="badge badge-outline-primary text-xs">{role}</span>
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
+                        {selectedRequest && (
+                            <div
+                                onClick={() => selectedRequest && reassignRequest(selectedRequest, null)}
+                                className="cursor-pointer rounded border border-danger p-3 hover:bg-danger/10"
+                            >
+                                <div className="font-semibold text-danger">Unassign (Remove assignee)</div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
 
 // Local sub-component: editable user row with role checkboxes
 type FlatUser = { id: number; email: string; name: string; dept: string; roles: string[] };
