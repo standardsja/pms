@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { setPageTitle } from '../../../store/themeConfigSlice';
+// Icons grouped by usage context (workflows/templates/roles) - remove unused as needed
 import IconSettings from '../../../components/Icon/IconSettings';
 import IconFile from '../../../components/Icon/IconFile';
 import IconPlus from '../../../components/Icon/IconPlus';
@@ -25,7 +26,7 @@ const AdminSettings = () => {
         setShowModal({ open: true, title, message, tone });
     const closeModal = () => setShowModal({ open: false, title: '', message: '', tone: 'success' });
 
-    // Email notifications state
+    // === Email Notifications State ===
     const [emailNotifications, setEmailNotifications] = useState({
         rfqUpdates: true,
         quoteSubmissions: true,
@@ -33,14 +34,14 @@ const AdminSettings = () => {
         paymentReminders: false,
     });
 
-    // System preferences state
+    // === System Preferences State ===
     const [systemPrefs, setSystemPrefs] = useState({
         currency: 'USD',
         dateFormat: 'YYYY-MM-DD',
         rfqValidity: 30,
     });
 
-    // SLA settings state
+    // === SLA Settings State ===
     const [slaSettings, setSlaSettings] = useState({
         rfqResponse: 7,
         quoteEvaluation: 5,
@@ -71,6 +72,7 @@ const AdminSettings = () => {
         }));
     }, [users]);
 
+    // Fetch users for users & departments tabs
     async function loadUsers() {
         setUsersLoading(true);
         setUsersError(null);
@@ -91,6 +93,7 @@ const AdminSettings = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeTab]);
 
+    // Persist role changes
     async function handleSaveRoles(userId: number, roles: string[]) {
         try {
             await adminService.updateUserRoles(userId, roles);
@@ -101,6 +104,7 @@ const AdminSettings = () => {
         }
     }
 
+    // Create new department
     async function handleCreateDepartment(e: React.FormEvent) {
         e.preventDefault();
         setDeptError(null);
