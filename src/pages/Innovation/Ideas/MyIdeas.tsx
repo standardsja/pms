@@ -91,30 +91,10 @@ const MyIdeas = () => {
     const loadMyIdeas = async (silent = false) => {
         if (!silent) setIsLoading(true);
         try {
-            const allIdeas = await fetchIdeas({ includeAttachments: true });
+            // Use mine=true parameter to filter server-side
+            const myIdeas = await fetchIdeas({ includeAttachments: true, mine: true });
 
-            // Filter to show only current user's ideas
-            const userIdStr = String(currentUser?.id ?? '');
-            const userEmail = (currentUser as any)?.email?.toLowerCase?.() as string | undefined;
-            const userName = (currentUser as any)?.name?.toLowerCase?.() as string | undefined;
-
-            const myIdeas = allIdeas
-                .filter(idea => {
-                    const rawId = (idea as any).submittedById ?? (idea as any).submittedByID ?? (idea as any).submitted_by_id;
-                    if (rawId !== undefined && rawId !== null) {
-                        return String(rawId) === userIdStr;
-                    }
-                    // Fallback: some API variants provide an object or array (name/email) instead of a string
-                    const submittedByRaw: any = (idea as any).submittedBy ?? '';
-                    let submittedByText = '';
-                    if (typeof submittedByRaw === 'string') submittedByText = submittedByRaw;
-                    else if (submittedByRaw && typeof submittedByRaw === 'object') submittedByText = submittedByRaw.name || submittedByRaw.email || '';
-                    else if (Array.isArray(submittedByRaw)) submittedByText = submittedByRaw.filter(Boolean).join(' ');
-                    const sb = String(submittedByText || '').toLowerCase();
-                    if (!sb) return false;
-                    return (userName && sb.includes(userName)) || (userEmail && sb.includes(userEmail));
-                })
-                .map(idea => ({
+            const formattedIdeas = myIdeas.map(idea => ({
                     id: String(idea.id),
                     title: idea.title,
                     description: idea.description,
@@ -133,7 +113,7 @@ const MyIdeas = () => {
                     firstAttachmentUrl: (idea as any).firstAttachmentUrl || (idea as any).attachments?.[0]?.fileUrl || null,
                 }));
             
-            setIdeas(myIdeas);
+            setIdeas(formattedIdeas);
         } catch (error) {
             console.error('[MyIdeas] Error loading ideas:', error);
             // Only show error on initial load, not silent background refreshes

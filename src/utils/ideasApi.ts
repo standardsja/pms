@@ -68,6 +68,7 @@ export async function fetchIdeas(params?: {
   sort?: 'recent' | 'popular' | 'trending' | string;
   includeAttachments?: boolean;
   tag?: string | string[];
+  mine?: boolean;
 }) {
   const qs = new URLSearchParams();
   const pushParam = (key: string, value?: string | string[]) => {
@@ -84,6 +85,7 @@ export async function fetchIdeas(params?: {
   pushParam('tag', params?.tag);
   if (params?.sort) qs.set('sort', params.sort);
   if (params?.includeAttachments) qs.set('include', 'attachments');
+  if (params?.mine) qs.set('mine', 'true');
   // Cache busting to ensure fresh data in all environments
   qs.set('t', Date.now().toString());
   
