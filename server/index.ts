@@ -224,14 +224,27 @@ app.get('/api/ideas', authMiddleware, async (req, res) => {
     const ideas = await prisma.idea.findMany({
       where,
       orderBy,
-      include: includeAttachments ? { attachments: true } : undefined,
+      include: {
+        attachments: includeAttachments,
+        submitter: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          }
+        }
+      },
     });
 
-    // Add hasVoted field for each idea
+    // Add hasVoted field and format submittedBy for each idea
     const userId = user.sub;
     const ideasWithVotes = await Promise.all(
       ideas.map(async (idea) => {
-        if (!userId) return { ...idea, hasVoted: null };
+        if (!userId) return { 
+          ...idea, 
+          hasVoted: null,
+          submittedBy: idea.isAnonymous ? 'Anonymous' : (idea.submitter?.name || idea.submitter?.email || 'Unknown'),
+        };
         
         const userVote = await prisma.vote.findFirst({
           where: { ideaId: idea.id, userId },
@@ -240,6 +253,7 @@ app.get('/api/ideas', authMiddleware, async (req, res) => {
         return {
           ...idea,
           hasVoted: userVote ? (userVote.voteType === 'UPVOTE' ? 'up' : 'down') : null,
+          submittedBy: idea.isAnonymous ? 'Anonymous' : (idea.submitter?.name || idea.submitter?.email || 'Unknown'),
         };
       })
     );
@@ -260,7 +274,16 @@ app.get('/api/ideas/:id', authMiddleware, async (req, res) => {
     const includeAttachments = include === 'attachments';
     const idea = await prisma.idea.findUnique({
       where: { id: parseInt(id, 10) },
-      include: includeAttachments ? { attachments: true } : undefined,
+      include: {
+        attachments: includeAttachments,
+        submitter: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          }
+        }
+      },
     });
     if (!idea) return res.status(404).json({ message: 'Idea not found' });
 
@@ -274,7 +297,9 @@ app.get('/api/ideas/:id', authMiddleware, async (req, res) => {
       hasVoted = userVote ? (userVote.voteType === 'UPVOTE' ? 'up' : 'down') : null;
     }
 
-    return res.json({ ...idea, hasVoted });
+    const submittedBy = idea.isAnonymous ? 'Anonymous' : (idea.submitter?.name || idea.submitter?.email || 'Unknown');
+
+    return res.json({ ...idea, hasVoted, submittedBy });
   } catch (e: any) {
     console.error('GET /api/ideas/:id error:', e);
     return res.status(500).json({ error: 'Unable to load idea', message: 'Unable to load idea details. Please try again later.' });
