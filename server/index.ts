@@ -882,6 +882,96 @@ app.post('/api/requisitions', async (req, res) => {
   }
 });
 
+// ============================================
+// ADMIN ENDPOINTS
+// ============================================
+
+// GET /admin/users - Get all users with their roles and departments
+app.get('/admin/users', async (req, res) => {
+  try {
+    const users = await prisma.user.findMany({
+      include: {
+        department: { select: { id: true, name: true, code: true } },
+        roles: { include: { role: true } }
+      },
+      orderBy: { email: 'asc' }
+    });
+    
+    const formatted = users.map(u => ({
+      id: u.id,
+      email: u.email,
+      name: u.name,
+      department: u.department?.name || null,
+      roles: u.roles.map(r => r.role.name)
+    }));
+    
+    res.json(formatted);
+  } catch (e: any) {
+    console.error('GET /admin/users error:', e);
+    res.status(500).json({ message: 'Failed to fetch users' });
+  }
+});
+
+// POST /admin/requests/:id/reassign - Admin can reassign any request to any user
+app.post('/admin/requests/:id/reassign', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { assigneeId, comment } = req.body;
+    const userId = req.headers['x-user-id'];
+
+    if (!userId) {
+      return res.status(401).json({ message: 'User ID required' });
+    }
+
+    // Verify the requester is an admin
+    const admin = await prisma.user.findUnique({
+      where: { id: parseInt(String(userId), 10) },
+      include: { roles: { include: { role: true } } }
+    });
+
+    const isAdmin = admin?.roles.some(r => r.role.name === 'ADMIN');
+    if (!isAdmin) {
+      return res.status(403).json({ message: 'Admin access required' });
+    }
+
+    // Update the request assignment
+    const updated = await prisma.request.update({
+      where: { id: parseInt(id, 10) },
+      data: {
+        currentAssigneeId: assigneeId ? parseInt(String(assigneeId), 10) : null,
+        statusHistory: {
+          create: {
+            status: await prisma.request.findUnique({ where: { id: parseInt(id, 10) } }).then(r => r?.status || 'DRAFT'),
+            changedById: parseInt(String(userId), 10),
+            comment: comment || 'Request manually reassigned by admin',
+          },
+        },
+      },
+      include: {
+        items: true,
+        requester: { select: { id: true, name: true, email: true } },
+        department: { select: { id: true, name: true, code: true } },
+        currentAssignee: { select: { id: true, name: true, email: true } },
+      },
+    });
+
+    res.json(updated);
+  } catch (e: any) {
+    console.error('POST /admin/requests/:id/reassign error:', e);
+    res.status(500).json({ message: 'Failed to reassign request' });
+  }
+});
+
+// GET /api/auth/login - For compatibility (some parts of app may call this)
+app.get('/api/auth/login', (req, res) => {
+  res.status(405).json({ message: 'Use POST method' });
+});
+
+// GET /api/auth/test-login - Test endpoint
+app.get('/api/auth/test-login', (req, res) => {
+  res.status(405).json({ message: 'Use POST method' });
+});
+
 import http from 'http';
 let server: http.Server | null = null;
 
