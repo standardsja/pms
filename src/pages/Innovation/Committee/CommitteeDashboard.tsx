@@ -5,7 +5,8 @@ import { setPageTitle } from '../../../store/themeConfigSlice';
 import Swal from 'sweetalert2';
 import { 
     approveIdea, 
-    fetchIdeas, 
+    fetchIdeas,
+    fetchIdeaCounts,
     Idea, 
     promoteIdea as promoteIdeaApi, 
     rejectIdea 
@@ -31,6 +32,7 @@ const CommitteeDashboard = () => {
     // UI state
     const [selectedTab, setSelectedTab] = useState<'pending' | 'approved' | 'promoted'>('pending');
     const [search, setSearch] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
     const [category, setCategory] = useState<string>('ALL');
     const [page, setPage] = useState(1);
     const pageSize = 6;
@@ -70,20 +72,23 @@ const CommitteeDashboard = () => {
         }
     }, [isCommittee, navigate]);
 
-    // Real-time counts refresh
+    // Debounce search input (500ms delay)
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearch(search);
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [search]);
+
+    // Real-time counts refresh - optimized with counts endpoint
     const loadCounts = useCallback(async () => {
         try {
-            const [pending, approved, rejected, promoted] = await Promise.all([
-                fetchIdeas({ status: 'pending' }),
-                fetchIdeas({ status: 'approved' }),
-                fetchIdeas({ status: 'rejected' }),
-                fetchIdeas({ status: 'promoted' }),
-            ]);
+            const counts = await fetchIdeaCounts();
             setCounts({ 
-                pending: pending.length, 
-                approved: approved.length, 
-                rejected: rejected.length, 
-                promoted: promoted.length 
+                pending: counts.pending || 0, 
+                approved: counts.approved || 0, 
+                rejected: counts.rejected || 0, 
+                promoted: counts.promoted || 0 
             });
         } catch (e) {
             console.error('Failed to load counts:', e);
@@ -92,7 +97,8 @@ const CommitteeDashboard = () => {
 
     useEffect(() => {
         loadCounts();
-        const interval = setInterval(() => loadCounts(), 15000);
+        // Reduced polling from 15s to 60s
+        const interval = setInterval(() => loadCounts(), 60000);
         const handleVisibility = () => {
             if (document.visibilityState === 'visible') loadCounts();
         };
@@ -142,7 +148,8 @@ const CommitteeDashboard = () => {
     useEffect(() => {
         loadList();
         setPage(1);
-        const interval = setInterval(() => loadList(false), 15000);
+        // Reduced polling from 15s to 60s
+        const interval = setInterval(() => loadList(false), 60000);
         const handleVisibility = () => {
             if (document.visibilityState === 'visible') loadList(false);
         };
@@ -331,7 +338,7 @@ const CommitteeDashboard = () => {
 
     const filteredIdeas = useMemo(() => {
         const src = selectedTab === 'pending' ? pendingIdeas : selectedTab === 'approved' ? approvedIdeas : promotedIdeas;
-        const q = search.trim().toLowerCase();
+        const q = debouncedSearch.trim().toLowerCase();
         return src.filter(i => {
             const matchesText = !q || i.title.toLowerCase().includes(q) || 
                                i.description.toLowerCase().includes(q) || 
@@ -339,7 +346,7 @@ const CommitteeDashboard = () => {
             const matchesCategory = category === 'ALL' || i.category === category;
             return matchesText && matchesCategory;
         });
-    }, [pendingIdeas, approvedIdeas, promotedIdeas, selectedTab, search, category]);
+    }, [pendingIdeas, approvedIdeas, promotedIdeas, selectedTab, debouncedSearch, category]);
 
     const paginatedIdeas = useMemo(() => {
         const start = (page - 1) * pageSize;

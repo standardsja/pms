@@ -428,6 +428,37 @@ export async function fetchInnovationStats() {
   return await res.json();
 }
 
+export async function fetchIdeaCounts(): Promise<{
+  pending: number;
+  approved: number;
+  rejected: number;
+  promoted: number;
+  draft?: number;
+  total: number;
+}> {
+  try {
+    const res = await fetch(`/api/ideas/counts?t=${Date.now()}`, {
+      headers: {
+        ...authHeaders(),
+        'Cache-Control': 'no-store',
+        Pragma: 'no-cache',
+      },
+      cache: 'no-store',
+    });
+    
+    if (!res.ok) {
+      throw new Error('Unable to load idea counts');
+    }
+    
+    return await res.json();
+  } catch (error) {
+    if (error instanceof Error && error.message) {
+      throw error;
+    }
+    throw new Error('Network error. Please check your connection and try again.');
+  }
+}
+
 export async function approveIdea(id: string, notes?: string) {
   const res = await fetch(`/api/ideas/${id}/approve`, {
     method: 'POST',

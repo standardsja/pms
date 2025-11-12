@@ -17,6 +17,51 @@ try {
 } catch {}
 import sanitizeHtml from 'sanitize-html';
 
+// Simple LRU cache for user roles
+class LRUCache {
+	constructor(maxSize = 1000, ttl = 300000) { // 5 minutes TTL
+		this.cache = new Map();
+		this.maxSize = maxSize;
+		this.ttl = ttl;
+	}
+
+	get(key) {
+		const item = this.cache.get(key);
+		if (!item) return null;
+		
+		// Check if expired
+		if (Date.now() > item.expiry) {
+			this.cache.delete(key);
+			return null;
+		}
+		
+		// Move to end (most recently used)
+		this.cache.delete(key);
+		this.cache.set(key, item);
+		return item.value;
+	}
+
+	set(key, value) {
+		// Remove oldest if at capacity
+		if (this.cache.size >= this.maxSize) {
+			const firstKey = this.cache.keys().next().value;
+			this.cache.delete(firstKey);
+		}
+		
+		this.cache.set(key, {
+			value,
+			expiry: Date.now() + this.ttl
+		});
+	}
+
+	clear() {
+		this.cache.clear();
+	}
+}
+
+// Initialize role cache
+const roleCache = new LRUCache(1000, 300000); // 1000 users, 5 min TTL
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -72,8 +117,22 @@ function getActingUserId(req) {
 
 async function getRolesForUser(userId) {
 	if (!userId) return [];
+	
+	// Check cache first
+	const cacheKey = `roles_${userId}`;
+	const cached = roleCache.get(cacheKey);
+	if (cached) {
+		return cached;
+	}
+	
+	// Fetch from database
 	const roles = await prisma.userRole.findMany({ where: { userId }, include: { role: true } });
-	return roles.map(r => r.role.name);
+	const roleNames = roles.map(r => r.role.name);
+	
+	// Store in cache
+	roleCache.set(cacheKey, roleNames);
+	
+	return roleNames;
 }
 
 // Utility: generate a simple reference string
@@ -647,7 +706,7 @@ async function extractMentions(prisma, text) {
 // Get all ideas with optional filtering
 app.get('/api/ideas', async (req, res) => {
 	try {
-		const { status, sort, include, category, tag } = req.query || {};
+		const { status, sort, include, category, tag, search } = req.query || {};
 		const includeAttachments = include === 'attachments';
 		
 		// Get user ID and check if they're committee
@@ -714,11 +773,21 @@ app.get('/api/ideas', async (req, res) => {
 			where.tags = { some: { tagId: { in: rawTags.map((x) => Number(x)).filter((n) => Number.isFinite(n)) } } };
 		}
 
+		// Server-side search filtering
+		if (search && typeof search === 'string' && search.trim()) {
+			const searchTerm = search.trim();
+			where.OR = [
+				{ title: { contains: searchTerm } },
+				{ description: { contains: searchTerm } }
+			];
+		}
+
 		let orderBy = { createdAt: 'desc' };
 		if (sort === 'popular' || sort === 'popularity') orderBy = { voteCount: 'desc' };
 		if (sort === 'trending') orderBy = [{ voteCount: 'desc' }, { createdAt: 'desc' }];
+		if (sort === 'recent') orderBy = { createdAt: 'desc' };
 
-		console.log('[api/ideas] Query:', { where, orderBy, sort, includeAttachments });
+		console.log('[api/ideas] Query:', { where, orderBy, sort, search: search || 'none', includeAttachments });
 		const ideas = await prisma.idea.findMany({
 			where,
 			orderBy,
@@ -773,6 +842,67 @@ app.get('/api/ideas', async (req, res) => {
 	} catch (err) {
 		console.error('GET /api/ideas error:', err);
 		res.status(500).json({ error: 'Unable to load ideas', message: 'Unable to load ideas. Please try again later.' });
+	}
+});
+
+// Get idea counts by status - optimized endpoint for dashboard stats
+app.get('/api/ideas/counts', async (req, res) => {
+	try {
+		const actorId = getActingUserId(req);
+		const userRoles = actorId ? await getRolesForUser(actorId) : [];
+		const isCommittee = userRoles.includes('INNOVATION_COMMITTEE');
+		
+		// Use aggregation for efficient counting
+		const counts = await prisma.idea.groupBy({
+			by: ['status'],
+			_count: { id: true }
+		});
+		
+		// Format results
+		const result = {
+			pending: 0,
+			approved: 0,
+			rejected: 0,
+			promoted: 0,
+			draft: 0,
+			total: 0
+		};
+		
+		counts.forEach(group => {
+			const count = group._count.id;
+			result.total += count;
+			
+			switch(group.status) {
+				case 'PENDING_REVIEW':
+					result.pending = count;
+					break;
+				case 'APPROVED':
+					result.approved = count;
+					break;
+				case 'REJECTED':
+					result.rejected = count;
+					break;
+				case 'PROMOTED_TO_PROJECT':
+					result.promoted = count;
+					break;
+				case 'DRAFT':
+					result.draft = count;
+					break;
+			}
+		});
+		
+		// For non-committee users, only return approved count
+		if (!isCommittee) {
+			res.json({
+				approved: result.approved,
+				total: result.approved
+			});
+		} else {
+			res.json(result);
+		}
+	} catch (err) {
+		console.error('GET /api/ideas/counts error:', err);
+		res.status(500).json({ error: 'Unable to load counts', message: 'Unable to load idea counts.' });
 	}
 });
 
@@ -1051,9 +1181,50 @@ app.post('/api/ideas/:id/approve', async (req, res) => {
 		const idea = await prisma.idea.update({
 			where: { id },
 			data: { status: 'APPROVED', reviewedBy: actorId, reviewedAt: new Date(), reviewNotes: notes || null },
-			include: { submitter: true }
+			include: { 
+				submitter: true,
+				votes: actorId ? { where: { userId: actorId } } : false,
+				tags: { include: { tag: true } },
+				challenge: true,
+				_count: { select: { comments: true } }
+			}
 		});
-		res.json(idea);
+
+		// Check if current user has voted
+		const userVote = actorId && idea.votes ? idea.votes.find(v => v.userId === actorId) : null;
+
+		// Return formatted response matching GET /api/ideas
+		const payload = {
+			id: idea.id,
+			title: idea.title,
+			description: idea.description,
+			descriptionHtml: idea.descriptionHtml || null,
+			category: idea.category,
+			status: idea.status,
+			stage: idea.stage,
+			isAnonymous: idea.isAnonymous,
+			submittedById: idea.submittedBy,
+			submittedBy: idea.submitter?.name || idea.submitter?.email || String(idea.submittedBy),
+			submittedAt: idea.submittedAt,
+			reviewedBy: idea.reviewedBy,
+			reviewedAt: idea.reviewedAt,
+			reviewNotes: idea.reviewNotes,
+			promotedAt: idea.promotedAt,
+			projectCode: idea.projectCode,
+			voteCount: idea.voteCount,
+			upvoteCount: idea.upvoteCount || 0,
+			downvoteCount: idea.downvoteCount || 0,
+			viewCount: idea.viewCount,
+			commentCount: idea._count?.comments || 0,
+			hasVoted: !!userVote,
+			userVoteType: userVote?.voteType || null,
+			challenge: idea.challenge ? { id: idea.challenge.id, title: idea.challenge.title } : null,
+			tags: (idea.tags || []).map(it => ({ id: it.tag.id, name: it.tag.name })),
+			createdAt: idea.createdAt,
+			updatedAt: idea.updatedAt,
+		};
+		
+		res.json(payload);
 	} catch (err) {
 		console.error('POST /api/ideas/:id/approve error:', err);
 		res.status(500).json({ error: 'failed to approve idea' });
@@ -1070,9 +1241,50 @@ app.post('/api/ideas/:id/reject', async (req, res) => {
 		const idea = await prisma.idea.update({
 			where: { id },
 			data: { status: 'REJECTED', reviewedBy: actorId, reviewedAt: new Date(), reviewNotes: notes || null },
-			include: { submitter: true }
+			include: { 
+				submitter: true,
+				votes: actorId ? { where: { userId: actorId } } : false,
+				tags: { include: { tag: true } },
+				challenge: true,
+				_count: { select: { comments: true } }
+			}
 		});
-		res.json(idea);
+
+		// Check if current user has voted
+		const userVote = actorId && idea.votes ? idea.votes.find(v => v.userId === actorId) : null;
+
+		// Return formatted response matching GET /api/ideas
+		const payload = {
+			id: idea.id,
+			title: idea.title,
+			description: idea.description,
+			descriptionHtml: idea.descriptionHtml || null,
+			category: idea.category,
+			status: idea.status,
+			stage: idea.stage,
+			isAnonymous: idea.isAnonymous,
+			submittedById: idea.submittedBy,
+			submittedBy: idea.submitter?.name || idea.submitter?.email || String(idea.submittedBy),
+			submittedAt: idea.submittedAt,
+			reviewedBy: idea.reviewedBy,
+			reviewedAt: idea.reviewedAt,
+			reviewNotes: idea.reviewNotes,
+			promotedAt: idea.promotedAt,
+			projectCode: idea.projectCode,
+			voteCount: idea.voteCount,
+			upvoteCount: idea.upvoteCount || 0,
+			downvoteCount: idea.downvoteCount || 0,
+			viewCount: idea.viewCount,
+			commentCount: idea._count?.comments || 0,
+			hasVoted: !!userVote,
+			userVoteType: userVote?.voteType || null,
+			challenge: idea.challenge ? { id: idea.challenge.id, title: idea.challenge.title } : null,
+			tags: (idea.tags || []).map(it => ({ id: it.tag.id, name: it.tag.name })),
+			createdAt: idea.createdAt,
+			updatedAt: idea.updatedAt,
+		};
+		
+		res.json(payload);
 	} catch (err) {
 		console.error('POST /api/ideas/:id/reject error:', err);
 		res.status(500).json({ error: 'failed to reject idea' });
@@ -1083,14 +1295,56 @@ app.post('/api/ideas/:id/reject', async (req, res) => {
 app.post('/api/ideas/:id/promote', async (req, res) => {
 	try {
 		const id = Number(req.params.id);
+		const actorId = getActingUserId(req);
 		const { projectCode } = req.body || {};
 
 		const idea = await prisma.idea.update({
 			where: { id },
 			data: { status: 'PROMOTED_TO_PROJECT', promotedAt: new Date(), projectCode: projectCode || null },
-			include: { submitter: true }
+			include: { 
+				submitter: true,
+				votes: actorId ? { where: { userId: actorId } } : false,
+				tags: { include: { tag: true } },
+				challenge: true,
+				_count: { select: { comments: true } }
+			}
 		});
-		res.json(idea);
+
+		// Check if current user has voted
+		const userVote = actorId && idea.votes ? idea.votes.find(v => v.userId === actorId) : null;
+
+		// Return formatted response matching GET /api/ideas
+		const payload = {
+			id: idea.id,
+			title: idea.title,
+			description: idea.description,
+			descriptionHtml: idea.descriptionHtml || null,
+			category: idea.category,
+			status: idea.status,
+			stage: idea.stage,
+			isAnonymous: idea.isAnonymous,
+			submittedById: idea.submittedBy,
+			submittedBy: idea.submitter?.name || idea.submitter?.email || String(idea.submittedBy),
+			submittedAt: idea.submittedAt,
+			reviewedBy: idea.reviewedBy,
+			reviewedAt: idea.reviewedAt,
+			reviewNotes: idea.reviewNotes,
+			promotedAt: idea.promotedAt,
+			projectCode: idea.projectCode,
+			voteCount: idea.voteCount,
+			upvoteCount: idea.upvoteCount || 0,
+			downvoteCount: idea.downvoteCount || 0,
+			viewCount: idea.viewCount,
+			commentCount: idea._count?.comments || 0,
+			hasVoted: !!userVote,
+			userVoteType: userVote?.voteType || null,
+			challenge: idea.challenge ? { id: idea.challenge.id, title: idea.challenge.title } : null,
+			tags: (idea.tags || []).map(it => ({ id: it.tag.id, name: it.tag.name })),
+			createdAt: idea.createdAt,
+			updatedAt: idea.updatedAt,
+		};
+		
+		res.json(payload);
 	} catch (err) {
 		console.error('POST /api/ideas/:id/promote error:', err);
 		res.status(500).json({ error: 'failed to promote idea' });
