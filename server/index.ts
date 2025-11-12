@@ -188,6 +188,25 @@ app.get('/api/ideas', authMiddleware, async (req, res) => {
   }
 });
 
+// Counts for dashboard (pending, approved, rejected, promoted)
+app.get('/api/ideas/counts', authMiddleware, async (_req, res) => {
+  try {
+    const [pending, approved, rejected, promoted] = await Promise.all([
+      prisma.idea.count({ where: { status: IdeaStatus.PENDING_REVIEW } }).catch(() => 0),
+      prisma.idea.count({ where: { status: IdeaStatus.APPROVED } }).catch(() => 0),
+      prisma.idea.count({ where: { status: IdeaStatus.REJECTED } }).catch(() => 0),
+      // Many schemas used 'PROMOTED_TO_PROJECT' for promoted stage
+      prisma.idea
+        .count({ where: { OR: [{ status: (IdeaStatus as any).PROMOTED_TO_PROJECT }, { status: (IdeaStatus as any).PROMOTED }] } })
+        .catch(() => 0),
+    ]);
+    res.json({ pending, approved, rejected, promoted });
+  } catch (err) {
+    console.error('GET /api/ideas/counts error:', err);
+    res.status(500).json({ error: 'Unable to load idea counts' });
+  }
+});
+
 // Get single idea (optionally with attachments)
 app.get('/api/ideas/:id', authMiddleware, async (req, res) => {
   try {
