@@ -65,7 +65,7 @@ const VoteOnIdeas = () => {
                     upvotes: Math.max(0, idea.upvoteCount || 0),
                     downvotes: Math.max(0, idea.downvoteCount || 0),
                     voteCount: idea.voteCount || 0,
-                    hasVoted: idea.userVoteType === 'UPVOTE' ? 'up' : idea.userVoteType === 'DOWNVOTE' ? 'down' : null,
+                    hasVoted: (idea as any).hasVoted || null,
                     viewCount: idea.viewCount || 0,
                     trendingScore: idea.voteCount || 0,
                     firstAttachmentUrl: (idea as any).firstAttachmentUrl || (idea as any).attachments?.[0]?.fileUrl || null,
@@ -123,7 +123,7 @@ const VoteOnIdeas = () => {
                     upvotes: updatedIdea.upvoteCount || 0,
                     downvotes: updatedIdea.downvoteCount || 0,
                     voteCount: updatedIdea.voteCount || 0,
-                    hasVoted: updatedIdea.userVoteType === 'UPVOTE' ? 'up' : updatedIdea.userVoteType === 'DOWNVOTE' ? 'down' : null,
+                    hasVoted: updatedIdea.hasVoted || null,
                     viewCount: updatedIdea.viewCount || i.viewCount,
                 }
                 : i

@@ -170,14 +170,18 @@ app.get('/api/auth/me', authMiddleware, async (req, res) => {
 // List ideas with optional filters: status, sort
 app.get('/api/ideas', authMiddleware, async (req, res) => {
   try {
-    const { status, sort, include } = req.query as { status?: string; sort?: string; include?: string };
-    const user = (req as any).user as { roles?: string[] };
+    const { status, sort, include, mine } = req.query as { status?: string; sort?: string; include?: string; mine?: string };
+    const user = (req as any).user as { roles?: string[]; sub?: number };
     const isCommittee = user.roles && user.roles.includes('INNOVATION_COMMITTEE');
 
     const where: any = {};
     
-    // If user is NOT committee, only show APPROVED ideas
-    if (!isCommittee) {
+    // Filter to current user's ideas if mine=true
+    if (mine === 'true' && user.sub) {
+      where.submittedBy = user.sub;
+    }
+    // If user is NOT committee and not filtering to their own, only show APPROVED ideas
+    else if (!isCommittee) {
       where.status = 'APPROVED';
     } else if (status && status !== 'all') {
       // Committee members can filter by status
@@ -197,9 +201,41 @@ app.get('/api/ideas', authMiddleware, async (req, res) => {
     const ideas = await prisma.idea.findMany({
       where,
       orderBy,
-      include: includeAttachments ? { attachments: true } : undefined,
+      include: {
+        attachments: includeAttachments,
+        submitter: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          }
+        }
+      },
     });
-    return res.json(ideas);
+
+    // Add hasVoted field and format submittedBy for each idea
+    const userId = user.sub;
+    const ideasWithVotes = await Promise.all(
+      ideas.map(async (idea) => {
+        if (!userId) return { 
+          ...idea, 
+          hasVoted: null,
+          submittedBy: idea.isAnonymous ? 'Anonymous' : (idea.submitter?.name || idea.submitter?.email || 'Unknown'),
+        };
+        
+        const userVote = await prisma.vote.findFirst({
+          where: { ideaId: idea.id, userId },
+        });
+        
+        return {
+          ...idea,
+          hasVoted: userVote ? (userVote.voteType === 'UPVOTE' ? 'up' : 'down') : null,
+          submittedBy: idea.isAnonymous ? 'Anonymous' : (idea.submitter?.name || idea.submitter?.email || 'Unknown'),
+        };
+      })
+    );
+
+    return res.json(ideasWithVotes);
   } catch (e: any) {
     console.error('GET /api/ideas error:', e);
     return res.status(500).json({ error: 'Unable to load ideas', message: 'Unable to load ideas. Please try again later.' });
@@ -230,16 +266,78 @@ app.get('/api/ideas/:id', authMiddleware, async (req, res) => {
   try {
     const { id } = req.params as { id: string };
     const { include } = req.query as { include?: string };
+    const user = (req as any).user as { sub?: number };
     const includeAttachments = include === 'attachments';
     const idea = await prisma.idea.findUnique({
       where: { id: parseInt(id, 10) },
-      include: includeAttachments ? { attachments: true } : undefined,
+      include: {
+        attachments: includeAttachments,
+        submitter: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          }
+        }
+      },
     });
     if (!idea) return res.status(404).json({ message: 'Idea not found' });
-    return res.json(idea);
+
+    // Add hasVoted field
+    const userId = user.sub;
+    let hasVoted: 'up' | 'down' | null = null;
+    if (userId) {
+      const userVote = await prisma.vote.findFirst({
+        where: { ideaId: idea.id, userId },
+      });
+      hasVoted = userVote ? (userVote.voteType === 'UPVOTE' ? 'up' : 'down') : null;
+    }
+
+    const submittedBy = idea.isAnonymous ? 'Anonymous' : (idea.submitter?.name || idea.submitter?.email || 'Unknown');
+
+    return res.json({ ...idea, hasVoted, submittedBy });
   } catch (e: any) {
     console.error('GET /api/ideas/:id error:', e);
     return res.status(500).json({ error: 'Unable to load idea', message: 'Unable to load idea details. Please try again later.' });
+  }
+});
+
+// Check for duplicate ideas based on title/description similarity
+app.post('/api/ideas/check-duplicates', authMiddleware, async (req, res) => {
+  try {
+    const { title, description } = req.body || {};
+    if (!title || !description) {
+      return res.json({ matches: [] });
+    }
+
+    // Simple duplicate check: find ideas with similar titles (case-insensitive)
+    const titleLower = String(title).toLowerCase();
+    const allIdeas = await prisma.idea.findMany({
+      where: {
+        status: { in: ['PENDING_REVIEW', 'APPROVED', 'PROMOTED_TO_PROJECT'] }
+      },
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        status: true,
+      }
+    });
+
+    // Find potential matches (simple text similarity)
+    const matches = allIdeas.filter(idea => {
+      const ideaTitleLower = idea.title.toLowerCase();
+      // Check if titles share significant words (basic similarity)
+      const titleWords = titleLower.split(/\s+/).filter(w => w.length > 3);
+      const ideaWords = ideaTitleLower.split(/\s+/).filter(w => w.length > 3);
+      const commonWords = titleWords.filter(w => ideaWords.includes(w));
+      return commonWords.length >= 2; // At least 2 words in common
+    }).slice(0, 5); // Limit to 5 matches
+
+    return res.json({ matches });
+  } catch (e: any) {
+    console.error('POST /api/ideas/check-duplicates error:', e);
+    return res.json({ matches: [] }); // Don't fail submission on duplicate check error
   }
 });
 
@@ -387,9 +485,21 @@ app.post('/api/ideas/:id/vote', authMiddleware, async (req, res) => {
 
     if (existing) {
       if (existing.voteType === type) {
-        return res.status(400).json({ error: 'already voted', message: 'You have already voted on this idea' });
+        // User is clicking same vote button - this is handled by frontend (they should use DELETE)
+        // Just return current state without error
+        const idea = await prisma.idea.findUnique({
+          where: { id: parseInt(id, 10) },
+        });
+        
+        // Add hasVoted field
+        const userVote = await prisma.vote.findFirst({
+          where: { ideaId: parseInt(id, 10), userId },
+        });
+        const hasVoted = userVote ? (userVote.voteType === 'UPVOTE' ? 'up' : 'down') : null;
+        
+        return res.json({ ...idea, hasVoted });
       }
-      // Change vote type
+      // Change vote type (from upvote to downvote or vice versa)
       await prisma.vote.update({
         where: { id: existing.id },
         data: { voteType: type },
@@ -410,7 +520,13 @@ app.post('/api/ideas/:id/vote', authMiddleware, async (req, res) => {
       data: { upvoteCount: upvotes, downvoteCount: downvotes, voteCount: upvotes - downvotes },
     });
 
-    return res.json(updated);
+    // Add hasVoted field to response
+    const userVote = await prisma.vote.findFirst({
+      where: { ideaId: parseInt(id, 10), userId },
+    });
+    const hasVoted = userVote ? (userVote.voteType === 'UPVOTE' ? 'up' : 'down') : null;
+
+    return res.json({ ...updated, hasVoted });
   } catch (e: any) {
     console.error('POST /api/ideas/:id/vote error:', e);
     return res.status(500).json({ message: e?.message || 'Failed to vote' });
@@ -445,7 +561,8 @@ app.delete('/api/ideas/:id/vote', authMiddleware, async (req, res) => {
       data: { upvoteCount: upvotes, downvoteCount: downvotes, voteCount: upvotes - downvotes },
     });
 
-    return res.json(updated);
+    // After deletion, hasVoted should be null
+    return res.json({ ...updated, hasVoted: null });
   } catch (e: any) {
     console.error('DELETE /api/ideas/:id/vote error:', e);
     return res.status(500).json({ message: e?.message || 'Failed to remove vote' });
