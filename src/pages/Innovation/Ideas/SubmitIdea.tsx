@@ -9,6 +9,7 @@ import Swal from 'sweetalert2';
 import { useAutoSave, restoreAutoSave, clearAutoSave } from '../../../utils/useAutoSave';
 import { submitIdea, fetchTags, createTag, fetchChallenges } from '../../../utils/ideasApi';
 import { useDebounce } from '../../../utils/useDebounce';
+import { getUser, getToken } from '../../../utils/auth';
 
 const SubmitIdea = () => {
     const dispatch = useDispatch();
@@ -94,8 +95,14 @@ const SubmitIdea = () => {
             for (const f of files) {
                 const isImage = f.type.startsWith('image/');
                 const sizeOk = f.size <= MAX_IMAGE_MB * 1024 * 1024;
-                if (!isImage) { next.files = t('innovation.submit.form.image.typeError') || 'Only images are allowed.'; break; }
-                if (!sizeOk) { next.files = t('innovation.submit.form.image.sizeError', { mb: MAX_IMAGE_MB }) || `Each image must be <= ${MAX_IMAGE_MB}MB.`; break; }
+                if (!isImage) {
+                    next.files = t('innovation.submit.form.image.typeError') || 'Only images are allowed.';
+                    break;
+                }
+                if (!sizeOk) {
+                    next.files = t('innovation.submit.form.image.sizeError', { mb: MAX_IMAGE_MB }) || `Each image must be <= ${MAX_IMAGE_MB}MB.`;
+                    break;
+                }
             }
         }
         setErrors(next);
@@ -122,16 +129,16 @@ const SubmitIdea = () => {
         if (!tagSearch.trim()) return;
         try {
             setCreatingTag(true);
-            const exists = allTags.find(t => t.name.toLowerCase() === tagSearch.toLowerCase());
+            const exists = allTags.find((t) => t.name.toLowerCase() === tagSearch.toLowerCase());
             if (exists) {
-                if (!formData.tagIds.includes(exists.id)) setFormData(prev => ({ ...prev, tagIds: [...prev.tagIds, exists.id] }));
+                if (!formData.tagIds.includes(exists.id)) setFormData((prev) => ({ ...prev, tagIds: [...prev.tagIds, exists.id] }));
                 setTagSearch('');
                 setCreatingTag(false);
                 return;
             }
             const created = await createTag(tagSearch.trim());
-            setAllTags(prev => [...prev, created].sort((a,b) => a.name.localeCompare(b.name)));
-            setFormData(prev => ({ ...prev, tagIds: [...prev.tagIds, created.id] }));
+            setAllTags((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+            setFormData((prev) => ({ ...prev, tagIds: [...prev.tagIds, created.id] }));
             setTagSearch('');
         } catch (e) {
             console.error('Failed to create tag', e);
@@ -140,8 +147,8 @@ const SubmitIdea = () => {
         }
     }
 
-    const selectedTags = allTags.filter(t => (formData.tagIds || []).includes(t.id));
-    const filteredTags = allTags.filter(t => !(formData.tagIds || []).includes(t.id) && (!tagSearch || t.name.toLowerCase().includes(tagSearch.toLowerCase()))).slice(0, 10);
+    const selectedTags = allTags.filter((t) => (formData.tagIds || []).includes(t.id));
+    const filteredTags = allTags.filter((t) => !(formData.tagIds || []).includes(t.id) && (!tagSearch || t.name.toLowerCase().includes(tagSearch.toLowerCase()))).slice(0, 10);
 
     // Duplicate detection auto-trigger
     useEffect(() => {
@@ -153,14 +160,20 @@ const SubmitIdea = () => {
             }
             setCheckingDuplicates(true);
             try {
-                const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+                const user = getUser();
+                const token = getToken();
                 const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
+                const headers: Record<string, string> = {
+                    'Content-Type': 'application/json',
+                };
+
+                // Add authentication headers (same as authHeaders() in ideasApi.ts)
+                if (user?.id) headers['x-user-id'] = user.id;
+                if (token) headers['Authorization'] = `Bearer ${token}`;
+
                 const res = await fetch(`${apiBase}/api/ideas/check-duplicates`, {
                     method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
+                    headers,
                     body: JSON.stringify({ title: debouncedTitle, description: debouncedDesc }),
                 });
                 if (res.ok) {
@@ -174,7 +187,9 @@ const SubmitIdea = () => {
             }
         }
         check();
-        return () => { active = false; };
+        return () => {
+            active = false;
+        };
     }, [debouncedTitle, debouncedDesc]);
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -184,17 +199,20 @@ const SubmitIdea = () => {
 
         try {
             // Submit the idea to the API
-            const created = await submitIdea({
-                title: formData.title,
-                description: formData.description,
-                descriptionHtml: formData.descriptionHtml || undefined,
-                category: formData.category,
-                expectedBenefits: formData.expectedBenefits,
-                implementationNotes: formData.implementationNotes,
-                isAnonymous: formData.isAnonymous,
-                challengeId: formData.challengeId ? Number(formData.challengeId) : undefined,
-                tagIds: formData.tagIds,
-            }, files.length ? { images: files } : undefined);
+            const created = await submitIdea(
+                {
+                    title: formData.title,
+                    description: formData.description,
+                    descriptionHtml: formData.descriptionHtml || undefined,
+                    category: formData.category,
+                    expectedBenefits: formData.expectedBenefits,
+                    implementationNotes: formData.implementationNotes,
+                    isAnonymous: formData.isAnonymous,
+                    challengeId: formData.challengeId ? Number(formData.challengeId) : undefined,
+                    tagIds: formData.tagIds,
+                },
+                files.length ? { images: files } : undefined
+            );
 
             // Optimistic event so MyIdeas can reflect immediately
             document.dispatchEvent(new CustomEvent('idea:created', { detail: created }));
@@ -253,11 +271,7 @@ const SubmitIdea = () => {
         <div className="space-y-6">
             {/* Header */}
             <div className="flex items-center gap-4">
-                <button
-                    onClick={() => navigate('/innovation/dashboard')}
-                    className="btn btn-outline-primary"
-                    aria-label={t('innovation.submit.back')}
-                >
+                <button onClick={() => navigate('/innovation/dashboard')} className="btn btn-outline-primary" aria-label={t('innovation.submit.back')}>
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                     </svg>
@@ -270,9 +284,7 @@ const SubmitIdea = () => {
                         </svg>
                         {t('innovation.submit.title')}
                     </h1>
-                    <p className="text-gray-600 dark:text-gray-400 mt-1">
-                        {t('innovation.submit.subtitle')}
-                    </p>
+                    <p className="text-gray-600 dark:text-gray-400 mt-1">{t('innovation.submit.subtitle')}</p>
                 </div>
             </div>
 
@@ -304,24 +316,31 @@ const SubmitIdea = () => {
                             <div className="flex items-start gap-3">
                                 <div className="flex-shrink-0">
                                     <svg className="w-6 h-6 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                        <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth={2}
+                                            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                                        />
                                     </svg>
                                 </div>
                                 <div className="flex-1">
                                     <h3 className="text-sm font-bold text-amber-900 dark:text-amber-300 mb-2">Possible Similar Ideas</h3>
                                     <p className="text-xs text-amber-800 dark:text-amber-400 mb-3">Review these before submitting to avoid duplicates. You can still proceed.</p>
                                     <ul className="space-y-2 max-h-48 overflow-auto pr-1">
-                                        {duplicateMatches.map(m => (
+                                        {duplicateMatches.map((m) => (
                                             <li key={m.id} className="text-xs bg-white dark:bg-gray-800 rounded p-2 border border-amber-200 dark:border-amber-700">
-                                                <div className="font-semibold line-clamp-1" title={m.title}>{m.title}</div>
-                                                <div className="text-gray-600 dark:text-gray-400 line-clamp-2" title={m.snippet}>{m.snippet}</div>
+                                                <div className="font-semibold line-clamp-1" title={m.title}>
+                                                    {m.title}
+                                                </div>
+                                                <div className="text-gray-600 dark:text-gray-400 line-clamp-2" title={m.snippet}>
+                                                    {m.snippet}
+                                                </div>
                                                 <div className="mt-1 flex items-center justify-between text-[10px] text-amber-600 dark:text-amber-400">
                                                     <span>Similarity: {(m.score * 100).toFixed(0)}%</span>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => window.open(`/innovation/ideas/${m.id}`, '_blank')}
-                                                        className="text-primary hover:underline"
-                                                    >View</button>
+                                                    <button type="button" onClick={() => window.open(`/innovation/ideas/${m.id}`, '_blank')} className="text-primary hover:underline">
+                                                        View
+                                                    </button>
                                                 </div>
                                             </li>
                                         ))}
@@ -349,7 +368,9 @@ const SubmitIdea = () => {
                             {t('innovation.submit.form.title.hint')} • {t('innovation.submit.form.charactersRemaining', { count: titleRemaining })}
                         </p>
                         {errors.title && (
-                            <p id="title-error" role="alert" className="text-xs text-danger mt-1">{errors.title}</p>
+                            <p id="title-error" role="alert" className="text-xs text-danger mt-1">
+                                {errors.title}
+                            </p>
                         )}
                     </div>
 
@@ -374,7 +395,9 @@ const SubmitIdea = () => {
                             ))}
                         </select>
                         {errors.category && (
-                            <p id="category-error" role="alert" className="text-xs text-danger mt-1">{errors.category}</p>
+                            <p id="category-error" role="alert" className="text-xs text-danger mt-1">
+                                {errors.category}
+                            </p>
                         )}
                     </div>
 
@@ -401,7 +424,9 @@ const SubmitIdea = () => {
                             {t('innovation.submit.form.description.hint')} • {t('innovation.submit.form.charactersRemaining', { count: descRemaining })}
                         </p>
                         {errors.description && (
-                            <p id="description-error" role="alert" className="text-xs text-danger mt-1">{errors.description}</p>
+                            <p id="description-error" role="alert" className="text-xs text-danger mt-1">
+                                {errors.description}
+                            </p>
                         )}
                     </div>
 
@@ -410,20 +435,14 @@ const SubmitIdea = () => {
                         <label htmlFor="idea-files" className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                             {t('innovation.submit.form.files.label', 'Attach images (up to 5)')}
                         </label>
-                        <input
-                            id="idea-files"
-                            type="file"
-                            accept="image/*"
-                            multiple
-                            onChange={onFilesChange}
-                            className="form-input"
-                            aria-describedby="files-hint files-error"
-                        />
+                        <input id="idea-files" type="file" accept="image/*" multiple onChange={onFilesChange} className="form-input" aria-describedby="files-hint files-error" />
                         <p id="files-hint" className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                             {t('innovation.submit.form.files.hint', 'You can select multiple images. Max size 5MB each.')} {t('innovation.submit.form.files.limit', { count: MAX_FILES })}
                         </p>
                         {errors.files && (
-                            <p id="files-error" role="alert" className="text-xs text-danger mt-1">{errors.files}</p>
+                            <p id="files-error" role="alert" className="text-xs text-danger mt-1">
+                                {errors.files}
+                            </p>
                         )}
                         {previews.length > 0 && (
                             <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
@@ -459,7 +478,9 @@ const SubmitIdea = () => {
                             aria-describedby="benefits-error"
                         />
                         {errors.expectedBenefits && (
-                            <p id="benefits-error" role="alert" className="text-xs text-danger mt-1">{errors.expectedBenefits}</p>
+                            <p id="benefits-error" role="alert" className="text-xs text-danger mt-1">
+                                {errors.expectedBenefits}
+                            </p>
                         )}
                     </div>
 
@@ -481,13 +502,13 @@ const SubmitIdea = () => {
                     {challenges.length > 0 && (
                         <div>
                             <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Challenge</label>
-                            <select
-                                value={formData.challengeId}
-                                onChange={(e) => setFormData(prev => ({ ...prev, challengeId: e.target.value }))}
-                                className="form-select"
-                            >
+                            <select value={formData.challengeId} onChange={(e) => setFormData((prev) => ({ ...prev, challengeId: e.target.value }))} className="form-select">
                                 <option value="">No challenge</option>
-                                {challenges.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
+                                {challenges.map((c) => (
+                                    <option key={c.id} value={c.id}>
+                                        {c.title}
+                                    </option>
+                                ))}
                             </select>
                         </div>
                     )}
@@ -496,35 +517,38 @@ const SubmitIdea = () => {
                     <div>
                         <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Tags</label>
                         <div className="flex flex-wrap gap-2 mb-2">
-                            {selectedTags.map(tag => (
+                            {selectedTags.map((tag) => (
                                 <span key={tag.id} className="inline-flex items-center gap-1 bg-primary/10 text-primary px-2 py-1 rounded-full text-xs">
                                     {tag.name}
-                                    <button type="button" aria-label="Remove tag" className="hover:text-red-600" onClick={() => setFormData(prev => ({ ...prev, tagIds: prev.tagIds.filter(id => id !== tag.id) }))}>×</button>
+                                    <button
+                                        type="button"
+                                        aria-label="Remove tag"
+                                        className="hover:text-red-600"
+                                        onClick={() => setFormData((prev) => ({ ...prev, tagIds: prev.tagIds.filter((id) => id !== tag.id) }))}
+                                    >
+                                        ×
+                                    </button>
                                 </span>
                             ))}
                             {selectedTags.length === 0 && <span className="text-xs text-gray-500">No tags selected</span>}
                         </div>
                         <div className="flex gap-2 items-center">
-                            <input
-                                type="text"
-                                value={tagSearch}
-                                onChange={(e) => setTagSearch(e.target.value)}
-                                placeholder="Search or create tag"
-                                className="form-input flex-1"
-                            />
+                            <input type="text" value={tagSearch} onChange={(e) => setTagSearch(e.target.value)} placeholder="Search or create tag" className="form-input flex-1" />
                             <button type="button" onClick={handleCreateTag} disabled={!tagSearch.trim() || creatingTag} className="btn btn-outline-primary text-nowrap">
                                 {creatingTag ? 'Adding...' : 'Add'}
                             </button>
                         </div>
                         {filteredTags.length > 0 && (
                             <div className="mt-2 flex flex-wrap gap-2">
-                                {filteredTags.map(tg => (
+                                {filteredTags.map((tg) => (
                                     <button
                                         key={tg.id}
                                         type="button"
-                                        onClick={() => setFormData(prev => ({ ...prev, tagIds: [...prev.tagIds, tg.id] }))}
+                                        onClick={() => setFormData((prev) => ({ ...prev, tagIds: [...prev.tagIds, tg.id] }))}
                                         className="px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-xs hover:bg-gray-100 dark:hover:bg-gray-700"
-                                    >{tg.name}</button>
+                                    >
+                                        {tg.name}
+                                    </button>
                                 ))}
                             </div>
                         )}
@@ -533,31 +557,17 @@ const SubmitIdea = () => {
                     {/* Anonymous toggle */}
                     <div className="flex items-center gap-3">
                         <label className="inline-flex items-center gap-2 text-sm">
-                            <input
-                                type="checkbox"
-                                checked={formData.isAnonymous}
-                                onChange={(e) => setFormData(prev => ({ ...prev, isAnonymous: e.target.checked }))}
-                                className="form-checkbox"
-                            />
+                            <input type="checkbox" checked={formData.isAnonymous} onChange={(e) => setFormData((prev) => ({ ...prev, isAnonymous: e.target.checked }))} className="form-checkbox" />
                             <span>Submit anonymously (your name hidden publicly)</span>
                         </label>
                     </div>
 
                     {/* Buttons */}
                     <div className="flex items-center justify-end gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                        <button
-                            type="button"
-                            onClick={() => navigate('/innovation/dashboard')}
-                            className="btn btn-outline-danger"
-                            disabled={isLoading}
-                        >
+                        <button type="button" onClick={() => navigate('/innovation/dashboard')} className="btn btn-outline-danger" disabled={isLoading}>
                             {t('innovation.submit.actions.cancel')}
                         </button>
-                        <button
-                            type="submit"
-                            className="btn btn-primary gap-2"
-                            disabled={isLoading}
-                        >
+                        <button type="submit" className="btn btn-primary gap-2" disabled={isLoading}>
                             {isLoading ? (
                                 <>
                                     <span className="animate-spin border-2 border-white border-l-transparent rounded-full w-5 h-5 inline-block"></span>
