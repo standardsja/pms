@@ -6,7 +6,9 @@ import bcrypt from 'bcryptjs';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
 import { prisma, ensureDbConnection } from './prismaClient';
+import { initRedis, closeRedis, cacheGet, cacheSet, cacheDelete, cacheDeletePattern } from './config/redis';
 import { IdeaStatus } from '@prisma/client';
 import { requireCommittee as requireCommitteeRole, requireAdmin } from './middleware/rbac';
 import { 
@@ -197,6 +199,16 @@ app.get('/api/ideas', authMiddleware, async (req, res) => {
     };
     const user = (req as any).user as { roles?: string[]; sub?: number };
     const isCommittee = user.roles && user.roles.includes('INNOVATION_COMMITTEE');
+    const userId = user.sub;
+
+    // Generate cache key based on query params and user
+    const cacheKey = `ideas:${userId}:${status || 'all'}:${sort || 'recent'}:${include || 'none'}:${mine || 'false'}:${cursor || 'start'}:${limit}`;
+    
+    // Try to get from cache first
+    const cached = await cacheGet<any>(cacheKey);
+    if (cached) {
+      return res.json(cached);
+    }
 
     const where: any = {};
     
@@ -245,7 +257,6 @@ app.get('/api/ideas', authMiddleware, async (req, res) => {
     });
 
     // OPTIMIZED: Batch load all user votes in a single query to fix N+1 problem
-    const userId = user.sub;
     const userVotes = userId && ideas.length > 0
       ? await prisma.vote.findMany({
           where: { 
@@ -268,6 +279,22 @@ app.get('/api/ideas', authMiddleware, async (req, res) => {
       submittedBy: idea.isAnonymous ? 'Anonymous' : (idea.submitter?.name || idea.submitter?.email || 'Unknown'),
     }));
 
+    // Generate ETag from response content
+    const responseBody = JSON.stringify(ideasWithVotes);
+    const etag = `"${crypto.createHash('md5').update(responseBody).digest('hex')}"`;
+    
+    // Check if client's ETag matches (304 Not Modified)
+    const clientEtag = req.headers['if-none-match'];
+    if (clientEtag === etag) {
+      return res.status(304).end();
+    }
+
+    // Cache the result for 30 seconds
+    await cacheSet(cacheKey, ideasWithVotes, 30);
+
+    // Send response with ETag header
+    res.setHeader('ETag', etag);
+    res.setHeader('Cache-Control', 'private, max-age=30');
     return res.json(ideasWithVotes);
   } catch (e: any) {
     console.error('GET /api/ideas error:', e);
@@ -436,6 +463,10 @@ app.post('/api/ideas/:id/approve', authMiddleware, requireCommittee, async (req,
         reviewNotes: notes || null,
       },
     });
+    
+    // Invalidate ideas cache
+    await cacheDeletePattern('ideas:*');
+    
     return res.json(updated);
   } catch (e: any) {
     console.error('POST /api/ideas/:id/approve error:', e);
@@ -459,6 +490,10 @@ app.post('/api/ideas/:id/reject', authMiddleware, requireCommittee, async (req, 
         reviewNotes: notes || null,
       },
     });
+    
+    // Invalidate ideas cache
+    await cacheDeletePattern('ideas:*');
+    
     return res.json(updated);
   } catch (e: any) {
     console.error('POST /api/ideas/:id/reject error:', e);
@@ -490,6 +525,10 @@ app.post('/api/ideas/:id/promote', authMiddleware, requireCommittee, async (req,
         projectCode: code,
       },
     });
+    
+    // Invalidate ideas cache
+    await cacheDeletePattern('ideas:*');
+    
     return res.json(updated);
   } catch (e: any) {
     console.error('POST /api/ideas/:id/promote error:', e);
@@ -578,6 +617,9 @@ app.post('/api/ideas/:id/vote', authMiddleware, async (req, res) => {
 
     const { idea: updated, hasVoted } = result;
 
+    // Invalidate ideas cache for all users since vote counts changed
+    await cacheDeletePattern('ideas:*');
+
     return res.json({ ...updated, hasVoted });
   } catch (e: any) {
     console.error('POST /api/ideas/:id/vote error:', e);
@@ -621,6 +663,9 @@ app.delete('/api/ideas/:id/vote', authMiddleware, async (req, res) => {
         },
       });
     });
+
+    // Invalidate ideas cache for all users since vote counts changed
+    await cacheDeletePattern('ideas:*');
 
     // After deletion, hasVoted should be null
     return res.json({ ...idea, hasVoted: null });
@@ -1381,6 +1426,7 @@ app.use(errorHandler);
 async function start() {
   try {
     await ensureDbConnection();
+    await initRedis(); // Initialize Redis cache (non-blocking)
     server = app.listen(PORT, () => {
       console.log(`API server listening on http://localhost:${PORT}`);
     });
@@ -1403,6 +1449,7 @@ function gracefulShutdown(signal: string) {
   Promise.all([
     closeServer(),
     prisma.$disconnect().catch(() => undefined),
+    closeRedis().catch(() => undefined),
   ]).then(() => {
     console.log('Cleanup complete. Exiting.');
     process.exit(0);

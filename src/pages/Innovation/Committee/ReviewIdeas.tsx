@@ -138,7 +138,7 @@ export default function ReviewIdeas() {
       }
     }
     load();
-    const id = setInterval(() => load(false), 15000);
+    const id = setInterval(() => load(false), 60000);
     const vis = () => { if (document.visibilityState === 'visible') load(false); };
     document.addEventListener('visibilitychange', vis);
     return () => { cancelled = true; clearInterval(id); document.removeEventListener('visibilitychange', vis); };

@@ -31,10 +31,10 @@ const BrowseIdeas = () => {
     useEffect(() => {
         dispatch(setPageTitle(t('innovation.browse.title')));
         loadIdeas();
-        // Polling for near real-time updates
+        // Polling for near real-time updates - reduced from 15s to 60s with caching
         const intervalId = setInterval(() => {
             loadIdeas();
-        }, 15000);
+        }, 60000);
         return () => clearInterval(intervalId);
     }, [dispatch, t, sortBy]);
 

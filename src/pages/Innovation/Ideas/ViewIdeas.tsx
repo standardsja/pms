@@ -97,7 +97,7 @@ const ViewIdeas = () => {
         };
 
     loadIdeas();
-        const intervalId = setInterval(() => loadIdeas(false), 15000);
+        const intervalId = setInterval(() => loadIdeas(false), 60000);
         const visibilityHandler = () => {
             if (document.visibilityState === 'visible') loadIdeas(false);
         };
