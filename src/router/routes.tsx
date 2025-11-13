@@ -69,7 +69,7 @@ const ExecutiveDigitalSignoffs = lazy(() => import('../pages/Procurement/Executi
 // User Pages
 const Profile = lazy(() => import('../pages/Procurement/Users/Profile'));
 const AccountSetting = lazy(() => import('../pages/Procurement/Users/AccountSetting'));
-const HelpSupport = lazy(() => import('../pages/Pages/HelpSupport'));
+const HelpSupport = lazy(() => import('../pages/HelpSupport'));
 
 // Module Selector (legacy)
 const ModuleSelector = lazy(() => import('../pages/ModuleSelector'));
