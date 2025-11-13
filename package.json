@@ -1,8 +1,27 @@
 {
-    "name": "vristo-react-vite",
-    "private": true,
+    "name": "@bsj/spinx-pms",
+    "description": "Procurement Management System with Innovation Hub - Bureau of Standards Jamaica",
     "version": "2.0.0-beta",
+    "private": true,
     "type": "module",
+    "author": "Bureau of Standards Jamaica",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/standardsja/pms.git"
+    },
+    "bugs": {
+        "url": "https://github.com/standardsja/pms/issues"
+    },
+    "homepage": "https://github.com/standardsja/pms#readme",
+    "keywords": [
+        "procurement",
+        "innovation",
+        "erp",
+        "workflow",
+        "react",
+        "typescript",
+        "express"
+    ],
     "scripts": {
         "dev": "vite",
         "build": "vite build && tsc",
