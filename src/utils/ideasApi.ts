@@ -62,6 +62,15 @@ function authHeaders(): Record<string, string> {
   return h;
 }
 
+export type PaginatedIdeas = {
+  ideas: Idea[];
+  pagination: {
+    nextCursor: number | null;
+    hasMore: boolean;
+    limit: number;
+  };
+};
+
 export async function fetchIdeas(params?: { 
   status?: string | string[];
   category?: string | string[];
@@ -69,6 +78,8 @@ export async function fetchIdeas(params?: {
   includeAttachments?: boolean;
   tag?: string | string[];
   mine?: boolean;
+  cursor?: number;
+  limit?: number;
 }) {
   const qs = new URLSearchParams();
   const pushParam = (key: string, value?: string | string[]) => {
@@ -86,6 +97,8 @@ export async function fetchIdeas(params?: {
   if (params?.sort) qs.set('sort', params.sort);
   if (params?.includeAttachments) qs.set('include', 'attachments');
   if (params?.mine) qs.set('mine', 'true');
+  if (params?.cursor) qs.set('cursor', String(params.cursor));
+  if (params?.limit) qs.set('limit', String(params.limit));
   // Cache busting to ensure fresh data in all environments
   qs.set('t', Date.now().toString());
   
@@ -115,8 +128,28 @@ export async function fetchIdeas(params?: {
       throw new Error(errorMessage);
     }
     
-    const list = (await res.json()) as Idea[];
-    return list.map(i => ({ ...i, firstAttachmentUrl: i.attachments?.[0]?.fileUrl || null }));
+    const data = await res.json();
+    
+    // Handle both paginated and legacy responses
+    if (data.ideas && data.pagination) {
+      // New paginated format
+      const paginated = data as PaginatedIdeas;
+      return {
+        ...paginated,
+        ideas: paginated.ideas.map(i => ({ ...i, firstAttachmentUrl: i.attachments?.[0]?.fileUrl || null }))
+      };
+    } else {
+      // Legacy format (array of ideas) - for backward compatibility
+      const list = data as Idea[];
+      return {
+        ideas: list.map(i => ({ ...i, firstAttachmentUrl: i.attachments?.[0]?.fileUrl || null })),
+        pagination: {
+          nextCursor: null,
+          hasMore: false,
+          limit: list.length
+        }
+      };
+    }
   } catch (error) {
     // Network or other fetch errors
     if (error instanceof Error && error.message) {

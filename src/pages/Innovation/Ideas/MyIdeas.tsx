@@ -92,7 +92,9 @@ const MyIdeas = () => {
         if (!silent) setIsLoading(true);
         try {
             // Use mine=true parameter to filter server-side
-            const myIdeas = await fetchIdeas({ includeAttachments: true, mine: true });
+            const response = await fetchIdeas({ includeAttachments: true, mine: true, limit: 100 });
+            // Handle both paginated and legacy response formats
+            const myIdeas = response.ideas || response;
 
             const formattedIdeas = myIdeas.map(idea => ({
                     id: String(idea.id),
@@ -134,14 +136,49 @@ const MyIdeas = () => {
     };
 
     const getStatusConfig = (status: string) => {
-        const configs: Record<string, { color: string; icon: string; bg: string; label: string }> = {
-            DRAFT: { color: 'text-gray-600', icon: '📝', bg: 'bg-gray-100 dark:bg-gray-800', label: t('innovation.myIdeas.status.draft') },
-            PENDING_REVIEW: { color: 'text-yellow-600', icon: '🔍', bg: 'bg-yellow-100 dark:bg-yellow-900', label: t('innovation.myIdeas.status.underReview') },
-            UNDER_REVIEW: { color: 'text-yellow-600', icon: '🔍', bg: 'bg-yellow-100 dark:bg-yellow-900', label: t('innovation.myIdeas.status.underReview') },
-            APPROVED: { color: 'text-green-600', icon: '✅', bg: 'bg-green-100 dark:bg-green-900', label: t('innovation.myIdeas.status.approved') },
-            IMPLEMENTED: { color: 'text-purple-600', icon: '🎉', bg: 'bg-purple-100 dark:bg-purple-900', label: t('innovation.myIdeas.status.implemented') },
-            REJECTED: { color: 'text-red-600', icon: '❌', bg: 'bg-red-100 dark:bg-red-900', label: t('innovation.myIdeas.status.rejected') },
-            PROMOTED_TO_PROJECT: { color: 'text-purple-600', icon: '🚀', bg: 'bg-purple-100 dark:bg-purple-900', label: t('innovation.myIdeas.status.implemented') },
+        const configs: Record<string, { color: string; icon: JSX.Element; bg: string; label: string }> = {
+            DRAFT: { 
+                color: 'text-gray-600', 
+                icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>, 
+                bg: 'bg-gray-100 dark:bg-gray-800', 
+                label: t('innovation.myIdeas.status.draft') 
+            },
+            PENDING_REVIEW: { 
+                color: 'text-yellow-600', 
+                icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>, 
+                bg: 'bg-yellow-100 dark:bg-yellow-900', 
+                label: t('innovation.myIdeas.status.underReview') 
+            },
+            UNDER_REVIEW: { 
+                color: 'text-yellow-600', 
+                icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>, 
+                bg: 'bg-yellow-100 dark:bg-yellow-900', 
+                label: t('innovation.myIdeas.status.underReview') 
+            },
+            APPROVED: { 
+                color: 'text-green-600', 
+                icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>, 
+                bg: 'bg-green-100 dark:bg-green-900', 
+                label: t('innovation.myIdeas.status.approved') 
+            },
+            IMPLEMENTED: { 
+                color: 'text-purple-600', 
+                icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>, 
+                bg: 'bg-purple-100 dark:bg-purple-900', 
+                label: t('innovation.myIdeas.status.implemented') 
+            },
+            REJECTED: { 
+                color: 'text-red-600', 
+                icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>, 
+                bg: 'bg-red-100 dark:bg-red-900', 
+                label: t('innovation.myIdeas.status.rejected') 
+            },
+            PROMOTED_TO_PROJECT: { 
+                color: 'text-purple-600', 
+                icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>, 
+                bg: 'bg-purple-100 dark:bg-purple-900', 
+                label: t('innovation.myIdeas.status.implemented') 
+            },
         };
         return configs[status] || configs.DRAFT;
     };
@@ -200,7 +237,9 @@ const MyIdeas = () => {
                     <div className="flex items-center justify-between">
                         <div>
                             <h1 className="text-4xl font-black mb-2 flex items-center gap-3">
-                                <span className="text-5xl" role="img" aria-label="lightbulb">💡</span>
+                                <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                                </svg>
                                 {t('innovation.myIdeas.title')}
                             </h1>
                             <p className="text-white/90 text-lg mb-6">
@@ -210,7 +249,9 @@ const MyIdeas = () => {
                                 onClick={() => navigate('/innovation/ideas/new')}
                                 className="btn bg-white text-primary hover:bg-gray-100 gap-2 shadow-xl"
                             >
-                                <span className="text-xl" role="img" aria-hidden="true">✨</span>
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                </svg>
                                 {t('innovation.dashboard.submitNewIdea')}
                             </button>
                         </div>
@@ -235,14 +276,34 @@ const MyIdeas = () => {
             {/* Quick Stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {[
-                    { label: t('innovation.myIdeas.stats.approved'), value: stats.approved, icon: '✅', color: 'from-green-500 to-emerald-500' },
-                    { label: t('innovation.myIdeas.stats.inReview'), value: stats.pending, icon: '🔍', color: 'from-yellow-500 to-orange-500' },
-                    { label: t('innovation.myIdeas.stats.totalViews'), value: stats.totalViews, icon: '👁️', color: 'from-blue-500 to-cyan-500' },
-                    { label: t('innovation.myIdeas.stats.completed'), value: stats.implemented, icon: '🎉', color: 'from-purple-500 to-pink-500' },
+                    { 
+                        label: t('innovation.myIdeas.stats.approved'), 
+                        value: stats.approved, 
+                        icon: <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+                        color: 'from-green-500 to-emerald-500' 
+                    },
+                    { 
+                        label: t('innovation.myIdeas.stats.inReview'), 
+                        value: stats.pending, 
+                        icon: <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>,
+                        color: 'from-yellow-500 to-orange-500' 
+                    },
+                    { 
+                        label: t('innovation.myIdeas.stats.totalViews'), 
+                        value: stats.totalViews, 
+                        icon: <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>,
+                        color: 'from-blue-500 to-cyan-500' 
+                    },
+                    { 
+                        label: t('innovation.myIdeas.stats.completed'), 
+                        value: stats.implemented, 
+                        icon: <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+                        color: 'from-purple-500 to-pink-500' 
+                    },
                 ].map((stat, idx) => (
                     <div key={idx} className="panel hover:shadow-lg transition-shadow">
                         <div className="flex items-center gap-3">
-                            <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${stat.color} flex items-center justify-center text-2xl`} role="img" aria-hidden="true">
+                            <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${stat.color} flex items-center justify-center text-white`}>
                                 {stat.icon}
                             </div>
                             <div>
@@ -307,7 +368,11 @@ const MyIdeas = () => {
                                                             loading="lazy"
                                                         />
                                                     ) : (
-                                                        <div className="w-12 h-12 rounded bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-400" aria-hidden="true">🖼️</div>
+                                                        <div className="w-12 h-12 rounded bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-400" aria-hidden="true">
+                                                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                                            </svg>
+                                                        </div>
                                                     )}
                                                     <Link
                                                         to={`/innovation/ideas/${idea.id}`}
@@ -327,7 +392,9 @@ const MyIdeas = () => {
                                                 {idea.feedback && (
                                                     <div className="bg-blue-50 dark:bg-blue-900/20 border-l-4 border-primary p-4 rounded-r-lg mb-3">
                                                         <div className="flex items-start gap-2">
-                                                            <span className="text-xl">💬</span>
+                                                            <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                                            </svg>
                                                             <div>
                                                                 <div className="font-semibold text-gray-900 dark:text-white mb-1">Committee Feedback</div>
                                                                 <p className="text-sm text-gray-700 dark:text-gray-300">{idea.feedback}</p>
@@ -466,7 +533,9 @@ const MyIdeas = () => {
             {/* Empty State */}
             {filteredIdeas.length === 0 && (
                 <div className="panel text-center py-16">
-                    <div className="text-6xl mb-4" role="img" aria-label="thinking face">💭</div>
+                    <svg className="w-24 h-24 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" role="img" aria-label="thinking face">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                    </svg>
                     <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
                         {filterStatus === 'all' 
                             ? t('innovation.myIdeas.empty.all.title')
@@ -479,7 +548,9 @@ const MyIdeas = () => {
                     </p>
                     {filterStatus === 'all' ? (
                         <button onClick={() => navigate('/innovation/ideas/new')} className="btn btn-primary gap-2">
-                            <span className="text-xl" role="img" aria-hidden="true">✨</span>
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                            </svg>
                             {t('innovation.myIdeas.empty.all.action')}
                         </button>
                     ) : (

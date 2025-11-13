@@ -42,7 +42,9 @@ const BrowseIdeas = () => {
         setIsLoading(true);
         try {
             const sort = sortBy === 'popular' ? 'popularity' : 'recent';
-            const data = await fetchIdeas({ sort });
+            const response = await fetchIdeas({ sort, limit: 50 });
+            // Handle both paginated and legacy response formats
+            const data = response.ideas || response;
             setIdeas(data.map(idea => ({
                 id: String(idea.id),
                 title: idea.title,
@@ -82,13 +84,15 @@ const BrowseIdeas = () => {
                 // Remove vote
                 await removeVote(ideaId);
                 // Refetch single idea for authoritative counts
-                const updated = await fetchIdeas();
+                const response = await fetchIdeas();
+                const updated = response.ideas || response;
                 const fresh = updated.find(i => String(i.id) === ideaId);
                 setIdeas(prev => prev.map(i => i.id === ideaId && fresh ? { ...i, voteCount: fresh.voteCount, hasVoted: false } : i));
             } else {
                 // Add vote
                 await voteForIdea(ideaId);
-                const updated = await fetchIdeas();
+                const response = await fetchIdeas();
+                const updated = response.ideas || response;
                 const fresh = updated.find(i => String(i.id) === ideaId);
                 setIdeas(prev => prev.map(i => i.id === ideaId && fresh ? { ...i, voteCount: fresh.voteCount, hasVoted: true } : i));
             }
@@ -173,7 +177,9 @@ const BrowseIdeas = () => {
             {/* Header */}
             <div>
                 <h1 id="browse-ideas-title" className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-                    <span className="text-4xl" role="img" aria-label="magnifying glass">🔍</span>
+                    <svg className="w-10 h-10 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" role="img" aria-label="magnifying glass">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
                     {t('innovation.browse.title')}
                 </h1>
                 <p className="text-gray-600 dark:text-gray-400 mt-1">
@@ -352,13 +358,17 @@ const BrowseIdeas = () => {
             {/* Empty State */}
             {!isLoading && filteredAndSortedIdeas.length === 0 && (
                 <div className="panel text-center py-12">
-                    <div className="text-6xl mb-4" role="img" aria-label="magnifying glass">🔍</div>
+                    <svg className="w-24 h-24 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" role="img" aria-label="magnifying glass">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
                     <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">{t('innovation.browse.empty.title')}</h3>
                     <p className="text-gray-600 dark:text-gray-400 mb-6">
                         {t('innovation.browse.empty.message')}
                     </p>
                     <Link to="/innovation/ideas/new" className="btn btn-primary gap-2 inline-flex">
-                        <span className="text-xl" role="img" aria-hidden="true">✨</span>
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
                         {t('innovation.browse.empty.action')}
                     </Link>
                 </div>

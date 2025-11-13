@@ -153,9 +153,14 @@ const SubmitIdea = () => {
             }
             setCheckingDuplicates(true);
             try {
-                const res = await fetch('/api/ideas/check-duplicates', {
+                const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+                const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
+                const res = await fetch(`${apiBase}/api/ideas/check-duplicates`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
                     body: JSON.stringify({ title: debouncedTitle, description: debouncedDesc }),
                 });
                 if (res.ok) {
@@ -260,7 +265,9 @@ const SubmitIdea = () => {
                 </button>
                 <div>
                     <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-                        <span className="text-4xl" role="img" aria-hidden="true">✨</span>
+                        <svg className="w-9 h-9 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
                         {t('innovation.submit.title')}
                     </h1>
                     <p className="text-gray-600 dark:text-gray-400 mt-1">
@@ -270,9 +277,13 @@ const SubmitIdea = () => {
             </div>
 
             {/* Info Banner */}
-            <div className="panel bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20 border-2 border-blue-200 dark:border-blue-800">
+            <div className="panel bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20 border border-blue-200 dark:border-blue-800">
                 <div className="flex items-start gap-4">
-                    <div className="text-4xl" role="img" aria-hidden="true">ℹ️</div>
+                    <div className="flex-shrink-0">
+                        <svg className="w-10 h-10 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </div>
                     <div>
                         <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">{t('innovation.submit.guidelines.title')}</h3>
                         <ul className="text-gray-700 dark:text-gray-300 space-y-1 text-sm" aria-label={t('innovation.submit.guidelines.title')}>
@@ -291,7 +302,11 @@ const SubmitIdea = () => {
                     {duplicateMatches.length > 0 && (
                         <div className="rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 p-4">
                             <div className="flex items-start gap-3">
-                                <span className="text-2xl" role="img" aria-label="warning">⚠️</span>
+                                <div className="flex-shrink-0">
+                                    <svg className="w-6 h-6 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                    </svg>
+                                </div>
                                 <div className="flex-1">
                                     <h3 className="text-sm font-bold text-amber-900 dark:text-amber-300 mb-2">Possible Similar Ideas</h3>
                                     <p className="text-xs text-amber-800 dark:text-amber-400 mb-3">Review these before submitting to avoid duplicates. You can still proceed.</p>
@@ -550,7 +565,9 @@ const SubmitIdea = () => {
                                 </>
                             ) : (
                                 <>
-                                    <span className="text-xl" role="img" aria-hidden="true">✨</span>
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                                    </svg>
                                     {checkingDuplicates ? 'Checking...' : t('innovation.submit.actions.submit')}
                                 </>
                             )}

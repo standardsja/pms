@@ -8,6 +8,22 @@ import path from 'path';
 import fs from 'fs';
 import { prisma, ensureDbConnection } from './prismaClient';
 import { IdeaStatus } from '@prisma/client';
+import { requireCommittee as requireCommitteeRole, requireAdmin } from './middleware/rbac';
+import { 
+  validate, 
+  createIdeaSchema, 
+  voteSchema, 
+  approveRejectIdeaSchema, 
+  promoteIdeaSchema,
+  sanitizeInput as sanitize
+} from './middleware/validation';
+import { 
+  errorHandler, 
+  notFoundHandler, 
+  asyncHandler,
+  NotFoundError,
+  BadRequestError
+} from './middleware/errorHandler';
 
 const app = express();
 const PORT = process.env.PORT ? Number(process.env.PORT) : 4000;
@@ -16,6 +32,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'devsecret-change-me';
 app.use(cors());
 app.use(express.json());
 app.use(morgan('dev'));
+app.use(sanitize); // Sanitize all inputs
 // Static files for uploads
 const UPLOAD_DIR = path.resolve(process.cwd(), 'uploads');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -170,7 +187,14 @@ app.get('/api/auth/me', authMiddleware, async (req, res) => {
 // List ideas with optional filters: status, sort
 app.get('/api/ideas', authMiddleware, async (req, res) => {
   try {
-    const { status, sort, include, mine } = req.query as { status?: string; sort?: string; include?: string; mine?: string };
+    const { status, sort, include, mine, cursor, limit = '20' } = req.query as { 
+      status?: string; 
+      sort?: string; 
+      include?: string; 
+      mine?: string;
+      cursor?: string;
+      limit?: string;
+    };
     const user = (req as any).user as { roles?: string[]; sub?: number };
     const isCommittee = user.roles && user.roles.includes('INNOVATION_COMMITTEE');
 
@@ -198,9 +222,16 @@ app.get('/api/ideas', authMiddleware, async (req, res) => {
     const orderBy: any = sort === 'popularity' ? { voteCount: 'desc' } : { createdAt: 'desc' };
 
     const includeAttachments = include === 'attachments';
+    const take = Math.min(parseInt(limit, 10) || 20, 100); // Max 100 items per page
+    
     const ideas = await prisma.idea.findMany({
       where,
       orderBy,
+      take: take + 1, // Fetch one extra to determine if there are more results
+      ...(cursor && { 
+        cursor: { id: parseInt(cursor, 10) }, 
+        skip: 1 // Skip the cursor itself
+      }),
       include: {
         attachments: includeAttachments,
         submitter: {
@@ -213,27 +244,29 @@ app.get('/api/ideas', authMiddleware, async (req, res) => {
       },
     });
 
-    // Add hasVoted field and format submittedBy for each idea
+    // OPTIMIZED: Batch load all user votes in a single query to fix N+1 problem
     const userId = user.sub;
-    const ideasWithVotes = await Promise.all(
-      ideas.map(async (idea) => {
-        if (!userId) return { 
-          ...idea, 
-          hasVoted: null,
-          submittedBy: idea.isAnonymous ? 'Anonymous' : (idea.submitter?.name || idea.submitter?.email || 'Unknown'),
-        };
-        
-        const userVote = await prisma.vote.findFirst({
-          where: { ideaId: idea.id, userId },
-        });
-        
-        return {
-          ...idea,
-          hasVoted: userVote ? (userVote.voteType === 'UPVOTE' ? 'up' : 'down') : null,
-          submittedBy: idea.isAnonymous ? 'Anonymous' : (idea.submitter?.name || idea.submitter?.email || 'Unknown'),
-        };
-      })
-    );
+    const userVotes = userId && ideas.length > 0
+      ? await prisma.vote.findMany({
+          where: { 
+            userId, 
+            ideaId: { in: ideas.map(i => i.id) } 
+          },
+          select: { ideaId: true, voteType: true }
+        })
+      : [];
+
+    // Create a Map for O(1) vote lookups
+    const voteMap = new Map(userVotes.map(v => [v.ideaId, v.voteType]));
+
+    // Map ideas with votes - now O(n) instead of O(n²)
+    const ideasWithVotes = ideas.map(idea => ({
+      ...idea,
+      hasVoted: voteMap.has(idea.id) 
+        ? (voteMap.get(idea.id) === 'UPVOTE' ? 'up' : 'down') 
+        : null,
+      submittedBy: idea.isAnonymous ? 'Anonymous' : (idea.submitter?.name || idea.submitter?.email || 'Unknown'),
+    }));
 
     return res.json(ideasWithVotes);
   } catch (e: any) {
@@ -268,31 +301,32 @@ app.get('/api/ideas/:id', authMiddleware, async (req, res) => {
     const { include } = req.query as { include?: string };
     const user = (req as any).user as { sub?: number };
     const includeAttachments = include === 'attachments';
-    const idea = await prisma.idea.findUnique({
-      where: { id: parseInt(id, 10) },
-      include: {
-        attachments: includeAttachments,
-        submitter: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
+    const userId = user.sub;
+    
+    // OPTIMIZED: Fetch idea and user vote in parallel
+    const [idea, userVote] = await Promise.all([
+      prisma.idea.findUnique({
+        where: { id: parseInt(id, 10) },
+        include: {
+          attachments: includeAttachments,
+          submitter: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            }
           }
-        }
-      },
-    });
+        },
+      }),
+      userId ? prisma.vote.findFirst({
+        where: { ideaId: parseInt(id, 10), userId },
+        select: { voteType: true }
+      }) : Promise.resolve(null)
+    ]);
+    
     if (!idea) return res.status(404).json({ message: 'Idea not found' });
 
-    // Add hasVoted field
-    const userId = user.sub;
-    let hasVoted: 'up' | 'down' | null = null;
-    if (userId) {
-      const userVote = await prisma.vote.findFirst({
-        where: { ideaId: idea.id, userId },
-      });
-      hasVoted = userVote ? (userVote.voteType === 'UPVOTE' ? 'up' : 'down') : null;
-    }
-
+    const hasVoted = userVote ? (userVote.voteType === 'UPVOTE' ? 'up' : 'down') : null;
     const submittedBy = idea.isAnonymous ? 'Anonymous' : (idea.submitter?.name || idea.submitter?.email || 'Unknown');
 
     return res.json({ ...idea, hasVoted, submittedBy });
@@ -477,54 +511,72 @@ app.post('/api/ideas/:id/vote', authMiddleware, async (req, res) => {
     if (!idea) return res.status(404).json({ message: 'Idea not found' });
 
     const type = voteType === 'DOWNVOTE' ? 'DOWNVOTE' : 'UPVOTE';
+    const ideaId = parseInt(id, 10);
 
-    // Check existing vote
-    const existing = await prisma.vote.findFirst({
-      where: { ideaId: parseInt(id, 10), userId },
-    });
+    // OPTIMIZED: Use atomic transaction to prevent race conditions
+    const result = await prisma.$transaction(async (tx) => {
+      // Check existing vote
+      const existing = await tx.vote.findFirst({
+        where: { ideaId, userId },
+      });
 
-    if (existing) {
-      if (existing.voteType === type) {
-        // User is clicking same vote button - this is handled by frontend (they should use DELETE)
-        // Just return current state without error
-        const idea = await prisma.idea.findUnique({
-          where: { id: parseInt(id, 10) },
-        });
+      let voteCountDelta = 0;
+      let upvoteCountDelta = 0;
+      let downvoteCountDelta = 0;
+
+      if (existing) {
+        if (existing.voteType === type) {
+          // Same vote - return current state without changes
+          const idea = await tx.idea.findUnique({ where: { id: ideaId } });
+          return { idea, hasVoted: type === 'UPVOTE' ? 'up' : 'down' };
+        }
         
-        // Add hasVoted field
-        const userVote = await prisma.vote.findFirst({
-          where: { ideaId: parseInt(id, 10), userId },
+        // Change vote type: remove old vote, add new vote
+        await tx.vote.update({
+          where: { id: existing.id },
+          data: { voteType: type },
         });
-        const hasVoted = userVote ? (userVote.voteType === 'UPVOTE' ? 'up' : 'down') : null;
-        
-        return res.json({ ...idea, hasVoted });
+
+        if (existing.voteType === 'UPVOTE' && type === 'DOWNVOTE') {
+          // Changing from upvote to downvote
+          voteCountDelta = -2; // -1 for removing upvote, -1 for adding downvote
+          upvoteCountDelta = -1;
+          downvoteCountDelta = 1;
+        } else if (existing.voteType === 'DOWNVOTE' && type === 'UPVOTE') {
+          // Changing from downvote to upvote
+          voteCountDelta = 2; // +1 for removing downvote, +1 for adding upvote
+          upvoteCountDelta = 1;
+          downvoteCountDelta = -1;
+        }
+      } else {
+        // Create new vote
+        await tx.vote.create({
+          data: { ideaId, userId, voteType: type },
+        });
+
+        if (type === 'UPVOTE') {
+          voteCountDelta = 1;
+          upvoteCountDelta = 1;
+        } else {
+          voteCountDelta = -1;
+          downvoteCountDelta = 1;
+        }
       }
-      // Change vote type (from upvote to downvote or vice versa)
-      await prisma.vote.update({
-        where: { id: existing.id },
-        data: { voteType: type },
-      });
-    } else {
-      // Create new vote
-      await prisma.vote.create({
-        data: { ideaId: parseInt(id, 10), userId, voteType: type },
-      });
-    }
 
-    // Recalculate counts
-    const upvotes = await prisma.vote.count({ where: { ideaId: parseInt(id, 10), voteType: 'UPVOTE' } });
-    const downvotes = await prisma.vote.count({ where: { ideaId: parseInt(id, 10), voteType: 'DOWNVOTE' } });
+      // Atomic increment/decrement - no race conditions
+      const updated = await tx.idea.update({
+        where: { id: ideaId },
+        data: {
+          voteCount: { increment: voteCountDelta },
+          upvoteCount: { increment: upvoteCountDelta },
+          downvoteCount: { increment: downvoteCountDelta },
+        },
+      });
 
-    const updated = await prisma.idea.update({
-      where: { id: parseInt(id, 10) },
-      data: { upvoteCount: upvotes, downvoteCount: downvotes, voteCount: upvotes - downvotes },
+      return { idea: updated, hasVoted: type === 'UPVOTE' ? 'up' : 'down' };
     });
 
-    // Add hasVoted field to response
-    const userVote = await prisma.vote.findFirst({
-      where: { ideaId: parseInt(id, 10), userId },
-    });
-    const hasVoted = userVote ? (userVote.voteType === 'UPVOTE' ? 'up' : 'down') : null;
+    const { idea: updated, hasVoted } = result;
 
     return res.json({ ...updated, hasVoted });
   } catch (e: any) {
@@ -542,27 +594,36 @@ app.delete('/api/ideas/:id/vote', authMiddleware, async (req, res) => {
 
     if (!userId) return res.status(401).json({ message: 'User ID required' });
 
-    const existing = await prisma.vote.findFirst({
-      where: { ideaId: parseInt(id, 10), userId },
-    });
+    const ideaId = parseInt(id, 10);
 
-    if (!existing) {
-      return res.status(404).json({ message: 'Vote not found' });
-    }
+    // OPTIMIZED: Use atomic transaction for vote removal
+    const idea = await prisma.$transaction(async (tx) => {
+      const existing = await tx.vote.findFirst({
+        where: { ideaId, userId },
+      });
 
-    await prisma.vote.delete({ where: { id: existing.id } });
+      if (!existing) {
+        throw new Error('Vote not found');
+      }
 
-    // Recalculate
-    const upvotes = await prisma.vote.count({ where: { ideaId: parseInt(id, 10), voteType: 'UPVOTE' } });
-    const downvotes = await prisma.vote.count({ where: { ideaId: parseInt(id, 10), voteType: 'DOWNVOTE' } });
+      const wasUpvote = existing.voteType === 'UPVOTE';
 
-    const updated = await prisma.idea.update({
-      where: { id: parseInt(id, 10) },
-      data: { upvoteCount: upvotes, downvoteCount: downvotes, voteCount: upvotes - downvotes },
+      // Delete vote
+      await tx.vote.delete({ where: { id: existing.id } });
+
+      // Atomic decrement
+      return await tx.idea.update({
+        where: { id: ideaId },
+        data: {
+          voteCount: { increment: wasUpvote ? -1 : 1 },
+          upvoteCount: wasUpvote ? { decrement: 1 } : undefined,
+          downvoteCount: wasUpvote ? undefined : { decrement: 1 },
+        },
+      });
     });
 
     // After deletion, hasVoted should be null
-    return res.json({ ...updated, hasVoted: null });
+    return res.json({ ...idea, hasVoted: null });
   } catch (e: any) {
     console.error('DELETE /api/ideas/:id/vote error:', e);
     return res.status(500).json({ message: e?.message || 'Failed to remove vote' });
@@ -722,8 +783,6 @@ app.get('/requests/:id', async (req, res) => {
         budgetComments: true,
         budgetOfficerName: true,
         budgetManagerName: true,
-        budgetOfficerApproved: true,
-        budgetManagerApproved: true,
         procurementCaseNumber: true,
         receivedBy: true,
         dateReceived: true,
@@ -783,8 +842,6 @@ app.get('/requests/:id', async (req, res) => {
               budgetComments: true,
               budgetOfficerName: true,
               budgetManagerName: true,
-              budgetOfficerApproved: true,
-              budgetManagerApproved: true,
               procurementCaseNumber: true,
               receivedBy: true,
               dateReceived: true,
@@ -974,19 +1031,12 @@ app.post('/requests/:id/action', async (req, res) => {
         nextStatus = 'FINANCE_REVIEW';
         nextAssigneeId = finance?.id || null;
       } else if (request.status === 'FINANCE_REVIEW') {
-        // Finance approved -> send to Budget Manager
-        const budgetMgr = await prisma.user.findFirst({
-          where: { roles: { some: { role: { name: 'BUDGET_MANAGER' } } } }
+        // Finance approved -> final approval, assign back to Procurement
+        nextStatus = 'FINANCE_APPROVED';
+        const procurement = await prisma.user.findFirst({
+          where: { roles: { some: { role: { name: 'PROCUREMENT' } } } }
         });
-        nextStatus = 'BUDGET_MANAGER_REVIEW';
-        nextAssigneeId = budgetMgr?.id || null;
-      } else if (request.status === 'BUDGET_MANAGER_REVIEW') {
-            // Final finance approval -> assign back to Procurement to dispatch to vendors/PO
-            nextStatus = 'FINANCE_APPROVED';
-            const procurement = await prisma.user.findFirst({
-              where: { roles: { some: { role: { name: 'PROCUREMENT' } } } }
-            });
-            nextAssigneeId = procurement?.id || null;
+        nextAssigneeId = procurement?.id || null;
       }
     } else if (action === 'SEND_TO_VENDOR') {
       if (request.status !== 'FINANCE_APPROVED') {
@@ -1220,7 +1270,7 @@ app.post('/admin/requests/:id/reassign', async (req, res) => {
 
     // Validate optional newStatus against known enum values
     const VALID_STATUSES = [
-      'DRAFT','SUBMITTED','DEPARTMENT_REVIEW','DEPARTMENT_RETURNED','DEPARTMENT_APPROVED','HOD_REVIEW','PROCUREMENT_REVIEW','FINANCE_REVIEW','BUDGET_MANAGER_REVIEW','FINANCE_RETURNED','FINANCE_APPROVED','SENT_TO_VENDOR','CLOSED','REJECTED'
+      'DRAFT','SUBMITTED','DEPARTMENT_REVIEW','DEPARTMENT_RETURNED','DEPARTMENT_APPROVED','HOD_REVIEW','PROCUREMENT_REVIEW','FINANCE_REVIEW','FINANCE_RETURNED','FINANCE_APPROVED','SENT_TO_VENDOR','CLOSED','REJECTED'
     ];
     let targetStatus: string = request.status;
     if (newStatus) {
@@ -1243,8 +1293,7 @@ app.post('/admin/requests/:id/reassign', async (req, res) => {
       else if (request.status === 'DEPARTMENT_REVIEW' && has('HEAD_OF_DIVISION')) targetStatus = 'HOD_REVIEW';
       else if (request.status === 'HOD_REVIEW' && has('PROCUREMENT')) targetStatus = 'PROCUREMENT_REVIEW';
       else if (request.status === 'PROCUREMENT_REVIEW' && has('FINANCE')) targetStatus = 'FINANCE_REVIEW';
-      else if (request.status === 'FINANCE_REVIEW' && has('BUDGET_MANAGER')) targetStatus = 'BUDGET_MANAGER_REVIEW';
-      else if (request.status === 'BUDGET_MANAGER_REVIEW' && !assigneeId) targetStatus = 'FINANCE_APPROVED';
+      else if (request.status === 'FINANCE_REVIEW' && !assigneeId) targetStatus = 'FINANCE_APPROVED';
     }
 
     const updated = await prisma.request.update({
@@ -1322,6 +1371,12 @@ app.get('/api/auth/test-login', (req, res) => {
 
 import http from 'http';
 let server: http.Server | null = null;
+
+// ============================================
+// ERROR HANDLING - Must be last
+// ============================================
+app.use(notFoundHandler);
+app.use(errorHandler);
 
 async function start() {
   try {

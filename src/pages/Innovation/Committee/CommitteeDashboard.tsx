@@ -116,13 +116,16 @@ const CommitteeDashboard = () => {
         setError(null);
         try {
             if (selectedTab === 'pending') {
-                const data = await fetchIdeas({ status: 'pending' });
+                const response = await fetchIdeas({ status: 'pending' });
+                const data = response.ideas || response;
                 setPendingIdeas(data);
             } else if (selectedTab === 'approved') {
-                const data = await fetchIdeas({ status: 'approved' });
+                const response = await fetchIdeas({ status: 'approved' });
+                const data = response.ideas || response;
                 setApprovedIdeas(data);
             } else {
-                const data = await fetchIdeas({ status: 'promoted' });
+                const response = await fetchIdeas({ status: 'promoted' });
+                const data = response.ideas || response;
                 setPromotedIdeas(data);
             }
         } catch (e) {
@@ -415,7 +418,9 @@ const CommitteeDashboard = () => {
             <div className="relative overflow-hidden rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 p-8 text-white shadow-xl">
                 <div className="relative z-10">
                     <div className="flex items-center gap-3 mb-2">
-                        <span className="text-5xl">🏛️</span>
+                        <svg className="w-14 h-14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                        </svg>
                         <h1 className="text-4xl font-black">Innovation Committee</h1>
                     </div>
                     <p className="text-indigo-100 text-lg">
@@ -445,7 +450,9 @@ const CommitteeDashboard = () => {
                             <p className="text-green-100 text-sm font-medium mb-1">Approved Ideas</p>
                             <h3 className="text-4xl font-black">{counts.approved}</h3>
                         </div>
-                        <div className="text-6xl opacity-30">✅</div>
+                        <svg className="w-16 h-16 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
                     </div>
                     <div className="mt-3 text-sm text-green-100">Live for voting</div>
                 </div>
@@ -456,7 +463,9 @@ const CommitteeDashboard = () => {
                             <p className="text-blue-100 text-sm font-medium mb-1">BSJ Projects</p>
                             <h3 className="text-4xl font-black">{counts.promoted}</h3>
                         </div>
-                        <div className="text-6xl opacity-30">🚀</div>
+                        <svg className="w-16 h-16 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
                     </div>
                     <div className="mt-3 text-sm text-blue-100">In implementation</div>
                 </div>
@@ -467,7 +476,9 @@ const CommitteeDashboard = () => {
                             <p className="text-red-100 text-sm font-medium mb-1">Rejected</p>
                             <h3 className="text-4xl font-black">{counts.rejected}</h3>
                         </div>
-                        <div className="text-6xl opacity-30">❌</div>
+                        <svg className="w-16 h-16 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
                     </div>
                     <div className="mt-3 text-sm text-red-100">Not approved</div>
                 </div>
@@ -478,7 +489,9 @@ const CommitteeDashboard = () => {
                 <div className="panel">
                     <div className="flex items-center justify-between mb-4">
                         <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                            <span className="text-2xl">📋</span>
+                            <svg className="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                            </svg>
                             Recent Activity
                         </h2>
                     </div>
@@ -489,10 +502,10 @@ const CommitteeDashboard = () => {
                                 rejected: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300',
                                 promoted: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300'
                             };
-                            const actionIcons = {
-                                approved: '✅',
-                                rejected: '❌',
-                                promoted: '🚀'
+                            const actionIcons: Record<string, JSX.Element> = {
+                                approved: <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+                                rejected: <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+                                promoted: <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                             };
                             const actionLabels = {
                                 approved: 'Approved',
@@ -502,7 +515,7 @@ const CommitteeDashboard = () => {
                             
                             return (
                                 <div key={activity.id} className="flex items-start gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-                                    <span className="text-2xl mt-0.5">{actionIcons[activity.action]}</span>
+                                    <div className="mt-0.5">{actionIcons[activity.action]}</div>
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2 mb-1">
                                             <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${actionColors[activity.action]}`}>
@@ -597,7 +610,9 @@ const CommitteeDashboard = () => {
                         }`}
                     >
                         <div className="flex items-center justify-center gap-2">
-                            <span className="text-2xl">✅</span>
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
                             <span>Approved ({counts.approved})</span>
                         </div>
                     </button>
@@ -610,7 +625,9 @@ const CommitteeDashboard = () => {
                         }`}
                     >
                         <div className="flex items-center justify-center gap-2">
-                            <span className="text-2xl">🚀</span>
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                            </svg>
                             <span>Projects ({counts.promoted})</span>
                         </div>
                     </button>
@@ -663,7 +680,9 @@ const CommitteeDashboard = () => {
 
                     {!loadingList && !error && paginatedIdeas.length === 0 && (
                         <div className="py-16 text-center">
-                            <div className="text-7xl mb-4">✨</div>
+                            <svg className="w-28 h-28 mx-auto mb-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                            </svg>
                             <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">All Clear!</h3>
                             <p className="text-gray-600 dark:text-gray-400 text-lg">
                                 {selectedTab === 'pending' && 'No ideas awaiting review.'}
@@ -735,24 +754,33 @@ const CommitteeDashboard = () => {
                                             <>
                                                 <button
                                                     onClick={() => handleApprove(idea)}
-                                                    className="btn bg-green-600 hover:bg-green-700 text-white"
+                                                    className="btn bg-green-600 hover:bg-green-700 text-white inline-flex items-center gap-2"
                                                 >
-                                                    ✅ Approve
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                    </svg>
+                                                    Approve
                                                 </button>
                                                 <button
                                                     onClick={() => handleReject(idea)}
-                                                    className="btn bg-red-600 hover:bg-red-700 text-white"
+                                                    className="btn bg-red-600 hover:bg-red-700 text-white inline-flex items-center gap-2"
                                                 >
-                                                    ❌ Reject
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                    </svg>
+                                                    Reject
                                                 </button>
                                             </>
                                         )}
                                         {selectedTab === 'approved' && (
                                             <button
                                                 onClick={() => openPromoteModal(idea)}
-                                                className="btn bg-blue-600 hover:bg-blue-700 text-white"
+                                                className="btn bg-blue-600 hover:bg-blue-700 text-white inline-flex items-center gap-2"
                                             >
-                                                🚀 Promote to Project
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                                </svg>
+                                                Promote to Project
                                             </button>
                                         )}
                                         {selectedTab === 'promoted' && idea.projectCode && (
@@ -821,8 +849,22 @@ const CommitteeDashboard = () => {
             {showNotesModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
                     <div className="panel w-full max-w-lg">
-                        <h3 className="text-lg font-bold mb-2">
-                            {modalAction === 'approve' ? '✅ Approve Idea' : '❌ Reject Idea'}
+                        <h3 className="text-lg font-bold mb-2 flex items-center gap-2">
+                            {modalAction === 'approve' ? (
+                                <>
+                                    <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    Approve Idea
+                                </>
+                            ) : (
+                                <>
+                                    <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                    Reject Idea
+                                </>
+                            )}
                         </h3>
                         <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
                             <strong>{modalIdea?.title}</strong>
@@ -863,7 +905,12 @@ const CommitteeDashboard = () => {
             {showPromoteModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
                     <div className="panel w-full max-w-lg">
-                        <h3 className="text-lg font-bold mb-2">🚀 Promote to BSJ Project</h3>
+                        <h3 className="text-lg font-bold mb-2 flex items-center gap-2">
+                            <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                            </svg>
+                            Promote to BSJ Project
+                        </h3>
                         <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
                             <strong>{selectedPromoteIdea?.title}</strong>
                         </p>
