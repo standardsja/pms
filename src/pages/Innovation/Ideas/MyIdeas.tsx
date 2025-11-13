@@ -100,12 +100,16 @@ const MyIdeas = () => {
 
             const myIdeas = allIdeas
                 .filter(idea => {
-                    const rawId = (idea as any).submittedById ?? (idea as any).submittedByID ?? (idea as any).submitted_by_id;
+                    // Try several id field names (legacy and current). Prisma returns `submittedBy` as an Int.
+                    const rawId = (idea as any).submittedById ?? (idea as any).submittedByID ?? (idea as any).submitted_by_id ?? (idea as any).submittedBy;
                     if (rawId !== undefined && rawId !== null) {
                         return String(rawId) === userIdStr;
                     }
-                    // Fallback: some API variants only provide a display string (name or email)
-                    const submittedByText = ((idea as any).submittedBy || '') as string;
+
+                    // Fallback: some API variants only provide a display string (name or email).
+                    // Be defensive: only treat as text if it's actually a string.
+                    const submittedByRaw = (idea as any).submittedBy;
+                    const submittedByText = typeof submittedByRaw === 'string' ? submittedByRaw : '';
                     if (!submittedByText) return false;
                     const sb = submittedByText.toLowerCase();
                     return (userName && sb.includes(userName)) || (userEmail && sb.includes(userEmail));

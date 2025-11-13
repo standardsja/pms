@@ -154,10 +154,14 @@ app.get('/api/ideas', authMiddleware, async (req, res) => {
     const orderBy: any = sort === 'popularity' ? { voteCount: 'desc' } : { createdAt: 'desc' };
 
     const includeAttachments = include === 'attachments';
+    const includeObj: any = {
+      submitter: { select: { id: true, name: true, email: true } },
+    };
+    if (includeAttachments) includeObj.attachments = true;
     const ideas = await prisma.idea.findMany({
       where,
       orderBy,
-      include: includeAttachments ? { attachments: true } : undefined,
+      include: includeObj,
     });
     return res.json(ideas);
   } catch (e: any) {
@@ -169,12 +173,21 @@ app.get('/api/ideas', authMiddleware, async (req, res) => {
 // Get single idea (optionally with attachments)
 app.get('/api/ideas/:id', authMiddleware, async (req, res) => {
   try {
-    const { id } = req.params as { id: string };
+      const { id } = req.params as { id: string };
+      if (!id) {
+        return res.status(400).json({ error: 'Missing idea id in request path' });
+      }
+      const parsedId = parseInt(id, 10);
+      if (!Number.isFinite(parsedId) || parsedId <= 0) {
+        return res.status(400).json({ error: 'Invalid idea id' });
+      }
     const { include } = req.query as { include?: string };
     const includeAttachments = include === 'attachments';
-    const idea = await prisma.idea.findUnique({
-      where: { id: parseInt(id, 10) },
-      include: includeAttachments ? { attachments: true } : undefined,
+    const includeObj: any = { submitter: { select: { id: true, name: true, email: true } } };
+    if (includeAttachments) includeObj.attachments = true;
+      const idea = await prisma.idea.findUnique({
+        where: { id: parsedId },
+      include: includeObj,
     });
     if (!idea) return res.status(404).json({ message: 'Idea not found' });
     return res.json(idea);
@@ -328,6 +341,37 @@ app.get('/api/challenges', async (_req, res) => {
   }
 });
 
+// GET /api/ideas/counts - dashboard stats
+app.get('/api/ideas/counts', authMiddleware, async (_req, res) => {
+  try {
+    const groups = await prisma.idea.groupBy({
+      by: ['status'],
+      _count: { _all: true },
+    });
+    const stats: Record<string, number> = {
+      pending: 0,
+      approved: 0,
+      rejected: 0,
+      promoted: 0,
+      draft: 0,
+      total: 0,
+    };
+    groups.forEach(g => {
+      const s = String(g.status);
+      if (s === 'PENDING_REVIEW') stats.pending = g._count._all;
+      else if (s === 'APPROVED') stats.approved = g._count._all;
+      else if (s === 'REJECTED') stats.rejected = g._count._all;
+      else if (s === 'PROMOTED_TO_PROJECT') stats.promoted = g._count._all;
+      else if (s === 'DRAFT') stats.draft = g._count._all as any;
+      stats.total += g._count._all;
+    });
+    return res.json(stats);
+  } catch (e: any) {
+    console.error('GET /api/ideas/counts error:', e);
+    return res.status(500).json({ message: 'Unable to load idea counts' });
+  }
+});
+
 // GET /api/requests - list procurement requests (different from /api/requisitions)
 app.get('/api/requests', async (_req, res) => {
   try {
@@ -364,6 +408,16 @@ app.get('/api/requests', async (_req, res) => {
     }
     return res.status(500).json({ message: 'Failed to fetch requests' });
   }
+});
+
+// Backwards-compatibility alias for legacy frontend calling /requests
+app.get('/requests', async (req, res) => {
+  return app._router.handle({ ...req, url: '/api/requests' } as any, res as any, (err: any) => {
+    if (err) {
+      console.error('Alias /requests -> /api/requests failed:', err);
+      res.status(500).json({ message: 'Failed to fetch requests' });
+    }
+  });
 });
 
 // GET /api/requisitions - list requests (basic demo)
@@ -420,15 +474,49 @@ app.post('/api/requisitions', async (req, res) => {
 import http from 'http';
 let server: http.Server | null = null;
 
+async function connectWithRetry(maxRetries = 5, delayMs = 2000): Promise<boolean> {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      await ensureDbConnection();
+      console.log(`✅ Database connected on attempt ${attempt}`);
+      return true;
+    } catch (err: any) {
+      console.error(`⚠️  DB connection attempt ${attempt}/${maxRetries} failed:`, err.message);
+      if (attempt < maxRetries) {
+        console.log(`   Retrying in ${delayMs / 1000}s...`);
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+      }
+    }
+  }
+  console.error(`❌ Failed to connect to database after ${maxRetries} attempts`);
+  return false;
+}
+
 async function start() {
   try {
-    await ensureDbConnection();
+    const dbConnected = await connectWithRetry();
+    
+    // Start server even if DB is down - health endpoint will report DB status
     server = app.listen(PORT, () => {
-      console.log(`API server listening on http://localhost:${PORT}`);
+      if (dbConnected) {
+        console.log(`✅ API server listening on http://localhost:${PORT}`);
+        console.log(`   Database: Connected`);
+      } else {
+        console.log(`⚠️  API server listening on http://localhost:${PORT}`);
+        console.log(`   Database: NOT CONNECTED - some endpoints will fail`);
+        console.log(`   Check DATABASE_URL in .env and ensure DB server is reachable`);
+      }
     });
+    
+    // Background retry if initial connection failed
+    if (!dbConnected) {
+      setTimeout(async () => {
+        console.log('🔄 Retrying database connection in background...');
+        await connectWithRetry(999, 10000); // Keep trying every 10s
+      }, 5000);
+    }
   } catch (err) {
-    console.error('Startup error:', err);
-    // Fail fast so tsx watch can restart cleanly
+    console.error('❌ Startup error:', err);
     process.exit(1);
   }
 }
