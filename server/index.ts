@@ -166,29 +166,6 @@ app.get('/api/auth/me', authMiddleware, async (req, res) => {
 });
 
 // =============== Innovation Hub: Ideas (Committee) ===============
-// Get idea counts by status
-app.get('/api/ideas/counts', authMiddleware, async (req, res) => {
-  try {
-    const pending = await prisma.idea.count({ where: { status: 'PENDING_REVIEW' } });
-    const approved = await prisma.idea.count({ where: { status: 'APPROVED' } });
-    const rejected = await prisma.idea.count({ where: { status: 'REJECTED' } });
-    const promoted = await prisma.idea.count({ where: { status: 'PROMOTED_TO_PROJECT' } });
-    const draft = await prisma.idea.count({ where: { status: 'DRAFT' } });
-    const total = await prisma.idea.count();
-
-    return res.json({
-      pending,
-      approved,
-      rejected,
-      promoted,
-      draft,
-      total,
-    });
-  } catch (e: any) {
-    console.error('GET /api/ideas/counts error:', e);
-    return res.status(500).json({ error: 'Unable to load idea counts', message: 'Unable to load idea counts. Please try again later.' });
-  }
-});
 
 // List ideas with optional filters: status, sort
 app.get('/api/ideas', authMiddleware, async (req, res) => {
