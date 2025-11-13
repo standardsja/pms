@@ -110,6 +110,35 @@ async function fixInvalidRequestStatuses(): Promise<number | null> {
   }
 }
 
+// Utility: repair invalid Idea.status values from legacy datasets to valid enum values
+let ideaStatusPatched = false;
+async function fixInvalidIdeaStatuses(): Promise<number | null> {
+  try {
+    // Map common legacy values to current enum
+    // NULL/empty -> DRAFT
+    // PENDING/UNDER_REVIEW -> PENDING_REVIEW
+    // APPROVE -> APPROVED
+    // PROMOTED -> PROMOTED_TO_PROJECT
+    const updates: Array<{ sql: string; desc: string }> = [
+      { sql: "UPDATE Idea SET status = 'DRAFT' WHERE status IS NULL OR status = ''", desc: 'null/empty -> DRAFT' },
+      { sql: "UPDATE Idea SET status = 'PENDING_REVIEW' WHERE status IN ('PENDING','UNDER_REVIEW')", desc: 'legacy pending -> PENDING_REVIEW' },
+      { sql: "UPDATE Idea SET status = 'APPROVED' WHERE status = 'APPROVE'", desc: 'APPROVE -> APPROVED' },
+      { sql: "UPDATE Idea SET status = 'PROMOTED_TO_PROJECT' WHERE status = 'PROMOTED'", desc: 'PROMOTED -> PROMOTED_TO_PROJECT' },
+    ];
+    let total = 0;
+    for (const u of updates) {
+      const result: any = await prisma.$executeRawUnsafe(u.sql);
+      if (typeof result === 'number') total += result;
+      else if (result && typeof result.rowCount === 'number') total += result.rowCount;
+    }
+    ideaStatusPatched = true;
+    return total;
+  } catch (err) {
+    console.warn('fixInvalidIdeaStatuses: failed to patch invalid statuses:', err);
+    return null;
+  }
+}
+
 // Multer storage for idea images
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
@@ -340,6 +369,10 @@ app.get('/api/auth/me', authMiddleware, async (req, res) => {
 // List ideas with optional filters: status, sort
 app.get('/api/ideas', authMiddleware, async (req, res) => {
   try {
+    // Attempt a one-time repair of legacy enum values to avoid Prisma enum read errors
+    if (!ideaStatusPatched) {
+      await fixInvalidIdeaStatuses().catch(() => undefined);
+    }
     const { status, sort, include, mine, cursor, limit = '20' } = req.query as { 
       status?: string; 
       sort?: string; 
@@ -454,6 +487,72 @@ app.get('/api/ideas', authMiddleware, async (req, res) => {
     return res.json(ideasWithVotes);
   } catch (e: any) {
     console.error('GET /api/ideas error:', e);
+    const message = String(e?.message || '');
+    // Retry once after attempting to patch invalid enum values
+    if (message.includes("not found in enum 'IdeaStatus'")) {
+      const patched = await fixInvalidIdeaStatuses();
+      if (patched !== null) {
+        try {
+          // Re-run the handler logic by recursively delegating to this route without patch attempt
+          // Simplest: respond with a 307 redirect to the same URL so client retries automatically
+          // But to avoid client loop, perform a direct second query here.
+          const { status, sort, include, mine, cursor, limit = '20' } = req.query as any;
+          const user = (req as any).user as { roles?: string[]; sub?: number };
+          const isCommittee = user.roles && user.roles.includes('INNOVATION_COMMITTEE');
+          const userId = user.sub;
+          const where: any = {};
+          if (mine === 'true' && user.sub) {
+            where.submittedBy = user.sub;
+          } else if (!isCommittee) {
+            where.status = 'APPROVED';
+          } else if (status && status !== 'all') {
+            const map: Record<string, IdeaStatus> = {
+              pending: 'PENDING_REVIEW',
+              approved: 'APPROVED',
+              rejected: 'REJECTED',
+              promoted: 'PROMOTED_TO_PROJECT',
+            } as any;
+            const s = (map[status] as IdeaStatus) || (status as IdeaStatus);
+            where.status = s;
+          }
+          const orderBy: any = sort === 'trending' 
+            ? { trendingScore: 'desc' }  
+            : sort === 'popularity' 
+              ? { voteCount: 'desc' } 
+              : { createdAt: 'desc' };
+          const includeAttachments = include === 'attachments';
+          const take = Math.min(parseInt(limit, 10) || 20, 100);
+          const ideas = await prisma.idea.findMany({
+            where,
+            orderBy,
+            take: take + 1,
+            ...(cursor && { cursor: { id: parseInt(cursor, 10) }, skip: 1 }),
+            include: {
+              attachments: includeAttachments,
+              submitter: { select: { id: true, name: true, email: true } },
+            },
+          });
+          const userVotes = userId && ideas.length > 0
+            ? await prisma.vote.findMany({ where: { userId, ideaId: { in: ideas.map(i => i.id) } }, select: { ideaId: true, voteType: true } })
+            : [];
+          const voteMap = new Map(userVotes.map(v => [v.ideaId, v.voteType]));
+          const ideasWithVotes = ideas.map(idea => ({
+            ...idea,
+            hasVoted: voteMap.has(idea.id) 
+              ? (voteMap.get(idea.id) === 'UPVOTE' ? 'up' : 'down') 
+              : null,
+            submittedBy: idea.isAnonymous ? 'Anonymous' : (idea.submitter?.name || idea.submitter?.email || 'Unknown'),
+          }));
+          const responseBody = JSON.stringify(ideasWithVotes);
+          const etag = `"${crypto.createHash('md5').update(responseBody).digest('hex')}"`;
+          res.setHeader('ETag', etag);
+          res.setHeader('Cache-Control', 'private, max-age=30');
+          return res.json(ideasWithVotes);
+        } catch (retryErr: any) {
+          console.error('GET /api/ideas retry after status patch failed:', retryErr);
+        }
+      }
+    }
     return res.status(500).json({ error: 'Unable to load ideas', message: 'Unable to load ideas. Please try again later.' });
   }
 });
@@ -1789,7 +1888,6 @@ app.get('/api/auth/test-login', (req, res) => {
   res.status(405).json({ message: 'Use POST method' });
 });
 
-import http from 'http';
 // No longer need this - using httpServer created at top
 // let server: http.Server | null = null;
 
