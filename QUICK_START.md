@@ -1,5 +1,7 @@
 # 🚀 Quick Start Guide - Innovation Hub (All Optimizations)
 
+> Release: `2.0.0-beta` (Beta)
+
 ## ✅ What's Been Completed
 
 All **16 optimization tasks** are complete:

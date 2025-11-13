@@ -1,6 +1,8 @@
 # 🌀 **SPINX - PMS**
 ### _Procurement Management System_
 
+> Status: Beta — Current release `2.0.0-beta`
+
 ---
 
 ## 📘 **Overview**
