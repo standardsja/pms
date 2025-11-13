@@ -7,8 +7,22 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
+import http from 'http';
+import rateLimit from 'express-rate-limit';
 import { prisma, ensureDbConnection } from './prismaClient';
 import { initRedis, closeRedis, cacheGet, cacheSet, cacheDelete, cacheDeletePattern } from './config/redis';
+import { initTrendingScoreJob, updateIdeaTrendingScore } from './services/trendingService';
+import { findPotentialDuplicates } from './services/duplicateDetectionService';
+import { searchIdeas, getSearchSuggestions } from './services/searchService';
+import {
+  batchUpdateIdeas,
+  getCommitteeDashboardStats,
+  getPendingIdeasForReview,
+  getCommitteeMemberStats,
+} from './services/committeeService';
+import { initWebSocket, emitIdeaCreated, emitIdeaStatusChanged, emitVoteUpdated, emitBatchApproval } from './services/websocketService';
+import { initAnalyticsJob, stopAnalyticsJob, getAnalytics, getCategoryAnalytics, getTimeBasedAnalytics } from './services/analyticsService';
+import { requestMonitoringMiddleware, trackCacheHit, trackCacheMiss, getMetrics, getHealthStatus, getSlowEndpoints, getErrorProneEndpoints } from './services/monitoringService';
 import { IdeaStatus } from '@prisma/client';
 import { requireCommittee as requireCommitteeRole, requireAdmin } from './middleware/rbac';
 import { 
@@ -28,13 +42,52 @@ import {
 } from './middleware/errorHandler';
 
 const app = express();
+const httpServer = http.createServer(app);
 const PORT = process.env.PORT ? Number(process.env.PORT) : 4000;
 const JWT_SECRET = process.env.JWT_SECRET || 'devsecret-change-me';
+
+let trendingJobInterval: NodeJS.Timeout | null = null;
+
+// Rate limiting configurations
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // 100 requests per window
+  message: 'Too many requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5, // 5 login attempts per 15 minutes
+  message: 'Too many authentication attempts, please try again later.',
+  skipSuccessfulRequests: true,
+});
+
+const voteLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 30, // 30 votes per minute
+  message: 'Too many votes, please slow down.',
+});
+
+const ideaCreationLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 10, // 10 ideas per hour
+  message: 'Too many ideas submitted, please try again later.',
+});
+
+const batchLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000, // 5 minutes
+  max: 20, // 20 batch operations per 5 minutes
+  message: 'Too many batch operations, please slow down.',
+});
 
 app.use(cors());
 app.use(express.json());
 app.use(morgan('dev'));
+app.use(requestMonitoringMiddleware); // Performance monitoring
 app.use(sanitize); // Sanitize all inputs
+app.use('/api/', generalLimiter); // Apply general rate limiting to all API routes
 // Static files for uploads
 const UPLOAD_DIR = path.resolve(process.cwd(), 'uploads');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -78,14 +131,112 @@ const upload = multer({
 app.get('/health', async (_req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
-    res.json({ status: 'ok' });
+    const health = getHealthStatus();
+    res.json({ 
+      status: health.status,
+      database: 'connected',
+      checks: health.checks,
+      timestamp: new Date(),
+    });
   } catch (e: any) {
-    res.status(500).json({ status: 'error', message: e?.message || 'DB error' });
+    res.status(500).json({ 
+      status: 'unhealthy',
+      database: 'disconnected',
+      message: e?.message || 'DB error',
+      timestamp: new Date(),
+    });
+  }
+});
+
+// Monitoring and metrics endpoints
+app.get('/api/metrics', (_req, res) => {
+  try {
+    const metrics = getMetrics();
+    res.json(metrics);
+  } catch (e: any) {
+    res.status(500).json({ error: e?.message || 'Failed to get metrics' });
+  }
+});
+
+app.get('/api/metrics/slow-endpoints', (_req, res) => {
+  try {
+    const slowEndpoints = getSlowEndpoints(15);
+    res.json(slowEndpoints);
+  } catch (e: any) {
+    res.status(500).json({ error: e?.message || 'Failed to get slow endpoints' });
+  }
+});
+
+app.get('/api/metrics/error-endpoints', (_req, res) => {
+  try {
+    const errorEndpoints = getErrorProneEndpoints(15);
+    res.json(errorEndpoints);
+  } catch (e: any) {
+    res.status(500).json({ error: e?.message || 'Failed to get error endpoints' });
+  }
+});
+
+// Analytics endpoints
+app.get('/api/analytics', authMiddleware, async (_req, res) => {
+  try {
+    const cacheKey = 'analytics:overview';
+    const cached = await cacheGet(cacheKey);
+    if (cached) {
+      trackCacheHit();
+      return res.json(cached);
+    }
+    
+    trackCacheMiss();
+    const analytics = await getAnalytics();
+    await cacheSet(cacheKey, analytics, 300); // 5 minute TTL
+    res.json(analytics);
+  } catch (e: any) {
+    console.error('GET /api/analytics error:', e);
+    res.status(500).json({ error: e?.message || 'Failed to get analytics' });
+  }
+});
+
+app.get('/api/analytics/category/:category', authMiddleware, async (req, res) => {
+  try {
+    const { category } = req.params as { category: string };
+    const cacheKey = `analytics:category:${category}`;
+    const cached = await cacheGet(cacheKey);
+    if (cached) {
+      trackCacheHit();
+      return res.json(cached);
+    }
+    
+    trackCacheMiss();
+    const analytics = await getCategoryAnalytics(category as any);
+    await cacheSet(cacheKey, analytics, 300); // 5 minute TTL
+    res.json(analytics);
+  } catch (e: any) {
+    console.error('GET /api/analytics/category/:category error:', e);
+    res.status(500).json({ error: e?.message || 'Failed to get category analytics' });
+  }
+});
+
+app.get('/api/analytics/time-based', authMiddleware, async (_req, res) => {
+  try {
+    const cacheKey = 'analytics:time-based';
+    const cached = await cacheGet(cacheKey);
+    if (cached) {
+      trackCacheHit();
+      return res.json(cached);
+    }
+    
+    trackCacheMiss();
+    const analytics = await getTimeBasedAnalytics();
+    await cacheSet(cacheKey, analytics, 120); // 2 minute TTL
+    res.json(analytics);
+  } catch (e: any) {
+    console.error('GET /api/analytics/time-based error:', e);
+    res.status(500).json({ error: e?.message || 'Failed to get time-based analytics' });
   }
 });
 
 // Auth endpoints
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', authLimiter, async (req, res) => {
   try {
     const { email, password } = req.body || {};
     if (!email || !password) return res.status(400).json({ message: 'Email and password required' });
@@ -231,7 +382,12 @@ app.get('/api/ideas', authMiddleware, async (req, res) => {
       where.status = s;
     }
 
-    const orderBy: any = sort === 'popularity' ? { voteCount: 'desc' } : { createdAt: 'desc' };
+    // OPTIMIZED: Use pre-calculated trending score for trending sort
+    const orderBy: any = sort === 'trending' 
+      ? { trendingScore: 'desc' }  
+      : sort === 'popularity' 
+        ? { voteCount: 'desc' } 
+        : { createdAt: 'desc' };
 
     const includeAttachments = include === 'attachments';
     const take = Math.min(parseInt(limit, 10) || 20, 100); // Max 100 items per page
@@ -321,6 +477,54 @@ app.get('/api/ideas/counts', authMiddleware, async (_req, res) => {
   }
 });
 
+// OPTIMIZED: Search ideas with relevance scoring
+app.get('/api/ideas/search', authMiddleware, async (req, res) => {
+  try {
+    const { q, status, category, limit, offset } = req.query as {
+      q?: string;
+      status?: string;
+      category?: string;
+      limit?: string;
+      offset?: string;
+    };
+
+    if (!q || q.trim().length < 2) {
+      return res.json({ results: [], total: 0, message: 'Query too short' });
+    }
+
+    const user = (req as any).user as { sub?: number };
+    const searchResults = await searchIdeas(q, {
+      status: status?.split(','),
+      category: category?.split(','),
+      userId: undefined, // Search across all users
+      limit: parseInt(limit || '20', 10),
+      offset: parseInt(offset || '0', 10),
+    });
+
+    return res.json(searchResults);
+  } catch (e: any) {
+    console.error('GET /api/ideas/search error:', e);
+    return res.status(500).json({ error: 'Search failed', message: 'Unable to search ideas' });
+  }
+});
+
+// Get search suggestions for autocomplete
+app.get('/api/ideas/search/suggestions', authMiddleware, async (req, res) => {
+  try {
+    const { q } = req.query as { q?: string };
+    
+    if (!q || q.trim().length < 2) {
+      return res.json({ suggestions: [] });
+    }
+
+    const suggestions = await getSearchSuggestions(q, 10);
+    return res.json({ suggestions });
+  } catch (e: any) {
+    console.error('GET /api/ideas/search/suggestions error:', e);
+    return res.json({ suggestions: [] });
+  }
+});
+
 // Get single idea (optionally with attachments)
 app.get('/api/ideas/:id', authMiddleware, async (req, res) => {
   try {
@@ -356,6 +560,15 @@ app.get('/api/ideas/:id', authMiddleware, async (req, res) => {
     const hasVoted = userVote ? (userVote.voteType === 'UPVOTE' ? 'up' : 'down') : null;
     const submittedBy = idea.isAnonymous ? 'Anonymous' : (idea.submitter?.name || idea.submitter?.email || 'Unknown');
 
+    // Increment view count and update trending score (non-blocking)
+    const ideaId = parseInt(id, 10);
+    prisma.idea.update({
+      where: { id: ideaId },
+      data: { viewCount: { increment: 1 } }
+    })
+    .then(() => updateIdeaTrendingScore(ideaId))
+    .catch(err => console.error('Failed to update view count/trending:', err));
+
     return res.json({ ...idea, hasVoted, submittedBy });
   } catch (e: any) {
     console.error('GET /api/ideas/:id error:', e);
@@ -371,31 +584,28 @@ app.post('/api/ideas/check-duplicates', authMiddleware, async (req, res) => {
       return res.json({ matches: [] });
     }
 
-    // Simple duplicate check: find ideas with similar titles (case-insensitive)
-    const titleLower = String(title).toLowerCase();
-    const allIdeas = await prisma.idea.findMany({
-      where: {
-        status: { in: ['PENDING_REVIEW', 'APPROVED', 'PROMOTED_TO_PROJECT'] }
-      },
-      select: {
-        id: true,
-        title: true,
-        description: true,
-        status: true,
+    // OPTIMIZED: Use fuzzy matching for better duplicate detection
+    const matches = await findPotentialDuplicates(
+      String(title),
+      String(description),
+      {
+        thresholdTitle: 0.6,        // 60% title similarity
+        thresholdDescription: 0.5,  // 50% description similarity
+        limit: 5,
+        excludeRejected: true,
       }
-    });
+    );
 
-    // Find potential matches (simple text similarity)
-    const matches = allIdeas.filter(idea => {
-      const ideaTitleLower = idea.title.toLowerCase();
-      // Check if titles share significant words (basic similarity)
-      const titleWords = titleLower.split(/\s+/).filter(w => w.length > 3);
-      const ideaWords = ideaTitleLower.split(/\s+/).filter(w => w.length > 3);
-      const commonWords = titleWords.filter(w => ideaWords.includes(w));
-      return commonWords.length >= 2; // At least 2 words in common
-    }).slice(0, 5); // Limit to 5 matches
+    // Format for frontend
+    const formattedMatches = matches.map(match => ({
+      id: match.id,
+      title: match.title,
+      description: match.description.substring(0, 200) + '...', // Truncate
+      status: match.status,
+      similarity: Math.round(match.overallSimilarity * 100), // Percentage
+    }));
 
-    return res.json({ matches });
+    return res.json({ matches: formattedMatches });
   } catch (e: any) {
     console.error('POST /api/ideas/check-duplicates error:', e);
     return res.json({ matches: [] }); // Don't fail submission on duplicate check error
@@ -403,7 +613,7 @@ app.post('/api/ideas/check-duplicates', authMiddleware, async (req, res) => {
 });
 
 // Create a new idea (optional single image upload)
-app.post('/api/ideas', authMiddleware, upload.single('image'), async (req, res) => {
+app.post('/api/ideas', authMiddleware, ideaCreationLimiter, upload.single('image'), async (req, res) => {
   try {
     const user = (req as any).user as { sub: number | string };
     const { title, description, category } = (req.body || {}) as Record<string, string>;
@@ -440,6 +650,13 @@ app.post('/api/ideas', authMiddleware, upload.single('image'), async (req, res) 
 
     // Reload with attachments included
     const created = await prisma.idea.findUnique({ where: { id: idea.id }, include: { attachments: true } });
+    
+    // Emit WebSocket event
+    emitIdeaCreated(created);
+    
+    // Invalidate cache
+    await cacheDeletePattern('ideas:*');
+    
     return res.status(201).json(created);
   } catch (e: any) {
     console.error('POST /api/ideas error:', e);
@@ -463,6 +680,9 @@ app.post('/api/ideas/:id/approve', authMiddleware, requireCommittee, async (req,
         reviewNotes: notes || null,
       },
     });
+    
+    // Emit WebSocket event
+    emitIdeaStatusChanged(updated.id, 'PENDING_REVIEW', 'APPROVED');
     
     // Invalidate ideas cache
     await cacheDeletePattern('ideas:*');
@@ -501,30 +721,38 @@ app.post('/api/ideas/:id/reject', authMiddleware, requireCommittee, async (req, 
   }
 });
 
-// Promote an idea to project (requires APPROVED)
+// Promote an idea to project (requires APPROVED) - optimized to single query
 app.post('/api/ideas/:id/promote', authMiddleware, requireCommittee, async (req, res) => {
   try {
     const { id } = req.params as { id: string };
     const { projectCode } = (req.body || {}) as { projectCode?: string };
 
-    const idea = await prisma.idea.findUnique({ where: { id: parseInt(id, 10) } });
-    if (!idea) return res.status(404).json({ message: 'Idea not found' });
-    if (idea.status !== 'APPROVED') {
-      return res.status(400).json({ message: 'Idea must be APPROVED before promotion' });
-    }
-
     const code = projectCode && String(projectCode).trim().length > 0
       ? String(projectCode).trim()
       : `BSJ-PROJ-${new Date().getFullYear()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
 
-    const updated = await prisma.idea.update({
-      where: { id: parseInt(id, 10) },
+    // Optimized: Use updateMany with conditional where - no separate findUnique
+    const result = await prisma.idea.updateMany({
+      where: {
+        id: parseInt(id, 10),
+        status: 'APPROVED', // Only promote if approved
+      },
       data: {
         status: 'PROMOTED_TO_PROJECT',
         promotedAt: new Date(),
         projectCode: code,
       },
     });
+
+    if (result.count === 0) {
+      // Check if idea exists or is not approved
+      const idea = await prisma.idea.findUnique({ where: { id: parseInt(id, 10) } });
+      if (!idea) return res.status(404).json({ message: 'Idea not found' });
+      return res.status(400).json({ message: 'Idea must be APPROVED before promotion' });
+    }
+
+    // Fetch updated idea to return full data
+    const updated = await prisma.idea.findUnique({ where: { id: parseInt(id, 10) } });
     
     // Invalidate ideas cache
     await cacheDeletePattern('ideas:*');
@@ -536,8 +764,142 @@ app.post('/api/ideas/:id/promote', authMiddleware, requireCommittee, async (req,
   }
 });
 
+// Batch approve ideas (committee efficiency)
+app.post('/api/ideas/batch/approve', authMiddleware, requireCommittee, batchLimiter, async (req, res) => {
+  try {
+    const { ideaIds, notes } = req.body as { ideaIds?: number[]; notes?: string };
+    const user = (req as any).user as { sub: number };
+    const userId = user?.sub;
+
+    if (!Array.isArray(ideaIds) || ideaIds.length === 0) {
+      return res.status(400).json({ message: 'ideaIds array is required' });
+    }
+
+    if (ideaIds.length > 100) {
+      return res.status(400).json({ message: 'Maximum 100 ideas per batch' });
+    }
+
+    const result = await batchUpdateIdeas(ideaIds, 'APPROVE', userId, notes);
+    await cacheDeletePattern('ideas:*');
+    
+    // Emit WebSocket event
+    emitBatchApproval(ideaIds, 'APPROVE', result.updated);
+
+    return res.json({
+      message: `Approved ${result.updated} ideas`,
+      updated: result.updated,
+      failed: result.failed,
+    });
+  } catch (e: any) {
+    console.error('POST /api/ideas/batch/approve error:', e);
+    return res.status(500).json({ message: e?.message || 'Failed to batch approve ideas' });
+  }
+});
+
+// Batch reject ideas (committee efficiency)
+app.post('/api/ideas/batch/reject', authMiddleware, requireCommittee, batchLimiter, async (req, res) => {
+  try {
+    const { ideaIds, notes } = req.body as { ideaIds?: number[]; notes?: string };
+    const user = (req as any).user as { sub: number };
+    const userId = user?.sub;
+
+    if (!Array.isArray(ideaIds) || ideaIds.length === 0) {
+      return res.status(400).json({ message: 'ideaIds array is required' });
+    }
+
+    if (ideaIds.length > 100) {
+      return res.status(400).json({ message: 'Maximum 100 ideas per batch' });
+    }
+
+    const result = await batchUpdateIdeas(ideaIds, 'REJECT', userId, notes);
+    await cacheDeletePattern('ideas:*');
+    
+    // Emit WebSocket event
+    emitBatchApproval(ideaIds, 'REJECT', result.updated);
+
+    return res.json({
+      message: `Rejected ${result.updated} ideas`,
+      updated: result.updated,
+      failed: result.failed,
+    });
+  } catch (e: any) {
+    console.error('POST /api/ideas/batch/reject error:', e);
+    return res.status(500).json({ message: e?.message || 'Failed to batch reject ideas' });
+  }
+});
+
+// Get committee dashboard statistics
+app.get('/api/committee/dashboard/stats', authMiddleware, requireCommittee, async (req, res) => {
+  try {
+    const cacheKey = 'committee:dashboard:stats';
+    const cached = await cacheGet(cacheKey);
+    if (cached) {
+      return res.json(cached);
+    }
+
+    const stats = await getCommitteeDashboardStats();
+    await cacheSet(cacheKey, stats, 60); // 1 minute TTL for dashboard stats
+
+    return res.json(stats);
+  } catch (e: any) {
+    console.error('GET /api/committee/dashboard/stats error:', e);
+    return res.status(500).json({ message: e?.message || 'Failed to fetch committee dashboard stats' });
+  }
+});
+
+// Get pending ideas for committee review (optimized with eager loading)
+app.get('/api/committee/pending', authMiddleware, requireCommittee, async (req, res) => {
+  try {
+    const { limit, offset, sortBy, category } = req.query as {
+      limit?: string;
+      offset?: string;
+      sortBy?: string;
+      category?: string;
+    };
+
+    const cacheKey = `committee:pending:${limit}:${offset}:${sortBy}:${category || 'all'}`;
+    const cached = await cacheGet(cacheKey);
+    if (cached) {
+      return res.json(cached);
+    }
+
+    const result = await getPendingIdeasForReview({
+      limit: limit ? parseInt(limit) : 20,
+      offset: offset ? parseInt(offset) : 0,
+      sortBy: (sortBy as 'recent' | 'votes' | 'oldest') || 'recent',
+      category,
+    });
+
+    await cacheSet(cacheKey, result, 30); // 30 second TTL
+    return res.json(result);
+  } catch (e: any) {
+    console.error('GET /api/committee/pending error:', e);
+    return res.status(500).json({ message: e?.message || 'Failed to fetch pending ideas' });
+  }
+});
+
+// Get committee member review stats
+app.get('/api/committee/member/:userId/stats', authMiddleware, requireCommittee, async (req, res) => {
+  try {
+    const { userId } = req.params as { userId: string };
+    const cacheKey = `committee:member:${userId}:stats`;
+    const cached = await cacheGet(cacheKey);
+    if (cached) {
+      return res.json(cached);
+    }
+
+    const stats = await getCommitteeMemberStats(parseInt(userId));
+    await cacheSet(cacheKey, stats, 120); // 2 minute TTL
+
+    return res.json(stats);
+  } catch (e: any) {
+    console.error('GET /api/committee/member/:userId/stats error:', e);
+    return res.status(500).json({ message: e?.message || 'Failed to fetch committee member stats' });
+  }
+});
+
 // POST /api/ideas/:id/vote - upvote/downvote an idea
-app.post('/api/ideas/:id/vote', authMiddleware, async (req, res) => {
+app.post('/api/ideas/:id/vote', authMiddleware, voteLimiter, async (req, res) => {
   try {
     const { id } = req.params as { id: string };
     const { voteType } = (req.body || {}) as { voteType?: 'UPVOTE' | 'DOWNVOTE' };
@@ -619,6 +981,14 @@ app.post('/api/ideas/:id/vote', authMiddleware, async (req, res) => {
 
     // Invalidate ideas cache for all users since vote counts changed
     await cacheDeletePattern('ideas:*');
+    
+    // Update trending score in background (non-blocking)
+    updateIdeaTrendingScore(ideaId).catch(err => 
+      console.error('Failed to update trending score:', err)
+    );
+    
+    // Emit WebSocket event
+    emitVoteUpdated(ideaId, updated.voteCount, updated.trendingScore);
 
     return res.json({ ...updated, hasVoted });
   } catch (e: any) {
@@ -628,7 +998,7 @@ app.post('/api/ideas/:id/vote', authMiddleware, async (req, res) => {
 });
 
 // DELETE /api/ideas/:id/vote - remove vote
-app.delete('/api/ideas/:id/vote', authMiddleware, async (req, res) => {
+app.delete('/api/ideas/:id/vote', authMiddleware, voteLimiter, async (req, res) => {
   try {
     const { id } = req.params as { id: string };
     const user = (req as any).user as { sub: number };
@@ -666,6 +1036,11 @@ app.delete('/api/ideas/:id/vote', authMiddleware, async (req, res) => {
 
     // Invalidate ideas cache for all users since vote counts changed
     await cacheDeletePattern('ideas:*');
+    
+    // Update trending score in background (non-blocking)
+    updateIdeaTrendingScore(ideaId).catch(err => 
+      console.error('Failed to update trending score:', err)
+    );
 
     // After deletion, hasVoted should be null
     return res.json({ ...idea, hasVoted: null });
@@ -1415,7 +1790,8 @@ app.get('/api/auth/test-login', (req, res) => {
 });
 
 import http from 'http';
-let server: http.Server | null = null;
+// No longer need this - using httpServer created at top
+// let server: http.Server | null = null;
 
 // ============================================
 // ERROR HANDLING - Must be last
@@ -1427,8 +1803,14 @@ async function start() {
   try {
     await ensureDbConnection();
     await initRedis(); // Initialize Redis cache (non-blocking)
-    server = app.listen(PORT, () => {
+    trendingJobInterval = initTrendingScoreJob(); // Start trending score background job
+    initAnalyticsJob(); // Start analytics aggregation job
+    initWebSocket(httpServer); // Initialize WebSocket server
+    
+    httpServer.listen(PORT, () => {
       console.log(`API server listening on http://localhost:${PORT}`);
+      console.log(`WebSocket server ready on ws://localhost:${PORT}`);
+      console.log(`Health check: http://localhost:${PORT}/health`);
     });
   } catch (err) {
     console.error('Startup error:', err);
@@ -1439,13 +1821,24 @@ async function start() {
 
 function gracefulShutdown(signal: string) {
   console.log(`\n${signal} received. Shutting down gracefully...`);
+  
+  // Clear trending job
+  if (trendingJobInterval) {
+    clearInterval(trendingJobInterval);
+    trendingJobInterval = null;
+  }
+  
+  // Stop analytics job
+  stopAnalyticsJob();
+  
   const closeServer = () => new Promise<void>((resolve) => {
-    if (server) {
-      server.close(() => resolve());
+    if (httpServer) {
+      httpServer.close(() => resolve());
     } else {
       resolve();
     }
   });
+  
   Promise.all([
     closeServer(),
     prisma.$disconnect().catch(() => undefined),
