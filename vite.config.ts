@@ -13,24 +13,26 @@ export default defineConfig({
         },
     },
     server: {
+        host: '0.0.0.0', // Listen on all interfaces for server deployment
+        port: 5173,
         proxy: {
             // Proxy API requests to the unified TypeScript backend
+            // Uses VITE_API_URL from .env if available, otherwise localhost
             '/api': {
-                // Unified backend on port 4000 (server/index.ts)
-                target: 'http://localhost:4000',
+                target: process.env.VITE_API_URL || 'http://localhost:4000',
                 changeOrigin: true,
             },
             // Also proxy admin/auth and non-prefixed endpoints used by the app
             '/admin': {
-                target: 'http://localhost:4000',
+                target: process.env.VITE_API_URL || 'http://localhost:4000',
                 changeOrigin: true,
             },
             '/auth': {
-                target: 'http://localhost:4000',
+                target: process.env.VITE_API_URL || 'http://localhost:4000',
                 changeOrigin: true,
             },
             '/requests': {
-                target: 'http://localhost:4000',
+                target: process.env.VITE_API_URL || 'http://localhost:4000',
                 changeOrigin: true,
             },
         },
