@@ -20,7 +20,6 @@ enum RequestStatus {
   HOD_REVIEW
   PROCUREMENT_REVIEW
   FINANCE_REVIEW
-  BUDGET_MANAGER_REVIEW
   FINANCE_RETURNED
   FINANCE_APPROVED
   SENT_TO_VENDOR
@@ -63,6 +62,35 @@ enum IdeaCategory {
   OTHER
 }
 
+enum Stage {
+  DISCOVERY
+  EVALUATION
+  INCUBATION
+  IMPLEMENTATION
+  COMPLETED
+}
+
+enum AttachmentSafeStatus {
+  PENDING
+  CLEAN
+  INFECTED
+}
+
+enum NotificationType {
+  MENTION
+  STAGE_CHANGED
+  IDEA_APPROVED
+}
+
+enum AuditAction {
+  IDEA_CREATED
+  IDEA_UPDATED
+  IDEA_VOTED
+  COMMENT_CREATED
+  STAGE_CHANGED
+  TAGS_UPDATED
+}
+
 /**
  * ===== Models =====
  */
@@ -91,6 +119,10 @@ model User {
   ideas        Idea[]
   votes        Vote[]
   ideaComments IdeaComment[]
+  // Added missing back-relations for extended innovation models
+  stageHistory IdeaStageHistory[]
+  auditLogs    AuditLog[]
+  notifications Notification[]
 }
 
 model Department {
@@ -112,6 +144,15 @@ model Role {
   description String?
   users       UserRole[]
 }
+
+// Common role names used by the application (for reference):
+// - ADMIN
+// - REQUESTER
+// - DEPT_MANAGER
+// - HEAD_OF_DIVISION
+// - PROCUREMENT
+// - FINANCE
+// - INNOVATION_COMMITTEE
 
 model UserRole {
   id     Int  @id @default(autoincrement())
@@ -165,7 +206,7 @@ model Request {
 
   budgetCode       String?
   totalEstimated   Decimal?  @db.Decimal(12, 2)
-  currency         String?   @default("JMD")
+  currency         String?   @default("USD")
   priority         Priority? @default(MEDIUM)
   procurementType  Json?     // Array of procurement types: ['goods', 'consulting', etc.]
   expectedDelivery DateTime?
@@ -188,8 +229,6 @@ model Request {
   budgetComments    String?
   budgetOfficerName String?
   budgetManagerName String?
-  budgetOfficerApproved Boolean? @default(false)
-  budgetManagerApproved Boolean? @default(false)
 
   // Procurement section fields
   procurementCaseNumber String?
@@ -273,8 +312,13 @@ model Idea {
   id             Int          @id @default(autoincrement())
   title          String
   description    String       @db.Text
+  descriptionHtml String?     @db.Text
   category       IdeaCategory
   status         IdeaStatus   @default(DRAFT)
+  stage          Stage        @default(DISCOVERY)
+  isAnonymous    Boolean      @default(false)
+  challengeId    Int?
+  challenge      Challenge?   @relation(fields: [challengeId], references: [id])
   
   // Submission
   submittedBy    Int
@@ -295,6 +339,7 @@ model Idea {
   upvoteCount    Int          @default(0)
   downvoteCount  Int          @default(0)
   viewCount      Int          @default(0)
+  trendingScore  Float        @default(0) // Pre-calculated trending score for performance
   
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
@@ -303,12 +348,23 @@ model Idea {
   votes          Vote[]
   comments       IdeaComment[]
   attachments    IdeaAttachment[]
-
+  tags           IdeaTag[]
+  stageHistory   IdeaStageHistory[]
+  auditLogs      AuditLog[]
   @@index([status])
   @@index([category])
   @@index([submittedBy])
   @@index([createdAt])
   @@index([voteCount])
+  @@index([trendingScore])
+  // Composite indexes for common query patterns
+  @@index([status, createdAt])
+  @@index([status, voteCount])
+  @@index([status, trendingScore])
+  @@index([category, status])
+  @@index([submittedBy, status])
+  @@index([promotedAt])
+  @@index([reviewedBy, reviewedAt])
 }
 
 model Vote {
@@ -332,10 +388,15 @@ model IdeaComment {
   userId    Int
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   text      String   @db.Text
+  parentId  Int?
+  parent    IdeaComment? @relation("IdeaCommentParent", fields: [parentId], references: [id])
+  replies   IdeaComment[] @relation("IdeaCommentParent")
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([ideaId])
   @@index([userId])
+  @@index([parentId])
 }
 
 model IdeaAttachment {
@@ -346,7 +407,87 @@ model IdeaAttachment {
   fileUrl   String
   fileSize  Int
   mimeType  String?
+  safeStatus AttachmentSafeStatus @default(PENDING)
   uploadedAt DateTime @default(now())
 
   @@index([ideaId])
+}
+
+model Tag {
+  id        Int       @id @default(autoincrement())
+  name      String    @unique
+  createdAt DateTime  @default(now())
+  ideas     IdeaTag[]
+}
+
+model IdeaTag {
+  ideaId Int
+  tagId  Int
+  idea   Idea @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+  tag    Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([ideaId, tagId])
+  @@index([tagId])
+}
+
+// Lightweight table to persist idea counts by status for fast reads
+model IdeaCount {
+  id        Int        @id @default(autoincrement())
+  status    IdeaStatus @unique
+  count     Int        @default(0)
+  updatedAt DateTime   @default(now()) @updatedAt
+}
+
+model Challenge {
+  id          Int       @id @default(autoincrement())
+  title       String
+  description String?
+  startAt     DateTime?
+  endAt       DateTime?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  ideas       Idea[]
+}
+
+model IdeaStageHistory {
+  id        Int     @id @default(autoincrement())
+  ideaId    Int
+  idea      Idea    @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+  fromStage Stage?
+  toStage   Stage
+  note      String?
+  userId    Int?
+  user      User?   @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@index([ideaId])
+}
+
+model AuditLog {
+  id        Int         @id @default(autoincrement())
+  ideaId    Int?
+  idea      Idea?       @relation(fields: [ideaId], references: [id], onDelete: SetNull)
+  userId    Int?
+  user      User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    AuditAction
+  message   String
+  metadata  Json?
+  createdAt DateTime     @default(now())
+
+  @@index([ideaId])
+  @@index([userId])
+}
+
+model Notification {
+  id        Int              @id @default(autoincrement())
+  userId    Int
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  message   String
+  data      Json?
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
 }

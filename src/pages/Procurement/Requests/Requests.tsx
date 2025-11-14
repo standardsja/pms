@@ -136,16 +136,13 @@ const Requests = () => {
     // View request details modal (React content, no HTML strings)
     const viewDetails = (req: Request) => {
         MySwal.fire({
-            title: `Request Details: ${req.id}`,
             html: <RequestDetailsContent request={req} />,
             width: '800px',
             showCloseButton: true,
             showConfirmButton: false,
             customClass: { popup: 'text-left' }
         });
-    };
-
-    return (
+    };    return (
         <div className="p-6">
             <div className="flex items-center justify-between mb-6">
                 <div>

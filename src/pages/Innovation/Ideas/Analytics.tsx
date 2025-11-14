@@ -182,7 +182,9 @@ const Analytics = () => {
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-            <span className="text-4xl" role="img" aria-label="chart">📈</span>
+            <svg className="w-10 h-10 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" role="img" aria-label="chart">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
+            </svg>
             {t('innovation.analytics.title', { defaultValue: 'Innovation Analytics' })}
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
@@ -196,19 +198,19 @@ const Analytics = () => {
         {[{
           label: t('innovation.analytics.kpis.totalIdeas', { defaultValue: 'Total Ideas' }),
           value: data.kpis.totalIdeas,
-          icon: '💡'
+          icon: <svg className="w-10 h-10 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
         },{
           label: t('innovation.analytics.kpis.underReview', { defaultValue: 'Under Review' }),
           value: data.kpis.underReview,
-          icon: '🕵️'
+          icon: <svg className="w-10 h-10 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
         },{
           label: t('innovation.analytics.kpis.approved', { defaultValue: 'Approved' }),
           value: data.kpis.approved,
-          icon: '✅'
+          icon: <svg className="w-10 h-10 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
         },{
           label: t('innovation.analytics.kpis.engagement', { defaultValue: 'Total Engagement' }),
           value: formatNumber(data.kpis.totalEngagement),
-          icon: '🔥'
+          icon: <svg className="w-10 h-10 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
         }].map((kpi, i) => (
           <div className="panel" key={i}>
             <div className="flex items-center justify-between">
@@ -216,7 +218,7 @@ const Analytics = () => {
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">{kpi.label}</p>
                 <h3 className="text-3xl font-bold text-gray-900 dark:text-white">{kpi.value}</h3>
               </div>
-              <div className="text-4xl" aria-hidden="true">{kpi.icon}</div>
+              <div aria-hidden="true">{kpi.icon}</div>
             </div>
           </div>
         ))}

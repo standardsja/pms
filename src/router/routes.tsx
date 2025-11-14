@@ -1,5 +1,6 @@
 import { lazy } from 'react';
 import AdminRoute from '../components/AdminRoute';
+import CommitteeRoute from '../components/CommitteeRoute';
 
 // Main Pages
 const Index = lazy(() => import('../pages/Index'));
@@ -68,7 +69,7 @@ const ExecutiveDigitalSignoffs = lazy(() => import('../pages/Procurement/Executi
 // User Pages
 const Profile = lazy(() => import('../pages/Procurement/Users/Profile'));
 const AccountSetting = lazy(() => import('../pages/Procurement/Users/AccountSetting'));
-const HelpSupport = lazy(() => import('../pages/Pages/HelpSupport'));
+const HelpSupport = lazy(() => import('../pages/HelpSupport'));
 
 // Module Selector (legacy)
 const ModuleSelector = lazy(() => import('../pages/ModuleSelector'));
@@ -171,19 +172,35 @@ const routes = [
     },
     {
         path: '/innovation/committee',
-        element: <CommitteeDashboard />,
+        element: (
+            <CommitteeRoute>
+                <CommitteeDashboard />
+            </CommitteeRoute>
+        ),
     },
     {
         path: '/innovation/committee/dashboard',
-        element: <CommitteeDashboard />,
+        element: (
+            <CommitteeRoute>
+                <CommitteeDashboard />
+            </CommitteeRoute>
+        ),
     },
     {
         path: '/innovation/committee/review',
-        element: <CommitteeReviewIdeas />,
+        element: (
+            <CommitteeRoute>
+                <CommitteeReviewIdeas />
+            </CommitteeRoute>
+        ),
     },
     {
         path: '/innovation/committee/review/:id',
-        element: <CommitteeDashboard />, // TODO: Create detailed review page
+        element: (
+            <CommitteeRoute>
+                <CommitteeDashboard />
+            </CommitteeRoute>
+        ), // TODO: Create detailed review page
     },
     
     // ============================================
