@@ -1,8 +1,27 @@
 {
-    "name": "vristo-react-vite",
+    "name": "@bsj/spinx-pms",
+    "description": "Procurement Management System with Innovation Hub - Bureau of Standards Jamaica",
+    "version": "2.0.0-beta",
     "private": true,
-    "version": "1.0.1 Alpha",
     "type": "module",
+    "author": "Bureau of Standards Jamaica",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/standardsja/pms.git"
+    },
+    "bugs": {
+        "url": "https://github.com/standardsja/pms/issues"
+    },
+    "homepage": "https://github.com/standardsja/pms#readme",
+    "keywords": [
+        "procurement",
+        "innovation",
+        "erp",
+        "workflow",
+        "react",
+        "typescript",
+        "express"
+    ],
     "scripts": {
         "dev": "vite",
         "build": "vite build && tsc",
@@ -36,6 +55,8 @@
         "@types/jest": "^29.5.12",
         "@types/node": "^22.4.0",
         "@types/react-text-mask": "^5.4.11",
+        "@types/redis": "^4.0.10",
+        "@types/string-similarity": "^4.0.2",
         "@x1mrdonut1x/nouislider-react": "^3.4.3",
         "apexcharts": "^4.0.0",
         "bcryptjs": "^3.0.3",
@@ -44,6 +65,7 @@
         "cors": "^2.8.5",
         "easymde": "^2.18.0",
         "express": "^4.19.2",
+        "express-rate-limit": "^8.2.1",
         "formik": "^2.2.9",
         "highlight.js": "^11.6.0",
         "jsonwebtoken": "^9.0.2",
@@ -72,12 +94,16 @@
         "react-simplemde-editor": "^5.2.0",
         "react-sortablejs": "^6.1.4",
         "react-text-mask": "^5.5.0",
+        "redis": "^5.9.0",
+        "socket.io": "^4.8.1",
         "sortablejs": "^1.15.0",
+        "string-similarity": "^4.0.4",
         "sweetalert2": "^11.6.8",
         "sweetalert2-react-content": "^5.0.7",
         "swiper": "^11.1.9",
         "web-vitals": "^4.2.3",
-        "yup": "^1.4.0"
+        "yup": "^1.4.0",
+        "zod": "^4.1.12"
     },
     "devDependencies": {
         "@headlessui/react": "^2.1.9",

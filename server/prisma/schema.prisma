@@ -339,6 +339,7 @@ model Idea {
   upvoteCount    Int          @default(0)
   downvoteCount  Int          @default(0)
   viewCount      Int          @default(0)
+  trendingScore  Float        @default(0) // Pre-calculated trending score for performance
   
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
@@ -355,9 +356,15 @@ model Idea {
   @@index([submittedBy])
   @@index([createdAt])
   @@index([voteCount])
-  // Composite index to speed up queries that filter by status and order by createdAt
+  @@index([trendingScore])
+  // Composite indexes for common query patterns
   @@index([status, createdAt])
+  @@index([status, voteCount])
+  @@index([status, trendingScore])
+  @@index([category, status])
+  @@index([submittedBy, status])
   @@index([promotedAt])
+  @@index([reviewedBy, reviewedAt])
 }
 
 model Vote {

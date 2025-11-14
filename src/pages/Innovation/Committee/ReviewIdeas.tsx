@@ -108,11 +108,13 @@ export default function ReviewIdeas() {
       if (showLoader) setLoading(true);
       setError(null);
       try {
-        const data = await fetchIdeas(
+        const response = await fetchIdeas(
           active === 'popular'
-            ? { sort: 'popularity' }
-            : { status: active }
+            ? { sort: 'popularity', limit: 100 }
+            : { status: active, limit: 100 }
         );
+        // Handle both paginated and legacy response formats
+        const data = response.ideas || response;
         if (!cancelled) {
           setIdeas(data);
           setTotalCount(data.length);
@@ -136,7 +138,7 @@ export default function ReviewIdeas() {
       }
     }
     load();
-    const id = setInterval(() => load(false), 15000);
+    const id = setInterval(() => load(false), 60000);
     const vis = () => { if (document.visibilityState === 'visible') load(false); };
     document.addEventListener('visibilitychange', vis);
     return () => { cancelled = true; clearInterval(id); document.removeEventListener('visibilitychange', vis); };

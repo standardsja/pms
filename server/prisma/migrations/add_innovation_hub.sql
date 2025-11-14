@@ -20,7 +20,10 @@ CREATE TABLE IF NOT EXISTS `idea` (
   `promotedAt` DATETIME(3) NULL,
   `projectCode` VARCHAR(191) NULL,
   `voteCount` INT NOT NULL DEFAULT 0,
+  `upvoteCount` INT NOT NULL DEFAULT 0,
+  `downvoteCount` INT NOT NULL DEFAULT 0,
   `viewCount` INT NOT NULL DEFAULT 0,
+  `trendingScore` DOUBLE NOT NULL DEFAULT 0,
   `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   `updatedAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
   PRIMARY KEY (`id`),
@@ -30,6 +33,12 @@ CREATE TABLE IF NOT EXISTS `idea` (
   INDEX `idea_submittedBy_idx` (`submittedBy`),
   INDEX `idea_createdAt_idx` (`createdAt`),
   INDEX `idea_voteCount_idx` (`voteCount`),
+  INDEX `idea_trendingScore_idx` (`trendingScore`),
+  INDEX `idea_status_createdAt_idx` (`status`, `createdAt`),
+  INDEX `idea_status_voteCount_idx` (`status`, `voteCount`),
+  INDEX `idea_status_trendingScore_idx` (`status`, `trendingScore`),
+  INDEX `idea_category_status_idx` (`category`, `status`),
+  INDEX `idea_submittedBy_status_idx` (`submittedBy`, `status`),
   CONSTRAINT `idea_submittedBy_fkey` FOREIGN KEY (`submittedBy`) REFERENCES `user`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
