@@ -33,7 +33,7 @@ const VoteOnIdeas = () => {
     const [ideas, setIdeas] = useState<Idea[]>([]);
     const [sortBy, setSortBy] = useState<'trending' | 'popular' | 'recent'>('trending');
     const [showVotedOnly, setShowVotedOnly] = useState(false);
-    const [statusFilters, setStatusFilters] = useState<string[]>(['PENDING_REVIEW']);
+    const [statusFilters, setStatusFilters] = useState<string[]>(['APPROVED']); // Show approved ideas for public voting
     const [categoryFilters, setCategoryFilters] = useState<string[]>([]);
     const [voteAnimation, setVoteAnimation] = useState<string | null>(null);
 

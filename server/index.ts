@@ -517,11 +517,29 @@ app.get('/api/ideas', authMiddleware, async (req, res) => {
         if (mine === 'true' && user.sub) {
             where.submittedBy = user.sub;
         }
-        // If user is NOT committee and not filtering to their own, show APPROVED and PROMOTED ideas
+        // If user is NOT committee and not filtering to their own ideas
         else if (!isCommittee) {
-            where.status = { in: ['APPROVED', 'PROMOTED_TO_PROJECT'] };
+            // If a specific status is requested, allow it but restrict to approved/promoted only
+            if (status && status !== 'all') {
+                const map: Record<string, string> = {
+                    pending: 'PENDING_REVIEW',
+                    approved: 'APPROVED',
+                    rejected: 'REJECTED',
+                    promoted: 'PROMOTED_TO_PROJECT',
+                };
+                const requestedStatus = map[status] || status;
+                // Non-committee users can only see approved or promoted ideas
+                if (['APPROVED', 'PROMOTED_TO_PROJECT'].includes(requestedStatus)) {
+                    where.status = requestedStatus;
+                } else {
+                    where.status = { in: ['APPROVED', 'PROMOTED_TO_PROJECT'] };
+                }
+            } else {
+                // Default: show all approved and promoted ideas
+                where.status = { in: ['APPROVED', 'PROMOTED_TO_PROJECT'] };
+            }
         } else if (status && status !== 'all') {
-            // Committee members can filter by status
+            // Committee members can filter by any status
             const map: Record<string, string> = {
                 pending: 'PENDING_REVIEW',
                 approved: 'APPROVED',
@@ -604,7 +622,14 @@ app.get('/api/ideas', authMiddleware, async (req, res) => {
         res.setHeader('Cache-Control', 'private, max-age=30');
         return res.json(ideasWithVotes);
     } catch (e: any) {
-        console.error('GET /api/ideas error:', e);
+        console.error('GET /api/ideas error:', {
+            message: e?.message || 'Unknown error',
+            code: e?.code,
+            stack: e?.stack,
+            name: e?.name,
+            query: req.query,
+            user: (req as any).user
+        });
         const message = String(e?.message || '');
         // Retry once after attempting to patch invalid enum values
         if (message.includes("not found in enum 'IdeaStatus'")) {
