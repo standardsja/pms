@@ -1,11 +1,13 @@
-﻿import { useEffect, useMemo, useState, useCallback } from 'react';
+﻿ 
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { setPageTitle } from '../../../store/themeConfigSlice';
 import Swal from 'sweetalert2';
 import { 
     approveIdea, 
-    fetchIdeas, 
+    fetchIdeas,
+    fetchIdeaCounts,
     Idea, 
     promoteIdea as promoteIdeaApi, 
     rejectIdea 
@@ -16,7 +18,9 @@ const CommitteeDashboard = () => {
     const dispatch = useDispatch();
     const navigate = useNavigate();
     const currentUser = getUser();
-    const roles: string[] = (currentUser?.roles as any) || (currentUser?.role ? [currentUser.role] : []);
+    const roles: string[] = Array.isArray(currentUser?.roles) 
+        ? currentUser.roles 
+        : (currentUser?.role ? [currentUser.role] : []);
     const isCommittee = roles?.includes?.('INNOVATION_COMMITTEE');
 
     // State for ideas lists
@@ -29,6 +33,7 @@ const CommitteeDashboard = () => {
     // UI state
     const [selectedTab, setSelectedTab] = useState<'pending' | 'approved' | 'promoted'>('pending');
     const [search, setSearch] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
     const [category, setCategory] = useState<string>('ALL');
     const [page, setPage] = useState(1);
     const pageSize = 6;
@@ -68,20 +73,23 @@ const CommitteeDashboard = () => {
         }
     }, [isCommittee, navigate]);
 
-    // Real-time counts refresh
+    // Debounce search input (500ms delay)
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearch(search);
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [search]);
+
+    // Real-time counts refresh - optimized with counts endpoint
     const loadCounts = useCallback(async () => {
         try {
-            const [pending, approved, rejected, promoted] = await Promise.all([
-                fetchIdeas({ status: 'pending' }),
-                fetchIdeas({ status: 'approved' }),
-                fetchIdeas({ status: 'rejected' }),
-                fetchIdeas({ status: 'promoted' }),
-            ]);
+            const counts = await fetchIdeaCounts();
             setCounts({ 
-                pending: pending.length, 
-                approved: approved.length, 
-                rejected: rejected.length, 
-                promoted: promoted.length 
+                pending: counts.pending || 0, 
+                approved: counts.approved || 0, 
+                rejected: counts.rejected || 0, 
+                promoted: counts.promoted || 0 
             });
         } catch (e) {
             console.error('Failed to load counts:', e);
@@ -90,7 +98,8 @@ const CommitteeDashboard = () => {
 
     useEffect(() => {
         loadCounts();
-        const interval = setInterval(() => loadCounts(), 15000);
+        // Reduced polling from 15s to 60s
+        const interval = setInterval(() => loadCounts(), 60000);
         const handleVisibility = () => {
             if (document.visibilityState === 'visible') loadCounts();
         };
@@ -107,26 +116,34 @@ const CommitteeDashboard = () => {
         setError(null);
         try {
             if (selectedTab === 'pending') {
-                const data = await fetchIdeas({ status: 'pending' });
+                const response = await fetchIdeas({ status: 'pending' });
+                const data = response.ideas || response;
                 setPendingIdeas(data);
             } else if (selectedTab === 'approved') {
-                const data = await fetchIdeas({ status: 'approved' });
+                const response = await fetchIdeas({ status: 'approved' });
+                const data = response.ideas || response;
                 setApprovedIdeas(data);
             } else {
-                const data = await fetchIdeas({ status: 'promoted' });
+                const response = await fetchIdeas({ status: 'promoted' });
+                const data = response.ideas || response;
                 setPromotedIdeas(data);
             }
-        } catch (e: any) {
-            setError(e?.message || 'Failed to load ideas');
-            Swal.fire({ 
-                icon: 'error', 
-                title: 'Failed to load', 
-                text: e?.message, 
-                toast: true, 
-                position: 'bottom-end', 
-                timer: 2500, 
-                showConfirmButton: false 
-            });
+        } catch (e) {
+            const errorMessage = e instanceof Error ? e.message : 'Unable to load ideas';
+            setError(errorMessage);
+            
+            // Only show toast for foreground loads, not background polling
+            if (showLoader) {
+                Swal.fire({ 
+                    icon: 'error', 
+                    title: 'Unable to Load Ideas', 
+                    text: 'We encountered a problem loading the ideas. Please try refreshing the page.', 
+                    toast: true, 
+                    position: 'bottom-end', 
+                    timer: 3500, 
+                    showConfirmButton: false 
+                });
+            }
         } finally {
             if (showLoader) setLoadingList(false);
         }
@@ -135,7 +152,8 @@ const CommitteeDashboard = () => {
     useEffect(() => {
         loadList();
         setPage(1);
-        const interval = setInterval(() => loadList(false), 15000);
+        // Reduced polling from 15s to 60s
+        const interval = setInterval(() => loadList(false), 60000);
         const handleVisibility = () => {
             if (document.visibilityState === 'visible') loadList(false);
         };
@@ -213,17 +231,17 @@ const CommitteeDashboard = () => {
                     showConfirmButton: false 
                 });
             }
-        } catch (e: any) {
+        } catch (e) {
             // Rollback on error
             setPendingIdeas(rollbackPending);
             setCounts(rollbackCounts);
             Swal.fire({ 
                 icon: 'error', 
-                title: 'Action failed', 
-                text: e?.message, 
+                title: 'Action Failed', 
+                text: e instanceof Error ? e.message : 'We were unable to process your request. Please try again.', 
                 toast: true, 
                 position: 'bottom-end', 
-                timer: 2200, 
+                timer: 3000, 
                 showConfirmButton: false 
             });
         } finally {
@@ -276,18 +294,18 @@ const CommitteeDashboard = () => {
                 timer: 2000, 
                 showConfirmButton: false 
             });
-        } catch (e: any) {
+        } catch (e) {
             // Rollback
             setApprovedIdeas(rollbackApproved);
             setPromotedIdeas(rollbackPromoted);
             setCounts(rollbackCounts);
             Swal.fire({ 
                 icon: 'error', 
-                title: 'Promote failed', 
-                text: e?.message, 
+                title: 'Promotion Failed', 
+                text: e instanceof Error ? e.message : 'We were unable to promote this idea. Please try again.', 
                 toast: true, 
                 position: 'bottom-end', 
-                timer: 2200, 
+                timer: 3000, 
                 showConfirmButton: false 
             });
         } finally {
@@ -324,7 +342,7 @@ const CommitteeDashboard = () => {
 
     const filteredIdeas = useMemo(() => {
         const src = selectedTab === 'pending' ? pendingIdeas : selectedTab === 'approved' ? approvedIdeas : promotedIdeas;
-        const q = search.trim().toLowerCase();
+        const q = debouncedSearch.trim().toLowerCase();
         return src.filter(i => {
             const matchesText = !q || i.title.toLowerCase().includes(q) || 
                                i.description.toLowerCase().includes(q) || 
@@ -332,7 +350,7 @@ const CommitteeDashboard = () => {
             const matchesCategory = category === 'ALL' || i.category === category;
             return matchesText && matchesCategory;
         });
-    }, [pendingIdeas, approvedIdeas, promotedIdeas, selectedTab, search, category]);
+    }, [pendingIdeas, approvedIdeas, promotedIdeas, selectedTab, debouncedSearch, category]);
 
     const paginatedIdeas = useMemo(() => {
         const start = (page - 1) * pageSize;
@@ -400,7 +418,9 @@ const CommitteeDashboard = () => {
             <div className="relative overflow-hidden rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 p-8 text-white shadow-xl">
                 <div className="relative z-10">
                     <div className="flex items-center gap-3 mb-2">
-                        <span className="text-5xl">🏛️</span>
+                        <svg className="w-14 h-14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                        </svg>
                         <h1 className="text-4xl font-black">Innovation Committee</h1>
                     </div>
                     <p className="text-indigo-100 text-lg">
@@ -430,7 +450,9 @@ const CommitteeDashboard = () => {
                             <p className="text-green-100 text-sm font-medium mb-1">Approved Ideas</p>
                             <h3 className="text-4xl font-black">{counts.approved}</h3>
                         </div>
-                        <div className="text-6xl opacity-30">✅</div>
+                        <svg className="w-16 h-16 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
                     </div>
                     <div className="mt-3 text-sm text-green-100">Live for voting</div>
                 </div>
@@ -441,7 +463,9 @@ const CommitteeDashboard = () => {
                             <p className="text-blue-100 text-sm font-medium mb-1">BSJ Projects</p>
                             <h3 className="text-4xl font-black">{counts.promoted}</h3>
                         </div>
-                        <div className="text-6xl opacity-30">🚀</div>
+                        <svg className="w-16 h-16 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
                     </div>
                     <div className="mt-3 text-sm text-blue-100">In implementation</div>
                 </div>
@@ -452,7 +476,9 @@ const CommitteeDashboard = () => {
                             <p className="text-red-100 text-sm font-medium mb-1">Rejected</p>
                             <h3 className="text-4xl font-black">{counts.rejected}</h3>
                         </div>
-                        <div className="text-6xl opacity-30">❌</div>
+                        <svg className="w-16 h-16 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
                     </div>
                     <div className="mt-3 text-sm text-red-100">Not approved</div>
                 </div>
@@ -463,7 +489,9 @@ const CommitteeDashboard = () => {
                 <div className="panel">
                     <div className="flex items-center justify-between mb-4">
                         <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                            <span className="text-2xl">📋</span>
+                            <svg className="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                            </svg>
                             Recent Activity
                         </h2>
                     </div>
@@ -474,10 +502,10 @@ const CommitteeDashboard = () => {
                                 rejected: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300',
                                 promoted: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300'
                             };
-                            const actionIcons = {
-                                approved: '✅',
-                                rejected: '❌',
-                                promoted: '🚀'
+                            const actionIcons: Record<string, JSX.Element> = {
+                                approved: <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+                                rejected: <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+                                promoted: <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                             };
                             const actionLabels = {
                                 approved: 'Approved',
@@ -487,7 +515,7 @@ const CommitteeDashboard = () => {
                             
                             return (
                                 <div key={activity.id} className="flex items-start gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-                                    <span className="text-2xl mt-0.5">{actionIcons[activity.action]}</span>
+                                    <div className="mt-0.5">{actionIcons[activity.action]}</div>
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2 mb-1">
                                             <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${actionColors[activity.action]}`}>
@@ -582,7 +610,9 @@ const CommitteeDashboard = () => {
                         }`}
                     >
                         <div className="flex items-center justify-center gap-2">
-                            <span className="text-2xl">✅</span>
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
                             <span>Approved ({counts.approved})</span>
                         </div>
                     </button>
@@ -595,7 +625,9 @@ const CommitteeDashboard = () => {
                         }`}
                     >
                         <div className="flex items-center justify-center gap-2">
-                            <span className="text-2xl">🚀</span>
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                            </svg>
                             <span>Projects ({counts.promoted})</span>
                         </div>
                     </button>
@@ -624,16 +656,33 @@ const CommitteeDashboard = () => {
                     )}
                     
                     {error && (
-                        <div className="py-8 text-center">
-                            <div className="text-5xl mb-3">⚠️</div>
-                            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Error Loading Ideas</h3>
-                            <p className="text-red-500">{error}</p>
+                        <div className="py-12 text-center">
+                            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/20 mb-4">
+                                <svg className="w-8 h-8 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                            </div>
+                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Connection Issue</h3>
+                            <p className="text-gray-600 dark:text-gray-400 mb-4 max-w-md mx-auto">
+                                We're having trouble loading the ideas. This might be a temporary network issue.
+                            </p>
+                            <button 
+                                onClick={() => loadList(true)} 
+                                className="btn btn-primary"
+                            >
+                                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                                Try Again
+                            </button>
                         </div>
                     )}
 
                     {!loadingList && !error && paginatedIdeas.length === 0 && (
                         <div className="py-16 text-center">
-                            <div className="text-7xl mb-4">✨</div>
+                            <svg className="w-28 h-28 mx-auto mb-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                            </svg>
                             <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">All Clear!</h3>
                             <p className="text-gray-600 dark:text-gray-400 text-lg">
                                 {selectedTab === 'pending' && 'No ideas awaiting review.'}
@@ -696,7 +745,7 @@ const CommitteeDashboard = () => {
                                                 <span>•</span>
                                                 <span>{idea.viewCount} views</span>
                                                 <span>•</span>
-                                                <span>{(idea as any).commentCount ?? 0} comments</span>
+                                                <span>{idea.commentCount ?? 0} comments</span>
                                             </div>
                                         </div>
                                     </div>
@@ -705,24 +754,33 @@ const CommitteeDashboard = () => {
                                             <>
                                                 <button
                                                     onClick={() => handleApprove(idea)}
-                                                    className="btn bg-green-600 hover:bg-green-700 text-white"
+                                                    className="btn bg-green-600 hover:bg-green-700 text-white inline-flex items-center gap-2"
                                                 >
-                                                    ✅ Approve
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                    </svg>
+                                                    Approve
                                                 </button>
                                                 <button
                                                     onClick={() => handleReject(idea)}
-                                                    className="btn bg-red-600 hover:bg-red-700 text-white"
+                                                    className="btn bg-red-600 hover:bg-red-700 text-white inline-flex items-center gap-2"
                                                 >
-                                                    ❌ Reject
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                    </svg>
+                                                    Reject
                                                 </button>
                                             </>
                                         )}
                                         {selectedTab === 'approved' && (
                                             <button
                                                 onClick={() => openPromoteModal(idea)}
-                                                className="btn bg-blue-600 hover:bg-blue-700 text-white"
+                                                className="btn bg-blue-600 hover:bg-blue-700 text-white inline-flex items-center gap-2"
                                             >
-                                                🚀 Promote to Project
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                                </svg>
+                                                Promote to Project
                                             </button>
                                         )}
                                         {selectedTab === 'promoted' && idea.projectCode && (
@@ -791,8 +849,22 @@ const CommitteeDashboard = () => {
             {showNotesModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
                     <div className="panel w-full max-w-lg">
-                        <h3 className="text-lg font-bold mb-2">
-                            {modalAction === 'approve' ? '✅ Approve Idea' : '❌ Reject Idea'}
+                        <h3 className="text-lg font-bold mb-2 flex items-center gap-2">
+                            {modalAction === 'approve' ? (
+                                <>
+                                    <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    Approve Idea
+                                </>
+                            ) : (
+                                <>
+                                    <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                    Reject Idea
+                                </>
+                            )}
                         </h3>
                         <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
                             <strong>{modalIdea?.title}</strong>
@@ -833,7 +905,12 @@ const CommitteeDashboard = () => {
             {showPromoteModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
                     <div className="panel w-full max-w-lg">
-                        <h3 className="text-lg font-bold mb-2">🚀 Promote to BSJ Project</h3>
+                        <h3 className="text-lg font-bold mb-2 flex items-center gap-2">
+                            <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                            </svg>
+                            Promote to BSJ Project
+                        </h3>
                         <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
                             <strong>{selectedPromoteIdea?.title}</strong>
                         </p>

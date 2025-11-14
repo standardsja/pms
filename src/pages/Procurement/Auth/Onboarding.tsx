@@ -35,8 +35,9 @@ const Onboarding = () => {
 
     useEffect(() => {
         dispatch(setPageTitle(t('onboarding.title')));
-        // If a committee member somehow lands here, redirect them to their dashboard
-        if (isCommittee) {
+        // If a committee-ONLY member lands here, redirect them to their dashboard
+        const isCommitteeOnly = isCommittee && userRoles.length === 1;
+        if (isCommitteeOnly) {
             navigate('/innovation/committee/dashboard', { replace: true });
             return;
         }
@@ -328,15 +329,26 @@ const Onboarding = () => {
                                             </span>
                                         </div>
                                         {isActive && (
-                                            <button
-                                                type="button"
-                                                className="btn btn-primary btn-sm"
-                                                onClick={handleContinue}
+                                            <div
+                                                role="button"
+                                                tabIndex={0}
+                                                className="btn btn-primary btn-sm cursor-pointer"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleContinue();
+                                                }}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter' || e.key === ' ') {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                        handleContinue();
+                                                    }
+                                                }}
                                             >
                                                 {selected === 'pms' && t('onboarding.goTo.pms')}
                                                 {selected === 'ih' && t('onboarding.goTo.ih')}
                                                 {selected === 'committee' && t('onboarding.goTo.committee')}
-                                            </button>
+                                            </div>
                                         )}
                                     </div>
                                 </div>

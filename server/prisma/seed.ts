@@ -41,6 +41,7 @@ async function ensureRole(name: string, description?: string) {
     ensureRole('HEAD_OF_DIVISION', 'Head of Division - second approval'),
     ensureRole('PROCUREMENT', 'Procurement officer - third review and final processing'),
     ensureRole('FINANCE', 'Finance officer - fourth review'),
+    ensureRole('INNOVATION_COMMITTEE', 'Innovation Committee - review and adjudication of ideas'),
   ]);
   console.log('[seed] Roles ensured:', roles.map(r => r.name).join(', '));
 
@@ -259,6 +260,19 @@ async function ensureRole(name: string, description?: string) {
     assignRole(finance2.id, 'FINANCE', roles),
     assignRole(finance3.id, 'FINANCE', roles)
   ]);
+
+  // Ensure Innovation Committee account exists and has the committee role
+  const committeeUser = await prisma.user.upsert({
+    where: { email: 'committee@bsj.gov.jm' },
+    update: { passwordHash: hash, name: 'Innovation Committee' },
+    create: { email: 'committee@bsj.gov.jm', name: 'Innovation Committee', passwordHash: hash },
+  });
+  try {
+    await assignRole(committeeUser.id, 'INNOVATION_COMMITTEE', roles);
+    console.log('[seed] Ensured committee user: committee@bsj.gov.jm (Password: Passw0rd!) with role INNOVATION_COMMITTEE');
+  } catch (err) {
+    console.warn('[seed] Failed to assign INNOVATION_COMMITTEE role to committee user:', err);
+  }
 
   console.log('[seed] Users ready:');
   console.log('\nDepartment Staff:');

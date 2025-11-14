@@ -1,5 +1,6 @@
 import { lazy } from 'react';
 import AdminRoute from '../components/AdminRoute';
+import CommitteeRoute from '../components/CommitteeRoute';
 
 // Main Pages
 const Index = lazy(() => import('../pages/Index'));
@@ -69,7 +70,7 @@ const ExecutiveDigitalSignoffs = lazy(() => import('../pages/Procurement/Executi
 // User Pages
 const Profile = lazy(() => import('../pages/Procurement/Users/Profile'));
 const AccountSetting = lazy(() => import('../pages/Procurement/Users/AccountSetting'));
-const HelpSupport = lazy(() => import('../pages/Pages/HelpSupport'));
+const HelpSupport = lazy(() => import('../pages/HelpSupport'));
 
 // Module Selector (legacy)
 const ModuleSelector = lazy(() => import('../pages/ModuleSelector'));
@@ -81,11 +82,11 @@ const ViewIdeas = lazy(() => import('../pages/Innovation/Ideas/ViewIdeas'));
 const VoteOnIdeas = lazy(() => import('../pages/Innovation/Ideas/VoteOnIdeas'));
 const MyIdeas = lazy(() => import('../pages/Innovation/Ideas/MyIdeas'));
 const IdeaDetails = lazy(() => import('../pages/Innovation/Ideas/IdeaDetails'));
+const InnovationLeaderboard = lazy(() => import('../pages/Innovation/Ideas/Leaderboard'));
 const BSJProjects = lazy(() => import('../pages/Innovation/Projects/BSJProjects'));
 const CommitteeDashboard = lazy(() => import('../pages/Innovation/Committee/CommitteeDashboard'));
 const CommitteeReviewIdeas = lazy(() => import('../pages/Innovation/Committee/ReviewIdeas'));
 const InnovationAnalytics = lazy(() => import('../pages/Innovation/Ideas/Analytics'));
-
 
 const routes = [
     // ============================================
@@ -111,7 +112,7 @@ const routes = [
         element: <Onboarding />,
         layout: 'blank',
     },
-    
+
     // ============================================
     // MODULE SELECTOR / ONBOARDING
     // ============================================
@@ -132,7 +133,7 @@ const routes = [
         element: <ModuleSelector />,
         layout: 'blank',
     },
-    
+
     // ============================================
     // INNOVATION HUB MODULE
     // ============================================
@@ -165,6 +166,10 @@ const routes = [
         element: <InnovationAnalytics />,
     },
     {
+        path: '/innovation/leaderboard',
+        element: <InnovationLeaderboard />,
+    },
+    {
         path: '/innovation/ideas/:id',
         element: <IdeaDetails />,
     },
@@ -174,21 +179,37 @@ const routes = [
     },
     {
         path: '/innovation/committee',
-        element: <CommitteeDashboard />,
+        element: (
+            <CommitteeRoute>
+                <CommitteeDashboard />
+            </CommitteeRoute>
+        ),
     },
     {
         path: '/innovation/committee/dashboard',
-        element: <CommitteeDashboard />,
+        element: (
+            <CommitteeRoute>
+                <CommitteeDashboard />
+            </CommitteeRoute>
+        ),
     },
     {
         path: '/innovation/committee/review',
-        element: <CommitteeReviewIdeas />,
+        element: (
+            <CommitteeRoute>
+                <CommitteeReviewIdeas />
+            </CommitteeRoute>
+        ),
     },
     {
         path: '/innovation/committee/review/:id',
-        element: <CommitteeDashboard />, // TODO: Create detailed review page
+        element: (
+            <CommitteeRoute>
+                <CommitteeDashboard />
+            </CommitteeRoute>
+        ), // TODO: Create detailed review page
     },
-    
+
     // ============================================
     // MAIN DASHBOARD - Now points to module selector
     // ============================================
@@ -196,7 +217,7 @@ const routes = [
         path: '/procurement',
         element: <ProcurementDashboard />,
     },
-    
+
     // ============================================
     // PROCUREMENT MODULE
     // ============================================
@@ -380,7 +401,7 @@ const routes = [
         path: '/procurement/executive/signoffs',
         element: <ExecutiveDigitalSignoffs />,
     },
-    
+
     // ============================================
     // REQUEST ROUTES
     // ============================================
@@ -400,7 +421,7 @@ const routes = [
         path: '/apps/requests/edit/:id',
         element: <RequestForm />,
     },
-    
+
     // ============================================
     // ADMIN ROUTES
     // ============================================
@@ -412,7 +433,7 @@ const routes = [
             </AdminRoute>
         ),
     },
-    
+
     // ============================================
     // USER PAGES
     // ============================================
@@ -432,7 +453,7 @@ const routes = [
         path: '/help',
         element: <HelpSupport />,
     },
-    
+
     // ============================================
     // ERROR HANDLING - MUST BE LAST
     // ============================================

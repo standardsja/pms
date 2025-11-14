@@ -11,11 +11,39 @@ node_modules
 dist
 dist-ssr
 *.local
+
+# Environment files
 .env
+.env.local
+.env.*.local
+server/prisma/.env
+
+# Build output
+build/
+.cache/
+
+# Test coverage
+coverage/
+
+# Temporary files
+*.tmp
+*.temp
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Uploads
+uploads/*
+!uploads/.gitkeep
+server/uploads/*
+!server/uploads/.gitkeep
 
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
+!.vscode/settings.json
 .idea
 .DS_Store
 *.suo
@@ -23,5 +51,17 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+*.swp
+*~
 
+# OS files
+Thumbs.db
+.Spotlight-V100
+.Trashes
+
+# Generated files
 /src/generated/prisma
+
+# Logs and debug
+*.log.*
+debug.log

@@ -5,7 +5,6 @@ import { useTranslation } from 'react-i18next';
 import { setPageTitle } from '../../../store/themeConfigSlice';
 import { fetchIdeas, voteForIdea, removeVote } from '../../../utils/ideasApi';
 import Swal from 'sweetalert2';
-import { getUser } from '../../../utils/auth';
 
 interface Idea {
     id: string;
@@ -15,8 +14,6 @@ interface Idea {
     submittedBy: string;
     submittedAt: string;
     voteCount: number;
-    upvoteCount?: number;
-    downvoteCount?: number;
     hasVoted: boolean;
     viewCount: number;
 }
@@ -31,17 +28,13 @@ const BrowseIdeas = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10;
 
-    // Check if current user is a committee member
-    const currentUser = getUser();
-    const isCommittee = currentUser?.roles?.includes('INNOVATION_COMMITTEE');
-
     useEffect(() => {
         dispatch(setPageTitle(t('innovation.browse.title')));
         loadIdeas();
-        // Polling for near real-time updates
+        // Polling for near real-time updates - reduced from 15s to 60s with caching
         const intervalId = setInterval(() => {
             loadIdeas();
-        }, 15000);
+        }, 60000);
         return () => clearInterval(intervalId);
     }, [dispatch, t, sortBy]);
 
@@ -49,21 +42,10 @@ const BrowseIdeas = () => {
         setIsLoading(true);
         try {
             const sort = sortBy === 'popular' ? 'popularity' : 'recent';
-            // Fetch both APPROVED and PROMOTED ideas - users can see/vote on approved and promoted ideas
-            const [approvedIdeas, promotedIdeas] = await Promise.all([
-                fetchIdeas({ status: 'APPROVED', sort }),
-                fetchIdeas({ status: 'PROMOTED_TO_PROJECT', sort })
-            ]);
-            const data = [...approvedIdeas, ...promotedIdeas];
-            
-            setIdeas(data.map(idea => {
-                // Fallback inference: if per-type counts missing but score exists, infer from voteCount
-                let up = idea.upvoteCount ?? 0;
-                let down = idea.downvoteCount ?? 0;
-                if ((up === 0 && down === 0) && (idea.voteCount || 0) !== 0) {
-                    if (idea.voteCount > 0) up = idea.voteCount; else down = Math.abs(idea.voteCount);
-                }
-                return {
+            const response = await fetchIdeas({ sort, limit: 50 });
+            // Handle both paginated and legacy response formats
+            const data = response.ideas || response;
+            setIdeas(data.map(idea => ({
                 id: String(idea.id),
                 title: idea.title,
                 description: idea.description,
@@ -71,19 +53,23 @@ const BrowseIdeas = () => {
                 submittedBy: String(idea.submittedBy),
                 submittedAt: idea.submittedAt,
                 voteCount: idea.voteCount,
-                upvoteCount: up,
-                downvoteCount: down,
-                hasVoted: false, // TODO: Check if current user has voted
+                hasVoted: idea.hasVoted || false,
                 viewCount: idea.viewCount,
-                };
-            }));
+            })));
         } catch (error) {
             console.error('[BrowseIdeas] Error loading ideas:', error);
-            Swal.fire({
-                icon: 'error',
-                title: 'Error',
-                text: 'Failed to load ideas. Please try again.',
-            });
+            // Only show error on initial load, not background refreshes
+            if (!ideas.length) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Unable to Load Ideas',
+                    text: 'We encountered a problem loading ideas. Please check your connection and try again.',
+                    toast: true,
+                    position: 'bottom-end',
+                    timer: 3500,
+                    showConfirmButton: false,
+                });
+            }
         } finally {
             setIsLoading(false);
         }
@@ -98,13 +84,15 @@ const BrowseIdeas = () => {
                 // Remove vote
                 await removeVote(ideaId);
                 // Refetch single idea for authoritative counts
-                const updated = await fetchIdeas();
+                const response = await fetchIdeas();
+                const updated = response.ideas || response;
                 const fresh = updated.find(i => String(i.id) === ideaId);
                 setIdeas(prev => prev.map(i => i.id === ideaId && fresh ? { ...i, voteCount: fresh.voteCount, hasVoted: false } : i));
             } else {
                 // Add vote
                 await voteForIdea(ideaId);
-                const updated = await fetchIdeas();
+                const response = await fetchIdeas();
+                const updated = response.ideas || response;
                 const fresh = updated.find(i => String(i.id) === ideaId);
                 setIdeas(prev => prev.map(i => i.id === ideaId && fresh ? { ...i, voteCount: fresh.voteCount, hasVoted: true } : i));
             }
@@ -134,8 +122,8 @@ const BrowseIdeas = () => {
                 const errorMessage = error instanceof Error ? error.message : 'Failed to vote';
                 Swal.fire({
                     icon: 'error',
-                    title: 'Error',
-                    text: errorMessage,
+                    title: 'Vote Failed',
+                    text: 'We were unable to process your vote. Please try again.',
                     toast: true,
                     position: 'bottom-end',
                     timer: 3000,
@@ -189,7 +177,9 @@ const BrowseIdeas = () => {
             {/* Header */}
             <div>
                 <h1 id="browse-ideas-title" className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-                    <span className="text-4xl" role="img" aria-label="magnifying glass">🔍</span>
+                    <svg className="w-10 h-10 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" role="img" aria-label="magnifying glass">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
                     {t('innovation.browse.title')}
                 </h1>
                 <p className="text-gray-600 dark:text-gray-400 mt-1">
@@ -265,39 +255,27 @@ const BrowseIdeas = () => {
                     {paginatedIdeas.map((idea) => (
                         <div key={idea.id} className="panel hover:shadow-lg transition-shadow">
                             <div className="flex gap-6">
-                                {/* Vote Section - show per-type counts; buttons only for non-committee */}
+                                {/* Vote Section */}
                                 <div className="flex flex-col items-center gap-2 min-w-[80px]">
-                                    {!isCommittee && (
-                                        <button
-                                            onClick={() => handleVote(idea.id)}
-                                            className={`p-3 rounded-lg transition-all ${
-                                                idea.hasVoted
-                                                    ? 'bg-primary text-white scale-110'
-                                                    : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-primary hover:text-white'
-                                            }`}
-                                            aria-label={idea.hasVoted ? t('innovation.browse.vote.removeVote') : t('innovation.browse.vote.upvote')}
-                                            aria-pressed={idea.hasVoted}
-                                        >
-                                            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
-                                                <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008.943 18h5.416a2 2 0 001.962-1.608l1.2-6A2 2 0 0015.56 8H12V4a2 2 0 00-2-2 1 1 0 00-1 1v.667a4 4 0 01-.8 2.4L6.8 7.933a4 4 0 00-.8 2.4z" />
-                                            </svg>
-                                        </button>
-                                    )}
-                                    {/* Up/Down counts with fallback from score */}
-                                    <div className="flex items-center gap-3 mt-1">
-                                        <span className="flex items-center gap-1 text-green-600 dark:text-green-400 text-sm font-medium">
-                                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008.943 18h5.416a2 2 0 001.962-1.608l1.2-6A2 2 0 0015.56 8H12V4a2 2 0 00-2-2 1 1 0 00-1 1v.667a4 4 0 01-.8 2.4L6.8 7.933a4 4 0 00-.8 2.4z"/></svg>
-                                            {idea.upvoteCount ?? 0}
-                                        </span>
-                                        <span className="flex items-center gap-1 text-red-600 dark:text-red-400 text-sm font-medium">
-                                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" transform="rotate(180)"><path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008.943 18h5.416a2 2 0 001.962-1.608l1.2-6A2 2 0 0015.56 8H12V4a2 2 0 00-2-2 1 1 0 00-1 1v.667a4 4 0 01-.8 2.4L6.8 7.933a4 4 0 00-.8 2.4z"/></svg>
-                                            {idea.downvoteCount ?? 0}
-                                        </span>
-                                        <span className="text-xs text-gray-600 dark:text-gray-400">Score: {idea.voteCount > 0 ? `+${idea.voteCount}` : idea.voteCount}</span>
-                                    </div>
+                                    <button
+                                        onClick={() => handleVote(idea.id)}
+                                        className={`p-3 rounded-lg transition-all ${
+                                            idea.hasVoted
+                                                ? 'bg-primary text-white scale-110'
+                                                : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-primary hover:text-white'
+                                        }`}
+                                        aria-label={idea.hasVoted ? t('innovation.browse.vote.removeVote') : t('innovation.browse.vote.upvote')}
+                                        aria-pressed={idea.hasVoted}
+                                    >
+                                        <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                                            <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008.943 18h5.416a2 2 0 001.962-1.608l1.2-6A2 2 0 0015.56 8H12V4a2 2 0 00-2-2 1 1 0 00-1 1v.667a4 4 0 01-.8 2.4L6.8 7.933a4 4 0 00-.8 2.4z" />
+                                        </svg>
+                                    </button>
+                                    <span className="text-2xl font-bold text-gray-900 dark:text-white">
+                                        {idea.voteCount}
+                                    </span>
+                                    <span className="text-xs text-gray-500 dark:text-gray-400">{t('innovation.browse.vote.votes')}</span>
                                 </div>
-
-                                {/* Committee members see counts (no buttons shown above) */}
 
                                 {/* Content */}
                                 <div className="flex-1">
@@ -380,13 +358,17 @@ const BrowseIdeas = () => {
             {/* Empty State */}
             {!isLoading && filteredAndSortedIdeas.length === 0 && (
                 <div className="panel text-center py-12">
-                    <div className="text-6xl mb-4" role="img" aria-label="magnifying glass">🔍</div>
+                    <svg className="w-24 h-24 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" role="img" aria-label="magnifying glass">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
                     <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">{t('innovation.browse.empty.title')}</h3>
                     <p className="text-gray-600 dark:text-gray-400 mb-6">
                         {t('innovation.browse.empty.message')}
                     </p>
                     <Link to="/innovation/ideas/new" className="btn btn-primary gap-2 inline-flex">
-                        <span className="text-xl" role="img" aria-hidden="true">✨</span>
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
                         {t('innovation.browse.empty.action')}
                     </Link>
                 </div>

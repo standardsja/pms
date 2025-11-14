@@ -4,7 +4,7 @@ import { useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import { setPageTitle } from '../../store/themeConfigSlice';
 import { getUser } from '../../utils/auth';
-import { fetchIdeas } from '../../utils/ideasApi';
+import { fetchIdeas, fetchIdeaCounts } from '../../utils/ideasApi';
 
 interface DashboardStats {
     myIdeas: number;
@@ -37,34 +37,32 @@ const InnovationDashboard = () => {
     async function loadDashboardData() {
         try {
             setIsLoading(true);
-            const ideas = await fetchIdeas();
             
-            // Calculate stats from fetched ideas
+            // Use optimized counts endpoint for stats
+            const counts = await fetchIdeaCounts();
+            
+            // Fetch only recent ideas with server-side sorting
+            const response = await fetchIdeas({ sort: 'recent' });
+            const ideas = response.ideas || response;
+            
+            // Calculate myIdeas count (still need to filter client-side for this)
             const myIdeas = ideas.filter(idea => 
                 idea.submittedBy === currentUser?.name || idea.submittedBy === currentUser?.email
             ).length;
-            
-            const approvedIdeas = ideas.filter(idea => idea.status === 'APPROVED').length;
-            const pendingIdeas = ideas.filter(idea => idea.status === 'PENDING_REVIEW').length;
-            const promotedProjects = ideas.filter(idea => idea.status === 'PROMOTED_TO_PROJECT').length;
-            const totalVotes = ideas.reduce((sum, idea) => sum + (idea.voteCount || 0), 0);
 
             setStats({
                 myIdeas,
-                approvedIdeas,
-                pendingIdeas,
-                promotedProjects,
-                totalVotes,
+                approvedIdeas: counts.approved || 0,
+                pendingIdeas: counts.pending || 0,
+                promotedProjects: counts.promoted || 0,
+                totalVotes: ideas.reduce((sum, idea) => sum + (idea.voteCount || 0), 0),
             });
 
-            // Get 3 most recent ideas for activity feed
-            const sortedByDate = [...ideas].sort((a, b) => 
-                new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-            );
-            setRecentIdeas(sortedByDate.slice(0, 3));
+            // Get 3 most recent ideas for activity feed (already sorted by API)
+            setRecentIdeas(ideas.slice(0, 3));
         } catch (error) {
             console.error('[InnovationDashboard] Error loading data:', error);
-            // Keep default zeros on error
+            // Keep default zeros on error - don't show error message for dashboard stats
         } finally {
             setIsLoading(false);
         }
@@ -74,28 +72,28 @@ const InnovationDashboard = () => {
         {
             title: t('innovation.dashboard.quickActions.submitNew.title'),
             description: t('innovation.dashboard.quickActions.submitNew.description'),
-            icon: '✨',
+            icon: <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>,
             link: '/innovation/ideas/new',
             color: 'bg-gradient-to-br from-purple-500 to-pink-600',
         },
         {
             title: t('innovation.dashboard.quickActions.browse.title'),
             description: t('innovation.dashboard.quickActions.browse.description'),
-            icon: '🔍',
+            icon: <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>,
             link: '/innovation/ideas/browse',
             color: 'bg-gradient-to-br from-blue-500 to-cyan-600',
         },
         {
             title: t('innovation.dashboard.quickActions.mySubmissions.title'),
             description: t('innovation.dashboard.quickActions.mySubmissions.description'),
-            icon: '📝',
+            icon: <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>,
             link: '/innovation/ideas/mine',
             color: 'bg-gradient-to-br from-green-500 to-emerald-600',
         },
         {
             title: t('innovation.dashboard.quickActions.popular.title'),
             description: t('innovation.dashboard.quickActions.popular.description'),
-            icon: '🔥',
+            icon: <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>,
             link: '/innovation/ideas/popular',
             color: 'bg-gradient-to-br from-orange-500 to-red-600',
         },
@@ -105,11 +103,36 @@ const InnovationDashboard = () => {
         : quickActions;
 
     const statCards = [
-        { label: t('innovation.dashboard.stats.myIdeas'), value: stats.myIdeas, icon: '💡', color: 'text-purple-600 dark:text-purple-400' },
-        { label: t('innovation.dashboard.stats.approvedIdeas'), value: stats.approvedIdeas, icon: '✅', color: 'text-green-600 dark:text-green-400' },
-        { label: t('innovation.dashboard.stats.underReview'), value: stats.pendingIdeas, icon: '⏳', color: 'text-orange-600 dark:text-orange-400' },
-        { label: t('innovation.dashboard.stats.bsjProjects'), value: stats.promotedProjects, icon: '🚀', color: 'text-blue-600 dark:text-blue-400' },
-        { label: t('innovation.dashboard.stats.totalVotes'), value: stats.totalVotes, icon: '👍', color: 'text-pink-600 dark:text-pink-400' },
+        { 
+            label: t('innovation.dashboard.stats.myIdeas'), 
+            value: stats.myIdeas, 
+            icon: <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>,
+            color: 'text-purple-600 dark:text-purple-400' 
+        },
+        { 
+            label: t('innovation.dashboard.stats.approvedIdeas'), 
+            value: stats.approvedIdeas, 
+            icon: <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+            color: 'text-green-600 dark:text-green-400' 
+        },
+        { 
+            label: t('innovation.dashboard.stats.underReview'), 
+            value: stats.pendingIdeas, 
+            icon: <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+            color: 'text-orange-600 dark:text-orange-400' 
+        },
+        { 
+            label: t('innovation.dashboard.stats.bsjProjects'), 
+            value: stats.promotedProjects, 
+            icon: <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>,
+            color: 'text-blue-600 dark:text-blue-400' 
+        },
+        { 
+            label: t('innovation.dashboard.stats.totalVotes'), 
+            value: stats.totalVotes, 
+            icon: <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" /></svg>,
+            color: 'text-pink-600 dark:text-pink-400' 
+        },
     ];
 
     return (
@@ -118,7 +141,9 @@ const InnovationDashboard = () => {
             <div className="flex items-center justify-between flex-wrap gap-4">
                 <div>
                     <h1 id="innovation-dashboard-title" className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-                        <span className="text-4xl" role="img" aria-label="lightbulb">💡</span>
+                        <svg className="w-9 h-9 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                        </svg>
                         {t('innovation.dashboard.title')}
                     </h1>
                     <p className="text-gray-600 dark:text-gray-400 mt-1">
@@ -130,7 +155,9 @@ const InnovationDashboard = () => {
                     className="btn btn-primary gap-2"
                     aria-label={t('innovation.dashboard.submitNewIdea')}
                 >
-                    <span className="text-xl" role="img" aria-hidden="true">✨</span>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
                     {t('innovation.dashboard.submitNewIdea')}
                 </Link>
             </div>
@@ -138,7 +165,7 @@ const InnovationDashboard = () => {
             {/* Stats Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4" role="region" aria-label="Statistics">
                 {statCards.map((stat, idx) => (
-                    <div key={idx} className="panel">
+                    <div key={idx} className="panel hover:shadow-lg transition-shadow">
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">{stat.label}</p>
@@ -148,7 +175,7 @@ const InnovationDashboard = () => {
                                     <h3 className="text-3xl font-bold text-gray-900 dark:text-white">{stat.value}</h3>
                                 )}
                             </div>
-                            <div className={`text-5xl ${stat.color}`} role="img" aria-hidden="true">{stat.icon}</div>
+                            <div className={stat.color}>{stat.icon}</div>
                         </div>
                     </div>
                 ))}
@@ -166,7 +193,7 @@ const InnovationDashboard = () => {
                             aria-label={action.title}
                         >
                             <div className={`${action.color} p-6 text-white`}>
-                                <div className="text-5xl mb-3" role="img" aria-hidden="true">{action.icon}</div>
+                                <div className="mb-3">{action.icon}</div>
                                 <h3 className="text-lg font-bold mb-1">{action.title}</h3>
                                 <p className="text-sm text-white/90">{action.description}</p>
                                 <div className="mt-4 flex items-center gap-2 text-sm font-semibold">
@@ -204,11 +231,17 @@ const InnovationDashboard = () => {
                 ) : recentIdeas.length > 0 ? (
                     <div className="space-y-4" role="feed" aria-label={t('innovation.dashboard.recentActivity.title')}>
                         {recentIdeas.map((idea) => {
-                            const statusIcon = 
-                                idea.status === 'APPROVED' ? '✅' :
-                                idea.status === 'PROMOTED_TO_PROJECT' ? '🚀' :
-                                idea.status === 'REJECTED' ? '❌' :
-                                '⏳';
+                            const getStatusBadge = (status: string) => {
+                                const badges = {
+                                    'APPROVED': { label: 'Approved', color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> },
+                                    'PROMOTED_TO_PROJECT': { label: 'Promoted', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg> },
+                                    'REJECTED': { label: 'Rejected', color: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg> },
+                                    'PENDING_REVIEW': { label: 'Pending', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
+                                };
+                                return badges[status as keyof typeof badges] || badges['PENDING_REVIEW'];
+                            };
+                            
+                            const statusBadge = getStatusBadge(idea.status);
                             
                             const getTimeAgo = (dateStr: string) => {
                                 const now = new Date();
@@ -231,9 +264,12 @@ const InnovationDashboard = () => {
                                 <Link 
                                     key={idea.id} 
                                     to={`/innovation/ideas/${idea.id}`}
-                                    className="flex items-start gap-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                                    className="flex items-start gap-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors border border-transparent hover:border-primary/20"
                                 >
-                                    <div className="text-2xl" role="img" aria-label="status">{statusIcon}</div>
+                                    <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium ${statusBadge.color}`}>
+                                        {statusBadge.icon}
+                                        <span>{statusBadge.label}</span>
+                                    </div>
                                     <div className="flex-1">
                                         <p className="text-gray-900 dark:text-white font-medium">
                                             {idea.title}
@@ -264,7 +300,8 @@ const InnovationDashboard = () => {
                                                 <>
                                                     <span className="text-gray-400">•</span>
                                                     <span className="text-sm text-gray-600 dark:text-gray-400 flex items-center gap-1">
-                                                        👍 {idea.voteCount === 1
+                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" /></svg>
+                                                        {idea.voteCount === 1
                                                             ? t('innovation.dashboard.recentActivity.voteSingular', { count: 1, defaultValue: '1 vote' })
                                                             : t('innovation.dashboard.recentActivity.votePlural', { count: idea.voteCount, defaultValue: `${idea.voteCount} votes` })}
                                                     </span>
@@ -277,17 +314,23 @@ const InnovationDashboard = () => {
                         })}
                     </div>
                 ) : (
-                    <div className="text-center py-8">
-                        <div className="text-4xl mb-2">💡</div>
-                        <p className="text-gray-600 dark:text-gray-400">No ideas yet. Be the first to submit one!</p>
+                    <div className="text-center py-12">
+                        <svg className="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                        </svg>
+                        <p className="text-gray-600 dark:text-gray-400 font-medium">No ideas yet. Be the first to submit one!</p>
                     </div>
                 )}
             </div>
 
             {/* Tips */}
-            <div className="panel bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 border-2 border-purple-200 dark:border-purple-800">
+            <div className="panel bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-800">
                 <div className="flex items-start gap-4">
-                    <div className="text-4xl" role="img" aria-label="lightbulb">💡</div>
+                    <div className="flex-shrink-0">
+                        <svg className="w-10 h-10 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </div>
                     <div>
                         <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">{t('innovation.dashboard.proTip.title')}</h3>
                         <p className="text-gray-700 dark:text-gray-300 mb-3">

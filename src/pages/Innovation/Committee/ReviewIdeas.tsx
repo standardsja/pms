@@ -7,10 +7,10 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import Swal from 'sweetalert2';
 
 const tabs = [
-  { key: 'pending', label: 'Pending Review', apiStatus: 'PENDING_REVIEW' },
-  { key: 'approved', label: 'Approved', apiStatus: 'APPROVED' },
-  { key: 'rejected', label: 'Rejected', apiStatus: 'REJECTED' },
-  { key: 'popular', label: 'Popular', apiStatus: null },
+  { key: 'pending', label: 'Pending Review' },
+  { key: 'approved', label: 'Approved' },
+  { key: 'rejected', label: 'Rejected' },
+  { key: 'popular', label: 'Popular' },
 ] as const;
 
 export default function ReviewIdeas() {
@@ -18,7 +18,9 @@ export default function ReviewIdeas() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const currentUser = getUser();
-  const roles: string[] = (currentUser?.roles as any) || (currentUser?.role ? [currentUser.role] : []);
+  const roles: string[] = Array.isArray(currentUser?.roles) 
+    ? currentUser.roles 
+    : (currentUser?.role ? [currentUser.role] : []);
   const isCommittee = roles?.includes?.('INNOVATION_COMMITTEE');
 
   const [active, setActive] = useState<(typeof tabs)[number]['key']>('pending');
@@ -70,7 +72,9 @@ export default function ReviewIdeas() {
     const urlSubmitter = searchParams.get('submitter');
     const urlPage = searchParams.get('page');
     
-    if (urlTab && tabs.some(t => t.key === urlTab)) setActive(urlTab as any);
+    if (urlTab && tabs.some(t => t.key === urlTab)) {
+      setActive(urlTab as typeof tabs[number]['key']);
+    }
     if (urlSearch) setSearch(urlSearch);
     if (urlCategory) setCategoryFilter(urlCategory);
     if (urlDateFrom) setDateFrom(urlDateFrom);
@@ -82,7 +86,7 @@ export default function ReviewIdeas() {
 
   // Update URL params when filters change
   const updateUrlParams = useCallback(() => {
-    const params: any = {};
+    const params: Record<string, string> = {};
     if (active !== 'pending') params.tab = active;
     if (search) params.search = search;
     if (categoryFilter !== 'all') params.category = categoryFilter;
@@ -104,25 +108,37 @@ export default function ReviewIdeas() {
       if (showLoader) setLoading(true);
       setError(null);
       try {
-        const activeTab = tabs.find(t => t.key === active);
-        const data = await fetchIdeas(
+        const response = await fetchIdeas(
           active === 'popular'
-            ? { sort: 'popularity' }
-            : { status: activeTab?.apiStatus || active }
+            ? { sort: 'popularity', limit: 100 }
+            : { status: active, limit: 100 }
         );
+        // Handle both paginated and legacy response formats
+        const data = response.ideas || response;
         if (!cancelled) {
           setIdeas(data);
           setTotalCount(data.length);
         }
-      } catch (e: any) {
-        if (!cancelled) setError(e?.message || 'Failed to load ideas');
-        Swal.fire({ icon: 'error', title: 'Failed to load ideas', text: e?.message || 'Please try again', toast: true, position: 'bottom-end', timer: 2500, showConfirmButton: false });
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : 'Unable to load ideas');
+        // Only show error on foreground loads, not background polling
+        if (showLoader) {
+          Swal.fire({ 
+            icon: 'error', 
+            title: 'Unable to Load Ideas', 
+            text: 'We encountered a problem loading ideas. Please check your connection and try again.', 
+            toast: true, 
+            position: 'bottom-end', 
+            timer: 3500, 
+            showConfirmButton: false 
+          });
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
     }
     load();
-    const id = setInterval(() => load(false), 15000);
+    const id = setInterval(() => load(false), 60000);
     const vis = () => { if (document.visibilityState === 'visible') load(false); };
     document.addEventListener('visibilitychange', vis);
     return () => { cancelled = true; clearInterval(id); document.removeEventListener('visibilitychange', vis); };
@@ -139,7 +155,7 @@ export default function ReviewIdeas() {
       }
       
       // Skip if typing in input/textarea
-      if (['INPUT', 'TEXTAREA'].includes((e.target as any)?.tagName)) return;
+      if (e.target instanceof HTMLElement && ['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
       
       const visibleIdeas = paginatedIdeas;
       
@@ -203,10 +219,11 @@ export default function ReviewIdeas() {
         if (active === 'rejected') setIdeas((prev) => [updated, ...prev]);
         Swal.fire({ icon: 'success', title: 'Rejected', toast: true, position: 'bottom-end', timer: 1800, showConfirmButton: false });
       }
-    } catch (e: any) {
+    } catch (e) {
       // Rollback on failure
       setIdeas(rollbackIdeas);
-      Swal.fire({ icon: 'error', title: 'Action failed', text: e?.message || 'Please try again', toast: true, position: 'bottom-end', timer: 2200, showConfirmButton: false });
+      const errorMsg = e instanceof Error ? e.message : 'Please try again';
+      Swal.fire({ icon: 'error', title: 'Action failed', text: errorMsg, toast: true, position: 'bottom-end', timer: 2200, showConfirmButton: false });
     } finally {
       setShowNotes(false);
       setSelectedIdea(null);
@@ -270,9 +287,10 @@ export default function ReviewIdeas() {
       
       Swal.fire({ icon: 'success', title: `${bulkAction === 'approve' ? 'Approved' : 'Rejected'} ${selectedIds.size} idea(s)`, toast: true, position: 'bottom-end', timer: 2000, showConfirmButton: false });
       setSelectedIds(new Set());
-    } catch (e: any) {
+    } catch (e) {
       setIdeas(rollbackIdeas);
-      Swal.fire({ icon: 'error', title: 'Bulk action failed', text: e?.message || 'Some items may not have been processed', toast: true, position: 'bottom-end', timer: 2500, showConfirmButton: false });
+      const errorMsg = e instanceof Error ? e.message : 'Some items may not have been processed';
+      Swal.fire({ icon: 'error', title: 'Bulk action failed', text: errorMsg, toast: true, position: 'bottom-end', timer: 2500, showConfirmButton: false });
     } finally {
       setShowBulkNotes(false);
       setBulkAction(null);
@@ -294,19 +312,33 @@ export default function ReviewIdeas() {
         if (!isConfirmed) return;
         await approveIdea(idea.id);
       }
+      
+      // Generate a default project code
+      const year = new Date().getFullYear();
+      const randomPart = Math.random().toString(36).substring(2, 7).toUpperCase();
+      const defaultCode = `INNO-${year}-${randomPart}`;
+      
       const { value: projectCode } = await Swal.fire({
-        title: 'Project Code', input: 'text', inputLabel: 'Optional - leave blank to auto-generate',
-        inputPlaceholder: 'e.g. INNO-2025-001', showCancelButton: true
+        title: 'Project Code',
+        input: 'text',
+        inputLabel: 'Enter project code or leave blank to auto-generate',
+        inputValue: defaultCode,
+        inputPlaceholder: 'e.g. INNO-2025-001',
+        showCancelButton: true
       });
       
       if (projectCode === undefined) return; // User cancelled
       
+      // If user cleared the field, use the default code
+      const finalCode = projectCode && projectCode.trim() ? projectCode.trim() : defaultCode;
+      
       setIdeas(optimisticIdeas);
-      const updated = await promoteIdea(idea.id, projectCode || undefined);
-      Swal.fire({ icon: 'success', title: updated.projectCode ? `Promoted to ${updated.projectCode}` : 'Promoted successfully!', toast: true, position: 'bottom-end', timer: 2000, showConfirmButton: false });
-    } catch (e: any) {
+      const updated = await promoteIdea(idea.id, finalCode);
+      Swal.fire({ icon: 'success', title: `Promoted to ${updated.projectCode}`, toast: true, position: 'bottom-end', timer: 2000, showConfirmButton: false });
+    } catch (e) {
       setIdeas(rollbackIdeas);
-      Swal.fire({ icon: 'error', title: 'Promote failed', text: e?.message || 'Please try again', toast: true, position: 'bottom-end', timer: 2200, showConfirmButton: false });
+      const errorMsg = e instanceof Error ? e.message : 'Please try again';
+      Swal.fire({ icon: 'error', title: 'Promote failed', text: errorMsg, toast: true, position: 'bottom-end', timer: 2200, showConfirmButton: false });
     }
   };
 
@@ -554,7 +586,26 @@ export default function ReviewIdeas() {
           </div>
         )}
         {error && (
-          <div className="py-6 text-center text-red-500">{error}</div>
+          <div className="py-12 text-center">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/20 mb-4">
+              <svg className="w-8 h-8 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Connection Issue</h3>
+            <p className="text-gray-600 dark:text-gray-400 mb-4 max-w-md mx-auto">
+              We're having trouble loading the ideas. This might be a temporary network issue.
+            </p>
+            <button 
+              onClick={() => window.location.reload()} 
+              className="btn btn-primary"
+            >
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              Refresh Page
+            </button>
+          </div>
         )}
 
         {!loading && !error && filtered.length === 0 && (
@@ -600,7 +651,7 @@ export default function ReviewIdeas() {
                         </span>
                         <span>Score {idea.voteCount > 0 ? `+${idea.voteCount}` : idea.voteCount}</span>
                         <span>Views {idea.viewCount}</span>
-                        <span>Comments {(idea as any).commentCount ?? 0}</span>
+                        <span>Comments {idea.commentCount ?? 0}</span>
                       </div>
                     </div>
                   </div>

@@ -349,7 +349,7 @@ const ResetPassword = () => {
 
                     {/* Footer */}
                     <div className="mt-12 text-center text-sm text-gray-500">
-                        <p>© {new Date().getFullYear()} Procurement Management System. All rights reserved.</p>
+                        <p>© {new Date().getFullYear()} Bureau of Standards Jamaica. All rights reserved.</p>
                     </div>
                 </div>
             </div>
