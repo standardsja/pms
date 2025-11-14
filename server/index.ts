@@ -18,7 +18,7 @@ import { batchUpdateIdeas, getCommitteeDashboardStats, getPendingIdeasForReview,
 import { initWebSocket, emitIdeaCreated, emitIdeaStatusChanged, emitVoteUpdated, emitBatchApproval, emitCommentAdded } from './services/websocketService';
 import { initAnalyticsJob, stopAnalyticsJob, getAnalytics, getCategoryAnalytics, getTimeBasedAnalytics } from './services/analyticsService';
 import { requestMonitoringMiddleware, trackCacheHit, trackCacheMiss, getMetrics, getHealthStatus, getSlowEndpoints, getErrorProneEndpoints } from './services/monitoringService';
-import { IdeaStatus } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 import { requireCommittee as requireCommitteeRole, requireAdmin } from './middleware/rbac';
 import { validate, createIdeaSchema, voteSchema, approveRejectIdeaSchema, promoteIdeaSchema, sanitizeInput as sanitize } from './middleware/validation';
 import { errorHandler, notFoundHandler, asyncHandler, NotFoundError, BadRequestError } from './middleware/errorHandler';
@@ -322,7 +322,7 @@ app.get('/api/analytics/time-based', authMiddleware, async (_req, res) => {
 });
 
 app.get('/api/ping', (_req, res) => {
-  res.json({ pong: true });
+    res.json({ pong: true });
 });
 // Auth endpoints
 app.post('/api/auth/login', authLimiter, async (req, res) => {
@@ -373,7 +373,7 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
     }
 });
 
-function authMiddleware(req: any, res: any, next: any) {
+async function authMiddleware(req: any, res: any, next: any) {
     // Accept either Bearer token OR x-user-id header for flexibility
     const auth = req.headers.authorization || '';
     const userId = req.headers['x-user-id'];
@@ -386,6 +386,25 @@ function authMiddleware(req: any, res: any, next: any) {
             (req as any).user = payload;
             return next();
         } catch {
+            // In development, fall back to x-user-id and hydrate roles from DB
+            if (process.env.NODE_ENV !== 'production' && userId) {
+                const userIdNum = parseInt(String(userId), 10);
+                if (Number.isFinite(userIdNum)) {
+                    try {
+                        const u = await prisma.user.findUnique({
+                            where: { id: userIdNum },
+                            include: { roles: { include: { role: true } } },
+                        });
+                        const roles = Array.isArray(u?.roles) ? (u!.roles.map((r) => r.role?.name).filter(Boolean) as string[]) : [];
+                        (req as any).user = { sub: userIdNum, roles, email: u?.email, name: u?.name };
+                        return next();
+                    } catch {
+                        // fallback to minimal user if role hydrate fails
+                        (req as any).user = { sub: userIdNum };
+                        return next();
+                    }
+                }
+            }
             return res.status(401).json({ message: 'Invalid token' });
         }
     }
@@ -394,8 +413,22 @@ function authMiddleware(req: any, res: any, next: any) {
     if (userId) {
         const userIdNum = parseInt(String(userId), 10);
         if (Number.isFinite(userIdNum)) {
-            // Create a minimal user object
-            (req as any).user = { sub: userIdNum };
+            // In development, hydrate roles so RBAC works as expected
+            if (process.env.NODE_ENV !== 'production') {
+                try {
+                    const u = await prisma.user.findUnique({
+                        where: { id: userIdNum },
+                        include: { roles: { include: { role: true } } },
+                    });
+                    const roles = Array.isArray(u?.roles) ? (u!.roles.map((r) => r.role?.name).filter(Boolean) as string[]) : [];
+                    (req as any).user = { sub: userIdNum, roles, email: u?.email, name: u?.name };
+                } catch {
+                    (req as any).user = { sub: userIdNum };
+                }
+            } else {
+                // Create a minimal user object
+                (req as any).user = { sub: userIdNum };
+            }
             return next();
         }
     }
@@ -489,13 +522,13 @@ app.get('/api/ideas', authMiddleware, async (req, res) => {
             where.status = { in: ['APPROVED', 'PROMOTED_TO_PROJECT'] };
         } else if (status && status !== 'all') {
             // Committee members can filter by status
-            const map: Record<string, IdeaStatus> = {
+            const map: Record<string, string> = {
                 pending: 'PENDING_REVIEW',
                 approved: 'APPROVED',
                 rejected: 'REJECTED',
                 promoted: 'PROMOTED_TO_PROJECT',
-            } as any;
-            const s = (map[status] as IdeaStatus) || (status as IdeaStatus);
+            };
+            const s = map[status] || status;
             where.status = s;
         }
 
@@ -591,13 +624,13 @@ app.get('/api/ideas', authMiddleware, async (req, res) => {
                     } else if (!isCommittee) {
                         where.status = 'APPROVED';
                     } else if (status && status !== 'all') {
-                        const map: Record<string, IdeaStatus> = {
+                        const map: Record<string, string> = {
                             pending: 'PENDING_REVIEW',
                             approved: 'APPROVED',
                             rejected: 'REJECTED',
                             promoted: 'PROMOTED_TO_PROJECT',
-                        } as any;
-                        const s = (map[status] as IdeaStatus) || (status as IdeaStatus);
+                        };
+                        const s = map[status] || status;
                         where.status = s;
                     }
                     const orderBy: any = sort === 'trending' ? { trendingScore: 'desc' } : sort === 'popularity' ? { voteCount: 'desc' } : { createdAt: 'desc' };
@@ -637,14 +670,14 @@ app.get('/api/ideas', authMiddleware, async (req, res) => {
 });
 
 // Counts for dashboard (pending, approved, rejected, promoted)
-app.get('/api/ideas/counts', authMiddleware, async (_req, res) => {
+app.get('/api/ideas/counts', async (_req, res) => {
     try {
         const [pending, approved, rejected, promoted] = await Promise.all([
-            prisma.idea.count({ where: { status: IdeaStatus.PENDING_REVIEW } }).catch(() => 0),
-            prisma.idea.count({ where: { status: IdeaStatus.APPROVED } }).catch(() => 0),
-            prisma.idea.count({ where: { status: IdeaStatus.REJECTED } }).catch(() => 0),
-            // Many schemas used 'PROMOTED_TO_PROJECT' for promoted stage
-            prisma.idea.count({ where: { OR: [{ status: (IdeaStatus as any).PROMOTED_TO_PROJECT }, { status: (IdeaStatus as any).PROMOTED }] } }).catch(() => 0),
+            prisma.idea.count({ where: { status: 'PENDING_REVIEW' } }).catch(() => 0),
+            prisma.idea.count({ where: { status: 'APPROVED' } }).catch(() => 0),
+            prisma.idea.count({ where: { status: 'REJECTED' } }).catch(() => 0),
+            // Many schemas used 'PROMOTED_TO_PROJECT' for promoted stage (fallback to legacy 'PROMOTED')
+            prisma.idea.count({ where: { OR: [{ status: 'PROMOTED_TO_PROJECT' }, { status: 'PROMOTED' as any }] } }).catch(() => 0),
         ]);
         res.json({ pending, approved, rejected, promoted });
     } catch (err) {
