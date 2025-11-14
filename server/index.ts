@@ -481,9 +481,9 @@ app.get('/api/ideas', authMiddleware, async (req, res) => {
         if (mine === 'true' && user.sub) {
             where.submittedBy = user.sub;
         }
-        // If user is NOT committee and not filtering to their own, only show APPROVED ideas
+        // If user is NOT committee and not filtering to their own, show APPROVED and PROMOTED ideas
         else if (!isCommittee) {
-            where.status = 'APPROVED';
+            where.status = { in: ['APPROVED', 'PROMOTED_TO_PROJECT'] };
         } else if (status && status !== 'all') {
             // Committee members can filter by status
             const map: Record<string, IdeaStatus> = {
