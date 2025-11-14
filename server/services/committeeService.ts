@@ -1,13 +1,12 @@
 import { prisma } from '../prismaClient';
 import type { Prisma } from '@prisma/client';
-import { $Enums } from '@prisma/client';
 
 /**
  * Batch approve/reject ideas for committee efficiency
  */
 export async function batchUpdateIdeas(ideaIds: number[], action: 'APPROVE' | 'REJECT', reviewerId: number, notes?: string): Promise<{ updated: number; failed: number[] }> {
     const failed: number[] = [];
-    const status: Prisma.IdeaStatus = action === 'APPROVE' ? $Enums.IdeaStatus.APPROVED : $Enums.IdeaStatus.REJECTED;
+    const status = action === 'APPROVE' ? 'APPROVED' : 'REJECTED';
 
     try {
         // Use transaction callback for proper typing
@@ -54,13 +53,13 @@ export async function getCommitteeDashboardStats(): Promise<{
 
         // Parallel query execution for performance
         const [pending, approved, rejected, promoted, pendingThisWeek, reviewedIdeas] = await Promise.all([
-            prisma.idea.count({ where: { status: $Enums.IdeaStatus.PENDING_REVIEW } }),
-            prisma.idea.count({ where: { status: $Enums.IdeaStatus.APPROVED } }),
-            prisma.idea.count({ where: { status: $Enums.IdeaStatus.REJECTED } }),
-            prisma.idea.count({ where: { status: $Enums.IdeaStatus.PROMOTED_TO_PROJECT } }),
+            prisma.idea.count({ where: { status: 'PENDING_REVIEW' } }),
+            prisma.idea.count({ where: { status: 'APPROVED' } }),
+            prisma.idea.count({ where: { status: 'REJECTED' } }),
+            prisma.idea.count({ where: { status: 'PROMOTED_TO_PROJECT' } }),
             prisma.idea.count({
                 where: {
-                    status: $Enums.IdeaStatus.PENDING_REVIEW,
+                    status: 'PENDING_REVIEW',
                     createdAt: { gte: oneWeekAgo },
                 },
             }),
@@ -68,7 +67,7 @@ export async function getCommitteeDashboardStats(): Promise<{
             prisma.idea.findMany({
                 where: {
                     reviewedAt: { not: null },
-                    status: { in: [$Enums.IdeaStatus.APPROVED, $Enums.IdeaStatus.REJECTED] },
+                    status: { in: ['APPROVED', 'REJECTED'] },
                 },
                 select: {
                     submittedAt: true,
@@ -140,7 +139,7 @@ export async function getPendingIdeasForReview(options: { limit?: number; offset
 
     try {
         const where: any = {
-            status: $Enums.IdeaStatus.PENDING_REVIEW,
+            status: 'PENDING_REVIEW',
         };
 
         if (category) {
@@ -241,7 +240,7 @@ export async function getCommitteeMemberStats(userId: number): Promise<{
         ]);
 
         // Calculate approval rate
-        const approved = reviewedIdeas.filter((i) => i.status === $Enums.IdeaStatus.APPROVED).length;
+        const approved = reviewedIdeas.filter((i) => i.status === 'APPROVED').length;
         const approvalRate = reviewedIdeas.length > 0 ? (approved / reviewedIdeas.length) * 100 : 0;
 
         // Calculate avg review time

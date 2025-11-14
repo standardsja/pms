@@ -19,7 +19,6 @@ import { initWebSocket, emitIdeaCreated, emitIdeaStatusChanged, emitVoteUpdated,
 import { initAnalyticsJob, stopAnalyticsJob, getAnalytics, getCategoryAnalytics, getTimeBasedAnalytics } from './services/analyticsService';
 import { requestMonitoringMiddleware, trackCacheHit, trackCacheMiss, getMetrics, getHealthStatus, getSlowEndpoints, getErrorProneEndpoints } from './services/monitoringService';
 import type { Prisma } from '@prisma/client';
-import { $Enums } from '@prisma/client';
 import { requireCommittee as requireCommitteeRole, requireAdmin } from './middleware/rbac';
 import { validate, createIdeaSchema, voteSchema, approveRejectIdeaSchema, promoteIdeaSchema, sanitizeInput as sanitize } from './middleware/validation';
 import { errorHandler, notFoundHandler, asyncHandler, NotFoundError, BadRequestError } from './middleware/errorHandler';
@@ -487,16 +486,16 @@ app.get('/api/ideas', authMiddleware, async (req, res) => {
         }
         // If user is NOT committee and not filtering to their own, show APPROVED and PROMOTED ideas
         else if (!isCommittee) {
-            where.status = { in: [$Enums.IdeaStatus.APPROVED, $Enums.IdeaStatus.PROMOTED_TO_PROJECT] };
+            where.status = { in: ['APPROVED', 'PROMOTED_TO_PROJECT'] };
         } else if (status && status !== 'all') {
             // Committee members can filter by status
-            const map: Record<string, Prisma.IdeaStatus> = {
+            const map: Record<string, string> = {
                 pending: 'PENDING_REVIEW',
                 approved: 'APPROVED',
                 rejected: 'REJECTED',
                 promoted: 'PROMOTED_TO_PROJECT',
-            } as any;
-            const s = (map[status] as Prisma.IdeaStatus) || (status as Prisma.IdeaStatus);
+            };
+            const s = map[status] || status;
             where.status = s;
         }
 
@@ -590,15 +589,15 @@ app.get('/api/ideas', authMiddleware, async (req, res) => {
                     if (mine === 'true' && user.sub) {
                         where.submittedBy = user.sub;
                     } else if (!isCommittee) {
-                        where.status = $Enums.IdeaStatus.APPROVED;
+                        where.status = 'APPROVED';
                     } else if (status && status !== 'all') {
-                        const map: Record<string, Prisma.IdeaStatus> = {
+                        const map: Record<string, string> = {
                             pending: 'PENDING_REVIEW',
                             approved: 'APPROVED',
                             rejected: 'REJECTED',
                             promoted: 'PROMOTED_TO_PROJECT',
-                        } as any;
-                        const s = (map[status] as Prisma.IdeaStatus) || (status as Prisma.IdeaStatus);
+                        };
+                        const s = map[status] || status;
                         where.status = s;
                     }
                     const orderBy: any = sort === 'trending' ? { trendingScore: 'desc' } : sort === 'popularity' ? { voteCount: 'desc' } : { createdAt: 'desc' };
@@ -641,11 +640,11 @@ app.get('/api/ideas', authMiddleware, async (req, res) => {
 app.get('/api/ideas/counts', authMiddleware, async (_req, res) => {
     try {
         const [pending, approved, rejected, promoted] = await Promise.all([
-            prisma.idea.count({ where: { status: $Enums.IdeaStatus.PENDING_REVIEW } }).catch(() => 0),
-            prisma.idea.count({ where: { status: $Enums.IdeaStatus.APPROVED } }).catch(() => 0),
-            prisma.idea.count({ where: { status: $Enums.IdeaStatus.REJECTED } }).catch(() => 0),
+            prisma.idea.count({ where: { status: 'PENDING_REVIEW' } }).catch(() => 0),
+            prisma.idea.count({ where: { status: 'APPROVED' } }).catch(() => 0),
+            prisma.idea.count({ where: { status: 'REJECTED' } }).catch(() => 0),
             // Many schemas used 'PROMOTED_TO_PROJECT' for promoted stage (fallback to legacy 'PROMOTED')
-            prisma.idea.count({ where: { OR: [{ status: $Enums.IdeaStatus.PROMOTED_TO_PROJECT }, { status: 'PROMOTED' as any }] } }).catch(() => 0),
+            prisma.idea.count({ where: { OR: [{ status: 'PROMOTED_TO_PROJECT' }, { status: 'PROMOTED' as any }] } }).catch(() => 0),
         ]);
         res.json({ pending, approved, rejected, promoted });
     } catch (err) {
