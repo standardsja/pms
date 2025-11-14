@@ -628,7 +628,7 @@ app.get('/api/ideas', authMiddleware, async (req, res) => {
             stack: e?.stack,
             name: e?.name,
             query: req.query,
-            user: (req as any).user
+            user: (req as any).user,
         });
         const message = String(e?.message || '');
         // Retry once after attempting to patch invalid enum values

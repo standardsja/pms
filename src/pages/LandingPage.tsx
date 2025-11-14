@@ -11,7 +11,7 @@ const LandingPage = () => {
         const authenticated = isAuthenticated();
         const user = getUser();
         const token = getToken();
-        
+
         console.log('LandingPage auth check:', { authenticated, user, token });
 
         // If not authenticated, redirect to login

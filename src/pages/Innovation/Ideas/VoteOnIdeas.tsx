@@ -44,37 +44,39 @@ const VoteOnIdeas = () => {
             return;
         }
         dispatch(setPageTitle(t('innovation.vote.title')));
-        
+
         // Load ideas from API
         const loadIdeas = async () => {
             try {
-                const response = await fetchIdeas({ 
+                const response = await fetchIdeas({
                     includeAttachments: true,
                     status: statusFilters.length ? statusFilters : undefined,
                     category: categoryFilters.length ? categoryFilters : undefined,
                     sort: sortBy,
                     limit: 50, // Load 50 ideas at a time
                 });
-                
+
                 // Handle both paginated and legacy response formats
                 const apiIdeas = response.ideas || response;
-                
-                setIdeas(apiIdeas.map(idea => ({
-                    id: String(idea.id),
-                    title: idea.title,
-                    description: idea.description,
-                    category: idea.category,
-                    submittedBy: idea.submittedBy || 'Unknown',
-                    submittedAt: idea.createdAt ? new Date(idea.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-                    upvotes: Math.max(0, idea.upvoteCount || 0),
-                    downvotes: Math.max(0, idea.downvoteCount || 0),
-                    voteCount: idea.voteCount || 0,
-                    hasVoted: (idea as any).hasVoted || null,
-                    viewCount: idea.viewCount || 0,
-                    trendingScore: idea.voteCount || 0,
-                    firstAttachmentUrl: (idea as any).firstAttachmentUrl || (idea as any).attachments?.[0]?.fileUrl || null,
-                    attachmentsCount: (idea as any).attachments?.length || 0,
-                })));
+
+                setIdeas(
+                    apiIdeas.map((idea) => ({
+                        id: String(idea.id),
+                        title: idea.title,
+                        description: idea.description,
+                        category: idea.category,
+                        submittedBy: idea.submittedBy || 'Unknown',
+                        submittedAt: idea.createdAt ? new Date(idea.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+                        upvotes: Math.max(0, idea.upvoteCount || 0),
+                        downvotes: Math.max(0, idea.downvoteCount || 0),
+                        voteCount: idea.voteCount || 0,
+                        hasVoted: (idea as any).hasVoted || null,
+                        viewCount: idea.viewCount || 0,
+                        trendingScore: idea.voteCount || 0,
+                        firstAttachmentUrl: (idea as any).firstAttachmentUrl || (idea as any).attachments?.[0]?.fileUrl || null,
+                        attachmentsCount: (idea as any).attachments?.length || 0,
+                    }))
+                );
             } catch (error) {
                 console.error('[VoteOnIdeas] Error loading ideas:', error);
                 // Only show error on first load, not background polling
@@ -91,7 +93,7 @@ const VoteOnIdeas = () => {
                 }
             }
         };
-        
+
         loadIdeas();
         // Polling for real-time updates - reduced from 15s to 60s with caching
         const intervalId = setInterval(() => {
@@ -120,22 +122,24 @@ const VoteOnIdeas = () => {
 
     // Helper function to update idea state from server response
     const updateIdeaState = (updatedIdea: any) => {
-        setIdeas(ideas.map(i => 
-            i.id === String(updatedIdea.id)
-                ? {
-                    ...i,
-                    upvotes: updatedIdea.upvoteCount || 0,
-                    downvotes: updatedIdea.downvoteCount || 0,
-                    voteCount: updatedIdea.voteCount || 0,
-                    hasVoted: updatedIdea.hasVoted || null,
-                    viewCount: updatedIdea.viewCount || i.viewCount,
-                }
-                : i
-        ));
+        setIdeas(
+            ideas.map((i) =>
+                i.id === String(updatedIdea.id)
+                    ? {
+                          ...i,
+                          upvotes: updatedIdea.upvoteCount || 0,
+                          downvotes: updatedIdea.downvoteCount || 0,
+                          voteCount: updatedIdea.voteCount || 0,
+                          hasVoted: updatedIdea.hasVoted || null,
+                          viewCount: updatedIdea.viewCount || i.viewCount,
+                      }
+                    : i
+            )
+        );
     };
 
     const handleVote = async (ideaId: string, voteType: 'up' | 'down') => {
-        const idea = ideas.find(i => i.id === ideaId);
+        const idea = ideas.find((i) => i.id === ideaId);
         if (!idea) return;
 
         setVoteAnimation(ideaId);
@@ -147,37 +151,33 @@ const VoteOnIdeas = () => {
                 await removeVote(ideaId);
                 const updatedIdea = await fetchIdeaById(ideaId);
                 updateIdeaState(updatedIdea);
-                
+
                 void Swal.fire({
                     toast: true,
                     position: 'bottom-end',
                     showConfirmButton: false,
                     timer: 1500,
                     icon: 'info',
-                    title: voteType === 'up' 
-                        ? t('innovation.vote.actions.removeUpvote')
-                        : t('innovation.vote.actions.removeDownvote', { defaultValue: 'Downvote removed' }),
+                    title: voteType === 'up' ? t('innovation.vote.actions.removeUpvote') : t('innovation.vote.actions.removeDownvote', { defaultValue: 'Downvote removed' }),
                 });
             } else {
                 // Add or switch vote
                 await voteForIdea(ideaId, voteType === 'up' ? 'UPVOTE' : 'DOWNVOTE');
                 const updatedIdea = await fetchIdeaById(ideaId);
                 updateIdeaState(updatedIdea);
-                
+
                 void Swal.fire({
                     toast: true,
                     position: 'bottom-end',
                     showConfirmButton: false,
                     timer: 1500,
                     icon: 'success',
-                    title: voteType === 'up'
-                        ? t('innovation.vote.actions.upvote')
-                        : t('innovation.vote.actions.downvote', { defaultValue: 'Downvoted!' }),
+                    title: voteType === 'up' ? t('innovation.vote.actions.upvote') : t('innovation.vote.actions.downvote', { defaultValue: 'Downvoted!' }),
                 });
             }
         } catch (error) {
             console.error('[VoteOnIdeas] Error voting:', error);
-            
+
             // Check if vote limit reached
             if (error instanceof Error && error.message === 'VOTE_LIMIT_REACHED') {
                 void Swal.fire({
@@ -188,7 +188,7 @@ const VoteOnIdeas = () => {
                 });
                 return;
             }
-            
+
             // Check if it's a duplicate vote error
             if (error instanceof Error && error.message.includes('already voted')) {
                 void Swal.fire({
@@ -201,7 +201,7 @@ const VoteOnIdeas = () => {
                     showConfirmButton: false,
                     timerProgressBar: true,
                 });
-                
+
                 // Refresh from server to get correct state
                 try {
                     const updatedIdea = await fetchIdeaById(ideaId);
@@ -224,13 +224,66 @@ const VoteOnIdeas = () => {
 
     const getCategoryIcon = (category: string) => {
         const icons: Record<string, JSX.Element> = {
-            TECHNOLOGY: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>,
-            SUSTAINABILITY: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
-            CUSTOMER_SERVICE: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>,
-            PROCESS_IMPROVEMENT: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>,
-            COST_REDUCTION: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
-            PRODUCT_INNOVATION: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>,
-            OTHER: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>,
+            TECHNOLOGY: (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+            ),
+            SUSTAINABILITY: (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                </svg>
+            ),
+            CUSTOMER_SERVICE: (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                    />
+                </svg>
+            ),
+            PROCESS_IMPROVEMENT: (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+            ),
+            COST_REDUCTION: (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                </svg>
+            ),
+            PRODUCT_INNOVATION: (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"
+                    />
+                </svg>
+            ),
+            OTHER: (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
+                    />
+                </svg>
+            ),
         };
         return icons[category] || icons.OTHER;
     };
@@ -241,9 +294,9 @@ const VoteOnIdeas = () => {
         return new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime();
     });
 
-    const filteredIdeas = showVotedOnly ? sortedIdeas.filter(i => i.hasVoted !== null) : sortedIdeas;
+    const filteredIdeas = showVotedOnly ? sortedIdeas.filter((i) => i.hasVoted !== null) : sortedIdeas;
 
-    const totalVotes = ideas.filter(i => i.hasVoted !== null).length;
+    const totalVotes = ideas.filter((i) => i.hasVoted !== null).length;
     const votingPower = Math.max(0, 10 - totalVotes);
 
     return (
@@ -259,7 +312,12 @@ const VoteOnIdeas = () => {
                         <div>
                             <h1 className="text-4xl font-black mb-2 flex items-center gap-3">
                                 <svg className="w-14 h-14" fill="none" stroke="currentColor" viewBox="0 0 24 24" role="img" aria-label="ballot">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
+                                    />
                                 </svg>
                                 {t('innovation.vote.title')}
                             </h1>
@@ -282,10 +340,20 @@ const VoteOnIdeas = () => {
                         <div className="hidden lg:block opacity-50">
                             <div className="flex items-center gap-4">
                                 <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" />
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5"
+                                    />
                                 </svg>
                                 <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14H5.236a2 2 0 01-1.789-2.894l3.5-7A2 2 0 018.736 3h4.018a2 2 0 01.485.06l3.76.94m-7 10v5a2 2 0 002 2h.096c.5 0 .905-.405.905-.904 0-.715.211-1.413.608-2.008L17 13V4m-7 10h2m5-10h2a2 2 0 012 2v6a2 2 0 01-2 2h-2.5" />
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M10 14H5.236a2 2 0 01-1.789-2.894l3.5-7A2 2 0 018.736 3h4.018a2 2 0 01.485.06l3.76.94m-7 10v5a2 2 0 002 2h.096c.5 0 .905-.405.905-.904 0-.715.211-1.413.608-2.008L17 13V4m-7 10h2m5-10h2a2 2 0 012 2v6a2 2 0 01-2 2h-2.5"
+                                    />
                                 </svg>
                             </div>
                         </div>
@@ -308,13 +376,7 @@ const VoteOnIdeas = () => {
                                         : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
                                 }`}
                                 aria-pressed={sortBy === sort}
-                                aria-label={
-                                    sort === 'trending'
-                                        ? t('innovation.vote.sort.trending')
-                                        : sort === 'popular'
-                                        ? t('innovation.vote.sort.popular')
-                                        : t('innovation.vote.sort.recent')
-                                }
+                                aria-label={sort === 'trending' ? t('innovation.vote.sort.trending') : sort === 'popular' ? t('innovation.vote.sort.popular') : t('innovation.vote.sort.recent')}
                             >
                                 <span className="inline-flex items-center gap-1.5">
                                     {sort === 'trending' && (
@@ -324,7 +386,12 @@ const VoteOnIdeas = () => {
                                     )}
                                     {sort === 'popular' && (
                                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                                            <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth={2}
+                                                d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
+                                            />
                                         </svg>
                                     )}
                                     {sort === 'recent' && (
@@ -341,19 +408,21 @@ const VoteOnIdeas = () => {
                 <div className="flex items-center gap-3 flex-wrap">
                     <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Status:</span>
                     <div className="flex flex-wrap gap-2">
-                        {['PENDING_REVIEW','APPROVED','REJECTED','PROMOTED_TO_PROJECT'].map((s) => {
+                        {['PENDING_REVIEW', 'APPROVED', 'REJECTED', 'PROMOTED_TO_PROJECT'].map((s) => {
                             const active = statusFilters.includes(s);
                             const labels: Record<string, string> = {
-                                'PENDING_REVIEW': 'Pending Review',
-                                'APPROVED': 'Approved',
-                                'REJECTED': 'Rejected',
-                                'PROMOTED_TO_PROJECT': 'Promoted'
+                                PENDING_REVIEW: 'Pending Review',
+                                APPROVED: 'Approved',
+                                REJECTED: 'Rejected',
+                                PROMOTED_TO_PROJECT: 'Promoted',
                             };
                             return (
                                 <button
                                     key={s}
-                                    onClick={() => setStatusFilters(active ? statusFilters.filter(x => x !== s) : [...statusFilters, s])}
-                                    className={`px-3 py-1 rounded-full text-xs font-medium transition ${active ? 'bg-secondary text-white shadow' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
+                                    onClick={() => setStatusFilters(active ? statusFilters.filter((x) => x !== s) : [...statusFilters, s])}
+                                    className={`px-3 py-1 rounded-full text-xs font-medium transition ${
+                                        active ? 'bg-secondary text-white shadow' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                                    }`}
                                     aria-pressed={active}
                                 >
                                     {labels[s] || s}
@@ -365,14 +434,16 @@ const VoteOnIdeas = () => {
                 <div className="flex items-center gap-3 flex-wrap">
                     <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Category:</span>
                     <div className="flex flex-wrap gap-2">
-                        {['Process Improvement','Technology','Customer Service','Sustainability','Cost Reduction','Product Innovation','Other'].map((cat, idx) => {
-                            const catKey = ['PROCESS_IMPROVEMENT','TECHNOLOGY','CUSTOMER_SERVICE','SUSTAINABILITY','COST_REDUCTION','PRODUCT_INNOVATION','OTHER'][idx];
+                        {['Process Improvement', 'Technology', 'Customer Service', 'Sustainability', 'Cost Reduction', 'Product Innovation', 'Other'].map((cat, idx) => {
+                            const catKey = ['PROCESS_IMPROVEMENT', 'TECHNOLOGY', 'CUSTOMER_SERVICE', 'SUSTAINABILITY', 'COST_REDUCTION', 'PRODUCT_INNOVATION', 'OTHER'][idx];
                             const active = categoryFilters.includes(catKey);
                             return (
                                 <button
                                     key={catKey}
-                                    onClick={() => setCategoryFilters(active ? categoryFilters.filter(c => c !== catKey) : [...categoryFilters, catKey])}
-                                    className={`px-3 py-1 rounded-full text-xs font-medium transition ${active ? 'bg-primary text-white shadow' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
+                                    onClick={() => setCategoryFilters(active ? categoryFilters.filter((c) => c !== catKey) : [...categoryFilters, catKey])}
+                                    className={`px-3 py-1 rounded-full text-xs font-medium transition ${
+                                        active ? 'bg-primary text-white shadow' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                                    }`}
                                     aria-pressed={active}
                                 >
                                     {cat}
@@ -382,18 +453,17 @@ const VoteOnIdeas = () => {
                     </div>
                 </div>
                 <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                        type="checkbox"
-                        className="form-checkbox"
-                        checked={showVotedOnly}
-                        onChange={(e) => setShowVotedOnly(e.target.checked)}
-                        aria-checked={showVotedOnly}
-                    />
+                    <input type="checkbox" className="form-checkbox" checked={showVotedOnly} onChange={(e) => setShowVotedOnly(e.target.checked)} aria-checked={showVotedOnly} />
                     <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Show only voted ideas</span>
                 </label>
                 <button
                     type="button"
-                    onClick={() => { setStatusFilters(['PENDING_REVIEW']); setCategoryFilters([]); setSortBy('trending'); setShowVotedOnly(false); }}
+                    onClick={() => {
+                        setStatusFilters(['PENDING_REVIEW']);
+                        setCategoryFilters([]);
+                        setSortBy('trending');
+                        setShowVotedOnly(false);
+                    }}
                     className="btn btn-outline-danger btn-sm"
                 >
                     Clear Filters
@@ -403,12 +473,7 @@ const VoteOnIdeas = () => {
             {/* Ideas Cards */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {filteredIdeas.map((idea, index) => (
-                    <div
-                        key={idea.id}
-                        className={`panel hover:shadow-xl transition-all duration-300 ${
-                            voteAnimation === idea.id ? 'scale-105' : ''
-                        }`}
-                    >
+                    <div key={idea.id} className={`panel hover:shadow-xl transition-all duration-300 ${voteAnimation === idea.id ? 'scale-105' : ''}`}>
                         {/* Rank Badge */}
                         {sortBy === 'trending' && index < 3 && (
                             <div className="absolute -top-3 -left-3 w-12 h-12 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center shadow-lg z-10 animate-pulse">
@@ -428,7 +493,7 @@ const VoteOnIdeas = () => {
                                         className={`group relative p-3 rounded-xl transition-all transform ${
                                             idea.hasVoted === 'up'
                                                 ? 'bg-gradient-to-br from-green-500 to-emerald-600 text-white shadow-lg scale-110'
-                                                : (votingPower === 0)
+                                                : votingPower === 0
                                                 ? 'bg-gray-200 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
                                                 : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gradient-to-br hover:from-green-500 hover:to-emerald-600 hover:text-white hover:scale-110 hover:shadow-lg'
                                         }`}
@@ -447,7 +512,7 @@ const VoteOnIdeas = () => {
                                         className={`group relative p-3 rounded-xl transition-all transform ${
                                             idea.hasVoted === 'down'
                                                 ? 'bg-gradient-to-br from-red-500 to-rose-600 text-white shadow-lg scale-110'
-                                                : (votingPower === 0)
+                                                : votingPower === 0
                                                 ? 'bg-gray-200 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
                                                 : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gradient-to-br hover:from-red-500 hover:to-rose-600 hover:text-white hover:scale-110 hover:shadow-lg'
                                         }`}
@@ -459,17 +524,16 @@ const VoteOnIdeas = () => {
                                         </svg>
                                     </button>
                                 </div>
-                                
+
                                 {/* Vote Count Display */}
                                 <div className="text-center">
-                                    <div className={`text-2xl font-black inline-flex items-center gap-1 ${
-                                        idea.voteCount > 0 
-                                            ? 'text-green-600 dark:text-green-400' 
-                                            : idea.voteCount < 0 
-                                            ? 'text-red-600 dark:text-red-400'
-                                            : 'text-gray-900 dark:text-white'
-                                    }`}>
-                                        {idea.voteCount > 0 ? '▲' : idea.voteCount < 0 ? '▼' : '•'} {idea.voteCount > 0 ? '+' : ''}{idea.voteCount}
+                                    <div
+                                        className={`text-2xl font-black inline-flex items-center gap-1 ${
+                                            idea.voteCount > 0 ? 'text-green-600 dark:text-green-400' : idea.voteCount < 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'
+                                        }`}
+                                    >
+                                        {idea.voteCount > 0 ? '▲' : idea.voteCount < 0 ? '▼' : '•'} {idea.voteCount > 0 ? '+' : ''}
+                                        {idea.voteCount}
                                     </div>
                                     <div className="text-xs text-gray-500 dark:text-gray-400">score</div>
                                     {/* Vote breakdown */}
@@ -505,10 +569,7 @@ const VoteOnIdeas = () => {
                                 <div className="flex items-start gap-3 mb-3">
                                     <span className="text-3xl">{getCategoryIcon(idea.category)}</span>
                                     <div className="flex-1">
-                                        <Link
-                                            to={`/innovation/ideas/${idea.id}`}
-                                            className="text-xl font-bold text-gray-900 dark:text-white hover:text-primary transition-colors line-clamp-2"
-                                        >
+                                        <Link to={`/innovation/ideas/${idea.id}`} className="text-xl font-bold text-gray-900 dark:text-white hover:text-primary transition-colors line-clamp-2">
                                             {idea.title}
                                         </Link>
                                         <div className="flex items-center gap-2 mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -518,25 +579,26 @@ const VoteOnIdeas = () => {
                                             {idea.firstAttachmentUrl && (
                                                 <span className="ml-2 inline-flex items-center gap-1">
                                                     <img src={idea.firstAttachmentUrl} alt="thumb" className="w-6 h-6 rounded object-cover border" loading="lazy" />
-                                                    {idea.attachmentsCount && idea.attachmentsCount > 1 && (
-                                                        <span className="text-xs text-gray-400">+{idea.attachmentsCount - 1}</span>
-                                                    )}
+                                                    {idea.attachmentsCount && idea.attachmentsCount > 1 && <span className="text-xs text-gray-400">+{idea.attachmentsCount - 1}</span>}
                                                 </span>
                                             )}
                                         </div>
                                     </div>
                                 </div>
 
-                                <p className="text-gray-700 dark:text-gray-300 mb-4 line-clamp-3">
-                                    {idea.description}
-                                </p>
+                                <p className="text-gray-700 dark:text-gray-300 mb-4 line-clamp-3">{idea.description}</p>
 
                                 <div className="flex items-center justify-between pt-3 border-t border-gray-200 dark:border-gray-700">
                                     <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
                                         <span className="flex items-center gap-1">
                                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                <path
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                    strokeWidth={2}
+                                                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                                                />
                                             </svg>
                                             {t('innovation.view.engagement.views', { count: idea.viewCount })}
                                         </span>
@@ -562,14 +624,15 @@ const VoteOnIdeas = () => {
             {filteredIdeas.length === 0 && (
                 <div className="panel text-center py-16">
                     <svg className="w-24 h-24 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" role="img" aria-label="ballot">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                        <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
+                        />
                     </svg>
-                    <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-                        {showVotedOnly ? t('innovation.vote.empty.noVoted.title') : t('innovation.vote.empty.noIdeas.title')}
-                    </h3>
-                    <p className="text-gray-600 dark:text-gray-400 mb-6">
-                        {showVotedOnly ? t('innovation.vote.empty.noVoted.message') : t('innovation.vote.empty.noIdeas.message')}
-                    </p>
+                    <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{showVotedOnly ? t('innovation.vote.empty.noVoted.title') : t('innovation.vote.empty.noIdeas.title')}</h3>
+                    <p className="text-gray-600 dark:text-gray-400 mb-6">{showVotedOnly ? t('innovation.vote.empty.noVoted.message') : t('innovation.vote.empty.noIdeas.message')}</p>
                     {showVotedOnly && (
                         <button onClick={() => setShowVotedOnly(false)} className="btn btn-primary">
                             {t('innovation.vote.empty.noVoted.action')}
@@ -583,7 +646,12 @@ const VoteOnIdeas = () => {
                 <div className="panel bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-200 dark:border-amber-800">
                     <div className="flex items-center gap-3">
                         <svg className="w-12 h-12 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" role="img" aria-label="warning">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                            />
                         </svg>
                         <div>
                             <h4 className="font-bold text-amber-900 dark:text-amber-300">{t('innovation.vote.warning.noVotesLeft.title')}</h4>
