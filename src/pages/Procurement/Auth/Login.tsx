@@ -39,7 +39,7 @@ const Login = () => {
 
         try {
             // Primary: real password login
-            let res = await fetch('/api/auth/login', {
+            let res = await fetch('http://heron:4000/api/auth/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password }),

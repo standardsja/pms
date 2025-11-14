@@ -84,6 +84,9 @@ app.get('/health', async (_req, res) => {
   }
 });
 
+app.get('/api/ping', (_req, res) => {
+  res.json({ pong: true });
+});
 // Auth endpoints
 app.post('/api/auth/login', async (req, res) => {
   try {
