@@ -162,7 +162,9 @@ const SubmitIdea = () => {
             try {
                 const user = getUser();
                 const token = getToken();
-                const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
+                // Use the configured API host when available (Vite builds set VITE_API_URL).
+                // Fall back to relative paths when not set so the dev proxy still works.
+                const apiBase = import.meta.env.VITE_API_URL || '';
                 const headers: Record<string, string> = {
                     'Content-Type': 'application/json',
                 };
@@ -177,8 +179,16 @@ const SubmitIdea = () => {
                     body: JSON.stringify({ title: debouncedTitle, description: debouncedDesc }),
                 });
                 if (res.ok) {
-                    const data = await res.json();
-                    if (active) setDuplicateMatches(data.matches || []);
+                    const ct = (res.headers.get('content-type') || '').toLowerCase();
+                    if (!ct.includes('application/json')) {
+                        // Likely served index.html (HTML) because the app called the wrong host/origin.
+                        const text = await res.text();
+                        console.warn('[SubmitIdea] duplicate-check returned non-JSON response:', text.substring(0, 300));
+                        if (active) setDuplicateMatches([]);
+                    } else {
+                        const data = await res.json();
+                        if (active) setDuplicateMatches(data.matches || []);
+                    }
                 }
             } catch (err) {
                 console.warn('[SubmitIdea] duplicate check failed:', err);

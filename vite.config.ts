@@ -4,9 +4,7 @@ import path from 'path';
 
 // https://vitejs.dev/config/
 export default defineConfig({
-    plugins: [
-        react(),
-    ],
+    plugins: [react()],
     resolve: {
         alias: {
             '@': path.resolve(__dirname, './src'),
@@ -15,6 +13,10 @@ export default defineConfig({
     server: {
         host: '0.0.0.0', // Listen on all interfaces for server deployment
         port: 5173,
+        // Allow requests addressed to specific hostnames when developing on a remote/devbox.
+        // Read from `VITE_ALLOWED_HOSTS` env var (comma-separated) or fall back to a safe default.
+        // CAUTION: This is for development only — do not expose arbitrary hosts in production.
+        allowedHosts: process.env.VITE_ALLOWED_HOSTS ? process.env.VITE_ALLOWED_HOSTS.split(',').map((s) => s.trim()) : ['heron', 'localhost', '127.0.0.1'],
         proxy: {
             // Proxy API requests to the unified TypeScript backend
             // Uses VITE_API_URL from .env if available, otherwise localhost
