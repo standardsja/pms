@@ -88,24 +88,9 @@ const Login = () => {
             const userRoles = user.roles || (user.role ? [user.role] : []);
             if (userRoles.includes('INNOVATION_COMMITTEE')) {
                 navigate('/innovation/committee/dashboard');
-            } else if (
-                userRoles.includes('PROCUREMENT_MANAGER') ||
-                userRoles.includes('MANAGER') ||
-                userRoles.some((r: string) => r && r.toUpperCase().includes('MANAGER'))
-            ) {
-                navigate('/procurement/manager');
-            } else if (
-                userRoles.includes('PROCUREMENT_OFFICER') ||
-                userRoles.includes('PROCUREMENT')
-            ) {
-                navigate('/procurement/dashboard');
-            } else if (userRoles.includes('SUPPLIER') || userRoles.some((r: string) => r && r.toUpperCase().includes('SUPPLIER'))) {
-                navigate('/supplier');
-            } else if (userRoles.some((r: string) => r && r.toUpperCase().includes('REQUEST'))) {
-                navigate('/apps/requests');
             } else {
-                // Fallback to onboarding selector
-                navigate('/onboarding');
+                // All other users go to ModuleSelector onboarding
+                navigate('/');
             }
         } catch (err: any) {
             setError(err?.message || 'Login failed. Please try again.');
@@ -138,7 +123,7 @@ const Login = () => {
                         return;
                     }
                 }
-                navigate('/onboarding');
+                navigate('/');
             } else {
                 setError('Please enter a valid 6-digit code');
             }
