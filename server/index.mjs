@@ -363,7 +363,19 @@ app.get('/requests', async (req, res) => {
 		const where = {};
 		if (assignee) where.currentAssigneeId = Number(assignee);
 		if (requester) where.requesterId = Number(requester);
-		if (status) where.status = String(status);
+		if (status && status.trim()) {
+			// Validate that status is a valid RequestStatus enum value
+			const validStatuses = [
+				'DRAFT', 'SUBMITTED', 'DEPARTMENT_REVIEW', 'DEPARTMENT_RETURNED',
+				'DEPARTMENT_APPROVED', 'HOD_REVIEW', 'PROCUREMENT_REVIEW', 
+				'FINANCE_REVIEW', 'FINANCE_RETURNED', 'FINANCE_APPROVED',
+				'SENT_TO_VENDOR', 'CLOSED', 'REJECTED'
+			];
+			const statusStr = String(status).trim().toUpperCase();
+			if (validStatuses.includes(statusStr)) {
+				where.status = statusStr;
+			}
+		}
 		if (departmentId) where.departmentId = Number(departmentId);
 
 		const list = await prisma.request.findMany({ where, orderBy: { createdAt: 'desc' }, include: { items: true, requester: true, department: true, currentAssignee: true, statusHistory: true } });
