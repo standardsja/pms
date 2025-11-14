@@ -87,7 +87,6 @@ const CommitteeDashboard = lazy(() => import('../pages/Innovation/Committee/Comm
 const CommitteeReviewIdeas = lazy(() => import('../pages/Innovation/Committee/ReviewIdeas'));
 const InnovationAnalytics = lazy(() => import('../pages/Innovation/Ideas/Analytics'));
 
-
 const routes = [
     // ============================================
     // AUTH ROUTES
@@ -112,7 +111,7 @@ const routes = [
         element: <Onboarding />,
         layout: 'blank',
     },
-    
+
     // ============================================
     // MODULE SELECTOR / ONBOARDING
     // ============================================
@@ -126,7 +125,7 @@ const routes = [
         path: '/modules',
         element: <ModuleSelector />,
     },
-    
+
     // ============================================
     // INNOVATION HUB MODULE
     // ============================================
@@ -202,7 +201,7 @@ const routes = [
             </CommitteeRoute>
         ), // TODO: Create detailed review page
     },
-    
+
     // ============================================
     // MAIN DASHBOARD - Now points to module selector
     // ============================================
@@ -210,7 +209,7 @@ const routes = [
         path: '/procurement',
         element: <ProcurementDashboard />,
     },
-    
+
     // ============================================
     // PROCUREMENT MODULE
     // ============================================
@@ -394,7 +393,7 @@ const routes = [
         path: '/procurement/executive/signoffs',
         element: <ExecutiveDigitalSignoffs />,
     },
-    
+
     // ============================================
     // REQUEST ROUTES
     // ============================================
@@ -414,7 +413,7 @@ const routes = [
         path: '/apps/requests/edit/:id',
         element: <RequestForm />,
     },
-    
+
     // ============================================
     // ADMIN ROUTES
     // ============================================
@@ -426,7 +425,7 @@ const routes = [
             </AdminRoute>
         ),
     },
-    
+
     // ============================================
     // USER PAGES
     // ============================================
@@ -446,7 +445,7 @@ const routes = [
         path: '/help',
         element: <HelpSupport />,
     },
-    
+
     // ============================================
     // ERROR HANDLING - MUST BE LAST
     // ============================================
