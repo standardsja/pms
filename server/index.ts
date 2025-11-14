@@ -373,7 +373,7 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
     }
 });
 
-function authMiddleware(req: any, res: any, next: any) {
+async function authMiddleware(req: any, res: any, next: any) {
     // Accept either Bearer token OR x-user-id header for flexibility
     const auth = req.headers.authorization || '';
     const userId = req.headers['x-user-id'];
@@ -386,12 +386,23 @@ function authMiddleware(req: any, res: any, next: any) {
             (req as any).user = payload;
             return next();
         } catch {
-            // In development, fall back to x-user-id instead of failing hard for easier testing
+            // In development, fall back to x-user-id and hydrate roles from DB
             if (process.env.NODE_ENV !== 'production' && userId) {
                 const userIdNum = parseInt(String(userId), 10);
                 if (Number.isFinite(userIdNum)) {
-                    (req as any).user = { sub: userIdNum };
-                    return next();
+                    try {
+                        const u = await prisma.user.findUnique({
+                            where: { id: userIdNum },
+                            include: { roles: { include: { role: true } } },
+                        });
+                        const roles = Array.isArray(u?.roles) ? (u!.roles.map((r) => r.role?.name).filter(Boolean) as string[]) : [];
+                        (req as any).user = { sub: userIdNum, roles, email: u?.email, name: u?.name };
+                        return next();
+                    } catch {
+                        // fallback to minimal user if role hydrate fails
+                        (req as any).user = { sub: userIdNum };
+                        return next();
+                    }
                 }
             }
             return res.status(401).json({ message: 'Invalid token' });
@@ -402,8 +413,22 @@ function authMiddleware(req: any, res: any, next: any) {
     if (userId) {
         const userIdNum = parseInt(String(userId), 10);
         if (Number.isFinite(userIdNum)) {
-            // Create a minimal user object
-            (req as any).user = { sub: userIdNum };
+            // In development, hydrate roles so RBAC works as expected
+            if (process.env.NODE_ENV !== 'production') {
+                try {
+                    const u = await prisma.user.findUnique({
+                        where: { id: userIdNum },
+                        include: { roles: { include: { role: true } } },
+                    });
+                    const roles = Array.isArray(u?.roles) ? (u!.roles.map((r) => r.role?.name).filter(Boolean) as string[]) : [];
+                    (req as any).user = { sub: userIdNum, roles, email: u?.email, name: u?.name };
+                } catch {
+                    (req as any).user = { sub: userIdNum };
+                }
+            } else {
+                // Create a minimal user object
+                (req as any).user = { sub: userIdNum };
+            }
             return next();
         }
     }
