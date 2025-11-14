@@ -21,6 +21,8 @@ interface Idea {
     viewCount: number;
     status: 'APPROVED' | 'UNDER_REVIEW' | 'IMPLEMENTED';
     tags: string[];
+    firstAttachmentUrl?: string | null;
+    attachmentsCount?: number;
 }
 
 const ViewIdeas = () => {
@@ -28,6 +30,9 @@ const ViewIdeas = () => {
     const { t } = useTranslation();
     const [ideas, setIdeas] = useState<Idea[]>([]);
     const [filter, setFilter] = useState('all');
+    const [statusFilters, setStatusFilters] = useState<string[]>([]);
+    const [categoryFilters, setCategoryFilters] = useState<string[]>([]);
+    const [sortBy, setSortBy] = useState<'recent' | 'popular' | 'trending'>('recent');
     const [searchTerm, setSearchTerm] = useState('');
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
     const [isLoading, setIsLoading] = useState(true);
@@ -55,31 +60,44 @@ const ViewIdeas = () => {
                 ? 'IMPLEMENTED'
                 : 'UNDER_REVIEW') as Idea['status'],
             tags: [],
+            firstAttachmentUrl: (idea as any).firstAttachmentUrl || (idea as any).attachments?.[0]?.fileUrl || null,
+            attachmentsCount: (idea as any).attachments?.length || 0,
         }));
 
         const loadIdeas = async (showLoader = true) => {
             if (showLoader) setIsLoading(true);
             try {
-                const apiIdeas = await fetchIdeas();
+                const response = await fetchIdeas({ 
+                    includeAttachments: true,
+                    status: statusFilters.length ? statusFilters : undefined,
+                    category: categoryFilters.length ? categoryFilters : undefined,
+                    sort: sortBy,
+                    limit: 50,
+                });
+                // Handle both paginated and legacy response formats
+                const apiIdeas = response.ideas || response;
                 if (active) setIdeas(mapIdeas(apiIdeas));
             } catch (error) {
                 console.error('[ViewIdeas] Error loading ideas:', error);
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Error loading ideas',
-                    text: error instanceof Error ? error.message : 'Failed to load ideas',
-                    toast: true,
-                    position: 'bottom-end',
-                    showConfirmButton: false,
-                    timer: 3000,
-                });
+                // Only show error on initial load, not background polling
+                if (active && !ideas.length) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Unable to Load Ideas',
+                        text: 'We encountered a problem loading ideas. Please check your connection and try again.',
+                        toast: true,
+                        position: 'bottom-end',
+                        showConfirmButton: false,
+                        timer: 3500,
+                    });
+                }
             } finally {
                 if (active) setIsLoading(false);
             }
         };
 
-        loadIdeas();
-        const intervalId = setInterval(() => loadIdeas(false), 15000);
+    loadIdeas();
+        const intervalId = setInterval(() => loadIdeas(false), 60000);
         const visibilityHandler = () => {
             if (document.visibilityState === 'visible') loadIdeas(false);
         };
@@ -89,7 +107,25 @@ const ViewIdeas = () => {
             clearInterval(intervalId);
             document.removeEventListener('visibilitychange', visibilityHandler);
         };
-    }, [dispatch, t]);
+    }, [dispatch, t, statusFilters, categoryFilters, sortBy]);
+
+    // Persist filters
+    useEffect(() => {
+        const saved = localStorage.getItem('ideasFilters');
+        if (saved) {
+            try {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed.status)) setStatusFilters(parsed.status);
+                if (Array.isArray(parsed.category)) setCategoryFilters(parsed.category);
+                if (parsed.sort) setSortBy(parsed.sort);
+            } catch {}
+        }
+    }, []);
+
+    useEffect(() => {
+        const payload = JSON.stringify({ status: statusFilters, category: categoryFilters, sort: sortBy });
+        localStorage.setItem('ideasFilters', payload);
+    }, [statusFilters, categoryFilters, sortBy]);
 
     const getCategoryColor = (category: string) => {
         const colors: Record<string, string> = {
@@ -105,20 +141,31 @@ const ViewIdeas = () => {
     };
 
     const getStatusBadge = (status: string) => {
-        const badges: Record<string, { color: string; icon: string }> = {
-            APPROVED: { color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300', icon: '✓' },
-            UNDER_REVIEW: { color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300', icon: '⏳' },
-            IMPLEMENTED: { color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300', icon: '🎉' },
+        const badges: Record<string, { color: string; icon: JSX.Element }> = {
+            APPROVED: { 
+                color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300', 
+                icon: <svg className="w-3.5 h-3.5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> 
+            },
+            UNDER_REVIEW: { 
+                color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300', 
+                icon: <svg className="w-3.5 h-3.5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> 
+            },
+            IMPLEMENTED: { 
+                color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300', 
+                icon: <svg className="w-3.5 h-3.5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg> 
+            },
         };
         return badges[status] || badges.APPROVED;
     };
 
     const filteredIdeas = ideas.filter(idea => {
-        const matchesFilter = filter === 'all' || idea.category === filter;
+        const matchesCategoryUI = filter === 'all' || idea.category === filter;
+        const matchesMultiCategory = categoryFilters.length ? categoryFilters.includes(idea.category) : true;
+        const matchesMultiStatus = statusFilters.length ? statusFilters.includes(idea.status === 'UNDER_REVIEW' ? 'PENDING_REVIEW' : (idea.status === 'IMPLEMENTED' ? 'PROMOTED_TO_PROJECT' : idea.status)) : true;
         const matchesSearch = idea.title.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
                             idea.description.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
                             idea.tags.some(tag => tag.toLowerCase().includes(debouncedSearch.toLowerCase()));
-        return matchesFilter && matchesSearch;
+        return matchesCategoryUI && matchesMultiCategory && matchesMultiStatus && matchesSearch;
     });
 
     return (
@@ -127,7 +174,9 @@ const ViewIdeas = () => {
             <div className="flex items-start justify-between">
                 <div>
                     <h1 className="text-4xl font-black text-gray-900 dark:text-white flex items-center gap-3">
-                        <span className="text-5xl" role="img" aria-label="diamond">💎</span>
+                        <svg className="w-12 h-12 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" role="img" aria-label="diamond">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                        </svg>
                         {t('innovation.view.title')}
                     </h1>
                     <p className="text-lg text-gray-600 dark:text-gray-400 mt-2">
@@ -175,23 +224,82 @@ const ViewIdeas = () => {
                             </svg>
                         </div>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-col gap-2">
                         <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{t('innovation.view.filters.category')}</span>
+                        <div className="flex flex-wrap gap-2">
+                            {['PROCESS_IMPROVEMENT','TECHNOLOGY','CUSTOMER_SERVICE','SUSTAINABILITY','COST_REDUCTION','PRODUCT_INNOVATION','OTHER'].map((cat) => {
+                                const active = categoryFilters.includes(cat);
+                                return (
+                                    <button
+                                        key={cat}
+                                        onClick={() => setCategoryFilters(active ? categoryFilters.filter(c => c !== cat) : [...categoryFilters, cat])}
+                                        className={`px-3 py-1 rounded-full text-xs font-medium transition ${active ? 'bg-primary text-white shadow' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
+                                        aria-pressed={active}
+                                    >
+                                        {t(`innovation.categories.${cat}`)}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                        <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{t('innovation.view.filters.status')}</span>
+                        <div className="flex flex-wrap gap-2">
+                            {['PENDING_REVIEW','APPROVED','REJECTED','PROMOTED_TO_PROJECT','DRAFT'].map((s) => {
+                                const active = statusFilters.includes(s);
+                                return (
+                                    <button
+                                        key={s}
+                                        onClick={() => setStatusFilters(active ? statusFilters.filter(x => x !== s) : [...statusFilters, s])}
+                                        className={`px-3 py-1 rounded-full text-xs font-medium transition ${active ? 'bg-secondary text-white shadow' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
+                                        aria-pressed={active}
+                                    >
+                                        {t(`innovation.view.statusFilter.${s}`, { defaultValue: s })}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                        <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{t('innovation.view.filters.sort')}</span>
                         <div className="flex gap-2">
-                            {['all', 'TECHNOLOGY', 'SUSTAINABILITY', 'CUSTOMER_SERVICE'].map((cat) => (
+                            {(['recent','popular','trending'] as const).map((srt) => (
                                 <button
-                                    key={cat}
-                                    onClick={() => setFilter(cat)}
-                                    className={`px-4 py-2 rounded-lg font-medium text-sm transition-all ${
-                                        filter === cat
-                                            ? 'bg-primary text-white shadow-lg scale-105'
-                                            : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-                                    }`}
+                                    key={srt}
+                                    onClick={() => setSortBy(srt)}
+                                    className={`px-3 py-1 rounded-full text-xs font-medium transition ${sortBy === srt ? 'bg-primary/80 text-white shadow' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
+                                    aria-pressed={sortBy === srt}
                                 >
-                                    {cat === 'all' ? t('innovation.view.filters.all') : t(`innovation.categories.${cat}`)}
+                                    <span className="inline-flex items-center gap-1.5">
+                                        {srt === 'recent' && (
+                                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                        )}
+                                        {srt === 'popular' && (
+                                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                                            </svg>
+                                        )}
+                                        {srt === 'trending' && (
+                                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                                            </svg>
+                                        )}
+                                        {t(`innovation.view.sort.${srt}`, { defaultValue: srt })}
+                                    </span>
                                 </button>
                             ))}
                         </div>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                        <button
+                            type="button"
+                            onClick={() => { setCategoryFilters([]); setStatusFilters([]); setSortBy('recent'); setFilter('all'); }}
+                            className="btn btn-outline-danger btn-sm"
+                        >
+                            {t('innovation.view.filters.clearAll', { defaultValue: 'Clear Filters' })}
+                        </button>
                     </div>
                 </div>
             </div>
@@ -221,6 +329,24 @@ const ViewIdeas = () => {
                                             {statusBadge.icon} {t(`innovation.view.status.${idea.status === 'UNDER_REVIEW' ? 'underReview' : idea.status.toLowerCase()}`)}
                                         </span>
                                     </div>
+                                    {/* Thumbnail overlay */}
+                                    {idea.firstAttachmentUrl && (
+                                        <div className="absolute bottom-3 right-3">
+                                            <div className="relative">
+                                                <img
+                                                    src={idea.firstAttachmentUrl}
+                                                    alt={t('innovation.view.thumbnailAlt', { defaultValue: 'Idea image' })}
+                                                    className="w-12 h-12 rounded object-cover border-2 border-white shadow"
+                                                    loading="lazy"
+                                                />
+                                                {idea.attachmentsCount && idea.attachmentsCount > 1 && (
+                                                    <span className="absolute -top-2 -right-2 bg-black/80 text-white text-xs rounded-full px-2 py-0.5">
+                                                        +{idea.attachmentsCount - 1}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
                                     <div className="absolute bottom-3 left-3 right-3">
                                         <h3 className="text-white font-bold text-lg line-clamp-2 drop-shadow-lg">
                                             {idea.title}
@@ -355,7 +481,9 @@ const ViewIdeas = () => {
             {/* Empty State */}
             {!isLoading && filteredIdeas.length === 0 && (
                 <div className="panel text-center py-16">
-                    <div className="text-6xl mb-4" role="img" aria-label="magnifying glass">🔍</div>
+                    <svg className="w-24 h-24 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" role="img" aria-label="magnifying glass">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
                     <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{t('innovation.view.empty.title')}</h3>
                     <p className="text-gray-600 dark:text-gray-400 mb-6">{t('innovation.view.empty.message')}</p>
                     <button onClick={() => { setSearchTerm(''); setFilter('all'); }} className="btn btn-outline-primary">

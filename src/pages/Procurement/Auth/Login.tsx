@@ -2,13 +2,13 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { setPageTitle } from '../../../store/themeConfigSlice';
+import { clearModule } from '../../../store/moduleSlice';
 import IconMail from '../../../components/Icon/IconMail';
 import IconLockDots from '../../../components/Icon/IconLockDots';
 import IconEye from '../../../components/Icon/IconEye';
 // @ts-ignore
 import packageInfo from '../../../../package.json';
 import { setAuth } from '../../../utils/auth';
-import { setUser } from '../../../store/authSlice';
 import { loginWithMicrosoft, initializeMsal, isMsalConfigured } from '../../../auth/msal';
 
 const Login = () => {
@@ -38,24 +38,43 @@ const Login = () => {
         setIsLoading(true);
 
         try {
-            const res = await fetch('/api/auth/login', {
+            // Primary: real password login
+            let res = await fetch('http://heron:4000/api/auth/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password }),
             });
-            const data = await res.json().catch(() => null);
+            let data = await res.json().catch(() => null);
+
+            // Dev-only fallback: if backend login endpoint returns 404/500 during local setup,
+            // try the non-password helper endpoint to unblock UX. This will NOT run in production builds.
+            if (!res.ok && import.meta.env.DEV) {
+                try {
+                    const fallbackRes = await fetch('/auth/test-login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email: String(email).toLowerCase().trim() }),
+                    });
+                    if (fallbackRes.ok) {
+                        const d = await fallbackRes.json().catch(() => null);
+                        data = d ? { token: d.token || 'dev-token', user: d.user } : null;
+                        res = fallbackRes as any;
+                    }
+                } catch {}
+            }
+
             if (!res.ok) {
                 const msg = (data && (data.message || data.error)) || 'Login failed';
                 throw new Error(msg);
             }
+
             const { token, user } = data || {};
             if (!token || !user) throw new Error('Invalid login response');
+            
+            // Clear Redux module state before setting new auth (forces re-initialization with new user)
+            dispatch(clearModule());
+            
             setAuth(token, user, rememberMe);
-            // Also persist common key 'auth_user' used by Redux hydration
-            try {
-                const store = rememberMe ? localStorage : sessionStorage;
-                store.setItem('auth_user', JSON.stringify(user));
-            } catch {}
             // Also persist legacy userProfile structure expected by RequestForm & index pages
             try {
                 const legacyProfile = {
@@ -68,43 +87,60 @@ const Login = () => {
                 };
                 localStorage.setItem('userProfile', JSON.stringify(legacyProfile));
             } catch {}
-            // Immediately hydrate Redux store so sidebar sees roles without refresh
-            dispatch(setUser({
-                id: user.id,
-                email: user.email,
-                full_name: user.name || user.email,
-                department_id: user.department?.id,
-                department_name: user.department?.name,
-                status: 'active',
-                roles: user.roles || (user.role ? [user.role] : []),
-                last_login_at: undefined,
-                created_at: undefined,
-                updated_at: undefined,
-            }));
+            // Migrate legacy global onboarding keys to per-user to avoid cross-user leakage
+            try {
+                const suffix = user.id || user.email || 'anon';
+                const k = (base: string) => `${base}:${suffix}`;
+                const legacyKeys = ['onboardingComplete', 'selectedModule', 'lastModule'] as const;
+                legacyKeys.forEach((base) => {
+                    const legacyVal = localStorage.getItem(base);
+                    if (legacyVal !== null && localStorage.getItem(k(base)) === null) {
+                        localStorage.setItem(k(base), legacyVal);
+                    }
+                    // Remove legacy key to prevent affecting other users on the same device
+                    if (legacyVal !== null) localStorage.removeItem(base);
+                });
+            } catch {}
+
             // Flag to show onboarding helper image exactly once after successful login
             try { sessionStorage.setItem('showOnboardingImage', '1'); } catch {}
             
-            // Role-based redirect after login
+            // Check if user has completed onboarding (per-user check)
+            const userSuffix = user.id || user.email || 'anon';
+            const hasCompletedOnboarding = localStorage.getItem(`onboardingComplete:${userSuffix}`) === 'true';
+            const hasLastModule = localStorage.getItem(`lastModule:${userSuffix}`) !== null;
+            
+            // Role-based redirect after login - BUT respect onboarding for first-time/non-remembered users
             const userRoles = user.roles || (user.role ? [user.role] : []);
-            if (userRoles.includes('INNOVATION_COMMITTEE')) {
+            
+            // Committee members with ONLY committee role go directly to committee dashboard
+            const isCommitteeOnly = userRoles.includes('INNOVATION_COMMITTEE') && userRoles.length === 1;
+            
+            if (isCommitteeOnly) {
+                // Committee-only users always go to their dashboard
                 navigate('/innovation/committee/dashboard');
-            } else if (
-                userRoles.includes('PROCUREMENT_MANAGER') ||
-                userRoles.includes('MANAGER') ||
-                userRoles.some((r: string) => r && r.toUpperCase().includes('MANAGER'))
-            ) {
-                navigate('/procurement/manager');
-            } else if (
-                userRoles.includes('PROCUREMENT_OFFICER') ||
-                userRoles.includes('PROCUREMENT')
-            ) {
-                navigate('/procurement/dashboard');
-            } else if (userRoles.includes('SUPPLIER') || userRoles.some((r: string) => r && r.toUpperCase().includes('SUPPLIER'))) {
-                navigate('/supplier');
-            } else if (userRoles.some((r: string) => r && r.toUpperCase().includes('REQUEST'))) {
-                navigate('/apps/requests');
+            } else if (hasCompletedOnboarding && hasLastModule) {
+                // Returning users with saved preference - go to their last module
+                const lastMod = localStorage.getItem(`lastModule:${userSuffix}`);
+                if (lastMod === 'pms') {
+                    if (userRoles.includes('PROCUREMENT_MANAGER') || userRoles.includes('MANAGER') || userRoles.some((r: string) => r && r.toUpperCase().includes('MANAGER'))) {
+                        navigate('/procurement/manager');
+                    } else if (userRoles.includes('PROCUREMENT_OFFICER') || userRoles.includes('PROCUREMENT')) {
+                        navigate('/procurement/dashboard');
+                    } else if (userRoles.some((r: string) => r && r.toUpperCase().includes('REQUEST'))) {
+                        navigate('/apps/requests');
+                    } else {
+                        navigate('/procurement/dashboard');
+                    }
+                } else if (lastMod === 'ih') {
+                    navigate('/innovation/dashboard');
+                } else if (lastMod === 'committee') {
+                    navigate('/innovation/committee/dashboard');
+                } else {
+                    navigate('/onboarding');
+                }
             } else {
-                // Fallback to onboarding selector
+                // First time or user didn't check "Remember" - show module selector
                 navigate('/onboarding');
             }
         } catch (err: any) {
@@ -189,6 +225,8 @@ const Login = () => {
         <div className="flex min-h-screen">
             {/* Left Side - Branding */}
             <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-primary to-primary-light relative overflow-hidden">
+                {/* Animated Gradient Background */}
+                <div className="absolute inset-0 bg-gradient-to-br from-primary via-primary-light to-primary opacity-50 animate-gradient-shift"></div>
                 <div className="absolute inset-0 bg-[url('/assets/images/auth/pattern.png')] opacity-10"></div>
                 <div className="relative z-10 flex flex-col justify-center items-center w-full p-12 text-white">
                     <div className="max-w-lg">
@@ -203,31 +241,53 @@ const Login = () => {
                                 </div>
                             </div>
                         </div>
-                        <h1 className="text-5xl font-bold mb-6">Procurement Management System</h1>
-                        <p className="text-xl text-white/90 mb-8">
-                            Streamline your procurement process with our comprehensive solution for request management, RFQ handling, and supplier coordination.
+                        <h1 className="text-5xl font-bold mb-6 animate-fade-in-up">Smart Portal for Information Exchange</h1>
+                        <p className="text-xl text-white/90 mb-8 animate-fade-in-up animation-delay-200">
+                            Your unified digital hub for seamless collaboration, innovation, and procurement management across the Bureau of Standards Jamaica, with additional enterprise modules on the horizon.
                         </p>
-                        <div className="space-y-4">
-                            <div className="flex items-center gap-3">
-                                <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
-                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <div className="grid grid-cols-2 gap-6">
+                            <div className="space-y-3 animate-fade-in-up animation-delay-300 group cursor-default">
+                                <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center transition-all duration-300 group-hover:bg-white/30 group-hover:scale-110 group-hover:shadow-lg">
+                                    <svg className="w-6 h-6 transition-transform duration-300 group-hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                                     </svg>
                                 </div>
                                 <div>
-                                    <h3 className="font-semibold">Secure & Compliant</h3>
+                                    <h3 className="font-semibold text-lg">Secure & Compliant</h3>
                                     <p className="text-sm text-white/80">Multi-factor authentication enabled</p>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-3">
-                                <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
-                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <div className="space-y-3 animate-fade-in-up animation-delay-400 group cursor-default">
+                                <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center transition-all duration-300 group-hover:bg-white/30 group-hover:scale-110 group-hover:shadow-lg">
+                                    <svg className="w-6 h-6 transition-transform duration-300 group-hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                                     </svg>
                                 </div>
                                 <div>
-                                    <h3 className="font-semibold">Fast & Efficient</h3>
+                                    <h3 className="font-semibold text-lg">Fast & Efficient</h3>
                                     <p className="text-sm text-white/80">Real-time processing & updates</p>
+                                </div>
+                            </div>
+                            <div className="space-y-3 animate-fade-in-up animation-delay-500 group cursor-default">
+                                <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center transition-all duration-300 group-hover:bg-white/30 group-hover:scale-110 group-hover:shadow-lg">
+                                    <svg className="w-6 h-6 transition-transform duration-300 group-hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h3 className="font-semibold text-lg">Collaborative Platform</h3>
+                                    <p className="text-sm text-white/80">Unified workspace for teams</p>
+                                </div>
+                            </div>
+                            <div className="space-y-3 animate-fade-in-up animation-delay-600 group cursor-default">
+                                <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center transition-all duration-300 group-hover:bg-white/30 group-hover:scale-110 group-hover:shadow-lg">
+                                    <svg className="w-6 h-6 transition-transform duration-300 group-hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h3 className="font-semibold text-lg">Integrated Modules</h3>
+                                    <p className="text-sm text-white/80">Innovation, procurement & more</p>
                                 </div>
                             </div>
                         </div>

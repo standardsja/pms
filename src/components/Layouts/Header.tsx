@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { IRootState } from '../../store';
 import { toggleRTL, toggleTheme, toggleSidebar } from '../../store/themeConfigSlice';
+import { clearModule } from '../../store/moduleSlice';
 import { useTranslation } from 'react-i18next';
 import i18next from 'i18next';
 import Dropdown from '../Dropdown';
@@ -38,6 +39,7 @@ import { getUser, clearAuth } from '../../utils/auth';
 const Header = () => {
     const location = useLocation();
     const navigate = useNavigate();
+    const dispatch = useDispatch();
 
     // Current user & role derivations (align with Sidebar logic)
     const currentUser = getUser();
@@ -91,7 +93,6 @@ const Header = () => {
     const isRtl = useSelector((state: IRootState) => state.themeConfig.rtlClass) === 'rtl' ? true : false;
 
     const themeConfig = useSelector((state: IRootState) => state.themeConfig);
-    const dispatch = useDispatch();
 
     function createMarkup(messages: any) {
         return { __html: messages };
@@ -477,7 +478,7 @@ const Header = () => {
                                 </ul>
                             </Dropdown>
                         </div>
-                        <div className="dropdown shrink-0 flex">
+                        <div className="dropdown shrink-0">
                             <Dropdown
                                 offset={[0, 8]}
                                 placement={`${isRtl ? 'bottom-start' : 'bottom-end'}`}
@@ -529,6 +530,7 @@ const Header = () => {
                                             onClick={() => {
                                                 try {
                                                     clearAuth();
+                                                    dispatch(clearModule());
                                                 } catch {}
                                             }}
                                         >
