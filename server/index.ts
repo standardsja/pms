@@ -101,6 +101,14 @@ function authMiddleware(req: any, res: any, next: any) {
   }
 }
 
+// Helper to get user ID from JWT token in request
+function getActingUserId(req: any): number | null {
+  const user = (req as any).user as { sub: number | string } | undefined;
+  if (!user || !user.sub) return null;
+  const userId = typeof user.sub === 'number' ? user.sub : parseInt(String(user.sub), 10);
+  return Number.isFinite(userId) ? userId : null;
+}
+
 function requireCommittee(req: any, res: any, next: any) {
   const user = (req as any).user as { roles?: string[] } | undefined;
   if (!user || !user.roles || !user.roles.includes('INNOVATION_COMMITTEE')) {
@@ -131,7 +139,8 @@ app.get('/api/auth/me', authMiddleware, async (req, res) => {
 app.get('/api/ideas', authMiddleware, async (req, res) => {
   try {
     const { status, sort, include } = req.query as { status?: string; sort?: string; include?: string };
-    const user = (req as any).user as { roles?: string[] };
+    const user = (req as any).user as { sub: number | string; roles?: string[] };
+    const userId = typeof user.sub === 'number' ? user.sub : parseInt(String(user.sub), 10);
     const isCommittee = user.roles && user.roles.includes('INNOVATION_COMMITTEE');
 
     const where: any = {};
@@ -156,14 +165,39 @@ app.get('/api/ideas', authMiddleware, async (req, res) => {
     const includeAttachments = include === 'attachments';
     const includeObj: any = {
       submitter: { select: { id: true, name: true, email: true } },
+      votes: {
+        include: {
+          user: { select: { id: true, name: true, email: true } }
+        }
+      },
+      _count: { select: { comments: true } }
     };
     if (includeAttachments) includeObj.attachments = true;
+    
     const ideas = await prisma.idea.findMany({
       where,
       orderBy,
       include: includeObj,
     });
-    return res.json(ideas);
+
+    // Transform ideas to include vote counts and user vote status
+    const transformedIdeas = ideas.map(idea => {
+      const votes = idea.votes as any[];
+      const userVote = votes.find(v => v.userId === userId);
+      const upvoteCount = votes.filter(v => v.voteType === 'UPVOTE').length;
+      const downvoteCount = votes.filter(v => v.voteType === 'DOWNVOTE').length;
+
+      return {
+        ...idea,
+        upvoteCount,
+        downvoteCount,
+        hasVoted: !!userVote,
+        userVoteType: userVote?.voteType || null,
+        commentCount: (idea._count as any)?.comments || 0
+      };
+    });
+
+    return res.json(transformedIdeas);
   } catch (e: any) {
     console.error('GET /api/ideas error:', e);
     return res.status(500).json({ error: 'Unable to load ideas', message: 'Unable to load ideas. Please try again later.' });
@@ -182,15 +216,50 @@ app.get('/api/ideas/:id', authMiddleware, async (req, res) => {
         return res.status(400).json({ error: 'Invalid idea id' });
       }
     const { include } = req.query as { include?: string };
+    const user = (req as any).user as { sub: number | string };
+    const userId = typeof user.sub === 'number' ? user.sub : parseInt(String(user.sub), 10);
+    
     const includeAttachments = include === 'attachments';
-    const includeObj: any = { submitter: { select: { id: true, name: true, email: true } } };
+    const includeObj: any = { 
+      submitter: { select: { id: true, name: true, email: true } },
+      votes: {
+        include: {
+          user: { select: { id: true, name: true, email: true } }
+        }
+      },
+      _count: { select: { comments: true } }
+    };
     if (includeAttachments) includeObj.attachments = true;
+    
       const idea = await prisma.idea.findUnique({
         where: { id: parsedId },
       include: includeObj,
     });
     if (!idea) return res.status(404).json({ message: 'Idea not found' });
-    return res.json(idea);
+
+    // Increment view count
+    await prisma.idea.update({
+      where: { id: parsedId },
+      data: { viewCount: { increment: 1 } }
+    });
+
+    // Transform idea to include vote information
+    const votes = idea.votes as any[];
+    const userVote = votes.find(v => v.userId === userId);
+    const upvoteCount = votes.filter(v => v.voteType === 'UPVOTE').length;
+    const downvoteCount = votes.filter(v => v.voteType === 'DOWNVOTE').length;
+
+    const transformedIdea = {
+      ...idea,
+      upvoteCount,
+      downvoteCount,
+      hasVoted: !!userVote,
+      userVoteType: userVote?.voteType || null,
+      commentCount: (idea._count as any)?.comments || 0,
+      viewCount: idea.viewCount + 1 // Return incremented count
+    };
+
+    return res.json(transformedIdea);
   } catch (e: any) {
     console.error('GET /api/ideas/:id error:', e);
     return res.status(500).json({ error: 'Unable to load idea', message: 'Unable to load idea details. Please try again later.' });
@@ -369,6 +438,208 @@ app.get('/api/ideas/counts', authMiddleware, async (_req, res) => {
   } catch (e: any) {
     console.error('GET /api/ideas/counts error:', e);
     return res.status(500).json({ message: 'Unable to load idea counts' });
+  }
+});
+
+// Vote for an idea
+app.post('/api/ideas/:id/vote', authMiddleware, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const actorId = getActingUserId(req);
+    const { voteType } = req.body || {};
+    if (!actorId) return res.status(400).json({ error: 'User ID required' });
+
+    // Check if user exists in database
+    const userExists = await prisma.user.findUnique({ where: { id: actorId } });
+    if (!userExists) {
+      return res.status(400).json({ error: 'User not found. Please log in with a valid account.' });
+    }
+
+    const type = voteType === 'DOWNVOTE' ? 'DOWNVOTE' : 'UPVOTE';
+
+    // Check if already voted
+    const existing = await prisma.vote.findUnique({ 
+      where: { ideaId_userId: { ideaId: id, userId: actorId } }
+    }) as any;
+    
+    // If creating a new vote (not switching), check the 10-vote limit
+    if (!existing) {
+      const userVoteCount = await prisma.vote.count({ where: { userId: actorId } });
+      if (userVoteCount >= 10) {
+        return res.status(400).json({ error: 'vote limit reached', message: 'You can only vote on up to 10 ideas. Remove a vote to vote on this idea.' });
+      }
+    }
+    
+    if (existing) {
+      // If same vote type, remove the vote (toggle behavior)
+      if (existing.voteType === type) {
+        const wasUpvote = existing.voteType === 'UPVOTE';
+        await prisma.$transaction([
+          prisma.vote.delete({ where: { id: existing.id } }),
+          prisma.idea.update({
+            where: { id },
+            data: {
+              voteCount: wasUpvote ? { decrement: 1 } : { increment: 1 },
+            }
+          }),
+        ]);
+      } else {
+        // If different type, switch the vote
+        await prisma.$transaction([
+          prisma.vote.update({ where: { id: existing.id }, data: { voteType: type } as any }),
+          prisma.idea.update({
+            where: { id },
+            data: {
+              voteCount: type === 'UPVOTE' ? { increment: 2 } : { decrement: 2 } // net change of 2 when switching
+            }
+          }),
+        ]);
+      }
+    } else {
+      // Create new vote
+      await prisma.$transaction([
+        prisma.vote.create({ data: { ideaId: id, userId: actorId, voteType: type } as any }),
+        prisma.idea.update({
+          where: { id },
+          data: {
+            voteCount: type === 'UPVOTE' ? { increment: 1 } : { decrement: 1 },
+          }
+        }),
+      ]);
+    }
+
+    const idea = await prisma.idea.findUnique({
+      where: { id },
+      include: {
+        submitter: true,
+        votes: {
+          include: {
+            user: { select: { id: true, name: true, email: true } }
+          }
+        },
+        _count: { select: { comments: true } }
+      }
+    });
+
+    if (!idea) return res.status(404).json({ error: 'Idea not found' });
+
+    const userVote = idea.votes.find(v => v.userId === actorId) as any;
+    const upvoteCount = idea.votes.filter((v: any) => v.voteType === 'UPVOTE').length;
+    const downvoteCount = idea.votes.filter((v: any) => v.voteType === 'DOWNVOTE').length;
+    
+    res.json({
+      id: idea.id,
+      title: idea.title,
+      description: idea.description,
+      category: idea.category,
+      status: idea.status,
+      submittedById: idea.submittedBy,
+      submittedBy: idea.submitter?.name || idea.submitter?.email || String(idea.submittedBy),
+      submittedAt: idea.submittedAt,
+      reviewedBy: idea.reviewedBy,
+      reviewedAt: idea.reviewedAt,
+      reviewNotes: idea.reviewNotes,
+      promotedAt: idea.promotedAt,
+      projectCode: idea.projectCode,
+      voteCount: idea.voteCount,
+      upvoteCount,
+      downvoteCount,
+      viewCount: idea.viewCount,
+      commentCount: idea._count?.comments || 0,
+      createdAt: idea.createdAt,
+      updatedAt: idea.updatedAt,
+      hasVoted: !!userVote,
+      userVoteType: userVote?.voteType || null,
+      votes: idea.votes.map((v: any) => ({
+        id: v.id,
+        userId: v.userId,
+        userName: v.user.name || v.user.email,
+        voteType: v.voteType,
+        createdAt: v.createdAt
+      }))
+    });
+  } catch (e: any) {
+    console.error('POST /api/ideas/:id/vote error:', e);
+    res.status(500).json({ error: 'Unable to vote', message: 'We were unable to process your vote. Please try again.' });
+  }
+});
+
+// Remove vote from an idea
+app.delete('/api/ideas/:id/vote', authMiddleware, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const actorId = getActingUserId(req);
+    if (!actorId) return res.status(400).json({ error: 'User ID required' });
+
+    const existing = await prisma.vote.findUnique({ 
+      where: { ideaId_userId: { ideaId: id, userId: actorId } }
+    }) as any;
+    if (!existing) return res.status(400).json({ error: 'not voted' });
+
+    const wasUpvote = existing.voteType === 'UPVOTE';
+
+    await prisma.$transaction([
+      prisma.vote.delete({ where: { id: existing.id } }),
+      prisma.idea.update({
+        where: { id },
+        data: {
+          voteCount: wasUpvote ? { decrement: 1 } : { increment: 1 },
+        }
+      }),
+    ]);
+
+    const idea = await prisma.idea.findUnique({
+      where: { id },
+      include: {
+        submitter: true,
+        votes: {
+          include: {
+            user: { select: { id: true, name: true, email: true } }
+          }
+        },
+        _count: { select: { comments: true } }
+      }
+    });
+
+    if (!idea) return res.status(404).json({ error: 'Idea not found' });
+
+    const upvoteCount = idea.votes.filter((v: any) => v.voteType === 'UPVOTE').length;
+    const downvoteCount = idea.votes.filter((v: any) => v.voteType === 'DOWNVOTE').length;
+    
+    res.json({
+      id: idea.id,
+      title: idea.title,
+      description: idea.description,
+      category: idea.category,
+      status: idea.status,
+      submittedById: idea.submittedBy,
+      submittedBy: idea.submitter?.name || idea.submitter?.email || String(idea.submittedBy),
+      submittedAt: idea.submittedAt,
+      reviewedBy: idea.reviewedBy,
+      reviewedAt: idea.reviewedAt,
+      reviewNotes: idea.reviewNotes,
+      promotedAt: idea.promotedAt,
+      projectCode: idea.projectCode,
+      voteCount: idea.voteCount,
+      upvoteCount,
+      downvoteCount,
+      viewCount: idea.viewCount,
+      commentCount: idea._count?.comments || 0,
+      createdAt: idea.createdAt,
+      updatedAt: idea.updatedAt,
+      hasVoted: false,
+      userVoteType: null,
+      votes: idea.votes.map((v: any) => ({
+        id: v.id,
+        userId: v.userId,
+        userName: v.user.name || v.user.email,
+        voteType: v.voteType,
+        createdAt: v.createdAt
+      }))
+    });
+  } catch (e: any) {
+    console.error('DELETE /api/ideas/:id/vote error:', e);
+    res.status(500).json({ error: 'Unable to remove vote', message: 'We were unable to remove your vote. Please try again.' });
   }
 });
 
