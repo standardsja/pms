@@ -1,17 +1,17 @@
 import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { setPageTitle } from '../../store/themeConfigSlice';
+import { setPageTitle } from '../store/themeConfigSlice';
 import { useDispatch } from 'react-redux';
-import IconMail from '../../components/Icon/IconMail';
-import IconPhone from '../../components/Icon/IconPhone';
-import IconInfoCircle from '../../components/Icon/IconInfoCircle';
-import IconFile from '../../components/Icon/IconFile';
-import IconShoppingCart from '../../components/Icon/IconShoppingCart';
-import IconTag from '../../components/Icon/IconTag';
-import IconClipboardText from '../../components/Icon/IconClipboardText';
-import IconCreditCard from '../../components/Icon/IconCreditCard';
-import IconUser from '../../components/Icon/IconUser';
-import IconSearch from '../../components/Icon/IconSearch';
+import IconMail from '../components/Icon/IconMail';
+import IconPhone from '../components/Icon/IconPhone';
+import IconInfoCircle from '../components/Icon/IconInfoCircle';
+import IconFile from '../components/Icon/IconFile';
+import IconShoppingCart from '../components/Icon/IconShoppingCart';
+import IconTag from '../components/Icon/IconTag';
+import IconClipboardText from '../components/Icon/IconClipboardText';
+import IconCreditCard from '../components/Icon/IconCreditCard';
+import IconUser from '../components/Icon/IconUser';
+import IconSearch from '../components/Icon/IconSearch';
 
 const HelpSupport = () => {
     const dispatch = useDispatch();
@@ -190,9 +190,7 @@ const HelpSupport = () => {
                                 to={item.link}
                                 className="flex flex-col items-center justify-center p-4 border border-white-light dark:border-white-light/10 rounded-lg hover:border-primary hover:shadow-lg transition-all"
                             >
-                                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary mb-2">
-                                    {item.icon}
-                                </div>
+                                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary mb-2">{item.icon}</div>
                                 <span className="text-center text-sm font-semibold">{item.title}</span>
                             </Link>
                         ))}
@@ -203,13 +201,7 @@ const HelpSupport = () => {
                 <div className="panel mb-6">
                     <h5 className="text-lg font-semibold mb-5">Search Frequently Asked Questions</h5>
                     <div className="relative">
-                        <input
-                            type="text"
-                            placeholder="Search for answers..."
-                            className="form-input ltr:pl-10 rtl:pr-10"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                        />
+                        <input type="text" placeholder="Search for answers..." className="form-input ltr:pl-10 rtl:pr-10" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
                         <div className="absolute top-1/2 -translate-y-1/2 ltr:left-3 rtl:right-3">
                             <IconSearch className="text-white-dark" />
                         </div>
@@ -286,9 +278,7 @@ const HelpSupport = () => {
                     <div className="panel">
                         <h5 className="text-lg font-semibold mb-5">Need More Help?</h5>
                         <div className="space-y-4">
-                            <p className="text-white-dark">
-                                If you can't find the answer you're looking for, our support team is ready to assist you.
-                            </p>
+                            <p className="text-white-dark">If you can't find the answer you're looking for, our support team is ready to assist you.</p>
                             <button type="button" className="btn btn-primary w-full">
                                 Submit a Support Ticket
                             </button>
