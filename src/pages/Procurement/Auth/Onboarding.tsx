@@ -19,10 +19,7 @@ const Onboarding = () => {
     const currentUser = getUser();
     const userRoles: string[] = (currentUser as any)?.roles || ((currentUser as any)?.role ? [(currentUser as any).role] : []);
     const isCommittee = userRoles.includes('INNOVATION_COMMITTEE');
-    const isProcurementManager =
-        userRoles.includes('PROCUREMENT_MANAGER') ||
-        userRoles.includes('MANAGER') ||
-        userRoles.some((r) => r && r.toUpperCase().includes('MANAGER'));
+    const isProcurementManager = userRoles.includes('PROCUREMENT_MANAGER') || userRoles.includes('MANAGER') || userRoles.some((r) => r && r.toUpperCase().includes('MANAGER'));
     const isRequester = !isProcurementManager && userRoles.some((r) => r && r.toUpperCase().includes('REQUEST'));
 
     const [selected, setSelected] = useState<ModuleKey | null>(null);
@@ -86,11 +83,7 @@ const Onboarding = () => {
                 icon: '📦',
                 gradient: 'from-blue-500 to-blue-700',
                 path: isProcurementManager ? '/procurement/manager' : isRequester ? '/apps/requests' : '/procurement/dashboard',
-                features: [
-                    t('onboarding.modules.pms.features.0'),
-                    t('onboarding.modules.pms.features.1'),
-                    t('onboarding.modules.pms.features.2'),
-                ],
+                features: [t('onboarding.modules.pms.features.0'), t('onboarding.modules.pms.features.1'), t('onboarding.modules.pms.features.2')],
             },
             {
                 id: 'ih' as ModuleKey,
@@ -99,11 +92,7 @@ const Onboarding = () => {
                 icon: '💡',
                 gradient: 'from-purple-500 to-pink-600',
                 path: '/innovation/dashboard',
-                features: [
-                    t('onboarding.modules.ih.features.0'),
-                    t('onboarding.modules.ih.features.1'),
-                    t('onboarding.modules.ih.features.2'),
-                ],
+                features: [t('onboarding.modules.ih.features.0'), t('onboarding.modules.ih.features.1'), t('onboarding.modules.ih.features.2')],
             },
         ];
         // Only expose Committee module to committee members
@@ -115,11 +104,7 @@ const Onboarding = () => {
                 icon: '⚖️',
                 gradient: 'from-violet-600 to-fuchsia-600',
                 path: '/innovation/committee/dashboard',
-                features: [
-                    t('onboarding.modules.committee.features.0'),
-                    t('onboarding.modules.committee.features.1'),
-                    t('onboarding.modules.committee.features.2'),
-                ],
+                features: [t('onboarding.modules.committee.features.0'), t('onboarding.modules.committee.features.1'), t('onboarding.modules.committee.features.2')],
             });
         }
         return base;
@@ -171,23 +156,26 @@ const Onboarding = () => {
         }
     };
 
-    const onKeyDownRadios = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
-        if (!modules.length) return;
-        const order = modules.map((m) => m.id);
-        const idx = selected ? order.indexOf(selected) : 0;
-        if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
-            e.preventDefault();
-            const next = order[(idx + 1) % order.length];
-            setSelected(next);
-        } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
-            e.preventDefault();
-            const prev = order[(idx - 1 + order.length) % order.length];
-            setSelected(prev);
-        } else if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            handleContinue();
-        }
-    }, [modules, selected]);
+    const onKeyDownRadios = useCallback(
+        (e: React.KeyboardEvent<HTMLDivElement>) => {
+            if (!modules.length) return;
+            const order = modules.map((m) => m.id);
+            const idx = selected ? order.indexOf(selected) : 0;
+            if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+                e.preventDefault();
+                const next = order[(idx + 1) % order.length];
+                setSelected(next);
+            } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                const prev = order[(idx - 1 + order.length) % order.length];
+                setSelected(prev);
+            } else if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                handleContinue();
+            }
+        },
+        [modules, selected]
+    );
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
@@ -214,7 +202,9 @@ const Onboarding = () => {
                             className="absolute top-3 right-3 w-10 h-10 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                             aria-label="Close procurement steps"
                         >
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
                         </button>
                         <div className="px-6 py-5 border-b border-gray-200 dark:border-gray-700 flex items-center gap-3">
                             <span className="text-2xl">📊</span>
@@ -235,11 +225,7 @@ const Onboarding = () => {
                             </p>
                         </div>
                         <div className="px-6 pb-6 flex justify-end gap-3">
-                            <button
-                                type="button"
-                                onClick={() => setShowProcurementSteps(false)}
-                                className="btn btn-outline-secondary btn-sm"
-                            >
+                            <button type="button" onClick={() => setShowProcurementSteps(false)} className="btn btn-outline-secondary btn-sm">
                                 Close
                             </button>
                         </div>
@@ -250,10 +236,10 @@ const Onboarding = () => {
             {/* Main Content */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
                 <div className="text-center mb-12">
-                    <h2 id="onboarding-title" className="text-4xl font-bold text-gray-900 dark:text-white mb-4">{t('onboarding.title')}</h2>
-                    <p className="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
-                        {t('onboarding.subtitle')}
-                    </p>
+                    <h2 id="onboarding-title" className="text-4xl font-bold text-gray-900 dark:text-white mb-4">
+                        {t('onboarding.title')}
+                    </h2>
+                    <p className="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">{t('onboarding.subtitle')}</p>
                 </div>
 
                 {error && (
@@ -263,14 +249,7 @@ const Onboarding = () => {
                 )}
 
                 {/* Module Cards (radiogroup) */}
-                <div
-                    ref={radiosRef}
-                    role="radiogroup"
-                    aria-labelledby="onboarding-title"
-                    className="grid md:grid-cols-2 gap-8 max-w-6xl mx-auto"
-                    onKeyDown={onKeyDownRadios}
-                    tabIndex={0}
-                >
+                <div ref={radiosRef} role="radiogroup" aria-labelledby="onboarding-title" className="grid md:grid-cols-2 gap-8 max-w-6xl mx-auto" onKeyDown={onKeyDownRadios} tabIndex={0}>
                     {modules.map((m) => {
                         const isActive = selected === m.id;
                         return (
@@ -310,7 +289,11 @@ const Onboarding = () => {
                                         {m.features.map((feature, idx) => (
                                             <li key={idx} className="flex items-center gap-3 text-gray-700 dark:text-gray-300">
                                                 <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                                    <path
+                                                        fillRule="evenodd"
+                                                        d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                                                        clipRule="evenodd"
+                                                    />
                                                 </svg>
                                                 <span>{feature}</span>
                                             </li>
@@ -321,9 +304,7 @@ const Onboarding = () => {
                                     <div className="mt-6 flex items-center justify-between">
                                         <div className="flex items-center gap-2">
                                             {/* Recommended badge if last-used */}
-                                            {lastModule === m.id && (
-                                                <span className="px-2 py-0.5 rounded-full text-xs bg-primary/10 text-primary">{t('onboarding.badges.recommended')}</span>
-                                            )}
+                                            {lastModule === m.id && <span className="px-2 py-0.5 rounded-full text-xs bg-primary/10 text-primary">{t('onboarding.badges.recommended')}</span>}
                                             <span className={`text-sm font-medium ${isActive ? 'text-primary' : 'text-gray-500 dark:text-gray-400'}`}>
                                                 {isActive ? t('onboarding.selected') : t('onboarding.clickToSelect')}
                                             </span>
@@ -357,15 +338,49 @@ const Onboarding = () => {
                     })}
                 </div>
 
+                {/* Additional Modules - Coming Soon */}
+                <div className="max-w-7xl mx-auto mt-16">
+                    <div className="text-center mb-8">
+                        <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Additional Modules</h3>
+                        <p className="text-gray-600 dark:text-gray-400">Comprehensive suite of integrated management solutions</p>
+                    </div>
+
+                    <div className="relative">
+                        <div className="overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-gray-100 dark:scrollbar-track-gray-800">
+                            <div className="flex gap-6 px-2 min-w-max">
+                                {[
+                                    { icon: '💰', title: 'Budgeting & Financial Planning', color: 'from-emerald-500 to-teal-600' },
+                                    { icon: '📋', title: 'Audit Management System', color: 'from-blue-500 to-indigo-600' },
+                                    { icon: '🛡️', title: 'PRIME – Policy, Risk, Integrated Management Engine', color: 'from-violet-500 to-purple-600' },
+                                    { icon: '📊', title: 'Data Point – Analytics & Business Intelligence Centre', color: 'from-cyan-500 to-blue-600' },
+                                    { icon: '🔧', title: 'Maintenance & Service Management', color: 'from-orange-500 to-red-600' },
+                                    { icon: '📦', title: 'Asset & Inventory Management', color: 'from-amber-500 to-orange-600' },
+                                    { icon: '🎯', title: 'Project & Portfolio Management', color: 'from-pink-500 to-rose-600' },
+                                    { icon: '📚', title: 'Knowledge Base & Policy Repository', color: 'from-indigo-500 to-blue-600' },
+                                ].map((module, idx) => (
+                                    <div
+                                        key={idx}
+                                        className="flex-shrink-0 w-64 bg-white dark:bg-gray-800 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-200 dark:border-gray-700 group cursor-not-allowed opacity-75"
+                                    >
+                                        <div className={`bg-gradient-to-r ${module.color} p-4 text-white relative`}>
+                                            <div className="text-3xl mb-2">{module.icon}</div>
+                                            <div className="absolute top-2 right-2 bg-white/20 text-white text-xs font-semibold px-2 py-1 rounded-full backdrop-blur-sm">Coming Soon</div>
+                                        </div>
+                                        <div className="p-4">
+                                            <h4 className="font-semibold text-sm text-gray-900 dark:text-white leading-tight">{module.title}</h4>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 {/* Controls */}
                 <div className="max-w-3xl mx-auto mt-10">
                     <div className="flex items-center justify-center flex-col sm:flex-row gap-4">
                         <div className="flex gap-3 w-full sm:w-auto">
-                            <button
-                                type="button"
-                                className="btn btn-outline-primary w-full sm:w-auto"
-                                onClick={() => navigate('/help')}
-                            >
+                            <button type="button" className="btn btn-outline-primary w-full sm:w-auto" onClick={() => navigate('/help')}>
                                 {t('onboarding.needHelp')}
                             </button>
                             <button
@@ -379,8 +394,12 @@ const Onboarding = () => {
                                         <span className="animate-spin border-2 border-white border-l-transparent rounded-full w-5 h-5"></span>
                                         {t('onboarding.redirecting')}
                                     </span>
+                                ) : selected === 'pms' ? (
+                                    t('onboarding.goTo.pms')
+                                ) : selected === 'ih' ? (
+                                    t('onboarding.goTo.ih')
                                 ) : (
-                                    selected === 'pms' ? t('onboarding.goTo.pms') : selected === 'ih' ? t('onboarding.goTo.ih') : t('onboarding.continue')
+                                    t('onboarding.continue')
                                 )}
                             </button>
                         </div>

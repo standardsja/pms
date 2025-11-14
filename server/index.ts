@@ -523,7 +523,12 @@ app.get('/api/ideas', authMiddleware, async (req, res) => {
         // Filter by tag name(s) if provided (supports comma-separated or multiple query params)
         if (tag) {
             const tags = Array.isArray(tag)
-                ? tag.flatMap((t) => String(t).split(',').map((s) => s.trim()).filter(Boolean))
+                ? tag.flatMap((t) =>
+                      String(t)
+                          .split(',')
+                          .map((s) => s.trim())
+                          .filter(Boolean)
+                  )
                 : String(tag)
                       .split(',')
                       .map((s) => s.trim())
@@ -811,9 +816,7 @@ app.get('/api/ideas/:id', authMiddleware, async (req, res) => {
             .catch((err) => console.error('Failed to update view count/trending:', err));
 
         const tags = Array.isArray((idea as any).tags) ? (idea as any).tags.map((it: any) => it.tag?.name).filter(Boolean) : [];
-        const tagObjects = Array.isArray((idea as any).tags)
-            ? (idea as any).tags.map((it: any) => ({ id: it.tagId, name: it.tag?.name })).filter((t: any) => t.name)
-            : [];
+        const tagObjects = Array.isArray((idea as any).tags) ? (idea as any).tags.map((it: any) => ({ id: it.tagId, name: it.tag?.name })).filter((t: any) => t.name) : [];
 
         return res.json({ ...idea, hasVoted, submittedBy, commentCount, tags, tagObjects });
     } catch (e: any) {
