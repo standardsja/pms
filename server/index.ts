@@ -41,7 +41,7 @@ const generalLimiter = rateLimit({
         // Skip rate limiting in development for localhost
         const isDev = process.env.NODE_ENV !== 'production';
         const isLocalhost = req.ip === '127.0.0.1' || req.ip === '::1' || req.ip?.includes('localhost');
-        return isDev && isLocalhost;
+        return Boolean(isDev && isLocalhost);
     },
 });
 
@@ -117,6 +117,26 @@ async function fixInvalidIdeaStatuses(): Promise<number | null> {
             if (typeof result === 'number') total += result;
             else if (result && typeof result.rowCount === 'number') total += result.rowCount;
         }
+
+        // Fix missing project codes for promoted ideas
+        const promotedIdeas = await prisma.idea.findMany({
+            where: {
+                status: 'PROMOTED_TO_PROJECT',
+                projectCode: null,
+            },
+            select: { id: true, title: true },
+        });
+
+        for (const idea of promotedIdeas) {
+            const code = `INNO-${new Date().getFullYear()}-${idea.id.toString().padStart(3, '0')}${Math.random().toString(36).slice(2, 5).toUpperCase()}`;
+            await prisma.idea.update({
+                where: { id: idea.id },
+                data: { projectCode: code },
+            });
+            console.log(`[Startup] Generated project code ${code} for idea #${idea.id}: ${idea.title}`);
+            total++;
+        }
+
         ideaStatusPatched = true;
         return total;
     } catch (err) {
@@ -207,6 +227,57 @@ app.get('/api/analytics', authMiddleware, async (_req, res) => {
         res.json(analytics);
     } catch (e: any) {
         console.error('GET /api/analytics error:', e);
+        res.status(500).json({ error: e?.message || 'Failed to get analytics' });
+    }
+});
+
+// Innovation Hub Analytics (transformed format for frontend)
+app.get('/api/innovation/analytics', authMiddleware, async (_req, res) => {
+    try {
+        const cacheKey = 'analytics:innovation';
+        const cached = await cacheGet(cacheKey);
+        if (cached) {
+            trackCacheHit();
+            return res.json(cached);
+        }
+
+        trackCacheMiss();
+        const analytics = await getAnalytics();
+
+        // Transform to match frontend AnalyticsData type
+        const transformed = {
+            kpis: {
+                totalIdeas: analytics.totalIdeas || 0,
+                underReview: analytics.ideasByStatus?.['PENDING_REVIEW'] || 0,
+                approved: analytics.ideasByStatus?.['APPROVED'] || 0,
+                promoted: analytics.ideasByStatus?.['PROMOTED_TO_PROJECT'] || 0,
+                totalEngagement: analytics.totalVotes + analytics.totalComments + analytics.totalViews,
+            },
+            submissionsByMonth: analytics.submissionTrends?.slice(0, 12).map((t: any) => t.submissions || 0) || [],
+            ideasByCategory: analytics.ideasByCategory || {},
+            statusPipeline: {
+                submitted: analytics.totalIdeas || 0,
+                underReview: analytics.ideasByStatus?.['PENDING_REVIEW'] || 0,
+                approved: analytics.ideasByStatus?.['APPROVED'] || 0,
+                rejected: analytics.ideasByStatus?.['REJECTED'] || 0,
+                promoted: analytics.ideasByStatus?.['PROMOTED_TO_PROJECT'] || 0,
+            },
+            topContributors:
+                analytics.topContributors?.slice(0, 5).map((c: any) => ({
+                    name: c.userName || 'Unknown',
+                    ideas: c.ideasCount || 0,
+                    votes: 0, // Not available in current analytics
+                })) || [],
+            weeklyEngagement: {
+                views: analytics.submissionTrends?.slice(0, 7).map(() => 0) || [0, 0, 0, 0, 0, 0, 0],
+                votes: analytics.votingTrends?.slice(0, 7).map((t: any) => t.votes || 0) || [0, 0, 0, 0, 0, 0, 0],
+            },
+        };
+
+        await cacheSet(cacheKey, transformed, 300); // 5 minute TTL
+        res.json(transformed);
+    } catch (e: any) {
+        console.error('GET /api/innovation/analytics error:', e);
         res.status(500).json({ error: e?.message || 'Failed to get analytics' });
     }
 });
@@ -472,7 +543,7 @@ app.get('/api/ideas', authMiddleware, async (req, res) => {
         const voteMap = new Map(userVotes.map((v) => [v.ideaId, v.voteType]));
 
         // Map ideas with votes and comment count - now O(n) instead of O(n²)
-        const ideasWithVotes = ideas.map((idea) => ({
+        const ideasWithVotes = ideas.map((idea: any) => ({
             ...idea,
             commentCount: idea._count?.comments || 0,
             hasVoted: voteMap.has(idea.id) ? (voteMap.get(idea.id) === 'UPVOTE' ? 'up' : 'down') : null,
@@ -542,8 +613,9 @@ app.get('/api/ideas', authMiddleware, async (req, res) => {
                     const userVotes =
                         userId && ideas.length > 0 ? await prisma.vote.findMany({ where: { userId, ideaId: { in: ideas.map((i) => i.id) } }, select: { ideaId: true, voteType: true } }) : [];
                     const voteMap = new Map(userVotes.map((v) => [v.ideaId, v.voteType]));
-                    const ideasWithVotes = ideas.map((idea) => ({
+                    const ideasWithVotes = ideas.map((idea: any) => ({
                         ...idea,
+                        commentCount: idea._count?.comments || 0,
                         hasVoted: voteMap.has(idea.id) ? (voteMap.get(idea.id) === 'UPVOTE' ? 'up' : 'down') : null,
                         submittedBy: idea.isAnonymous ? 'Anonymous' : idea.submitter?.name || idea.submitter?.email || 'Unknown',
                     }));
@@ -1245,7 +1317,9 @@ app.post('/api/ideas/:id/vote', authMiddleware, voteLimiter, async (req, res) =>
         updateIdeaTrendingScore(ideaId).catch((err) => console.error('Failed to update trending score:', err));
 
         // Emit WebSocket event
-        emitVoteUpdated(ideaId, updated.voteCount, updated.trendingScore);
+        if (updated) {
+            emitVoteUpdated(ideaId, updated.voteCount, updated.trendingScore);
+        }
 
         return res.json({ ...updated, hasVoted });
     } catch (e: any) {
