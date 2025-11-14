@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
@@ -172,6 +172,13 @@ const ViewIdeas = () => {
         return badges[status] || badges.APPROVED;
     };
 
+    const counts = useMemo(() => {
+        const approved = ideas.filter((i) => i.status === 'APPROVED').length;
+        const underReview = ideas.filter((i) => i.status === 'UNDER_REVIEW').length;
+        const implemented = ideas.filter((i) => i.status === 'IMPLEMENTED').length;
+        return { total: ideas.length, approved, underReview, implemented };
+    }, [ideas]);
+
     const filteredIdeas = ideas.filter((idea) => {
         const matchesCategoryUI = filter === 'all' || idea.category === filter;
         const matchesMultiCategory = categoryFilters.length ? categoryFilters.includes(idea.category) : true;
@@ -187,48 +194,96 @@ const ViewIdeas = () => {
 
     return (
         <div className="space-y-6">
-            {/* Header */}
-            <div className="flex items-start justify-between">
-                <div>
-                    <h1 className="text-4xl font-black text-gray-900 dark:text-white flex items-center gap-3">
-                        <svg className="w-12 h-12 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" role="img" aria-label="diamond">
-                            <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
-                            />
-                        </svg>
-                        {t('innovation.view.title')}
-                    </h1>
-                    <p className="text-lg text-gray-600 dark:text-gray-400 mt-2">{t('innovation.view.subtitle')}</p>
+            {/* Hero Header */}
+            <div className="panel bg-gradient-to-r from-cyan-600 to-blue-600 text-white overflow-hidden relative">
+                <div className="absolute inset-0 opacity-10 pointer-events-none">
+                    <div className="absolute -top-16 -right-16 w-80 h-80 bg-white rounded-full" />
+                    <div className="absolute -bottom-20 -left-20 w-64 h-64 bg-white rounded-full" />
                 </div>
-                <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 p-1 rounded-lg">
-                    <button
-                        onClick={() => setViewMode('grid')}
-                        className={`p-2 rounded ${viewMode === 'grid' ? 'bg-white dark:bg-gray-700 shadow' : ''}`}
-                        aria-label={t('innovation.view.viewMode.grid')}
-                        aria-pressed={viewMode === 'grid'}
-                    >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"
-                            />
-                        </svg>
-                    </button>
-                    <button
-                        onClick={() => setViewMode('list')}
-                        className={`p-2 rounded ${viewMode === 'list' ? 'bg-white dark:bg-gray-700 shadow' : ''}`}
-                        aria-label={t('innovation.view.viewMode.list')}
-                        aria-pressed={viewMode === 'list'}
-                    >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                        </svg>
-                    </button>
+                <div className="relative z-10 p-6 sm:p-8">
+                    <div className="flex items-start justify-between gap-6 flex-wrap">
+                        <div className="flex-1 min-w-[280px]">
+                            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/15 backdrop-blur-md text-xs font-semibold mb-3">
+                                <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse" />
+                                <span>{t('innovation.view.badge', { defaultValue: 'Idea Gallery' })}</span>
+                            </div>
+                            <h1 className="text-3xl sm:text-4xl font-black flex items-center gap-3 mb-2">
+                                <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24" role="img" aria-label="diamond" aria-hidden="true">
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
+                                    />
+                                </svg>
+                                {t('innovation.view.title')}
+                            </h1>
+                            <p className="text-white/90 max-w-2xl">{t('innovation.view.subtitle')}</p>
+                        </div>
+                        <div className="flex items-center gap-2 bg-white/15 backdrop-blur-sm p-1 rounded-lg">
+                            <button
+                                onClick={() => setViewMode('grid')}
+                                className={`p-3 rounded transition-all ${viewMode === 'grid' ? 'bg-white/30 text-white shadow' : 'text-white/70 hover:text-white'}`}
+                                aria-label={t('innovation.view.viewMode.grid')}
+                                aria-pressed={viewMode === 'grid'}
+                            >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"
+                                    />
+                                </svg>
+                            </button>
+                            <button
+                                onClick={() => setViewMode('list')}
+                                className={`p-3 rounded transition-all ${viewMode === 'list' ? 'bg-white/30 text-white shadow' : 'text-white/70 hover:text-white'}`}
+                                aria-label={t('innovation.view.viewMode.list')}
+                                aria-pressed={viewMode === 'list'}
+                            >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Summary Strip */}
+            <div className="panel bg-gradient-to-r from-slate-50 to-indigo-50 dark:from-slate-900/20 dark:to-indigo-900/20 border border-indigo-200/60 dark:border-indigo-800/40">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300 text-xs font-semibold">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                        {t('innovation.view.summary.live', { defaultValue: 'Live' })}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 text-sm">
+                        <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            {t('innovation.view.summary.underReview', { defaultValue: 'Under Review' })}: {counts.underReview}
+                        </span>
+                        <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                            {t('innovation.view.summary.approved', { defaultValue: 'Approved' })}: {counts.approved}
+                        </span>
+                        <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                            </svg>
+                            {t('innovation.view.summary.implemented', { defaultValue: 'Promoted' })}: {counts.implemented}
+                        </span>
+                        <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100 text-slate-800 dark:bg-slate-800/60 dark:text-slate-300">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                            {t('innovation.view.summary.total', { defaultValue: 'Total' })}: {counts.total}
+                        </span>
+                    </div>
                 </div>
             </div>
 
