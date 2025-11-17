@@ -761,8 +761,8 @@ function ReassignRequestsTab() {
         setLoading(true);
         try {
             const [reqsRes, usersRes] = await Promise.all([
-                fetch('http://localhost:4000/requests'),
-                fetch('http://localhost:4000/admin/users')
+                fetch('http://heron:4000/requests'),
+                fetch('http://heron:4000/admin/users')
             ]);
             const reqs = await reqsRes.json();
             const usrs = await usersRes.json();
@@ -780,7 +780,7 @@ function ReassignRequestsTab() {
             const userProfile = localStorage.getItem('auth_user') || sessionStorage.getItem('auth_user');
             const user = userProfile ? JSON.parse(userProfile) : null;
             
-            const res = await fetch(`http://localhost:4000/admin/requests/${requestId}/reassign`, {
+            const res = await fetch(`http://heron:4000/admin/requests/${requestId}/reassign`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

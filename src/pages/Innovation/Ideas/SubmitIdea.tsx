@@ -164,7 +164,7 @@ const SubmitIdea = () => {
                 const token = getToken();
                 // Use the configured API host when available (Vite builds set VITE_API_URL).
                 // Fall back to relative paths when not set so the dev proxy still works.
-                const apiBase = import.meta.env.VITE_API_URL || '';
+                    const apiBase = 'http://heron:4000';
                 const headers: Record<string, string> = {
                     'Content-Type': 'application/json',
                 };
@@ -207,22 +207,36 @@ const SubmitIdea = () => {
         if (!validate()) return;
         setIsLoading(true);
 
-        try {
-            // Submit the idea to the API
-            const created = await submitIdea(
-                {
-                    title: formData.title,
-                    description: formData.description,
-                    descriptionHtml: formData.descriptionHtml || undefined,
-                    category: formData.category,
-                    expectedBenefits: formData.expectedBenefits,
-                    implementationNotes: formData.implementationNotes,
-                    isAnonymous: formData.isAnonymous,
-                    challengeId: formData.challengeId ? Number(formData.challengeId) : undefined,
-                    tagIds: formData.tagIds,
-                },
-                files.length ? { images: files } : undefined
-            );
+                try {
+                    // Submit the idea to the API
+                    const created = await submitIdea(
+                        {
+                            title: formData.title,
+                            description: formData.description,
+                            descriptionHtml: formData.descriptionHtml || undefined,
+                            category: formData.category,
+                            expectedBenefits: formData.expectedBenefits,
+                            implementationNotes: formData.implementationNotes,
+                            isAnonymous: formData.isAnonymous,
+                            challengeId: formData.challengeId ? Number(formData.challengeId) : undefined,
+                            tagIds: formData.tagIds,
+                        },
+                        files.length ? { images: files } : undefined
+                    );
+                    const created = await submitIdea(
+                        {
+                            title: formData.title,
+                            description: formData.description,
+                            descriptionHtml: formData.descriptionHtml || undefined,
+                            category: formData.category,
+                            expectedBenefits: formData.expectedBenefits,
+                            implementationNotes: formData.implementationNotes,
+                            isAnonymous: formData.isAnonymous,
+                            challengeId: formData.challengeId ? Number(formData.challengeId) : undefined,
+                            tagIds: formData.tagIds,
+                        },
+                        files.length ? { images: files } : undefined
+                    );
 
             // Optimistic event so MyIdeas can reflect immediately
             document.dispatchEvent(new CustomEvent('idea:created', { detail: created }));
