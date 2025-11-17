@@ -223,20 +223,6 @@ const SubmitIdea = () => {
                 },
                 files.length ? { images: files } : undefined
             );
-            const created = await submitIdea(
-                {
-                    title: formData.title,
-                    description: formData.description,
-                    descriptionHtml: formData.descriptionHtml || undefined,
-                    category: formData.category,
-                    expectedBenefits: formData.expectedBenefits,
-                    implementationNotes: formData.implementationNotes,
-                    isAnonymous: formData.isAnonymous,
-                    challengeId: formData.challengeId ? Number(formData.challengeId) : undefined,
-                    tagIds: formData.tagIds,
-                },
-                files.length ? { images: files } : undefined
-            );
 
             // Optimistic event so MyIdeas can reflect immediately
             document.dispatchEvent(new CustomEvent('idea:created', { detail: created }));
