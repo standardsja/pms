@@ -818,7 +818,7 @@ const Onboarding = () => {
                                         clipRule="evenodd"
                                     />
                                 </svg>
-                                <span className="font-medium">ISO 27001 Certified</span>
+                                <span className="font-medium">ISO 9001 Certified</span>
                             </div>
                             <div className="flex items-center gap-2">
                                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
