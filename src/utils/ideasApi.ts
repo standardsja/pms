@@ -353,6 +353,7 @@ export async function submitIdea(
     const user = getUser();
 
     // Use multipart/form-data if any file(s) provided
+    // Backend only supports single 'image' field, so use first image if multiple provided
     if (opts?.image || (opts?.images && opts.images.length)) {
         const form = new FormData();
         form.append('title', data.title);
@@ -361,12 +362,14 @@ export async function submitIdea(
         form.append('category', data.category);
         if (data.expectedBenefits) form.append('expectedBenefits', data.expectedBenefits);
         if (data.implementationNotes) form.append('implementationNotes', data.implementationNotes);
-        if (opts?.image) form.append('image', opts.image);
-        if (opts?.images) {
-            for (const f of opts.images) {
-                form.append('files', f);
-            }
+        
+        // Send single image only - backend uses upload.single('image')
+        if (opts?.image) {
+            form.append('image', opts.image);
+        } else if (opts?.images && opts.images.length > 0) {
+            form.append('image', opts.images[0]); // Use first image only
         }
+        
         if (data.isAnonymous) form.append('isAnonymous', String(data.isAnonymous));
         if (data.challengeId) form.append('challengeId', String(data.challengeId));
         if (data.tagIds && data.tagIds.length) form.append('tagIds', data.tagIds.join(','));
@@ -375,8 +378,7 @@ export async function submitIdea(
         if (user?.id) headers['x-user-id'] = user.id;
         if (token) headers['Authorization'] = `Bearer ${token}`;
 
-        const apiBase = import.meta.env.VITE_API_URL || '';
-        const res = await fetch(`${apiBase}/api/ideas`, {
+        const res = await fetch(`http://heron:4000/api/ideas`, {
             method: 'POST',
             headers,
             body: form,
