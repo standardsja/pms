@@ -81,6 +81,33 @@ async function fixInvalidIdeaStatuses(): Promise<void> {
     }
 }
 
+// Get idea counts by status
+router.get(
+    '/counts',
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+        try {
+            const counts = await prisma.$transaction(async (tx) => {
+                const [pending, approved, rejected, promoted, draft, total] = await Promise.all([
+                    tx.idea.count({ where: { status: 'PENDING_REVIEW' } }),
+                    tx.idea.count({ where: { status: 'APPROVED' } }),
+                    tx.idea.count({ where: { status: 'REJECTED' } }),
+                    tx.idea.count({ where: { status: 'PROMOTED_TO_PROJECT' } }),
+                    tx.idea.count({ where: { status: 'DRAFT' } }),
+                    tx.idea.count(),
+                ]);
+
+                return { pending, approved, rejected, promoted, draft, total };
+            });
+
+            res.json(counts);
+        } catch (error) {
+            logger.error('Failed to fetch idea counts', error);
+            res.status(500).json({ error: 'Failed to fetch idea counts' });
+        }
+    })
+);
+
 // List ideas with filtering and pagination
 router.get(
     '/',

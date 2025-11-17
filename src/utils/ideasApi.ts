@@ -93,8 +93,17 @@ function getAuthHeaders(): Record<string, string> {
 
 /**
  * Base API configuration
+ * - Development: Use relative URLs (handled by Vite proxy)
+ * - Production: Use absolute URL with environment variable
  */
-const API_BASE_URL = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : 'http://localhost:4000/api';
+const API_BASE_URL = (() => {
+    // In development, use relative URLs for Vite proxy
+    if (import.meta.env.DEV) {
+        return '/api';
+    }
+    // In production, use environment variable or fallback
+    return import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api';
+})();
 
 /**
  * Generic API request function with error handling

@@ -32,6 +32,7 @@ import { authMiddleware } from './middleware/auth';
 // Route imports
 import { authRoutes } from './routes/auth';
 import { ideasRoutes } from './routes/ideas';
+import { requestsRoutes } from './routes/requests';
 
 // Initialize Express app
 const app = express();
@@ -114,6 +115,7 @@ app.get('/health', async (_req, res) => {
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/ideas', ideasRoutes);
+app.use('/requests', requestsRoutes);
 
 // Error handling - must be last
 app.use(notFoundHandler);

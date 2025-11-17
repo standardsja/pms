@@ -17,7 +17,7 @@ const Requests = () => {
     const dispatch = useDispatch();
     const navigate = useNavigate();
     const location = useLocation();
-    
+
     useEffect(() => {
         dispatch(setPageTitle('Requests'));
     }, [dispatch]);
@@ -28,7 +28,7 @@ const Requests = () => {
 
     // Current user from localStorage (aligns with RequestForm pattern)
     const [currentUserName, setCurrentUserName] = useState<string>('');
-    const [currentUserId, setCurrentUserId] = useState<number|null>(null);
+    const [currentUserId, setCurrentUserId] = useState<number | null>(null);
     const showMineOnly = location.pathname.endsWith('/mine');
 
     // Load current user (supports session/local storage + legacy userProfile)
@@ -38,7 +38,7 @@ const Requests = () => {
             const legacyRaw = localStorage.getItem('userProfile');
             const user = authRaw ? JSON.parse(authRaw) : legacyRaw ? JSON.parse(legacyRaw) : null;
             setCurrentUserName(user?.name || user?.fullName || '');
-            setCurrentUserId(user?.id ? Number(user.id) : (user?.userId ? Number(user.userId) : null));
+            setCurrentUserId(user?.id ? Number(user.id) : user?.userId ? Number(user.userId) : null);
         } catch {
             setCurrentUserName('');
             setCurrentUserId(null);
@@ -55,9 +55,9 @@ const Requests = () => {
                 const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
                 const headers: Record<string, string> = {};
                 if (token) headers['Authorization'] = `Bearer ${token}`;
-                // Hitting backend directly on port 4000 since Vite proxy only rewrites '/api' paths.
-                // TODO: Move to an env-driven API base and/or add a Vite proxy for '/requests'.
-                const res = await fetch('http://localhost:4000/requests', {
+                // Use Vite proxy in development, direct URL in production
+                const apiUrl = import.meta.env.DEV ? '/requests' : `${import.meta.env.VITE_API_URL || ''}/requests`;
+                const res = await fetch(apiUrl, {
                     headers,
                     signal: controller.signal,
                 });
@@ -95,22 +95,16 @@ const Requests = () => {
 
     const sorted = useMemo(() => sortRequestsByDateDesc(requests), [requests]);
     const searched = useMemo(() => searchRequests(sorted, query), [sorted, query]);
-    const filteredByMeta = useMemo(
-        () => filterRequests(searched, { status: statusFilter, department: departmentFilter }),
-        [searched, statusFilter, departmentFilter]
-    );
+    const filteredByMeta = useMemo(() => filterRequests(searched, { status: statusFilter, department: departmentFilter }), [searched, statusFilter, departmentFilter]);
     // Show requests where user is requester or current assignee
-    const filteredRequests = useMemo(
-        () => {
-            if (!showMineOnly) return filteredByMeta;
-            return filteredByMeta.filter(r => {
-                // @ts-ignore: backend may return string or number for id
-                const assigneeId = r.currentAssigneeId ? Number(r.currentAssigneeId) : null;
-                return (r.requester === currentUserName) || (currentUserId && assigneeId === currentUserId);
-            });
-        },
-        [showMineOnly, filteredByMeta, currentUserName, currentUserId]
-    );
+    const filteredRequests = useMemo(() => {
+        if (!showMineOnly) return filteredByMeta;
+        return filteredByMeta.filter((r) => {
+            // @ts-ignore: backend may return string or number for id
+            const assigneeId = r.currentAssigneeId ? Number(r.currentAssigneeId) : null;
+            return r.requester === currentUserName || (currentUserId && assigneeId === currentUserId);
+        });
+    }, [showMineOnly, filteredByMeta, currentUserName, currentUserId]);
 
     // Pagination
     const [page, setPage] = useState<number>(() => {
@@ -124,10 +118,14 @@ const Requests = () => {
     // Keep URL query params in sync with current UI state
     useEffect(() => {
         const params = new URLSearchParams(location.search);
-        if (query) params.set('q', query); else params.delete('q');
-        if (statusFilter) params.set('status', statusFilter); else params.delete('status');
-        if (departmentFilter) params.set('dept', departmentFilter); else params.delete('dept');
-        if (page > 1) params.set('page', String(page)); else params.delete('page');
+        if (query) params.set('q', query);
+        else params.delete('q');
+        if (statusFilter) params.set('status', statusFilter);
+        else params.delete('status');
+        if (departmentFilter) params.set('dept', departmentFilter);
+        else params.delete('dept');
+        if (page > 1) params.set('page', String(page));
+        else params.delete('page');
         const search = params.toString();
         navigate({ pathname: location.pathname, search: search ? `?${search}` : '' }, { replace: true });
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -140,9 +138,10 @@ const Requests = () => {
             width: '800px',
             showCloseButton: true,
             showConfirmButton: false,
-            customClass: { popup: 'text-left' }
+            customClass: { popup: 'text-left' },
         });
-    };    return (
+    };
+    return (
         <div className="p-6">
             <div className="flex items-center justify-between mb-6">
                 <div>
@@ -150,11 +149,7 @@ const Requests = () => {
                     <p className="text-sm text-muted-foreground">Manage acquisition and procurement requests</p>
                 </div>
                 <div>
-                    <button
-                        className="inline-flex items-center gap-2 px-4 py-2 rounded bg-primary text-white hover:opacity-95"
-                        type="button"
-                        onClick={() => navigate('/apps/requests/new')}
-                    >
+                    <button className="inline-flex items-center gap-2 px-4 py-2 rounded bg-primary text-white hover:opacity-95" type="button" onClick={() => navigate('/apps/requests/new')}>
                         <IconPlus />
                         New Request
                     </button>
@@ -193,7 +188,10 @@ const Requests = () => {
                 <input
                     type="text"
                     value={query}
-                    onChange={(e) => { setQuery(e.target.value); setPage(1); }}
+                    onChange={(e) => {
+                        setQuery(e.target.value);
+                        setPage(1);
+                    }}
                     placeholder="Search by ID, Title, Requester, Dept"
                     className="form-input w-64"
                     aria-label="Search requests"
@@ -201,7 +199,10 @@ const Requests = () => {
 
                 <select
                     value={statusFilter}
-                    onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+                    onChange={(e) => {
+                        setStatusFilter(e.target.value);
+                        setPage(1);
+                    }}
                     className="form-select"
                     aria-label="Filter by status"
                 >
@@ -217,29 +218,28 @@ const Requests = () => {
 
                 <select
                     value={departmentFilter}
-                    onChange={(e) => { setDepartmentFilter(e.target.value); setPage(1); }}
+                    onChange={(e) => {
+                        setDepartmentFilter(e.target.value);
+                        setPage(1);
+                    }}
                     className="form-select"
                     aria-label="Filter by department"
                 >
                     <option value="">All Departments</option>
-                    {[...new Set(requests.map(r => r.department).filter(Boolean) as string[])]
+                    {[...new Set(requests.map((r) => r.department).filter(Boolean) as string[])]
                         .sort((a, b) => a.localeCompare(b))
-                        .map(dep => (
-                            <option key={dep} value={dep}>{dep}</option>
+                        .map((dep) => (
+                            <option key={dep} value={dep}>
+                                {dep}
+                            </option>
                         ))}
                 </select>
             </div>
 
             <div className="bg-white dark:bg-slate-800 shadow rounded overflow-hidden" aria-busy={isLoading}>
-                {isLoading && (
-                    <div className="p-6 text-center text-sm text-gray-500">Loading requests…</div>
-                )}
-                {error && !isLoading && (
-                    <div className="p-6 text-center text-sm text-red-600">{error}</div>
-                )}
-                {!isLoading && !error && filteredRequests.length === 0 && (
-                    <div className="p-6 text-center text-sm text-gray-500">No requests found.</div>
-                )}
+                {isLoading && <div className="p-6 text-center text-sm text-gray-500">Loading requests…</div>}
+                {error && !isLoading && <div className="p-6 text-center text-sm text-red-600">{error}</div>}
+                {!isLoading && !error && filteredRequests.length === 0 && <div className="p-6 text-center text-sm text-gray-500">No requests found.</div>}
                 <table className="min-w-full table-auto">
                     <thead className="bg-slate-50 dark:bg-slate-700 text-sm">
                         <tr>
@@ -264,9 +264,7 @@ const Requests = () => {
                                     <td className="px-4 py-3">{r.department}</td>
                                     <td className="px-4 py-3">
                                         {r.currentAssigneeName ? (
-                                            <span className="text-blue-600 dark:text-blue-400 font-medium">
-                                                {r.currentAssigneeName}
-                                            </span>
+                                            <span className="text-blue-600 dark:text-blue-400 font-medium">{r.currentAssigneeName}</span>
                                         ) : (
                                             <span className="text-gray-400 dark:text-gray-500 italic">—</span>
                                         )}
@@ -288,10 +286,7 @@ const Requests = () => {
                                                 <IconEye className="w-5 h-5" />
                                             </button>
                                             {currentUserId && r.currentAssigneeId != null && Number(r.currentAssigneeId) === Number(currentUserId) && (
-                                                <button
-                                                    className="px-3 py-1 rounded bg-blue-600 text-white text-sm hover:bg-blue-700"
-                                                    onClick={() => navigate(`/apps/requests/edit/${r.id}`)}
-                                                >
+                                                <button className="px-3 py-1 rounded bg-blue-600 text-white text-sm hover:bg-blue-700" onClick={() => navigate(`/apps/requests/edit/${r.id}`)}>
                                                     Review
                                                 </button>
                                             )}
@@ -309,19 +304,13 @@ const Requests = () => {
                             Showing {(page - 1) * pageSize + 1}-{Math.min(page * pageSize, filteredRequests.length)} of {filteredRequests.length}
                         </div>
                         <div className="flex items-center gap-2">
-                            <button
-                                className="px-3 py-1 rounded border disabled:opacity-50"
-                                onClick={() => setPage(p => Math.max(1, p - 1))}
-                                disabled={page === 1}
-                            >
+                            <button className="px-3 py-1 rounded border disabled:opacity-50" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>
                                 Previous
                             </button>
-                            <span>Page {page} of {pageCount}</span>
-                            <button
-                                className="px-3 py-1 rounded border disabled:opacity-50"
-                                onClick={() => setPage(p => Math.min(pageCount, p + 1))}
-                                disabled={page === pageCount}
-                            >
+                            <span>
+                                Page {page} of {pageCount}
+                            </span>
+                            <button className="px-3 py-1 rounded border disabled:opacity-50" onClick={() => setPage((p) => Math.min(pageCount, p + 1))} disabled={page === pageCount}>
                                 Next
                             </button>
                         </div>
