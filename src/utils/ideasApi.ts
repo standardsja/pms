@@ -490,7 +490,7 @@ export async function fetchIdeaCounts(): Promise<{
     total: number;
 }> {
     try {
-        const res = await fetch(`/api/ideas/counts?t=${Date.now()}`, {
+        const res = await fetch(`http://heron:4000/api/ideas/counts?t=${Date.now()}`, {
             headers: {
                 ...authHeaders(),
                 'Cache-Control': 'no-store',
