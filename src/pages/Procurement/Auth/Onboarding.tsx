@@ -1,4 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom';
+import packageInfo from '../../../../package.json';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { setPageTitle } from '../../../store/themeConfigSlice';
@@ -471,7 +472,7 @@ const Onboarding = () => {
                         <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                             <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
                         </svg>
-                        <span className="font-medium">Powered by modern cloud infrastructure</span>
+                        <span className="font-medium">Powered by SPINX Enterprise Platform</span>
                     </div>
                     <div className="flex items-center justify-center gap-8 mt-8 text-sm text-gray-500 dark:text-gray-400">
                         <div className="flex items-center gap-2">
@@ -830,7 +831,7 @@ const Onboarding = () => {
                                 <span className="font-medium">99.9% Uptime SLA</span>
                             </div>
                         </div>
-                        <p className="text-xs text-gray-400 dark:text-gray-500">Powered by SPINX Enterprise Platform v3.2.1 • © 2025 Bureau of Standards Jamaica</p>
+                        <p className="text-xs text-gray-400 dark:text-gray-500">Powered by SPINX Enterprise Platform v{packageInfo.version} • © 2025 Bureau of Standards Jamaica</p>
                     </div>
                 </div>
             </div>
