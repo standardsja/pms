@@ -4,6 +4,7 @@ import CommitteeRoute from '../components/CommitteeRoute';
 
 // Main Pages
 const Index = lazy(() => import('../pages/Index'));
+const LandingPage = lazy(() => import('../pages/LandingPage'));
 const Error = lazy(() => import('../components/Error'));
 
 // Auth Pages
@@ -115,15 +116,22 @@ const routes = [
     // ============================================
     // MODULE SELECTOR / ONBOARDING
     // ============================================
-    // Root should redirect to dashboard when authenticated; otherwise to login
+    // Root path shows ModuleSelector for authenticated users or redirects to login
     {
         path: '/',
-        element: <Index />, // Index can decide or be a lightweight landing; keep as is to avoid blank layout login forcing
+        element: <LandingPage />,
+        layout: 'blank',
     },
-    // Optional: keep a direct route to the old selector (not linked)
+    // Keep legacy dashboard route for direct access
+    {
+        path: '/dashboard',
+        element: <Index />,
+    },
+    // Direct route to module selector
     {
         path: '/modules',
         element: <ModuleSelector />,
+        layout: 'blank',
     },
 
     // ============================================
