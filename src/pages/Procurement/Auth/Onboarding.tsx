@@ -78,6 +78,16 @@ const Onboarding = () => {
                 }
             }, 0);
         }
+        // If a module was previously selected, redirect away from onboarding
+        const previouslySelected = (localStorage.getItem('selectedModule') as ModuleKey | null) || null;
+        if (!forceOnboarding && previouslySelected) {
+            setTimeout(() => {
+                const map = modulesMap.current;
+                if (map && map[previouslySelected]) {
+                    navigate(map[previouslySelected].path, { replace: true });
+                }
+            }, 0);
+        }
         // Show procurement steps image once after login if flagged
         try {
             const flag = sessionStorage.getItem('showOnboardingImage');
@@ -272,7 +282,7 @@ const Onboarding = () => {
             await new Promise((r) => setTimeout(r, 200));
             // analytics: continue
             logEvent('onboarding_continue', { selected, rememberChoice });
-            navigate(modulePath(selected));
+            navigate(modulePath(selected), { replace: true });
         } finally {
             setIsBusy(false);
         }
