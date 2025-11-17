@@ -226,7 +226,7 @@ const Requests = () => {
                     aria-label="Filter by department"
                 >
                     <option value="">All Departments</option>
-                    {[...new Set(requests.map((f) => r.department).filter(Boolean) as string[])]
+                    {[...new Set(requests.map((f) => f.department).filter(Boolean) as string[])]
                         .sort((a, b) => a.localeCompare(b))
                         .map((dep) => (
                             <option key={dep} value={dep}>

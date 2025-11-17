@@ -1700,9 +1700,12 @@ app.patch('/requests/:id', async (req, res) => {
         const { id } = req.params;
         const updates = req.body || {};
 
+        // Remove deprecated fields that no longer exist in schema
+        const { budgetOfficerApproved, budgetManagerApproved, ...cleanUpdates } = updates;
+
         const updated = await prisma.request.update({
             where: { id: parseInt(id, 10) },
-            data: updates,
+            data: cleanUpdates,
             include: {
                 items: true,
                 requester: { select: { id: true, name: true, email: true } },
@@ -1723,9 +1726,12 @@ app.put('/requests/:id', async (req, res) => {
         const { id } = req.params;
         const updates = req.body || {};
 
+        // Remove deprecated fields that no longer exist in schema
+        const { budgetOfficerApproved, budgetManagerApproved, ...cleanUpdates } = updates;
+
         const updated = await prisma.request.update({
             where: { id: parseInt(id, 10) },
-            data: updates,
+            data: cleanUpdates,
             include: {
                 items: true,
                 requester: { select: { id: true, name: true, email: true } },
@@ -1848,14 +1854,21 @@ app.post('/requests/:id/action', async (req, res) => {
                 nextStatus = 'PROCUREMENT_REVIEW';
                 nextAssigneeId = procurement?.id || null;
             } else if (request.status === 'PROCUREMENT_REVIEW') {
-                // Procurement approved -> send to Finance
-                const finance = await prisma.user.findFirst({
+                // Procurement approved -> send to Finance Officer
+                const financeOfficer = await prisma.user.findFirst({
                     where: { roles: { some: { role: { name: 'FINANCE' } } } },
                 });
                 nextStatus = 'FINANCE_REVIEW';
-                nextAssigneeId = finance?.id || null;
+                nextAssigneeId = financeOfficer?.id || null;
             } else if (request.status === 'FINANCE_REVIEW') {
-                // Finance approved -> final approval, assign back to Procurement
+                // Finance Officer approved -> send to Budget Manager
+                const budgetManager = await prisma.user.findFirst({
+                    where: { roles: { some: { role: { name: 'BUDGET_MANAGER' } } } },
+                });
+                nextStatus = 'BUDGET_MANAGER_REVIEW';
+                nextAssigneeId = budgetManager?.id || null;
+            } else if (request.status === 'BUDGET_MANAGER_REVIEW') {
+                // Budget Manager approved -> final approval, assign back to Procurement
                 nextStatus = 'FINANCE_APPROVED';
                 const procurement = await prisma.user.findFirst({
                     where: { roles: { some: { role: { name: 'PROCUREMENT' } } } },
