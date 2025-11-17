@@ -1746,6 +1746,110 @@ app.put('/requests/:id', async (req, res) => {
     }
 });
 
+// GET /requests/:id/pdf - generate PDF for a request
+app.get('/requests/:id/pdf', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const request = await prisma.request.findUnique({
+            where: { id: parseInt(id, 10) },
+            include: {
+                items: true,
+                requester: true,
+                department: true,
+                currentAssignee: true,
+            },
+        });
+
+        if (!request) {
+            return res.status(404).json({ error: 'Not Found', message: 'Route GET /requests/9/pdf does not exist', statusCode: 404 });
+        }
+
+        // Load HTML template
+        const templatePath = path.join(process.cwd(), 'server', 'templates', 'request-pdf.html');
+        let html = fs.readFileSync(templatePath, 'utf-8');
+
+        // Helper to format date
+        const formatDate = (date: Date | null | undefined) => {
+            if (!date) return '—';
+            return new Date(date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+        };
+
+        // Helper to format currency
+        const formatCurrency = (value: any) => {
+            if (value == null) return '—';
+            return parseFloat(String(value)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        };
+
+        // Generate items rows
+        const itemsRows = request.items
+            .map(
+                (item, idx) => `
+        <tr>
+          <td>${idx + 1}</td>
+          <td>${item.description || '—'}</td>
+          <td style="text-align: center;">${item.quantity || '—'}</td>
+          <td style="text-align: right;">${formatCurrency(item.unitPrice)}</td>
+          <td style="text-align: right;">${formatCurrency(parseFloat(String(item.quantity || 0)) * parseFloat(String(item.unitPrice || 0)))}</td>
+        </tr>`
+            )
+            .join('');
+
+        // Replace placeholders
+        html = html
+            .replace('{{reference}}', request.reference || '—')
+            .replace('{{submittedAt}}', formatDate(request.submittedAt))
+            .replace('{{requesterName}}', request.requester?.name || '—')
+            .replace('{{requesterEmail}}', request.requester?.email || '—')
+            .replace('{{departmentName}}', request.department?.name || '—')
+            .replace('{{priority}}', request.priority || '—')
+            .replace('{{currency}}', request.currency || 'JMD')
+            .replace(/{{totalEstimated}}/g, formatCurrency(request.totalEstimated))
+            .replace('{{description}}', request.description || '—')
+            .replace('{{itemsRows}}', itemsRows)
+            .replace('{{managerName}}', request.managerName || '—')
+            .replace('{{managerApprovalDate}}', formatDate(request.actionDate))
+            .replace('{{headName}}', request.headName || '—')
+            .replace('{{hodApprovalDate}}', formatDate(request.actionDate))
+            .replace('{{budgetOfficerName}}', request.budgetOfficerName || '—')
+            .replace('{{budgetManagerName}}', request.budgetManagerName || '—')
+            .replace('{{financeApprovalDate}}', formatDate(request.actionDate))
+            .replace('{{commitmentNumber}}', request.commitmentNumber || '—')
+            .replace('{{accountingCode}}', request.accountingCode || '—')
+            .replace('{{procurementApprovalDate}}', formatDate(request.actionDate))
+            .replace('{{status}}', request.status || '—')
+            .replace('{{assigneeName}}', request.currentAssignee?.name || '—')
+            .replace('{{submittedDate}}', formatDate(request.submittedAt))
+            .replace('{{procurementCaseNumber}}', request.procurementCaseNumber || '—')
+            .replace('{{receivedBy}}', request.receivedBy || '—')
+            .replace('{{dateReceived}}', formatDate(request.dateReceived))
+            .replace('{{actionDate}}', formatDate(request.actionDate))
+            .replace('{{procurementComments}}', request.procurementComments || '—')
+            .replace('{{now}}', new Date().toLocaleString('en-US'));
+
+        // Generate PDF using puppeteer
+        const puppeteer = await import('puppeteer');
+        const browser = await puppeteer.default.launch({
+            headless: true,
+            args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        });
+        const page = await browser.newPage();
+        await page.setContent(html, { waitUntil: 'networkidle0' });
+        const pdf = await page.pdf({
+            format: 'A4',
+            printBackground: true,
+            margin: { top: '20px', right: '20px', bottom: '20px', left: '20px' },
+        });
+        await browser.close();
+
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="request-${request.reference || id}.pdf"`);
+        res.send(pdf);
+    } catch (e: any) {
+        console.error('GET /requests/:id/pdf error:', e);
+        return res.status(500).json({ error: 'PDF Generation Failed', message: e?.message || 'Failed to generate PDF' });
+    }
+});
+
 // POST /requests/:id/submit - submit a draft request for approval workflow
 app.post('/requests/:id/submit', async (req, res) => {
     try {
