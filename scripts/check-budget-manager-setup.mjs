@@ -17,7 +17,7 @@ async function main() {
         const budgetManagerRole = await prisma.role.findUnique({
             where: { name: 'BUDGET_MANAGER' },
         });
-        
+
         if (budgetManagerRole) {
             console.log('   ✓ BUDGET_MANAGER role exists (id:', budgetManagerRole.id, ')');
         } else {
@@ -46,7 +46,7 @@ async function main() {
 
         if (budgetManagerUsers.length > 0) {
             console.log(`   ✓ Found ${budgetManagerUsers.length} Budget Manager user(s):`);
-            budgetManagerUsers.forEach(u => {
+            budgetManagerUsers.forEach((u) => {
                 console.log(`     - ${u.name} (${u.email}) [id: ${u.id}]`);
             });
         } else {
@@ -79,7 +79,7 @@ async function main() {
         const fs = await import('fs/promises');
         const schemaPath = new URL('../server/prisma/schema.prisma', import.meta.url);
         const schemaContent = await fs.readFile(schemaPath, 'utf-8');
-        
+
         if (schemaContent.includes('BUDGET_MANAGER_REVIEW')) {
             console.log('   ✓ BUDGET_MANAGER_REVIEW is defined in schema.prisma');
         } else {
@@ -90,7 +90,7 @@ async function main() {
         console.log('\n=== Summary ===');
         const hasRole = !!budgetManagerRole;
         const hasUser = budgetManagerUsers.length > 0;
-        
+
         if (hasRole && hasUser) {
             console.log('✓ Setup looks good! Budget Manager workflow should work.');
             console.log('  If still seeing issues, make sure to:');
@@ -102,7 +102,6 @@ async function main() {
             if (!hasUser) console.log('  - Create Budget Manager user (run seed)');
             console.log('\nQuick fix: npx prisma db seed');
         }
-
     } catch (error) {
         console.error('\n❌ Error during diagnostic:', error);
     } finally {
