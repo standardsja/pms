@@ -657,7 +657,7 @@ const VoteOnIdeas = () => {
                             <h4 className="font-bold text-amber-900 dark:text-amber-300">{t('innovation.vote.warning.noVotesLeft.title')}</h4>
                             <p className="text-sm text-amber-700 dark:text-amber-400">{t('innovation.vote.warning.noVotesLeft.message')}</p>
                         </div>
-                    )}
+                    </div>
                 </div>
             )}
             
