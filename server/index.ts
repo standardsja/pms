@@ -1861,12 +1861,21 @@ app.post('/requests/:id/action', async (req, res) => {
                 nextStatus = 'FINANCE_REVIEW';
                 nextAssigneeId = financeOfficer?.id || null;
             } else if (request.status === 'FINANCE_REVIEW') {
-                // Finance Officer approved -> send to Budget Manager
+                // Finance Officer approved -> send to Budget Manager when available,
+                // otherwise fall back to final finance approval (keeps flow moving)
                 const budgetManager = await prisma.user.findFirst({
                     where: { roles: { some: { role: { name: 'BUDGET_MANAGER' } } } },
                 });
-                nextStatus = 'BUDGET_MANAGER_REVIEW';
-                nextAssigneeId = budgetManager?.id || null;
+                if (budgetManager?.id) {
+                    nextStatus = 'BUDGET_MANAGER_REVIEW';
+                    nextAssigneeId = budgetManager.id;
+                } else {
+                    nextStatus = 'FINANCE_APPROVED';
+                    const procurement = await prisma.user.findFirst({
+                        where: { roles: { some: { role: { name: 'PROCUREMENT' } } } },
+                    });
+                    nextAssigneeId = procurement?.id || null;
+                }
             } else if (request.status === 'BUDGET_MANAGER_REVIEW') {
                 // Budget Manager approved -> final approval, assign back to Procurement
                 nextStatus = 'FINANCE_APPROVED';
@@ -1887,27 +1896,63 @@ app.post('/requests/:id/action', async (req, res) => {
             nextAssigneeId = request.requesterId;
         }
 
-        // Update request with new status
-        const updated = await prisma.request.update({
-            where: { id: parseInt(id, 10) },
-            data: {
-                status: nextStatus,
-                currentAssigneeId: nextAssigneeId,
-                statusHistory: {
-                    create: {
-                        status: nextStatus,
-                        changedById: parseInt(String(userId), 10),
-                        comment: `${action === 'APPROVE' ? 'Approved' : 'Rejected'} at ${request.status} stage`,
+        // Update request with new status (with safe fallback if enum is missing in DB)
+        let updated;
+        try {
+            updated = await prisma.request.update({
+                where: { id: parseInt(id, 10) },
+                data: {
+                    status: nextStatus,
+                    currentAssigneeId: nextAssigneeId,
+                    statusHistory: {
+                        create: {
+                            status: nextStatus,
+                            changedById: parseInt(String(userId), 10),
+                            comment: `${action === 'APPROVE' ? 'Approved' : 'Rejected'} at ${request.status} stage`,
+                        },
                     },
                 },
-            },
-            include: {
-                items: true,
-                requester: { select: { id: true, name: true, email: true } },
-                department: { select: { id: true, name: true, code: true } },
-                currentAssignee: { select: { id: true, name: true, email: true } },
-            },
-        });
+                include: {
+                    items: true,
+                    requester: { select: { id: true, name: true, email: true } },
+                    department: { select: { id: true, name: true, code: true } },
+                    currentAssignee: { select: { id: true, name: true, email: true } },
+                },
+            });
+        } catch (e: any) {
+            const msg = String(e?.message || '');
+            const enumProblem = msg.includes('BUDGET_MANAGER_REVIEW') || msg.toLowerCase().includes('invalid enum');
+            if (enumProblem && request.status === 'FINANCE_REVIEW') {
+                // Fallback: if DB enum lacks BUDGET_MANAGER_REVIEW, treat as FINANCE_APPROVED
+                const procurement = await prisma.user.findFirst({
+                    where: { roles: { some: { role: { name: 'PROCUREMENT' } } } },
+                });
+                const fallbackStatus = 'FINANCE_APPROVED' as const;
+                updated = await prisma.request.update({
+                    where: { id: parseInt(id, 10) },
+                    data: {
+                        status: fallbackStatus,
+                        currentAssigneeId: procurement?.id || null,
+                        statusHistory: {
+                            create: {
+                                status: fallbackStatus,
+                                changedById: parseInt(String(userId), 10),
+                                comment: 'Approved at FINANCE_REVIEW (fallback applied)',
+                            },
+                        },
+                    },
+                    include: {
+                        items: true,
+                        requester: { select: { id: true, name: true, email: true } },
+                        department: { select: { id: true, name: true, code: true } },
+                        currentAssignee: { select: { id: true, name: true, email: true } },
+                    },
+                });
+                console.warn('Fallback applied: DB enum missing BUDGET_MANAGER_REVIEW; advanced to FINANCE_APPROVED');
+            } else {
+                throw e;
+            }
+        }
 
         return res.json(updated);
     } catch (e: any) {
