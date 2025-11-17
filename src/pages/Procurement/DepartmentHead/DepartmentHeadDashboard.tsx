@@ -23,7 +23,7 @@ const DepartmentHeadDashboard = () => {
         const controller = new AbortController();
         async function loadRequests() {
             try {
-                const apiBase = (import.meta as any).env?.VITE_API_BASE_URL as string | undefined;
+                const apiBase = (import.meta as any).env?.VITE_API_URL as string | undefined;
                 const endpoint = apiBase ? `${apiBase.replace(/\/$/, '')}/requisitions` : '/api/requisitions';
                 const token = localStorage.getItem('auth_token') || '';
                 const res = await fetch(endpoint, {
@@ -48,7 +48,7 @@ const DepartmentHeadDashboard = () => {
 
     // Statistics
     const stats = {
-        pendingRequests: requests.filter(r => r.status === 'submitted').length,
+        pendingRequests: requests.filter((r) => r.status === 'submitted').length,
         totalRequests: requests.length,
         totalAmount: requests.reduce((sum, r) => sum + (r.total_amount || 0), 0),
     };
@@ -112,7 +112,7 @@ const DepartmentHeadDashboard = () => {
                             View All
                         </Link>
                     </div>
-                    
+
                     {loading ? (
                         <div className="py-8 text-center text-white-dark">Loading requests...</div>
                     ) : requests.length === 0 ? (
@@ -142,20 +142,16 @@ const DepartmentHeadDashboard = () => {
                                             <td className="px-4 py-3">{String(req.created_at || '').slice(0, 10)}</td>
                                             <td className="px-4 py-3 text-right">JMD ${(req.total_amount || 0).toLocaleString()}</td>
                                             <td className="px-4 py-3">
-                                                <span className={`badge ${
-                                                    req.status === 'submitted' ? 'badge-outline-warning' :
-                                                    req.status === 'approved' ? 'badge-outline-success' :
-                                                    'badge-outline-primary'
-                                                }`}>
+                                                <span
+                                                    className={`badge ${
+                                                        req.status === 'submitted' ? 'badge-outline-warning' : req.status === 'approved' ? 'badge-outline-success' : 'badge-outline-primary'
+                                                    }`}
+                                                >
                                                     {req.status || 'Pending'}
                                                 </span>
                                             </td>
                                             <td className="px-4 py-3 text-center">
-                                                <button
-                                                    className="btn btn-outline-primary btn-sm"
-                                                    onClick={() => navigate(`/apps/requests/${req.id}`)}
-                                                    title="View Details"
-                                                >
+                                                <button className="btn btn-outline-primary btn-sm" onClick={() => navigate(`/apps/requests/${req.id}`)} title="View Details">
                                                     <IconEye className="h-4 w-4" />
                                                 </button>
                                             </td>

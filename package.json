@@ -23,7 +23,7 @@
         "express"
     ],
     "scripts": {
-        "dev": "vite",
+        "dev": "vite --host",
         "build": "vite build && tsc",
         "prisma:seed": "npx tsx server/prisma/seed.ts",
         "preview": "vite preview",
