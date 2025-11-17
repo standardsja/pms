@@ -2,12 +2,24 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { setPageTitle } from '../../../store/themeConfigSlice';
-import { setSelectedModule, setOnboardingComplete } from '../../../store/moduleSlice';
+import { setSelectedModule, setOnboardingComplete, ModuleKey as StoreModuleKey } from '../../../store/moduleSlice';
 import { getUser } from '../../../utils/auth';
 import { useTranslation } from 'react-i18next';
 import { logEvent } from '../../../utils/analytics';
 
-type ModuleKey = 'pms' | 'ih' | 'committee';
+type ModuleKey = 'pms' | 'ih' | 'committee' | 'budgeting' | 'audit' | 'prime' | 'datapoint' | 'maintenance' | 'asset' | 'ppm' | 'kb';
+
+type ModuleDef = {
+    id: ModuleKey;
+    title: string;
+    description: string;
+    icon: string;
+    gradient: string;
+    path: string;
+    features: string[];
+    comingSoon?: boolean;
+    cta?: string;
+};
 
 const Onboarding = () => {
     const dispatch = useDispatch();
@@ -19,10 +31,7 @@ const Onboarding = () => {
     const currentUser = getUser();
     const userRoles: string[] = (currentUser as any)?.roles || ((currentUser as any)?.role ? [(currentUser as any).role] : []);
     const isCommittee = userRoles.includes('INNOVATION_COMMITTEE');
-    const isProcurementManager =
-        userRoles.includes('PROCUREMENT_MANAGER') ||
-        userRoles.includes('MANAGER') ||
-        userRoles.some((r) => r && r.toUpperCase().includes('MANAGER'));
+    const isProcurementManager = userRoles.includes('PROCUREMENT_MANAGER') || userRoles.includes('MANAGER') || userRoles.some((r) => r && r.toUpperCase().includes('MANAGER'));
     const isRequester = !isProcurementManager && userRoles.some((r) => r && r.toUpperCase().includes('REQUEST'));
 
     const [selected, setSelected] = useState<ModuleKey | null>(null);
@@ -31,7 +40,11 @@ const Onboarding = () => {
     const [rememberChoice, setRememberChoice] = useState<boolean>(false);
     const [lastModule, setLastModule] = useState<ModuleKey | null>(null);
     const radiosRef = useRef<HTMLDivElement | null>(null);
+    const scrollContainerRef = useRef<HTMLDivElement | null>(null);
     const [showProcurementSteps, setShowProcurementSteps] = useState<boolean>(false);
+    const [canScrollLeft, setCanScrollLeft] = useState(false);
+    const [canScrollRight, setCanScrollRight] = useState(true);
+    const [showStats, setShowStats] = useState(true);
 
     useEffect(() => {
         dispatch(setPageTitle(t('onboarding.title')));
@@ -77,8 +90,8 @@ const Onboarding = () => {
         logEvent('onboarding_viewed', { role: (userRoles && userRoles[0]) || 'unknown', force: forceOnboarding, hasLast: !!last, done });
     }, [dispatch, isCommittee, navigate, query, forceOnboarding, t, userRoles]);
 
-    const modules = useMemo(() => {
-        const base = [
+    const modules = useMemo<ModuleDef[]>(() => {
+        const base: ModuleDef[] = [
             {
                 id: 'pms' as ModuleKey,
                 title: t('onboarding.modules.pms.title'),
@@ -86,11 +99,7 @@ const Onboarding = () => {
                 icon: '📦',
                 gradient: 'from-blue-500 to-blue-700',
                 path: isProcurementManager ? '/procurement/manager' : isRequester ? '/apps/requests' : '/procurement/dashboard',
-                features: [
-                    t('onboarding.modules.pms.features.0'),
-                    t('onboarding.modules.pms.features.1'),
-                    t('onboarding.modules.pms.features.2'),
-                ],
+                features: [t('onboarding.modules.pms.features.0'), t('onboarding.modules.pms.features.1'), t('onboarding.modules.pms.features.2')],
             },
             {
                 id: 'ih' as ModuleKey,
@@ -99,11 +108,95 @@ const Onboarding = () => {
                 icon: '💡',
                 gradient: 'from-purple-500 to-pink-600',
                 path: '/innovation/dashboard',
-                features: [
-                    t('onboarding.modules.ih.features.0'),
-                    t('onboarding.modules.ih.features.1'),
-                    t('onboarding.modules.ih.features.2'),
-                ],
+                features: [t('onboarding.modules.ih.features.0'), t('onboarding.modules.ih.features.1'), t('onboarding.modules.ih.features.2')],
+            },
+            {
+                id: 'budgeting',
+                title: 'Budgeting & Financial Planning',
+                description: 'Plan, forecast, and control budgets across departments.',
+                icon: '💰',
+                gradient: 'from-emerald-500 to-teal-600',
+                path: '/budgeting',
+                features: ['Scenarios & forecasting', 'Approvals & headroom checks', 'Variance tracking'],
+                comingSoon: true,
+                cta: 'Coming Soon',
+            },
+            {
+                id: 'audit',
+                title: 'Audit Management System',
+                description: 'Plan audits, track findings, and manage remediation.',
+                icon: '📋',
+                gradient: 'from-blue-500 to-indigo-600',
+                path: '#',
+                features: ['Audit planning', 'Issue tracking', 'Evidence repository'],
+                comingSoon: true,
+                cta: 'Coming Soon',
+            },
+            {
+                id: 'prime',
+                title: 'PRIME – Policy, Risk, Integrated Management Engine',
+                description: 'Centralize policies and risk with integrated controls.',
+                icon: '🛡️',
+                gradient: 'from-violet-500 to-purple-600',
+                path: '#',
+                features: ['Policy registry', 'Risk matrix', 'Control library'],
+                comingSoon: true,
+                cta: 'Coming Soon',
+            },
+            {
+                id: 'datapoint',
+                title: 'Data Point – Analytics & BI Centre',
+                description: 'Dashboards and insights across all modules.',
+                icon: '📊',
+                gradient: 'from-cyan-500 to-blue-600',
+                path: '#',
+                features: ['Self-service dashboards', 'KPIs & drilldowns', 'Data exports'],
+                comingSoon: true,
+                cta: 'Coming Soon',
+            },
+            {
+                id: 'maintenance',
+                title: 'Maintenance & Service Management',
+                description: 'Work orders, schedules, and vendor SLAs.',
+                icon: '🔧',
+                gradient: 'from-orange-500 to-red-600',
+                path: '#',
+                features: ['Work orders', 'Preventive schedules', 'SLA tracking'],
+                comingSoon: true,
+                cta: 'Coming Soon',
+            },
+            {
+                id: 'asset',
+                title: 'Asset & Inventory Management',
+                description: 'Track assets, lifecycle, and inventory levels.',
+                icon: '📦',
+                gradient: 'from-amber-500 to-orange-600',
+                path: '#',
+                features: ['Asset registry', 'Depreciation', 'Stock control'],
+                comingSoon: true,
+                cta: 'Coming Soon',
+            },
+            {
+                id: 'ppm',
+                title: 'Project & Portfolio Management',
+                description: 'Deliver projects with timelines and governance.',
+                icon: '🎯',
+                gradient: 'from-pink-500 to-rose-600',
+                path: '#',
+                features: ['Roadmaps', 'Resource planning', 'Issue tracking'],
+                comingSoon: true,
+                cta: 'Coming Soon',
+            },
+            {
+                id: 'kb',
+                title: 'Knowledge Base & Policy Repository',
+                description: 'Author, search, and version policies and SOPs.',
+                icon: '📚',
+                gradient: 'from-indigo-500 to-blue-600',
+                path: '#',
+                features: ['Rich authoring', 'Structured taxonomy', 'Approvals & versioning'],
+                comingSoon: true,
+                cta: 'Coming Soon',
             },
         ];
         // Only expose Committee module to committee members
@@ -115,24 +208,25 @@ const Onboarding = () => {
                 icon: '⚖️',
                 gradient: 'from-violet-600 to-fuchsia-600',
                 path: '/innovation/committee/dashboard',
-                features: [
-                    t('onboarding.modules.committee.features.0'),
-                    t('onboarding.modules.committee.features.1'),
-                    t('onboarding.modules.committee.features.2'),
-                ],
+                features: [t('onboarding.modules.committee.features.0'), t('onboarding.modules.committee.features.1'), t('onboarding.modules.committee.features.2')],
             });
         }
         return base;
     }, [isCommittee, t]);
 
     // Map for quick lookups after render
-    const modulesMap = useRef<{ [k in ModuleKey]?: { path: string; title: string } }>({});
+    const modulesMap = useRef<{ [k in ModuleKey]?: { path: string; title: string; comingSoon?: boolean; cta?: string } }>({});
     modulesMap.current = modules.reduce((acc, m) => {
-        acc[m.id] = { path: m.path, title: m.title };
+        acc[m.id] = { path: m.path, title: m.title, comingSoon: m.comingSoon, cta: m.cta };
         return acc;
-    }, {} as { [k in ModuleKey]?: { path: string; title: string } });
+    }, {} as { [k in ModuleKey]?: { path: string; title: string; comingSoon?: boolean; cta?: string } });
 
-    const modulePath = (key: ModuleKey) => modules.find((m) => m.id === key)?.path || '/procurement/dashboard';
+    const modulePath = (key: ModuleKey) => {
+        const m = modules.find((mm) => mm.id === key);
+        if (!m) return '/procurement/dashboard';
+        if (m.comingSoon) return '';
+        return m.path || '/procurement/dashboard';
+    };
 
     // Auto-route if only one available module (e.g., restricted role)
     useEffect(() => {
@@ -145,6 +239,18 @@ const Onboarding = () => {
         setError('');
         if (!selected) {
             setError(t('onboarding.errors.selectOne'));
+            return;
+        }
+        // Block coming soon modules
+        const selDef = modules.find((m) => m.id === selected);
+        if (selDef && selDef.comingSoon) {
+            setError('This module is coming soon.');
+            return;
+        }
+        // Narrow selection to store-supported modules only
+        const isStoreModule = (k: ModuleKey): k is StoreModuleKey => (['pms', 'ih', 'committee', 'budgeting'] as string[]).includes(k);
+        if (!isStoreModule(selected)) {
+            setError('This module is not available yet.');
             return;
         }
         try {
@@ -171,34 +277,87 @@ const Onboarding = () => {
         }
     };
 
-    const onKeyDownRadios = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
-        if (!modules.length) return;
-        const order = modules.map((m) => m.id);
-        const idx = selected ? order.indexOf(selected) : 0;
-        if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
-            e.preventDefault();
-            const next = order[(idx + 1) % order.length];
-            setSelected(next);
-        } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
-            e.preventDefault();
-            const prev = order[(idx - 1 + order.length) % order.length];
-            setSelected(prev);
-        } else if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            handleContinue();
+    const checkScrollButtons = useCallback(() => {
+        const container = scrollContainerRef.current;
+        if (!container) return;
+        setCanScrollLeft(container.scrollLeft > 0);
+        setCanScrollRight(container.scrollLeft < container.scrollWidth - container.clientWidth - 10);
+    }, []);
+
+    useEffect(() => {
+        const container = scrollContainerRef.current;
+        if (container) {
+            checkScrollButtons();
+            container.addEventListener('scroll', checkScrollButtons);
+            window.addEventListener('resize', checkScrollButtons);
+            return () => {
+                container.removeEventListener('scroll', checkScrollButtons);
+                window.removeEventListener('resize', checkScrollButtons);
+            };
         }
-    }, [modules, selected]);
+    }, [checkScrollButtons, modules]);
+
+    const scroll = (direction: 'left' | 'right') => {
+        const container = scrollContainerRef.current;
+        if (!container) return;
+        const scrollAmount = 400;
+        container.scrollBy({
+            left: direction === 'left' ? -scrollAmount : scrollAmount,
+            behavior: 'smooth',
+        });
+    };
+
+    const onKeyDownRadios = useCallback(
+        (e: React.KeyboardEvent<HTMLDivElement>) => {
+            if (!modules.length) return;
+            const order = modules.map((m) => m.id);
+            const idx = selected ? order.indexOf(selected) : 0;
+            if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+                e.preventDefault();
+                const next = order[(idx + 1) % order.length];
+                setSelected(next);
+            } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                const prev = order[(idx - 1 + order.length) % order.length];
+                setSelected(prev);
+            } else if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                handleContinue();
+            }
+        },
+        [modules, selected]
+    );
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
+        <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
             {/* Header */}
-            <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
+            <div className="bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl border-b border-gray-200/50 dark:border-gray-700/50 shadow-lg">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-                    <div className="flex items-center gap-4">
-                        <div className="text-5xl motion-safe:animate-[spin_20s_linear_infinite]">🌀</div>
-                        <div>
-                            <h1 className="text-3xl font-black text-gray-900 dark:text-white tracking-widest">SPINX</h1>
-                            <p className="text-sm text-gray-600 dark:text-gray-400">Bureau of Standards Jamaica</p>
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                            <div className="relative">
+                                <div className="text-5xl motion-safe:animate-[spin_20s_linear_infinite]">🌀</div>
+                                <div className="absolute inset-0 bg-gradient-to-r from-primary/20 to-purple-500/20 rounded-full blur-xl"></div>
+                            </div>
+                            <div>
+                                <div className="flex items-center gap-3">
+                                    <h1 className="text-3xl font-black bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent tracking-widest">SPINX</h1>
+                                    <span className="px-2.5 py-0.5 bg-primary/10 text-primary text-xs font-bold rounded-full border border-primary/20">ENTERPRISE</span>
+                                </div>
+                                <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">Bureau of Standards Jamaica</p>
+                            </div>
+                        </div>
+                        <div className="hidden md:flex items-center gap-6">
+                            <div className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-lg border border-blue-200/50 dark:border-blue-700/50">
+                                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Welcome, {currentUser?.name || 'User'}</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <span>{new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -214,7 +373,9 @@ const Onboarding = () => {
                             className="absolute top-3 right-3 w-10 h-10 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                             aria-label="Close procurement steps"
                         >
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
                         </button>
                         <div className="px-6 py-5 border-b border-gray-200 dark:border-gray-700 flex items-center gap-3">
                             <span className="text-2xl">📊</span>
@@ -235,11 +396,7 @@ const Onboarding = () => {
                             </p>
                         </div>
                         <div className="px-6 pb-6 flex justify-end gap-3">
-                            <button
-                                type="button"
-                                onClick={() => setShowProcurementSteps(false)}
-                                className="btn btn-outline-secondary btn-sm"
-                            >
+                            <button type="button" onClick={() => setShowProcurementSteps(false)} className="btn btn-outline-secondary btn-sm">
                                 Close
                             </button>
                         </div>
@@ -249,155 +406,431 @@ const Onboarding = () => {
 
             {/* Main Content */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-                <div className="text-center mb-12">
-                    <h2 id="onboarding-title" className="text-4xl font-bold text-gray-900 dark:text-white mb-4">{t('onboarding.title')}</h2>
-                    <p className="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
-                        {t('onboarding.subtitle')}
-                    </p>
+                {/* Quick Stats Banner */}
+                {showStats && (
+                    <div className="mb-12 grid grid-cols-2 md:grid-cols-4 gap-4 animate-fadeInUp">
+                        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-shadow">
+                            <div className="flex items-center justify-between mb-2">
+                                <svg className="w-8 h-8 opacity-80" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
+                                </svg>
+                            </div>
+                            <div className="text-3xl font-black mb-1">247</div>
+                            <div className="text-blue-100 text-sm font-medium">Active Users</div>
+                        </div>
+                        <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-shadow">
+                            <div className="flex items-center justify-between mb-2">
+                                <svg className="w-8 h-8 opacity-80" fill="currentColor" viewBox="0 0 20 20">
+                                    <path
+                                        fillRule="evenodd"
+                                        d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z"
+                                        clipRule="evenodd"
+                                    />
+                                </svg>
+                            </div>
+                            <div className="text-3xl font-black mb-1">1,429</div>
+                            <div className="text-purple-100 text-sm font-medium">Requests This Month</div>
+                        </div>
+                        <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-shadow">
+                            <div className="flex items-center justify-between mb-2">
+                                <svg className="w-8 h-8 opacity-80" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                                </svg>
+                            </div>
+                            <div className="text-3xl font-black mb-1">89</div>
+                            <div className="text-green-100 text-sm font-medium">Innovation Ideas</div>
+                        </div>
+                        <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-shadow">
+                            <div className="flex items-center justify-between mb-2">
+                                <svg className="w-8 h-8 opacity-80" fill="currentColor" viewBox="0 0 20 20">
+                                    <path
+                                        fillRule="evenodd"
+                                        d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z"
+                                        clipRule="evenodd"
+                                    />
+                                </svg>
+                            </div>
+                            <div className="text-3xl font-black mb-1">12</div>
+                            <div className="text-orange-100 text-sm font-medium">Pending Approvals</div>
+                        </div>
+                    </div>
+                )}
+
+                <div className="text-center mb-16 space-y-4">
+                    <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary/10 via-purple-500/10 to-pink-500/10 text-primary rounded-full text-sm font-bold mb-6 border border-primary/20 shadow-sm">
+                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0zM6 18a1 1 0 001-1v-2.065a8.935 8.935 0 00-2-.712V17a1 1 0 001 1z" />
+                        </svg>
+                        Your Integrated Enterprise Platform
+                    </div>
+                    <h2 id="onboarding-title" className="text-5xl md:text-6xl font-black text-gray-900 dark:text-white mb-4 leading-tight">
+                        {t('onboarding.title')}
+                    </h2>
+                    <p className="text-xl text-gray-600 dark:text-gray-400 max-w-3xl mx-auto leading-relaxed mb-6">{t('onboarding.subtitle')}</p>
+                    <div className="flex items-center justify-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
+                        </svg>
+                        <span className="font-medium">Powered by modern cloud infrastructure</span>
+                    </div>
+                    <div className="flex items-center justify-center gap-8 mt-8 text-sm text-gray-500 dark:text-gray-400">
+                        <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                            <span>All systems operational</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                                />
+                            </svg>
+                            <span>Secure connection</span>
+                        </div>
+                    </div>
                 </div>
 
                 {error && (
-                    <div role="alert" aria-live="polite" className="max-w-3xl mx-auto mb-6 p-4 bg-danger-light/10 border border-danger rounded-lg text-danger text-sm text-center">
-                        {error}
+                    <div
+                        role="alert"
+                        aria-live="polite"
+                        className="max-w-3xl mx-auto mb-8 p-4 bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 rounded-r-lg text-red-700 dark:text-red-400 text-sm flex items-center gap-3 shadow-sm animate-shake"
+                    >
+                        <svg className="w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <path
+                                fillRule="evenodd"
+                                d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                                clipRule="evenodd"
+                            />
+                        </svg>
+                        <span className="font-medium">{error}</span>
                     </div>
                 )}
 
                 {/* Module Cards (radiogroup) */}
-                <div
-                    ref={radiosRef}
-                    role="radiogroup"
-                    aria-labelledby="onboarding-title"
-                    className="grid md:grid-cols-2 gap-8 max-w-6xl mx-auto"
-                    onKeyDown={onKeyDownRadios}
-                    tabIndex={0}
-                >
-                    {modules.map((m) => {
-                        const isActive = selected === m.id;
-                        return (
-                            <button
-                                role="radio"
-                                aria-checked={isActive}
-                                tabIndex={isActive ? 0 : -1}
-                                key={m.id}
-                                type="button"
-                                onClick={() => {
-                                    setSelected(m.id);
-                                    logEvent('onboarding_selected', { selected: m.id });
-                                }}
-                                className={`group relative text-left bg-white dark:bg-gray-800 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 overflow-hidden border-2 focus:outline-none focus-visible:ring-4 focus-visible:ring-primary/30 ${
-                                    isActive ? 'border-primary' : 'border-transparent hover:border-primary/60'
-                                }`}
-                            >
-                                {/* Gradient Header */}
-                                <div className={`bg-gradient-to-r ${m.gradient} p-6 md:p-8 text-white relative overflow-hidden`}>
-                                    {isActive && (
-                                        <span className="absolute top-3 right-3 bg-white/20 text-white text-xs font-bold px-2 py-1 rounded-full backdrop-blur-sm">
-                                            {t('onboarding.badges.selected')}
-                                        </span>
-                                    )}
-                                    <div className="absolute top-0 right-0 text-9xl opacity-10 transform translate-x-4 -translate-y-4">{m.icon}</div>
-                                    <div className="relative z-10">
-                                        <div className="text-5xl md:text-6xl mb-4">{m.icon}</div>
-                                        <h3 className="text-2xl font-bold mb-2">{m.title}</h3>
-                                        <p className="text-white/90">{m.description}</p>
-                                    </div>
-                                </div>
+                <div className="relative group/carousel">
+                    {/* Left Arrow */}
+                    {canScrollLeft && (
+                        <button
+                            type="button"
+                            onClick={() => scroll('left')}
+                            className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-12 h-12 bg-white/90 dark:bg-gray-800/90 backdrop-blur-lg rounded-full shadow-xl flex items-center justify-center text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-800 transition-all opacity-0 group-hover/carousel:opacity-100"
+                            aria-label="Scroll left"
+                        >
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                            </svg>
+                        </button>
+                    )}
 
-                                {/* Features List */}
-                                <div className="p-8">
-                                    <h4 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-4">{t('onboarding.keyFeatures')}</h4>
-                                    <ul className="space-y-3">
-                                        {m.features.map((feature, idx) => (
-                                            <li key={idx} className="flex items-center gap-3 text-gray-700 dark:text-gray-300">
-                                                <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                                                </svg>
-                                                <span>{feature}</span>
-                                            </li>
-                                        ))}
-                                    </ul>
+                    {/* Right Arrow */}
+                    {canScrollRight && (
+                        <button
+                            type="button"
+                            onClick={() => scroll('right')}
+                            className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-12 h-12 bg-white/90 dark:bg-gray-800/90 backdrop-blur-lg rounded-full shadow-xl flex items-center justify-center text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-800 transition-all opacity-0 group-hover/carousel:opacity-100"
+                            aria-label="Scroll right"
+                        >
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                        </button>
+                    )}
 
-                                    {/* Selected Indicator */}
-                                    <div className="mt-6 flex items-center justify-between">
-                                        <div className="flex items-center gap-2">
-                                            {/* Recommended badge if last-used */}
-                                            {lastModule === m.id && (
-                                                <span className="px-2 py-0.5 rounded-full text-xs bg-primary/10 text-primary">{t('onboarding.badges.recommended')}</span>
-                                            )}
-                                            <span className={`text-sm font-medium ${isActive ? 'text-primary' : 'text-gray-500 dark:text-gray-400'}`}>
-                                                {isActive ? t('onboarding.selected') : t('onboarding.clickToSelect')}
-                                            </span>
-                                        </div>
-                                        {isActive && (
-                                            <div
-                                                role="button"
-                                                tabIndex={0}
-                                                className="btn btn-primary btn-sm cursor-pointer"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handleContinue();
-                                                }}
-                                                onKeyDown={(e) => {
-                                                    if (e.key === 'Enter' || e.key === ' ') {
-                                                        e.preventDefault();
-                                                        e.stopPropagation();
-                                                        handleContinue();
-                                                    }
-                                                }}
-                                            >
-                                                {selected === 'pms' && t('onboarding.goTo.pms')}
-                                                {selected === 'ih' && t('onboarding.goTo.ih')}
-                                                {selected === 'committee' && t('onboarding.goTo.committee')}
+                    <div
+                        ref={scrollContainerRef}
+                        className="overflow-x-auto pb-6 hide-scrollbar scroll-smooth"
+                        style={{
+                            scrollbarWidth: 'none',
+                            msOverflowStyle: 'none',
+                            WebkitOverflowScrolling: 'touch',
+                        }}
+                    >
+                        <div ref={radiosRef} role="radiogroup" aria-labelledby="onboarding-title" className="flex gap-6 min-w-max px-2" onKeyDown={onKeyDownRadios} tabIndex={0}>
+                            {modules.map((m, index) => {
+                                const isActive = selected === m.id;
+                                return (
+                                    <button
+                                        role="radio"
+                                        aria-checked={isActive}
+                                        tabIndex={isActive ? 0 : -1}
+                                        key={m.id}
+                                        type="button"
+                                        onClick={() => {
+                                            setSelected(m.id);
+                                            logEvent('onboarding_selected', { selected: m.id });
+                                        }}
+                                        style={{ animationDelay: `${index * 50}ms` }}
+                                        className={`group relative text-left bg-white dark:bg-gray-800 rounded-2xl shadow-lg hover:shadow-2xl overflow-hidden border-2 focus:outline-none focus-visible:ring-4 focus-visible:ring-primary/30 animate-fadeInUp flex-shrink-0 w-[380px] h-[540px] flex flex-col transition-all duration-500 ${
+                                            isActive
+                                                ? 'border-primary shadow-primary/20 shadow-2xl scale-110 z-20 opacity-100 translate-y-0'
+                                                : selected
+                                                ? 'border-gray-200 dark:border-gray-700 hover:border-primary/60 opacity-50 hover:opacity-70 scale-95 translate-y-2'
+                                                : 'border-gray-200 dark:border-gray-700 hover:border-primary/60 opacity-100 hover:scale-105 hover:-translate-y-1'
+                                        } ${m.comingSoon ? 'opacity-80' : ''}`}
+                                    >
+                                        {/* Gradient Header */}
+                                        <div className={`bg-gradient-to-br ${m.gradient} p-6 text-white relative overflow-hidden flex-shrink-0`}>
+                                            {/* Animated background pattern */}
+                                            <div className="absolute inset-0 opacity-10">
+                                                <div className="absolute top-0 left-0 w-40 h-40 bg-white rounded-full mix-blend-overlay filter blur-xl animate-blob"></div>
+                                                <div className="absolute top-0 right-0 w-40 h-40 bg-white rounded-full mix-blend-overlay filter blur-xl animate-blob animation-delay-2000"></div>
+                                                <div className="absolute bottom-0 left-20 w-40 h-40 bg-white rounded-full mix-blend-overlay filter blur-xl animate-blob animation-delay-4000"></div>
                                             </div>
-                                        )}
-                                    </div>
-                                </div>
-                            </button>
-                        );
-                    })}
+
+                                            {/* Top badges */}
+                                            <div className="absolute top-3 right-3 flex flex-col gap-2 items-end">
+                                                {m.comingSoon && (
+                                                    <span className="bg-white/30 backdrop-blur-md text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg border border-white/20">
+                                                        Coming Soon
+                                                    </span>
+                                                )}
+                                                {isActive && !m.comingSoon && (
+                                                    <span className="bg-white/30 backdrop-blur-md text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg border border-white/20 animate-pulse">
+                                                        ✓ {t('onboarding.badges.selected')}
+                                                    </span>
+                                                )}
+                                                {!m.comingSoon && (m.id === 'pms' || m.id === 'ih') && (
+                                                    <span className="bg-white/20 backdrop-blur-md text-white text-xs font-semibold px-2.5 py-1 rounded-full shadow-lg border border-white/20 flex items-center gap-1">
+                                                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                                            <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
+                                                        </svg>
+                                                        {m.id === 'pms' ? '182 users' : '94 users'}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="absolute top-0 right-0 text-9xl opacity-5 transform translate-x-6 -translate-y-6 group-hover:scale-110 transition-transform duration-500">
+                                                {m.icon}
+                                            </div>
+                                            <div className="relative z-10">
+                                                <div className="flex items-center gap-3 mb-3">
+                                                    <div className="text-5xl transform group-hover:scale-110 transition-transform duration-300">{m.icon}</div>
+                                                    {!m.comingSoon && m.id === 'pms' && (
+                                                        <span className="px-2 py-1 bg-yellow-400/90 text-yellow-900 text-[10px] font-black rounded uppercase tracking-wider shadow-sm">
+                                                            Most Popular
+                                                        </span>
+                                                    )}
+                                                    {!m.comingSoon && m.id === 'ih' && (
+                                                        <span className="px-2 py-1 bg-green-400/90 text-green-900 text-[10px] font-black rounded uppercase tracking-wider shadow-sm flex items-center gap-1">
+                                                            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                                                <path
+                                                                    fillRule="evenodd"
+                                                                    d="M12 7a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0V8.414l-4.293 4.293a1 1 0 01-1.414 0L8 10.414l-4.293 4.293a1 1 0 01-1.414-1.414l5-5a1 1 0 011.414 0L11 10.586 14.586 7H12z"
+                                                                    clipRule="evenodd"
+                                                                />
+                                                            </svg>
+                                                            Trending
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <h3 className="text-xl font-bold mb-2 leading-tight">{m.title}</h3>
+                                                <p className="text-white/90 text-sm leading-relaxed">{m.description}</p>
+                                            </div>
+                                        </div>
+
+                                        {/* Features List */}
+                                        <div className="p-6 flex-1 flex flex-col">
+                                            <h4 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                                                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path
+                                                        fillRule="evenodd"
+                                                        d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                                                        clipRule="evenodd"
+                                                    />
+                                                </svg>
+                                                {t('onboarding.keyFeatures')}
+                                            </h4>
+                                            <ul className="space-y-2.5 flex-1">
+                                                {m.features.map((feature, idx) => (
+                                                    <li key={idx} className="flex items-start gap-3 text-gray-700 dark:text-gray-300 text-sm">
+                                                        <svg className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                                                            <path
+                                                                fillRule="evenodd"
+                                                                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                                                                clipRule="evenodd"
+                                                            />
+                                                        </svg>
+                                                        <span className="leading-snug">{feature}</span>
+                                                    </li>
+                                                ))}
+                                            </ul>
+
+                                            {/* Selected Indicator */}
+                                            <div className="mt-auto pt-6 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
+                                                {!m.comingSoon && (m.id === 'pms' || m.id === 'ih') && (
+                                                    <div className="mb-4 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                                                        <div className="flex items-center gap-1">
+                                                            <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
+                                                            <span className="font-medium">{m.id === 'pms' ? '23' : '8'} active now</span>
+                                                        </div>
+                                                        <span>•</span>
+                                                        <span>{m.id === 'pms' ? '147' : '56'} today</span>
+                                                    </div>
+                                                )}
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        {lastModule === m.id && (
+                                                            <span className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs bg-primary/10 text-primary font-semibold border border-primary/20">
+                                                                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                                                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                                                                </svg>
+                                                                {t('onboarding.badges.recommended')}
+                                                            </span>
+                                                        )}
+                                                        <span className={`text-xs font-semibold ${isActive ? 'text-primary' : 'text-gray-500 dark:text-gray-400'}`}>
+                                                            {isActive ? '✓ ' + t('onboarding.selected') : t('onboarding.clickToSelect')}
+                                                        </span>
+                                                    </div>
+                                                    {isActive &&
+                                                        (m.comingSoon ? (
+                                                            <div
+                                                                className="btn btn-sm px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed rounded-lg font-semibold text-xs"
+                                                                role="button"
+                                                                tabIndex={-1}
+                                                                onClick={(e) => e.stopPropagation()}
+                                                            >
+                                                                {m.cta || 'Coming Soon'}
+                                                            </div>
+                                                        ) : (
+                                                            <div
+                                                                role="button"
+                                                                tabIndex={0}
+                                                                className="btn btn-primary btn-sm px-4 py-2 rounded-lg font-semibold text-xs cursor-pointer transform hover:scale-105 transition-transform shadow-lg hover:shadow-xl"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleContinue();
+                                                                }}
+                                                                onKeyDown={(e) => {
+                                                                    if (e.key === 'Enter' || e.key === ' ') {
+                                                                        e.preventDefault();
+                                                                        e.stopPropagation();
+                                                                        handleContinue();
+                                                                    }
+                                                                }}
+                                                            >
+                                                                {m.cta ||
+                                                                    (selected === 'pms'
+                                                                        ? t('onboarding.goTo.pms')
+                                                                        : selected === 'ih'
+                                                                        ? t('onboarding.goTo.ih')
+                                                                        : selected === 'committee'
+                                                                        ? t('onboarding.goTo.committee')
+                                                                        : t('onboarding.continue'))}
+                                                                <svg className="w-4 h-4 inline-block ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                                                                </svg>
+                                                            </div>
+                                                        ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
                 </div>
 
                 {/* Controls */}
-                <div className="max-w-3xl mx-auto mt-10">
-                    <div className="flex items-center justify-center flex-col sm:flex-row gap-4">
-                        <div className="flex gap-3 w-full sm:w-auto">
-                            <button
-                                type="button"
-                                className="btn btn-outline-primary w-full sm:w-auto"
-                                onClick={() => navigate('/help')}
-                            >
-                                {t('onboarding.needHelp')}
-                            </button>
-                            <button
-                                type="button"
-                                className="btn btn-primary w-full sm:w-auto min-w-[160px] disabled:opacity-50 disabled:cursor-not-allowed"
-                                disabled={!selected || isBusy}
-                                onClick={handleContinue}
-                            >
-                                {isBusy ? (
-                                    <span className="flex items-center justify-center gap-2">
-                                        <span className="animate-spin border-2 border-white border-l-transparent rounded-full w-5 h-5"></span>
-                                        {t('onboarding.redirecting')}
-                                    </span>
-                                ) : (
-                                    selected === 'pms' ? t('onboarding.goTo.pms') : selected === 'ih' ? t('onboarding.goTo.ih') : t('onboarding.continue')
-                                )}
-                            </button>
-                        </div>
-                        <div className="mt-2 sm:mt-0">
-                            <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 cursor-pointer">
+                <div className="max-w-4xl mx-auto mt-16">
+                    <div className="bg-white/50 dark:bg-gray-800/50 backdrop-blur-lg rounded-2xl shadow-xl border border-gray-200/50 dark:border-gray-700/50 p-8">
+                        <div className="flex items-center justify-between flex-col lg:flex-row gap-6">
+                            <div className="flex gap-4 w-full lg:w-auto">
+                                <button
+                                    type="button"
+                                    className="btn btn-outline-primary px-6 py-3 rounded-xl font-semibold text-sm flex items-center gap-2 hover:bg-primary/5 transition-all w-full lg:w-auto"
+                                    onClick={() => navigate('/help')}
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth={2}
+                                            d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                                        />
+                                    </svg>
+                                    {t('onboarding.needHelp')}
+                                </button>
+                                <button
+                                    type="button"
+                                    className="btn btn-primary px-8 py-3 rounded-xl font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl transform hover:scale-105 transition-all w-full lg:w-auto"
+                                    disabled={!selected || isBusy || (selected ? modulesMap.current[selected]?.comingSoon : false)}
+                                    onClick={handleContinue}
+                                >
+                                    {isBusy ? (
+                                        <span className="flex items-center justify-center gap-3">
+                                            <span className="animate-spin border-2 border-white border-l-transparent rounded-full w-5 h-5"></span>
+                                            <span>{t('onboarding.redirecting')}</span>
+                                        </span>
+                                    ) : (
+                                        <span className="flex items-center gap-2">
+                                            {selected && modulesMap.current[selected]?.cta
+                                                ? modulesMap.current[selected]?.cta
+                                                : selected === 'pms'
+                                                ? t('onboarding.goTo.pms')
+                                                : selected === 'ih'
+                                                ? t('onboarding.goTo.ih')
+                                                : selected === 'committee'
+                                                ? t('onboarding.goTo.committee')
+                                                : t('onboarding.continue')}
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                                            </svg>
+                                        </span>
+                                    )}
+                                </button>
+                            </div>
+                            <div className="flex items-center gap-3 px-4 py-2.5 bg-gray-50 dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-700">
                                 <input
                                     type="checkbox"
-                                    className="form-checkbox"
+                                    id="remember-choice"
+                                    className="form-checkbox h-5 w-5 text-primary rounded focus:ring-2 focus:ring-primary/50 transition-all cursor-pointer"
                                     checked={rememberChoice}
                                     onChange={(e) => {
                                         setRememberChoice(e.target.checked);
                                         logEvent('onboarding_remember_toggled', { checked: e.target.checked });
                                     }}
                                 />
-                                {t('onboarding.remember')}
-                            </label>
+                                <label htmlFor="remember-choice" className="text-sm text-gray-700 dark:text-gray-300 font-medium cursor-pointer select-none">
+                                    {t('onboarding.remember')}
+                                </label>
+                            </div>
                         </div>
+                    </div>
+
+                    {/* Footer note */}
+                    <div className="text-center mt-10 space-y-4">
+                        <div className="flex items-center justify-center gap-6 text-sm text-gray-500 dark:text-gray-400 flex-wrap">
+                            <div className="flex items-center gap-2">
+                                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                                </svg>
+                                <span className="font-medium">Enterprise-Grade Security</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                    <path
+                                        fillRule="evenodd"
+                                        d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                                        clipRule="evenodd"
+                                    />
+                                </svg>
+                                <span className="font-medium">ISO 27001 Certified</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                    <path
+                                        fillRule="evenodd"
+                                        d="M2 5a2 2 0 012-2h12a2 2 0 012 2v2a2 2 0 01-2 2H4a2 2 0 01-2-2V5zm14 1a1 1 0 11-2 0 1 1 0 012 0zM2 13a2 2 0 012-2h12a2 2 0 012 2v2a2 2 0 01-2 2H4a2 2 0 01-2-2v-2zm14 1a1 1 0 11-2 0 1 1 0 012 0z"
+                                        clipRule="evenodd"
+                                    />
+                                </svg>
+                                <span className="font-medium">99.9% Uptime SLA</span>
+                            </div>
+                        </div>
+                        <p className="text-xs text-gray-400 dark:text-gray-500">Powered by SPINX Enterprise Platform v3.2.1 • © 2025 Bureau of Standards Jamaica</p>
                     </div>
                 </div>
             </div>
