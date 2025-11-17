@@ -1050,7 +1050,7 @@ app.post('/api/ideas', authMiddleware, ideaCreationLimiter, upload.single('image
         }
 
         if (req.file) {
-            const fileUrl = `/uploads/${req.file.filename}`;
+            const fileUrl = `http://heron:4000/uploads/${req.file.filename}`;
             await prisma.ideaAttachment.create({
                 data: {
                     ideaId: idea.id,
