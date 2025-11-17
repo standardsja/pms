@@ -39,7 +39,7 @@ const Login = () => {
 
         try {
             // Primary: real password login
-            let res = await fetch('/api/auth/login', {
+            let res = await fetch('http://heron:4000/api/auth/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password }),
@@ -50,7 +50,7 @@ const Login = () => {
             // try the non-password helper endpoint to unblock UX. This will NOT run in production builds.
             if (!res.ok && import.meta.env.DEV) {
                 try {
-                    const fallbackRes = await fetch('/auth/test-login', {
+                    const fallbackRes = await fetch('http://heron:4000/auth/test-login', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ email: String(email).toLowerCase().trim() }),
