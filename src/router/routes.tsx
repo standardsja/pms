@@ -457,6 +457,7 @@ const routes = [
     {
         path: '/help',
         element: <HelpSupport />,
+        layout: 'blank',
     },
 
     // ============================================

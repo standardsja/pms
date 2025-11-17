@@ -46,6 +46,42 @@ const Onboarding = () => {
     const [canScrollLeft, setCanScrollLeft] = useState(false);
     const [canScrollRight, setCanScrollRight] = useState(true);
     const [showStats, setShowStats] = useState(true);
+    const [moduleStats, setModuleStats] = useState<{
+        pms: { activeNow: number; today: number };
+        ih: { activeNow: number; today: number };
+    }>({
+        pms: { activeNow: 0, today: 0 },
+        ih: { activeNow: 0, today: 0 },
+    });
+
+    useEffect(() => {
+        // Fetch real-time module statistics
+        const fetchModuleStats = async () => {
+            try {
+                const response = await fetch('/api/stats/modules');
+                if (response.ok) {
+                    const data = await response.json();
+                    setModuleStats({
+                        pms: {
+                            activeNow: data.procurement?.activeNow || 0,
+                            today: data.procurement?.today || 0,
+                        },
+                        ih: {
+                            activeNow: data.innovation?.activeNow || 0,
+                            today: data.innovation?.today || 0,
+                        },
+                    });
+                }
+            } catch (error) {
+                console.error('Failed to fetch module stats:', error);
+            }
+        };
+
+        fetchModuleStats();
+        // Refresh stats every 30 seconds
+        const interval = setInterval(fetchModuleStats, 30000);
+        return () => clearInterval(interval);
+    }, []);
 
     useEffect(() => {
         dispatch(setPageTitle(t('onboarding.title')));
@@ -674,10 +710,10 @@ const Onboarding = () => {
                                                     <div className="mb-4 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                                                         <div className="flex items-center gap-1">
                                                             <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
-                                                            <span className="font-medium">{m.id === 'pms' ? '23' : '8'} active now</span>
+                                                            <span className="font-medium">{moduleStats[m.id].activeNow} active now</span>
                                                         </div>
                                                         <span>•</span>
-                                                        <span>{m.id === 'pms' ? '147' : '56'} today</span>
+                                                        <span>{moduleStats[m.id].today} today</span>
                                                     </div>
                                                 )}
                                                 <div className="flex items-center justify-between">
@@ -751,21 +787,6 @@ const Onboarding = () => {
                             <div className="flex gap-4 w-full lg:w-auto">
                                 <button
                                     type="button"
-                                    className="btn btn-outline-primary px-6 py-3 rounded-xl font-semibold text-sm flex items-center gap-2 hover:bg-primary/5 transition-all w-full lg:w-auto"
-                                    onClick={() => navigate('/help')}
-                                >
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            strokeWidth={2}
-                                            d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                                        />
-                                    </svg>
-                                    {t('onboarding.needHelp')}
-                                </button>
-                                <button
-                                    type="button"
                                     className="btn btn-primary px-8 py-3 rounded-xl font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl transform hover:scale-105 transition-all w-full lg:w-auto"
                                     disabled={!selected || isBusy || (selected ? modulesMap.current[selected]?.comingSoon : false)}
                                     onClick={handleContinue}
@@ -792,21 +813,6 @@ const Onboarding = () => {
                                         </span>
                                     )}
                                 </button>
-                            </div>
-                            <div className="flex items-center gap-3 px-4 py-2.5 bg-gray-50 dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-700">
-                                <input
-                                    type="checkbox"
-                                    id="remember-choice"
-                                    className="form-checkbox h-5 w-5 text-primary rounded focus:ring-2 focus:ring-primary/50 transition-all cursor-pointer"
-                                    checked={rememberChoice}
-                                    onChange={(e) => {
-                                        setRememberChoice(e.target.checked);
-                                        logEvent('onboarding_remember_toggled', { checked: e.target.checked });
-                                    }}
-                                />
-                                <label htmlFor="remember-choice" className="text-sm text-gray-700 dark:text-gray-300 font-medium cursor-pointer select-none">
-                                    {t('onboarding.remember')}
-                                </label>
                             </div>
                         </div>
                     </div>
