@@ -1,61 +1,40 @@
-import http from 'http';
+/**
+ * Simple test script to verify API connectivity
+ */
+import fetch from 'node-fetch';
 
-const testEndpoint = (path: string, headers: Record<string, string> = {}) => {
-  return new Promise<string>((resolve, reject) => {
-    const options = {
-      hostname: 'localhost',
-      port: 4000,
-      path: path,
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        ...headers
-      }
-    };
+async function testAPI() {
+    try {
+        console.log('Testing API endpoints...');
 
-    const req = http.request(options, (res) => {
-      let data = '';
-      
-      res.on('data', (chunk) => {
-        data += chunk;
-      });
-      
-      res.on('end', () => {
-        console.log(`Status: ${res.statusCode}`);
-        console.log(`Response: ${data}`);
-        resolve(data);
-      });
-    });
+        // Test health endpoint
+        console.log('\n1. Testing health endpoint...');
+        const healthResponse = await fetch('http://localhost:4000/health');
+        console.log('Health status:', healthResponse.status);
+        if (healthResponse.ok) {
+            const healthData = await healthResponse.json();
+            console.log('Health data:', healthData);
+        } else {
+            console.log('Health response not OK:', await healthResponse.text());
+        }
 
-    req.on('error', (error) => {
-      console.error('Error:', error.message);
-      reject(error);
-    });
-
-    req.end();
-  });
-};
-
-async function runTests() {
-  console.log('Testing health endpoint...');
-  try {
-    await testEndpoint('/health');
-  } catch (error) {
-    console.error('Health test failed:', error);
-  }
-
-  console.log('\nTesting ideas endpoint...');
-  try {
-    await testEndpoint('/api/ideas', { 'x-user-id': '1' });
-  } catch (error) {
-    console.error('Ideas test failed:', error);
-  }
+        // Test ideas endpoint
+        console.log('\n2. Testing ideas endpoint...');
+        const ideasResponse = await fetch('http://localhost:4000/api/ideas', {
+            headers: {
+                'x-user-id': '1',
+            },
+        });
+        console.log('Ideas status:', ideasResponse.status);
+        if (ideasResponse.ok) {
+            const ideasData = await ideasResponse.json();
+            console.log(`Found ${ideasData.ideas?.length || 0} ideas`);
+        } else {
+            console.log('Ideas response not OK:', await ideasResponse.text());
+        }
+    } catch (error) {
+        console.error('API Test Error:', error.message);
+    }
 }
 
-runTests().then(() => {
-  console.log('Tests completed');
-  process.exit(0);
-}).catch(error => {
-  console.error('Test suite failed:', error);
-  process.exit(1);
-});
+testAPI();
