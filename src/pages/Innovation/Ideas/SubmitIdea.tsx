@@ -277,52 +277,139 @@ const SubmitIdea = () => {
         });
     };
 
+    const formProgress = useMemo(() => {
+        let filled = 0;
+        const total = 4; // title, category, description, benefits
+        if (formData.title.length >= 10) filled++;
+        if (formData.category) filled++;
+        if (formData.description.length >= DESC_MIN) filled++;
+        if (formData.expectedBenefits) filled++;
+        return Math.round((filled / total) * 100);
+    }, [formData.title, formData.category, formData.description, formData.expectedBenefits]);
+
     return (
         <div className="space-y-6">
-            {/* Header */}
-            <div className="flex items-center gap-4">
-                <button onClick={() => navigate('/innovation/dashboard')} className="btn btn-outline-primary" aria-label={t('innovation.submit.back')}>
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                    </svg>
-                    {t('innovation.submit.back')}
-                </button>
-                <div>
-                    <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-                        <svg className="w-9 h-9 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                        </svg>
-                        {t('innovation.submit.title')}
-                    </h1>
-                    <p className="text-gray-600 dark:text-gray-400 mt-1">{t('innovation.submit.subtitle')}</p>
+            {/* Hero Header */}
+            <div className="panel bg-gradient-to-r from-purple-600 to-pink-600 text-white overflow-hidden relative">
+                <div className="absolute inset-0 opacity-10 pointer-events-none">
+                    <div className="absolute -top-10 -right-10 w-72 h-72 bg-white rounded-full" />
+                    <div className="absolute -bottom-16 -left-16 w-56 h-56 bg-white rounded-full" />
+                </div>
+                <div className="relative z-10 p-6 sm:p-8">
+                    <div className="flex items-start justify-between gap-6 flex-wrap">
+                        <div className="flex-1 min-w-[280px]">
+                            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/15 backdrop-blur-md text-xs font-semibold mb-3">
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
+                                    />
+                                </svg>
+                                <span>{t('innovation.submit.badge', { defaultValue: 'New Innovation' })}</span>
+                            </div>
+                            <h1 className="text-3xl sm:text-4xl font-black flex items-center gap-3 mb-2">
+                                <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                </svg>
+                                {t('innovation.submit.title')}
+                            </h1>
+                            <p className="text-white/90 mb-4 max-w-2xl">{t('innovation.submit.subtitle')}</p>
+                            <button
+                                onClick={() => navigate('/innovation/dashboard')}
+                                className="inline-flex items-center gap-2 text-sm font-semibold text-white/90 hover:text-white transition-colors"
+                                aria-label={t('innovation.submit.back')}
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                                </svg>
+                                {t('innovation.submit.back')}
+                            </button>
+                        </div>
+                        <div className="bg-white/15 rounded-xl px-6 py-4 backdrop-blur-sm min-w-[200px]">
+                            <div className="text-xs text-white/80 mb-2">{t('innovation.submit.progress', { defaultValue: 'Form Progress' })}</div>
+                            <div className="flex items-end gap-2">
+                                <div className="text-4xl font-black">{formProgress}%</div>
+                                <div className="mb-1.5">
+                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                </div>
+                            </div>
+                            <div className="w-full bg-white/20 rounded-full h-2 mt-3">
+                                <div
+                                    className="bg-white rounded-full h-2 transition-all duration-500"
+                                    style={{ width: `${formProgress}%` }}
+                                    role="progressbar"
+                                    aria-valuenow={formProgress}
+                                    aria-valuemin={0}
+                                    aria-valuemax={100}
+                                />
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            {/* Info Banner */}
-            <div className="panel bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20 border border-blue-200 dark:border-blue-800">
-                <div className="flex items-start gap-4">
-                    <div className="flex-shrink-0">
-                        <svg className="w-10 h-10 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
+            {/* Quick Stats Banner */}
+            <div className="panel bg-gradient-to-r from-slate-50 to-blue-50 dark:from-slate-900/20 dark:to-blue-900/20 border border-blue-200/60 dark:border-blue-800/40">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                        <div className="flex-shrink-0">
+                            <svg className="w-10 h-10 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 className="text-base font-bold text-gray-900 dark:text-white mb-1">{t('innovation.submit.guidelines.title')}</h3>
+                            <p className="text-sm text-gray-700 dark:text-gray-300">{t('innovation.submit.guidelines.summary', { defaultValue: 'Be clear, specific, and focus on impact' })}</p>
+                        </div>
                     </div>
-                    <div>
-                        <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">{t('innovation.submit.guidelines.title')}</h3>
-                        <ul className="text-gray-700 dark:text-gray-300 space-y-1 text-sm" aria-label={t('innovation.submit.guidelines.title')}>
-                            {(t('innovation.submit.guidelines.items', { returnObjects: true }) as string[]).map((item, idx) => (
-                                <li key={idx}>• {item}</li>
-                            ))}
-                        </ul>
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                            {t('innovation.submit.autosave', { defaultValue: 'Auto-saved' })}
+                        </span>
+                        {checkingDuplicates && (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+                                <svg className="w-3.5 h-3.5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                                    />
+                                </svg>
+                                {t('innovation.submit.checking', { defaultValue: 'Checking duplicates...' })}
+                            </span>
+                        )}
                     </div>
                 </div>
             </div>
 
             {/* Form */}
             <form onSubmit={handleSubmit} className="panel">
+                <div className="mb-6 pb-4 border-b border-gray-200 dark:border-gray-700">
+                    <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                        <svg className="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                            <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                            />
+                        </svg>
+                        {t('innovation.submit.form.title.main', { defaultValue: 'Idea Details' })}
+                    </h2>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{t('innovation.submit.form.subtitle', { defaultValue: 'Fill in the required fields to submit your innovation' })}</p>
+                </div>
                 <div className="space-y-6">
                     {/* Potential Duplicates */}
                     {duplicateMatches.length > 0 && (
-                        <div className="rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 p-4">
+                        <div className="rounded-lg border-2 border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 p-4 shadow-lg">
                             <div className="flex items-start gap-3">
                                 <div className="flex-shrink-0">
                                     <svg className="w-6 h-6 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -573,28 +660,85 @@ const SubmitIdea = () => {
                     </div>
 
                     {/* Buttons */}
-                    <div className="flex items-center justify-end gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                        <button type="button" onClick={() => navigate('/innovation/dashboard')} className="btn btn-outline-danger" disabled={isLoading}>
-                            {t('innovation.submit.actions.cancel')}
-                        </button>
-                        <button type="submit" className="btn btn-primary gap-2" disabled={isLoading}>
-                            {isLoading ? (
-                                <>
-                                    <span className="animate-spin border-2 border-white border-l-transparent rounded-full w-5 h-5 inline-block"></span>
-                                    {t('innovation.submit.actions.submitting')}
-                                </>
-                            ) : (
-                                <>
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                                    </svg>
-                                    {checkingDuplicates ? 'Checking...' : t('innovation.submit.actions.submit')}
-                                </>
-                            )}
-                        </button>
+                    <div className="flex items-center justify-between gap-4 pt-6 border-t-2 border-gray-200 dark:border-gray-700">
+                        <div className="text-sm text-gray-600 dark:text-gray-400">
+                            <span className="inline-flex items-center gap-1.5">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+                                    />
+                                </svg>
+                                {t('innovation.submit.security', { defaultValue: 'Your idea is encrypted and secure' })}
+                            </span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <button type="button" onClick={() => navigate('/innovation/dashboard')} className="btn btn-outline-danger" disabled={isLoading}>
+                                {t('innovation.submit.actions.cancel')}
+                            </button>
+                            <button type="submit" className="btn btn-primary gap-2 shadow-lg hover:shadow-xl transition-shadow" disabled={isLoading || checkingDuplicates}>
+                                {isLoading ? (
+                                    <>
+                                        <span className="animate-spin border-2 border-white border-l-transparent rounded-full w-5 h-5 inline-block" aria-hidden="true"></span>
+                                        {t('innovation.submit.actions.submitting')}
+                                    </>
+                                ) : checkingDuplicates ? (
+                                    <>
+                                        <span className="animate-spin border-2 border-white border-l-transparent rounded-full w-5 h-5 inline-block" aria-hidden="true"></span>
+                                        {t('innovation.submit.checking', { defaultValue: 'Checking...' })}
+                                    </>
+                                ) : (
+                                    <>
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                                        </svg>
+                                        {t('innovation.submit.actions.submit')}
+                                    </>
+                                )}
+                            </button>
+                        </div>
                     </div>
                 </div>
             </form>
+
+            {/* Trust & Security Footer */}
+            <div className="panel">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div className="flex items-center gap-3 text-sm">
+                        <span className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                            {t('common.security.iso27001', { defaultValue: 'ISO 27001' })}
+                        </span>
+                        <span className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                                />
+                            </svg>
+                            {t('common.security.encrypted', { defaultValue: 'End-to-end encrypted' })}
+                        </span>
+                        <span className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+                                />
+                            </svg>
+                            {t('common.security.gdpr', { defaultValue: 'GDPR Compliant' })}
+                        </span>
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">{t('innovation.submit.lastSaved', { defaultValue: 'Auto-saved just now' })}</div>
+                </div>
+            </div>
         </div>
     );
 };

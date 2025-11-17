@@ -490,6 +490,7 @@ app.get('/api/ideas', authMiddleware, async (req, res) => {
             mine,
             cursor,
             limit = '20',
+            tag,
         } = req.query as {
             status?: string;
             sort?: string;
@@ -497,6 +498,7 @@ app.get('/api/ideas', authMiddleware, async (req, res) => {
             mine?: string;
             cursor?: string;
             limit?: string;
+            tag?: string | string[];
         };
         const user = (req as any).user as { roles?: string[]; sub?: number };
         const isCommittee = user.roles && user.roles.includes('INNOVATION_COMMITTEE');
@@ -516,6 +518,26 @@ app.get('/api/ideas', authMiddleware, async (req, res) => {
         // Filter to current user's ideas if mine=true
         if (mine === 'true' && user.sub) {
             where.submittedBy = user.sub;
+        }
+
+        // Filter by tag name(s) if provided (supports comma-separated or multiple query params)
+        if (tag) {
+            const tags = Array.isArray(tag)
+                ? tag.flatMap((t) =>
+                      String(t)
+                          .split(',')
+                          .map((s) => s.trim())
+                          .filter(Boolean)
+                  )
+                : String(tag)
+                      .split(',')
+                      .map((s) => s.trim())
+                      .filter(Boolean);
+            if (tags.length) {
+                where.tags = {
+                    some: { tag: { name: { in: tags } } },
+                } as any;
+            }
         }
         // If user is NOT committee and not filtering to their own, show APPROVED and PROMOTED ideas
         else if (!isCommittee) {
@@ -555,6 +577,9 @@ app.get('/api/ideas', authMiddleware, async (req, res) => {
                         email: true,
                     },
                 },
+                tags: {
+                    include: { tag: true },
+                },
                 _count: {
                     select: {
                         comments: true,
@@ -584,6 +609,8 @@ app.get('/api/ideas', authMiddleware, async (req, res) => {
             commentCount: idea._count?.comments || 0,
             hasVoted: voteMap.has(idea.id) ? (voteMap.get(idea.id) === 'UPVOTE' ? 'up' : 'down') : null,
             submittedBy: idea.isAnonymous ? 'Anonymous' : idea.submitter?.name || idea.submitter?.email || 'Unknown',
+            tags: Array.isArray(idea.tags) ? idea.tags.map((it: any) => it.tag?.name).filter(Boolean) : [],
+            tagObjects: Array.isArray(idea.tags) ? idea.tags.map((it: any) => ({ id: it.tagId, name: it.tag?.name })).filter((t: any) => t.name) : [],
         }));
 
         // Generate ETag from response content
@@ -756,6 +783,7 @@ app.get('/api/ideas/:id', authMiddleware, async (req, res) => {
                             email: true,
                         },
                     },
+                    tags: { include: { tag: true } },
                     _count: {
                         select: {
                             comments: true,
@@ -787,7 +815,10 @@ app.get('/api/ideas/:id', authMiddleware, async (req, res) => {
             .then(() => updateIdeaTrendingScore(ideaId))
             .catch((err) => console.error('Failed to update view count/trending:', err));
 
-        return res.json({ ...idea, hasVoted, submittedBy, commentCount });
+        const tags = Array.isArray((idea as any).tags) ? (idea as any).tags.map((it: any) => it.tag?.name).filter(Boolean) : [];
+        const tagObjects = Array.isArray((idea as any).tags) ? (idea as any).tags.map((it: any) => ({ id: it.tagId, name: it.tag?.name })).filter((t: any) => t.name) : [];
+
+        return res.json({ ...idea, hasVoted, submittedBy, commentCount, tags, tagObjects });
     } catch (e: any) {
         console.error('GET /api/ideas/:id error:', e);
         return res.status(500).json({ error: 'Unable to load idea', message: 'Unable to load idea details. Please try again later.' });
@@ -986,6 +1017,7 @@ app.post('/api/ideas', authMiddleware, ideaCreationLimiter, upload.single('image
     try {
         const user = (req as any).user as { sub: number | string };
         const { title, description, category } = (req.body || {}) as Record<string, string>;
+        const tagIdsRaw = (req.body?.tagIds ?? '') as string;
 
         if (!title || !description || !category) {
             return res.status(400).json({ message: 'title, description and category are required' });
@@ -1004,6 +1036,19 @@ app.post('/api/ideas', authMiddleware, ideaCreationLimiter, upload.single('image
             },
         });
 
+        // Attach tags if provided (expects comma-separated list of ids)
+        const tagIds: number[] = String(tagIdsRaw)
+            .split(',')
+            .map((s) => parseInt(s.trim(), 10))
+            .filter((n) => Number.isFinite(n));
+        if (tagIds.length) {
+            // createMany for efficiency; ignore duplicates
+            await prisma.ideaTag.createMany({
+                data: tagIds.map((tid) => ({ ideaId: idea.id, tagId: tid })),
+                skipDuplicates: true,
+            });
+        }
+
         if (req.file) {
             const fileUrl = `/uploads/${req.file.filename}`;
             await prisma.ideaAttachment.create({
@@ -1018,7 +1063,10 @@ app.post('/api/ideas', authMiddleware, ideaCreationLimiter, upload.single('image
         }
 
         // Reload with attachments included
-        const created = await prisma.idea.findUnique({ where: { id: idea.id }, include: { attachments: true } });
+        const created = await prisma.idea.findUnique({
+            where: { id: idea.id },
+            include: { attachments: true, tags: { include: { tag: true } } },
+        });
 
         // Emit WebSocket event
         emitIdeaCreated(created);
@@ -1855,27 +1903,32 @@ app.post('/requests/:id/action', async (req, res) => {
     }
 });
 
-// GET /api/tags - return empty array for now (Innovation Hub expects this)
+// GET /api/tags - list all tags
 app.get('/api/tags', async (_req, res) => {
     try {
-        // TODO: Implement tags table if needed
-        res.json([]);
+        const tags = await prisma.tag.findMany({ orderBy: { name: 'asc' } });
+        res.json(tags.map((t) => ({ id: t.id, name: t.name })));
     } catch (e: any) {
         console.error('GET /api/tags error:', e);
         res.status(500).json({ message: 'Failed to fetch tags' });
     }
 });
 
-// POST /api/tags - create new tag (stub for now)
+// POST /api/tags - create new tag (idempotent by name)
 app.post('/api/tags', async (req, res) => {
     try {
-        const { name } = req.body || {};
-        if (!name) {
+        const { name } = (req.body || {}) as { name?: string };
+        const trimmed = (name || '').trim();
+        if (!trimmed) {
             return res.status(400).json({ message: 'Tag name is required' });
         }
-        // TODO: Implement tags table - for now return mock success
-        const tag = { id: Date.now(), name: String(name) };
-        res.status(201).json(tag);
+
+        // Try to find existing by exact name; if not exists, create
+        let tag = await prisma.tag.findUnique({ where: { name: trimmed } });
+        if (!tag) {
+            tag = await prisma.tag.create({ data: { name: trimmed } });
+        }
+        res.status(201).json({ id: tag.id, name: tag.name });
     } catch (e: any) {
         console.error('POST /api/tags error:', e);
         res.status(500).json({ message: 'Failed to create tag' });
