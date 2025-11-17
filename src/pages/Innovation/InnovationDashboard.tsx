@@ -5,6 +5,10 @@ import { useTranslation } from 'react-i18next';
 import { setPageTitle } from '../../store/themeConfigSlice';
 import { getUser } from '../../utils/auth';
 import { fetchIdeas, fetchIdeaCounts } from '../../utils/ideasApi';
+import { getHolidayGradient, getCurrentHolidayTheme } from '../../utils/holidayTheme';
+import HolidayBanner from '../../components/HolidayBanner';
+import HolidayCountdown from '../../components/HolidayCountdown';
+import Swal from 'sweetalert2';
 
 interface DashboardStats {
     myIdeas: number;
@@ -18,6 +22,8 @@ const InnovationDashboard = () => {
     const dispatch = useDispatch();
     const { t } = useTranslation();
     const currentUser = getUser();
+    const holidayTheme = getCurrentHolidayTheme();
+    const heroGradient = getHolidayGradient('bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600');
     const isCommittee = currentUser?.role === 'INNOVATION_COMMITTEE';
     const [stats, setStats] = useState<DashboardStats>({
         myIdeas: 0,
@@ -184,8 +190,11 @@ const InnovationDashboard = () => {
 
     return (
         <div className="space-y-6">
+            {/* Holiday Banner */}
+            <HolidayBanner />
+
             {/* Hero Header */}
-            <div className="panel bg-gradient-to-r from-primary to-indigo-600 text-white overflow-hidden relative">
+            <div className={`panel ${heroGradient} text-white overflow-hidden relative`}>
                 <div className="absolute inset-0 opacity-10 pointer-events-none">
                     <div className="absolute -top-10 -right-10 w-64 h-64 bg-white rounded-full" />
                     <div className="absolute -bottom-16 -left-16 w-48 h-48 bg-white rounded-full" />
@@ -194,10 +203,19 @@ const InnovationDashboard = () => {
                     <div className="flex items-start justify-between gap-6 flex-wrap">
                         <div className="min-w-[250px]">
                             <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/15 backdrop-blur-md text-xs font-semibold mb-3">
-                                <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse" />
-                                <span>{t('innovation.hub', { defaultValue: 'Innovation Hub' })}</span>
-                                <span className="opacity-80">•</span>
-                                <span>{t('common.status.online', { defaultValue: 'Live' })}</span>
+                                {holidayTheme ? (
+                                    <>
+                                        <span className="text-lg">{holidayTheme.icon}</span>
+                                        <span>{holidayTheme.name}</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse" />
+                                        <span>{t('innovation.hub', { defaultValue: 'Innovation Hub' })}</span>
+                                        <span className="opacity-80">•</span>
+                                        <span>{t('common.status.online', { defaultValue: 'Live' })}</span>
+                                    </>
+                                )}
                             </div>
                             <h1 id="innovation-dashboard-title" className="text-3xl sm:text-4xl font-black flex items-center gap-3">
                                 <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -241,6 +259,9 @@ const InnovationDashboard = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Holiday Countdown */}
+            <HolidayCountdown />
 
             {/* Stats Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4" role="region" aria-label="Statistics">

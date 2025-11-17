@@ -55,9 +55,9 @@ const Requests = () => {
                 const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
                 const headers: Record<string, string> = {};
                 if (token) headers['Authorization'] = `Bearer ${token}`;
-                // Use Vite proxy in development, direct URL in production
-                const apiUrl = import.meta.env.DEV ? '/requests' : `${import.meta.env.VITE_API_URL || ''}/requests`;
-                const res = await fetch(apiUrl, {
+                // Hitting backend directly on port 4000 since Vite proxy only rewrites '/api' paths.
+                // TODO: Move to an env-driven API base and/or add a Vite proxy for '/requests'.
+                const res = await fetch('http://localhost:4000/requests', {
                     headers,
                     signal: controller.signal,
                 });
@@ -226,7 +226,7 @@ const Requests = () => {
                     aria-label="Filter by department"
                 >
                     <option value="">All Departments</option>
-                    {[...new Set(requests.map((r) => r.department).filter(Boolean) as string[])]
+                    {[...new Set(requests.map((f) => r.department).filter(Boolean) as string[])]
                         .sort((a, b) => a.localeCompare(b))
                         .map((dep) => (
                             <option key={dep} value={dep}>

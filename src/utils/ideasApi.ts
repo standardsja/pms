@@ -1,48 +1,12 @@
-/**
- * Ideas API Client
- * Production-ready API client for Innovation Hub ideas
- */
 import { getToken, getUser } from './auth';
 
-// Type definitions
-export interface IdeaAttachment {
-    id: number;
-    fileName: string;
-    fileUrl: string;
-    fileSize: number;
-    mimeType?: string | null;
-    uploadedAt: string;
-}
-
-export interface IdeaVote {
-    id: number;
-    userId: number;
-    userName: string;
-    voteType: 'UPVOTE' | 'DOWNVOTE';
-    createdAt: string;
-}
-
-export interface IdeaTag {
-    id: number;
-    name: string;
-}
-
-export interface IdeaChallenge {
-    id: number;
-    title: string;
-}
-
-export type IdeaStatus = 'DRAFT' | 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED' | 'PROMOTED_TO_PROJECT';
-export type IdeaCategory = 'PROCESS_IMPROVEMENT' | 'TECHNOLOGY' | 'CUSTOMER_SERVICE' | 'SUSTAINABILITY' | 'COST_REDUCTION' | 'PRODUCT_INNOVATION' | 'OTHER';
-export type VoteType = 'UPVOTE' | 'DOWNVOTE';
-
-export interface Idea {
+export type Idea = {
     id: string;
     title: string;
     description: string;
     descriptionHtml?: string | null;
-    category: IdeaCategory;
-    status: IdeaStatus;
+    category: string;
+    status: 'DRAFT' | 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED' | 'PROMOTED_TO_PROJECT';
     submittedBy: string;
     submittedById?: number;
     submittedAt: string;
@@ -58,98 +22,44 @@ export interface Idea {
     commentCount?: number;
     createdAt: string;
     updatedAt: string;
-    hasVoted?: 'up' | 'down' | null;
-    userVoteType?: VoteType | null;
-    votes?: IdeaVote[];
-    attachments?: IdeaAttachment[];
+    hasVoted?: boolean;
+    userVoteType?: 'UPVOTE' | 'DOWNVOTE' | null;
+    votes?: Array<{
+        id: number;
+        userId: number;
+        userName: string;
+        voteType: 'UPVOTE' | 'DOWNVOTE';
+        createdAt: string;
+    }>;
+    attachments?: Array<{
+        id: number;
+        fileName: string;
+        fileUrl: string;
+        fileSize: number;
+        mimeType?: string | null;
+        uploadedAt: string;
+    }>;
     firstAttachmentUrl?: string | null;
     stage?: string;
     isAnonymous?: boolean;
-    challenge?: IdeaChallenge | null;
-    tags?: IdeaTag[];
-}
+    challenge?: { id: number; title: string } | null;
+    tags?: Array<{ id: number; name: string }>;
+};
 
-/**
- * Generate authentication headers for API requests
- */
-function getAuthHeaders(): Record<string, string> {
-    const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-    };
-
+function authHeaders(): Record<string, string> {
     const token = getToken();
     const user = getUser();
+    const h: Record<string, string> = { 'Content-Type': 'application/json' };
 
-    // Prefer Bearer token for production security
+    // Backend accepts either x-user-id or Authorization: Bearer <id>
+    if (user?.id) {
+        h['x-user-id'] = user.id;
+    }
     if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-    } else if (user?.id) {
-        // Fallback to user ID header (development only)
-        headers['x-user-id'] = String(user.id);
+        h['Authorization'] = `Bearer ${token}`;
     }
 
-    return headers;
-}
-
-/**
- * Base API configuration
- * - Development: Use relative URLs (handled by Vite proxy)
- * - Production: Use absolute URL with environment variable
- */
-const API_BASE_URL = (() => {
-    // In development, use relative URLs for Vite proxy
-    if (import.meta.env.DEV) {
-        return '/api';
-    }
-    // In production, use environment variable or fallback
-    return import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api';
-})();
-
-/**
- * Generic API request function with error handling
- */
-async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-    const url = `${API_BASE_URL}${endpoint}`;
-
-    const config: RequestInit = {
-        ...options,
-        headers: {
-            ...getAuthHeaders(),
-            ...options.headers,
-        },
-    };
-
-    try {
-        const response = await fetch(url, config);
-
-        if (!response.ok) {
-            let errorMessage = `HTTP ${response.status}`;
-            try {
-                const errorData = await response.json();
-                errorMessage = errorData.message || errorData.error || errorMessage;
-            } catch {
-                // Ignore JSON parsing errors
-            }
-            throw new Error(errorMessage);
-        }
-
-        // Handle 204 No Content responses
-        if (response.status === 204) {
-            return undefined as unknown as T;
-        }
-
-        const contentType = response.headers.get('content-type');
-        if (contentType?.includes('application/json')) {
-            return await response.json();
-        }
-
-        return (await response.text()) as unknown as T;
-    } catch (error) {
-        if (error instanceof Error) {
-            throw error;
-        }
-        throw new Error('Network request failed');
-    }
+    return h;
 }
 
 export type PaginatedIdeas = {
@@ -195,7 +105,7 @@ export async function fetchIdeas(params?: {
     try {
         const res = await fetch(`/api/ideas${qs.toString() ? `?${qs.toString()}` : ''}`, {
             headers: {
-                ...getAuthHeaders(),
+                ...authHeaders(),
                 'Cache-Control': 'no-store',
                 Pragma: 'no-cache',
             },
@@ -256,7 +166,7 @@ export async function fetchIdeaById(id: string | number, opts?: { includeAttachm
     try {
         const res = await fetch(url, {
             headers: {
-                ...getAuthHeaders(),
+                ...authHeaders(),
                 'Cache-Control': 'no-store',
                 Pragma: 'no-cache',
             },
@@ -296,7 +206,7 @@ export async function fetchIdeaById(id: string | number, opts?: { includeAttachm
 export async function fetchComments(ideaId: number | string): Promise<IdeaComment[]> {
     try {
         const res = await fetch(`/api/ideas/${ideaId}/comments?t=${Date.now()}`, {
-            headers: getAuthHeaders(),
+            headers: authHeaders(),
             cache: 'no-store',
         });
 
@@ -323,7 +233,7 @@ export async function fetchComments(ideaId: number | string): Promise<IdeaCommen
 export async function postComment(ideaId: number | string, data: { text: string; parentId?: number | null }): Promise<IdeaComment> {
     const res = await fetch(`/api/ideas/${ideaId}/comments`, {
         method: 'POST',
-        headers: getAuthHeaders(),
+        headers: authHeaders(),
         body: JSON.stringify({ text: data.text, parentId: data.parentId ?? null }),
     });
     if (!res.ok) throw new Error(await res.text());
@@ -333,7 +243,7 @@ export async function postComment(ideaId: number | string, data: { text: string;
 export async function deleteComment(commentId: number): Promise<{ ok: boolean }> {
     const res = await fetch(`/api/ideas/comments/${commentId}`, {
         method: 'DELETE',
-        headers: getAuthHeaders(),
+        headers: authHeaders(),
     });
     if (!res.ok) throw new Error(await res.text());
     return (await res.json()) as { ok: boolean };
@@ -342,14 +252,14 @@ export async function deleteComment(commentId: number): Promise<{ ok: boolean }>
 export type MentionUser = { id: number; name: string; email: string };
 export async function searchUsers(term: string, take = 8): Promise<MentionUser[]> {
     const qs = new URLSearchParams({ search: term, take: String(take), t: Date.now().toString() });
-    const res = await fetch(`/api/users?${qs.toString()}`, { headers: getAuthHeaders(), cache: 'no-store' });
+    const res = await fetch(`/api/users?${qs.toString()}`, { headers: authHeaders(), cache: 'no-store' });
     if (!res.ok) throw new Error(await res.text());
     return (await res.json()) as MentionUser[];
 }
 
 export type RelatedIdea = { id: number; title: string; snippet: string; score: number; firstAttachmentUrl?: string | null };
 export async function fetchRelatedIdeas(id: number | string): Promise<RelatedIdea[]> {
-    const res = await fetch(`/api/ideas/${id}/related?t=${Date.now()}`, { headers: getAuthHeaders(), cache: 'no-store' });
+    const res = await fetch(`/api/ideas/${id}/related?t=${Date.now()}`, { headers: authHeaders(), cache: 'no-store' });
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
     return data.related as RelatedIdea[];
@@ -357,7 +267,7 @@ export async function fetchRelatedIdeas(id: number | string): Promise<RelatedIde
 
 export type LeaderboardRow = { userId: number; name: string; email: string; ideaCount: number; upvotes: number; comments: number; points: number; badge: string | null };
 export async function fetchLeaderboard(): Promise<LeaderboardRow[]> {
-    const res = await fetch(`/api/leaderboard?t=${Date.now()}`, { headers: getAuthHeaders(), cache: 'no-store' });
+    const res = await fetch(`/api/leaderboard?t=${Date.now()}`, { headers: authHeaders(), cache: 'no-store' });
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
     return data.leaderboard as LeaderboardRow[];
@@ -391,7 +301,7 @@ export async function fetchAnalytics(): Promise<AnalyticsData> {
     try {
         const res = await fetch(`/api/innovation/analytics?t=${Date.now()}`, {
             headers: {
-                ...getAuthHeaders(),
+                ...authHeaders(),
                 'Cache-Control': 'no-store',
                 Pragma: 'no-cache',
             },
@@ -465,23 +375,35 @@ export async function submitIdea(
         if (user?.id) headers['x-user-id'] = user.id;
         if (token) headers['Authorization'] = `Bearer ${token}`;
 
-        const res = await fetch('/api/ideas', {
+        const apiBase = import.meta.env.VITE_API_URL || '';
+        const res = await fetch(`${apiBase}/api/ideas`, {
             method: 'POST',
             headers,
             body: form,
         });
         if (!res.ok) throw new Error(await res.text());
+        const ct = (res.headers.get('content-type') || '').toLowerCase();
+        if (!ct.includes('application/json')) {
+            const text = await res.text();
+            throw new Error(`Server returned non-JSON response when creating idea: ${text.substring(0, 300)}`);
+        }
         return (await res.json()) as Idea;
     }
 
     // Fallback to JSON
-    const headers = getAuthHeaders();
-    const res = await fetch('/api/ideas', {
+    const apiBase = import.meta.env.VITE_API_URL || '';
+    const headers = authHeaders();
+    const res = await fetch(`${apiBase}/api/ideas`, {
         method: 'POST',
         headers,
         body: JSON.stringify(data),
     });
     if (!res.ok) throw new Error(await res.text());
+    const ct = (res.headers.get('content-type') || '').toLowerCase();
+    if (!ct.includes('application/json')) {
+        const text = await res.text();
+        throw new Error(`Server returned unexpected non-JSON response when creating idea: ${text.substring(0, 300)}`);
+    }
     return (await res.json()) as Idea;
 }
 
@@ -497,64 +419,64 @@ export type IdeaComment = {
 };
 
 export async function fetchTags(): Promise<Array<{ id: number; name: string }>> {
-    const res = await fetch(`/api/tags?t=${Date.now()}`, { headers: getAuthHeaders(), cache: 'no-store' });
+    const res = await fetch(`/api/tags?t=${Date.now()}`, { headers: authHeaders(), cache: 'no-store' });
     if (!res.ok) throw new Error(await res.text());
     return await res.json();
 }
 export async function createTag(name: string) {
-    const res = await fetch('/api/tags', { method: 'POST', headers: getAuthHeaders(), body: JSON.stringify({ name }) });
+    const res = await fetch('/api/tags', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ name }) });
     if (!res.ok) throw new Error(await res.text());
     return await res.json();
 }
 
 export async function fetchChallenges(): Promise<Array<{ id: number; title: string; description?: string; isActive: boolean }>> {
-    const res = await fetch(`/api/challenges?t=${Date.now()}`, { headers: getAuthHeaders(), cache: 'no-store' });
+    const res = await fetch(`/api/challenges?t=${Date.now()}`, { headers: authHeaders(), cache: 'no-store' });
     if (!res.ok) throw new Error(await res.text());
     return await res.json();
 }
 export async function fetchChallenge(id: number | string) {
-    const res = await fetch(`/api/challenges/${id}?t=${Date.now()}`, { headers: getAuthHeaders(), cache: 'no-store' });
+    const res = await fetch(`/api/challenges/${id}?t=${Date.now()}`, { headers: authHeaders(), cache: 'no-store' });
     if (!res.ok) throw new Error(await res.text());
     return await res.json();
 }
 
 export async function transitionStage(ideaId: number | string, toStage: string, note?: string) {
-    const res = await fetch(`/api/ideas/${ideaId}/stage-transition`, { method: 'POST', headers: getAuthHeaders(), body: JSON.stringify({ toStage, note }) });
+    const res = await fetch(`/api/ideas/${ideaId}/stage-transition`, { method: 'POST', headers: authHeaders(), body: JSON.stringify({ toStage, note }) });
     if (!res.ok) throw new Error(await res.text());
     return await res.json();
 }
 export async function fetchStageHistory(ideaId: number | string) {
-    const res = await fetch(`/api/ideas/${ideaId}/stage-history?t=${Date.now()}`, { headers: getAuthHeaders(), cache: 'no-store' });
+    const res = await fetch(`/api/ideas/${ideaId}/stage-history?t=${Date.now()}`, { headers: authHeaders(), cache: 'no-store' });
     if (!res.ok) throw new Error(await res.text());
     return await res.json();
 }
 
 export async function fetchAuditLog(ideaId: number | string) {
-    const res = await fetch(`/api/ideas/${ideaId}/audit?t=${Date.now()}`, { headers: getAuthHeaders(), cache: 'no-store' });
+    const res = await fetch(`/api/ideas/${ideaId}/audit?t=${Date.now()}`, { headers: authHeaders(), cache: 'no-store' });
     if (!res.ok) throw new Error(await res.text());
     return await res.json();
 }
 
 export async function fetchNotifications() {
-    const res = await fetch(`/api/notifications?t=${Date.now()}`, { headers: getAuthHeaders(), cache: 'no-store' });
+    const res = await fetch(`/api/notifications?t=${Date.now()}`, { headers: authHeaders(), cache: 'no-store' });
     if (!res.ok) throw new Error(await res.text());
     return await res.json();
 }
 export async function markNotificationRead(id: number) {
-    const res = await fetch(`/api/notifications/${id}/read`, { method: 'POST', headers: getAuthHeaders() });
+    const res = await fetch(`/api/notifications/${id}/read`, { method: 'POST', headers: authHeaders() });
     if (!res.ok) throw new Error(await res.text());
     return await res.json();
 }
 
 export async function searchIdeas(q: string) {
     const qs = new URLSearchParams({ q, t: Date.now().toString() });
-    const res = await fetch(`/api/ideas/search?${qs.toString()}`, { headers: getAuthHeaders(), cache: 'no-store' });
+    const res = await fetch(`/api/ideas/search?${qs.toString()}`, { headers: authHeaders(), cache: 'no-store' });
     if (!res.ok) throw new Error(await res.text());
     return await res.json();
 }
 
 export async function fetchInnovationStats() {
-    const res = await fetch(`/api/innovation/stats?t=${Date.now()}`, { headers: getAuthHeaders(), cache: 'no-store' });
+    const res = await fetch(`/api/innovation/stats?t=${Date.now()}`, { headers: authHeaders(), cache: 'no-store' });
     if (!res.ok) throw new Error(await res.text());
     return await res.json();
 }
@@ -568,9 +490,9 @@ export async function fetchIdeaCounts(): Promise<{
     total: number;
 }> {
     try {
-        const res = await fetch(`/api/ideas/counts?t=${Date.now()}`, {
+        const res = await fetch(`http://heron:4000/api/ideas/counts?t=${Date.now()}`, {
             headers: {
-                ...getAuthHeaders(),
+                ...authHeaders(),
                 'Cache-Control': 'no-store',
                 Pragma: 'no-cache',
             },
@@ -593,7 +515,7 @@ export async function fetchIdeaCounts(): Promise<{
 export async function approveIdea(id: string, notes?: string) {
     const res = await fetch(`/api/ideas/${id}/approve`, {
         method: 'POST',
-        headers: getAuthHeaders(),
+        headers: authHeaders(),
         body: JSON.stringify({ notes }),
     });
     if (!res.ok) throw new Error(await res.text());
@@ -603,7 +525,7 @@ export async function approveIdea(id: string, notes?: string) {
 export async function rejectIdea(id: string, notes?: string) {
     const res = await fetch(`/api/ideas/${id}/reject`, {
         method: 'POST',
-        headers: getAuthHeaders(),
+        headers: authHeaders(),
         body: JSON.stringify({ notes }),
     });
     if (!res.ok) throw new Error(await res.text());
@@ -613,7 +535,7 @@ export async function rejectIdea(id: string, notes?: string) {
 export async function promoteIdea(id: string, projectCode?: string) {
     const res = await fetch(`/api/ideas/${id}/promote`, {
         method: 'POST',
-        headers: getAuthHeaders(),
+        headers: authHeaders(),
         body: JSON.stringify({ projectCode }),
     });
     if (!res.ok) throw new Error(await res.text());
@@ -623,7 +545,7 @@ export async function promoteIdea(id: string, projectCode?: string) {
 export async function voteForIdea(id: string | number, voteType: 'UPVOTE' | 'DOWNVOTE' = 'UPVOTE') {
     const res = await fetch(`/api/ideas/${id}/vote`, {
         method: 'POST',
-        headers: getAuthHeaders(),
+        headers: authHeaders(),
         body: JSON.stringify({ voteType }),
     });
     if (!res.ok) {
@@ -651,7 +573,7 @@ export async function voteForIdea(id: string | number, voteType: 'UPVOTE' | 'DOW
 export async function removeVote(id: string | number) {
     const res = await fetch(`/api/ideas/${id}/vote`, {
         method: 'DELETE',
-        headers: getAuthHeaders(),
+        headers: authHeaders(),
     });
     if (!res.ok) {
         const errorText = await res.text();
@@ -663,7 +585,7 @@ export async function removeVote(id: string | number) {
 export async function checkIfVoted(id: string | number): Promise<boolean> {
     try {
         const idea = await fetchIdeaById(id);
-        return Boolean(idea.hasVoted);
+        return idea.hasVoted || false;
     } catch {
         return false;
     }

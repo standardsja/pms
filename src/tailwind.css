@@ -872,3 +872,93 @@ pre.hljs {
     -ms-overflow-style: none;
     scrollbar-width: none;
 }
+
+/* Jamaican Holiday Theme Styles */
+@keyframes jamaica-pulse {
+    0%,
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.8;
+        transform: scale(1.05);
+    }
+}
+
+@keyframes confetti-fall {
+    0% {
+        transform: translateY(-100%) rotate(0deg);
+        opacity: 1;
+    }
+    100% {
+        transform: translateY(100vh) rotate(360deg);
+        opacity: 0;
+    }
+}
+
+@keyframes flag-wave {
+    0%,
+    100% {
+        transform: rotate(-2deg);
+    }
+    50% {
+        transform: rotate(2deg);
+    }
+}
+
+/* Holiday theme active indicator */
+.holiday-active {
+    --holiday-primary: #006b3f;
+    --holiday-secondary: #fcd116;
+    --holiday-accent: #000000;
+}
+
+/* Jamaica flag colors */
+.holiday-emancipation,
+.holiday-independence,
+.holiday-heroes {
+    --holiday-primary: #006b3f;
+    --holiday-secondary: #fcd116;
+    --holiday-accent: #000000;
+}
+
+/* Christmas colors */
+.holiday-christmas,
+.holiday-boxing {
+    --holiday-primary: #c41e3a;
+    --holiday-secondary: #0f8a5f;
+    --holiday-accent: #ffd700;
+}
+
+/* New Year colors */
+.holiday-new-year {
+    --holiday-primary: #ffd700;
+    --holiday-secondary: #ffa500;
+    --holiday-accent: #ff6b6b;
+}
+
+.holiday-theme {
+    position: relative;
+}
+
+.holiday-theme::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at top right, var(--holiday-accent) 0%, transparent 70%);
+    opacity: 0.1;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.animate-jamaica-pulse {
+    animation: jamaica-pulse 2s ease-in-out infinite;
+}
+
+.animate-flag-wave {
+    animation: flag-wave 3s ease-in-out infinite;
+}

@@ -54,7 +54,7 @@ const BrowseIdeas = () => {
                     submittedBy: String(idea.submittedBy),
                     submittedAt: idea.submittedAt,
                     voteCount: idea.voteCount,
-                    hasVoted: Boolean(idea.hasVoted),
+                    hasVoted: idea.hasVoted || false,
                     viewCount: idea.viewCount,
                 }))
             );
@@ -87,15 +87,17 @@ const BrowseIdeas = () => {
                 await removeVote(ideaId);
                 // Refetch single idea for authoritative counts
                 const response = await fetchIdeas();
-                const updated = response.ideas || response;
-                const fresh = updated.find((i) => String(i.id) === ideaId);
+                const updatedRaw = response.ideas || response;
+                const updatedList = Array.isArray(updatedRaw) ? updatedRaw : (updatedRaw as any).ideas || [];
+                const fresh = updatedList.find((i: any) => String(i.id) === ideaId);
                 setIdeas((prev) => prev.map((i) => (i.id === ideaId && fresh ? { ...i, voteCount: fresh.voteCount, hasVoted: false } : i)));
             } else {
                 // Add vote
                 await voteForIdea(ideaId);
                 const response = await fetchIdeas();
-                const updated = response.ideas || response;
-                const fresh = updated.find((i) => String(i.id) === ideaId);
+                const updatedRaw = response.ideas || response;
+                const updatedList = Array.isArray(updatedRaw) ? updatedRaw : (updatedRaw as any).ideas || [];
+                const fresh = updatedList.find((i: any) => String(i.id) === ideaId);
                 setIdeas((prev) => prev.map((i) => (i.id === ideaId && fresh ? { ...i, voteCount: fresh.voteCount, hasVoted: true } : i)));
             }
         } catch (error) {
@@ -116,9 +118,9 @@ const BrowseIdeas = () => {
 
                 // Update local state to reflect they've already voted
                 // Sync state with backend counts
-                const response = await fetchIdeas();
-                const updated = response.ideas || response;
-                const fresh = updated.find((i: any) => String(i.id) === ideaId);
+                const updatedResp = await fetchIdeas();
+                const updatedList = Array.isArray(updatedResp) ? updatedResp : (updatedResp as any).ideas || [];
+                const fresh = updatedList.find((i: any) => String(i.id) === ideaId);
                 setIdeas((prev) => prev.map((i) => (i.id === ideaId && fresh ? { ...i, voteCount: fresh.voteCount, hasVoted: true } : i)));
             } else {
                 // Generic error
