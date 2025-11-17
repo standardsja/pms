@@ -23,6 +23,7 @@ import IconMultipleForwardRight from '../components/Icon/IconMultipleForwardRigh
 
 const Index = () => {
     const dispatch = useDispatch();
+    
     useEffect(() => {
         dispatch(setPageTitle('Dashboard'));
     });
