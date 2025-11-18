@@ -40,7 +40,7 @@ function getCurrentUserId(): number | null {
   return null;
 }
 
-const API_BASE = (import.meta.env.VITE_API_BASE || '');
+const API_BASE = 'http://heron:4000';
 // Decide whether to prefix; if API_BASE provided and path is relative, join.
 function buildUrl(path: string) {
   if (path.startsWith('http://') || path.startsWith('https://')) return path;
