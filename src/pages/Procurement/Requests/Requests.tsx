@@ -207,7 +207,14 @@ const Requests = () => {
                     aria-label="Filter by status"
                 >
                     <option value="">All Statuses</option>
-                    {[...new Set(requests.map((r) => r.status).map((s) => s && s.trim()).filter(Boolean))]
+                    {[
+                        ...new Set(
+                            requests
+                                .map((r) => r.status)
+                                .map((s) => s && s.trim())
+                                .filter(Boolean)
+                        ),
+                    ]
                         .map((s) => ({ raw: s as string, norm: normalizeStatus(s as string) }))
                         .sort((a, b) => a.norm.localeCompare(b.norm))
                         .map(({ raw, norm }) => (
