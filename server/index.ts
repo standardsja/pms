@@ -1826,26 +1826,69 @@ app.get('/requests/:id/pdf', async (req, res) => {
             .replace('{{procurementComments}}', request.procurementComments || '—')
             .replace('{{now}}', new Date().toLocaleString('en-US'));
 
-        // Generate PDF using puppeteer
-        const puppeteer = await import('puppeteer');
-        const browser = await puppeteer.default.launch({
-            headless: true,
-            args: ['--no-sandbox', '--disable-setuid-sandbox'],
-        });
-        const page = await browser.newPage();
-        await page.setContent(html, { waitUntil: 'networkidle0' });
-        const pdf = await page.pdf({
-            format: 'A4',
-            printBackground: true,
-            margin: { top: '20px', right: '20px', bottom: '20px', left: '20px' },
-        });
-        await browser.close();
+        // Try chrome-based render first; if it fails (server missing deps), fallback to PDFKit
+        let pdf: Buffer | null = null;
+        try {
+            const puppeteer = await import('puppeteer');
+            const browser = await puppeteer.default.launch({
+                headless: true,
+                args: ['--no-sandbox', '--disable-setuid-sandbox'],
+            });
+            const page = await browser.newPage();
+            await page.setContent(html, { waitUntil: 'networkidle0' });
+            pdf = await page.pdf({
+                format: 'A4',
+                printBackground: true,
+                margin: { top: '20px', right: '20px', bottom: '20px', left: '20px' },
+            });
+            await browser.close();
+        } catch (chromeErr) {
+            console.error('Puppeteer render failed, falling back to PDFKit:', chromeErr);
+        }
+
+        if (!pdf) {
+            // Minimal, reliable fallback using PDFKit (no system deps)
+            const { default: PDFDocument } = await import('pdfkit');
+            const doc = new PDFDocument({ size: 'A4', margin: 28 });
+            const chunks: Buffer[] = [];
+            const done = new Promise<Buffer>((resolve) => {
+                doc.on('data', (d: Buffer) => chunks.push(d));
+                doc.on('end', () => resolve(Buffer.concat(chunks)));
+            });
+
+            doc.fontSize(14).text('BUREAU OF STANDARDS JAMAICA', { align: 'center' });
+            doc.moveDown(0.3);
+            doc.fontSize(12).text('PROCUREMENT REQUISITION FORM', { align: 'center' });
+            doc.moveDown();
+            doc.fontSize(10);
+            const ref = request.reference || String(id);
+            doc.text(`Reference: ${ref}`);
+            doc.text(`Submitted: ${request.submittedAt ? new Date(request.submittedAt).toLocaleString() : '—'}`);
+            doc.moveDown();
+            doc.text(`Requested by: ${request.requester?.name || '—'} (${request.requester?.email || '—'})`);
+            doc.text(`Department: ${request.department?.name || '—'}`);
+            doc.text(`Priority: ${request.priority || '—'} | Currency: ${request.currency || 'JMD'}`);
+            doc.text(`Estimated Total: ${request.totalEstimated ?? '—'}`);
+            doc.moveDown();
+            doc.text('Justification:', { underline: true });
+            doc.text(request.description || '—');
+            doc.moveDown();
+            doc.text('Items:', { underline: true });
+            request.items.forEach((it: any, idx: number) => {
+                const qty = it.quantity ?? '—';
+                const up = it.unitPrice ?? '—';
+                const sub = (Number(it.quantity || 0) * Number(it.unitPrice || 0)).toFixed(2);
+                doc.text(`${idx + 1}. ${it.description || '—'} | Qty: ${qty} | Unit: ${up} | Subtotal: ${sub}`);
+            });
+            doc.end();
+            pdf = await done;
+        }
 
         res.setHeader('Content-Type', 'application/pdf');
-        // Render inline in browser so users can preview, print, or download
         res.setHeader('Content-Disposition', `inline; filename="request-${request.reference || id}.pdf"`);
         res.setHeader('Cache-Control', 'no-store');
-        res.send(pdf);
+        res.setHeader('Content-Length', String(pdf.length));
+        res.status(200).end(pdf);
     } catch (e: any) {
         console.error('GET /requests/:id/pdf error:', e);
         return res.status(500).json({ error: 'PDF Generation Failed', message: e?.message || 'Failed to generate PDF' });
