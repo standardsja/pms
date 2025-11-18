@@ -1842,7 +1842,9 @@ app.get('/requests/:id/pdf', async (req, res) => {
         await browser.close();
 
         res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename="request-${request.reference || id}.pdf"`);
+        // Render inline in browser so users can preview, print, or download
+        res.setHeader('Content-Disposition', `inline; filename="request-${request.reference || id}.pdf"`);
+        res.setHeader('Cache-Control', 'no-store');
         res.send(pdf);
     } catch (e: any) {
         console.error('GET /requests/:id/pdf error:', e);
