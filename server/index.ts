@@ -22,6 +22,7 @@ import type { Prisma } from '@prisma/client';
 import { requireCommittee as requireCommitteeRole, requireAdmin } from './middleware/rbac';
 import { validate, createIdeaSchema, voteSchema, approveRejectIdeaSchema, promoteIdeaSchema, sanitizeInput as sanitize } from './middleware/validation';
 import { errorHandler, notFoundHandler, asyncHandler, NotFoundError, BadRequestError } from './middleware/errorHandler';
+import statsRouter from './routes/stats';
 
 const app = express();
 const httpServer = http.createServer(app);
@@ -2430,6 +2431,9 @@ app.get('/api/auth/login', (req, res) => {
 app.get('/api/auth/test-login', (req, res) => {
     res.status(405).json({ message: 'Use POST method' });
 });
+
+// Stats API routes
+app.use('/api/stats', statsRouter);
 
 // No longer need this - using httpServer created at top
 // let server: http.Server | null = null;

@@ -308,7 +308,7 @@ const Login = () => {
                                                 clipRule="evenodd"
                                             />
                                         </svg>
-                                        <span>ISO 27001 Certified</span>
+                                        <span>ISO 9001 Certified</span>
                                     </div>
                                 </div>
                             </div>
@@ -644,7 +644,7 @@ const Login = () => {
                                         clipRule="evenodd"
                                     />
                                 </svg>
-                                <span className="font-medium">ISO 27001 Certified</span>
+                                <span className="font-medium">ISO 9001 Certified</span>
                             </div>
                             <span>•</span>
                             <div className="flex items-center gap-1.5">
