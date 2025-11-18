@@ -75,10 +75,14 @@ export const getLocalStorageJSON = <T = any>(key: string): T | null => {
  */
 export const normalizeStatus = (status: string): string => {
 	if (!status) return status;
-	return status
-		.toLowerCase()
+	const s = String(status)
+		.replace(/[_-]+/g, ' ') // handle ENUM_STYLE and kebab-case
+		.replace(/\s+/g, ' ') // collapse whitespace
+		.trim()
+		.toLowerCase();
+	return s
 		.split(' ')
-		.map((s) => s.charAt(0).toUpperCase() + s.slice(1))
+		.map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : w))
 		.join(' ');
 };
 
@@ -104,10 +108,13 @@ export const filterRequests = (
 	opts: { status?: string; department?: string }
 ): Request[] => {
 	const { status, department } = opts;
-	return requests.filter((r) =>
-		(!status || r.status === status) &&
-		(!department || r.department === department)
-	);
+	const wanted = normalizeStatus(status || '');
+	const wantDept = (department || '').trim();
+	return requests.filter((r) => {
+		const rs = normalizeStatus(r.status);
+		const rd = (r.department || '').trim();
+		return (!wanted || rs === wanted) && (!wantDept || rd === wantDept);
+	});
 };
 
 /**
