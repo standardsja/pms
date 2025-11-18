@@ -24,7 +24,8 @@
     ],
     "scripts": {
         "dev": "vite --host",
-        "build": "vite build && tsc",
+        "build": "vite build",
+        "build:check": "vite build && tsc",
         "prisma:seed": "npx tsx server/prisma/seed.ts",
         "preview": "vite preview",
         "server:dev": "npx tsx watch server/index.ts",

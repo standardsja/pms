@@ -164,7 +164,7 @@ const SubmitIdea = () => {
                 const token = getToken();
                 // Use the configured API host when available (Vite builds set VITE_API_URL).
                 // Fall back to relative paths when not set so the dev proxy still works.
-                const apiBase = import.meta.env.VITE_API_URL || '';
+                const apiBase = 'http://heron:4000';
                 const headers: Record<string, string> = {
                     'Content-Type': 'application/json',
                 };

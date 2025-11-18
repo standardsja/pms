@@ -57,7 +57,7 @@ const Requests = () => {
                 if (token) headers['Authorization'] = `Bearer ${token}`;
                 // Hitting backend directly on port 4000 since Vite proxy only rewrites '/api' paths.
                 // TODO: Move to an env-driven API base and/or add a Vite proxy for '/requests'.
-                const res = await fetch('http://localhost:4000/requests', {
+                const res = await fetch('http://heron:4000/requests', {
                     headers,
                     signal: controller.signal,
                 });
@@ -226,7 +226,7 @@ const Requests = () => {
                     aria-label="Filter by department"
                 >
                     <option value="">All Departments</option>
-                    {[...new Set(requests.map((f) => r.department).filter(Boolean) as string[])]
+                    {[...new Set(requests.map((f) => f.department).filter(Boolean) as string[])]
                         .sort((a, b) => a.localeCompare(b))
                         .map((dep) => (
                             <option key={dep} value={dep}>
