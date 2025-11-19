@@ -1061,11 +1061,23 @@ const RequestForm = () => {
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium mb-2">Date Rec'd:</label>
-                                    <input type="date" value={dateReceived || new Date().toISOString().split('T')[0]} onChange={(e) => setDateReceived(e.target.value)} className="form-input w-full" disabled={!canEditProcurementSection} />
+                                    <input
+                                        type="date"
+                                        value={dateReceived || new Date().toISOString().split('T')[0]}
+                                        onChange={(e) => setDateReceived(e.target.value)}
+                                        className="form-input w-full"
+                                        disabled={!canEditProcurementSection}
+                                    />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium mb-2">Action Date:</label>
-                                    <input type="date" value={actionDate || new Date().toISOString().split('T')[0]} onChange={(e) => setActionDate(e.target.value)} className="form-input w-full" disabled={!canEditProcurementSection} />
+                                    <input
+                                        type="date"
+                                        value={actionDate || new Date().toISOString().split('T')[0]}
+                                        onChange={(e) => setActionDate(e.target.value)}
+                                        className="form-input w-full"
+                                        disabled={!canEditProcurementSection}
+                                    />
                                 </div>
                             </div>
 
