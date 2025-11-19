@@ -113,7 +113,7 @@ const RequestForm = () => {
             setBudgetManagerName(fullName);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [canEditManagerFields, canEditHodFields, canApproveBudgetOfficer, canApproveBudgetManager, isEditMode]);
+    }, [canEditManagerFields, canEditHodFields, canApproveBudgetOfficer, canApproveBudgetManager, isEditMode, userProfile]);
 
     useEffect(() => {
         dispatch(setPageTitle(isEditMode ? 'Review Procurement Request' : 'New Procurement Request'));
@@ -882,7 +882,7 @@ const RequestForm = () => {
                                         </div>
                                         <div>
                                             <label className="block text-xs text-gray-500 mb-1">Date:</label>
-                                            <input type="date" className="form-input w-full" defaultValue="2025-05-15" disabled={!canEditManagerFields} />
+                                            <input type="date" className="form-input w-full" defaultValue={new Date().toISOString().split('T')[0]} disabled={!canEditManagerFields} />
                                         </div>
                                     </div>
                                     {/* Duplicate signature/date removed after refining permissions */}
@@ -909,7 +909,7 @@ const RequestForm = () => {
                                         </div>
                                         <div>
                                             <label className="block text-xs text-gray-500 mb-1">Date:</label>
-                                            <input type="date" className="form-input w-full" defaultValue="2025-05-15" disabled={!canEditHodFields} />
+                                            <input type="date" className="form-input w-full" defaultValue={new Date().toISOString().split('T')[0]} disabled={!canEditHodFields} />
                                         </div>
                                     </div>
                                     {/* Duplicate signature/date removed after refining permissions */}
@@ -966,10 +966,9 @@ const RequestForm = () => {
                                     type="text"
                                     value={budgetOfficerName}
                                     onChange={(e) => setBudgetOfficerName(e.target.value)}
-                                    className="form-input w-full mb-3 bg-gray-50"
-                                    placeholder={canApproveBudgetOfficer ? 'Auto-populated on review' : ''}
-                                    disabled={true}
-                                    readOnly
+                                    className="form-input w-full mb-3"
+                                    placeholder={canApproveBudgetOfficer ? 'Your name will be auto-filled' : ''}
+                                    disabled={!canApproveBudgetOfficer}
                                 />
                                 <div className="mb-3">
                                     <label className="flex items-center cursor-pointer">
@@ -990,7 +989,7 @@ const RequestForm = () => {
                                     </div>
                                     <div>
                                         <label className="block text-xs text-gray-500 mb-1">Date:</label>
-                                        <input type="date" className="form-input w-full" disabled={!canEditBudgetSection} />
+                                        <input type="date" className="form-input w-full" defaultValue={new Date().toISOString().split('T')[0]} disabled={!canEditBudgetSection} />
                                     </div>
                                 </div>
                             </div>
@@ -1000,10 +999,9 @@ const RequestForm = () => {
                                     type="text"
                                     value={budgetManagerName}
                                     onChange={(e) => setBudgetManagerName(e.target.value)}
-                                    className="form-input w-full mb-3 bg-gray-50"
-                                    placeholder={canApproveBudgetManager ? 'Auto-populated on review' : ''}
-                                    disabled={true}
-                                    readOnly
+                                    className="form-input w-full mb-3"
+                                    placeholder={canApproveBudgetManager ? 'Your name will be auto-filled' : ''}
+                                    disabled={!canApproveBudgetManager}
                                 />
                                 <div className="mb-3">
                                     <label className="flex items-center cursor-pointer">
@@ -1024,7 +1022,7 @@ const RequestForm = () => {
                                     </div>
                                     <div>
                                         <label className="block text-xs text-gray-500 mb-1">Date:</label>
-                                        <input type="date" className="form-input w-full" disabled={!canEditBudgetSection} />
+                                        <input type="date" className="form-input w-full" defaultValue={new Date().toISOString().split('T')[0]} disabled={!canEditBudgetSection} />
                                     </div>
                                 </div>
                             </div>
@@ -1063,11 +1061,11 @@ const RequestForm = () => {
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium mb-2">Date Rec'd:</label>
-                                    <input type="date" value={dateReceived} onChange={(e) => setDateReceived(e.target.value)} className="form-input w-full" disabled={!canEditProcurementSection} />
+                                    <input type="date" value={dateReceived || new Date().toISOString().split('T')[0]} onChange={(e) => setDateReceived(e.target.value)} className="form-input w-full" disabled={!canEditProcurementSection} />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium mb-2">Action Date:</label>
-                                    <input type="date" value={actionDate} onChange={(e) => setActionDate(e.target.value)} className="form-input w-full" disabled={!canEditProcurementSection} />
+                                    <input type="date" value={actionDate || new Date().toISOString().split('T')[0]} onChange={(e) => setActionDate(e.target.value)} className="form-input w-full" disabled={!canEditProcurementSection} />
                                 </div>
                             </div>
 
