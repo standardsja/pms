@@ -147,7 +147,7 @@ const RequestForm = () => {
 
         const fetchRequest = async () => {
             try {
-                const resp = await fetch(`http://heron:4000/requests/${id}`);
+                const resp = await fetch(`http://localhost:4000/requests/${id}`);
                 if (!resp.ok) throw new Error('Failed to fetch request');
 
                 const request = await resp.json();
@@ -358,7 +358,7 @@ const RequestForm = () => {
                     procurementApproved,
                 };
 
-                const resp = await fetch(`http://heron:4000/requests/${id}`, {
+                const resp = await fetch(`http://localhost:4000/requests/${id}`, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
@@ -381,7 +381,7 @@ const RequestForm = () => {
 
                 if (isApproving) {
                     try {
-                        const approveResp = await fetch(`http://heron:4000/requests/${id}/action`, {
+                        const approveResp = await fetch(`http://localhost:4000/requests/${id}/action`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json', 'x-user-id': String(userId) },
                             body: JSON.stringify({ action: 'APPROVE' }),
@@ -441,7 +441,7 @@ const RequestForm = () => {
                 // 🚨 ANTI-SPLINTERING CHECK
                 try {
                     // Fetch existing requests for splintering analysis
-                    const existingReqsResponse = await fetch('http://heron:4000/requests', {
+                    const existingReqsResponse = await fetch('http://localhost:4000/requests', {
                         headers: { 'x-user-id': String(userId) },
                     });
 
@@ -544,7 +544,7 @@ const RequestForm = () => {
 
                 console.log('[debug] Submitting payload with procurementType:', payload.procurementType);
 
-                const resp = await fetch('http://heron:4000/requests', {
+                const resp = await fetch('http://localhost:4000/requests', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -561,7 +561,7 @@ const RequestForm = () => {
                 const data = await resp.json();
 
                 // Submit the request to department manager for review
-                const submitResp = await fetch(`http://heron:4000/requests/${data.id}/submit`, {
+                const submitResp = await fetch(`http://localhost:4000/requests/${data.id}/submit`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -593,7 +593,7 @@ const RequestForm = () => {
 
     const handleDownloadPdf = () => {
         if (!id) return;
-        const url = `http://heron:4000/requests/${id}/pdf`;
+        const url = `http://localhost:4000/requests/${id}/pdf`;
         // open in a new tab to trigger download
         window.open(url, '_blank');
     };
@@ -608,7 +608,7 @@ const RequestForm = () => {
             return;
         }
         try {
-            const resp = await fetch(`http://heron:4000/requests/${id}/action`, {
+            const resp = await fetch(`http://localhost:4000/requests/${id}/action`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'x-user-id': String(userId) },
                 body: JSON.stringify({ action: 'SEND_TO_VENDOR' }),

@@ -2,6 +2,7 @@ import { lazy } from 'react';
 import OnboardingGuard from '../components/OnboardingGuard';
 import AdminRoute from '../components/AdminRoute';
 import CommitteeRoute from '../components/CommitteeRoute';
+import ProcurementRoute from '../components/ProcurementRoute';
 
 // Main Pages
 const Index = lazy(() => import('../pages/Index'));
@@ -429,7 +430,11 @@ const routes = [
     },
     {
         path: '/apps/requests/combine',
-        element: <CombineRequests />,
+        element: (
+            <ProcurementRoute>
+                <CombineRequests />
+            </ProcurementRoute>
+        ),
     },
 
     // ============================================

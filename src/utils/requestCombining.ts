@@ -263,29 +263,16 @@ export function checkCombinePermissions(
     let canCombine = false;
     let requiresApproval = false;
 
-    // Allow all procurement users to combine requests
+    // Only allow procurement users and admins to combine requests
     const isProcurementUser = userRoles.some((role) => {
         const roleUpper = role.toUpperCase();
-        return roleUpper.includes('PROCUREMENT') || roleUpper.includes('ADMIN') || roleUpper.includes('MANAGER') || roleUpper.includes('OFFICER');
+        return roleUpper.includes('PROCUREMENT') || roleUpper.includes('ADMIN');
     });
 
     if (isProcurementUser) {
         canCombine = true;
-    }
-
-    // Department heads can combine within their department
-    if (userRoles.some((role) => role.toUpperCase().includes('DEPARTMENT') || role.toUpperCase().includes('HEAD'))) {
-        const allFromSameDepartment = requests.every((req) => req.department === userDepartment);
-        if (allFromSameDepartment) {
-            canCombine = true;
-        } else {
-            reasons.push('Department heads can only combine requests from their own department');
-        }
-    }
-
-    // Allow all users to combine their own requests as a fallback
-    if (!canCombine) {
-        canCombine = true; // Allow all users to combine requests
+    } else {
+        reasons.push('Only procurement staff and administrators can combine requests');
     }
 
     // Cross-department combinations require approval

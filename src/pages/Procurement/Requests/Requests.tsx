@@ -57,7 +57,7 @@ const Requests = () => {
                 if (token) headers['Authorization'] = `Bearer ${token}`;
                 // Hitting backend directly on port 4000 since Vite proxy only rewrites '/api' paths.
                 // TODO: Move to an env-driven API base and/or add a Vite proxy for '/requests'.
-                const res = await fetch('http://heron:4000/requests', {
+                const res = await fetch('http://localhost:4000/requests', {
                     headers,
                     signal: controller.signal,
                 });
