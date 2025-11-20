@@ -1969,11 +1969,11 @@ app.get('/requests/:id/pdf', async (req, res) => {
         // Header code placeholders
         const seq = request.headerSequence !== null && request.headerSequence !== undefined ? String(request.headerSequence).padStart(3, '0') : '—';
         html = html
-            .replace('{{headerDeptCode}}', request.headerDeptCode || '—')
-            .replace('{{headerMonth}}', request.headerMonth || '—')
-            .replace('{{headerYear}}', request.headerYear ? String(request.headerYear) : '—')
-            .replace('{{headerSequence}}', seq)
-            .replace('{{headerCode}}', `${request.headerDeptCode || '—'}/${request.headerMonth || '—'}/${request.headerYear ? String(request.headerYear) : '—'}/${seq}`);
+            .replace(/{{headerDeptCode}}/g, request.headerDeptCode || '—')
+            .replace(/{{headerMonth}}/g, request.headerMonth || '—')
+            .replace(/{{headerYear}}/g, request.headerYear ? String(request.headerYear) : '—')
+            .replace(/{{headerSequence}}/g, seq)
+            .replace(/{{headerCode}}/g, `${request.headerDeptCode || '—'}/${request.headerMonth || '—'}/${request.headerYear ? String(request.headerYear) : '—'}/${seq}`);
 
         // Try chrome-based render first; if it fails (server missing deps), fallback to PDFKit
         let pdf: Buffer | null = null;

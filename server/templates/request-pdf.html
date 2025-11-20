@@ -99,23 +99,10 @@
         </style>
     </head>
     <body>
-        <div class="header" style="display: flex; align-items: center; justify-content: space-between">
-            <div style="flex: 1; text-align: left">
-                <!-- left can be used for logo if needed -->
-            </div>
-            <div style="flex: 1; text-align: center">
-                <div class="title">BUREAU OF STANDARDS JAMAICA</div>
-                <div class="subtitle">PROCUREMENT REQUISITION FORM</div>
-                <div class="muted" style="margin-top: 6px">Form Code: [{{headerDeptCode}}]/[{{headerMonth}}]/[{{headerYear}}]/[{{headerSequence}}] • Submitted: {{submittedAt}}</div>
-            </div>
-            <div style="flex: 1; text-align: right">
-                <div style="display: inline-flex; gap: 4px; flex-wrap: wrap; align-items: center; justify-content: flex-end">
-                    <span style="background: #b58900; color: #fff; padding: 4px 6px; font-size: 12px; font-weight: 700; border-radius: 2px">[{{headerDeptCode}}]</span>
-                    <span style="background: #b58900; color: #fff; padding: 4px 6px; font-size: 12px; font-weight: 700; border-radius: 2px">[{{headerMonth}}]</span>
-                    <span style="background: #b58900; color: #fff; padding: 4px 6px; font-size: 12px; font-weight: 700; border-radius: 2px">[{{headerYear}}]</span>
-                    <span style="background: #b58900; color: #fff; padding: 4px 6px; font-size: 12px; font-weight: 700; border-radius: 2px">[{{headerSequence}}]</span>
-                </div>
-            </div>
+        <div class="header" style="text-align:center; margin-bottom:12px">
+            <div class="title">BUREAU OF STANDARDS JAMAICA</div>
+            <div class="subtitle">PROCUREMENT REQUISITION FORM</div>
+            <div class="muted" style="margin-top:8px; font-size:13px">Form Code: [{{headerDeptCode}}]/[{{headerMonth}}]/[{{headerYear}}]/[{{headerSequence}}] • Submitted: {{submittedAt}}</div>
         </div>
 
         <div class="section-title">Section I: To be completed by Requestor</div>
