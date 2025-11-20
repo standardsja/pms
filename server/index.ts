@@ -1997,42 +1997,30 @@ app.post('/requests/:id/action', async (req, res) => {
                 nextStatus = 'HOD_REVIEW';
                 nextAssigneeId = hod?.id || null;
             } else if (request.status === 'HOD_REVIEW') {
-                // HOD approved -> send to Procurement
-                const procurement = await prisma.user.findFirst({
-                    where: { roles: { some: { role: { name: 'PROCUREMENT' } } } },
-                });
-                nextStatus = 'PROCUREMENT_REVIEW';
-                nextAssigneeId = procurement?.id || null;
-            } else if (request.status === 'PROCUREMENT_REVIEW') {
-                // Procurement approved -> send to Finance Officer
+                // HOD approved -> send to Finance Officer
                 const financeOfficer = await prisma.user.findFirst({
                     where: { roles: { some: { role: { name: 'FINANCE' } } } },
                 });
                 nextStatus = 'FINANCE_REVIEW';
                 nextAssigneeId = financeOfficer?.id || null;
             } else if (request.status === 'FINANCE_REVIEW') {
-                // Finance Officer approved -> send to Budget Manager when available,
-                // otherwise fall back to final finance approval (keeps flow moving)
+                // Finance Officer approved -> MUST go to Budget Manager (required step)
                 const budgetManager = await prisma.user.findFirst({
                     where: { roles: { some: { role: { name: 'BUDGET_MANAGER' } } } },
                 });
-                if (budgetManager?.id) {
-                    nextStatus = 'BUDGET_MANAGER_REVIEW';
-                    nextAssigneeId = budgetManager.id;
-                } else {
-                    nextStatus = 'FINANCE_APPROVED';
-                    const procurement = await prisma.user.findFirst({
-                        where: { roles: { some: { role: { name: 'PROCUREMENT' } } } },
-                    });
-                    nextAssigneeId = procurement?.id || null;
-                }
+                nextStatus = 'BUDGET_MANAGER_REVIEW';
+                nextAssigneeId = budgetManager?.id || null;
             } else if (request.status === 'BUDGET_MANAGER_REVIEW') {
-                // Budget Manager approved -> final approval, assign back to Procurement
-                nextStatus = 'FINANCE_APPROVED';
+                // Budget Manager approved -> send to Procurement for final processing
                 const procurement = await prisma.user.findFirst({
                     where: { roles: { some: { role: { name: 'PROCUREMENT' } } } },
                 });
+                nextStatus = 'PROCUREMENT_REVIEW';
                 nextAssigneeId = procurement?.id || null;
+            } else if (request.status === 'PROCUREMENT_REVIEW') {
+                // Procurement approved -> final approval (ready to send to vendor)
+                nextStatus = 'FINANCE_APPROVED';
+                nextAssigneeId = null;
             }
         } else if (action === 'SEND_TO_VENDOR') {
             if (request.status !== 'FINANCE_APPROVED') {
