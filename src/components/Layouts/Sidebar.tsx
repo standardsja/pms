@@ -51,6 +51,7 @@ const Sidebar = () => {
 
     const isAdmin = userRoles.includes('ADMIN');
     const isCommitteeMember = userRoles.includes('INNOVATION_COMMITTEE');
+    const isEvaluationCommittee = userRoles.includes('EVALUATION_COMMITTEE');
     // Check for Manager first (more specific role)
     const isProcurementManager = userRoles.includes('PROCUREMENT_MANAGER') || userRoles.includes('MANAGER') || userRoles.some((r: string) => r && r.toUpperCase().includes('MANAGER'));
     // Only check for Officer if not a Manager
@@ -63,7 +64,9 @@ const Sidebar = () => {
     // Determine if we're in Innovation Hub
     const isInnovationHub = location.pathname.startsWith('/innovation');
     // Compute dashboard path for logo/home
-    const dashboardPath = isCommitteeMember
+    const dashboardPath = isEvaluationCommittee
+        ? '/procurement/evaluation/committee'
+        : isCommitteeMember
         ? '/innovation/committee/dashboard'
         : isInnovationHub
         ? '/innovation/dashboard'
@@ -158,6 +161,22 @@ const Sidebar = () => {
                                             <div className="flex items-center">
                                                 <IconThumbUp className="group-hover:!text-primary shrink-0" />
                                                 <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Innovation Hub</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+                                </>
+                            ) : isEvaluationCommittee ? (
+                                // Evaluation Committee Menu
+                                <>
+                                    <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
+                                        <IconMinus className="w-4 h-5 flex-none hidden" />
+                                        <span>Evaluation Committee</span>
+                                    </h2>
+                                    <li className="nav-item">
+                                        <NavLink to="/procurement/evaluation/committee" className="group">
+                                            <div className="flex items-center">
+                                                <IconClipboardText className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Committee Evaluation</span>
                                             </div>
                                         </NavLink>
                                     </li>
