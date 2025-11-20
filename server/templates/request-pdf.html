@@ -32,10 +32,21 @@
     </style>
   </head>
   <body>
-    <div class="header">
-      <div class="title">BUREAU OF STANDARDS JAMAICA</div>
-      <div class="subtitle">PROCUREMENT REQUISITION FORM</div>
-      <div class="muted" style="margin-top:6px;">Reference: {{reference}} • Submitted: {{submittedAt}}</div>
+    <div class="header" style="display:flex; align-items:center; justify-content:space-between;">
+      <div style="flex:1; text-align:left;">
+        <!-- left can be used for logo if needed -->
+      </div>
+      <div style="flex:1; text-align:center;">
+        <div class="title">BUREAU OF STANDARDS JAMAICA</div>
+        <div class="subtitle">PROCUREMENT REQUISITION FORM</div>
+        <div class="muted" style="margin-top:6px;">Reference: {{reference}} • Submitted: {{submittedAt}}</div>
+      </div>
+      <div style="flex:1; text-align:right;">
+        <div style="border:1px solid var(--border); padding:6px 10px; display:inline-block; border-radius:6px; font-weight:700;">
+          <div style="font-size:12px;">{{headerDeptCode}}</div>
+          <div style="font-size:12px;">{{headerMonth}}/{{headerYear}}/{{headerSequence}}</div>
+        </div>
+      </div>
     </div>
 
     <div class="section-title">Section I: To be completed by Requestor</div>

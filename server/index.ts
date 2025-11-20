@@ -1538,6 +1538,10 @@ app.get('/requests', async (_req, res) => {
                 requester: { select: { id: true, name: true, email: true } },
                 department: { select: { id: true, name: true, code: true } },
                 currentAssignee: { select: { id: true, name: true, email: true } },
+                headerDeptCode: true,
+                headerMonth: true,
+                headerYear: true,
+                headerSequence: true,
             },
         });
         return res.json(requests);
@@ -1564,6 +1568,10 @@ app.get('/requests', async (_req, res) => {
                             requester: { select: { id: true, name: true, email: true } },
                             department: { select: { id: true, name: true, code: true } },
                             currentAssignee: { select: { id: true, name: true, email: true } },
+                            headerDeptCode: true,
+                            headerMonth: true,
+                            headerYear: true,
+                            headerSequence: true,
                         },
                     });
                     return res.json(requests);
@@ -1603,7 +1611,7 @@ app.post(
                 return res.status(401).json({ message: 'User ID required' });
             }
 
-            const { title, description, departmentId, items = [], totalEstimated, currency, priority, procurementType } = req.body || {};
+            const { title, description, departmentId, items = [], totalEstimated, currency, priority, procurementType, headerDeptCode, headerMonth, headerYear, headerSequence } = req.body || {};
 
             console.log('[POST /requests] Parsed fields - title:', title, 'departmentId:', departmentId);
 
@@ -1638,6 +1646,10 @@ app.post(
                     priority: priority || 'MEDIUM',
                     procurementType: procurementType || null,
                     status: 'DRAFT',
+                    headerDeptCode: headerDeptCode || null,
+                    headerMonth: headerMonth || null,
+                    headerYear: headerYear ? parseInt(String(headerYear), 10) : null,
+                    headerSequence: headerSequence ? parseInt(String(headerSequence), 10) : null,
                     items: {
                         create: parsedItems.map((it: any) => ({
                             description: String(it.description || ''),
@@ -1743,6 +1755,10 @@ app.get('/requests/:id', async (req, res) => {
                 department: { select: { id: true, name: true, code: true } },
                 currentAssignee: { select: { id: true, name: true, email: true } },
                 attachments: true,
+                headerDeptCode: true,
+                headerMonth: true,
+                headerYear: true,
+                headerSequence: true,
                 statusHistory: true,
                 actions: true,
             },
@@ -1949,6 +1965,15 @@ app.get('/requests/:id/pdf', async (req, res) => {
             .replace('{{actionDate}}', formatDate(request.actionDate))
             .replace('{{procurementComments}}', request.procurementComments || '—')
             .replace('{{now}}', new Date().toLocaleString('en-US'));
+
+        // Header code placeholders
+        const seq = request.headerSequence !== null && request.headerSequence !== undefined ? String(request.headerSequence).padStart(3, '0') : '—';
+        html = html
+            .replace('{{headerDeptCode}}', request.headerDeptCode || '—')
+            .replace('{{headerMonth}}', request.headerMonth || '—')
+            .replace('{{headerYear}}', request.headerYear ? String(request.headerYear) : '—')
+            .replace('{{headerSequence}}', seq)
+            .replace('{{headerCode}}', `${request.headerDeptCode || '—'}/${request.headerMonth || '—'}/${request.headerYear ? String(request.headerYear) : '—'}/${seq}`);
 
         // Try chrome-based render first; if it fails (server missing deps), fallback to PDFKit
         let pdf: Buffer | null = null;

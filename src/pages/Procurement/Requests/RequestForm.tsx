@@ -48,6 +48,10 @@ const RequestForm = () => {
     const [procurementComments, setProcurementComments] = useState('');
     const [attachments, setAttachments] = useState<File[]>([]);
     const [existingAttachments, setExistingAttachments] = useState<Array<{ id: number; filename: string; url: string }>>([]);
+    const [headerDeptCode, setHeaderDeptCode] = useState('');
+    const [headerMonth, setHeaderMonth] = useState('');
+    const [headerYear, setHeaderYear] = useState<number | null>(new Date().getFullYear());
+    const [headerSequence, setHeaderSequence] = useState<number | null>(0);
     // prevent duplicate submissions when network is slow
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [managerApproved, setManagerApproved] = useState(false);
@@ -219,6 +223,11 @@ const RequestForm = () => {
                 if (request.attachments && Array.isArray(request.attachments)) {
                     setExistingAttachments(request.attachments);
                 }
+                // Load header code values
+                setHeaderDeptCode(request.headerDeptCode || (request.department?.code || ''));
+                setHeaderMonth(request.headerMonth || '');
+                setHeaderYear(request.headerYear || new Date().getFullYear());
+                setHeaderSequence(request.headerSequence ?? 0);
 
                 // Track status and assignee for edit gating
                 const assigneeId = request.currentAssignee?.id || request.currentAssigneeId || null;
@@ -353,6 +362,11 @@ const RequestForm = () => {
                     budgetComments,
                     budgetOfficerName,
                     budgetManagerName,
+                    // Header code fields
+                    headerDeptCode,
+                    headerMonth,
+                    headerYear,
+                    headerSequence,
                     budgetOfficerApproved,
                     budgetManagerApproved,
                     procurementCaseNumber,
@@ -455,6 +469,11 @@ const RequestForm = () => {
                 attachments.forEach((file) => {
                     formData.append('attachments', file);
                 });
+                // Header code fields
+                formData.append('headerDeptCode', headerDeptCode || '');
+                formData.append('headerMonth', headerMonth || '');
+                if (headerYear) formData.append('headerYear', String(headerYear));
+                if (headerSequence !== null && headerSequence !== undefined) formData.append('headerSequence', String(headerSequence));
 
                 const resp = await fetch('http://heron:4000/requests', {
                     method: 'POST',
@@ -700,6 +719,35 @@ const RequestForm = () => {
                                         <span className="text-sm">Works</span>
                                     </label>
                                 </div>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                            <div>
+                                <label className="block text-sm font-medium mb-2">Header Dept Code</label>
+                                <input type="text" value={headerDeptCode} onChange={(e) => setHeaderDeptCode(e.target.value)} className="form-input w-full" placeholder="Dept code (e.g., ICT)" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-2">Header Month</label>
+                                <select className="form-select w-full" value={headerMonth} onChange={(e) => setHeaderMonth(e.target.value)}>
+                                    <option value="">Select month</option>
+                                    {['JANUARY','FEBRUARY','MARCH','APRIL','MAY','JUNE','JULY','AUGUST','SEPTEMBER','OCTOBER','NOVEMBER','DECEMBER'].map(m => (
+                                        <option key={m} value={m}>{m}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-2">Header Year</label>
+                                <select className="form-select w-full" value={headerYear ?? ''} onChange={(e) => setHeaderYear(e.target.value ? parseInt(e.target.value, 10) : null)}>
+                                    {Array.from({ length: 11 }).map((_, i) => {
+                                        const year = 2025 + i; // 2025..2035
+                                        return <option key={year} value={year}>{year}</option>;
+                                    })}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-2">Header Sequence</label>
+                                <input type="number" min={0} max={999} value={headerSequence ?? 0} onChange={(e) => setHeaderSequence(e.target.value ? parseInt(e.target.value, 10) : 0)} className="form-input w-full" />
                             </div>
                         </div>
 
