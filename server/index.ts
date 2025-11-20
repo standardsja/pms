@@ -1577,6 +1577,11 @@ app.post(
     },
     async (req, res) => {
         try {
+            console.log('[POST /requests] Request received');
+            console.log('[POST /requests] Headers:', req.headers['x-user-id']);
+            console.log('[POST /requests] Body keys:', Object.keys(req.body));
+            console.log('[POST /requests] Files:', req.files ? (req.files as any[]).map(f => f.originalname) : 'none');
+            
             const userId = req.headers['x-user-id'];
             if (!userId) {
                 return res.status(401).json({ message: 'User ID required' });
@@ -1584,15 +1589,26 @@ app.post(
 
             const { title, description, departmentId, items = [], totalEstimated, currency, priority, procurementType } = req.body || {};
 
+            console.log('[POST /requests] Parsed fields - title:', title, 'departmentId:', departmentId);
+
             if (!title || !departmentId) {
                 return res.status(400).json({ message: 'Title and department are required' });
             }
 
             // Parse items if it comes as JSON string (from FormData)
-            const parsedItems = typeof items === 'string' ? JSON.parse(items) : items;
+            let parsedItems;
+            try {
+                parsedItems = typeof items === 'string' ? JSON.parse(items) : items;
+                console.log('[POST /requests] Parsed items count:', parsedItems.length);
+            } catch (parseErr: any) {
+                console.error('[POST /requests] Failed to parse items:', parseErr);
+                return res.status(400).json({ message: 'Invalid items format', error: parseErr.message });
+            }
 
             // Generate reference
             const reference = `REQ-${Date.now()}`;
+
+            console.log('[POST /requests] Creating request with reference:', reference);
 
             const created = await prisma.request.create({
                 data: {
@@ -1626,10 +1642,14 @@ app.post(
                 },
             });
 
+            console.log('[POST /requests] Request created with ID:', created.id);
+
             // Handle file attachments
             if (req.files && Array.isArray(req.files) && req.files.length > 0) {
+                console.log('[POST /requests] Processing', req.files.length, 'file attachments');
                 for (const file of req.files) {
                     const fileUrl = `http://heron:4000/uploads/${file.filename}`;
+                    console.log('[POST /requests] Creating attachment:', file.originalname);
                     await prisma.requestAttachment.create({
                         data: {
                             requestId: created.id,
