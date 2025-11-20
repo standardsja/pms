@@ -178,6 +178,7 @@ const uploadAttachments = multer({
     }),
     limits: { fileSize: 10 * 1024 * 1024 }, // 10MB for documents
     fileFilter: (_req, file, cb) => {
+        console.log('[uploadAttachments] File:', file.originalname, 'Type:', file.mimetype);
         // Allow common document types and images
         const allowedTypes = [
             'application/pdf',
@@ -188,11 +189,17 @@ const uploadAttachments = multer({
             'image/jpeg',
             'image/jpg',
             'image/png',
+            'image/gif',
         ];
-        if (allowedTypes.includes(file.mimetype)) {
+        // Also allow by file extension as backup
+        const ext = path.extname(file.originalname).toLowerCase();
+        const allowedExtensions = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.jpg', '.jpeg', '.png', '.gif'];
+        
+        if (allowedTypes.includes(file.mimetype) || allowedExtensions.includes(ext)) {
             cb(null, true);
         } else {
-            cb(new Error('File type not allowed. Allowed: PDF, Word, Excel, JPG, PNG'));
+            console.log('[uploadAttachments] Rejected file type:', file.mimetype, 'Extension:', ext);
+            cb(new Error(`File type not allowed: ${file.mimetype}. Allowed: PDF, Word, Excel, JPG, PNG`));
         }
     },
 });
