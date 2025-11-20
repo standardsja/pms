@@ -2167,8 +2167,9 @@ app.post('/requests/:id/action', async (req, res) => {
                 nextAssigneeId = procurement?.id || null;
             } else if (request.status === 'PROCUREMENT_REVIEW') {
                 // Procurement approved -> final approval (ready to send to vendor)
+                // Keep the procurement approver assigned so they can download PDF & dispatch
                 nextStatus = 'FINANCE_APPROVED';
-                nextAssigneeId = null;
+                nextAssigneeId = parseInt(String(userId), 10);
             }
         } else if (action === 'SEND_TO_VENDOR') {
             if (request.status !== 'FINANCE_APPROVED') {
