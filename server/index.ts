@@ -164,6 +164,39 @@ const upload = multer({
     },
 });
 
+// Separate multer instance for request attachments (allows documents)
+const uploadAttachments = multer({
+    storage: multer.diskStorage({
+        destination: (_req, _file, cb) => {
+            cb(null, path.join(__dirname, 'uploads'));
+        },
+        filename: (_req, file, cb) => {
+            const ext = path.extname(file.originalname);
+            const base = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9_-]/g, '_');
+            cb(null, `attachment_${Date.now()}_${base}${ext}`);
+        },
+    }),
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB for documents
+    fileFilter: (_req, file, cb) => {
+        // Allow common document types and images
+        const allowedTypes = [
+            'application/pdf',
+            'application/msword',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/vnd.ms-excel',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'image/jpeg',
+            'image/jpg',
+            'image/png',
+        ];
+        if (allowedTypes.includes(file.mimetype)) {
+            cb(null, true);
+        } else {
+            cb(new Error('File type not allowed. Allowed: PDF, Word, Excel, JPG, PNG'));
+        }
+    },
+});
+
 app.get('/health', async (_req, res) => {
     try {
         await prisma.$queryRaw`SELECT 1`;
@@ -1521,7 +1554,7 @@ app.get('/requests', async (_req, res) => {
 });
 
 // POST /requests - create a new procurement request (with optional file attachments)
-app.post('/requests', upload.array('attachments', 10), async (req, res) => {
+app.post('/requests', uploadAttachments.array('attachments', 10), async (req, res) => {
     try {
         const userId = req.headers['x-user-id'];
         if (!userId) {
