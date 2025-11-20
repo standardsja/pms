@@ -23,7 +23,7 @@ import IconMultipleForwardRight from '../components/Icon/IconMultipleForwardRigh
 
 const Index = () => {
     const dispatch = useDispatch();
-    
+
     useEffect(() => {
         dispatch(setPageTitle('Dashboard'));
     });
@@ -31,6 +31,39 @@ const Index = () => {
     const isRtl = useSelector((state: IRootState) => state.themeConfig.rtlClass) === 'rtl' ? true : false;
 
     const [loading] = useState(false);
+
+    // Real-time dashboard statistics
+    const [dashboardStats, setDashboardStats] = useState({
+        activeUsers: 0,
+        requestsThisMonth: 0,
+        innovationIdeas: 0,
+        pendingApprovals: 0,
+    });
+
+    // Fetch real-time dashboard stats
+    useEffect(() => {
+        const fetchDashboardStats = async () => {
+            try {
+                const response = await fetch('/api/stats/dashboard');
+                if (response.ok) {
+                    const data = await response.json();
+                    setDashboardStats({
+                        activeUsers: data.activeUsers,
+                        requestsThisMonth: data.requestsThisMonth,
+                        innovationIdeas: data.innovationIdeas,
+                        pendingApprovals: data.pendingApprovals,
+                    });
+                }
+            } catch (error) {
+                console.error('Failed to fetch dashboard stats:', error);
+            }
+        };
+
+        fetchDashboardStats();
+        const interval = setInterval(fetchDashboardStats, 30000); // Refresh every 30 seconds
+
+        return () => clearInterval(interval);
+    }, []);
 
     // Role / permissions from onboarding (localStorage)
     const userProfile: any = (() => {
@@ -48,15 +81,14 @@ const Index = () => {
         return perms.some((p) => permissions.includes(p));
     };
 
-    // Mock counts for procurement widgets (replace with API data later)
+    // Placeholder stats for procurement-specific widgets
     const procurementStats = {
-        pendingApprovals: 5,
-        rfqsOut: 12,
-        quotesDue: 4,
-        deliveries: 3,
-        paymentsQueue: 7,
-        slaAlerts: 2,
-        spendToBudgetPct: 68,
+        rfqsOut: 0,
+        quotesDue: 0,
+        deliveries: 0,
+        paymentsQueue: 0,
+        slaAlerts: 0,
+        spendToBudgetPct: 0,
     };
 
     //Revenue Chart
@@ -443,6 +475,65 @@ const Index = () => {
             </ul>
 
             <div className="pt-5">
+                {/* Main Dashboard Stats - Real-time Data */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                    <div className="panel">
+                        <div className="flex items-center justify-between mb-5">
+                            <h5 className="font-semibold text-2xl dark:text-white-light">{dashboardStats.activeUsers}</h5>
+                            <div className="flex items-center justify-center w-12 h-12 rounded-full bg-primary-light dark:bg-primary text-primary">
+                                <IconUser className="w-6 h-6" />
+                            </div>
+                        </div>
+                        <div className="text-sm font-semibold text-gray-500 dark:text-gray-400">Active Users</div>
+                        <div className="mt-2 text-xs text-success">
+                            <span className="inline-block w-2 h-2 rounded-full bg-success mr-1 animate-pulse"></span>
+                            Updated every 30s
+                        </div>
+                    </div>
+
+                    <div className="panel">
+                        <div className="flex items-center justify-between mb-5">
+                            <h5 className="font-semibold text-2xl dark:text-white-light">{dashboardStats.requestsThisMonth}</h5>
+                            <div className="flex items-center justify-center w-12 h-12 rounded-full bg-success-light dark:bg-success text-success">
+                                <IconShoppingCart className="w-6 h-6" />
+                            </div>
+                        </div>
+                        <div className="text-sm font-semibold text-gray-500 dark:text-gray-400">Requests This Month</div>
+                        <div className="mt-2 text-xs text-success">
+                            <span className="inline-block w-2 h-2 rounded-full bg-success mr-1 animate-pulse"></span>
+                            Updated every 30s
+                        </div>
+                    </div>
+
+                    <div className="panel">
+                        <div className="flex items-center justify-between mb-5">
+                            <h5 className="font-semibold text-2xl dark:text-white-light">{dashboardStats.innovationIdeas}</h5>
+                            <div className="flex items-center justify-center w-12 h-12 rounded-full bg-warning-light dark:bg-warning text-warning">
+                                <IconBolt className="w-6 h-6" />
+                            </div>
+                        </div>
+                        <div className="text-sm font-semibold text-gray-500 dark:text-gray-400">Innovation Ideas</div>
+                        <div className="mt-2 text-xs text-success">
+                            <span className="inline-block w-2 h-2 rounded-full bg-success mr-1 animate-pulse"></span>
+                            Updated every 30s
+                        </div>
+                    </div>
+
+                    <div className="panel">
+                        <div className="flex items-center justify-between mb-5">
+                            <h5 className="font-semibold text-2xl dark:text-white-light">{dashboardStats.pendingApprovals}</h5>
+                            <div className="flex items-center justify-center w-12 h-12 rounded-full bg-danger-light dark:bg-danger text-danger">
+                                <IconInbox className="w-6 h-6" />
+                            </div>
+                        </div>
+                        <div className="text-sm font-semibold text-gray-500 dark:text-gray-400">Pending Approvals</div>
+                        <div className="mt-2 text-xs text-success">
+                            <span className="inline-block w-2 h-2 rounded-full bg-success mr-1 animate-pulse"></span>
+                            Updated every 30s
+                        </div>
+                    </div>
+                </div>
+
                 {/* Procurement widgets (role-aware) */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4 mb-6">
                     {hasPermission(['approve_requests', 'view_all_requests']) && (
@@ -452,7 +543,7 @@ const Index = () => {
                             </div>
                             <div>
                                 <div className="text-sm text-white-dark">Pending Approvals</div>
-                                <div className="text-lg font-semibold">{procurementStats.pendingApprovals}</div>
+                                <div className="text-lg font-semibold">{dashboardStats.pendingApprovals}</div>
                             </div>
                         </div>
                     )}

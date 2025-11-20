@@ -50,7 +50,7 @@ const Login = () => {
             // try the non-password helper endpoint to unblock UX. This will NOT run in production builds.
             if (!res.ok && import.meta.env.DEV) {
                 try {
-                    const fallbackRes = await fetch('/auth/test-login', {
+                    const fallbackRes = await fetch('http://heron:4000/auth/test-login', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ email: String(email).toLowerCase().trim() }),
@@ -308,7 +308,7 @@ const Login = () => {
                                                 clipRule="evenodd"
                                             />
                                         </svg>
-                                        <span>ISO 27001 Certified</span>
+                                        <span>ISO 9001 Certified</span>
                                     </div>
                                 </div>
                             </div>
@@ -644,7 +644,7 @@ const Login = () => {
                                         clipRule="evenodd"
                                     />
                                 </svg>
-                                <span className="font-medium">ISO 27001 Certified</span>
+                                <span className="font-medium">ISO 9001 Certified</span>
                             </div>
                             <span>•</span>
                             <div className="flex items-center gap-1.5">

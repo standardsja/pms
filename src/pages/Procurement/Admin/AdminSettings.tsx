@@ -1,7 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useDispatch } from 'react-redux';
-import { getApiUrl, getAuthHeaders } from '../../../utils/api';
-import { showSuccess } from '../../../utils/notifications';
 import { setPageTitle } from '../../../store/themeConfigSlice';
 // Icons grouped by usage context (workflows/templates/roles) - remove unused as needed
 import IconSettings from '../../../components/Icon/IconSettings';
@@ -739,7 +737,7 @@ function ReassignRequestsTab() {
     async function loadData() {
         setLoading(true);
         try {
-            const [reqsRes, usersRes] = await Promise.all([fetch(getApiUrl('requests')), fetch(getApiUrl('admin/users'))]);
+            const [reqsRes, usersRes] = await Promise.all([fetch('http://heron:4000/requests'), fetch('http://heron:4000/admin/users')]);
             const reqs = await reqsRes.json();
             const usrs = await usersRes.json();
             setRequests(reqs);
@@ -753,16 +751,22 @@ function ReassignRequestsTab() {
 
     async function reassignRequest(requestId: number, assigneeId: number | null) {
         try {
-            const res = await fetch(getApiUrl(`admin/requests/${requestId}/reassign`), {
+            const userProfile = localStorage.getItem('auth_user') || sessionStorage.getItem('auth_user');
+            const user = userProfile ? JSON.parse(userProfile) : null;
+
+            const res = await fetch(`http://heron:4000/admin/requests/${requestId}/reassign`, {
                 method: 'POST',
-                headers: getAuthHeaders(),
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-user-id': String(user?.id || ''),
+                },
                 body: JSON.stringify({ assigneeId, comment: 'Manually reassigned by admin', newStatus: selectedStatus || undefined }),
             });
 
             if (!res.ok) throw new Error('Failed to reassign');
 
             await loadData();
-            showSuccess('Request reassigned successfully!');
+            alert('Request reassigned successfully!');
         } catch (e: any) {
             alert(e?.message || 'Failed to reassign request');
         }

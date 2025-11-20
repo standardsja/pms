@@ -22,6 +22,7 @@ import type { Prisma } from '@prisma/client';
 import { requireCommittee as requireCommitteeRole, requireAdmin } from './middleware/rbac';
 import { validate, createIdeaSchema, voteSchema, approveRejectIdeaSchema, promoteIdeaSchema, sanitizeInput as sanitize } from './middleware/validation';
 import { errorHandler, notFoundHandler, asyncHandler, NotFoundError, BadRequestError } from './middleware/errorHandler';
+import statsRouter from './routes/stats';
 
 const app = express();
 const httpServer = http.createServer(app);
@@ -1050,7 +1051,7 @@ app.post('/api/ideas', authMiddleware, ideaCreationLimiter, upload.single('image
         }
 
         if (req.file) {
-            const fileUrl = `/uploads/${req.file.filename}`;
+            const fileUrl = `http://heron:4000/uploads/${req.file.filename}`;
             await prisma.ideaAttachment.create({
                 data: {
                     ideaId: idea.id,
@@ -1700,9 +1701,12 @@ app.patch('/requests/:id', async (req, res) => {
         const { id } = req.params;
         const updates = req.body || {};
 
+        // Remove deprecated fields that no longer exist in schema
+        const { budgetOfficerApproved, budgetManagerApproved, ...cleanUpdates } = updates;
+
         const updated = await prisma.request.update({
             where: { id: parseInt(id, 10) },
-            data: updates,
+            data: cleanUpdates,
             include: {
                 items: true,
                 requester: { select: { id: true, name: true, email: true } },
@@ -1723,9 +1727,12 @@ app.put('/requests/:id', async (req, res) => {
         const { id } = req.params;
         const updates = req.body || {};
 
+        // Remove deprecated fields that no longer exist in schema
+        const { budgetOfficerApproved, budgetManagerApproved, ...cleanUpdates } = updates;
+
         const updated = await prisma.request.update({
             where: { id: parseInt(id, 10) },
-            data: updates,
+            data: cleanUpdates,
             include: {
                 items: true,
                 requester: { select: { id: true, name: true, email: true } },
@@ -1737,6 +1744,155 @@ app.put('/requests/:id', async (req, res) => {
     } catch (e: any) {
         console.error('PUT /requests/:id error:', e);
         return res.status(500).json({ message: e?.message || 'Failed to update request' });
+    }
+});
+
+// GET /requests/:id/pdf - generate PDF for a request
+app.get('/requests/:id/pdf', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const request = await prisma.request.findUnique({
+            where: { id: parseInt(id, 10) },
+            include: {
+                items: true,
+                requester: true,
+                department: true,
+                currentAssignee: true,
+            },
+        });
+
+        if (!request) {
+            return res.status(404).json({ error: 'Not Found', message: 'Route GET /requests/9/pdf does not exist', statusCode: 404 });
+        }
+
+        // Load HTML template
+        const templatePath = path.join(process.cwd(), 'server', 'templates', 'request-pdf.html');
+        let html = fs.readFileSync(templatePath, 'utf-8');
+
+        // Helper to format date
+        const formatDate = (date: Date | null | undefined) => {
+            if (!date) return '—';
+            return new Date(date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+        };
+
+        // Helper to format currency
+        const formatCurrency = (value: any) => {
+            if (value == null) return '—';
+            return parseFloat(String(value)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        };
+
+        // Generate items rows
+        const itemsRows = request.items
+            .map(
+                (item, idx) => `
+        <tr>
+          <td>${idx + 1}</td>
+          <td>${item.description || '—'}</td>
+          <td style="text-align: center;">${item.quantity || '—'}</td>
+          <td style="text-align: right;">${formatCurrency(item.unitPrice)}</td>
+          <td style="text-align: right;">${formatCurrency(parseFloat(String(item.quantity || 0)) * parseFloat(String(item.unitPrice || 0)))}</td>
+        </tr>`
+            )
+            .join('');
+
+        // Replace placeholders
+        html = html
+            .replace('{{reference}}', request.reference || '—')
+            .replace('{{submittedAt}}', formatDate(request.submittedAt))
+            .replace('{{requesterName}}', request.requester?.name || '—')
+            .replace('{{requesterEmail}}', request.requester?.email || '—')
+            .replace('{{departmentName}}', request.department?.name || '—')
+            .replace('{{priority}}', request.priority || '—')
+            .replace('{{currency}}', request.currency || 'JMD')
+            .replace(/{{totalEstimated}}/g, formatCurrency(request.totalEstimated))
+            .replace('{{description}}', request.description || '—')
+            .replace('{{itemsRows}}', itemsRows)
+            .replace('{{managerName}}', request.managerName || '—')
+            .replace('{{managerApprovalDate}}', formatDate(request.actionDate))
+            .replace('{{headName}}', request.headName || '—')
+            .replace('{{hodApprovalDate}}', formatDate(request.actionDate))
+            .replace('{{budgetOfficerName}}', request.budgetOfficerName || '—')
+            .replace('{{budgetManagerName}}', request.budgetManagerName || '—')
+            .replace('{{financeApprovalDate}}', formatDate(request.actionDate))
+            .replace('{{commitmentNumber}}', request.commitmentNumber || '—')
+            .replace('{{accountingCode}}', request.accountingCode || '—')
+            .replace('{{procurementApprovalDate}}', formatDate(request.actionDate))
+            .replace('{{status}}', request.status || '—')
+            .replace('{{assigneeName}}', request.currentAssignee?.name || '—')
+            .replace('{{submittedDate}}', formatDate(request.submittedAt))
+            .replace('{{procurementCaseNumber}}', request.procurementCaseNumber || '—')
+            .replace('{{receivedBy}}', request.receivedBy || '—')
+            .replace('{{dateReceived}}', formatDate(request.dateReceived))
+            .replace('{{actionDate}}', formatDate(request.actionDate))
+            .replace('{{procurementComments}}', request.procurementComments || '—')
+            .replace('{{now}}', new Date().toLocaleString('en-US'));
+
+        // Try chrome-based render first; if it fails (server missing deps), fallback to PDFKit
+        let pdf: Buffer | null = null;
+        try {
+            const puppeteer = await import('puppeteer');
+            const browser = await puppeteer.default.launch({
+                headless: true,
+                args: ['--no-sandbox', '--disable-setuid-sandbox'],
+            });
+            const page = await browser.newPage();
+            await page.setContent(html, { waitUntil: 'networkidle0' });
+            pdf = await page.pdf({
+                format: 'A4',
+                printBackground: true,
+                margin: { top: '20px', right: '20px', bottom: '20px', left: '20px' },
+            });
+            await browser.close();
+        } catch (chromeErr) {
+            console.error('Puppeteer render failed, falling back to PDFKit:', chromeErr);
+        }
+
+        if (!pdf) {
+            // Minimal, reliable fallback using PDFKit (no system deps)
+            const { default: PDFDocument } = await import('pdfkit');
+            const doc = new PDFDocument({ size: 'A4', margin: 28 });
+            const chunks: Buffer[] = [];
+            const done = new Promise<Buffer>((resolve) => {
+                doc.on('data', (d: Buffer) => chunks.push(d));
+                doc.on('end', () => resolve(Buffer.concat(chunks)));
+            });
+
+            doc.fontSize(14).text('BUREAU OF STANDARDS JAMAICA', { align: 'center' });
+            doc.moveDown(0.3);
+            doc.fontSize(12).text('PROCUREMENT REQUISITION FORM', { align: 'center' });
+            doc.moveDown();
+            doc.fontSize(10);
+            const ref = request.reference || String(id);
+            doc.text(`Reference: ${ref}`);
+            doc.text(`Submitted: ${request.submittedAt ? new Date(request.submittedAt).toLocaleString() : '—'}`);
+            doc.moveDown();
+            doc.text(`Requested by: ${request.requester?.name || '—'} (${request.requester?.email || '—'})`);
+            doc.text(`Department: ${request.department?.name || '—'}`);
+            doc.text(`Priority: ${request.priority || '—'} | Currency: ${request.currency || 'JMD'}`);
+            doc.text(`Estimated Total: ${request.totalEstimated ?? '—'}`);
+            doc.moveDown();
+            doc.text('Justification:', { underline: true });
+            doc.text(request.description || '—');
+            doc.moveDown();
+            doc.text('Items:', { underline: true });
+            request.items.forEach((it: any, idx: number) => {
+                const qty = it.quantity ?? '—';
+                const up = it.unitPrice ?? '—';
+                const sub = (Number(it.quantity || 0) * Number(it.unitPrice || 0)).toFixed(2);
+                doc.text(`${idx + 1}. ${it.description || '—'} | Qty: ${qty} | Unit: ${up} | Subtotal: ${sub}`);
+            });
+            doc.end();
+            pdf = await done;
+        }
+
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `inline; filename="request-${request.reference || id}.pdf"`);
+        res.setHeader('Cache-Control', 'no-store');
+        res.setHeader('Content-Length', String(pdf.length));
+        res.status(200).end(pdf);
+    } catch (e: any) {
+        console.error('GET /requests/:id/pdf error:', e);
+        return res.status(500).json({ error: 'PDF Generation Failed', message: e?.message || 'Failed to generate PDF' });
     }
 });
 
@@ -1841,26 +1997,30 @@ app.post('/requests/:id/action', async (req, res) => {
                 nextStatus = 'HOD_REVIEW';
                 nextAssigneeId = hod?.id || null;
             } else if (request.status === 'HOD_REVIEW') {
-                // HOD approved -> send to Procurement
+                // HOD approved -> send to Finance Officer
+                const financeOfficer = await prisma.user.findFirst({
+                    where: { roles: { some: { role: { name: 'FINANCE' } } } },
+                });
+                nextStatus = 'FINANCE_REVIEW';
+                nextAssigneeId = financeOfficer?.id || null;
+            } else if (request.status === 'FINANCE_REVIEW') {
+                // Finance Officer approved -> MUST go to Budget Manager (required step)
+                const budgetManager = await prisma.user.findFirst({
+                    where: { roles: { some: { role: { name: 'BUDGET_MANAGER' } } } },
+                });
+                nextStatus = 'BUDGET_MANAGER_REVIEW';
+                nextAssigneeId = budgetManager?.id || null;
+            } else if (request.status === 'BUDGET_MANAGER_REVIEW') {
+                // Budget Manager approved -> send to Procurement for final processing
                 const procurement = await prisma.user.findFirst({
                     where: { roles: { some: { role: { name: 'PROCUREMENT' } } } },
                 });
                 nextStatus = 'PROCUREMENT_REVIEW';
                 nextAssigneeId = procurement?.id || null;
             } else if (request.status === 'PROCUREMENT_REVIEW') {
-                // Procurement approved -> send to Finance
-                const finance = await prisma.user.findFirst({
-                    where: { roles: { some: { role: { name: 'FINANCE' } } } },
-                });
-                nextStatus = 'FINANCE_REVIEW';
-                nextAssigneeId = finance?.id || null;
-            } else if (request.status === 'FINANCE_REVIEW') {
-                // Finance approved -> final approval, assign back to Procurement
+                // Procurement approved -> final approval (ready to send to vendor)
                 nextStatus = 'FINANCE_APPROVED';
-                const procurement = await prisma.user.findFirst({
-                    where: { roles: { some: { role: { name: 'PROCUREMENT' } } } },
-                });
-                nextAssigneeId = procurement?.id || null;
+                nextAssigneeId = null;
             }
         } else if (action === 'SEND_TO_VENDOR') {
             if (request.status !== 'FINANCE_APPROVED') {
@@ -1874,27 +2034,63 @@ app.post('/requests/:id/action', async (req, res) => {
             nextAssigneeId = request.requesterId;
         }
 
-        // Update request with new status
-        const updated = await prisma.request.update({
-            where: { id: parseInt(id, 10) },
-            data: {
-                status: nextStatus,
-                currentAssigneeId: nextAssigneeId,
-                statusHistory: {
-                    create: {
-                        status: nextStatus,
-                        changedById: parseInt(String(userId), 10),
-                        comment: `${action === 'APPROVE' ? 'Approved' : 'Rejected'} at ${request.status} stage`,
+        // Update request with new status (with safe fallback if enum is missing in DB)
+        let updated;
+        try {
+            updated = await prisma.request.update({
+                where: { id: parseInt(id, 10) },
+                data: {
+                    status: nextStatus,
+                    currentAssigneeId: nextAssigneeId,
+                    statusHistory: {
+                        create: {
+                            status: nextStatus,
+                            changedById: parseInt(String(userId), 10),
+                            comment: `${action === 'APPROVE' ? 'Approved' : 'Rejected'} at ${request.status} stage`,
+                        },
                     },
                 },
-            },
-            include: {
-                items: true,
-                requester: { select: { id: true, name: true, email: true } },
-                department: { select: { id: true, name: true, code: true } },
-                currentAssignee: { select: { id: true, name: true, email: true } },
-            },
-        });
+                include: {
+                    items: true,
+                    requester: { select: { id: true, name: true, email: true } },
+                    department: { select: { id: true, name: true, code: true } },
+                    currentAssignee: { select: { id: true, name: true, email: true } },
+                },
+            });
+        } catch (e: any) {
+            const msg = String(e?.message || '');
+            const enumProblem = msg.includes('BUDGET_MANAGER_REVIEW') || msg.toLowerCase().includes('invalid enum');
+            if (enumProblem && request.status === 'FINANCE_REVIEW') {
+                // Fallback: if DB enum lacks BUDGET_MANAGER_REVIEW, treat as FINANCE_APPROVED
+                const procurement = await prisma.user.findFirst({
+                    where: { roles: { some: { role: { name: 'PROCUREMENT' } } } },
+                });
+                const fallbackStatus = 'FINANCE_APPROVED' as const;
+                updated = await prisma.request.update({
+                    where: { id: parseInt(id, 10) },
+                    data: {
+                        status: fallbackStatus,
+                        currentAssigneeId: procurement?.id || null,
+                        statusHistory: {
+                            create: {
+                                status: fallbackStatus,
+                                changedById: parseInt(String(userId), 10),
+                                comment: 'Approved at FINANCE_REVIEW (fallback applied)',
+                            },
+                        },
+                    },
+                    include: {
+                        items: true,
+                        requester: { select: { id: true, name: true, email: true } },
+                        department: { select: { id: true, name: true, code: true } },
+                        currentAssignee: { select: { id: true, name: true, email: true } },
+                    },
+                });
+                console.warn('Fallback applied: DB enum missing BUDGET_MANAGER_REVIEW; advanced to FINANCE_APPROVED');
+            } else {
+                throw e;
+            }
+        }
 
         return res.json(updated);
     } catch (e: any) {
@@ -2223,6 +2419,9 @@ app.get('/api/auth/login', (req, res) => {
 app.get('/api/auth/test-login', (req, res) => {
     res.status(405).json({ message: 'Use POST method' });
 });
+
+// Stats API routes
+app.use('/api/stats', statsRouter);
 
 // No longer need this - using httpServer created at top
 // let server: http.Server | null = null;

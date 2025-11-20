@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { useNavigate, useParams } from 'react-router-dom';
-import { safeJsonParse, type UserProfile } from '../../../utils/safeHelpers';
 import { setPageTitle } from '@/store/themeConfigSlice';
 import IconPlus from '@/components/Icon/IconPlus';
 import IconX from '@/components/Icon/IconX';
@@ -57,7 +56,7 @@ const RequestForm = () => {
     const [budgetManagerApproved, setBudgetManagerApproved] = useState(false);
 
     // Current user profile (for edit permissions)
-    const userProfile: UserProfile = safeJsonParse(localStorage.getItem('userProfile'), {});
+    const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
     const currentUserId = userProfile?.id || userProfile?.userId || null;
     const currentUserName = userProfile?.fullName || userProfile?.name || '';
 
@@ -114,7 +113,7 @@ const RequestForm = () => {
             setBudgetManagerName(fullName);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [canEditManagerFields, canEditHodFields, canApproveBudgetOfficer, canApproveBudgetManager, isEditMode]);
+    }, [canEditManagerFields, canEditHodFields, canApproveBudgetOfficer, canApproveBudgetManager, isEditMode, userProfile]);
 
     useEffect(() => {
         dispatch(setPageTitle(isEditMode ? 'Review Procurement Request' : 'New Procurement Request'));
@@ -130,7 +129,7 @@ const RequestForm = () => {
             // Prefer new auth_user; fallback to legacy userProfile
             const authRaw = localStorage.getItem('auth_user') || sessionStorage.getItem('auth_user');
             const legacyRaw = localStorage.getItem('userProfile');
-            const profile: UserProfile | null = authRaw ? safeJsonParse<UserProfile | null>(authRaw, null) : legacyRaw ? safeJsonParse<UserProfile | null>(legacyRaw, null) : null;
+            const profile = authRaw ? JSON.parse(authRaw) : legacyRaw ? JSON.parse(legacyRaw) : null;
             if (profile) {
                 setRequestedBy(profile.name || profile.fullName || '');
                 setEmail(profile.email || '');
@@ -147,8 +146,7 @@ const RequestForm = () => {
 
         const fetchRequest = async () => {
             try {
-                const apiUrl = import.meta.env.DEV ? `/requests/${id}` : `${import.meta.env.VITE_API_URL || ''}/requests/${id}`;
-                const resp = await fetch(apiUrl);
+                const resp = await fetch(`http://heron:4000/requests/${id}`);
                 if (!resp.ok) throw new Error('Failed to fetch request');
 
                 const request = await resp.json();
@@ -359,8 +357,7 @@ const RequestForm = () => {
                     procurementApproved,
                 };
 
-                const apiUrl = import.meta.env.DEV ? `/requests/${id}` : `${import.meta.env.VITE_API_URL || ''}/requests/${id}`;
-                const resp = await fetch(apiUrl, {
+                const resp = await fetch(`http://heron:4000/requests/${id}`, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
@@ -383,8 +380,7 @@ const RequestForm = () => {
 
                 if (isApproving) {
                     try {
-                        const apiUrl = import.meta.env.DEV ? `/requests/${id}/action` : `${import.meta.env.VITE_API_URL || ''}/requests/${id}/action`;
-                        const approveResp = await fetch(apiUrl, {
+                        const approveResp = await fetch(`http://heron:4000/requests/${id}/action`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json', 'x-user-id': String(userId) },
                             body: JSON.stringify({ action: 'APPROVE' }),
@@ -443,8 +439,7 @@ const RequestForm = () => {
 
                 console.log('[debug] Submitting payload with procurementType:', payload.procurementType);
 
-                const apiUrl = import.meta.env.DEV ? '/requests' : `${import.meta.env.VITE_API_URL || ''}/requests`;
-                const resp = await fetch(apiUrl, {
+                const resp = await fetch('http://heron:4000/requests', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -461,8 +456,7 @@ const RequestForm = () => {
                 const data = await resp.json();
 
                 // Submit the request to department manager for review
-                const submitApiUrl = import.meta.env.DEV ? `/requests/${data.id}/submit` : `${import.meta.env.VITE_API_URL || ''}/requests/${data.id}/submit`;
-                const submitResp = await fetch(submitApiUrl, {
+                const submitResp = await fetch(`http://heron:4000/requests/${data.id}/submit`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -494,7 +488,7 @@ const RequestForm = () => {
 
     const handleDownloadPdf = () => {
         if (!id) return;
-        const url = import.meta.env.DEV ? `/requests/${id}/pdf` : `${import.meta.env.VITE_API_URL || ''}/requests/${id}/pdf`;
+        const url = `http://heron:4000/requests/${id}/pdf`;
         // open in a new tab to trigger download
         window.open(url, '_blank');
     };
@@ -509,8 +503,7 @@ const RequestForm = () => {
             return;
         }
         try {
-            const apiUrl = import.meta.env.DEV ? `/requests/${id}/action` : `${import.meta.env.VITE_API_URL || ''}/requests/${id}/action`;
-            const resp = await fetch(apiUrl, {
+            const resp = await fetch(`http://heron:4000/requests/${id}/action`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'x-user-id': String(userId) },
                 body: JSON.stringify({ action: 'SEND_TO_VENDOR' }),
@@ -889,7 +882,7 @@ const RequestForm = () => {
                                         </div>
                                         <div>
                                             <label className="block text-xs text-gray-500 mb-1">Date:</label>
-                                            <input type="date" className="form-input w-full" defaultValue="2025-05-15" disabled={!canEditManagerFields} />
+                                            <input type="date" className="form-input w-full" defaultValue={new Date().toISOString().split('T')[0]} disabled={!canEditManagerFields} />
                                         </div>
                                     </div>
                                     {/* Duplicate signature/date removed after refining permissions */}
@@ -916,7 +909,7 @@ const RequestForm = () => {
                                         </div>
                                         <div>
                                             <label className="block text-xs text-gray-500 mb-1">Date:</label>
-                                            <input type="date" className="form-input w-full" defaultValue="2025-05-15" disabled={!canEditHodFields} />
+                                            <input type="date" className="form-input w-full" defaultValue={new Date().toISOString().split('T')[0]} disabled={!canEditHodFields} />
                                         </div>
                                     </div>
                                     {/* Duplicate signature/date removed after refining permissions */}
@@ -973,10 +966,9 @@ const RequestForm = () => {
                                     type="text"
                                     value={budgetOfficerName}
                                     onChange={(e) => setBudgetOfficerName(e.target.value)}
-                                    className="form-input w-full mb-3 bg-gray-50"
-                                    placeholder={canApproveBudgetOfficer ? 'Auto-populated on review' : ''}
-                                    disabled={true}
-                                    readOnly
+                                    className="form-input w-full mb-3"
+                                    placeholder={canApproveBudgetOfficer ? 'Your name will be auto-filled' : ''}
+                                    disabled={!canApproveBudgetOfficer}
                                 />
                                 <div className="mb-3">
                                     <label className="flex items-center cursor-pointer">
@@ -997,7 +989,7 @@ const RequestForm = () => {
                                     </div>
                                     <div>
                                         <label className="block text-xs text-gray-500 mb-1">Date:</label>
-                                        <input type="date" className="form-input w-full" disabled={!canEditBudgetSection} />
+                                        <input type="date" className="form-input w-full" defaultValue={new Date().toISOString().split('T')[0]} disabled={!canEditBudgetSection} />
                                     </div>
                                 </div>
                             </div>
@@ -1007,10 +999,9 @@ const RequestForm = () => {
                                     type="text"
                                     value={budgetManagerName}
                                     onChange={(e) => setBudgetManagerName(e.target.value)}
-                                    className="form-input w-full mb-3 bg-gray-50"
-                                    placeholder={canApproveBudgetManager ? 'Auto-populated on review' : ''}
-                                    disabled={true}
-                                    readOnly
+                                    className="form-input w-full mb-3"
+                                    placeholder={canApproveBudgetManager ? 'Your name will be auto-filled' : ''}
+                                    disabled={!canApproveBudgetManager}
                                 />
                                 <div className="mb-3">
                                     <label className="flex items-center cursor-pointer">
@@ -1031,7 +1022,7 @@ const RequestForm = () => {
                                     </div>
                                     <div>
                                         <label className="block text-xs text-gray-500 mb-1">Date:</label>
-                                        <input type="date" className="form-input w-full" disabled={!canEditBudgetSection} />
+                                        <input type="date" className="form-input w-full" defaultValue={new Date().toISOString().split('T')[0]} disabled={!canEditBudgetSection} />
                                     </div>
                                 </div>
                             </div>
@@ -1070,11 +1061,23 @@ const RequestForm = () => {
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium mb-2">Date Rec'd:</label>
-                                    <input type="date" value={dateReceived} onChange={(e) => setDateReceived(e.target.value)} className="form-input w-full" disabled={!canEditProcurementSection} />
+                                    <input
+                                        type="date"
+                                        value={dateReceived || new Date().toISOString().split('T')[0]}
+                                        onChange={(e) => setDateReceived(e.target.value)}
+                                        className="form-input w-full"
+                                        disabled={!canEditProcurementSection}
+                                    />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium mb-2">Action Date:</label>
-                                    <input type="date" value={actionDate} onChange={(e) => setActionDate(e.target.value)} className="form-input w-full" disabled={!canEditProcurementSection} />
+                                    <input
+                                        type="date"
+                                        value={actionDate || new Date().toISOString().split('T')[0]}
+                                        onChange={(e) => setActionDate(e.target.value)}
+                                        className="form-input w-full"
+                                        disabled={!canEditProcurementSection}
+                                    />
                                 </div>
                             </div>
 

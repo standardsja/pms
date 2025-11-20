@@ -8,7 +8,7 @@ import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import { Request, ApiResponse } from '../../../types/request.types';
 import { getStatusBadge } from '../../../utils/statusBadges';
-import { searchRequests, filterRequests, onlyMine, paginate, formatDate, sortRequestsByDateDesc, adaptRequestsResponse } from '../../../utils/requestUtils';
+import { searchRequests, filterRequests, onlyMine, paginate, formatDate, sortRequestsByDateDesc, adaptRequestsResponse, normalizeStatus } from '../../../utils/requestUtils';
 import RequestDetailsContent from '../../../components/RequestDetailsContent';
 
 const MySwal = withReactContent(Swal);
@@ -57,7 +57,7 @@ const Requests = () => {
                 if (token) headers['Authorization'] = `Bearer ${token}`;
                 // Hitting backend directly on port 4000 since Vite proxy only rewrites '/api' paths.
                 // TODO: Move to an env-driven API base and/or add a Vite proxy for '/requests'.
-                const res = await fetch('http://localhost:4000/requests', {
+                const res = await fetch('http://heron:4000/requests', {
                     headers,
                     signal: controller.signal,
                 });
@@ -207,13 +207,21 @@ const Requests = () => {
                     aria-label="Filter by status"
                 >
                     <option value="">All Statuses</option>
-                    <option>Pending Finance</option>
-                    <option>Finance Verified</option>
-                    <option>Pending Procurement</option>
-                    <option>Approved</option>
-                    <option>Returned by Finance</option>
-                    <option>Rejected</option>
-                    <option>Fulfilled</option>
+                    {[
+                        ...new Set(
+                            requests
+                                .map((r) => r.status)
+                                .map((s) => s && s.trim())
+                                .filter(Boolean)
+                        ),
+                    ]
+                        .map((s) => ({ raw: s as string, norm: normalizeStatus(s as string) }))
+                        .sort((a, b) => a.norm.localeCompare(b.norm))
+                        .map(({ raw, norm }) => (
+                            <option key={raw} value={norm}>
+                                {norm}
+                            </option>
+                        ))}
                 </select>
 
                 <select

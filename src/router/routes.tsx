@@ -1,4 +1,5 @@
 import { lazy } from 'react';
+import OnboardingGuard from '../components/OnboardingGuard';
 import AdminRoute from '../components/AdminRoute';
 import CommitteeRoute from '../components/CommitteeRoute';
 
@@ -109,7 +110,11 @@ const routes = [
     },
     {
         path: '/onboarding',
-        element: <Onboarding />,
+        element: (
+            <OnboardingGuard>
+                <Onboarding />
+            </OnboardingGuard>
+        ),
         layout: 'blank',
     },
 
@@ -452,6 +457,7 @@ const routes = [
     {
         path: '/help',
         element: <HelpSupport />,
+        layout: 'blank',
     },
 
     // ============================================
