@@ -630,12 +630,6 @@ const RequestForm = () => {
                             <div className="w-32" />
                         </div>
                     </div>
-                                <option key={m} value={m}>
-                                    {m}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
                     <div>
                         <label className="block text-[11px] font-medium mb-1">Year</label>
                         <select className="form-select w-full" value={headerYear ?? ''} onChange={(e) => setHeaderYear(e.target.value ? parseInt(e.target.value, 10) : null)}>
