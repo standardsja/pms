@@ -16,6 +16,49 @@ interface RequestItem {
     partNumber: string;
 }
 
+/**
+ * Department codes displayed in the inline editable header.
+ * Centralized for maintainability – update here if organizational codes change.
+ */
+const DEPARTMENT_CODES: readonly string[] = [
+    'ICT',
+    'OSH',
+    'ED10',
+    'ED01',
+    'ED02',
+    'ED12',
+    'ED13',
+    'ED15',
+    'DPU',
+    'QEMS',
+    'CCSB',
+    'CSU',
+    'TIC',
+    'BDU',
+    'HRMD',
+    'OFMB',
+    'PRO',
+    'F&A',
+    'SD',
+    'S&T',
+    'TIS(CE)',
+    'EE',
+    'ME',
+    'NCRA',
+    'NCBJ',
+];
+
+/** Full month names used for header month selection. */
+const MONTHS: readonly string[] = ['JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE', 'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER'];
+
+/**
+ * Header year range logic.
+ * BASE defines the first selectable year; SPAN defines how many consecutive years are offered.
+ * Example: BASE=2025, SPAN=11 -> 2025..2035 inclusive.
+ */
+const HEADER_YEAR_BASE = 2025;
+const HEADER_YEAR_SPAN = 11; // number of years from base
+
 const RequestForm = () => {
     const dispatch = useDispatch();
     const navigate = useNavigate();
@@ -572,58 +615,66 @@ const RequestForm = () => {
                                 <div className="mt-4 flex flex-wrap gap-2 items-center justify-center text-sm font-semibold">
                                     {/* Inline editable brackets */}
                                     <div className="flex items-center gap-1">
-                                        <span className="px-2 py-1 bg-yellow-600 text-white rounded-sm">[
+                                        <span className="px-2 py-1 bg-yellow-600 text-white rounded-sm">
+                                            [
                                             <div className="flex flex-wrap gap-1">
-                                                {['ICT','OSH','ED10','ED01','ED02','ED12','ED13','ED15','DPU','QEMS','CCSB','CSU','TIC','BDU','HRMD','OFMB','PRO','F&A','SD','S&T','TIS(CE)','EE','ME','NCRA','NCBJ'].map(code => (
+                                                {DEPARTMENT_CODES.map((code) => (
                                                     <button
                                                         type="button"
                                                         key={code}
                                                         onClick={() => setHeaderDeptCode(code)}
-                                                        className={`px-1 ${headerDeptCode===code?'underline':''}`}
+                                                        className={`px-1 ${headerDeptCode === code ? 'underline' : ''}`}
                                                         title={`Select ${code}`}
-                                                    >{code}</button>
+                                                    >
+                                                        {code}
+                                                    </button>
                                                 ))}
                                             </div>
-                                        ]</span>
-                                        <span className="px-2 py-1 bg-yellow-600 text-white rounded-sm">[
+                                            ]
+                                        </span>
+                                        <span className="px-2 py-1 bg-yellow-600 text-white rounded-sm">
+                                            [
                                             <div className="flex flex-wrap gap-1">
-                                                {['JANUARY','FEBRUARY','MARCH','APRIL','MAY','JUNE','JULY','AUGUST','SEPTEMBER','OCTOBER','NOVEMBER','DECEMBER'].map(m => (
-                                                    <button
-                                                        type="button"
-                                                        key={m}
-                                                        onClick={() => setHeaderMonth(m)}
-                                                        className={`px-1 ${headerMonth===m?'underline':''}`}
-                                                        title={`Select ${m}`}
-                                                    >{m.slice(0,3)}</button>
+                                                {MONTHS.map((m) => (
+                                                    <button type="button" key={m} onClick={() => setHeaderMonth(m)} className={`px-1 ${headerMonth === m ? 'underline' : ''}`} title={`Select ${m}`}>
+                                                        {m.slice(0, 3)}
+                                                    </button>
                                                 ))}
                                             </div>
-                                        ]</span>
-                                        <span className="px-2 py-1 bg-yellow-600 text-white rounded-sm">[
+                                            ]
+                                        </span>
+                                        <span className="px-2 py-1 bg-yellow-600 text-white rounded-sm">
+                                            [
                                             <div className="flex gap-1 flex-wrap">
-                                                {Array.from({length:11}).map((_,i)=>{
-                                                    const year = 2025 + i;
+                                                {Array.from({ length: HEADER_YEAR_SPAN }).map((_, i) => {
+                                                    const year = HEADER_YEAR_BASE + i;
                                                     return (
                                                         <button
                                                             type="button"
                                                             key={year}
-                                                            onClick={()=>setHeaderYear(year)}
-                                                            className={`px-1 ${headerYear===year?'underline':''}`}
+                                                            onClick={() => setHeaderYear(year)}
+                                                            className={`px-1 ${headerYear === year ? 'underline' : ''}`}
                                                             title={`Select ${year}`}
-                                                        >{year}</button>
+                                                        >
+                                                            {year}
+                                                        </button>
                                                     );
                                                 })}
                                             </div>
-                                        ]</span>
-                                        <span className="px-2 py-1 bg-yellow-600 text-white rounded-sm">[
+                                            ]
+                                        </span>
+                                        <span className="px-2 py-1 bg-yellow-600 text-white rounded-sm">
+                                            [
                                             <input
                                                 type="number"
                                                 min={0}
                                                 max={999}
                                                 value={headerSequence ?? 0}
-                                                onChange={(e)=>setHeaderSequence(e.target.value?parseInt(e.target.value,10):0)}
+                                                onChange={(e) => setHeaderSequence(e.target.value ? parseInt(e.target.value, 10) : 0)}
                                                 className="bg-transparent w-14 focus:outline-none text-white text-sm text-center"
                                             />
-                                        ]</span>
+                                            ]
+                                        </span>
                                     </div>
                                 </div>
                             </div>
