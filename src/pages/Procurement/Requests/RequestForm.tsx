@@ -617,7 +617,11 @@ const RequestForm = () => {
                                     <div className="flex items-center gap-1">
                                         <span className="inline-flex items-center bg-yellow-600 text-white rounded-sm">
                                             <span className="px-1">[</span>
-                                            <select className="bg-transparent border-0 text-white font-semibold text-sm focus:ring-0 px-1 cursor-pointer" value={headerDeptCode} onChange={(e) => setHeaderDeptCode(e.target.value)}>
+                                            <select
+                                                className="bg-transparent border-0 text-white font-semibold text-sm focus:ring-0 px-1 cursor-pointer"
+                                                value={headerDeptCode}
+                                                onChange={(e) => setHeaderDeptCode(e.target.value)}
+                                            >
                                                 <option value="">---</option>
                                                 {DEPARTMENT_CODES.map((code) => (
                                                     <option key={code} value={code}>
@@ -629,7 +633,11 @@ const RequestForm = () => {
                                         </span>
                                         <span className="inline-flex items-center bg-yellow-600 text-white rounded-sm">
                                             <span className="px-1">[</span>
-                                            <select className="bg-transparent border-0 text-white font-semibold text-sm focus:ring-0 px-1 cursor-pointer" value={headerMonth} onChange={(e) => setHeaderMonth(e.target.value)}>
+                                            <select
+                                                className="bg-transparent border-0 text-white font-semibold text-sm focus:ring-0 px-1 cursor-pointer"
+                                                value={headerMonth}
+                                                onChange={(e) => setHeaderMonth(e.target.value)}
+                                            >
                                                 <option value="">---</option>
                                                 {MONTHS.map((m) => (
                                                     <option key={m} value={m}>
@@ -641,7 +649,11 @@ const RequestForm = () => {
                                         </span>
                                         <span className="inline-flex items-center bg-yellow-600 text-white rounded-sm">
                                             <span className="px-1">[</span>
-                                            <select className="bg-transparent border-0 text-white font-semibold text-sm focus:ring-0 px-1 cursor-pointer w-16" value={headerYear ?? ''} onChange={(e) => setHeaderYear(e.target.value ? parseInt(e.target.value, 10) : null)}>
+                                            <select
+                                                className="bg-transparent border-0 text-white font-semibold text-sm focus:ring-0 px-1 cursor-pointer w-16"
+                                                value={headerYear ?? ''}
+                                                onChange={(e) => setHeaderYear(e.target.value ? parseInt(e.target.value, 10) : null)}
+                                            >
                                                 <option value="">----</option>
                                                 {Array.from({ length: HEADER_YEAR_SPAN }).map((_, i) => {
                                                     const year = HEADER_YEAR_BASE + i;
