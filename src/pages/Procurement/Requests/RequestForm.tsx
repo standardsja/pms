@@ -47,6 +47,7 @@ const RequestForm = () => {
     const [actionDate, setActionDate] = useState('');
     const [procurementComments, setProcurementComments] = useState('');
     const [attachments, setAttachments] = useState<File[]>([]);
+    const [existingAttachments, setExistingAttachments] = useState<Array<{ id: number; fileName: string; fileUrl: string; fileSize?: number }>>([]);
     // prevent duplicate submissions when network is slow
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [managerApproved, setManagerApproved] = useState(false);
@@ -213,6 +214,11 @@ const RequestForm = () => {
                 setActionDate(request.actionDate || '');
                 setProcurementComments(request.procurementComments || '');
                 setProcurementApproved(!!request.procurementApproved);
+
+                // Load existing attachments (if any)
+                if (request.attachments && Array.isArray(request.attachments)) {
+                    setExistingAttachments(request.attachments);
+                }
 
                 // Track status and assignee for edit gating
                 const assigneeId = request.currentAssignee?.id || request.currentAssigneeId || null;
@@ -1111,9 +1117,29 @@ const RequestForm = () => {
                             <input type="file" onChange={handleFileChange} className="form-input w-full" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png" />
                             <p className="text-xs text-gray-500 dark:text-gray-400">Attach quotations, specifications, or other supporting documents (PDF, Word, Excel, Images - Max 10MB per file)</p>
 
+                            {/* Existing attachments from database */}
+                            {existingAttachments.length > 0 && (
+                                <div className="mt-3 space-y-2">
+                                    <p className="text-sm font-medium">Existing attachments:</p>
+                                    {existingAttachments.map((file) => (
+                                        <div key={file.id} className="flex items-center justify-between p-2 bg-blue-50 dark:bg-blue-900/20 rounded border border-blue-200 dark:border-blue-800">
+                                            <button
+                                                type="button"
+                                                onClick={() => window.open(file.fileUrl, '_blank')}
+                                                className="text-sm truncate flex-1 text-left text-blue-600 dark:text-blue-400 hover:underline"
+                                            >
+                                                {file.fileName}
+                                            </button>
+                                            {file.fileSize && <span className="text-xs text-gray-500 mx-2">({(file.fileSize / 1024).toFixed(2)} KB)</span>}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* New attachments being uploaded */}
                             {attachments.length > 0 && (
                                 <div className="mt-3 space-y-2">
-                                    <p className="text-sm font-medium">Attached files:</p>
+                                    <p className="text-sm font-medium">New files to upload:</p>
                                     {attachments.map((file, index) => (
                                         <div key={index} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-900 rounded">
                                             <span className="text-sm truncate flex-1">{file.name}</span>
