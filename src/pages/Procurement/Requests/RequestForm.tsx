@@ -52,6 +52,8 @@ const RequestForm = () => {
     const [headerMonth, setHeaderMonth] = useState('');
     const [headerYear, setHeaderYear] = useState<number | null>(new Date().getFullYear());
     const [headerSequence, setHeaderSequence] = useState<number | null>(0);
+    const paddedSequence = String(headerSequence ?? 0).padStart(3, '0');
+    const headerPreview = `[${headerDeptCode || '---'}]/[${headerMonth || '---'}]/[${headerYear || '----'}]/[${paddedSequence}]`;
     // prevent duplicate submissions when network is slow
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [managerApproved, setManagerApproved] = useState(false);
@@ -558,9 +560,94 @@ const RequestForm = () => {
 
     return (
         <div className="p-6">
-            <div className="mb-6 text-center">
-                <h1 className="text-2xl font-semibold">BUREAU OF STANDARDS JAMAICA</h1>
-                <h2 className="text-xl font-semibold mt-1">PROCUREMENT REQUISITION FORM</h2>
+            <div className="mb-6 flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                <div className="flex-1 text-center md:text-left">
+                    <h1 className="text-2xl font-semibold">BUREAU OF STANDARDS JAMAICA</h1>
+                    <h2 className="text-xl font-semibold mt-1">PROCUREMENT REQUISITION FORM</h2>
+                </div>
+                <div className="flex-1 md:text-right flex flex-col items-center md:items-end">
+                    <div className="text-xs text-gray-500 mb-2 italic">Form code</div>
+                    <div className="inline-flex flex-wrap gap-1 font-semibold text-sm">
+                        <span className="px-2 py-1 bg-yellow-600 text-white rounded-sm">[{headerDeptCode || '---'}]</span>
+                        <span className="px-2 py-1 bg-yellow-600 text-white rounded-sm">[{headerMonth || '---'}]</span>
+                        <span className="px-2 py-1 bg-yellow-600 text-white rounded-sm">[{headerYear || '----'}]</span>
+                        <span className="px-2 py-1 bg-yellow-600 text-white rounded-sm">[{paddedSequence}]</span>
+                    </div>
+                    <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-2 w-full max-w-md">
+                        <div>
+                            <label className="block text-[11px] font-medium mb-1">Dept Code</label>
+                            <select className="form-select w-full" value={headerDeptCode} onChange={(e) => setHeaderDeptCode(e.target.value)}>
+                                <option value="">---</option>
+                                {[
+                                    'ICT',
+                                    'OSH',
+                                    'ED10',
+                                    'ED01',
+                                    'ED02',
+                                    'ED12',
+                                    'ED13',
+                                    'ED15',
+                                    'DPU',
+                                    'QEMS',
+                                    'CCSB',
+                                    'CSU',
+                                    'TIC',
+                                    'BDU',
+                                    'HRMD',
+                                    'OFMB',
+                                    'PRO',
+                                    'F&A',
+                                    'SD',
+                                    'S&T',
+                                    'TIS(CE)',
+                                    'EE',
+                                    'ME',
+                                    'NCRA',
+                                    'NCBJ',
+                                ].map((code) => (
+                                    <option key={code} value={code}>
+                                        {code}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-[11px] font-medium mb-1">Month</label>
+                            <select className="form-select w-full" value={headerMonth} onChange={(e) => setHeaderMonth(e.target.value)}>
+                                <option value="">---</option>
+                                {['JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE', 'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER'].map((m) => (
+                                    <option key={m} value={m}>
+                                        {m}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-[11px] font-medium mb-1">Year</label>
+                            <select className="form-select w-full" value={headerYear ?? ''} onChange={(e) => setHeaderYear(e.target.value ? parseInt(e.target.value, 10) : null)}>
+                                {Array.from({ length: 11 }).map((_, i) => {
+                                    const year = 2025 + i;
+                                    return (
+                                        <option key={year} value={year}>
+                                            {year}
+                                        </option>
+                                    );
+                                })}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-[11px] font-medium mb-1">Sequence</label>
+                            <input
+                                type="number"
+                                min={0}
+                                max={999}
+                                value={headerSequence ?? 0}
+                                onChange={(e) => setHeaderSequence(e.target.value ? parseInt(e.target.value, 10) : 0)}
+                                className="form-input w-full"
+                            />
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div className="bg-white dark:bg-slate-800 shadow rounded p-6">
@@ -722,47 +809,7 @@ const RequestForm = () => {
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-                            <div>
-                                <label className="block text-sm font-medium mb-2">Header Dept Code</label>
-                                <input type="text" value={headerDeptCode} onChange={(e) => setHeaderDeptCode(e.target.value)} className="form-input w-full" placeholder="Dept code (e.g., ICT)" />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium mb-2">Header Month</label>
-                                <select className="form-select w-full" value={headerMonth} onChange={(e) => setHeaderMonth(e.target.value)}>
-                                    <option value="">Select month</option>
-                                    {['JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE', 'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER'].map((m) => (
-                                        <option key={m} value={m}>
-                                            {m}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium mb-2">Header Year</label>
-                                <select className="form-select w-full" value={headerYear ?? ''} onChange={(e) => setHeaderYear(e.target.value ? parseInt(e.target.value, 10) : null)}>
-                                    {Array.from({ length: 11 }).map((_, i) => {
-                                        const year = 2025 + i; // 2025..2035
-                                        return (
-                                            <option key={year} value={year}>
-                                                {year}
-                                            </option>
-                                        );
-                                    })}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium mb-2">Header Sequence</label>
-                                <input
-                                    type="number"
-                                    min={0}
-                                    max={999}
-                                    value={headerSequence ?? 0}
-                                    onChange={(e) => setHeaderSequence(e.target.value ? parseInt(e.target.value, 10) : 0)}
-                                    className="form-input w-full"
-                                />
-                            </div>
-                        </div>
+                        {/* Header Code (moved to top – render preview here if not already displayed) */}
 
                         <div className="mb-4">
                             <label className="block text-sm font-medium mb-2">Priority</label>
