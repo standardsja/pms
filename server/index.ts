@@ -180,7 +180,11 @@ const upload = multer({
 const uploadAttachments = multer({
     storage: multer.diskStorage({
         destination: (_req, _file, cb) => {
-            cb(null, path.join(__dirname, 'uploads'));
+            // Use the same uploads directory served by express.static (UPLOAD_DIR)
+            // UPLOAD_DIR is created earlier in the file and points to process.cwd()/uploads
+            const dest = path.resolve(process.cwd(), 'uploads');
+            if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
+            cb(null, dest);
         },
         filename: (_req, file, cb) => {
             const ext = path.extname(file.originalname);
