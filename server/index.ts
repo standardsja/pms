@@ -1520,8 +1520,8 @@ app.get('/requests', async (_req, res) => {
     }
 });
 
-// POST /requests - create a new procurement request
-app.post('/requests', async (req, res) => {
+// POST /requests - create a new procurement request (with optional file attachments)
+app.post('/requests', upload.array('attachments', 10), async (req, res) => {
     try {
         const userId = req.headers['x-user-id'];
         if (!userId) {
@@ -1533,6 +1533,9 @@ app.post('/requests', async (req, res) => {
         if (!title || !departmentId) {
             return res.status(400).json({ message: 'Title and department are required' });
         }
+
+        // Parse items if it comes as JSON string (from FormData)
+        const parsedItems = typeof items === 'string' ? JSON.parse(items) : items;
 
         // Generate reference
         const reference = `REQ-${Date.now()}`;
@@ -1550,7 +1553,7 @@ app.post('/requests', async (req, res) => {
                 procurementType: procurementType || null,
                 status: 'DRAFT',
                 items: {
-                    create: items.map((it: any) => ({
+                    create: parsedItems.map((it: any) => ({
                         description: String(it.description || ''),
                         quantity: Number(it.quantity || 1),
                         unitPrice: parseFloat(String(it.unitPrice || 0)),
@@ -1569,7 +1572,34 @@ app.post('/requests', async (req, res) => {
             },
         });
 
-        return res.status(201).json(created);
+        // Handle file attachments
+        if (req.files && Array.isArray(req.files) && req.files.length > 0) {
+            for (const file of req.files) {
+                const fileUrl = `http://heron:4000/uploads/${file.filename}`;
+                await prisma.requestAttachment.create({
+                    data: {
+                        requestId: created.id,
+                        filename: file.originalname,
+                        url: fileUrl,
+                        mimeType: file.mimetype,
+                        uploadedById: parseInt(String(userId), 10),
+                    },
+                });
+            }
+        }
+
+        // Reload with attachments
+        const final = await prisma.request.findUnique({
+            where: { id: created.id },
+            include: {
+                items: true,
+                requester: { select: { id: true, name: true, email: true } },
+                department: { select: { id: true, name: true, code: true } },
+                attachments: true,
+            },
+        });
+
+        return res.status(201).json(final);
     } catch (e: any) {
         console.error('POST /requests error:', e);
         return res.status(500).json({ message: e?.message || 'Failed to create request' });
@@ -1621,6 +1651,7 @@ app.get('/requests/:id', async (req, res) => {
                 requester: { select: { id: true, name: true, email: true } },
                 department: { select: { id: true, name: true, code: true } },
                 currentAssignee: { select: { id: true, name: true, email: true } },
+                attachments: true,
                 statusHistory: true,
                 actions: true,
             },
@@ -1680,6 +1711,7 @@ app.get('/requests/:id', async (req, res) => {
                             requester: { select: { id: true, name: true, email: true } },
                             department: { select: { id: true, name: true, code: true } },
                             currentAssignee: { select: { id: true, name: true, email: true } },
+                            attachments: true,
                             statusHistory: true,
                             actions: true,
                         },

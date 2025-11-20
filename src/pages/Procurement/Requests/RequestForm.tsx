@@ -47,7 +47,7 @@ const RequestForm = () => {
     const [actionDate, setActionDate] = useState('');
     const [procurementComments, setProcurementComments] = useState('');
     const [attachments, setAttachments] = useState<File[]>([]);
-    const [existingAttachments, setExistingAttachments] = useState<Array<{ id: number; fileName: string; fileUrl: string; fileSize?: number }>>([]);
+    const [existingAttachments, setExistingAttachments] = useState<Array<{ id: number; filename: string; url: string }>>([]);
     // prevent duplicate submissions when network is slow
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [managerApproved, setManagerApproved] = useState(false);
@@ -408,7 +408,7 @@ const RequestForm = () => {
                     navigate('/apps/requests');
                 }
             } else {
-                // Create new request
+                // Create new request with attachments using FormData
                 if (!departmentId) {
                     Swal.fire({ icon: 'error', title: 'Error', text: 'Unable to determine department. Make sure you are logged in.' });
                     return;
@@ -423,35 +423,45 @@ const RequestForm = () => {
                 };
                 const priorityEnum = priority ? priorityMap[priority] || 'MEDIUM' : 'MEDIUM';
 
-                const payload = {
-                    title: `Request - ${formDate} - ${items.length} item(s)`,
-                    description: commentsJustification || 'Procurement request created from form',
-                    departmentId: Number(departmentId),
-                    items: items.map((it) => ({
-                        description: it.description,
-                        quantity: it.quantity,
-                        unitPrice: it.unitCost,
-                        totalPrice: it.quantity * it.unitCost,
-                        accountCode: '',
-                        stockLevel: it.stockLevel || '',
-                        unitOfMeasure: it.unitOfMeasure || '',
-                        partNumber: it.partNumber || '',
-                    })),
-                    totalEstimated: estimatedTotal,
-                    currency: currency,
-                    priority: priorityEnum,
-                    procurementType: procurementType.length > 0 ? procurementType : null,
-                };
+                const formData = new FormData();
+                formData.append('title', `Request - ${formDate} - ${items.length} item(s)`);
+                formData.append('description', commentsJustification || 'Procurement request created from form');
+                formData.append('departmentId', String(departmentId));
+                formData.append('totalEstimated', String(estimatedTotal));
+                formData.append('currency', currency);
+                formData.append('priority', priorityEnum);
+                if (procurementType.length > 0) {
+                    formData.append('procurementType', JSON.stringify(procurementType));
+                }
 
-                console.log('[debug] Submitting payload with procurementType:', payload.procurementType);
+                // Add items as JSON string
+                formData.append(
+                    'items',
+                    JSON.stringify(
+                        items.map((it) => ({
+                            description: it.description,
+                            quantity: it.quantity,
+                            unitPrice: it.unitCost,
+                            totalPrice: it.quantity * it.unitCost,
+                            accountCode: '',
+                            stockLevel: it.stockLevel || '',
+                            unitOfMeasure: it.unitOfMeasure || '',
+                            partNumber: it.partNumber || '',
+                        }))
+                    )
+                );
+
+                // Attach files
+                attachments.forEach((file) => {
+                    formData.append('attachments', file);
+                });
 
                 const resp = await fetch('http://heron:4000/requests', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
                         'x-user-id': String(userId),
                     },
-                    body: JSON.stringify(payload),
+                    body: formData,
                 });
 
                 if (!resp.ok) {
@@ -1125,12 +1135,11 @@ const RequestForm = () => {
                                         <div key={file.id} className="flex items-center justify-between p-2 bg-blue-50 dark:bg-blue-900/20 rounded border border-blue-200 dark:border-blue-800">
                                             <button
                                                 type="button"
-                                                onClick={() => window.open(file.fileUrl, '_blank')}
+                                                onClick={() => window.open(file.url, '_blank')}
                                                 className="text-sm truncate flex-1 text-left text-blue-600 dark:text-blue-400 hover:underline"
                                             >
-                                                {file.fileName}
+                                                {file.filename}
                                             </button>
-                                            {file.fileSize && <span className="text-xs text-gray-500 mx-2">({(file.fileSize / 1024).toFixed(2)} KB)</span>}
                                         </div>
                                     ))}
                                 </div>
