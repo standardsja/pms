@@ -47,6 +47,11 @@ const RequestForm = () => {
     const [actionDate, setActionDate] = useState('');
     const [procurementComments, setProcurementComments] = useState('');
     const [attachments, setAttachments] = useState<File[]>([]);
+    const [existingAttachments, setExistingAttachments] = useState<Array<{ id: number; filename: string; url: string }>>([]);
+    const [headerDeptCode, setHeaderDeptCode] = useState('');
+    const [headerMonth, setHeaderMonth] = useState('');
+    const [headerYear, setHeaderYear] = useState<number | null>(new Date().getFullYear());
+    const [headerSequence, setHeaderSequence] = useState<number | null>(0);
     // prevent duplicate submissions when network is slow
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [managerApproved, setManagerApproved] = useState(false);
@@ -113,7 +118,7 @@ const RequestForm = () => {
             setBudgetManagerName(fullName);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [canEditManagerFields, canEditHodFields, canApproveBudgetOfficer, canApproveBudgetManager, isEditMode]);
+    }, [canEditManagerFields, canEditHodFields, canApproveBudgetOfficer, canApproveBudgetManager, isEditMode, userProfile]);
 
     useEffect(() => {
         dispatch(setPageTitle(isEditMode ? 'Review Procurement Request' : 'New Procurement Request'));
@@ -213,6 +218,16 @@ const RequestForm = () => {
                 setActionDate(request.actionDate || '');
                 setProcurementComments(request.procurementComments || '');
                 setProcurementApproved(!!request.procurementApproved);
+
+                // Load existing attachments (if any)
+                if (request.attachments && Array.isArray(request.attachments)) {
+                    setExistingAttachments(request.attachments);
+                }
+                // Load header code values
+                setHeaderDeptCode(request.headerDeptCode || request.department?.code || '');
+                setHeaderMonth(request.headerMonth || '');
+                setHeaderYear(request.headerYear || new Date().getFullYear());
+                setHeaderSequence(request.headerSequence ?? 0);
 
                 // Track status and assignee for edit gating
                 const assigneeId = request.currentAssignee?.id || request.currentAssigneeId || null;
@@ -347,6 +362,11 @@ const RequestForm = () => {
                     budgetComments,
                     budgetOfficerName,
                     budgetManagerName,
+                    // Header code fields
+                    headerDeptCode,
+                    headerMonth,
+                    headerYear,
+                    headerSequence,
                     budgetOfficerApproved,
                     budgetManagerApproved,
                     procurementCaseNumber,
@@ -402,7 +422,7 @@ const RequestForm = () => {
                     navigate('/apps/requests');
                 }
             } else {
-                // Create new request
+                // Create new request with attachments using FormData
                 if (!departmentId) {
                     Swal.fire({ icon: 'error', title: 'Error', text: 'Unable to determine department. Make sure you are logged in.' });
                     return;
@@ -417,35 +437,50 @@ const RequestForm = () => {
                 };
                 const priorityEnum = priority ? priorityMap[priority] || 'MEDIUM' : 'MEDIUM';
 
-                const payload = {
-                    title: `Request - ${formDate} - ${items.length} item(s)`,
-                    description: commentsJustification || 'Procurement request created from form',
-                    departmentId: Number(departmentId),
-                    items: items.map((it) => ({
-                        description: it.description,
-                        quantity: it.quantity,
-                        unitPrice: it.unitCost,
-                        totalPrice: it.quantity * it.unitCost,
-                        accountCode: '',
-                        stockLevel: it.stockLevel || '',
-                        unitOfMeasure: it.unitOfMeasure || '',
-                        partNumber: it.partNumber || '',
-                    })),
-                    totalEstimated: estimatedTotal,
-                    currency: currency,
-                    priority: priorityEnum,
-                    procurementType: procurementType.length > 0 ? procurementType : null,
-                };
+                const formData = new FormData();
+                formData.append('title', `Request - ${formDate} - ${items.length} item(s)`);
+                formData.append('description', commentsJustification || 'Procurement request created from form');
+                formData.append('departmentId', String(departmentId));
+                formData.append('totalEstimated', String(estimatedTotal));
+                formData.append('currency', currency);
+                formData.append('priority', priorityEnum);
+                if (procurementType.length > 0) {
+                    formData.append('procurementType', JSON.stringify(procurementType));
+                }
 
-                console.log('[debug] Submitting payload with procurementType:', payload.procurementType);
+                // Add items as JSON string
+                formData.append(
+                    'items',
+                    JSON.stringify(
+                        items.map((it) => ({
+                            description: it.description,
+                            quantity: it.quantity,
+                            unitPrice: it.unitCost,
+                            totalPrice: it.quantity * it.unitCost,
+                            accountCode: '',
+                            stockLevel: it.stockLevel || '',
+                            unitOfMeasure: it.unitOfMeasure || '',
+                            partNumber: it.partNumber || '',
+                        }))
+                    )
+                );
+
+                // Attach files
+                attachments.forEach((file) => {
+                    formData.append('attachments', file);
+                });
+                // Header code fields
+                formData.append('headerDeptCode', headerDeptCode || '');
+                formData.append('headerMonth', headerMonth || '');
+                if (headerYear) formData.append('headerYear', String(headerYear));
+                if (headerSequence !== null && headerSequence !== undefined) formData.append('headerSequence', String(headerSequence));
 
                 const resp = await fetch('http://heron:4000/requests', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
                         'x-user-id': String(userId),
                     },
-                    body: JSON.stringify(payload),
+                    body: formData,
                 });
 
                 if (!resp.ok) {
@@ -687,6 +722,48 @@ const RequestForm = () => {
                             </div>
                         </div>
 
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                            <div>
+                                <label className="block text-sm font-medium mb-2">Header Dept Code</label>
+                                <input type="text" value={headerDeptCode} onChange={(e) => setHeaderDeptCode(e.target.value)} className="form-input w-full" placeholder="Dept code (e.g., ICT)" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-2">Header Month</label>
+                                <select className="form-select w-full" value={headerMonth} onChange={(e) => setHeaderMonth(e.target.value)}>
+                                    <option value="">Select month</option>
+                                    {['JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE', 'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER'].map((m) => (
+                                        <option key={m} value={m}>
+                                            {m}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-2">Header Year</label>
+                                <select className="form-select w-full" value={headerYear ?? ''} onChange={(e) => setHeaderYear(e.target.value ? parseInt(e.target.value, 10) : null)}>
+                                    {Array.from({ length: 11 }).map((_, i) => {
+                                        const year = 2025 + i; // 2025..2035
+                                        return (
+                                            <option key={year} value={year}>
+                                                {year}
+                                            </option>
+                                        );
+                                    })}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-2">Header Sequence</label>
+                                <input
+                                    type="number"
+                                    min={0}
+                                    max={999}
+                                    value={headerSequence ?? 0}
+                                    onChange={(e) => setHeaderSequence(e.target.value ? parseInt(e.target.value, 10) : 0)}
+                                    className="form-input w-full"
+                                />
+                            </div>
+                        </div>
+
                         <div className="mb-4">
                             <label className="block text-sm font-medium mb-2">Priority</label>
                             <div className="flex gap-6">
@@ -882,7 +959,7 @@ const RequestForm = () => {
                                         </div>
                                         <div>
                                             <label className="block text-xs text-gray-500 mb-1">Date:</label>
-                                            <input type="date" className="form-input w-full" defaultValue="2025-05-15" disabled={!canEditManagerFields} />
+                                            <input type="date" className="form-input w-full" defaultValue={new Date().toISOString().split('T')[0]} disabled={!canEditManagerFields} />
                                         </div>
                                     </div>
                                     {/* Duplicate signature/date removed after refining permissions */}
@@ -909,7 +986,7 @@ const RequestForm = () => {
                                         </div>
                                         <div>
                                             <label className="block text-xs text-gray-500 mb-1">Date:</label>
-                                            <input type="date" className="form-input w-full" defaultValue="2025-05-15" disabled={!canEditHodFields} />
+                                            <input type="date" className="form-input w-full" defaultValue={new Date().toISOString().split('T')[0]} disabled={!canEditHodFields} />
                                         </div>
                                     </div>
                                     {/* Duplicate signature/date removed after refining permissions */}
@@ -966,10 +1043,9 @@ const RequestForm = () => {
                                     type="text"
                                     value={budgetOfficerName}
                                     onChange={(e) => setBudgetOfficerName(e.target.value)}
-                                    className="form-input w-full mb-3 bg-gray-50"
-                                    placeholder={canApproveBudgetOfficer ? 'Auto-populated on review' : ''}
-                                    disabled={true}
-                                    readOnly
+                                    className="form-input w-full mb-3"
+                                    placeholder={canApproveBudgetOfficer ? 'Your name will be auto-filled' : ''}
+                                    disabled={!canApproveBudgetOfficer}
                                 />
                                 <div className="mb-3">
                                     <label className="flex items-center cursor-pointer">
@@ -990,7 +1066,7 @@ const RequestForm = () => {
                                     </div>
                                     <div>
                                         <label className="block text-xs text-gray-500 mb-1">Date:</label>
-                                        <input type="date" className="form-input w-full" disabled={!canEditBudgetSection} />
+                                        <input type="date" className="form-input w-full" defaultValue={new Date().toISOString().split('T')[0]} disabled={!canEditBudgetSection} />
                                     </div>
                                 </div>
                             </div>
@@ -1000,10 +1076,9 @@ const RequestForm = () => {
                                     type="text"
                                     value={budgetManagerName}
                                     onChange={(e) => setBudgetManagerName(e.target.value)}
-                                    className="form-input w-full mb-3 bg-gray-50"
-                                    placeholder={canApproveBudgetManager ? 'Auto-populated on review' : ''}
-                                    disabled={true}
-                                    readOnly
+                                    className="form-input w-full mb-3"
+                                    placeholder={canApproveBudgetManager ? 'Your name will be auto-filled' : ''}
+                                    disabled={!canApproveBudgetManager}
                                 />
                                 <div className="mb-3">
                                     <label className="flex items-center cursor-pointer">
@@ -1024,7 +1099,7 @@ const RequestForm = () => {
                                     </div>
                                     <div>
                                         <label className="block text-xs text-gray-500 mb-1">Date:</label>
-                                        <input type="date" className="form-input w-full" disabled={!canEditBudgetSection} />
+                                        <input type="date" className="form-input w-full" defaultValue={new Date().toISOString().split('T')[0]} disabled={!canEditBudgetSection} />
                                     </div>
                                 </div>
                             </div>
@@ -1063,11 +1138,23 @@ const RequestForm = () => {
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium mb-2">Date Rec'd:</label>
-                                    <input type="date" value={dateReceived} onChange={(e) => setDateReceived(e.target.value)} className="form-input w-full" disabled={!canEditProcurementSection} />
+                                    <input
+                                        type="date"
+                                        value={dateReceived || new Date().toISOString().split('T')[0]}
+                                        onChange={(e) => setDateReceived(e.target.value)}
+                                        className="form-input w-full"
+                                        disabled={!canEditProcurementSection}
+                                    />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium mb-2">Action Date:</label>
-                                    <input type="date" value={actionDate} onChange={(e) => setActionDate(e.target.value)} className="form-input w-full" disabled={!canEditProcurementSection} />
+                                    <input
+                                        type="date"
+                                        value={actionDate || new Date().toISOString().split('T')[0]}
+                                        onChange={(e) => setActionDate(e.target.value)}
+                                        className="form-input w-full"
+                                        disabled={!canEditProcurementSection}
+                                    />
                                 </div>
                             </div>
 
@@ -1101,9 +1188,28 @@ const RequestForm = () => {
                             <input type="file" onChange={handleFileChange} className="form-input w-full" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png" />
                             <p className="text-xs text-gray-500 dark:text-gray-400">Attach quotations, specifications, or other supporting documents (PDF, Word, Excel, Images - Max 10MB per file)</p>
 
+                            {/* Existing attachments from database */}
+                            {existingAttachments.length > 0 && (
+                                <div className="mt-3 space-y-2">
+                                    <p className="text-sm font-medium">Existing attachments:</p>
+                                    {existingAttachments.map((file) => (
+                                        <div key={file.id} className="flex items-center justify-between p-2 bg-blue-50 dark:bg-blue-900/20 rounded border border-blue-200 dark:border-blue-800">
+                                            <button
+                                                type="button"
+                                                onClick={() => window.open(file.url, '_blank')}
+                                                className="text-sm truncate flex-1 text-left text-blue-600 dark:text-blue-400 hover:underline"
+                                            >
+                                                {file.filename}
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* New attachments being uploaded */}
                             {attachments.length > 0 && (
                                 <div className="mt-3 space-y-2">
-                                    <p className="text-sm font-medium">Attached files:</p>
+                                    <p className="text-sm font-medium">New files to upload:</p>
                                     {attachments.map((file, index) => (
                                         <div key={index} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-900 rounded">
                                             <span className="text-sm truncate flex-1">{file.name}</span>

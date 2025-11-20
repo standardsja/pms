@@ -8,6 +8,12 @@ import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 import http from 'http';
+import { fileURLToPath } from 'url';
+
+// ES module equivalent of __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 import rateLimit from 'express-rate-limit';
 import { prisma, ensureDbConnection } from './prismaClient';
 import { initRedis, closeRedis, cacheGet, cacheSet, cacheDelete, cacheDeletePattern } from './config/redis';
@@ -72,7 +78,13 @@ const batchLimiter = rateLimit({
 });
 
 app.use(cors());
-app.use(express.json());
+// Only parse JSON for non-multipart requests (let multer handle multipart)
+app.use((req, res, next) => {
+    if (req.is('multipart/form-data')) {
+        return next();
+    }
+    express.json()(req, res, next);
+});
 app.use(morgan('dev'));
 app.use(requestMonitoringMiddleware); // Performance monitoring
 app.use(sanitize); // Sanitize all inputs
@@ -161,6 +173,50 @@ const upload = multer({
     fileFilter: (_req, file, cb) => {
         if (/^image\//.test(file.mimetype)) cb(null, true);
         else cb(new Error('Only image uploads are allowed'));
+    },
+});
+
+// Separate multer instance for request attachments (allows documents)
+const uploadAttachments = multer({
+    storage: multer.diskStorage({
+        destination: (_req, _file, cb) => {
+            // Use the same uploads directory served by express.static (UPLOAD_DIR)
+            // UPLOAD_DIR is created earlier in the file and points to process.cwd()/uploads
+            const dest = path.resolve(process.cwd(), 'uploads');
+            if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
+            cb(null, dest);
+        },
+        filename: (_req, file, cb) => {
+            const ext = path.extname(file.originalname);
+            const base = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9_-]/g, '_');
+            cb(null, `attachment_${Date.now()}_${base}${ext}`);
+        },
+    }),
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB for documents
+    fileFilter: (_req, file, cb) => {
+        console.log('[uploadAttachments] File:', file.originalname, 'Type:', file.mimetype);
+        // Allow common document types and images
+        const allowedTypes = [
+            'application/pdf',
+            'application/msword',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/vnd.ms-excel',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'image/jpeg',
+            'image/jpg',
+            'image/png',
+            'image/gif',
+        ];
+        // Also allow by file extension as backup
+        const ext = path.extname(file.originalname).toLowerCase();
+        const allowedExtensions = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.jpg', '.jpeg', '.png', '.gif'];
+
+        if (allowedTypes.includes(file.mimetype) || allowedExtensions.includes(ext)) {
+            cb(null, true);
+        } else {
+            console.log('[uploadAttachments] Rejected file type:', file.mimetype, 'Extension:', ext);
+            cb(new Error(`File type not allowed: ${file.mimetype}. Allowed: PDF, Word, Excel, JPG, PNG`));
+        }
     },
 });
 
@@ -1482,6 +1538,10 @@ app.get('/requests', async (_req, res) => {
                 requester: { select: { id: true, name: true, email: true } },
                 department: { select: { id: true, name: true, code: true } },
                 currentAssignee: { select: { id: true, name: true, email: true } },
+                headerDeptCode: true,
+                headerMonth: true,
+                headerYear: true,
+                headerSequence: true,
             },
         });
         return res.json(requests);
@@ -1508,6 +1568,10 @@ app.get('/requests', async (_req, res) => {
                             requester: { select: { id: true, name: true, email: true } },
                             department: { select: { id: true, name: true, code: true } },
                             currentAssignee: { select: { id: true, name: true, email: true } },
+                            headerDeptCode: true,
+                            headerMonth: true,
+                            headerYear: true,
+                            headerSequence: true,
                         },
                     });
                     return res.json(requests);
@@ -1520,61 +1584,130 @@ app.get('/requests', async (_req, res) => {
     }
 });
 
-// POST /requests - create a new procurement request
-app.post('/requests', async (req, res) => {
-    try {
-        const userId = req.headers['x-user-id'];
-        if (!userId) {
-            return res.status(401).json({ message: 'User ID required' });
-        }
-
-        const { title, description, departmentId, items = [], totalEstimated, currency, priority, procurementType } = req.body || {};
-
-        if (!title || !departmentId) {
-            return res.status(400).json({ message: 'Title and department are required' });
-        }
-
-        // Generate reference
-        const reference = `REQ-${Date.now()}`;
-
-        const created = await prisma.request.create({
-            data: {
-                reference,
-                title,
-                description: description || null,
-                requesterId: parseInt(String(userId), 10),
-                departmentId: parseInt(String(departmentId), 10),
-                totalEstimated: totalEstimated ? parseFloat(String(totalEstimated)) : null,
-                currency: currency || 'JMD',
-                priority: priority || 'MEDIUM',
-                procurementType: procurementType || null,
-                status: 'DRAFT',
-                items: {
-                    create: items.map((it: any) => ({
-                        description: String(it.description || ''),
-                        quantity: Number(it.quantity || 1),
-                        unitPrice: parseFloat(String(it.unitPrice || 0)),
-                        totalPrice: parseFloat(String(it.totalPrice || 0)),
-                        accountCode: it.accountCode || null,
-                        stockLevel: it.stockLevel || null,
-                        unitOfMeasure: it.unitOfMeasure || null,
-                        partNumber: it.partNumber || null,
-                    })),
-                },
-            },
-            include: {
-                items: true,
-                requester: { select: { id: true, name: true, email: true } },
-                department: { select: { id: true, name: true, code: true } },
-            },
+// POST /requests - create a new procurement request (with optional file attachments)
+app.post(
+    '/requests',
+    (req, res, next) => {
+        uploadAttachments.array('attachments', 10)(req, res, (err) => {
+            if (err) {
+                console.error('[POST /requests] Multer error:', err);
+                return res.status(400).json({
+                    message: err.message || 'File upload failed',
+                    error: err.message,
+                });
+            }
+            next();
         });
+    },
+    async (req, res) => {
+        try {
+            console.log('[POST /requests] Request received');
+            console.log('[POST /requests] Headers:', req.headers['x-user-id']);
+            console.log('[POST /requests] Body keys:', Object.keys(req.body));
+            console.log('[POST /requests] Files:', req.files ? (req.files as any[]).map((f) => f.originalname) : 'none');
 
-        return res.status(201).json(created);
-    } catch (e: any) {
-        console.error('POST /requests error:', e);
-        return res.status(500).json({ message: e?.message || 'Failed to create request' });
+            const userId = req.headers['x-user-id'];
+            if (!userId) {
+                return res.status(401).json({ message: 'User ID required' });
+            }
+
+            const { title, description, departmentId, items = [], totalEstimated, currency, priority, procurementType, headerDeptCode, headerMonth, headerYear, headerSequence } = req.body || {};
+
+            console.log('[POST /requests] Parsed fields - title:', title, 'departmentId:', departmentId);
+
+            if (!title || !departmentId) {
+                return res.status(400).json({ message: 'Title and department are required' });
+            }
+
+            // Parse items if it comes as JSON string (from FormData)
+            let parsedItems;
+            try {
+                parsedItems = typeof items === 'string' ? JSON.parse(items) : items;
+                console.log('[POST /requests] Parsed items count:', parsedItems.length);
+            } catch (parseErr: any) {
+                console.error('[POST /requests] Failed to parse items:', parseErr);
+                return res.status(400).json({ message: 'Invalid items format', error: parseErr.message });
+            }
+
+            // Generate reference
+            const reference = `REQ-${Date.now()}`;
+
+            console.log('[POST /requests] Creating request with reference:', reference);
+
+            const created = await prisma.request.create({
+                data: {
+                    reference,
+                    title,
+                    description: description || null,
+                    requesterId: parseInt(String(userId), 10),
+                    departmentId: parseInt(String(departmentId), 10),
+                    totalEstimated: totalEstimated ? parseFloat(String(totalEstimated)) : null,
+                    currency: currency || 'JMD',
+                    priority: priority || 'MEDIUM',
+                    procurementType: procurementType || null,
+                    status: 'DRAFT',
+                    headerDeptCode: headerDeptCode || null,
+                    headerMonth: headerMonth || null,
+                    headerYear: headerYear ? parseInt(String(headerYear), 10) : null,
+                    headerSequence: headerSequence ? parseInt(String(headerSequence), 10) : null,
+                    items: {
+                        create: parsedItems.map((it: any) => ({
+                            description: String(it.description || ''),
+                            quantity: Number(it.quantity || 1),
+                            unitPrice: parseFloat(String(it.unitPrice || 0)),
+                            totalPrice: parseFloat(String(it.totalPrice || 0)),
+                            accountCode: it.accountCode || null,
+                            stockLevel: it.stockLevel || null,
+                            unitOfMeasure: it.unitOfMeasure || null,
+                            partNumber: it.partNumber || null,
+                        })),
+                    },
+                },
+                include: {
+                    items: true,
+                    requester: { select: { id: true, name: true, email: true } },
+                    department: { select: { id: true, name: true, code: true } },
+                },
+            });
+
+            console.log('[POST /requests] Request created with ID:', created.id);
+
+            // Handle file attachments
+            if (req.files && Array.isArray(req.files) && req.files.length > 0) {
+                console.log('[POST /requests] Processing', req.files.length, 'file attachments');
+                for (const file of req.files) {
+                    const fileUrl = `http://heron:4000/uploads/${file.filename}`;
+                    console.log('[POST /requests] Creating attachment:', file.originalname);
+                    await prisma.requestAttachment.create({
+                        data: {
+                            requestId: created.id,
+                            filename: file.originalname,
+                            url: fileUrl,
+                            mimeType: file.mimetype,
+                            uploadedById: parseInt(String(userId), 10),
+                        },
+                    });
+                }
+            }
+
+            // Reload with attachments
+            const final = await prisma.request.findUnique({
+                where: { id: created.id },
+                include: {
+                    items: true,
+                    requester: { select: { id: true, name: true, email: true } },
+                    department: { select: { id: true, name: true, code: true } },
+                    attachments: true,
+                },
+            });
+
+            return res.status(201).json(final);
+        } catch (e: any) {
+            console.error('POST /requests error:', e);
+            return res.status(500).json({ message: e?.message || 'Failed to create request' });
+        }
     }
-});
+);
 
 // GET /requests/:id - fetch a single request by ID for editing
 app.get('/requests/:id', async (req, res) => {
@@ -1621,6 +1754,11 @@ app.get('/requests/:id', async (req, res) => {
                 requester: { select: { id: true, name: true, email: true } },
                 department: { select: { id: true, name: true, code: true } },
                 currentAssignee: { select: { id: true, name: true, email: true } },
+                attachments: true,
+                headerDeptCode: true,
+                headerMonth: true,
+                headerYear: true,
+                headerSequence: true,
                 statusHistory: true,
                 actions: true,
             },
@@ -1680,6 +1818,7 @@ app.get('/requests/:id', async (req, res) => {
                             requester: { select: { id: true, name: true, email: true } },
                             department: { select: { id: true, name: true, code: true } },
                             currentAssignee: { select: { id: true, name: true, email: true } },
+                            attachments: true,
                             statusHistory: true,
                             actions: true,
                         },
@@ -1826,6 +1965,15 @@ app.get('/requests/:id/pdf', async (req, res) => {
             .replace('{{actionDate}}', formatDate(request.actionDate))
             .replace('{{procurementComments}}', request.procurementComments || '—')
             .replace('{{now}}', new Date().toLocaleString('en-US'));
+
+        // Header code placeholders
+        const seq = request.headerSequence !== null && request.headerSequence !== undefined ? String(request.headerSequence).padStart(3, '0') : '—';
+        html = html
+            .replace('{{headerDeptCode}}', request.headerDeptCode || '—')
+            .replace('{{headerMonth}}', request.headerMonth || '—')
+            .replace('{{headerYear}}', request.headerYear ? String(request.headerYear) : '—')
+            .replace('{{headerSequence}}', seq)
+            .replace('{{headerCode}}', `${request.headerDeptCode || '—'}/${request.headerMonth || '—'}/${request.headerYear ? String(request.headerYear) : '—'}/${seq}`);
 
         // Try chrome-based render first; if it fails (server missing deps), fallback to PDFKit
         let pdf: Buffer | null = null;
@@ -1997,42 +2145,30 @@ app.post('/requests/:id/action', async (req, res) => {
                 nextStatus = 'HOD_REVIEW';
                 nextAssigneeId = hod?.id || null;
             } else if (request.status === 'HOD_REVIEW') {
-                // HOD approved -> send to Procurement
-                const procurement = await prisma.user.findFirst({
-                    where: { roles: { some: { role: { name: 'PROCUREMENT' } } } },
-                });
-                nextStatus = 'PROCUREMENT_REVIEW';
-                nextAssigneeId = procurement?.id || null;
-            } else if (request.status === 'PROCUREMENT_REVIEW') {
-                // Procurement approved -> send to Finance Officer
+                // HOD approved -> send to Finance Officer
                 const financeOfficer = await prisma.user.findFirst({
                     where: { roles: { some: { role: { name: 'FINANCE' } } } },
                 });
                 nextStatus = 'FINANCE_REVIEW';
                 nextAssigneeId = financeOfficer?.id || null;
             } else if (request.status === 'FINANCE_REVIEW') {
-                // Finance Officer approved -> send to Budget Manager when available,
-                // otherwise fall back to final finance approval (keeps flow moving)
+                // Finance Officer approved -> MUST go to Budget Manager (required step)
                 const budgetManager = await prisma.user.findFirst({
                     where: { roles: { some: { role: { name: 'BUDGET_MANAGER' } } } },
                 });
-                if (budgetManager?.id) {
-                    nextStatus = 'BUDGET_MANAGER_REVIEW';
-                    nextAssigneeId = budgetManager.id;
-                } else {
-                    nextStatus = 'FINANCE_APPROVED';
-                    const procurement = await prisma.user.findFirst({
-                        where: { roles: { some: { role: { name: 'PROCUREMENT' } } } },
-                    });
-                    nextAssigneeId = procurement?.id || null;
-                }
+                nextStatus = 'BUDGET_MANAGER_REVIEW';
+                nextAssigneeId = budgetManager?.id || null;
             } else if (request.status === 'BUDGET_MANAGER_REVIEW') {
-                // Budget Manager approved -> final approval, assign back to Procurement
-                nextStatus = 'FINANCE_APPROVED';
+                // Budget Manager approved -> send to Procurement for final processing
                 const procurement = await prisma.user.findFirst({
                     where: { roles: { some: { role: { name: 'PROCUREMENT' } } } },
                 });
+                nextStatus = 'PROCUREMENT_REVIEW';
                 nextAssigneeId = procurement?.id || null;
+            } else if (request.status === 'PROCUREMENT_REVIEW') {
+                // Procurement approved -> final approval (ready to send to vendor)
+                nextStatus = 'FINANCE_APPROVED';
+                nextAssigneeId = null;
             }
         } else if (action === 'SEND_TO_VENDOR') {
             if (request.status !== 'FINANCE_APPROVED') {

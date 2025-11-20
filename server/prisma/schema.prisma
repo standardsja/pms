@@ -243,6 +243,12 @@ model Request {
   actionDate            String?
   procurementComments   String?
 
+  // Header code fields for final document
+  headerDeptCode String?
+  headerMonth    String?
+  headerYear     Int?
+  headerSequence Int?
+
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   submittedAt DateTime?
