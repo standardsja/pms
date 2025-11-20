@@ -72,7 +72,13 @@ const batchLimiter = rateLimit({
 });
 
 app.use(cors());
-app.use(express.json());
+// Only parse JSON for non-multipart requests (let multer handle multipart)
+app.use((req, res, next) => {
+    if (req.is('multipart/form-data')) {
+        return next();
+    }
+    express.json()(req, res, next);
+});
 app.use(morgan('dev'));
 app.use(requestMonitoringMiddleware); // Performance monitoring
 app.use(sanitize); // Sanitize all inputs
