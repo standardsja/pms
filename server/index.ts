@@ -1561,7 +1561,18 @@ app.get('/requests', async (_req, res) => {
 });
 
 // POST /requests - create a new procurement request (with optional file attachments)
-app.post('/requests', uploadAttachments.array('attachments', 10), async (req, res) => {
+app.post('/requests', (req, res, next) => {
+    uploadAttachments.array('attachments', 10)(req, res, (err) => {
+        if (err) {
+            console.error('[POST /requests] Multer error:', err);
+            return res.status(400).json({ 
+                message: err.message || 'File upload failed',
+                error: err.message 
+            });
+        }
+        next();
+    });
+}, async (req, res) => {
     try {
         const userId = req.headers['x-user-id'];
         if (!userId) {
