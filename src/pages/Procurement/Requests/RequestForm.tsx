@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { useNavigate, useParams } from 'react-router-dom';
+import { safeJsonParse, type UserProfile } from '../../../utils/safeHelpers';
 import { setPageTitle } from '@/store/themeConfigSlice';
 import IconPlus from '@/components/Icon/IconPlus';
 import IconX from '@/components/Icon/IconX';
@@ -56,7 +57,7 @@ const RequestForm = () => {
     const [budgetManagerApproved, setBudgetManagerApproved] = useState(false);
 
     // Current user profile (for edit permissions)
-    const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
+    const userProfile: UserProfile = safeJsonParse(localStorage.getItem('userProfile'), {});
     const currentUserId = userProfile?.id || userProfile?.userId || null;
     const currentUserName = userProfile?.fullName || userProfile?.name || '';
 
@@ -129,7 +130,7 @@ const RequestForm = () => {
             // Prefer new auth_user; fallback to legacy userProfile
             const authRaw = localStorage.getItem('auth_user') || sessionStorage.getItem('auth_user');
             const legacyRaw = localStorage.getItem('userProfile');
-            const profile = authRaw ? JSON.parse(authRaw) : legacyRaw ? JSON.parse(legacyRaw) : null;
+            const profile: UserProfile | null = authRaw ? safeJsonParse<UserProfile | null>(authRaw, null) : legacyRaw ? safeJsonParse<UserProfile | null>(legacyRaw, null) : null;
             if (profile) {
                 setRequestedBy(profile.name || profile.fullName || '');
                 setEmail(profile.email || '');
@@ -460,8 +461,8 @@ const RequestForm = () => {
                 const data = await resp.json();
 
                 // Submit the request to department manager for review
-                const apiUrl = import.meta.env.DEV ? `/requests/${data.id}/submit` : `${import.meta.env.VITE_API_URL || ''}/requests/${data.id}/submit`;
-                const submitResp = await fetch(apiUrl, {
+                const submitApiUrl = import.meta.env.DEV ? `/requests/${data.id}/submit` : `${import.meta.env.VITE_API_URL || ''}/requests/${data.id}/submit`;
+                const submitResp = await fetch(submitApiUrl, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',

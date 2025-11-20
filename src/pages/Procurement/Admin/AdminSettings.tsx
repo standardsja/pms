@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useDispatch } from 'react-redux';
+import { getApiUrl, getAuthHeaders } from '../../../utils/api';
+import { showSuccess } from '../../../utils/notifications';
 import { setPageTitle } from '../../../store/themeConfigSlice';
 // Icons grouped by usage context (workflows/templates/roles) - remove unused as needed
 import IconSettings from '../../../components/Icon/IconSettings';
@@ -18,12 +20,9 @@ const AdminSettings = () => {
     const [activeTab, setActiveTab] = useState<'users' | 'departments' | 'workflows' | 'templates' | 'approvals' | 'general' | 'reassign'>('users');
 
     // Modal states
-    const [showModal, setShowModal] = useState<{ open: boolean; title: string; message: string; tone: 'success' | 'warning' | 'danger' }>(
-        { open: false, title: '', message: '', tone: 'success' }
-    );
+    const [showModal, setShowModal] = useState<{ open: boolean; title: string; message: string; tone: 'success' | 'warning' | 'danger' }>({ open: false, title: '', message: '', tone: 'success' });
 
-    const openModal = (tone: 'success' | 'warning' | 'danger', title: string, message: string) => 
-        setShowModal({ open: true, title, message, tone });
+    const openModal = (tone: 'success' | 'warning' | 'danger', title: string, message: string) => setShowModal({ open: true, title, message, tone });
     const closeModal = () => setShowModal({ open: false, title: '', message: '', tone: 'success' });
 
     // === Email Notifications State ===
@@ -63,12 +62,12 @@ const AdminSettings = () => {
     const [deptSuccess, setDeptSuccess] = useState<string | null>(null);
 
     const flatUsers = useMemo(() => {
-        return users.map(u => ({
+        return users.map((u) => ({
             id: u.id,
             email: u.email,
             name: u.name || '',
             dept: u.department?.name || '',
-            roles: (u.roles || []).map(r => r.role?.name).filter(Boolean) as string[],
+            roles: (u.roles || []).map((r) => r.role?.name).filter(Boolean) as string[],
         }));
     }, [users]);
 
@@ -208,9 +207,7 @@ const AdminSettings = () => {
                     <li>
                         <button
                             onClick={() => setActiveTab('users')}
-                            className={`-mb-[1px] flex items-center gap-2 border-b border-transparent p-5 py-3 hover:text-primary ${
-                                activeTab === 'users' ? '!border-primary text-primary' : ''
-                            }`}
+                            className={`-mb-[1px] flex items-center gap-2 border-b border-transparent p-5 py-3 hover:text-primary ${activeTab === 'users' ? '!border-primary text-primary' : ''}`}
                         >
                             <IconSettings className="h-5 w-5" />
                             Users
@@ -219,9 +216,7 @@ const AdminSettings = () => {
                     <li>
                         <button
                             onClick={() => setActiveTab('departments')}
-                            className={`-mb-[1px] flex items-center gap-2 border-b border-transparent p-5 py-3 hover:text-primary ${
-                                activeTab === 'departments' ? '!border-primary text-primary' : ''
-                            }`}
+                            className={`-mb-[1px] flex items-center gap-2 border-b border-transparent p-5 py-3 hover:text-primary ${activeTab === 'departments' ? '!border-primary text-primary' : ''}`}
                         >
                             <IconSettings className="h-5 w-5" />
                             Departments
@@ -230,9 +225,7 @@ const AdminSettings = () => {
                     <li>
                         <button
                             onClick={() => setActiveTab('workflows')}
-                            className={`-mb-[1px] flex items-center gap-2 border-b border-transparent p-5 py-3 hover:text-primary ${
-                                activeTab === 'workflows' ? '!border-primary text-primary' : ''
-                            }`}
+                            className={`-mb-[1px] flex items-center gap-2 border-b border-transparent p-5 py-3 hover:text-primary ${activeTab === 'workflows' ? '!border-primary text-primary' : ''}`}
                         >
                             <IconSettings className="h-5 w-5" />
                             Workflows
@@ -241,9 +234,7 @@ const AdminSettings = () => {
                     <li>
                         <button
                             onClick={() => setActiveTab('templates')}
-                            className={`-mb-[1px] flex items-center gap-2 border-b border-transparent p-5 py-3 hover:text-primary ${
-                                activeTab === 'templates' ? '!border-primary text-primary' : ''
-                            }`}
+                            className={`-mb-[1px] flex items-center gap-2 border-b border-transparent p-5 py-3 hover:text-primary ${activeTab === 'templates' ? '!border-primary text-primary' : ''}`}
                         >
                             <IconFile className="h-5 w-5" />
                             Templates
@@ -252,9 +243,7 @@ const AdminSettings = () => {
                     <li>
                         <button
                             onClick={() => setActiveTab('approvals')}
-                            className={`-mb-[1px] flex items-center gap-2 border-b border-transparent p-5 py-3 hover:text-primary ${
-                                activeTab === 'approvals' ? '!border-primary text-primary' : ''
-                            }`}
+                            className={`-mb-[1px] flex items-center gap-2 border-b border-transparent p-5 py-3 hover:text-primary ${activeTab === 'approvals' ? '!border-primary text-primary' : ''}`}
                         >
                             <IconSettings className="h-5 w-5" />
                             Approval Limits
@@ -263,9 +252,7 @@ const AdminSettings = () => {
                     <li>
                         <button
                             onClick={() => setActiveTab('reassign')}
-                            className={`-mb-[1px] flex items-center gap-2 border-b border-transparent p-5 py-3 hover:text-primary ${
-                                activeTab === 'reassign' ? '!border-primary text-primary' : ''
-                            }`}
+                            className={`-mb-[1px] flex items-center gap-2 border-b border-transparent p-5 py-3 hover:text-primary ${activeTab === 'reassign' ? '!border-primary text-primary' : ''}`}
                         >
                             <IconSettings className="h-5 w-5" />
                             Reassign Requests
@@ -274,9 +261,7 @@ const AdminSettings = () => {
                     <li>
                         <button
                             onClick={() => setActiveTab('general')}
-                            className={`-mb-[1px] flex items-center gap-2 border-b border-transparent p-5 py-3 hover:text-primary ${
-                                activeTab === 'general' ? '!border-primary text-primary' : ''
-                            }`}
+                            className={`-mb-[1px] flex items-center gap-2 border-b border-transparent p-5 py-3 hover:text-primary ${activeTab === 'general' ? '!border-primary text-primary' : ''}`}
                         >
                             <IconSettings className="h-5 w-5" />
                             General Settings
@@ -294,9 +279,7 @@ const AdminSettings = () => {
                             Refresh
                         </button>
                     </div>
-                    {usersError && (
-                        <div className="mb-4 rounded border border-danger bg-danger-light p-3 text-danger">{usersError}</div>
-                    )}
+                    {usersError && <div className="mb-4 rounded border border-danger bg-danger-light p-3 text-danger">{usersError}</div>}
                     {usersLoading ? (
                         <div>Loading users…</div>
                     ) : (
@@ -327,12 +310,8 @@ const AdminSettings = () => {
                 <div className="grid gap-6 lg:grid-cols-2">
                     <div className="panel">
                         <h5 className="mb-4 text-lg font-semibold">Create Department</h5>
-                        {deptError && (
-                            <div className="mb-4 rounded border border-danger bg-danger-light p-3 text-danger">{deptError}</div>
-                        )}
-                        {deptSuccess && (
-                            <div className="mb-4 rounded border border-success bg-success/10 p-3 text-success">{deptSuccess}</div>
-                        )}
+                        {deptError && <div className="mb-4 rounded border border-danger bg-danger-light p-3 text-danger">{deptError}</div>}
+                        {deptSuccess && <div className="mb-4 rounded border border-success bg-success/10 p-3 text-success">{deptSuccess}</div>}
                         <form className="space-y-4" onSubmit={handleCreateDepartment}>
                             <div>
                                 <label className="mb-1 block">Name</label>
@@ -344,11 +323,7 @@ const AdminSettings = () => {
                             </div>
                             <div>
                                 <label className="mb-1 block">Manager (optional)</label>
-                                <select
-                                    className="form-select"
-                                    value={deptManagerId}
-                                    onChange={(e) => setDeptManagerId(e.target.value ? Number(e.target.value) : '')}
-                                >
+                                <select className="form-select" value={deptManagerId} onChange={(e) => setDeptManagerId(e.target.value ? Number(e.target.value) : '')}>
                                     <option value="">-- none --</option>
                                     {flatUsers.map((u) => (
                                         <option key={u.id} value={u.id}>
@@ -358,7 +333,17 @@ const AdminSettings = () => {
                                 </select>
                             </div>
                             <div className="flex justify-end gap-2">
-                                <button type="button" className="btn btn-outline-danger" onClick={() => { setDeptName(''); setDeptCode(''); setDeptManagerId(''); setDeptError(null); setDeptSuccess(null); }}>
+                                <button
+                                    type="button"
+                                    className="btn btn-outline-danger"
+                                    onClick={() => {
+                                        setDeptName('');
+                                        setDeptCode('');
+                                        setDeptManagerId('');
+                                        setDeptError(null);
+                                        setDeptSuccess(null);
+                                    }}
+                                >
                                     Reset
                                 </button>
                                 <button type="submit" className="btn btn-primary" disabled={deptLoading}>
@@ -382,7 +367,7 @@ const AdminSettings = () => {
                                 </thead>
                                 <tbody>
                                     {flatUsers
-                                        .filter(u => u.roles.includes('DEPT_MANAGER') || u.roles.includes('HEAD_OF_DIVISION'))
+                                        .filter((u) => u.roles.includes('DEPT_MANAGER') || u.roles.includes('HEAD_OF_DIVISION'))
                                         .map((u) => (
                                             <tr key={u.id}>
                                                 <td className="font-mono">{u.email}</td>
@@ -428,9 +413,7 @@ const AdminSettings = () => {
                                                 <span className="badge bg-primary">{workflow.steps} steps</span>
                                             </td>
                                             <td>
-                                                <span className={`badge ${workflow.status === 'Active' ? 'bg-success' : 'bg-warning'}`}>
-                                                    {workflow.status}
-                                                </span>
+                                                <span className={`badge ${workflow.status === 'Active' ? 'bg-success' : 'bg-warning'}`}>{workflow.status}</span>
                                             </td>
                                             <td>{workflow.lastModified}</td>
                                             <td>
@@ -535,9 +518,7 @@ const AdminSettings = () => {
                                     {approvalLimits.map((limit, index) => (
                                         <tr key={index}>
                                             <td className="font-semibold">{limit.role}</td>
-                                            <td className="text-lg font-bold text-success">
-                                                {limit.limit === 'Unlimited' ? limit.limit : `$${limit.limit.toLocaleString()}`}
-                                            </td>
+                                            <td className="text-lg font-bold text-success">{limit.limit === 'Unlimited' ? limit.limit : `$${limit.limit.toLocaleString()}`}</td>
                                             <td>{limit.currency}</td>
                                             <td>
                                                 <button type="button" className="btn btn-sm btn-outline-primary" onClick={() => handleEditApprovalLimit(limit.role)}>
@@ -563,36 +544,36 @@ const AdminSettings = () => {
                         <h5 className="mb-4 text-lg font-semibold">Email Notifications</h5>
                         <div className="space-y-4">
                             <label className="flex cursor-pointer items-center">
-                                <input 
-                                    type="checkbox" 
-                                    className="form-checkbox" 
+                                <input
+                                    type="checkbox"
+                                    className="form-checkbox"
                                     checked={emailNotifications.rfqUpdates}
                                     onChange={(e) => setEmailNotifications({ ...emailNotifications, rfqUpdates: e.target.checked })}
                                 />
                                 <span className="ml-2 text-white-dark">Request Status Updates</span>
                             </label>
                             <label className="flex cursor-pointer items-center">
-                                <input 
-                                    type="checkbox" 
-                                    className="form-checkbox" 
+                                <input
+                                    type="checkbox"
+                                    className="form-checkbox"
                                     checked={emailNotifications.quoteSubmissions}
                                     onChange={(e) => setEmailNotifications({ ...emailNotifications, quoteSubmissions: e.target.checked })}
                                 />
                                 <span className="ml-2 text-white-dark">Offer Submissions</span>
                             </label>
                             <label className="flex cursor-pointer items-center">
-                                <input 
-                                    type="checkbox" 
-                                    className="form-checkbox" 
+                                <input
+                                    type="checkbox"
+                                    className="form-checkbox"
                                     checked={emailNotifications.approvalRequests}
                                     onChange={(e) => setEmailNotifications({ ...emailNotifications, approvalRequests: e.target.checked })}
                                 />
                                 <span className="ml-2 text-white-dark">Approval Requests</span>
                             </label>
                             <label className="flex cursor-pointer items-center">
-                                <input 
-                                    type="checkbox" 
-                                    className="form-checkbox" 
+                                <input
+                                    type="checkbox"
+                                    className="form-checkbox"
                                     checked={emailNotifications.paymentReminders}
                                     onChange={(e) => setEmailNotifications({ ...emailNotifications, paymentReminders: e.target.checked })}
                                 />
@@ -606,11 +587,7 @@ const AdminSettings = () => {
                         <div className="space-y-4">
                             <div>
                                 <label className="mb-2 block">Default Currency</label>
-                                <select 
-                                    className="form-select"
-                                    value={systemPrefs.currency}
-                                    onChange={(e) => setSystemPrefs({ ...systemPrefs, currency: e.target.value })}
-                                >
+                                <select className="form-select" value={systemPrefs.currency} onChange={(e) => setSystemPrefs({ ...systemPrefs, currency: e.target.value })}>
                                     <option>USD</option>
                                     <option>EUR</option>
                                     <option>GBP</option>
@@ -618,11 +595,7 @@ const AdminSettings = () => {
                             </div>
                             <div>
                                 <label className="mb-2 block">Date Format</label>
-                                <select 
-                                    className="form-select"
-                                    value={systemPrefs.dateFormat}
-                                    onChange={(e) => setSystemPrefs({ ...systemPrefs, dateFormat: e.target.value })}
-                                >
+                                <select className="form-select" value={systemPrefs.dateFormat} onChange={(e) => setSystemPrefs({ ...systemPrefs, dateFormat: e.target.value })}>
                                     <option>YYYY-MM-DD</option>
                                     <option>DD/MM/YYYY</option>
                                     <option>MM/DD/YYYY</option>
@@ -630,9 +603,9 @@ const AdminSettings = () => {
                             </div>
                             <div>
                                 <label className="mb-2 block">Default Request Validity (Days)</label>
-                                <input 
-                                    type="number" 
-                                    className="form-input" 
+                                <input
+                                    type="number"
+                                    className="form-input"
                                     value={systemPrefs.rfqValidity}
                                     onChange={(e) => setSystemPrefs({ ...systemPrefs, rfqValidity: parseInt(e.target.value) || 30 })}
                                 />
@@ -645,45 +618,45 @@ const AdminSettings = () => {
                         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                             <div>
                                 <label className="mb-2 block">Request Response Time (Days)</label>
-                                <input 
-                                    type="number" 
-                                    className="form-input" 
+                                <input
+                                    type="number"
+                                    className="form-input"
                                     value={slaSettings.rfqResponse}
                                     onChange={(e) => setSlaSettings({ ...slaSettings, rfqResponse: parseInt(e.target.value) || 7 })}
                                 />
                             </div>
                             <div>
                                 <label className="mb-2 block">Offer Evaluation Time (Days)</label>
-                                <input 
-                                    type="number" 
-                                    className="form-input" 
+                                <input
+                                    type="number"
+                                    className="form-input"
                                     value={slaSettings.quoteEvaluation}
                                     onChange={(e) => setSlaSettings({ ...slaSettings, quoteEvaluation: parseInt(e.target.value) || 5 })}
                                 />
                             </div>
                             <div>
                                 <label className="mb-2 block">Approval Time (Days)</label>
-                                <input 
-                                    type="number" 
-                                    className="form-input" 
+                                <input
+                                    type="number"
+                                    className="form-input"
                                     value={slaSettings.approval}
                                     onChange={(e) => setSlaSettings({ ...slaSettings, approval: parseInt(e.target.value) || 3 })}
                                 />
                             </div>
                             <div>
                                 <label className="mb-2 block">PO Processing Time (Days)</label>
-                                <input 
-                                    type="number" 
-                                    className="form-input" 
+                                <input
+                                    type="number"
+                                    className="form-input"
                                     value={slaSettings.poProcessing}
                                     onChange={(e) => setSlaSettings({ ...slaSettings, poProcessing: parseInt(e.target.value) || 2 })}
                                 />
                             </div>
                             <div>
                                 <label className="mb-2 block">Payment Processing (Days)</label>
-                                <input 
-                                    type="number" 
-                                    className="form-input" 
+                                <input
+                                    type="number"
+                                    className="form-input"
                                     value={slaSettings.paymentProcessing}
                                     onChange={(e) => setSlaSettings({ ...slaSettings, paymentProcessing: parseInt(e.target.value) || 30 })}
                                 />
@@ -716,18 +689,24 @@ const AdminSettings = () => {
                                 </svg>
                             </button>
                         </div>
-                        <div 
+                        <div
                             className={`mb-6 rounded-lg p-4 ${
-                                showModal.tone === 'success' ? 'bg-green-100 dark:bg-green-900/30' :
-                                showModal.tone === 'danger' ? 'bg-red-100 dark:bg-red-900/30' :
-                                'bg-yellow-100 dark:bg-yellow-900/30'
+                                showModal.tone === 'success'
+                                    ? 'bg-green-100 dark:bg-green-900/30'
+                                    : showModal.tone === 'danger'
+                                    ? 'bg-red-100 dark:bg-red-900/30'
+                                    : 'bg-yellow-100 dark:bg-yellow-900/30'
                             }`}
                         >
-                            <p className={`${
-                                showModal.tone === 'success' ? 'text-green-800 dark:text-green-200' :
-                                showModal.tone === 'danger' ? 'text-red-800 dark:text-red-200' :
-                                'text-yellow-800 dark:text-yellow-200'
-                            }`}>
+                            <p
+                                className={`${
+                                    showModal.tone === 'success'
+                                        ? 'text-green-800 dark:text-green-200'
+                                        : showModal.tone === 'danger'
+                                        ? 'text-red-800 dark:text-red-200'
+                                        : 'text-yellow-800 dark:text-yellow-200'
+                                }`}
+                            >
                                 {showModal.message}
                             </p>
                         </div>
@@ -760,10 +739,7 @@ function ReassignRequestsTab() {
     async function loadData() {
         setLoading(true);
         try {
-            const [reqsRes, usersRes] = await Promise.all([
-                fetch('http://localhost:4000/requests'),
-                fetch('http://localhost:4000/admin/users')
-            ]);
+            const [reqsRes, usersRes] = await Promise.all([fetch(getApiUrl('requests')), fetch(getApiUrl('admin/users'))]);
             const reqs = await reqsRes.json();
             const usrs = await usersRes.json();
             setRequests(reqs);
@@ -777,22 +753,16 @@ function ReassignRequestsTab() {
 
     async function reassignRequest(requestId: number, assigneeId: number | null) {
         try {
-            const userProfile = localStorage.getItem('auth_user') || sessionStorage.getItem('auth_user');
-            const user = userProfile ? JSON.parse(userProfile) : null;
-            
-            const res = await fetch(`http://localhost:4000/admin/requests/${requestId}/reassign`, {
+            const res = await fetch(getApiUrl(`admin/requests/${requestId}/reassign`), {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-user-id': String(user?.id || ''),
-                },
+                headers: getAuthHeaders(),
                 body: JSON.stringify({ assigneeId, comment: 'Manually reassigned by admin', newStatus: selectedStatus || undefined }),
             });
 
             if (!res.ok) throw new Error('Failed to reassign');
-            
+
             await loadData();
-            alert('Request reassigned successfully!');
+            showSuccess('Request reassigned successfully!');
         } catch (e: any) {
             alert(e?.message || 'Failed to reassign request');
         }
@@ -804,7 +774,7 @@ function ReassignRequestsTab() {
         <div className="panel">
             <h5 className="mb-4 text-lg font-semibold">Reassign Requests</h5>
             <p className="mb-4 text-sm text-white-dark">Click on a request, then click on a user to reassign it</p>
-            
+
             <div className="grid gap-6 lg:grid-cols-2">
                 {/* Requests List */}
                 <div>
@@ -820,17 +790,15 @@ function ReassignRequestsTab() {
                             >
                                 <div className="flex justify-between">
                                     <div>
-                                        <div className="font-semibold">REQ-{req.id}: {req.title}</div>
+                                        <div className="font-semibold">
+                                            REQ-{req.id}: {req.title}
+                                        </div>
                                         <div className="text-xs text-white-dark">
                                             Status: {req.status} | Requester: {req.requester?.name}
                                         </div>
                                     </div>
                                     <div className="text-xs">
-                                        {req.currentAssignee ? (
-                                            <span className="badge bg-success">{req.currentAssignee.name}</span>
-                                        ) : (
-                                            <span className="badge bg-danger">Unassigned</span>
-                                        )}
+                                        {req.currentAssignee ? <span className="badge bg-success">{req.currentAssignee.name}</span> : <span className="badge bg-danger">Unassigned</span>}
                                     </div>
                                 </div>
                             </div>
@@ -844,12 +812,7 @@ function ReassignRequestsTab() {
                     {/* Optional status change during reassignment */}
                     <div className="mb-3">
                         <label className="block text-sm mb-1">Set Status (optional)</label>
-                        <select
-                            className="form-select"
-                            value={selectedStatus}
-                            onChange={(e) => setSelectedStatus(e.target.value)}
-                            disabled={!selectedRequest}
-                        >
+                        <select className="form-select" value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value)} disabled={!selectedRequest}>
                             <option value="">— No change —</option>
                             <option value="DRAFT">DRAFT</option>
                             <option value="SUBMITTED">SUBMITTED</option>
@@ -873,25 +836,22 @@ function ReassignRequestsTab() {
                                 key={user.id}
                                 onClick={() => selectedRequest && reassignRequest(selectedRequest, user.id)}
                                 className={`rounded border p-3 ${
-                                    selectedRequest
-                                        ? 'cursor-pointer hover:bg-success/10 border-white-light dark:border-dark'
-                                        : 'opacity-50 cursor-not-allowed border-white-light dark:border-dark'
+                                    selectedRequest ? 'cursor-pointer hover:bg-success/10 border-white-light dark:border-dark' : 'opacity-50 cursor-not-allowed border-white-light dark:border-dark'
                                 }`}
                             >
                                 <div className="font-semibold">{user.name}</div>
                                 <div className="text-xs text-white-dark">{user.email}</div>
                                 <div className="mt-1 flex flex-wrap gap-1">
                                     {user.roles?.map((role: string) => (
-                                        <span key={role} className="badge badge-outline-primary text-xs">{role}</span>
+                                        <span key={role} className="badge badge-outline-primary text-xs">
+                                            {role}
+                                        </span>
                                     ))}
                                 </div>
                             </div>
                         ))}
                         {selectedRequest && (
-                            <div
-                                onClick={() => selectedRequest && reassignRequest(selectedRequest, null)}
-                                className="cursor-pointer rounded border border-danger p-3 hover:bg-danger/10"
-                            >
+                            <div onClick={() => selectedRequest && reassignRequest(selectedRequest, null)} className="cursor-pointer rounded border border-danger p-3 hover:bg-danger/10">
                                 <div className="font-semibold text-danger">Unassign (Remove assignee)</div>
                             </div>
                         )}
@@ -936,12 +896,7 @@ function UserRow({ user, onSave }: { user: FlatUser; onSave: (userId: number, ro
                 <div className="flex flex-wrap gap-2">
                     {ADMIN_ROLE_NAMES.map((r) => (
                         <label key={r} className="inline-flex items-center gap-1">
-                            <input
-                                type="checkbox"
-                                className="form-checkbox"
-                                checked={localRoles.includes(r)}
-                                onChange={() => toggleRole(r)}
-                            />
+                            <input type="checkbox" className="form-checkbox" checked={localRoles.includes(r)} onChange={() => toggleRole(r)} />
                             <span className="text-xs">{r}</span>
                         </label>
                     ))}

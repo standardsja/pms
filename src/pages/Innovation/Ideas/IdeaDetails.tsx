@@ -92,11 +92,11 @@ export default function IdeaDetails() {
             if (idea.userVoteType === voteType) {
                 // Remove vote if clicking same type
                 updated = await removeVote(id);
-                setIdea({ ...updated, hasVoted: null, userVoteType: null });
+                setIdea({ ...updated, hasVoted: false, userVoteType: null });
             } else {
                 // Add new vote or switch vote type
                 updated = await voteForIdea(id, voteType);
-                setIdea({ ...updated, hasVoted: voteType.toLowerCase() as 'up' | 'down' });
+                setIdea({ ...updated, hasVoted: true, userVoteType: voteType });
             }
         } catch (err) {
             console.error('[IdeaDetails] Error voting:', err);
