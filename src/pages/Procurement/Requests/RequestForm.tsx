@@ -224,7 +224,7 @@ const RequestForm = () => {
                     setExistingAttachments(request.attachments);
                 }
                 // Load header code values
-                setHeaderDeptCode(request.headerDeptCode || (request.department?.code || ''));
+                setHeaderDeptCode(request.headerDeptCode || request.department?.code || '');
                 setHeaderMonth(request.headerMonth || '');
                 setHeaderYear(request.headerYear || new Date().getFullYear());
                 setHeaderSequence(request.headerSequence ?? 0);
@@ -731,8 +731,10 @@ const RequestForm = () => {
                                 <label className="block text-sm font-medium mb-2">Header Month</label>
                                 <select className="form-select w-full" value={headerMonth} onChange={(e) => setHeaderMonth(e.target.value)}>
                                     <option value="">Select month</option>
-                                    {['JANUARY','FEBRUARY','MARCH','APRIL','MAY','JUNE','JULY','AUGUST','SEPTEMBER','OCTOBER','NOVEMBER','DECEMBER'].map(m => (
-                                        <option key={m} value={m}>{m}</option>
+                                    {['JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE', 'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER'].map((m) => (
+                                        <option key={m} value={m}>
+                                            {m}
+                                        </option>
                                     ))}
                                 </select>
                             </div>
@@ -741,13 +743,24 @@ const RequestForm = () => {
                                 <select className="form-select w-full" value={headerYear ?? ''} onChange={(e) => setHeaderYear(e.target.value ? parseInt(e.target.value, 10) : null)}>
                                     {Array.from({ length: 11 }).map((_, i) => {
                                         const year = 2025 + i; // 2025..2035
-                                        return <option key={year} value={year}>{year}</option>;
+                                        return (
+                                            <option key={year} value={year}>
+                                                {year}
+                                            </option>
+                                        );
                                     })}
                                 </select>
                             </div>
                             <div>
                                 <label className="block text-sm font-medium mb-2">Header Sequence</label>
-                                <input type="number" min={0} max={999} value={headerSequence ?? 0} onChange={(e) => setHeaderSequence(e.target.value ? parseInt(e.target.value, 10) : 0)} className="form-input w-full" />
+                                <input
+                                    type="number"
+                                    min={0}
+                                    max={999}
+                                    value={headerSequence ?? 0}
+                                    onChange={(e) => setHeaderSequence(e.target.value ? parseInt(e.target.value, 10) : 0)}
+                                    className="form-input w-full"
+                                />
                             </div>
                         </div>
 

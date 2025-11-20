@@ -1,196 +1,263 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Procurement Requisition</title>
-    <style>
-      :root {
-        --primary: #b91c1c; /* red-700 */
-        --text: #111827;    /* gray-900 */
-        --muted: #6b7280;   /* gray-500 */
-        --border: #e5e7eb;  /* gray-200 */
-      }
-      * { box-sizing: border-box; }
-      body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif; color: var(--text); margin: 0; padding: 28px; }
-      h1, h2, h3 { margin: 0; }
-      .header { text-align: center; margin-bottom: 18px; }
-      .title { font-size: 20px; font-weight: 700; }
-      .subtitle { font-size: 16px; font-weight: 700; margin-top: 4px; }
-      .section-title { font-weight: 700; color: var(--primary); padding-bottom: 6px; border-bottom: 2px solid var(--primary); margin: 18px 0 10px; }
-      .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
-      .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-      .field { display: flex; flex-direction: column; font-size: 12px; }
-      .label { font-weight: 600; margin-bottom: 4px; }
-      .value { padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; background: #fff; }
-      table { width: 100%; border-collapse: collapse; }
-      th, td { border: 1px solid var(--border); padding: 8px; font-size: 12px; }
-      thead th { background: #f9fafb; text-align: left; font-weight: 700; }
-      .totals { text-align: right; margin-top: 10px; font-size: 12px; }
-      .muted { color: var(--muted); }
-      .spacer { height: 10px; }
-    </style>
-  </head>
-  <body>
-    <div class="header" style="display:flex; align-items:center; justify-content:space-between;">
-      <div style="flex:1; text-align:left;">
-        <!-- left can be used for logo if needed -->
-      </div>
-      <div style="flex:1; text-align:center;">
-        <div class="title">BUREAU OF STANDARDS JAMAICA</div>
-        <div class="subtitle">PROCUREMENT REQUISITION FORM</div>
-        <div class="muted" style="margin-top:6px;">Reference: {{reference}} • Submitted: {{submittedAt}}</div>
-      </div>
-      <div style="flex:1; text-align:right;">
-        <div style="border:1px solid var(--border); padding:6px 10px; display:inline-block; border-radius:6px; font-weight:700;">
-          <div style="font-size:12px;">{{headerDeptCode}}</div>
-          <div style="font-size:12px;">{{headerMonth}}/{{headerYear}}/{{headerSequence}}</div>
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Procurement Requisition</title>
+        <style>
+            :root {
+                --primary: #b91c1c; /* red-700 */
+                --text: #111827; /* gray-900 */
+                --muted: #6b7280; /* gray-500 */
+                --border: #e5e7eb; /* gray-200 */
+            }
+            * {
+                box-sizing: border-box;
+            }
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+                color: var(--text);
+                margin: 0;
+                padding: 28px;
+            }
+            h1,
+            h2,
+            h3 {
+                margin: 0;
+            }
+            .header {
+                text-align: center;
+                margin-bottom: 18px;
+            }
+            .title {
+                font-size: 20px;
+                font-weight: 700;
+            }
+            .subtitle {
+                font-size: 16px;
+                font-weight: 700;
+                margin-top: 4px;
+            }
+            .section-title {
+                font-weight: 700;
+                color: var(--primary);
+                padding-bottom: 6px;
+                border-bottom: 2px solid var(--primary);
+                margin: 18px 0 10px;
+            }
+            .grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr 1fr;
+                gap: 10px;
+            }
+            .grid-2 {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 10px;
+            }
+            .field {
+                display: flex;
+                flex-direction: column;
+                font-size: 12px;
+            }
+            .label {
+                font-weight: 600;
+                margin-bottom: 4px;
+            }
+            .value {
+                padding: 8px 10px;
+                border: 1px solid var(--border);
+                border-radius: 6px;
+                background: #fff;
+            }
+            table {
+                width: 100%;
+                border-collapse: collapse;
+            }
+            th,
+            td {
+                border: 1px solid var(--border);
+                padding: 8px;
+                font-size: 12px;
+            }
+            thead th {
+                background: #f9fafb;
+                text-align: left;
+                font-weight: 700;
+            }
+            .totals {
+                text-align: right;
+                margin-top: 10px;
+                font-size: 12px;
+            }
+            .muted {
+                color: var(--muted);
+            }
+            .spacer {
+                height: 10px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="header" style="display: flex; align-items: center; justify-content: space-between">
+            <div style="flex: 1; text-align: left">
+                <!-- left can be used for logo if needed -->
+            </div>
+            <div style="flex: 1; text-align: center">
+                <div class="title">BUREAU OF STANDARDS JAMAICA</div>
+                <div class="subtitle">PROCUREMENT REQUISITION FORM</div>
+                <div class="muted" style="margin-top: 6px">Reference: {{reference}} • Submitted: {{submittedAt}}</div>
+            </div>
+            <div style="flex: 1; text-align: right">
+                <div style="border: 1px solid var(--border); padding: 6px 10px; display: inline-block; border-radius: 6px; font-weight: 700">
+                    <div style="font-size: 12px">{{headerDeptCode}}</div>
+                    <div style="font-size: 12px">{{headerMonth}}/{{headerYear}}/{{headerSequence}}</div>
+                </div>
+            </div>
         </div>
-      </div>
-    </div>
 
-    <div class="section-title">Section I: To be completed by Requestor</div>
-    <div class="grid">
-      <div class="field">
-        <div class="label">Requested by</div>
-        <div class="value">{{requesterName}}</div>
-      </div>
-      <div class="field">
-        <div class="label">Email</div>
-        <div class="value">{{requesterEmail}}</div>
-      </div>
-      <div class="field">
-        <div class="label">Department</div>
-        <div class="value">{{departmentName}}</div>
-      </div>
-    </div>
-    <div class="grid">
-      <div class="field">
-        <div class="label">Priority</div>
-        <div class="value">{{priority}}</div>
-      </div>
-      <div class="field">
-        <div class="label">Currency</div>
-        <div class="value">{{currency}}</div>
-      </div>
-      <div class="field">
-        <div class="label">Estimated Total (Currency)</div>
-        <div class="value">{{totalEstimated}}</div>
-      </div>
-    </div>
-    <div class="field">
-      <div class="label">Justification</div>
-      <div class="value">{{description}}</div>
-    </div>
+        <div class="section-title">Section I: To be completed by Requestor</div>
+        <div class="grid">
+            <div class="field">
+                <div class="label">Requested by</div>
+                <div class="value">{{requesterName}}</div>
+            </div>
+            <div class="field">
+                <div class="label">Email</div>
+                <div class="value">{{requesterEmail}}</div>
+            </div>
+            <div class="field">
+                <div class="label">Department</div>
+                <div class="value">{{departmentName}}</div>
+            </div>
+        </div>
+        <div class="grid">
+            <div class="field">
+                <div class="label">Priority</div>
+                <div class="value">{{priority}}</div>
+            </div>
+            <div class="field">
+                <div class="label">Currency</div>
+                <div class="value">{{currency}}</div>
+            </div>
+            <div class="field">
+                <div class="label">Estimated Total (Currency)</div>
+                <div class="value">{{totalEstimated}}</div>
+            </div>
+        </div>
+        <div class="field">
+            <div class="label">Justification</div>
+            <div class="value">{{description}}</div>
+        </div>
 
-    <div class="section-title">Items / Services</div>
-    <table>
-      <thead>
-        <tr>
-          <th style="width: 36px;">#</th>
-          <th>Description</th>
-          <th style="width: 64px;">Qty</th>
-          <th style="width: 100px;">Unit Price</th>
-          <th style="width: 110px;">Subtotal</th>
-        </tr>
-      </thead>
-      <tbody>
-        {{itemsRows}}
-      </tbody>
-    </table>
-    <div class="totals"><strong>Total:</strong> {{totalEstimated}}</div>
+        <div class="section-title">Items / Services</div>
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 36px">#</th>
+                    <th>Description</th>
+                    <th style="width: 64px">Qty</th>
+                    <th style="width: 100px">Unit Price</th>
+                    <th style="width: 110px">Subtotal</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{itemsRows}}
+            </tbody>
+        </table>
+        <div class="totals"><strong>Total:</strong> {{totalEstimated}}</div>
 
-    <div class="section-title">Section II: Approvals</div>
-    <div class="grid-2">
-      <div class="field">
-        <div class="label">Manager Name</div>
-        <div class="value">{{managerName}}</div>
-      </div>
-      <div class="field">
-        <div class="label">Manager Approval Date</div>
-        <div class="value">{{managerApprovalDate}}</div>
-      </div>
-    </div>
-    <div class="grid-2">
-      <div class="field">
-        <div class="label">Head of Division</div>
-        <div class="value">{{headName}}</div>
-      </div>
-      <div class="field">
-        <div class="label">HOD Approval Date</div>
-        <div class="value">{{hodApprovalDate}}</div>
-      </div>
-    </div>
-    <div class="grid">
-      <div class="field">
-        <div class="label">Budget Officer</div>
-        <div class="value">{{budgetOfficerName}}</div>
-      </div>
-      <div class="field">
-        <div class="label">Budget Manager</div>
-        <div class="value">{{budgetManagerName}}</div>
-      </div>
-      <div class="field">
-        <div class="label">Finance Approval Date</div>
-        <div class="value">{{financeApprovalDate}}</div>
-      </div>
-    </div>
-    <div class="grid">
-      <div class="field">
-        <div class="label">Commitment No.</div>
-        <div class="value">{{commitmentNumber}}</div>
-      </div>
-      <div class="field">
-        <div class="label">Accounting Code</div>
-        <div class="value">{{accountingCode}}</div>
-      </div>
-      <div class="field">
-        <div class="label">Procurement Approval Date</div>
-        <div class="value">{{procurementApprovalDate}}</div>
-      </div>
-    </div>
-    <div class="grid">
-      <div class="field">
-        <div class="label">Status</div>
-        <div class="value">{{status}}</div>
-      </div>
-      <div class="field">
-        <div class="label">Assigned To</div>
-        <div class="value">{{assigneeName}}</div>
-      </div>
-      <div class="field">
-        <div class="label">Submitted Date</div>
-        <div class="value">{{submittedDate}}</div>
-      </div>
-    </div>
+        <div class="section-title">Section II: Approvals</div>
+        <div class="grid-2">
+            <div class="field">
+                <div class="label">Manager Name</div>
+                <div class="value">{{managerName}}</div>
+            </div>
+            <div class="field">
+                <div class="label">Manager Approval Date</div>
+                <div class="value">{{managerApprovalDate}}</div>
+            </div>
+        </div>
+        <div class="grid-2">
+            <div class="field">
+                <div class="label">Head of Division</div>
+                <div class="value">{{headName}}</div>
+            </div>
+            <div class="field">
+                <div class="label">HOD Approval Date</div>
+                <div class="value">{{hodApprovalDate}}</div>
+            </div>
+        </div>
+        <div class="grid">
+            <div class="field">
+                <div class="label">Budget Officer</div>
+                <div class="value">{{budgetOfficerName}}</div>
+            </div>
+            <div class="field">
+                <div class="label">Budget Manager</div>
+                <div class="value">{{budgetManagerName}}</div>
+            </div>
+            <div class="field">
+                <div class="label">Finance Approval Date</div>
+                <div class="value">{{financeApprovalDate}}</div>
+            </div>
+        </div>
+        <div class="grid">
+            <div class="field">
+                <div class="label">Commitment No.</div>
+                <div class="value">{{commitmentNumber}}</div>
+            </div>
+            <div class="field">
+                <div class="label">Accounting Code</div>
+                <div class="value">{{accountingCode}}</div>
+            </div>
+            <div class="field">
+                <div class="label">Procurement Approval Date</div>
+                <div class="value">{{procurementApprovalDate}}</div>
+            </div>
+        </div>
+        <div class="grid">
+            <div class="field">
+                <div class="label">Status</div>
+                <div class="value">{{status}}</div>
+            </div>
+            <div class="field">
+                <div class="label">Assigned To</div>
+                <div class="value">{{assigneeName}}</div>
+            </div>
+            <div class="field">
+                <div class="label">Submitted Date</div>
+                <div class="value">{{submittedDate}}</div>
+            </div>
+        </div>
 
-    <div class="section-title">Section III: Procurement</div>
-    <div class="grid">
-      <div class="field">
-        <div class="label">Case Number</div>
-        <div class="value">{{procurementCaseNumber}}</div>
-      </div>
-      <div class="field">
-        <div class="label">Received By</div>
-        <div class="value">{{receivedBy}}</div>
-      </div>
-      <div class="field">
-        <div class="label">Date Received</div>
-        <div class="value">{{dateReceived}}</div>
-      </div>
-    </div>
-    <div class="grid-2">
-      <div class="field">
-        <div class="label">Action Date</div>
-        <div class="value">{{actionDate}}</div>
-      </div>
-      <div class="field">
-        <div class="label">Procurement Comments</div>
-        <div class="value">{{procurementComments}}</div>
-      </div>
-    </div>
+        <div class="section-title">Section III: Procurement</div>
+        <div class="grid">
+            <div class="field">
+                <div class="label">Case Number</div>
+                <div class="value">{{procurementCaseNumber}}</div>
+            </div>
+            <div class="field">
+                <div class="label">Received By</div>
+                <div class="value">{{receivedBy}}</div>
+            </div>
+            <div class="field">
+                <div class="label">Date Received</div>
+                <div class="value">{{dateReceived}}</div>
+            </div>
+        </div>
+        <div class="grid-2">
+            <div class="field">
+                <div class="label">Action Date</div>
+                <div class="value">{{actionDate}}</div>
+            </div>
+            <div class="field">
+                <div class="label">Procurement Comments</div>
+                <div class="value">{{procurementComments}}</div>
+            </div>
+        </div>
 
-    <div class="spacer"></div>
-    <div class="muted" style="font-size: 10px;">Generated by PMS • {{now}}</div>
-  </body>
-  </html>
+        <div class="spacer"></div>
+        <div class="muted" style="font-size: 10px">Generated by PMS • {{now}}</div>
+    </body>
+</html>
