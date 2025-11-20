@@ -1580,8 +1580,8 @@ app.post(
             console.log('[POST /requests] Request received');
             console.log('[POST /requests] Headers:', req.headers['x-user-id']);
             console.log('[POST /requests] Body keys:', Object.keys(req.body));
-            console.log('[POST /requests] Files:', req.files ? (req.files as any[]).map(f => f.originalname) : 'none');
-            
+            console.log('[POST /requests] Files:', req.files ? (req.files as any[]).map((f) => f.originalname) : 'none');
+
             const userId = req.headers['x-user-id'];
             if (!userId) {
                 return res.status(401).json({ message: 'User ID required' });
