@@ -23,6 +23,8 @@ import { requireCommittee as requireCommitteeRole, requireAdmin } from './middle
 import { validate, createIdeaSchema, voteSchema, approveRejectIdeaSchema, promoteIdeaSchema, sanitizeInput as sanitize } from './middleware/validation';
 import { errorHandler, notFoundHandler, asyncHandler, NotFoundError, BadRequestError } from './middleware/errorHandler';
 import statsRouter from './routes/stats';
+import splinteringRouter from './routes/splintering';
+import combineRouter from './routes/combine';
 
 const app = express();
 const httpServer = http.createServer(app);
@@ -2422,6 +2424,12 @@ app.get('/api/auth/test-login', (req, res) => {
 
 // Stats API routes
 app.use('/api/stats', statsRouter);
+
+// Splintering detection routes
+app.use('/api/splintering', splinteringRouter);
+
+// Request combining routes
+app.use('/api/requests', combineRouter);
 
 // No longer need this - using httpServer created at top
 // let server: http.Server | null = null;

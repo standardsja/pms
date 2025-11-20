@@ -5,6 +5,7 @@ import { setPageTitle } from '@/store/themeConfigSlice';
 import IconPlus from '@/components/Icon/IconPlus';
 import IconX from '@/components/Icon/IconX';
 import Swal from 'sweetalert2';
+import { detectSplintering, formatSplinteringAlert, getSplinteringRecommendations } from '../../../utils/splinteringDetection';
 
 interface RequestItem {
     itemNo: number;
@@ -436,6 +437,110 @@ const RequestForm = () => {
                     priority: priorityEnum,
                     procurementType: procurementType.length > 0 ? procurementType : null,
                 };
+
+                // 🚨 ANTI-SPLINTERING CHECK
+                try {
+                    // Fetch existing requests for splintering analysis
+                    const existingReqsResponse = await fetch('http://heron:4000/requests', {
+                        headers: { 'x-user-id': String(userId) },
+                    });
+
+                    if (existingReqsResponse.ok) {
+                        const existingRequests = await existingReqsResponse.json();
+
+                        // Prepare current request data for analysis
+                        const currentRequestData = {
+                            vendorName: supplierVendor || undefined,
+                            category: procurementType.length > 0 ? procurementType[0] : undefined,
+                            department: profile?.department?.name || division || undefined,
+                            description: commentsJustification || payload.description,
+                            estimatedCost: estimatedTotal,
+                            requestedDate: new Date().toISOString(),
+                            requestedBy: profile?.name || profile?.fullName || undefined,
+                        };
+
+                        // Run splintering detection
+                        const splinteringAlerts = await detectSplintering(currentRequestData, existingRequests);
+
+                        if (splinteringAlerts.length > 0) {
+                            // Show splintering warning
+                            const highRiskAlerts = splinteringAlerts.filter((alert) => alert.severity === 'HIGH');
+                            const blockingAlerts = splinteringAlerts.filter((alert) => alert.blockSubmission);
+
+                            if (blockingAlerts.length > 0) {
+                                // Block submission for high-risk splintering
+                                const alert = formatSplinteringAlert(blockingAlerts[0]);
+                                const recommendations = getSplinteringRecommendations(splinteringAlerts);
+
+                                await Swal.fire({
+                                    icon: 'error',
+                                    title: '🚫 SPLINTERING DETECTED - SUBMISSION BLOCKED',
+                                    html: `
+                                        <div style="text-align: left;">
+                                            <p><strong>${alert.message}</strong></p>
+                                            <hr>
+                                            <p><strong>Details:</strong></p>
+                                            <pre style="font-size: 12px; background: #f5f5f5; padding: 10px; border-radius: 5px;">${alert.details}</pre>
+                                            <hr>
+                                            <p><strong>Required Actions:</strong></p>
+                                            <ul>
+                                                ${alert.actions.map((action) => `<li>${action}</li>`).join('')}
+                                            </ul>
+                                            <hr>
+                                            <div style="font-size: 12px;">
+                                                ${recommendations.join('<br>')}
+                                            </div>
+                                        </div>
+                                    `,
+                                    width: '600px',
+                                    showConfirmButton: true,
+                                    confirmButtonText: 'Contact Procurement Office',
+                                    showCancelButton: true,
+                                    cancelButtonText: 'Revise Request',
+                                });
+
+                                setIsSubmitting(false);
+                                return; // Block submission
+                            } else {
+                                // Show warning but allow submission with confirmation
+                                const alert = formatSplinteringAlert(splinteringAlerts[0]);
+                                const recommendations = getSplinteringRecommendations(splinteringAlerts);
+
+                                const confirmResult = await Swal.fire({
+                                    icon: 'warning',
+                                    title: '⚠️ POTENTIAL SPLINTERING DETECTED',
+                                    html: `
+                                        <div style="text-align: left;">
+                                            <p><strong>${alert.message}</strong></p>
+                                            <hr>
+                                            <p><strong>Details:</strong></p>
+                                            <pre style="font-size: 12px; background: #f5f5f5; padding: 10px; border-radius: 5px;">${alert.details}</pre>
+                                            <hr>
+                                            <div style="font-size: 12px;">
+                                                ${recommendations.join('<br>')}
+                                            </div>
+                                            <hr>
+                                            <p><strong>Do you want to proceed with this request despite the splintering risk?</strong></p>
+                                        </div>
+                                    `,
+                                    width: '600px',
+                                    showCancelButton: true,
+                                    confirmButtonText: 'Proceed Anyway',
+                                    cancelButtonText: 'Revise Request',
+                                    confirmButtonColor: '#dc3545',
+                                });
+
+                                if (!confirmResult.isConfirmed) {
+                                    setIsSubmitting(false);
+                                    return; // User chose to revise
+                                }
+                            }
+                        }
+                    }
+                } catch (splinteringError) {
+                    console.warn('Splintering detection failed:', splinteringError);
+                    // Continue with submission if splintering check fails
+                }
 
                 console.log('[debug] Submitting payload with procurementType:', payload.procurementType);
 

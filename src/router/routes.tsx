@@ -55,6 +55,7 @@ const AdminSettings = lazy(() => import('../pages/Procurement/Admin/AdminSetting
 // Request Pages
 const Requests = lazy(() => import('../pages/Procurement/Requests/Requests'));
 const RequestForm = lazy(() => import('../pages/Procurement/Requests/RequestForm'));
+const CombineRequests = lazy(() => import('../pages/Procurement/Requests/CombineRequests'));
 const FinanceRequests = lazy(() => import('../pages/Procurement/Finance/Requests'));
 
 // Department Head Pages
@@ -425,6 +426,10 @@ const routes = [
     {
         path: '/apps/requests/edit/:id',
         element: <RequestForm />,
+    },
+    {
+        path: '/apps/requests/combine',
+        element: <CombineRequests />,
     },
 
     // ============================================
