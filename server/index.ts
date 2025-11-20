@@ -2432,6 +2432,269 @@ app.get('/api/auth/test-login', (req, res) => {
     res.status(405).json({ message: 'Use POST method' });
 });
 
+// ============================================
+// EVALUATION ENDPOINTS
+// ============================================
+
+// GET /api/evaluations - List all evaluations with filters
+app.get(
+    '/api/evaluations',
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+        const { status, search, dueBefore, dueAfter } = req.query;
+
+        const where: Prisma.EvaluationWhereInput = {};
+
+        if (status && status !== 'ALL') {
+            where.status = status as any;
+        }
+
+        if (search) {
+            where.OR = [
+                { evalNumber: { contains: search as string, mode: 'insensitive' } },
+                { rfqNumber: { contains: search as string, mode: 'insensitive' } },
+                { rfqTitle: { contains: search as string, mode: 'insensitive' } },
+                { description: { contains: search as string, mode: 'insensitive' } },
+            ];
+        }
+
+        if (dueBefore) {
+            where.dueDate = { ...where.dueDate, lte: new Date(dueBefore as string) };
+        }
+
+        if (dueAfter) {
+            where.dueDate = { ...where.dueDate, gte: new Date(dueAfter as string) };
+        }
+
+        const evaluations = await prisma.evaluation.findMany({
+            where,
+            include: {
+                creator: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                    },
+                },
+                validator: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                    },
+                },
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+
+        res.json({ success: true, data: evaluations });
+    })
+);
+
+// GET /api/evaluations/:id - Get single evaluation by ID
+app.get(
+    '/api/evaluations/:id',
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+        const { id } = req.params;
+
+        const evaluation = await prisma.evaluation.findUnique({
+            where: { id: parseInt(id) },
+            include: {
+                creator: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                    },
+                },
+                validator: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                    },
+                },
+            },
+        });
+
+        if (!evaluation) {
+            throw new NotFoundError('Evaluation not found');
+        }
+
+        res.json({ success: true, data: evaluation });
+    })
+);
+
+// POST /api/evaluations - Create new evaluation
+app.post(
+    '/api/evaluations',
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+        const user = (req as any).user;
+        const { evalNumber, rfqNumber, rfqTitle, description, sectionA, dueDate, evaluator } = req.body;
+
+        if (!evalNumber || !rfqNumber || !rfqTitle) {
+            throw new BadRequestError('Missing required fields: evalNumber, rfqNumber, rfqTitle');
+        }
+
+        // Check if evalNumber already exists
+        const existing = await prisma.evaluation.findUnique({
+            where: { evalNumber },
+        });
+
+        if (existing) {
+            throw new BadRequestError('Evaluation number already exists');
+        }
+
+        const evaluation = await prisma.evaluation.create({
+            data: {
+                evalNumber,
+                rfqNumber,
+                rfqTitle,
+                description,
+                sectionA,
+                evaluator,
+                dueDate: dueDate ? new Date(dueDate) : null,
+                createdBy: user.id,
+                status: 'PENDING',
+            },
+            include: {
+                creator: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                    },
+                },
+            },
+        });
+
+        res.status(201).json({ success: true, data: evaluation });
+    })
+);
+
+// PATCH /api/evaluations/:id - Update evaluation
+app.patch(
+    '/api/evaluations/:id',
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+        const { id } = req.params;
+        const { status, sectionA, sectionB, sectionC, sectionD, sectionE, validationNotes } = req.body;
+
+        const existing = await prisma.evaluation.findUnique({
+            where: { id: parseInt(id) },
+        });
+
+        if (!existing) {
+            throw new NotFoundError('Evaluation not found');
+        }
+
+        const updateData: Prisma.EvaluationUpdateInput = {};
+
+        if (status) updateData.status = status;
+        if (sectionA) updateData.sectionA = sectionA;
+        if (sectionB) updateData.sectionB = sectionB;
+        if (sectionC) updateData.sectionC = sectionC;
+        if (sectionD) updateData.sectionD = sectionD;
+        if (sectionE) updateData.sectionE = sectionE;
+        if (validationNotes) updateData.validationNotes = validationNotes;
+
+        const evaluation = await prisma.evaluation.update({
+            where: { id: parseInt(id) },
+            data: updateData,
+            include: {
+                creator: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                    },
+                },
+                validator: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                    },
+                },
+            },
+        });
+
+        res.json({ success: true, data: evaluation });
+    })
+);
+
+// PATCH /api/evaluations/:id/committee - Update committee section data
+app.patch(
+    '/api/evaluations/:id/committee',
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+        const { id } = req.params;
+        const { section, data } = req.body;
+
+        if (!section || !data) {
+            throw new BadRequestError('Missing required fields: section, data');
+        }
+
+        const existing = await prisma.evaluation.findUnique({
+            where: { id: parseInt(id) },
+        });
+
+        if (!existing) {
+            throw new NotFoundError('Evaluation not found');
+        }
+
+        const updateData: Prisma.EvaluationUpdateInput = {};
+        const sectionKey = `section${section.toUpperCase()}` as keyof Prisma.EvaluationUpdateInput;
+        updateData[sectionKey] = data;
+
+        // Auto-update status to COMMITTEE_REVIEW if still PENDING
+        if (existing.status === 'PENDING') {
+            updateData.status = 'COMMITTEE_REVIEW';
+        }
+
+        const evaluation = await prisma.evaluation.update({
+            where: { id: parseInt(id) },
+            data: updateData,
+            include: {
+                creator: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                    },
+                },
+            },
+        });
+
+        res.json({ success: true, data: evaluation });
+    })
+);
+
+// DELETE /api/evaluations/:id - Delete evaluation
+app.delete(
+    '/api/evaluations/:id',
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+        const { id } = req.params;
+
+        const existing = await prisma.evaluation.findUnique({
+            where: { id: parseInt(id) },
+        });
+
+        if (!existing) {
+            throw new NotFoundError('Evaluation not found');
+        }
+
+        await prisma.evaluation.delete({
+            where: { id: parseInt(id) },
+        });
+
+        res.json({ success: true, message: 'Evaluation deleted successfully' });
+    })
+);
+
 // Stats API routes
 app.use('/api/stats', statsRouter);
 

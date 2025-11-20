@@ -2,87 +2,99 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { setPageTitle } from '../../../store/themeConfigSlice';
-import IconPlus from '../../../components/Icon/IconPlus';
 import IconX from '../../../components/Icon/IconX';
 import IconSave from '../../../components/Icon/IconSave';
 import IconArrowLeft from '../../../components/Icon/IconArrowLeft';
 import IconChecks from '../../../components/Icon/IconChecks';
+import { getUser } from '../../../utils/auth';
+import { useTranslation } from 'react-i18next';
 
 const NewEvaluation = () => {
     const dispatch = useDispatch();
     const navigate = useNavigate();
+    const { t } = useTranslation();
 
     useEffect(() => {
-        dispatch(setPageTitle('Create New Evaluation'));
-    });
+        dispatch(setPageTitle(t('evaluation.new.pageTitle', 'Create BSJ Evaluation Report')));
+    }, [dispatch, t]);
+
+    // Role guard (Officer / Manager only)
+    useEffect(() => {
+        const u = getUser();
+        if (!u) {
+            navigate('/procurement/evaluation');
+            return;
+        }
+        const roles = (u?.roles || (u?.role ? [u.role] : [])).map((r) => r.toUpperCase());
+        const hasAccess = roles.some((role) => role.includes('PROCUREMENT_OFFICER') || role.includes('PROCUREMENT_MANAGER') || role.includes('PROCUREMENT') || role.includes('MANAGER'));
+        if (!hasAccess) {
+            navigate('/procurement/evaluation');
+        }
+    }, [navigate]);
+
+    const RETENDER_REASON_OPTIONS = [
+        { code: 'a', label: 'All bids non-responsive' },
+        { code: 'b', label: 'Awarded supplier refused to enter into contract' },
+        { code: 'c', label: 'Bid price exceeding comparable estimate' },
+        { code: 'd', label: 'Cancelled due to procedural irregularity' },
+        { code: 'e', label: 'Change in bill of quantities' },
+        { code: 'f', label: 'Incorrect specification' },
+        { code: 'g', label: 'Material irregularities in tender documents issued by Procuring Entity' },
+        { code: 'h', label: 'No bid received' },
+        { code: 'i', label: 'Re-scoping of requirements' },
+        { code: 'j', label: 'VFM cannot be achieved' },
+        { code: 'k', label: 'Other' },
+    ] as const;
+
+    type RetenderReasonCode = (typeof RETENDER_REASON_OPTIONS)[number]['code'];
 
     const [formData, setFormData] = useState({
-        rfqNumber: '',
-        description: '',
-        dueDate: '',
+        comparableEstimate: '',
+        fundedBy: 'BSJ',
+        tenderClosingDate: '',
+        tenderClosingTime: '',
+        tenderOpeningDate: '',
+        tenderOpeningTime: '',
+        actualOpeningDate: '',
+        actualOpeningTime: '',
+        procurementMethod: 'National Competitive Bidding',
+        advertisementMethods: [] as string[],
+        contractType: 'Goods',
+        bidSecurity: 'No' as 'Yes' | 'No' | 'N/A',
+        tenderPeriodStartDate: '',
+        tenderPeriodEndDate: '',
+        tenderPeriodDays: '',
+        bidValidityDays: '30',
+        bidValidityExpiration: '',
+        numberOfBidsRequested: '',
+        arithmeticErrorIdentified: 'No' as 'Yes' | 'No',
+        retender: 'No' as 'Yes' | 'No',
+        retenderReasons: [] as RetenderReasonCode[],
+        retenderOtherReason: '',
+        awardCriteria: 'Most Advantageous Bid',
         evaluator: '',
         notes: '',
     });
 
-    const [criteria, setCriteria] = useState([
-        { id: 1, name: 'Price Competitiveness', weight: 40, description: 'Overall cost and value for money' },
-        { id: 2, name: 'Quality & Specifications', weight: 30, description: 'Product/service quality and meeting requirements' },
-        { id: 3, name: 'Delivery Time', weight: 20, description: 'Speed and reliability of delivery' },
-        { id: 4, name: 'After-Sales Service', weight: 10, description: 'Support, warranty, and service quality' },
-    ]);
-
-    const [selectedQuotes, setSelectedQuotes] = useState<number[]>([]);
     const [showSuccessAlert, setShowSuccessAlert] = useState(false);
     const [showErrorAlert, setShowErrorAlert] = useState(false);
     const [alertMessage, setAlertMessage] = useState('');
     const [errorFields, setErrorFields] = useState<string[]>([]);
-
-    // Mock quotes for selection
-    const availableQuotes = [
-        { id: 1, quoteNumber: 'Q-2024-001', supplier: 'ABC Corporation', amount: 12500, rfq: 'RFQ-2024-001' },
-        { id: 2, quoteNumber: 'Q-2024-002', supplier: 'XYZ Suppliers Ltd', amount: 8900, rfq: 'RFQ-2024-001' },
-        { id: 3, quoteNumber: 'Q-2024-003', supplier: 'Tech Solutions Inc', amount: 15200, rfq: 'RFQ-2024-001' },
-        { id: 4, quoteNumber: 'Q-2024-004', supplier: 'Office Pro Supply', amount: 6500, rfq: 'RFQ-2024-002' },
-    ];
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
         setFormData({ ...formData, [name]: value });
     };
 
-    const handleCriteriaChange = (id: number, field: string, value: string) => {
-        setCriteria(criteria.map((c) => (c.id === id ? { ...c, [field]: value } : c)));
-    };
-
-    const addCriterion = () => {
-        const newId = Math.max(...criteria.map((c) => c.id), 0) + 1;
-        setCriteria([...criteria, { id: newId, name: '', weight: 0, description: '' }]);
-    };
-
-    const removeCriterion = (id: number) => {
-        if (criteria.length > 1) {
-            setCriteria(criteria.filter((c) => c.id !== id));
-        }
-    };
-
-    const toggleQuote = (quoteId: number) => {
-        if (selectedQuotes.includes(quoteId)) {
-            setSelectedQuotes(selectedQuotes.filter((id) => id !== quoteId));
-        } else {
-            setSelectedQuotes([...selectedQuotes, quoteId]);
-        }
-    };
-
-    const totalWeight = criteria.reduce((sum, c) => sum + (parseFloat(c.weight.toString()) || 0), 0);
-
     const handleCreateEvaluation = () => {
         const missingFields: string[] = [];
 
-        if (!formData.rfqNumber) missingFields.push('RFQ Number');
-        if (!formData.description) missingFields.push('Description');
-        if (!formData.dueDate) missingFields.push('Due Date');
-        if (selectedQuotes.length < 2) missingFields.push('At least 2 quotes must be selected');
-        if (totalWeight !== 100) missingFields.push('Criteria weights must total 100%');
+        if (!formData.comparableEstimate) missingFields.push('Comparable Estimate');
+        if (!formData.tenderClosingDate) missingFields.push('Tender Closing Date');
+        if (!formData.tenderOpeningDate) missingFields.push('Tender Opening Date');
+        if (!formData.numberOfBidsRequested) missingFields.push('Number of Bids Requested');
+        if (formData.retender === 'Yes' && formData.retenderReasons.length === 0) missingFields.push('At least one Re-tender Reason');
+        if (formData.retender === 'Yes' && formData.retenderReasons.includes('k') && !formData.retenderOtherReason) missingFields.push('Other Re-tender Reason Description');
 
         if (missingFields.length > 0) {
             setErrorFields(missingFields);
@@ -94,9 +106,9 @@ const NewEvaluation = () => {
             return;
         }
 
-        console.log('Creating evaluation:', { formData, criteria, selectedQuotes });
+        console.log('Creating BSJ evaluation:', { formData });
 
-        setAlertMessage(`Evaluation created successfully! ${selectedQuotes.length} quotes will be evaluated using ${criteria.length} criteria.`);
+        setAlertMessage(`BSJ Evaluation created successfully!`);
         setShowSuccessAlert(true);
 
         setTimeout(() => {
@@ -105,18 +117,16 @@ const NewEvaluation = () => {
         }, 3000);
     };
 
-    const filteredQuotes = formData.rfqNumber ? availableQuotes.filter((q) => q.rfq === formData.rfqNumber) : availableQuotes;
-
     return (
         <div>
             <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
                 <div>
-                    <h2 className="text-2xl font-bold">Create New Evaluation</h2>
-                    <p className="text-white-dark">Set up criteria and select quotes to evaluate</p>
+                    <h2 className="text-2xl font-bold">{t('evaluation.new.heading', 'Create BSJ Evaluation Report')}</h2>
+                    <p className="text-white-dark">{t('evaluation.new.subheading', 'Bureau of Standards Jamaica - Official Evaluation Report Form (PRO_70_F_14/00)')}</p>
                 </div>
                 <Link to="/procurement/evaluation" className="btn btn-outline-danger gap-2">
                     <IconArrowLeft />
-                    Back to List
+                    {t('evaluation.detail.back', 'Back to List')}
                 </Link>
             </div>
 
@@ -126,7 +136,7 @@ const NewEvaluation = () => {
                     <div className="panel w-full max-w-lg overflow-hidden rounded-lg p-0">
                         <div className="flex items-center p-3.5 rounded-t text-success bg-success-light dark:bg-success-dark-light">
                             <span className="ltr:pr-2 rtl:pl-2 flex-1">
-                                <strong className="ltr:mr-1 rtl:ml-1 text-lg">Success!</strong>
+                                <strong className="ltr:mr-1 rtl:ml-1 text-lg">{t('common.success', 'Success!')}</strong>
                                 {alertMessage}
                             </span>
                             <button type="button" className="ltr:ml-auto rtl:mr-auto hover:opacity-80" onClick={() => setShowSuccessAlert(false)}>
@@ -143,8 +153,8 @@ const NewEvaluation = () => {
                     <div className="panel w-full max-w-lg overflow-hidden rounded-lg p-0">
                         <div className="flex items-start p-3.5 rounded-t text-danger bg-danger-light dark:bg-danger-dark-light">
                             <span className="ltr:pr-2 rtl:pl-2 flex-1">
-                                <strong className="ltr:mr-1 rtl:ml-1 text-lg block mb-2">Error!</strong>
-                                <div>Please complete the following:</div>
+                                <strong className="ltr:mr-1 rtl:ml-1 text-lg block mb-2">{t('common.error', 'Error!')}</strong>
+                                <div>{t('evaluation.new.errorPrompt', 'Please complete the following:')}</div>
                                 <ul className="mt-2 ml-4 list-disc">
                                     {errorFields.map((field, index) => (
                                         <li key={index}>{field}</li>
@@ -160,59 +170,310 @@ const NewEvaluation = () => {
             )}
 
             <div className="space-y-6">
-                {/* Basic Information */}
+                {/* Section A - Procurement Details */}
                 <div className="panel">
-                    <h5 className="mb-5 text-lg font-semibold">Basic Information</h5>
-                    <div className="grid gap-5 md:grid-cols-2">
+                    <h5 className="mb-5 text-lg font-semibold bg-primary/10 -m-5 p-5">SECTION A: Procurement Details</h5>
+                    <div className="grid gap-5 md:grid-cols-2 mt-5">
                         <div>
-                            <label htmlFor="rfqNumber" className="mb-2 block font-semibold">
-                                RFQ Number <span className="text-danger">*</span>
-                            </label>
-                            <select id="rfqNumber" name="rfqNumber" className="form-select" value={formData.rfqNumber} onChange={handleInputChange} required>
-                                <option value="">Select RFQ...</option>
-                                <option value="RFQ-2024-001">RFQ-2024-001 - Office Furniture</option>
-                                <option value="RFQ-2024-002">RFQ-2024-002 - IT Equipment</option>
-                                <option value="RFQ-2024-003">RFQ-2024-003 - Office Supplies</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label htmlFor="dueDate" className="mb-2 block font-semibold">
-                                Due Date <span className="text-danger">*</span>
-                            </label>
-                            <input id="dueDate" name="dueDate" type="date" className="form-input" value={formData.dueDate} onChange={handleInputChange} required />
-                        </div>
-                        <div>
-                            <label htmlFor="evaluator" className="mb-2 block font-semibold">
-                                Evaluator Name
+                            <label htmlFor="comparableEstimate" className="mb-2 block font-semibold">
+                                Comparable Estimate (JMD) <span className="text-danger">*</span>
                             </label>
                             <input
-                                id="evaluator"
-                                name="evaluator"
-                                type="text"
+                                id="comparableEstimate"
+                                name="comparableEstimate"
+                                type="number"
+                                step="0.01"
                                 className="form-input"
-                                placeholder="Enter evaluator name"
-                                value={formData.evaluator}
-                                onChange={handleInputChange}
-                            />
-                        </div>
-                        <div>
-                            <label htmlFor="description" className="mb-2 block font-semibold">
-                                Description <span className="text-danger">*</span>
-                            </label>
-                            <input
-                                id="description"
-                                name="description"
-                                type="text"
-                                className="form-input"
-                                placeholder="e.g., Office Furniture Evaluation"
-                                value={formData.description}
+                                placeholder="49680.00"
+                                value={formData.comparableEstimate}
                                 onChange={handleInputChange}
                                 required
                             />
                         </div>
+                        <div>
+                            <label htmlFor="fundedBy" className="mb-2 block font-semibold">
+                                Funded By
+                            </label>
+                            <input id="fundedBy" name="fundedBy" type="text" className="form-input" placeholder="BSJ" value={formData.fundedBy} onChange={handleInputChange} />
+                        </div>
+                        <div className="grid gap-2">
+                            <label className="font-semibold">
+                                Tender Closing Date & Time <span className="text-danger">*</span>
+                            </label>
+                            <div className="flex gap-2">
+                                <input
+                                    id="tenderClosingDate"
+                                    name="tenderClosingDate"
+                                    type="date"
+                                    className="form-input flex-1"
+                                    value={formData.tenderClosingDate}
+                                    onChange={handleInputChange}
+                                    required
+                                />
+                                <input
+                                    id="tenderClosingTime"
+                                    name="tenderClosingTime"
+                                    type="time"
+                                    className="form-input w-32"
+                                    value={formData.tenderClosingTime}
+                                    onChange={handleInputChange}
+                                    required
+                                />
+                            </div>
+                        </div>
+                        <div className="grid gap-2">
+                            <label className="font-semibold">
+                                Tender Opening Date & Time <span className="text-danger">*</span>
+                            </label>
+                            <div className="flex gap-2">
+                                <input
+                                    id="tenderOpeningDate"
+                                    name="tenderOpeningDate"
+                                    type="date"
+                                    className="form-input flex-1"
+                                    value={formData.tenderOpeningDate}
+                                    onChange={handleInputChange}
+                                    required
+                                />
+                                <input
+                                    id="tenderOpeningTime"
+                                    name="tenderOpeningTime"
+                                    type="time"
+                                    className="form-input w-32"
+                                    value={formData.tenderOpeningTime}
+                                    onChange={handleInputChange}
+                                    required
+                                />
+                            </div>
+                        </div>
+                        <div className="grid gap-2">
+                            <label className="font-semibold">Actual Opening Date & Time</label>
+                            <div className="flex gap-2">
+                                <input id="actualOpeningDate" name="actualOpeningDate" type="date" className="form-input flex-1" value={formData.actualOpeningDate} onChange={handleInputChange} />
+                                <input id="actualOpeningTime" name="actualOpeningTime" type="time" className="form-input w-32" value={formData.actualOpeningTime} onChange={handleInputChange} />
+                            </div>
+                        </div>
+                        <div>
+                            <label htmlFor="procurementMethod" className="mb-2 block font-semibold">
+                                Procurement Method
+                            </label>
+                            <select id="procurementMethod" name="procurementMethod" className="form-select" value={formData.procurementMethod} onChange={handleInputChange}>
+                                <option value="National Competitive Bidding">National Competitive Bidding</option>
+                                <option value="International Competitive Bidding">International Competitive Bidding</option>
+                                <option value="Restricted Bidding">Restricted Bidding</option>
+                                <option value="Single Source">Single Source</option>
+                                <option value="Emergency Single Source">Emergency Single Source</option>
+                            </select>
+                        </div>
+                        <div>
+                            <div className="mb-2 font-semibold">Method of Advertisement</div>
+                            <div className="grid gap-2">
+                                {['International Advertisement', 'National Advertisement', 'GOJEP', 'Email'].map((m) => (
+                                    <label key={m} className="flex items-center gap-2 text-sm">
+                                        <input
+                                            type="checkbox"
+                                            className="form-checkbox"
+                                            checked={formData.advertisementMethods.includes(m)}
+                                            onChange={(e) => {
+                                                setFormData({
+                                                    ...formData,
+                                                    advertisementMethods: e.target.checked ? [...formData.advertisementMethods, m] : formData.advertisementMethods.filter((x) => x !== m),
+                                                });
+                                            }}
+                                        />
+                                        <span>{m}</span>
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
+                        <div>
+                            <label htmlFor="contractType" className="mb-2 block font-semibold">
+                                Contract Type
+                            </label>
+                            <select id="contractType" name="contractType" className="form-select" value={formData.contractType} onChange={handleInputChange}>
+                                <option value="Goods">Goods</option>
+                                <option value="Consulting Services">Consulting Services</option>
+                                <option value="Non-Consulting Services">Non-Consulting Services</option>
+                                <option value="Works">Works</option>
+                            </select>
+                        </div>
+                        <div className="grid gap-2">
+                            <label className="font-semibold">Tender Period</label>
+                            <div className="flex flex-col gap-2">
+                                <div className="flex gap-2">
+                                    <input
+                                        id="tenderPeriodStartDate"
+                                        name="tenderPeriodStartDate"
+                                        type="date"
+                                        className="form-input flex-1"
+                                        value={formData.tenderPeriodStartDate}
+                                        onChange={handleInputChange}
+                                    />
+                                    <input
+                                        id="tenderPeriodEndDate"
+                                        name="tenderPeriodEndDate"
+                                        type="date"
+                                        className="form-input flex-1"
+                                        value={formData.tenderPeriodEndDate}
+                                        onChange={handleInputChange}
+                                    />
+                                </div>
+                                <input
+                                    id="tenderPeriodDays"
+                                    name="tenderPeriodDays"
+                                    type="number"
+                                    className="form-input"
+                                    placeholder="Number of Days"
+                                    value={formData.tenderPeriodDays}
+                                    onChange={handleInputChange}
+                                />
+                            </div>
+                        </div>
+                        <div className="grid gap-2">
+                            <label className="font-semibold">Bid Validity</label>
+                            <div className="flex gap-2">
+                                <input
+                                    id="bidValidityDays"
+                                    name="bidValidityDays"
+                                    type="number"
+                                    className="form-input w-32"
+                                    placeholder="30"
+                                    value={formData.bidValidityDays}
+                                    onChange={handleInputChange}
+                                />
+                                <input
+                                    id="bidValidityExpiration"
+                                    name="bidValidityExpiration"
+                                    type="date"
+                                    className="form-input flex-1"
+                                    value={formData.bidValidityExpiration}
+                                    onChange={handleInputChange}
+                                />
+                            </div>
+                        </div>
+                        <div>
+                            <label htmlFor="numberOfBidsRequested" className="mb-2 block font-semibold">
+                                Number of Bids Requested <span className="text-danger">*</span>
+                            </label>
+                            <input
+                                id="numberOfBidsRequested"
+                                name="numberOfBidsRequested"
+                                type="number"
+                                className="form-input"
+                                placeholder="1"
+                                value={formData.numberOfBidsRequested}
+                                onChange={handleInputChange}
+                                required
+                            />
+                        </div>
+                        <div>
+                            <label htmlFor="awardCriteria" className="mb-2 block font-semibold">
+                                Contract Award Criteria
+                            </label>
+                            <select id="awardCriteria" name="awardCriteria" className="form-select" value={formData.awardCriteria} onChange={handleInputChange}>
+                                <option value="Most Advantageous Bid">Most Advantageous Bid</option>
+                                <option value="Lowest Cost">Lowest Cost</option>
+                            </select>
+                        </div>
+                        <div>
+                            <div className="mb-2 font-semibold">Bid Security</div>
+                            <div className="flex gap-4">
+                                {['Yes', 'No', 'N/A'].map((opt) => (
+                                    <label key={opt} className="flex items-center gap-1 text-sm">
+                                        <input
+                                            type="radio"
+                                            name="bidSecurity"
+                                            value={opt}
+                                            checked={formData.bidSecurity === opt}
+                                            onChange={(e) => setFormData({ ...formData, bidSecurity: e.target.value as 'Yes' | 'No' | 'N/A' })}
+                                        />
+                                        <span>{opt}</span>
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
+                        <div>
+                            <div className="mb-2 font-semibold">Arithmetic Error Identified</div>
+                            <div className="flex gap-4">
+                                {['Yes', 'No'].map((opt) => (
+                                    <label key={opt} className="flex items-center gap-1 text-sm">
+                                        <input
+                                            type="radio"
+                                            name="arithmeticErrorIdentified"
+                                            value={opt}
+                                            checked={formData.arithmeticErrorIdentified === opt}
+                                            onChange={(e) => setFormData({ ...formData, arithmeticErrorIdentified: e.target.value as 'Yes' | 'No' })}
+                                        />
+                                        <span>{opt}</span>
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="md:col-span-2">
+                            <div className="mb-2 font-semibold">Re-tendered</div>
+                            <div className="flex gap-4 mb-4">
+                                {['Yes', 'No'].map((opt) => (
+                                    <label key={opt} className="flex items-center gap-1 text-sm">
+                                        <input
+                                            type="radio"
+                                            name="retender"
+                                            value={opt}
+                                            checked={formData.retender === opt}
+                                            onChange={(e) => {
+                                                const val = e.target.value as 'Yes' | 'No';
+                                                setFormData({ ...formData, retender: val, retenderReasons: val === 'No' ? [] : formData.retenderReasons });
+                                            }}
+                                        />
+                                        <span>{opt}</span>
+                                    </label>
+                                ))}
+                            </div>
+                            {formData.retender === 'Yes' && (
+                                <div className="rounded border p-4 bg-warning/5">
+                                    <h6 className="mb-3 font-semibold">14. Reason for re-tender (select all that apply)</h6>
+                                    <div className="grid md:grid-cols-2 gap-2">
+                                        {RETENDER_REASON_OPTIONS.map((r) => (
+                                            <label key={r.code} className="flex items-start gap-2 text-xs md:text-sm">
+                                                <input
+                                                    type="checkbox"
+                                                    className="form-checkbox mt-0.5"
+                                                    checked={formData.retenderReasons.includes(r.code)}
+                                                    onChange={(e) => {
+                                                        setFormData({
+                                                            ...formData,
+                                                            retenderReasons: e.target.checked ? [...formData.retenderReasons, r.code] : formData.retenderReasons.filter((x) => x !== r.code),
+                                                        });
+                                                    }}
+                                                />
+                                                <span>
+                                                    <span className="font-semibold mr-1">{r.code}.</span>
+                                                    {r.label}
+                                                </span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                    {formData.retenderReasons.includes('k') && (
+                                        <div className="mt-3">
+                                            <label htmlFor="retenderOtherReason" className="mb-1 block text-sm font-semibold">
+                                                Provide details for Other
+                                            </label>
+                                            <textarea
+                                                id="retenderOtherReason"
+                                                name="retenderOtherReason"
+                                                rows={2}
+                                                className="form-textarea"
+                                                placeholder="Describe other reason"
+                                                value={formData.retenderOtherReason}
+                                                onChange={handleInputChange}
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
                         <div className="md:col-span-2">
                             <label htmlFor="notes" className="mb-2 block font-semibold">
-                                Additional Notes
+                                {t('evaluation.new.notes', 'Additional Notes')}
                             </label>
                             <textarea
                                 id="notes"
@@ -227,122 +488,47 @@ const NewEvaluation = () => {
                     </div>
                 </div>
 
-                {/* Evaluation Criteria */}
-                <div className="panel">
-                    <div className="mb-5 flex items-center justify-between">
-                        <div>
-                            <h5 className="text-lg font-semibold">Evaluation Criteria</h5>
-                            <p className="text-sm text-white-dark">
-                                Total Weight: <span className={`font-bold ${totalWeight === 100 ? 'text-success' : 'text-danger'}`}>{totalWeight}%</span> (must equal 100%)
-                            </p>
+                {/* Note: Sections B, C, D, E */}
+                <div className="panel bg-info/5 border-2 border-info">
+                    <div className="flex items-start gap-3">
+                        <div className="mt-1">
+                            <svg className="h-6 w-6 text-info" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
                         </div>
-                        <button onClick={addCriterion} className="btn btn-primary btn-sm gap-2">
-                            <IconPlus className="h-4 w-4" />
-                            Add Criterion
-                        </button>
-                    </div>
-                    <div className="space-y-4">
-                        {criteria.map((criterion, index) => (
-                            <div key={criterion.id} className="rounded border border-white-light p-4 dark:border-dark">
-                                <div className="mb-3 flex items-center justify-between">
-                                    <h6 className="font-semibold">Criterion {index + 1}</h6>
-                                    {criteria.length > 1 && (
-                                        <button onClick={() => removeCriterion(criterion.id)} className="text-danger hover:text-danger/80">
-                                            <IconX className="h-5 w-5" />
-                                        </button>
-                                    )}
-                                </div>
-                                <div className="grid gap-4 md:grid-cols-3">
-                                    <div>
-                                        <label className="mb-2 block text-sm font-semibold">Criterion Name</label>
-                                        <input
-                                            type="text"
-                                            className="form-input"
-                                            placeholder="e.g., Price Competitiveness"
-                                            value={criterion.name}
-                                            onChange={(e) => handleCriteriaChange(criterion.id, 'name', e.target.value)}
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="mb-2 block text-sm font-semibold">Weight (%)</label>
-                                        <input
-                                            type="number"
-                                            className="form-input"
-                                            placeholder="0"
-                                            min="0"
-                                            max="100"
-                                            value={criterion.weight}
-                                            onChange={(e) => handleCriteriaChange(criterion.id, 'weight', e.target.value)}
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="mb-2 block text-sm font-semibold">Progress</label>
-                                        <div className="flex items-center gap-2 pt-2">
-                                            <div className="h-2 flex-1 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
-                                                <div
-                                                    className={`h-full ${
-                                                        parseFloat(criterion.weight.toString()) > 0 ? 'bg-primary' : 'bg-gray-400'
-                                                    }`}
-                                                    style={{ width: `${Math.min(parseFloat(criterion.weight.toString()) || 0, 100)}%` }}
-                                                ></div>
-                                            </div>
-                                            <span className="text-sm font-semibold">{criterion.weight}%</span>
-                                        </div>
-                                    </div>
-                                    <div className="md:col-span-3">
-                                        <label className="mb-2 block text-sm font-semibold">Description</label>
-                                        <textarea
-                                            rows={2}
-                                            className="form-textarea"
-                                            placeholder="Brief description of this criterion"
-                                            value={criterion.description}
-                                            onChange={(e) => handleCriteriaChange(criterion.id, 'description', e.target.value)}
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-
-                {/* Select Quotes */}
-                <div className="panel">
-                    <h5 className="mb-5 text-lg font-semibold">
-                        Select Quotes to Evaluate <span className="text-danger">*</span>
-                        <span className="ml-2 text-sm font-normal text-white-dark">({selectedQuotes.length} selected - minimum 2 required)</span>
-                    </h5>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                        {filteredQuotes.map((quote) => (
-                            <label
-                                key={quote.id}
-                                className={`flex cursor-pointer items-start gap-3 rounded border p-4 transition ${
-                                    selectedQuotes.includes(quote.id)
-                                        ? 'border-primary bg-primary-light dark:bg-primary/20'
-                                        : 'border-white-light hover:border-primary dark:border-dark'
-                                }`}
-                            >
-                                <input type="checkbox" className="form-checkbox mt-1" checked={selectedQuotes.includes(quote.id)} onChange={() => toggleQuote(quote.id)} />
-                                <div className="flex-1">
-                                    <div className="font-semibold">{quote.quoteNumber}</div>
-                                    <div className="mt-1 text-sm text-white-dark">{quote.supplier}</div>
-                                    <div className="mt-2 flex gap-3">
-                                        <span className="text-xs font-semibold text-primary">${quote.amount.toLocaleString()}</span>
-                                        <span className="text-xs text-white-dark">{quote.rfq}</span>
-                                    </div>
-                                </div>
-                            </label>
-                        ))}
+                        <div className="flex-1">
+                            <h6 className="mb-2 font-semibold text-info">BSJ Evaluation Report Workflow</h6>
+                            <p className="text-sm text-white-dark mb-3">After creating this evaluation, you will complete the remaining sections:</p>
+                            <ul className="ml-4 list-disc space-y-1 text-sm text-white-dark">
+                                <li>
+                                    <strong>Section B:</strong> Eligibility Requirements & Compliance Matrix for each bidder
+                                </li>
+                                <li>
+                                    <strong>Technical Evaluation:</strong> Specifications and quantities review for each bid
+                                </li>
+                                <li>
+                                    <strong>Section C:</strong> Evaluator comments, action taken (Recommended/Rejected/Deferred), and signature
+                                </li>
+                                <li>
+                                    <strong>Section D:</strong> Summary of evaluation findings
+                                </li>
+                                <li>
+                                    <strong>Section E:</strong> Final recommendation by Procurement Officer
+                                </li>
+                            </ul>
+                            <p className="mt-3 text-sm text-info font-semibold">These sections will be available in the evaluation detail page once the report is created.</p>
+                        </div>
                     </div>
                 </div>
 
                 {/* Action Buttons */}
                 <div className="flex flex-wrap items-center justify-end gap-3">
                     <Link to="/procurement/evaluation" className="btn btn-outline-secondary">
-                        Cancel
+                        {t('common.cancel', 'Cancel')}
                     </Link>
                     <button onClick={handleCreateEvaluation} className="btn btn-success gap-2">
                         <IconChecks className="h-4 w-4" />
-                        Create Evaluation
+                        {t('evaluation.new.create', 'Create Evaluation')}
                     </button>
                 </div>
             </div>
