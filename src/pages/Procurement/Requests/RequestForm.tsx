@@ -613,46 +613,36 @@ const RequestForm = () => {
                                 <h2 className="text-xl font-semibold mt-1 underline">PROCUREMENT REQUISITION FORM</h2>
                                 <div className="text-sm italic text-gray-500 mt-2">This form authorizes the Procurement Unit to act on your behalf.</div>
                                 <div className="mt-4 flex flex-wrap gap-2 items-center justify-center text-sm font-semibold">
-                                    {/* Inline editable brackets */}
+                                    {/* Inline dropdown controls styled as brackets */}
                                     <div className="flex items-center gap-1">
-                                        <span className="px-2 py-1 bg-yellow-600 text-white rounded-sm">[{headerDeptCode || '---'}]</span>
-                                        <span className="px-2 py-1 bg-yellow-600 text-white rounded-sm">[{headerMonth || '---'}]</span>
-                                        <span className="px-2 py-1 bg-yellow-600 text-white rounded-sm">[{headerYear || '----'}]</span>
-                                        <span className="px-2 py-1 bg-yellow-600 text-white rounded-sm">[{paddedSequence}]</span>
-                                    </div>
-
-                                    {/* Inline dropdown controls for header values */}
-                                    <div className="mt-3 flex flex-wrap gap-3 items-end justify-center text-xs">
-                                        <div className="w-40">
-                                            <label className="block font-medium mb-1">Department Code</label>
-                                            <select className="form-select w-full text-xs" value={headerDeptCode} onChange={(e) => setHeaderDeptCode(e.target.value)}>
-                                                <option value="">-- Select --</option>
+                                        <span className="inline-flex items-center bg-yellow-600 text-white rounded-sm">
+                                            <span className="px-1">[</span>
+                                            <select className="bg-transparent border-0 text-white font-semibold text-sm focus:ring-0 px-1 cursor-pointer" value={headerDeptCode} onChange={(e) => setHeaderDeptCode(e.target.value)}>
+                                                <option value="">---</option>
                                                 {DEPARTMENT_CODES.map((code) => (
                                                     <option key={code} value={code}>
                                                         {code}
                                                     </option>
                                                 ))}
                                             </select>
-                                        </div>
-                                        <div className="w-32">
-                                            <label className="block font-medium mb-1">Month</label>
-                                            <select className="form-select w-full text-xs" value={headerMonth} onChange={(e) => setHeaderMonth(e.target.value)}>
-                                                <option value="">-- Select --</option>
+                                            <span className="px-1">]</span>
+                                        </span>
+                                        <span className="inline-flex items-center bg-yellow-600 text-white rounded-sm">
+                                            <span className="px-1">[</span>
+                                            <select className="bg-transparent border-0 text-white font-semibold text-sm focus:ring-0 px-1 cursor-pointer" value={headerMonth} onChange={(e) => setHeaderMonth(e.target.value)}>
+                                                <option value="">---</option>
                                                 {MONTHS.map((m) => (
                                                     <option key={m} value={m}>
                                                         {m}
                                                     </option>
                                                 ))}
                                             </select>
-                                        </div>
-                                        <div className="w-24">
-                                            <label className="block font-medium mb-1">Year</label>
-                                            <select
-                                                className="form-select w-full text-xs"
-                                                value={headerYear ?? ''}
-                                                onChange={(e) => setHeaderYear(e.target.value ? parseInt(e.target.value, 10) : null)}
-                                            >
-                                                <option value="">-- Select --</option>
+                                            <span className="px-1">]</span>
+                                        </span>
+                                        <span className="inline-flex items-center bg-yellow-600 text-white rounded-sm">
+                                            <span className="px-1">[</span>
+                                            <select className="bg-transparent border-0 text-white font-semibold text-sm focus:ring-0 px-1 cursor-pointer w-16" value={headerYear ?? ''} onChange={(e) => setHeaderYear(e.target.value ? parseInt(e.target.value, 10) : null)}>
+                                                <option value="">----</option>
                                                 {Array.from({ length: HEADER_YEAR_SPAN }).map((_, i) => {
                                                     const year = HEADER_YEAR_BASE + i;
                                                     return (
@@ -662,18 +652,20 @@ const RequestForm = () => {
                                                     );
                                                 })}
                                             </select>
-                                        </div>
-                                        <div className="w-24">
-                                            <label className="block font-medium mb-1">Sequence</label>
+                                            <span className="px-1">]</span>
+                                        </span>
+                                        <span className="inline-flex items-center bg-yellow-600 text-white rounded-sm px-2 py-1">
+                                            [
                                             <input
                                                 type="number"
                                                 min={0}
                                                 max={999}
                                                 value={headerSequence ?? 0}
                                                 onChange={(e) => setHeaderSequence(e.target.value ? parseInt(e.target.value, 10) : 0)}
-                                                className="form-input w-full text-xs"
+                                                className="bg-transparent border-0 text-white font-semibold text-sm focus:ring-0 w-10 text-center"
                                             />
-                                        </div>
+                                            ]
+                                        </span>
                                     </div>
                                 </div>
                             </div>
