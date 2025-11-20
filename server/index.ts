@@ -1561,101 +1561,105 @@ app.get('/requests', async (_req, res) => {
 });
 
 // POST /requests - create a new procurement request (with optional file attachments)
-app.post('/requests', (req, res, next) => {
-    uploadAttachments.array('attachments', 10)(req, res, (err) => {
-        if (err) {
-            console.error('[POST /requests] Multer error:', err);
-            return res.status(400).json({ 
-                message: err.message || 'File upload failed',
-                error: err.message 
-            });
-        }
-        next();
-    });
-}, async (req, res) => {
-    try {
-        const userId = req.headers['x-user-id'];
-        if (!userId) {
-            return res.status(401).json({ message: 'User ID required' });
-        }
-
-        const { title, description, departmentId, items = [], totalEstimated, currency, priority, procurementType } = req.body || {};
-
-        if (!title || !departmentId) {
-            return res.status(400).json({ message: 'Title and department are required' });
-        }
-
-        // Parse items if it comes as JSON string (from FormData)
-        const parsedItems = typeof items === 'string' ? JSON.parse(items) : items;
-
-        // Generate reference
-        const reference = `REQ-${Date.now()}`;
-
-        const created = await prisma.request.create({
-            data: {
-                reference,
-                title,
-                description: description || null,
-                requesterId: parseInt(String(userId), 10),
-                departmentId: parseInt(String(departmentId), 10),
-                totalEstimated: totalEstimated ? parseFloat(String(totalEstimated)) : null,
-                currency: currency || 'JMD',
-                priority: priority || 'MEDIUM',
-                procurementType: procurementType || null,
-                status: 'DRAFT',
-                items: {
-                    create: parsedItems.map((it: any) => ({
-                        description: String(it.description || ''),
-                        quantity: Number(it.quantity || 1),
-                        unitPrice: parseFloat(String(it.unitPrice || 0)),
-                        totalPrice: parseFloat(String(it.totalPrice || 0)),
-                        accountCode: it.accountCode || null,
-                        stockLevel: it.stockLevel || null,
-                        unitOfMeasure: it.unitOfMeasure || null,
-                        partNumber: it.partNumber || null,
-                    })),
-                },
-            },
-            include: {
-                items: true,
-                requester: { select: { id: true, name: true, email: true } },
-                department: { select: { id: true, name: true, code: true } },
-            },
-        });
-
-        // Handle file attachments
-        if (req.files && Array.isArray(req.files) && req.files.length > 0) {
-            for (const file of req.files) {
-                const fileUrl = `http://heron:4000/uploads/${file.filename}`;
-                await prisma.requestAttachment.create({
-                    data: {
-                        requestId: created.id,
-                        filename: file.originalname,
-                        url: fileUrl,
-                        mimeType: file.mimetype,
-                        uploadedById: parseInt(String(userId), 10),
-                    },
+app.post(
+    '/requests',
+    (req, res, next) => {
+        uploadAttachments.array('attachments', 10)(req, res, (err) => {
+            if (err) {
+                console.error('[POST /requests] Multer error:', err);
+                return res.status(400).json({
+                    message: err.message || 'File upload failed',
+                    error: err.message,
                 });
             }
-        }
-
-        // Reload with attachments
-        const final = await prisma.request.findUnique({
-            where: { id: created.id },
-            include: {
-                items: true,
-                requester: { select: { id: true, name: true, email: true } },
-                department: { select: { id: true, name: true, code: true } },
-                attachments: true,
-            },
+            next();
         });
+    },
+    async (req, res) => {
+        try {
+            const userId = req.headers['x-user-id'];
+            if (!userId) {
+                return res.status(401).json({ message: 'User ID required' });
+            }
 
-        return res.status(201).json(final);
-    } catch (e: any) {
-        console.error('POST /requests error:', e);
-        return res.status(500).json({ message: e?.message || 'Failed to create request' });
+            const { title, description, departmentId, items = [], totalEstimated, currency, priority, procurementType } = req.body || {};
+
+            if (!title || !departmentId) {
+                return res.status(400).json({ message: 'Title and department are required' });
+            }
+
+            // Parse items if it comes as JSON string (from FormData)
+            const parsedItems = typeof items === 'string' ? JSON.parse(items) : items;
+
+            // Generate reference
+            const reference = `REQ-${Date.now()}`;
+
+            const created = await prisma.request.create({
+                data: {
+                    reference,
+                    title,
+                    description: description || null,
+                    requesterId: parseInt(String(userId), 10),
+                    departmentId: parseInt(String(departmentId), 10),
+                    totalEstimated: totalEstimated ? parseFloat(String(totalEstimated)) : null,
+                    currency: currency || 'JMD',
+                    priority: priority || 'MEDIUM',
+                    procurementType: procurementType || null,
+                    status: 'DRAFT',
+                    items: {
+                        create: parsedItems.map((it: any) => ({
+                            description: String(it.description || ''),
+                            quantity: Number(it.quantity || 1),
+                            unitPrice: parseFloat(String(it.unitPrice || 0)),
+                            totalPrice: parseFloat(String(it.totalPrice || 0)),
+                            accountCode: it.accountCode || null,
+                            stockLevel: it.stockLevel || null,
+                            unitOfMeasure: it.unitOfMeasure || null,
+                            partNumber: it.partNumber || null,
+                        })),
+                    },
+                },
+                include: {
+                    items: true,
+                    requester: { select: { id: true, name: true, email: true } },
+                    department: { select: { id: true, name: true, code: true } },
+                },
+            });
+
+            // Handle file attachments
+            if (req.files && Array.isArray(req.files) && req.files.length > 0) {
+                for (const file of req.files) {
+                    const fileUrl = `http://heron:4000/uploads/${file.filename}`;
+                    await prisma.requestAttachment.create({
+                        data: {
+                            requestId: created.id,
+                            filename: file.originalname,
+                            url: fileUrl,
+                            mimeType: file.mimetype,
+                            uploadedById: parseInt(String(userId), 10),
+                        },
+                    });
+                }
+            }
+
+            // Reload with attachments
+            const final = await prisma.request.findUnique({
+                where: { id: created.id },
+                include: {
+                    items: true,
+                    requester: { select: { id: true, name: true, email: true } },
+                    department: { select: { id: true, name: true, code: true } },
+                    attachments: true,
+                },
+            });
+
+            return res.status(201).json(final);
+        } catch (e: any) {
+            console.error('POST /requests error:', e);
+            return res.status(500).json({ message: e?.message || 'Failed to create request' });
+        }
     }
-});
+);
 
 // GET /requests/:id - fetch a single request by ID for editing
 app.get('/requests/:id', async (req, res) => {
