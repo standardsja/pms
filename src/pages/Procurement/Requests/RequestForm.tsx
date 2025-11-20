@@ -620,7 +620,7 @@ const RequestForm = () => {
                                         <span className="px-2 py-1 bg-yellow-600 text-white rounded-sm">[{headerYear || '----'}]</span>
                                         <span className="px-2 py-1 bg-yellow-600 text-white rounded-sm">[{paddedSequence}]</span>
                                     </div>
-                                    
+
                                     {/* Inline dropdown controls for header values */}
                                     <div className="mt-3 flex flex-wrap gap-3 items-end justify-center text-xs">
                                         <div className="w-40">
@@ -647,7 +647,11 @@ const RequestForm = () => {
                                         </div>
                                         <div className="w-24">
                                             <label className="block font-medium mb-1">Year</label>
-                                            <select className="form-select w-full text-xs" value={headerYear ?? ''} onChange={(e) => setHeaderYear(e.target.value ? parseInt(e.target.value, 10) : null)}>
+                                            <select
+                                                className="form-select w-full text-xs"
+                                                value={headerYear ?? ''}
+                                                onChange={(e) => setHeaderYear(e.target.value ? parseInt(e.target.value, 10) : null)}
+                                            >
                                                 <option value="">-- Select --</option>
                                                 {Array.from({ length: HEADER_YEAR_SPAN }).map((_, i) => {
                                                     const year = HEADER_YEAR_BASE + i;
