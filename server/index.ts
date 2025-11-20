@@ -194,7 +194,7 @@ const uploadAttachments = multer({
         // Also allow by file extension as backup
         const ext = path.extname(file.originalname).toLowerCase();
         const allowedExtensions = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.jpg', '.jpeg', '.png', '.gif'];
-        
+
         if (allowedTypes.includes(file.mimetype) || allowedExtensions.includes(ext)) {
             cb(null, true);
         } else {
