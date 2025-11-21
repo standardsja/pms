@@ -8,6 +8,7 @@ import IconArrowLeft from '../../../components/Icon/IconArrowLeft';
 import IconChecks from '../../../components/Icon/IconChecks';
 import { getUser } from '../../../utils/auth';
 import { useTranslation } from 'react-i18next';
+import { evaluationService, type CreateEvaluationDTO } from '../../../services/evaluationService';
 
 const NewEvaluation = () => {
     const dispatch = useDispatch();
@@ -49,6 +50,9 @@ const NewEvaluation = () => {
     type RetenderReasonCode = (typeof RETENDER_REASON_OPTIONS)[number]['code'];
 
     const [formData, setFormData] = useState({
+        rfqNumber: '',
+        rfqTitle: '',
+        description: '',
         comparableEstimate: '',
         fundedBy: 'BSJ',
         tenderClosingDate: '',
@@ -80,15 +84,18 @@ const NewEvaluation = () => {
     const [showErrorAlert, setShowErrorAlert] = useState(false);
     const [alertMessage, setAlertMessage] = useState('');
     const [errorFields, setErrorFields] = useState<string[]>([]);
+    const [loading, setLoading] = useState(false);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
         setFormData({ ...formData, [name]: value });
     };
 
-    const handleCreateEvaluation = () => {
+    const handleCreateEvaluation = async () => {
         const missingFields: string[] = [];
 
+        if (!formData.rfqNumber) missingFields.push('RFQ Number');
+        if (!formData.rfqTitle) missingFields.push('RFQ Title');
         if (!formData.comparableEstimate) missingFields.push('Comparable Estimate');
         if (!formData.tenderClosingDate) missingFields.push('Tender Closing Date');
         if (!formData.tenderOpeningDate) missingFields.push('Tender Opening Date');
@@ -106,15 +113,84 @@ const NewEvaluation = () => {
             return;
         }
 
-        console.log('Creating BSJ evaluation:', { formData });
+        try {
+            setLoading(true);
 
-        setAlertMessage(`BSJ Evaluation created successfully!`);
-        setShowSuccessAlert(true);
+            // Generate evaluation number (in production, backend should generate this)
+            const evalNumber = `PRO_70_F_14/${String(Date.now()).slice(-5)}`;
 
-        setTimeout(() => {
-            setShowSuccessAlert(false);
-            navigate('/procurement/evaluation');
-        }, 3000);
+            // Prepare the evaluation data matching the backend API structure
+            const evaluationData: CreateEvaluationDTO = {
+                evalNumber,
+                rfqNumber: formData.rfqNumber,
+                rfqTitle: formData.rfqTitle,
+                description: formData.description || formData.notes || undefined,
+                evaluator: formData.evaluator || undefined,
+                dueDate: formData.bidValidityExpiration || undefined,
+                sectionA: {
+                    comparableEstimate: parseFloat(formData.comparableEstimate),
+                    fundedBy: formData.fundedBy,
+                    tenderClosingDate: formData.tenderClosingDate,
+                    tenderClosingTime: formData.tenderClosingTime,
+                    tenderOpeningDate: formData.tenderOpeningDate,
+                    tenderOpeningTime: formData.tenderOpeningTime,
+                    actualOpeningDate: formData.actualOpeningDate,
+                    actualOpeningTime: formData.actualOpeningTime,
+                    procurementMethod:
+                        formData.procurementMethod === 'National Competitive Bidding'
+                            ? 'NATIONAL_COMPETITIVE_BIDDING'
+                            : formData.procurementMethod === 'International Competitive Bidding'
+                            ? 'INTERNATIONAL_COMPETITIVE_BIDDING'
+                            : formData.procurementMethod === 'Restricted Bidding'
+                            ? 'RESTRICTED_BIDDING'
+                            : formData.procurementMethod === 'Single Source'
+                            ? 'SINGLE_SOURCE'
+                            : 'EMERGENCY_SINGLE_SOURCE',
+                    advertisementMethods: formData.advertisementMethods,
+                    contractType:
+                        formData.contractType === 'Goods'
+                            ? 'GOODS'
+                            : formData.contractType === 'Consulting Services'
+                            ? 'CONSULTING_SERVICES'
+                            : formData.contractType === 'Non-Consulting Services'
+                            ? 'NON_CONSULTING_SERVICES'
+                            : 'WORKS',
+                    bidSecurity: formData.bidSecurity,
+                    tenderPeriodStartDate: formData.tenderPeriodStartDate,
+                    tenderPeriodEndDate: formData.tenderPeriodEndDate,
+                    tenderPeriodDays: formData.tenderPeriodDays ? parseInt(formData.tenderPeriodDays) : 0,
+                    bidValidityDays: parseInt(formData.bidValidityDays),
+                    bidValidityExpiration: formData.bidValidityExpiration,
+                    numberOfBidsRequested: parseInt(formData.numberOfBidsRequested),
+                    numberOfBidsReceived: 0, // Will be updated later
+                    arithmeticErrorIdentified: formData.arithmeticErrorIdentified === 'Yes',
+                    retender: formData.retender === 'Yes',
+                    retenderReasons: formData.retender === 'Yes' ? formData.retenderReasons : undefined,
+                    retenderOtherReason: formData.retenderOtherReason || undefined,
+                    awardCriteria: formData.awardCriteria === 'Lowest Cost' ? 'LOWEST_COST' : 'MOST_ADVANTAGEOUS_BID',
+                },
+            };
+
+            const result = await evaluationService.createEvaluation(evaluationData);
+
+            setAlertMessage(`BSJ Evaluation ${evalNumber} created successfully!`);
+            setShowSuccessAlert(true);
+
+            setTimeout(() => {
+                setShowSuccessAlert(false);
+                navigate('/procurement/evaluation');
+            }, 2000);
+        } catch (error: any) {
+            console.error('Failed to create evaluation:', error);
+            setErrorFields([error.message || 'Failed to create evaluation. Please try again.']);
+            setShowErrorAlert(true);
+
+            setTimeout(() => {
+                setShowErrorAlert(false);
+            }, 5000);
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
@@ -170,9 +246,66 @@ const NewEvaluation = () => {
             )}
 
             <div className="space-y-6">
-                {/* Section A - Procurement Details */}
+                {/* Basic Information */}
                 <div className="panel">
-                    <h5 className="mb-5 text-lg font-semibold bg-primary/10 -m-5 p-5">SECTION A: Procurement Details</h5>
+                    <h5 className="mb-5 text-lg font-semibold bg-primary/10 -m-5 p-5">Basic Information</h5>
+                    <div className="grid gap-5 md:grid-cols-2 mt-5">
+                        <div>
+                            <label htmlFor="rfqNumber" className="mb-2 block font-semibold">
+                                RFQ Number <span className="text-danger">*</span>
+                            </label>
+                            <input
+                                id="rfqNumber"
+                                name="rfqNumber"
+                                type="text"
+                                className="form-input"
+                                placeholder="OFMB/AUG/2025/015"
+                                value={formData.rfqNumber}
+                                onChange={handleInputChange}
+                                required
+                            />
+                        </div>
+                        <div>
+                            <label htmlFor="rfqTitle" className="mb-2 block font-semibold">
+                                RFQ Title <span className="text-danger">*</span>
+                            </label>
+                            <input
+                                id="rfqTitle"
+                                name="rfqTitle"
+                                type="text"
+                                className="form-input"
+                                placeholder="Procurement of Chair"
+                                value={formData.rfqTitle}
+                                onChange={handleInputChange}
+                                required
+                            />
+                        </div>
+                        <div className="md:col-span-2">
+                            <label htmlFor="description" className="mb-2 block font-semibold">
+                                Description
+                            </label>
+                            <textarea
+                                id="description"
+                                name="description"
+                                rows={2}
+                                className="form-textarea"
+                                placeholder="Brief description of the procurement..."
+                                value={formData.description}
+                                onChange={handleInputChange}
+                            />
+                        </div>
+                        <div>
+                            <label htmlFor="evaluator" className="mb-2 block font-semibold">
+                                Evaluator Name
+                            </label>
+                            <input id="evaluator" name="evaluator" type="text" className="form-input" placeholder="Enter evaluator name" value={formData.evaluator} onChange={handleInputChange} />
+                        </div>
+                    </div>
+                </div>
+
+                {/* Financial Information */}
+                <div className="panel">
+                    <h5 className="mb-5 text-lg font-semibold bg-success/10 -m-5 p-5">Financial Information</h5>
                     <div className="grid gap-5 md:grid-cols-2 mt-5">
                         <div>
                             <label htmlFor="comparableEstimate" className="mb-2 block font-semibold">
@@ -196,6 +329,105 @@ const NewEvaluation = () => {
                             </label>
                             <input id="fundedBy" name="fundedBy" type="text" className="form-input" placeholder="BSJ" value={formData.fundedBy} onChange={handleInputChange} />
                         </div>
+                    </div>
+                </div>
+
+                {/* Procurement Details */}
+                <div className="panel">
+                    <h5 className="mb-5 text-lg font-semibold bg-info/10 -m-5 p-5">Procurement Details</h5>
+                    <div className="grid gap-5 md:grid-cols-2 mt-5">
+                        <div>
+                            <label htmlFor="procurementMethod" className="mb-2 block font-semibold">
+                                Procurement Method
+                            </label>
+                            <select id="procurementMethod" name="procurementMethod" className="form-select" value={formData.procurementMethod} onChange={handleInputChange}>
+                                <option value="National Competitive Bidding">National Competitive Bidding</option>
+                                <option value="International Competitive Bidding">International Competitive Bidding</option>
+                                <option value="Restricted Bidding">Restricted Bidding</option>
+                                <option value="Single Source">Single Source</option>
+                                <option value="Emergency Single Source">Emergency Single Source</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label htmlFor="contractType" className="mb-2 block font-semibold">
+                                Contract Type
+                            </label>
+                            <select id="contractType" name="contractType" className="form-select" value={formData.contractType} onChange={handleInputChange}>
+                                <option value="Goods">Goods</option>
+                                <option value="Consulting Services">Consulting Services</option>
+                                <option value="Non-Consulting Services">Non-Consulting Services</option>
+                                <option value="Works">Works</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label htmlFor="awardCriteria" className="mb-2 block font-semibold">
+                                Contract Award Criteria
+                            </label>
+                            <select id="awardCriteria" name="awardCriteria" className="form-select" value={formData.awardCriteria} onChange={handleInputChange}>
+                                <option value="Most Advantageous Bid">Most Advantageous Bid</option>
+                                <option value="Lowest Cost">Lowest Cost</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label htmlFor="numberOfBidsRequested" className="mb-2 block font-semibold">
+                                Number of Bids Requested <span className="text-danger">*</span>
+                            </label>
+                            <input
+                                id="numberOfBidsRequested"
+                                name="numberOfBidsRequested"
+                                type="number"
+                                className="form-input"
+                                placeholder="1"
+                                value={formData.numberOfBidsRequested}
+                                onChange={handleInputChange}
+                                required
+                            />
+                        </div>
+                        <div>
+                            <div className="mb-2 font-semibold">Method of Advertisement</div>
+                            <div className="grid gap-2">
+                                {['International Advertisement', 'National Advertisement', 'GOJEP', 'Email'].map((m) => (
+                                    <label key={m} className="flex items-center gap-2 text-sm">
+                                        <input
+                                            type="checkbox"
+                                            className="form-checkbox"
+                                            checked={formData.advertisementMethods.includes(m)}
+                                            onChange={(e) => {
+                                                setFormData({
+                                                    ...formData,
+                                                    advertisementMethods: e.target.checked ? [...formData.advertisementMethods, m] : formData.advertisementMethods.filter((x) => x !== m),
+                                                });
+                                            }}
+                                        />
+                                        <span>{m}</span>
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
+                        <div>
+                            <div className="mb-2 font-semibold">Bid Security</div>
+                            <div className="flex gap-4">
+                                {['Yes', 'No', 'N/A'].map((opt) => (
+                                    <label key={opt} className="flex items-center gap-1 text-sm">
+                                        <input
+                                            type="radio"
+                                            name="bidSecurity"
+                                            value={opt}
+                                            checked={formData.bidSecurity === opt}
+                                            onChange={(e) => setFormData({ ...formData, bidSecurity: e.target.value as 'Yes' | 'No' | 'N/A' })}
+                                        />
+                                        <span>{opt}</span>
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Tender Timeline */}
+                <div className="panel">
+                    <h5 className="mb-5 text-lg font-semibold bg-warning/10 -m-5 p-5">Tender Timeline</h5>
+                    <div className="grid gap-5 md:grid-cols-2 mt-5">
                         <div className="grid gap-2">
                             <label className="font-semibold">
                                 Tender Closing Date & Time <span className="text-danger">*</span>
@@ -253,50 +485,7 @@ const NewEvaluation = () => {
                                 <input id="actualOpeningTime" name="actualOpeningTime" type="time" className="form-input w-32" value={formData.actualOpeningTime} onChange={handleInputChange} />
                             </div>
                         </div>
-                        <div>
-                            <label htmlFor="procurementMethod" className="mb-2 block font-semibold">
-                                Procurement Method
-                            </label>
-                            <select id="procurementMethod" name="procurementMethod" className="form-select" value={formData.procurementMethod} onChange={handleInputChange}>
-                                <option value="National Competitive Bidding">National Competitive Bidding</option>
-                                <option value="International Competitive Bidding">International Competitive Bidding</option>
-                                <option value="Restricted Bidding">Restricted Bidding</option>
-                                <option value="Single Source">Single Source</option>
-                                <option value="Emergency Single Source">Emergency Single Source</option>
-                            </select>
-                        </div>
-                        <div>
-                            <div className="mb-2 font-semibold">Method of Advertisement</div>
-                            <div className="grid gap-2">
-                                {['International Advertisement', 'National Advertisement', 'GOJEP', 'Email'].map((m) => (
-                                    <label key={m} className="flex items-center gap-2 text-sm">
-                                        <input
-                                            type="checkbox"
-                                            className="form-checkbox"
-                                            checked={formData.advertisementMethods.includes(m)}
-                                            onChange={(e) => {
-                                                setFormData({
-                                                    ...formData,
-                                                    advertisementMethods: e.target.checked ? [...formData.advertisementMethods, m] : formData.advertisementMethods.filter((x) => x !== m),
-                                                });
-                                            }}
-                                        />
-                                        <span>{m}</span>
-                                    </label>
-                                ))}
-                            </div>
-                        </div>
-                        <div>
-                            <label htmlFor="contractType" className="mb-2 block font-semibold">
-                                Contract Type
-                            </label>
-                            <select id="contractType" name="contractType" className="form-select" value={formData.contractType} onChange={handleInputChange}>
-                                <option value="Goods">Goods</option>
-                                <option value="Consulting Services">Consulting Services</option>
-                                <option value="Non-Consulting Services">Non-Consulting Services</option>
-                                <option value="Works">Works</option>
-                            </select>
-                        </div>
+                        <div></div>
                         <div className="grid gap-2">
                             <label className="font-semibold">Tender Period</label>
                             <div className="flex flex-col gap-2">
@@ -306,6 +495,7 @@ const NewEvaluation = () => {
                                         name="tenderPeriodStartDate"
                                         type="date"
                                         className="form-input flex-1"
+                                        placeholder="Start Date"
                                         value={formData.tenderPeriodStartDate}
                                         onChange={handleInputChange}
                                     />
@@ -314,6 +504,7 @@ const NewEvaluation = () => {
                                         name="tenderPeriodEndDate"
                                         type="date"
                                         className="form-input flex-1"
+                                        placeholder="End Date"
                                         value={formData.tenderPeriodEndDate}
                                         onChange={handleInputChange}
                                     />
@@ -351,47 +542,13 @@ const NewEvaluation = () => {
                                 />
                             </div>
                         </div>
-                        <div>
-                            <label htmlFor="numberOfBidsRequested" className="mb-2 block font-semibold">
-                                Number of Bids Requested <span className="text-danger">*</span>
-                            </label>
-                            <input
-                                id="numberOfBidsRequested"
-                                name="numberOfBidsRequested"
-                                type="number"
-                                className="form-input"
-                                placeholder="1"
-                                value={formData.numberOfBidsRequested}
-                                onChange={handleInputChange}
-                                required
-                            />
-                        </div>
-                        <div>
-                            <label htmlFor="awardCriteria" className="mb-2 block font-semibold">
-                                Contract Award Criteria
-                            </label>
-                            <select id="awardCriteria" name="awardCriteria" className="form-select" value={formData.awardCriteria} onChange={handleInputChange}>
-                                <option value="Most Advantageous Bid">Most Advantageous Bid</option>
-                                <option value="Lowest Cost">Lowest Cost</option>
-                            </select>
-                        </div>
-                        <div>
-                            <div className="mb-2 font-semibold">Bid Security</div>
-                            <div className="flex gap-4">
-                                {['Yes', 'No', 'N/A'].map((opt) => (
-                                    <label key={opt} className="flex items-center gap-1 text-sm">
-                                        <input
-                                            type="radio"
-                                            name="bidSecurity"
-                                            value={opt}
-                                            checked={formData.bidSecurity === opt}
-                                            onChange={(e) => setFormData({ ...formData, bidSecurity: e.target.value as 'Yes' | 'No' | 'N/A' })}
-                                        />
-                                        <span>{opt}</span>
-                                    </label>
-                                ))}
-                            </div>
-                        </div>
+                    </div>
+                </div>
+
+                {/* Additional Information */}
+                <div className="panel">
+                    <h5 className="mb-5 text-lg font-semibold bg-danger/10 -m-5 p-5">Additional Information</h5>
+                    <div className="grid gap-5 md:grid-cols-2 mt-5">
                         <div>
                             <div className="mb-2 font-semibold">Arithmetic Error Identified</div>
                             <div className="flex gap-4">
@@ -409,6 +566,7 @@ const NewEvaluation = () => {
                                 ))}
                             </div>
                         </div>
+                        <div></div>
                         <div className="md:col-span-2">
                             <div className="mb-2 font-semibold">Re-tendered</div>
                             <div className="flex gap-4 mb-4">
@@ -526,9 +684,18 @@ const NewEvaluation = () => {
                     <Link to="/procurement/evaluation" className="btn btn-outline-secondary">
                         {t('common.cancel', 'Cancel')}
                     </Link>
-                    <button onClick={handleCreateEvaluation} className="btn btn-success gap-2">
-                        <IconChecks className="h-4 w-4" />
-                        {t('evaluation.new.create', 'Create Evaluation')}
+                    <button onClick={handleCreateEvaluation} className="btn btn-success gap-2" disabled={loading}>
+                        {loading ? (
+                            <>
+                                <span className="animate-spin border-2 border-white border-l-transparent rounded-full w-4 h-4 inline-block align-middle"></span>
+                                Creating...
+                            </>
+                        ) : (
+                            <>
+                                <IconChecks className="h-4 w-4" />
+                                {t('evaluation.new.create', 'Create Evaluation')}
+                            </>
+                        )}
                     </button>
                 </div>
             </div>
