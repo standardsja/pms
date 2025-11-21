@@ -612,9 +612,9 @@ const RequestForm = () => {
                                 <h1 className="text-2xl font-semibold">BUREAU OF STANDARDS JAMAICA</h1>
                                 <h2 className="text-xl font-semibold mt-1 underline">PROCUREMENT REQUISITION FORM</h2>
                                 <div className="text-sm italic text-gray-500 mt-2">This form authorizes the Procurement Unit to act on your behalf.</div>
-                                <div className="mt-4 flex flex-wrap gap-2 items-center justify-center text-sm font-semibold">
+                                <div className="mt-4 flex justify-center">
                                     {/* Inline dropdown controls styled as brackets */}
-                                    <div className="flex items-center gap-1">
+                                    <div className="flex items-center gap-1 text-sm font-semibold">
                                         <span className="inline-flex items-center bg-yellow-600 text-white rounded-sm">
                                             <span className="px-1">[</span>
                                             <select
