@@ -2298,13 +2298,13 @@ app.get('/api/requests', async (req, res) => {
     try {
         // Check if combinable filter is requested
         const combinableOnly = req.query.combinable === 'true';
-        
+
         // Define which statuses are combinable
         const combinableStatuses = ['DRAFT', 'SUBMITTED', 'DEPARTMENT_REVIEW', 'PROCUREMENT_REVIEW'];
-        
+
         // Build query filter
         const whereFilter = combinableOnly ? { status: { in: combinableStatuses } } : {};
-        
+
         // Select only safe core fields to avoid schema drift issues with legacy databases
         const requests = await prisma.request.findMany({
             where: whereFilter,
