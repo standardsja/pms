@@ -531,9 +531,286 @@ app.get('/api/auth/me', authMiddleware, async (req, res) => {
     });
 });
 
-// =============== Innovation Hub: Ideas (Committee) ===============
+// =============== Notifications & Messages ===============
 
-// List ideas with optional filters: status, sort
+// GET /api/notifications - Fetch user notifications
+app.get('/api/notifications', authMiddleware, async (req, res) => {
+    try {
+        const user = (req as any).user as { sub?: number };
+        const userId = user.sub;
+
+        if (!userId) {
+            return res.status(401).json({ success: false, message: 'User not authenticated' });
+        }
+
+        // Fetch notifications for the user, ordered by most recent first
+        const notifications = await prisma.notification.findMany({
+            where: { userId },
+            orderBy: { createdAt: 'desc' },
+            take: 50, // Limit to last 50 notifications
+            include: {
+                user: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                    },
+                },
+            },
+        });
+
+        res.json({
+            success: true,
+            data: notifications,
+        });
+    } catch (error) {
+        console.error('GET /api/notifications error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch notifications',
+            details: error instanceof Error ? error.message : String(error),
+        });
+    }
+});
+
+// PATCH /api/notifications/:id/read - Mark notification as read
+app.patch('/api/notifications/:id/read', authMiddleware, async (req, res) => {
+    try {
+        const user = (req as any).user as { sub?: number };
+        const userId = user.sub;
+        const notificationId = parseInt(req.params.id, 10);
+
+        if (!userId) {
+            return res.status(401).json({ success: false, message: 'User not authenticated' });
+        }
+
+        if (isNaN(notificationId)) {
+            return res.status(400).json({ success: false, message: 'Invalid notification ID' });
+        }
+
+        // Verify notification belongs to user
+        const notification = await prisma.notification.findUnique({
+            where: { id: notificationId },
+        });
+
+        if (!notification) {
+            return res.status(404).json({ success: false, message: 'Notification not found' });
+        }
+
+        if (notification.userId !== userId) {
+            return res.status(403).json({ success: false, message: 'Not authorized to update this notification' });
+        }
+
+        // Mark as read
+        const updated = await prisma.notification.update({
+            where: { id: notificationId },
+            data: { readAt: new Date() },
+        });
+
+        res.json({
+            success: true,
+            data: updated,
+        });
+    } catch (error) {
+        console.error('PATCH /api/notifications/:id/read error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to mark notification as read',
+            details: error instanceof Error ? error.message : String(error),
+        });
+    }
+});
+
+// DELETE /api/notifications/:id - Delete notification
+app.delete('/api/notifications/:id', authMiddleware, async (req, res) => {
+    try {
+        const user = (req as any).user as { sub?: number };
+        const userId = user.sub;
+        const notificationId = parseInt(req.params.id, 10);
+
+        if (!userId) {
+            return res.status(401).json({ success: false, message: 'User not authenticated' });
+        }
+
+        if (isNaN(notificationId)) {
+            return res.status(400).json({ success: false, message: 'Invalid notification ID' });
+        }
+
+        // Verify notification belongs to user
+        const notification = await prisma.notification.findUnique({
+            where: { id: notificationId },
+        });
+
+        if (!notification) {
+            return res.status(404).json({ success: false, message: 'Notification not found' });
+        }
+
+        if (notification.userId !== userId) {
+            return res.status(403).json({ success: false, message: 'Not authorized to delete this notification' });
+        }
+
+        // Delete notification
+        await prisma.notification.delete({
+            where: { id: notificationId },
+        });
+
+        res.json({
+            success: true,
+            message: 'Notification deleted',
+        });
+    } catch (error) {
+        console.error('DELETE /api/notifications/:id error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to delete notification',
+            details: error instanceof Error ? error.message : String(error),
+        });
+    }
+});
+
+// GET /api/messages - Fetch user messages
+app.get('/api/messages', authMiddleware, async (req, res) => {
+    try {
+        const user = (req as any).user as { sub?: number };
+        const userId = user.sub;
+
+        if (!userId) {
+            return res.status(401).json({ success: false, message: 'User not authenticated' });
+        }
+
+        // Fetch messages where user is the recipient
+        const messages = await prisma.message.findMany({
+            where: { toUserId: userId },
+            orderBy: { createdAt: 'desc' },
+            take: 50,
+            include: {
+                fromUser: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                    },
+                },
+                toUser: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                    },
+                },
+            },
+        });
+
+        res.json({
+            success: true,
+            data: messages,
+        });
+    } catch (error) {
+        console.error('GET /api/messages error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch messages',
+            details: error instanceof Error ? error.message : String(error),
+        });
+    }
+});
+
+// PATCH /api/messages/:id/read - Mark message as read
+app.patch('/api/messages/:id/read', authMiddleware, async (req, res) => {
+    try {
+        const user = (req as any).user as { sub?: number };
+        const userId = user.sub;
+        const messageId = parseInt(req.params.id, 10);
+
+        if (!userId) {
+            return res.status(401).json({ success: false, message: 'User not authenticated' });
+        }
+
+        if (isNaN(messageId)) {
+            return res.status(400).json({ success: false, message: 'Invalid message ID' });
+        }
+
+        // Verify message is for this user
+        const message = await prisma.message.findUnique({
+            where: { id: messageId },
+        });
+
+        if (!message) {
+            return res.status(404).json({ success: false, message: 'Message not found' });
+        }
+
+        if (message.toUserId !== userId) {
+            return res.status(403).json({ success: false, message: 'Not authorized to update this message' });
+        }
+
+        // Mark as read
+        const updated = await prisma.message.update({
+            where: { id: messageId },
+            data: { readAt: new Date() },
+        });
+
+        res.json({
+            success: true,
+            data: updated,
+        });
+    } catch (error) {
+        console.error('PATCH /api/messages/:id/read error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to mark message as read',
+            details: error instanceof Error ? error.message : String(error),
+        });
+    }
+});
+
+// DELETE /api/messages/:id - Delete message
+app.delete('/api/messages/:id', authMiddleware, async (req, res) => {
+    try {
+        const user = (req as any).user as { sub?: number };
+        const userId = user.sub;
+        const messageId = parseInt(req.params.id, 10);
+
+        if (!userId) {
+            return res.status(401).json({ success: false, message: 'User not authenticated' });
+        }
+
+        if (isNaN(messageId)) {
+            return res.status(400).json({ success: false, message: 'Invalid message ID' });
+        }
+
+        // Verify message is for this user
+        const message = await prisma.message.findUnique({
+            where: { id: messageId },
+        });
+
+        if (!message) {
+            return res.status(404).json({ success: false, message: 'Message not found' });
+        }
+
+        if (message.toUserId !== userId) {
+            return res.status(403).json({ success: false, message: 'Not authorized to delete this message' });
+        }
+
+        // Delete message
+        await prisma.message.delete({
+            where: { id: messageId },
+        });
+
+        res.json({
+            success: true,
+            message: 'Message deleted',
+        });
+    } catch (error) {
+        console.error('DELETE /api/messages/:id error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to delete message',
+            details: error instanceof Error ? error.message : String(error),
+        });
+    }
+});
+
+// =============== Innovation Hub: Ideas (Committee) ===============// List ideas with optional filters: status, sort
 app.get('/api/ideas', authMiddleware, async (req, res) => {
     try {
         // Attempt a one-time repair of legacy enum values to avoid Prisma enum read errors
@@ -1153,7 +1430,40 @@ app.post('/api/ideas/:id/approve', authMiddleware, requireCommittee, async (req,
                 reviewedAt: new Date(),
                 reviewNotes: notes || null,
             },
+            include: {
+                submitter: {
+                    select: { id: true, name: true, email: true },
+                },
+            },
         });
+
+        // Create notification for idea submitter
+        if (updated.submittedBy) {
+            await prisma.notification
+                .create({
+                    data: {
+                        userId: updated.submittedBy,
+                        type: 'IDEA_APPROVED',
+                        message: `Your innovation idea "${updated.title}" has been approved by the committee!`,
+                        data: { ideaId: updated.id, reviewNotes: notes },
+                    },
+                })
+                .catch((err: any) => console.error('Failed to create approval notification:', err));
+
+            // Create message for idea submitter
+            await prisma.message
+                .create({
+                    data: {
+                        fromUserId: user.sub,
+                        toUserId: updated.submittedBy,
+                        subject: `Innovation Idea Approved: ${updated.title}`,
+                        body: `Great news! Your innovation idea "${updated.title}" has been reviewed and approved by the Innovation Committee.${
+                            notes ? `\n\nReviewer Notes: ${notes}` : ''
+                        }\n\nYou can now track its progress in the Innovation Hub dashboard.`,
+                    },
+                })
+                .catch((err: any) => console.error('Failed to create approval message:', err));
+        }
 
         // Emit WebSocket event
         emitIdeaStatusChanged(updated.id, 'PENDING_REVIEW', 'APPROVED');
@@ -1183,7 +1493,42 @@ app.post('/api/ideas/:id/reject', authMiddleware, requireCommittee, async (req, 
                 reviewedAt: new Date(),
                 reviewNotes: notes || null,
             },
+            include: {
+                submitter: {
+                    select: { id: true, name: true, email: true },
+                },
+            },
         });
+
+        // Create notification for idea submitter
+        if (updated.submittedBy) {
+            await prisma.notification
+                .create({
+                    data: {
+                        userId: updated.submittedBy,
+                        type: 'STAGE_CHANGED',
+                        message: `Your innovation idea "${updated.title}" has been reviewed`,
+                        data: { ideaId: updated.id, status: 'REJECTED', reviewNotes: notes },
+                    },
+                })
+                .catch((err: any) => console.error('Failed to create rejection notification:', err));
+
+            // Create message for idea submitter with feedback
+            await prisma.message
+                .create({
+                    data: {
+                        fromUserId: user.sub,
+                        toUserId: updated.submittedBy,
+                        subject: `Innovation Idea Review: ${updated.title}`,
+                        body: `Thank you for submitting your innovation idea "${
+                            updated.title
+                        }". After careful review by the Innovation Committee, we are unable to proceed with this idea at this time.${
+                            notes ? `\n\nReviewer Feedback: ${notes}` : ''
+                        }\n\nWe encourage you to continue innovating and submitting new ideas!`,
+                    },
+                })
+                .catch((err: any) => console.error('Failed to create rejection message:', err));
+        }
 
         // Invalidate ideas cache
         await cacheDeletePattern('ideas:*');
@@ -1203,7 +1548,25 @@ app.post('/api/ideas/:id/promote', authMiddleware, requireCommittee, async (req,
 
         const code = projectCode && String(projectCode).trim().length > 0 ? String(projectCode).trim() : `BSJ-PROJ-${new Date().getFullYear()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
 
-        // Optimized: Use updateMany with conditional where - no separate findUnique
+        // Get the idea first to notify submitter
+        const idea = await prisma.idea.findUnique({
+            where: { id: parseInt(id, 10) },
+            include: {
+                submitter: {
+                    select: { id: true, name: true, email: true },
+                },
+            },
+        });
+
+        if (!idea) {
+            return res.status(404).json({ message: 'Idea not found' });
+        }
+
+        if (idea.status !== 'APPROVED') {
+            return res.status(400).json({ message: 'Idea must be approved before promotion' });
+        }
+
+        // Update to promoted status
         const result = await prisma.idea.updateMany({
             where: {
                 id: parseInt(id, 10),
@@ -1217,10 +1580,34 @@ app.post('/api/ideas/:id/promote', authMiddleware, requireCommittee, async (req,
         });
 
         if (result.count === 0) {
-            // Check if idea exists or is not approved
-            const idea = await prisma.idea.findUnique({ where: { id: parseInt(id, 10) } });
-            if (!idea) return res.status(404).json({ message: 'Idea not found' });
-            return res.status(400).json({ message: 'Idea must be APPROVED before promotion' });
+            return res.status(400).json({ message: 'Idea must be APPROVED before promotion or not found' });
+        }
+
+        // Create notification for idea submitter
+        if (idea.submittedBy) {
+            const user = (req as any).user as { sub: number };
+            await prisma.notification
+                .create({
+                    data: {
+                        userId: idea.submittedBy,
+                        type: 'STAGE_CHANGED',
+                        message: `Your innovation idea "${idea.title}" has been promoted to a project!`,
+                        data: { ideaId: idea.id, projectCode: code },
+                    },
+                })
+                .catch((err: any) => console.error('Failed to create promotion notification:', err));
+
+            // Create message for idea submitter
+            await prisma.message
+                .create({
+                    data: {
+                        fromUserId: user.sub,
+                        toUserId: idea.submittedBy,
+                        subject: `Innovation Idea Promoted: ${idea.title}`,
+                        body: `Congratulations! Your innovation idea "${idea.title}" has been promoted to an official project!\\n\\nProject Code: ${code}\\n\\nThis is a significant achievement and demonstrates the value of your innovative thinking. The project team will be in touch with next steps.`,
+                    },
+                })
+                .catch((err: any) => console.error('Failed to create promotion message:', err));
         }
 
         // Fetch updated idea to return full data
@@ -1947,22 +2334,22 @@ app.get('/requests/:id/pdf', async (req, res) => {
             .replace('{{description}}', request.description || '—')
             .replace('{{itemsRows}}', itemsRows)
             .replace('{{managerName}}', request.managerName || '—')
-            .replace('{{managerApprovalDate}}', formatDate(request.actionDate))
+            .replace('{{managerApprovalDate}}', formatDate(request.actionDate ? new Date(request.actionDate) : null))
             .replace('{{headName}}', request.headName || '—')
-            .replace('{{hodApprovalDate}}', formatDate(request.actionDate))
+            .replace('{{hodApprovalDate}}', formatDate(request.actionDate ? new Date(request.actionDate) : null))
             .replace('{{budgetOfficerName}}', request.budgetOfficerName || '—')
             .replace('{{budgetManagerName}}', request.budgetManagerName || '—')
-            .replace('{{financeApprovalDate}}', formatDate(request.actionDate))
+            .replace('{{financeApprovalDate}}', formatDate(request.actionDate ? new Date(request.actionDate) : null))
             .replace('{{commitmentNumber}}', request.commitmentNumber || '—')
             .replace('{{accountingCode}}', request.accountingCode || '—')
-            .replace('{{procurementApprovalDate}}', formatDate(request.actionDate))
+            .replace('{{procurementApprovalDate}}', formatDate(request.actionDate ? new Date(request.actionDate) : null))
             .replace('{{status}}', request.status || '—')
             .replace('{{assigneeName}}', request.currentAssignee?.name || '—')
             .replace('{{submittedDate}}', formatDate(request.submittedAt))
             .replace('{{procurementCaseNumber}}', request.procurementCaseNumber || '—')
             .replace('{{receivedBy}}', request.receivedBy || '—')
-            .replace('{{dateReceived}}', formatDate(request.dateReceived))
-            .replace('{{actionDate}}', formatDate(request.actionDate))
+            .replace('{{dateReceived}}', formatDate(request.dateReceived ? new Date(request.dateReceived) : null))
+            .replace('{{actionDate}}', formatDate(request.actionDate ? new Date(request.actionDate) : null))
             .replace('{{procurementComments}}', request.procurementComments || '—')
             .replace('{{now}}', new Date().toLocaleString('en-US'));
 
@@ -1985,11 +2372,12 @@ app.get('/requests/:id/pdf', async (req, res) => {
             });
             const page = await browser.newPage();
             await page.setContent(html, { waitUntil: 'networkidle0' });
-            pdf = await page.pdf({
+            const pdfBuffer = await page.pdf({
                 format: 'A4',
                 printBackground: true,
                 margin: { top: '20px', right: '20px', bottom: '20px', left: '20px' },
             });
+            pdf = Buffer.from(pdfBuffer);
             await browser.close();
         } catch (chromeErr) {
             console.error('Puppeteer render failed, falling back to PDFKit:', chromeErr);
@@ -1997,17 +2385,19 @@ app.get('/requests/:id/pdf', async (req, res) => {
 
         if (!pdf) {
             // Minimal, reliable fallback using PDFKit (no system deps)
-            const { default: PDFDocument } = await import('pdfkit');
-            const doc = new PDFDocument({ size: 'A4', margin: 28 });
+            const PDFDocument = (await import('pdfkit')).default;
+            const doc = new (PDFDocument as any)({ size: 'A4', margin: 28 });
             const chunks: Buffer[] = [];
             const done = new Promise<Buffer>((resolve) => {
                 doc.on('data', (d: Buffer) => chunks.push(d));
                 doc.on('end', () => resolve(Buffer.concat(chunks)));
             });
 
-            doc.fontSize(14).text('BUREAU OF STANDARDS JAMAICA', { align: 'center' });
+            doc.fontSize(14);
+            doc.text('BUREAU OF STANDARDS JAMAICA', { align: 'center' });
             doc.moveDown(0.3);
-            doc.fontSize(12).text('PROCUREMENT REQUISITION FORM', { align: 'center' });
+            doc.fontSize(12);
+            doc.text('PROCUREMENT REQUISITION FORM', { align: 'center' });
             doc.moveDown();
             doc.fontSize(10);
             const ref = request.reference || String(id);
@@ -2604,14 +2994,18 @@ app.get(
             if (status && status !== 'ALL') where.status = status as any;
             if (search) {
                 where.OR = [
-                    { evalNumber: { contains: search as string, mode: 'insensitive' } },
-                    { rfqNumber: { contains: search as string, mode: 'insensitive' } },
-                    { rfqTitle: { contains: search as string, mode: 'insensitive' } },
-                    { description: { contains: search as string, mode: 'insensitive' } },
+                    { evalNumber: { contains: search as string } },
+                    { rfqNumber: { contains: search as string } },
+                    { rfqTitle: { contains: search as string } },
+                    { description: { contains: search as string } },
                 ];
             }
-            if (dueBefore) where.dueDate = { ...(where.dueDate || {}), lte: new Date(dueBefore as string) };
-            if (dueAfter) where.dueDate = { ...(where.dueDate || {}), gte: new Date(dueAfter as string) };
+            if (dueBefore) {
+                where.dueDate = where.dueDate && typeof where.dueDate === 'object' ? { ...where.dueDate, lte: new Date(dueBefore as string) } : { lte: new Date(dueBefore as string) };
+            }
+            if (dueAfter) {
+                where.dueDate = where.dueDate && typeof where.dueDate === 'object' ? { ...where.dueDate, gte: new Date(dueAfter as string) } : { gte: new Date(dueAfter as string) };
+            }
             const evaluations = await (prisma as any).evaluation.findMany({
                 where,
                 include: {
