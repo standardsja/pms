@@ -1614,6 +1614,7 @@ app.post(
             const { title, description, departmentId, items = [], totalEstimated, currency, priority, procurementType, headerDeptCode, headerMonth, headerYear, headerSequence } = req.body || {};
 
             console.log('[POST /requests] Parsed fields - title:', title, 'departmentId:', departmentId);
+            console.log('[POST /requests] Header fields - deptCode:', headerDeptCode, 'month:', headerMonth, 'year:', headerYear, 'seq:', headerSequence);
 
             if (!title || !departmentId) {
                 return res.status(400).json({ message: 'Title and department are required' });
