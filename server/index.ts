@@ -2066,11 +2066,11 @@ app.post('/requests/:id/submit', async (req, res) => {
 
         // Check procurement thresholds to determine routing
         const totalValue = Number(request.totalEstimated || 0);
-        const procurementTypes = request.procurementType as string[] || [];
+        const procurementTypes = (request.procurementType as string[]) || [];
         const currency = request.currency || 'USD';
-        
+
         const thresholdResult = checkProcurementThresholds(totalValue, procurementTypes, currency);
-        
+
         let initialStatus = 'DEPARTMENT_REVIEW';
         let initialAssignee = null;
         let statusComment = 'Request submitted for department manager review';
@@ -2131,13 +2131,7 @@ app.post('/requests/:id/submit', async (req, res) => {
         });
 
         // Log threshold decision for audit trail
-        await logThresholdDecision(
-            request.id,
-            request.requesterId,
-            thresholdResult,
-            totalValue,
-            currency
-        );
+        await logThresholdDecision(request.id, request.requesterId, thresholdResult, totalValue, currency);
 
         return res.json(updated);
     } catch (e: any) {
@@ -2179,9 +2173,9 @@ app.post('/requests/:id/action', async (req, res) => {
             if (request.status === 'DEPARTMENT_REVIEW') {
                 // Check if this request needs executive approval due to thresholds
                 const totalValue = Number(request.totalEstimated || 0);
-                const procurementTypes = request.procurementType as string[] || [];
+                const procurementTypes = (request.procurementType as string[]) || [];
                 const currency = request.currency || 'USD';
-                
+
                 const thresholdResult = checkProcurementThresholds(totalValue, procurementTypes, currency);
 
                 if (thresholdResult.requiresExecutiveApproval) {
