@@ -5,7 +5,27 @@
 
 import { getToken, getUser } from '../utils/auth';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://heron:4000';
+// Smart API URL detection: use current hostname for production, localhost for local dev
+const getApiUrl = () => {
+    // If VITE_API_URL is explicitly set, use it
+    if (import.meta.env.VITE_API_URL) {
+        return import.meta.env.VITE_API_URL;
+    }
+
+    // Check if running on localhost or 127.0.0.1
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+    if (isLocal) {
+        return 'http://localhost:4000';
+    }
+
+    // Production: use the same hostname as frontend
+    const protocol = window.location.protocol;
+    const hostname = window.location.hostname;
+    return `${protocol}//${hostname}:4000`;
+};
+
+const API_URL = getApiUrl();
 
 export interface Notification {
     id: number;

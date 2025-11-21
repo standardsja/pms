@@ -1,6 +1,28 @@
 import { getToken } from '../utils/auth';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://heron:4000';
+/**
+ * Smart API URL detection - automatically switches between local and production
+ */
+function getApiUrl(): string {
+    // 1. Explicit override via environment variable
+    if (import.meta.env.VITE_API_URL) {
+        return import.meta.env.VITE_API_URL;
+    }
+
+    // 2. Detect environment based on current hostname
+    const hostname = window.location.hostname;
+    const protocol = window.location.protocol;
+
+    // If running on localhost, use localhost backend
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        return 'http://localhost:4000';
+    }
+
+    // Otherwise, use the same hostname as the frontend (production)
+    return `${protocol}//${hostname}:4000`;
+}
+
+const API_URL = getApiUrl();
 
 export type EvaluationStatus = 'PENDING' | 'IN_PROGRESS' | 'COMMITTEE_REVIEW' | 'COMPLETED' | 'VALIDATED' | 'REJECTED';
 
