@@ -112,24 +112,30 @@ const Login = () => {
             const hasCompletedOnboarding = localStorage.getItem(`onboardingComplete:${userSuffix}`) === 'true';
             const hasLastModule = localStorage.getItem(`lastModule:${userSuffix}`) !== null;
 
-            // Role-based redirect after login - BUT respect onboarding for first-time/non-remembered users
-            const userRoles = user.roles || (user.role ? [user.role] : []);
+            // Role-based redirect after login (evaluation committee overrides onboarding)
+            const userRoles: string[] = user.roles || (user.role ? [user.role] : []);
+            const normalizedRoles = userRoles.map((r) => String(r).toUpperCase());
 
-            // Committee members with ONLY committee role go directly to committee dashboard
-            const isCommitteeOnly = userRoles.includes('INNOVATION_COMMITTEE') && userRoles.length === 1;
+            // Evaluation Committee members go straight to their committee page regardless of onboarding state
+            if (normalizedRoles.includes('EVALUATION_COMMITTEE')) {
+                navigate('/procurement/evaluation/committee');
+                return;
+            }
 
-            if (isCommitteeOnly) {
-                // Committee-only users always go to their dashboard
+            // Innovation committee members with ONLY committee role go directly to committee dashboard
+            const isInnovationCommitteeOnly = normalizedRoles.includes('INNOVATION_COMMITTEE') && normalizedRoles.length === 1;
+
+            if (isInnovationCommitteeOnly) {
                 navigate('/innovation/committee/dashboard');
             } else if (hasCompletedOnboarding && hasLastModule) {
                 // Returning users with saved preference - go to their last module
                 const lastMod = localStorage.getItem(`lastModule:${userSuffix}`);
                 if (lastMod === 'pms') {
-                    if (userRoles.includes('PROCUREMENT_MANAGER') || userRoles.includes('MANAGER') || userRoles.some((r: string) => r && r.toUpperCase().includes('MANAGER'))) {
+                    if (normalizedRoles.includes('PROCUREMENT_MANAGER') || normalizedRoles.includes('MANAGER') || normalizedRoles.some((r) => r.includes('MANAGER'))) {
                         navigate('/procurement/manager');
-                    } else if (userRoles.includes('PROCUREMENT_OFFICER') || userRoles.includes('PROCUREMENT')) {
+                    } else if (normalizedRoles.includes('PROCUREMENT_OFFICER') || normalizedRoles.includes('PROCUREMENT')) {
                         navigate('/procurement/dashboard');
-                    } else if (userRoles.some((r: string) => r && r.toUpperCase().includes('REQUEST'))) {
+                    } else if (normalizedRoles.some((r) => r.includes('REQUEST'))) {
                         navigate('/apps/requests');
                     } else {
                         navigate('/procurement/dashboard');
@@ -170,8 +176,13 @@ const Login = () => {
                 const userData = localStorage.getItem('auth_user') || sessionStorage.getItem('auth_user');
                 if (userData) {
                     const user = JSON.parse(userData);
-                    const userRoles = user.roles || (user.role ? [user.role] : []);
-                    if (userRoles.includes('INNOVATION_COMMITTEE')) {
+                    const userRoles: string[] = user.roles || (user.role ? [user.role] : []);
+                    const normalizedRoles = userRoles.map((r) => String(r).toUpperCase());
+                    if (normalizedRoles.includes('EVALUATION_COMMITTEE')) {
+                        navigate('/procurement/evaluation/committee');
+                        return;
+                    }
+                    if (normalizedRoles.includes('INNOVATION_COMMITTEE')) {
                         navigate('/innovation/committee/dashboard');
                         return;
                     }

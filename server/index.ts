@@ -2574,6 +2574,27 @@ app.get('/api/auth/test-login', (req, res) => {
 // EVALUATION ENDPOINTS
 // ============================================
 
+// Temporary runtime guard function: checks delegate presence at call time (not just startup)
+function hasEvaluationDelegate(): boolean {
+    // Use runtime inspection; PrismaClient type will include evaluation after successful generate
+    // Avoid direct method invocation when undefined.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const evalDelegate: any = (prisma as any).evaluation;
+    return Boolean(evalDelegate && typeof evalDelegate.findMany === 'function');
+}
+
+// Expose lightweight version/debug info
+const GIT_COMMIT = process.env.GIT_COMMIT || 'untracked';
+app.get('/api/_version', (req, res) => {
+    res.json({
+        commit: GIT_COMMIT,
+        hasEvaluationDelegate: hasEvaluationDelegate(),
+        pid: process.pid,
+        uptimeSeconds: Math.round(process.uptime()),
+        timestamp: new Date().toISOString(),
+    });
+});
+
 // GET /api/evaluations - List all evaluations with filters
 app.get(
     '/api/evaluations',
@@ -2584,52 +2605,58 @@ app.get(
         return;
 
         const { status, search, dueBefore, dueAfter } = req.query;
-
-        const where: Prisma.EvaluationWhereInput = {};
-
-        if (status && status !== 'ALL') {
-            where.status = status as any;
-        }
-
-        if (search) {
-            where.OR = [
-                { evalNumber: { contains: search as string, mode: 'insensitive' } },
-                { rfqNumber: { contains: search as string, mode: 'insensitive' } },
-                { rfqTitle: { contains: search as string, mode: 'insensitive' } },
-                { description: { contains: search as string, mode: 'insensitive' } },
-            ];
-        }
-
-        if (dueBefore) {
-            where.dueDate = { ...where.dueDate, lte: new Date(dueBefore as string) };
-        }
-
-        if (dueAfter) {
-            where.dueDate = { ...where.dueDate, gte: new Date(dueAfter as string) };
-        }
-
-        const evaluations = await prisma.evaluation.findMany({
-            where,
-            include: {
-                creator: {
-                    select: {
-                        id: true,
-                        name: true,
-                        email: true,
-                    },
+        if (hasEvaluationDelegate()) {
+            const where: Prisma.EvaluationWhereInput = {};
+            if (status && status !== 'ALL') where.status = status as any;
+            if (search) {
+                where.OR = [
+                    { evalNumber: { contains: search as string, mode: 'insensitive' } },
+                    { rfqNumber: { contains: search as string, mode: 'insensitive' } },
+                    { rfqTitle: { contains: search as string, mode: 'insensitive' } },
+                    { description: { contains: search as string, mode: 'insensitive' } },
+                ];
+            }
+            if (dueBefore) where.dueDate = { ...(where.dueDate || {}), lte: new Date(dueBefore as string) };
+            if (dueAfter) where.dueDate = { ...(where.dueDate || {}), gte: new Date(dueAfter as string) };
+            const evaluations = await (prisma as any).evaluation.findMany({
+                where,
+                include: {
+                    creator: { select: { id: true, name: true, email: true } },
+                    validator: { select: { id: true, name: true, email: true } },
                 },
-                validator: {
-                    select: {
-                        id: true,
-                        name: true,
-                        email: true,
-                    },
-                },
-            },
-            orderBy: { createdAt: 'desc' },
-        });
-
-        res.json({ success: true, data: evaluations });
+                orderBy: { createdAt: 'desc' },
+            });
+            return res.json({ success: true, data: evaluations });
+        }
+        // Raw SQL fallback
+        const rows = await prisma.$queryRawUnsafe<any>(
+            'SELECT e.*, uc.id AS creatorId, uc.name AS creatorName, uc.email AS creatorEmail, uv.id AS validatorId, uv.name AS validatorName, uv.email AS validatorEmail FROM Evaluation e LEFT JOIN User uc ON e.createdBy = uc.id LEFT JOIN User uv ON e.validatedBy = uv.id ORDER BY e.createdAt DESC'
+        );
+        const mapped = rows.map((r: any) => ({
+            id: r.id,
+            evalNumber: r.evalNumber,
+            rfqNumber: r.rfqNumber,
+            rfqTitle: r.rfqTitle,
+            description: r.description,
+            status: r.status,
+            sectionA: r.sectionA ?? null,
+            sectionB: r.sectionB ?? null,
+            sectionC: r.sectionC ?? null,
+            sectionD: r.sectionD ?? null,
+            sectionE: r.sectionE ?? null,
+            createdBy: r.createdBy,
+            creator: { id: r.creatorId, name: r.creatorName, email: r.creatorEmail },
+            evaluator: r.evaluator,
+            dueDate: r.dueDate ? r.dueDate : null,
+            validatedBy: r.validatedBy,
+            validator: r.validatorId ? { id: r.validatorId, name: r.validatorName, email: r.validatorEmail } : null,
+            validatedAt: r.validatedAt ?? null,
+            validationNotes: r.validationNotes ?? null,
+            createdAt: r.createdAt,
+            updatedAt: r.updatedAt,
+            _fallback: true,
+        }));
+        res.json({ success: true, data: mapped, meta: { fallback: true } });
     })
 );
 
@@ -2639,32 +2666,49 @@ app.get(
     authMiddleware,
     asyncHandler(async (req, res) => {
         const { id } = req.params;
-
-        const evaluation = await prisma.evaluation.findUnique({
-            where: { id: parseInt(id) },
-            include: {
-                creator: {
-                    select: {
-                        id: true,
-                        name: true,
-                        email: true,
-                    },
+        if (hasEvaluationDelegate()) {
+            const evaluation = await (prisma as any).evaluation.findUnique({
+                where: { id: parseInt(id) },
+                include: {
+                    creator: { select: { id: true, name: true, email: true } },
+                    validator: { select: { id: true, name: true, email: true } },
                 },
-                validator: {
-                    select: {
-                        id: true,
-                        name: true,
-                        email: true,
-                    },
-                },
-            },
-        });
-
-        if (!evaluation) {
-            throw new NotFoundError('Evaluation not found');
+            });
+            if (!evaluation) throw new NotFoundError('Evaluation not found');
+            return res.json({ success: true, data: evaluation });
         }
-
-        res.json({ success: true, data: evaluation });
+        const rows = await prisma.$queryRawUnsafe<any>(
+            `SELECT e.*, uc.id AS creatorId, uc.name AS creatorName, uc.email AS creatorEmail, uv.id AS validatorId, uv.name AS validatorName, uv.email AS validatorEmail FROM Evaluation e LEFT JOIN User uc ON e.createdBy = uc.id LEFT JOIN User uv ON e.validatedBy = uv.id WHERE e.id = ${parseInt(
+                id
+            )} LIMIT 1`
+        );
+        const r = rows[0];
+        if (!r) throw new NotFoundError('Evaluation not found');
+        const mapped = {
+            id: r.id,
+            evalNumber: r.evalNumber,
+            rfqNumber: r.rfqNumber,
+            rfqTitle: r.rfqTitle,
+            description: r.description,
+            status: r.status,
+            sectionA: r.sectionA ?? null,
+            sectionB: r.sectionB ?? null,
+            sectionC: r.sectionC ?? null,
+            sectionD: r.sectionD ?? null,
+            sectionE: r.sectionE ?? null,
+            createdBy: r.createdBy,
+            creator: { id: r.creatorId, name: r.creatorName, email: r.creatorEmail },
+            evaluator: r.evaluator,
+            dueDate: r.dueDate ? r.dueDate : null,
+            validatedBy: r.validatedBy,
+            validator: r.validatorId ? { id: r.validatorId, name: r.validatorName, email: r.validatorEmail } : null,
+            validatedAt: r.validatedAt ?? null,
+            validationNotes: r.validationNotes ?? null,
+            createdAt: r.createdAt,
+            updatedAt: r.updatedAt,
+            _fallback: true,
+        };
+        res.json({ success: true, data: mapped, meta: { fallback: true } });
     })
 );
 
@@ -2681,38 +2725,58 @@ app.post(
         }
 
         // Check if evalNumber already exists
-        const existing = await prisma.evaluation.findUnique({
-            where: { evalNumber },
-        });
-
-        if (existing) {
-            throw new BadRequestError('Evaluation number already exists');
-        }
-
-        const evaluation = await prisma.evaluation.create({
-            data: {
-                evalNumber,
-                rfqNumber,
-                rfqTitle,
-                description,
-                sectionA,
-                evaluator,
-                dueDate: dueDate ? new Date(dueDate) : null,
-                createdBy: user.id,
-                status: 'PENDING',
-            },
-            include: {
-                creator: {
-                    select: {
-                        id: true,
-                        name: true,
-                        email: true,
-                    },
+        if (hasEvaluationDelegate()) {
+            // Check duplicate using delegate
+            const existing = await (prisma as any).evaluation.findUnique({ where: { evalNumber } });
+            if (existing) throw new BadRequestError('Evaluation number already exists');
+            const evaluation = await (prisma as any).evaluation.create({
+                data: {
+                    evalNumber,
+                    rfqNumber,
+                    rfqTitle,
+                    description,
+                    sectionA,
+                    evaluator,
+                    dueDate: dueDate ? new Date(dueDate) : null,
+                    createdBy: user.id,
+                    status: 'PENDING',
                 },
-            },
-        });
-
-        res.status(201).json({ success: true, data: evaluation });
+                include: { creator: { select: { id: true, name: true, email: true } } },
+            });
+            return res.status(201).json({ success: true, data: evaluation });
+        }
+        // Fallback duplicate check via raw SQL
+        const dupRows = await prisma.$queryRawUnsafe<any>(`SELECT id FROM Evaluation WHERE evalNumber='${evalNumber.replace(/'/g, "''")}' LIMIT 1`);
+        if (dupRows[0]) throw new BadRequestError('Evaluation number already exists');
+        await prisma.$executeRawUnsafe(
+            `INSERT INTO Evaluation (evalNumber, rfqNumber, rfqTitle, description, sectionA, createdBy, evaluator, dueDate, status, createdAt, updatedAt) VALUES (
+              '${evalNumber}', '${rfqNumber}', '${rfqTitle}', ${description ? `'${description.replace(/'/g, "''")}'` : 'NULL'}, ${
+                sectionA ? `'${JSON.stringify(sectionA).replace(/'/g, "''")}'` : 'NULL'
+            }, ${user.id}, ${evaluator ? `'${evaluator.replace(/'/g, "''")}'` : 'NULL'}, ${
+                dueDate ? `'${new Date(dueDate).toISOString().slice(0, 19).replace('T', ' ')}'` : 'NULL'
+            }, 'PENDING', NOW(), NOW())`
+        );
+        const createdRow = await prisma.$queryRawUnsafe<any>(
+            `SELECT e.*, uc.id AS creatorId, uc.name AS creatorName, uc.email AS creatorEmail FROM Evaluation e LEFT JOIN User uc ON e.createdBy = uc.id WHERE e.evalNumber='${evalNumber}' LIMIT 1`
+        );
+        const r = createdRow[0];
+        const mapped = {
+            id: r.id,
+            evalNumber: r.evalNumber,
+            rfqNumber: r.rfqNumber,
+            rfqTitle: r.rfqTitle,
+            description: r.description,
+            status: r.status,
+            sectionA: r.sectionA ?? null,
+            createdBy: r.createdBy,
+            creator: { id: r.creatorId, name: r.creatorName, email: r.creatorEmail },
+            evaluator: r.evaluator,
+            dueDate: r.dueDate ?? null,
+            createdAt: r.createdAt,
+            updatedAt: r.updatedAt,
+            _fallback: true,
+        };
+        res.status(201).json({ success: true, data: mapped, meta: { fallback: true } });
     })
 );
 
@@ -2724,12 +2788,12 @@ app.patch(
         const { id } = req.params;
         const { status, sectionA, sectionB, sectionC, sectionD, sectionE, validationNotes } = req.body;
 
-        const existing = await prisma.evaluation.findUnique({
-            where: { id: parseInt(id) },
-        });
-
-        if (!existing) {
-            throw new NotFoundError('Evaluation not found');
+        if (!hasEvaluationDelegate()) {
+            const checkRow = await prisma.$queryRawUnsafe<any>(`SELECT id FROM Evaluation WHERE id = ${parseInt(id)} LIMIT 1`);
+            if (!checkRow[0]) throw new NotFoundError('Evaluation not found');
+        } else {
+            const existing = await (prisma as any).evaluation.findUnique({ where: { id: parseInt(id) } });
+            if (!existing) throw new NotFoundError('Evaluation not found');
         }
 
         const updateData: Prisma.EvaluationUpdateInput = {};
@@ -2742,28 +2806,61 @@ app.patch(
         if (sectionE) updateData.sectionE = sectionE;
         if (validationNotes) updateData.validationNotes = validationNotes;
 
-        const evaluation = await prisma.evaluation.update({
-            where: { id: parseInt(id) },
-            data: updateData,
-            include: {
-                creator: {
-                    select: {
-                        id: true,
-                        name: true,
-                        email: true,
-                    },
-                },
-                validator: {
-                    select: {
-                        id: true,
-                        name: true,
-                        email: true,
-                    },
-                },
-            },
-        });
-
-        res.json({ success: true, data: evaluation });
+        if (hasEvaluationDelegate()) {
+            const evaluation = await (prisma as any).evaluation.update({
+                where: { id: parseInt(id) },
+                data: updateData,
+                include: { creator: { select: { id: true, name: true, email: true } }, validator: { select: { id: true, name: true, email: true } } },
+            });
+            return res.json({ success: true, data: evaluation });
+        }
+        // Raw update: construct dynamic SET clause
+        const sets: string[] = [];
+        const jsonFields: Array<[string, any]> = [
+            ['sectionA', sectionA],
+            ['sectionB', sectionB],
+            ['sectionC', sectionC],
+            ['sectionD', sectionD],
+            ['sectionE', sectionE],
+        ];
+        if (status) sets.push(`status='${String(status).replace(/'/g, "''")}'`);
+        for (const [key, val] of jsonFields) {
+            if (val !== undefined) sets.push(`${key}=${val === null ? 'NULL' : `'${JSON.stringify(val).replace(/'/g, "''")}'`}`);
+        }
+        if (validationNotes) sets.push(`validationNotes='${String(validationNotes).replace(/'/g, "''")}'`);
+        sets.push('updatedAt=NOW()');
+        if (sets.length) await prisma.$executeRawUnsafe(`UPDATE Evaluation SET ${sets.join(', ')} WHERE id=${parseInt(id)}`);
+        const row = await prisma.$queryRawUnsafe<any>(
+            `SELECT e.*, uc.id AS creatorId, uc.name AS creatorName, uc.email AS creatorEmail, uv.id AS validatorId, uv.name AS validatorName, uv.email AS validatorEmail FROM Evaluation e LEFT JOIN User uc ON e.createdBy = uc.id LEFT JOIN User uv ON e.validatedBy = uv.id WHERE e.id = ${parseInt(
+                id
+            )} LIMIT 1`
+        );
+        const r = row[0];
+        const mapped = {
+            id: r.id,
+            evalNumber: r.evalNumber,
+            rfqNumber: r.rfqNumber,
+            rfqTitle: r.rfqTitle,
+            description: r.description,
+            status: r.status,
+            sectionA: r.sectionA ?? null,
+            sectionB: r.sectionB ?? null,
+            sectionC: r.sectionC ?? null,
+            sectionD: r.sectionD ?? null,
+            sectionE: r.sectionE ?? null,
+            createdBy: r.createdBy,
+            creator: { id: r.creatorId, name: r.creatorName, email: r.creatorEmail },
+            evaluator: r.evaluator,
+            dueDate: r.dueDate ?? null,
+            validatedBy: r.validatedBy,
+            validator: r.validatorId ? { id: r.validatorId, name: r.validatorName, email: r.validatorEmail } : null,
+            validatedAt: r.validatedAt ?? null,
+            validationNotes: r.validationNotes ?? null,
+            createdAt: r.createdAt,
+            updatedAt: r.updatedAt,
+            _fallback: true,
+        };
+        res.json({ success: true, data: mapped, meta: { fallback: true } });
     })
 );
 
@@ -2779,13 +2876,14 @@ app.patch(
             throw new BadRequestError('Missing required fields: section, data');
         }
 
-        const existing = await prisma.evaluation.findUnique({
-            where: { id: parseInt(id) },
-        });
-
-        if (!existing) {
-            throw new NotFoundError('Evaluation not found');
+        let existing: any = null;
+        if (hasEvaluationDelegate()) {
+            existing = await (prisma as any).evaluation.findUnique({ where: { id: parseInt(id) } });
+        } else {
+            const checkRow = await prisma.$queryRawUnsafe<any>(`SELECT id, status FROM Evaluation WHERE id = ${parseInt(id)} LIMIT 1`);
+            existing = checkRow[0];
         }
+        if (!existing) throw new NotFoundError('Evaluation not found');
 
         const updateData: Prisma.EvaluationUpdateInput = {};
         const sectionKey = `section${section.toUpperCase()}` as keyof Prisma.EvaluationUpdateInput;
@@ -2796,21 +2894,48 @@ app.patch(
             updateData.status = 'COMMITTEE_REVIEW';
         }
 
-        const evaluation = await prisma.evaluation.update({
-            where: { id: parseInt(id) },
-            data: updateData,
-            include: {
-                creator: {
-                    select: {
-                        id: true,
-                        name: true,
-                        email: true,
-                    },
-                },
-            },
-        });
-
-        res.json({ success: true, data: evaluation });
+        if (hasEvaluationDelegate()) {
+            const evaluation = await (prisma as any).evaluation.update({
+                where: { id: parseInt(id) },
+                data: updateData,
+                include: { creator: { select: { id: true, name: true, email: true } } },
+            });
+            return res.json({ success: true, data: evaluation });
+        }
+        const sets: string[] = [];
+        const sectionField = `section${section.toUpperCase()}`;
+        sets.push(`${sectionField}='${JSON.stringify(data).replace(/'/g, "''")}'`);
+        if (existing.status === 'PENDING') sets.push(`status='COMMITTEE_REVIEW'`);
+        sets.push('updatedAt=NOW()');
+        await prisma.$executeRawUnsafe(`UPDATE Evaluation SET ${sets.join(', ')} WHERE id=${parseInt(id)}`);
+        const row = await prisma.$queryRawUnsafe<any>(
+            `SELECT e.*, uc.id AS creatorId, uc.name AS creatorName, uc.email AS creatorEmail FROM Evaluation e LEFT JOIN User uc ON e.createdBy = uc.id WHERE e.id = ${parseInt(id)} LIMIT 1`
+        );
+        const r = row[0];
+        const mapped = {
+            id: r.id,
+            evalNumber: r.evalNumber,
+            rfqNumber: r.rfqNumber,
+            rfqTitle: r.rfqTitle,
+            description: r.description,
+            status: r.status,
+            sectionA: r.sectionA ?? null,
+            sectionB: r.sectionB ?? null,
+            sectionC: r.sectionC ?? null,
+            sectionD: r.sectionD ?? null,
+            sectionE: r.sectionE ?? null,
+            createdBy: r.createdBy,
+            creator: { id: r.creatorId, name: r.creatorName, email: r.creatorEmail },
+            evaluator: r.evaluator,
+            dueDate: r.dueDate ?? null,
+            validatedBy: r.validatedBy,
+            validatedAt: r.validatedAt ?? null,
+            validationNotes: r.validationNotes ?? null,
+            createdAt: r.createdAt,
+            updatedAt: r.updatedAt,
+            _fallback: true,
+        };
+        res.json({ success: true, data: mapped, meta: { fallback: true } });
     })
 );
 
@@ -2820,25 +2945,41 @@ app.delete(
     authMiddleware,
     asyncHandler(async (req, res) => {
         const { id } = req.params;
-
-        const existing = await prisma.evaluation.findUnique({
-            where: { id: parseInt(id) },
-        });
-
-        if (!existing) {
-            throw new NotFoundError('Evaluation not found');
+        if (hasEvaluationDelegate()) {
+            const existing = await (prisma as any).evaluation.findUnique({ where: { id: parseInt(id) } });
+            if (!existing) throw new NotFoundError('Evaluation not found');
+            await (prisma as any).evaluation.delete({ where: { id: parseInt(id) } });
+            return res.json({ success: true, message: 'Evaluation deleted successfully' });
         }
-
-        await prisma.evaluation.delete({
-            where: { id: parseInt(id) },
-        });
-
-        res.json({ success: true, message: 'Evaluation deleted successfully' });
+        const checkRow = await prisma.$queryRawUnsafe<any>(`SELECT id FROM Evaluation WHERE id = ${parseInt(id)} LIMIT 1`);
+        if (!checkRow[0]) throw new NotFoundError('Evaluation not found');
+        await prisma.$executeRawUnsafe(`DELETE FROM Evaluation WHERE id = ${parseInt(id)}`);
+        res.json({ success: true, message: 'Evaluation deleted successfully', meta: { fallback: true } });
     })
 );
 
 // Stats API routes
 app.use('/api/stats', statsRouter);
+
+// DEBUG: List all registered routes (temporary; remove in production)
+app.get('/api/_routes', (req, res) => {
+    const routes: Array<{ path: string; methods: string[] }> = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (app as any)._router.stack.forEach((middleware: any) => {
+        if (middleware.route) {
+            const { path, methods } = middleware.route;
+            routes.push({ path, methods: Object.keys(methods).filter((m) => methods[m]) });
+        } else if (middleware.name === 'router' && middleware.handle?.stack) {
+            middleware.handle.stack.forEach((handler: any) => {
+                if (handler.route) {
+                    const { path, methods } = handler.route;
+                    routes.push({ path, methods: Object.keys(methods).filter((m) => methods[m]) });
+                }
+            });
+        }
+    });
+    res.json({ routes });
+});
 
 // No longer need this - using httpServer created at top
 // let server: http.Server | null = null;
