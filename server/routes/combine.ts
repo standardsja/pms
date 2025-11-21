@@ -27,9 +27,18 @@ router.get('/', authMiddleware, async (req, res) => {
             // Procurement users can see all combinable requests
         } else if (userRoles.includes('Department Head')) {
             // Department heads can only see requests from their department
-            whereClause.department = {
-                name: authReq.user.department_name,
-            };
+            // First, get the user's department
+            const user = await prisma.user.findUnique({
+                where: { id: userId },
+                include: { department: true },
+            });
+
+            if (user?.department) {
+                whereClause.departmentId = user.department.id;
+            } else {
+                // If no department, fallback to only their own requests
+                whereClause.requesterId = userId;
+            }
         } else {
             // Regular users can only see their own requests
             whereClause.requesterId = userId;
@@ -89,7 +98,7 @@ router.get('/', authMiddleware, async (req, res) => {
 router.post('/combine', authMiddleware, async (req, res) => {
     try {
         const { title, description, items, originalRequestIds, combinationConfig, requiresApproval, totalEstimated, currency, priority, targetDepartment } = req.body;
-        
+
         const authReq = req as AuthenticatedRequest;
         const userId = authReq.user.sub;
         const userRoles = authReq.user.roles || [];
