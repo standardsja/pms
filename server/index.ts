@@ -2579,6 +2579,10 @@ app.get(
     '/api/evaluations',
     authMiddleware,
     asyncHandler(async (req, res) => {
+        // Temporarily return empty array until Evaluation model is fully configured
+        res.json({ success: true, data: [] });
+        return;
+        
         const { status, search, dueBefore, dueAfter } = req.query;
 
         const where: Prisma.EvaluationWhereInput = {};
