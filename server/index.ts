@@ -28,6 +28,7 @@ import type { Prisma } from '@prisma/client';
 import { requireCommittee as requireCommitteeRole, requireAdmin } from './middleware/rbac';
 import { validate, createIdeaSchema, voteSchema, approveRejectIdeaSchema, promoteIdeaSchema, sanitizeInput as sanitize } from './middleware/validation';
 import { errorHandler, notFoundHandler, asyncHandler, NotFoundError, BadRequestError } from './middleware/errorHandler';
+import { checkProcurementThresholds, logThresholdDecision } from './services/thresholdService';
 import statsRouter from './routes/stats';
 import splinteringRouter from './routes/splintering';
 import combineRouter from './routes/combine';
@@ -2063,31 +2064,61 @@ app.post('/requests/:id/submit', async (req, res) => {
             return res.status(400).json({ message: 'Only draft requests can be submitted' });
         }
 
-        // Find department manager
-        const deptManager = await prisma.user.findFirst({
-            where: {
-                departmentId: request.departmentId,
-                roles: {
-                    some: {
-                        role: {
-                            name: 'DEPT_MANAGER',
+        // Check procurement thresholds to determine routing
+        const totalValue = Number(request.totalEstimated || 0);
+        const procurementTypes = request.procurementType as string[] || [];
+        const currency = request.currency || 'USD';
+        
+        const thresholdResult = checkProcurementThresholds(totalValue, procurementTypes, currency);
+        
+        let initialStatus = 'DEPARTMENT_REVIEW';
+        let initialAssignee = null;
+        let statusComment = 'Request submitted for department manager review';
+
+        if (thresholdResult.requiresExecutiveApproval) {
+            // High-value requests go directly to Executive Director
+            const executiveDirector = await prisma.user.findFirst({
+                where: {
+                    roles: {
+                        some: {
+                            role: {
+                                name: 'EXECUTIVE_DIRECTOR',
+                            },
                         },
                     },
                 },
-            },
-        });
+            });
+            initialStatus = 'EXECUTIVE_REVIEW';
+            initialAssignee = executiveDirector?.id || null;
+            statusComment = `High-value ${thresholdResult.category.replace('_', '/')} request (${currency} ${totalValue.toLocaleString()}) requires Executive Director approval`;
+        } else {
+            // Normal flow - find department manager
+            const deptManager = await prisma.user.findFirst({
+                where: {
+                    departmentId: request.departmentId,
+                    roles: {
+                        some: {
+                            role: {
+                                name: 'DEPT_MANAGER',
+                            },
+                        },
+                    },
+                },
+            });
+            initialAssignee = deptManager?.id || null;
+        }
 
         const updated = await prisma.request.update({
             where: { id: parseInt(id, 10) },
             data: {
-                status: 'DEPARTMENT_REVIEW',
-                currentAssigneeId: deptManager?.id || null,
+                status: initialStatus,
+                currentAssigneeId: initialAssignee,
                 submittedAt: new Date(),
                 statusHistory: {
                     create: {
-                        status: 'DEPARTMENT_REVIEW',
+                        status: initialStatus,
                         changedById: request.requesterId,
-                        comment: 'Request submitted for department manager review',
+                        comment: statusComment,
                     },
                 },
             },
@@ -2098,6 +2129,15 @@ app.post('/requests/:id/submit', async (req, res) => {
                 currentAssignee: { select: { id: true, name: true, email: true } },
             },
         });
+
+        // Log threshold decision for audit trail
+        await logThresholdDecision(
+            request.id,
+            request.requesterId,
+            thresholdResult,
+            totalValue,
+            currency
+        );
 
         return res.json(updated);
     } catch (e: any) {
@@ -2137,15 +2177,40 @@ app.post('/requests/:id/action', async (req, res) => {
         if (action === 'APPROVE') {
             // Determine next workflow stage based on current status
             if (request.status === 'DEPARTMENT_REVIEW') {
-                // Department Manager approved -> send to HOD
-                const hod = await prisma.user.findFirst({
-                    where: {
-                        departmentId: request.departmentId,
-                        roles: { some: { role: { name: 'HEAD_OF_DIVISION' } } },
-                    },
+                // Check if this request needs executive approval due to thresholds
+                const totalValue = Number(request.totalEstimated || 0);
+                const procurementTypes = request.procurementType as string[] || [];
+                const currency = request.currency || 'USD';
+                
+                const thresholdResult = checkProcurementThresholds(totalValue, procurementTypes, currency);
+
+                if (thresholdResult.requiresExecutiveApproval) {
+                    // High-value requests from department review go to Executive Director
+                    const executiveDirector = await prisma.user.findFirst({
+                        where: {
+                            roles: { some: { role: { name: 'EXECUTIVE_DIRECTOR' } } },
+                        },
+                    });
+                    nextStatus = 'EXECUTIVE_REVIEW';
+                    nextAssigneeId = executiveDirector?.id || null;
+                } else {
+                    // Normal flow - Department Manager approved -> send to HOD
+                    const hod = await prisma.user.findFirst({
+                        where: {
+                            departmentId: request.departmentId,
+                            roles: { some: { role: { name: 'HEAD_OF_DIVISION' } } },
+                        },
+                    });
+                    nextStatus = 'HOD_REVIEW';
+                    nextAssigneeId = hod?.id || null;
+                }
+            } else if (request.status === 'EXECUTIVE_REVIEW') {
+                // Executive Director approved -> send to Finance Officer
+                const financeOfficer = await prisma.user.findFirst({
+                    where: { roles: { some: { role: { name: 'FINANCE' } } } },
                 });
-                nextStatus = 'HOD_REVIEW';
-                nextAssigneeId = hod?.id || null;
+                nextStatus = 'FINANCE_REVIEW';
+                nextAssigneeId = financeOfficer?.id || null;
             } else if (request.status === 'HOD_REVIEW') {
                 // HOD approved -> send to Finance Officer
                 const financeOfficer = await prisma.user.findFirst({
