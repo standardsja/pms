@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import { setPageTitle } from '../../../store/themeConfigSlice';
-import { RootState } from '../../../store';
+import { IRootState } from '../../../store';
 import IconPlus from '../../../components/Icon/IconPlus';
 import IconEye from '../../../components/Icon/IconEye';
 import IconX from '../../../components/Icon/IconX';
@@ -24,7 +24,7 @@ import {
 const CombineRequests = () => {
     const dispatch = useDispatch();
     const navigate = useNavigate();
-    const { user } = useSelector((state: RootState) => state.auth);
+    const { user } = useSelector((state: IRootState) => state.auth);
 
     useEffect(() => {
         dispatch(setPageTitle('Combine Requests'));
@@ -93,8 +93,8 @@ const CombineRequests = () => {
         if (!user) return { canCombine: false, requiresApproval: false, reasons: ['Not authenticated'] };
 
         // Get user roles - handle different possible role structures
-        const userRoles = user.roles || (user.role ? [user.role] : []);
-        const userDepartment = user.department_name || user.department || '';
+        const userRoles = user.roles || [];
+        const userDepartment = user.department_name || '';
 
         // Debug log to see what we're working with
         console.log('User roles:', userRoles, 'Department:', userDepartment, 'Selected requests:', selectedRequests.length);
