@@ -29,6 +29,7 @@ const QuoteDetail = lazy(() => import('../pages/Procurement/Quotes/QuoteDetail')
 const EvaluationList = lazy(() => import('../pages/Procurement/Evaluation/EvaluationList'));
 const NewEvaluation = lazy(() => import('../pages/Procurement/Evaluation/NewEvaluation'));
 const EvaluationDetail = lazy(() => import('../pages/Procurement/Evaluation/EvaluationDetail'));
+const EvaluationCommittee = lazy(() => import('../pages/Procurement/Evaluation/EvaluationCommittee'));
 const ReviewList = lazy(() => import('../pages/Procurement/Review/ReviewList'));
 const ReviewDetail = lazy(() => import('../pages/Procurement/Review/ReviewDetail'));
 const ApprovalsList = lazy(() => import('../pages/Procurement/Approvals/ApprovalsList'));
@@ -279,6 +280,10 @@ const routes = [
     {
         path: '/procurement/evaluation/:id',
         element: <EvaluationDetail />,
+    },
+    {
+        path: '/procurement/evaluation/:id/committee',
+        element: <EvaluationCommittee />,
     },
     {
         path: '/procurement/review',

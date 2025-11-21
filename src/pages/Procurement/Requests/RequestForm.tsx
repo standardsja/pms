@@ -5,7 +5,6 @@ import { setPageTitle } from '@/store/themeConfigSlice';
 import IconPlus from '@/components/Icon/IconPlus';
 import IconX from '@/components/Icon/IconX';
 import Swal from 'sweetalert2';
-import { detectSplintering, formatSplinteringAlert, getSplinteringRecommendations } from '../../../utils/splinteringDetection';
 
 interface RequestItem {
     itemNo: number;
@@ -16,6 +15,49 @@ interface RequestItem {
     unitCost: number;
     partNumber: string;
 }
+
+/**
+ * Department codes displayed in the inline editable header.
+ * Centralized for maintainability – update here if organizational codes change.
+ */
+const DEPARTMENT_CODES: readonly string[] = [
+    'ICT',
+    'OSH',
+    'ED10',
+    'ED01',
+    'ED02',
+    'ED12',
+    'ED13',
+    'ED15',
+    'DPU',
+    'QEMS',
+    'CCSB',
+    'CSU',
+    'TIC',
+    'BDU',
+    'HRMD',
+    'OFMB',
+    'PRO',
+    'F&A',
+    'SD',
+    'S&T',
+    'TIS(CE)',
+    'EE',
+    'ME',
+    'NCRA',
+    'NCBJ',
+];
+
+/** Full month names used for header month selection. */
+const MONTHS: readonly string[] = ['JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE', 'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER'];
+
+/**
+ * Header year range logic.
+ * BASE defines the first selectable year; SPAN defines how many consecutive years are offered.
+ * Example: BASE=2025, SPAN=11 -> 2025..2035 inclusive.
+ */
+const HEADER_YEAR_BASE = 2025;
+const HEADER_YEAR_SPAN = 11; // number of years from base
 
 const RequestForm = () => {
     const dispatch = useDispatch();
@@ -48,6 +90,13 @@ const RequestForm = () => {
     const [actionDate, setActionDate] = useState('');
     const [procurementComments, setProcurementComments] = useState('');
     const [attachments, setAttachments] = useState<File[]>([]);
+    const [existingAttachments, setExistingAttachments] = useState<Array<{ id: number; filename: string; url: string }>>([]);
+    const [headerDeptCode, setHeaderDeptCode] = useState('');
+    const [headerMonth, setHeaderMonth] = useState('');
+    const [headerYear, setHeaderYear] = useState<number | null>(new Date().getFullYear());
+    const [headerSequence, setHeaderSequence] = useState<number | null>(0);
+    const paddedSequence = String(headerSequence ?? 0).padStart(3, '0');
+    const headerPreview = `[${headerDeptCode || '---'}]/[${headerMonth || '---'}]/[${headerYear || '----'}]/[${paddedSequence}]`;
     // prevent duplicate submissions when network is slow
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [managerApproved, setManagerApproved] = useState(false);
@@ -147,7 +196,7 @@ const RequestForm = () => {
 
         const fetchRequest = async () => {
             try {
-                const resp = await fetch(`http://localhost:4000/requests/${id}`);
+                const resp = await fetch(`http://heron:4000/requests/${id}`);
                 if (!resp.ok) throw new Error('Failed to fetch request');
 
                 const request = await resp.json();
@@ -214,6 +263,16 @@ const RequestForm = () => {
                 setActionDate(request.actionDate || '');
                 setProcurementComments(request.procurementComments || '');
                 setProcurementApproved(!!request.procurementApproved);
+
+                // Load existing attachments (if any)
+                if (request.attachments && Array.isArray(request.attachments)) {
+                    setExistingAttachments(request.attachments);
+                }
+                // Load header code values
+                setHeaderDeptCode(request.headerDeptCode || request.department?.code || '');
+                setHeaderMonth(request.headerMonth || '');
+                setHeaderYear(request.headerYear || new Date().getFullYear());
+                setHeaderSequence(request.headerSequence ?? 0);
 
                 // Track status and assignee for edit gating
                 const assigneeId = request.currentAssignee?.id || request.currentAssigneeId || null;
@@ -348,6 +407,11 @@ const RequestForm = () => {
                     budgetComments,
                     budgetOfficerName,
                     budgetManagerName,
+                    // Header code fields
+                    headerDeptCode,
+                    headerMonth,
+                    headerYear,
+                    headerSequence,
                     budgetOfficerApproved,
                     budgetManagerApproved,
                     procurementCaseNumber,
@@ -358,7 +422,7 @@ const RequestForm = () => {
                     procurementApproved,
                 };
 
-                const resp = await fetch(`http://localhost:4000/requests/${id}`, {
+                const resp = await fetch(`http://heron:4000/requests/${id}`, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
@@ -381,7 +445,7 @@ const RequestForm = () => {
 
                 if (isApproving) {
                     try {
-                        const approveResp = await fetch(`http://localhost:4000/requests/${id}/action`, {
+                        const approveResp = await fetch(`http://heron:4000/requests/${id}/action`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json', 'x-user-id': String(userId) },
                             body: JSON.stringify({ action: 'APPROVE' }),
@@ -403,7 +467,7 @@ const RequestForm = () => {
                     navigate('/apps/requests');
                 }
             } else {
-                // Create new request
+                // Create new request with attachments using FormData
                 if (!departmentId) {
                     Swal.fire({ icon: 'error', title: 'Error', text: 'Unable to determine department. Make sure you are logged in.' });
                     return;
@@ -418,139 +482,50 @@ const RequestForm = () => {
                 };
                 const priorityEnum = priority ? priorityMap[priority] || 'MEDIUM' : 'MEDIUM';
 
-                const payload = {
-                    title: `Request - ${formDate} - ${items.length} item(s)`,
-                    description: commentsJustification || 'Procurement request created from form',
-                    departmentId: Number(departmentId),
-                    items: items.map((it) => ({
-                        description: it.description,
-                        quantity: it.quantity,
-                        unitPrice: it.unitCost,
-                        totalPrice: it.quantity * it.unitCost,
-                        accountCode: '',
-                        stockLevel: it.stockLevel || '',
-                        unitOfMeasure: it.unitOfMeasure || '',
-                        partNumber: it.partNumber || '',
-                    })),
-                    totalEstimated: estimatedTotal,
-                    currency: currency,
-                    priority: priorityEnum,
-                    procurementType: procurementType.length > 0 ? procurementType : null,
-                };
-
-                // 🚨 ANTI-SPLINTERING CHECK
-                try {
-                    // Fetch existing requests for splintering analysis
-                    const existingReqsResponse = await fetch('http://localhost:4000/requests', {
-                        headers: { 'x-user-id': String(userId) },
-                    });
-
-                    if (existingReqsResponse.ok) {
-                        const existingRequests = await existingReqsResponse.json();
-
-                        // Prepare current request data for analysis
-                        const currentRequestData = {
-                            vendorName: supplierVendor || undefined,
-                            category: procurementType.length > 0 ? procurementType[0] : undefined,
-                            department: profile?.department?.name || division || undefined,
-                            description: commentsJustification || payload.description,
-                            estimatedCost: estimatedTotal,
-                            requestedDate: new Date().toISOString(),
-                            requestedBy: profile?.name || profile?.fullName || undefined,
-                        };
-
-                        // Run splintering detection
-                        const splinteringAlerts = await detectSplintering(currentRequestData, existingRequests);
-
-                        if (splinteringAlerts.length > 0) {
-                            // Show splintering warning
-                            const highRiskAlerts = splinteringAlerts.filter((alert) => alert.severity === 'HIGH');
-                            const blockingAlerts = splinteringAlerts.filter((alert) => alert.blockSubmission);
-
-                            if (blockingAlerts.length > 0) {
-                                // Block submission for high-risk splintering
-                                const alert = formatSplinteringAlert(blockingAlerts[0]);
-                                const recommendations = getSplinteringRecommendations(splinteringAlerts);
-
-                                await Swal.fire({
-                                    icon: 'error',
-                                    title: '🚫 SPLINTERING DETECTED - SUBMISSION BLOCKED',
-                                    html: `
-                                        <div style="text-align: left;">
-                                            <p><strong>${alert.message}</strong></p>
-                                            <hr>
-                                            <p><strong>Details:</strong></p>
-                                            <pre style="font-size: 12px; background: #f5f5f5; padding: 10px; border-radius: 5px;">${alert.details}</pre>
-                                            <hr>
-                                            <p><strong>Required Actions:</strong></p>
-                                            <ul>
-                                                ${alert.actions.map((action) => `<li>${action}</li>`).join('')}
-                                            </ul>
-                                            <hr>
-                                            <div style="font-size: 12px;">
-                                                ${recommendations.join('<br>')}
-                                            </div>
-                                        </div>
-                                    `,
-                                    width: '600px',
-                                    showConfirmButton: true,
-                                    confirmButtonText: 'Contact Procurement Office',
-                                    showCancelButton: true,
-                                    cancelButtonText: 'Revise Request',
-                                });
-
-                                setIsSubmitting(false);
-                                return; // Block submission
-                            } else {
-                                // Show warning but allow submission with confirmation
-                                const alert = formatSplinteringAlert(splinteringAlerts[0]);
-                                const recommendations = getSplinteringRecommendations(splinteringAlerts);
-
-                                const confirmResult = await Swal.fire({
-                                    icon: 'warning',
-                                    title: '⚠️ POTENTIAL SPLINTERING DETECTED',
-                                    html: `
-                                        <div style="text-align: left;">
-                                            <p><strong>${alert.message}</strong></p>
-                                            <hr>
-                                            <p><strong>Details:</strong></p>
-                                            <pre style="font-size: 12px; background: #f5f5f5; padding: 10px; border-radius: 5px;">${alert.details}</pre>
-                                            <hr>
-                                            <div style="font-size: 12px;">
-                                                ${recommendations.join('<br>')}
-                                            </div>
-                                            <hr>
-                                            <p><strong>Do you want to proceed with this request despite the splintering risk?</strong></p>
-                                        </div>
-                                    `,
-                                    width: '600px',
-                                    showCancelButton: true,
-                                    confirmButtonText: 'Proceed Anyway',
-                                    cancelButtonText: 'Revise Request',
-                                    confirmButtonColor: '#dc3545',
-                                });
-
-                                if (!confirmResult.isConfirmed) {
-                                    setIsSubmitting(false);
-                                    return; // User chose to revise
-                                }
-                            }
-                        }
-                    }
-                } catch (splinteringError) {
-                    console.warn('Splintering detection failed:', splinteringError);
-                    // Continue with submission if splintering check fails
+                const formData = new FormData();
+                formData.append('title', `Request - ${formDate} - ${items.length} item(s)`);
+                formData.append('description', commentsJustification || 'Procurement request created from form');
+                formData.append('departmentId', String(departmentId));
+                formData.append('totalEstimated', String(estimatedTotal));
+                formData.append('currency', currency);
+                formData.append('priority', priorityEnum);
+                if (procurementType.length > 0) {
+                    formData.append('procurementType', JSON.stringify(procurementType));
                 }
 
-                console.log('[debug] Submitting payload with procurementType:', payload.procurementType);
+                // Add items as JSON string
+                formData.append(
+                    'items',
+                    JSON.stringify(
+                        items.map((it) => ({
+                            description: it.description,
+                            quantity: it.quantity,
+                            unitPrice: it.unitCost,
+                            totalPrice: it.quantity * it.unitCost,
+                            accountCode: '',
+                            stockLevel: it.stockLevel || '',
+                            unitOfMeasure: it.unitOfMeasure || '',
+                            partNumber: it.partNumber || '',
+                        }))
+                    )
+                );
 
-                const resp = await fetch('http://localhost:4000/requests', {
+                // Attach files
+                attachments.forEach((file) => {
+                    formData.append('attachments', file);
+                });
+                // Header code fields
+                formData.append('headerDeptCode', headerDeptCode || '');
+                formData.append('headerMonth', headerMonth || '');
+                if (headerYear) formData.append('headerYear', String(headerYear));
+                if (headerSequence !== null && headerSequence !== undefined) formData.append('headerSequence', String(headerSequence));
+
+                const resp = await fetch('http://heron:4000/requests', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
                         'x-user-id': String(userId),
                     },
-                    body: JSON.stringify(payload),
+                    body: formData,
                 });
 
                 if (!resp.ok) {
@@ -561,7 +536,7 @@ const RequestForm = () => {
                 const data = await resp.json();
 
                 // Submit the request to department manager for review
-                const submitResp = await fetch(`http://localhost:4000/requests/${data.id}/submit`, {
+                const submitResp = await fetch(`http://heron:4000/requests/${data.id}/submit`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -593,7 +568,7 @@ const RequestForm = () => {
 
     const handleDownloadPdf = () => {
         if (!id) return;
-        const url = `http://localhost:4000/requests/${id}/pdf`;
+        const url = `http://heron:4000/requests/${id}/pdf`;
         // open in a new tab to trigger download
         window.open(url, '_blank');
     };
@@ -608,7 +583,7 @@ const RequestForm = () => {
             return;
         }
         try {
-            const resp = await fetch(`http://localhost:4000/requests/${id}/action`, {
+            const resp = await fetch(`http://heron:4000/requests/${id}/action`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'x-user-id': String(userId) },
                 body: JSON.stringify({ action: 'SEND_TO_VENDOR' }),
@@ -628,9 +603,88 @@ const RequestForm = () => {
 
     return (
         <div className="p-6">
-            <div className="mb-6 text-center">
-                <h1 className="text-2xl font-semibold">BUREAU OF STANDARDS JAMAICA</h1>
-                <h2 className="text-xl font-semibold mt-1">PROCUREMENT REQUISITION FORM</h2>
+            <div className="mb-6 relative">
+                <div className="flex items-start justify-between">
+                    <div className="mb-6 relative">
+                        <div className="flex items-start justify-between">
+                            <div className="w-32 hidden md:block" />
+                            <div className="flex-1 text-center">
+                                <h1 className="text-2xl font-semibold">BUREAU OF STANDARDS JAMAICA</h1>
+                                <h2 className="text-xl font-semibold mt-1 underline">PROCUREMENT REQUISITION FORM</h2>
+                                <div className="text-sm italic text-gray-500 mt-2">This form authorizes the Procurement Unit to act on your behalf.</div>
+                                <div className="mt-4 flex flex-wrap gap-2 items-center justify-center text-sm font-semibold">
+                                    {/* Inline dropdown controls styled as brackets */}
+                                    <div className="flex items-center gap-1">
+                                        <span className="inline-flex items-center bg-yellow-600 text-white rounded-sm">
+                                            <span className="px-1">[</span>
+                                            <select
+                                                className="bg-transparent border-0 text-white font-semibold text-sm focus:ring-0 px-1 cursor-pointer"
+                                                value={headerDeptCode}
+                                                onChange={(e) => setHeaderDeptCode(e.target.value)}
+                                            >
+                                                <option value="">---</option>
+                                                {DEPARTMENT_CODES.map((code) => (
+                                                    <option key={code} value={code}>
+                                                        {code}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            <span className="px-1">]</span>
+                                        </span>
+                                        <span className="inline-flex items-center bg-yellow-600 text-white rounded-sm">
+                                            <span className="px-1">[</span>
+                                            <select
+                                                className="bg-transparent border-0 text-white font-semibold text-sm focus:ring-0 px-1 cursor-pointer"
+                                                value={headerMonth}
+                                                onChange={(e) => setHeaderMonth(e.target.value)}
+                                            >
+                                                <option value="">---</option>
+                                                {MONTHS.map((m) => (
+                                                    <option key={m} value={m}>
+                                                        {m}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            <span className="px-1">]</span>
+                                        </span>
+                                        <span className="inline-flex items-center bg-yellow-600 text-white rounded-sm">
+                                            <span className="px-1">[</span>
+                                            <select
+                                                className="bg-transparent border-0 text-white font-semibold text-sm focus:ring-0 px-1 cursor-pointer w-16"
+                                                value={headerYear ?? ''}
+                                                onChange={(e) => setHeaderYear(e.target.value ? parseInt(e.target.value, 10) : null)}
+                                            >
+                                                <option value="">----</option>
+                                                {Array.from({ length: HEADER_YEAR_SPAN }).map((_, i) => {
+                                                    const year = HEADER_YEAR_BASE + i;
+                                                    return (
+                                                        <option key={year} value={year}>
+                                                            {year}
+                                                        </option>
+                                                    );
+                                                })}
+                                            </select>
+                                            <span className="px-1">]</span>
+                                        </span>
+                                        <span className="inline-flex items-center bg-yellow-600 text-white rounded-sm px-2 py-1">
+                                            [
+                                            <input
+                                                type="number"
+                                                min={0}
+                                                max={999}
+                                                value={headerSequence ?? 0}
+                                                onChange={(e) => setHeaderSequence(e.target.value ? parseInt(e.target.value, 10) : 0)}
+                                                className="bg-transparent border-0 text-white font-semibold text-sm focus:ring-0 w-10 text-center"
+                                            />
+                                            ]
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="w-32" />
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div className="bg-white dark:bg-slate-800 shadow rounded p-6">
@@ -791,6 +845,8 @@ const RequestForm = () => {
                                 </div>
                             </div>
                         </div>
+
+                        {/* Header Code (moved to top – render preview here if not already displayed) */}
 
                         <div className="mb-4">
                             <label className="block text-sm font-medium mb-2">Priority</label>
@@ -1216,9 +1272,28 @@ const RequestForm = () => {
                             <input type="file" onChange={handleFileChange} className="form-input w-full" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png" />
                             <p className="text-xs text-gray-500 dark:text-gray-400">Attach quotations, specifications, or other supporting documents (PDF, Word, Excel, Images - Max 10MB per file)</p>
 
+                            {/* Existing attachments from database */}
+                            {existingAttachments.length > 0 && (
+                                <div className="mt-3 space-y-2">
+                                    <p className="text-sm font-medium">Existing attachments:</p>
+                                    {existingAttachments.map((file) => (
+                                        <div key={file.id} className="flex items-center justify-between p-2 bg-blue-50 dark:bg-blue-900/20 rounded border border-blue-200 dark:border-blue-800">
+                                            <button
+                                                type="button"
+                                                onClick={() => window.open(file.url, '_blank')}
+                                                className="text-sm truncate flex-1 text-left text-blue-600 dark:text-blue-400 hover:underline"
+                                            >
+                                                {file.filename}
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* New attachments being uploaded */}
                             {attachments.length > 0 && (
                                 <div className="mt-3 space-y-2">
-                                    <p className="text-sm font-medium">Attached files:</p>
+                                    <p className="text-sm font-medium">New files to upload:</p>
                                     {attachments.map((file, index) => (
                                         <div key={index} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-900 rounded">
                                             <span className="text-sm truncate flex-1">{file.name}</span>

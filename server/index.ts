@@ -8,6 +8,12 @@ import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 import http from 'http';
+import { fileURLToPath } from 'url';
+
+// ES module equivalent of __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 import rateLimit from 'express-rate-limit';
 import { prisma, ensureDbConnection } from './prismaClient';
 import { initRedis, closeRedis, cacheGet, cacheSet, cacheDelete, cacheDeletePattern } from './config/redis';
@@ -74,7 +80,13 @@ const batchLimiter = rateLimit({
 });
 
 app.use(cors());
-app.use(express.json());
+// Only parse JSON for non-multipart requests (let multer handle multipart)
+app.use((req, res, next) => {
+    if (req.is('multipart/form-data')) {
+        return next();
+    }
+    express.json()(req, res, next);
+});
 app.use(morgan('dev'));
 app.use(requestMonitoringMiddleware); // Performance monitoring
 app.use(sanitize); // Sanitize all inputs
@@ -163,6 +175,50 @@ const upload = multer({
     fileFilter: (_req, file, cb) => {
         if (/^image\//.test(file.mimetype)) cb(null, true);
         else cb(new Error('Only image uploads are allowed'));
+    },
+});
+
+// Separate multer instance for request attachments (allows documents)
+const uploadAttachments = multer({
+    storage: multer.diskStorage({
+        destination: (_req, _file, cb) => {
+            // Use the same uploads directory served by express.static (UPLOAD_DIR)
+            // UPLOAD_DIR is created earlier in the file and points to process.cwd()/uploads
+            const dest = path.resolve(process.cwd(), 'uploads');
+            if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
+            cb(null, dest);
+        },
+        filename: (_req, file, cb) => {
+            const ext = path.extname(file.originalname);
+            const base = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9_-]/g, '_');
+            cb(null, `attachment_${Date.now()}_${base}${ext}`);
+        },
+    }),
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB for documents
+    fileFilter: (_req, file, cb) => {
+        console.log('[uploadAttachments] File:', file.originalname, 'Type:', file.mimetype);
+        // Allow common document types and images
+        const allowedTypes = [
+            'application/pdf',
+            'application/msword',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/vnd.ms-excel',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'image/jpeg',
+            'image/jpg',
+            'image/png',
+            'image/gif',
+        ];
+        // Also allow by file extension as backup
+        const ext = path.extname(file.originalname).toLowerCase();
+        const allowedExtensions = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.jpg', '.jpeg', '.png', '.gif'];
+
+        if (allowedTypes.includes(file.mimetype) || allowedExtensions.includes(ext)) {
+            cb(null, true);
+        } else {
+            console.log('[uploadAttachments] Rejected file type:', file.mimetype, 'Extension:', ext);
+            cb(new Error(`File type not allowed: ${file.mimetype}. Allowed: PDF, Word, Excel, JPG, PNG`));
+        }
     },
 });
 
@@ -1484,6 +1540,10 @@ app.get('/requests', async (_req, res) => {
                 requester: { select: { id: true, name: true, email: true } },
                 department: { select: { id: true, name: true, code: true } },
                 currentAssignee: { select: { id: true, name: true, email: true } },
+                headerDeptCode: true,
+                headerMonth: true,
+                headerYear: true,
+                headerSequence: true,
             },
         });
         return res.json(requests);
@@ -1510,6 +1570,10 @@ app.get('/requests', async (_req, res) => {
                             requester: { select: { id: true, name: true, email: true } },
                             department: { select: { id: true, name: true, code: true } },
                             currentAssignee: { select: { id: true, name: true, email: true } },
+                            headerDeptCode: true,
+                            headerMonth: true,
+                            headerYear: true,
+                            headerSequence: true,
                         },
                     });
                     return res.json(requests);
@@ -1522,61 +1586,130 @@ app.get('/requests', async (_req, res) => {
     }
 });
 
-// POST /requests - create a new procurement request
-app.post('/requests', async (req, res) => {
-    try {
-        const userId = req.headers['x-user-id'];
-        if (!userId) {
-            return res.status(401).json({ message: 'User ID required' });
-        }
-
-        const { title, description, departmentId, items = [], totalEstimated, currency, priority, procurementType } = req.body || {};
-
-        if (!title || !departmentId) {
-            return res.status(400).json({ message: 'Title and department are required' });
-        }
-
-        // Generate reference
-        const reference = `REQ-${Date.now()}`;
-
-        const created = await prisma.request.create({
-            data: {
-                reference,
-                title,
-                description: description || null,
-                requesterId: parseInt(String(userId), 10),
-                departmentId: parseInt(String(departmentId), 10),
-                totalEstimated: totalEstimated ? parseFloat(String(totalEstimated)) : null,
-                currency: currency || 'JMD',
-                priority: priority || 'MEDIUM',
-                procurementType: procurementType || null,
-                status: 'DRAFT',
-                items: {
-                    create: items.map((it: any) => ({
-                        description: String(it.description || ''),
-                        quantity: Number(it.quantity || 1),
-                        unitPrice: parseFloat(String(it.unitPrice || 0)),
-                        totalPrice: parseFloat(String(it.totalPrice || 0)),
-                        accountCode: it.accountCode || null,
-                        stockLevel: it.stockLevel || null,
-                        unitOfMeasure: it.unitOfMeasure || null,
-                        partNumber: it.partNumber || null,
-                    })),
-                },
-            },
-            include: {
-                items: true,
-                requester: { select: { id: true, name: true, email: true } },
-                department: { select: { id: true, name: true, code: true } },
-            },
+// POST /requests - create a new procurement request (with optional file attachments)
+app.post(
+    '/requests',
+    (req, res, next) => {
+        uploadAttachments.array('attachments', 10)(req, res, (err) => {
+            if (err) {
+                console.error('[POST /requests] Multer error:', err);
+                return res.status(400).json({
+                    message: err.message || 'File upload failed',
+                    error: err.message,
+                });
+            }
+            next();
         });
+    },
+    async (req, res) => {
+        try {
+            console.log('[POST /requests] Request received');
+            console.log('[POST /requests] Headers:', req.headers['x-user-id']);
+            console.log('[POST /requests] Body keys:', Object.keys(req.body));
+            console.log('[POST /requests] Files:', req.files ? (req.files as any[]).map((f) => f.originalname) : 'none');
 
-        return res.status(201).json(created);
-    } catch (e: any) {
-        console.error('POST /requests error:', e);
-        return res.status(500).json({ message: e?.message || 'Failed to create request' });
+            const userId = req.headers['x-user-id'];
+            if (!userId) {
+                return res.status(401).json({ message: 'User ID required' });
+            }
+
+            const { title, description, departmentId, items = [], totalEstimated, currency, priority, procurementType, headerDeptCode, headerMonth, headerYear, headerSequence } = req.body || {};
+
+            console.log('[POST /requests] Parsed fields - title:', title, 'departmentId:', departmentId);
+
+            if (!title || !departmentId) {
+                return res.status(400).json({ message: 'Title and department are required' });
+            }
+
+            // Parse items if it comes as JSON string (from FormData)
+            let parsedItems;
+            try {
+                parsedItems = typeof items === 'string' ? JSON.parse(items) : items;
+                console.log('[POST /requests] Parsed items count:', parsedItems.length);
+            } catch (parseErr: any) {
+                console.error('[POST /requests] Failed to parse items:', parseErr);
+                return res.status(400).json({ message: 'Invalid items format', error: parseErr.message });
+            }
+
+            // Generate reference
+            const reference = `REQ-${Date.now()}`;
+
+            console.log('[POST /requests] Creating request with reference:', reference);
+
+            const created = await prisma.request.create({
+                data: {
+                    reference,
+                    title,
+                    description: description || null,
+                    requesterId: parseInt(String(userId), 10),
+                    departmentId: parseInt(String(departmentId), 10),
+                    totalEstimated: totalEstimated ? parseFloat(String(totalEstimated)) : null,
+                    currency: currency || 'JMD',
+                    priority: priority || 'MEDIUM',
+                    procurementType: procurementType || null,
+                    status: 'DRAFT',
+                    headerDeptCode: headerDeptCode || null,
+                    headerMonth: headerMonth || null,
+                    headerYear: headerYear ? parseInt(String(headerYear), 10) : null,
+                    headerSequence: headerSequence ? parseInt(String(headerSequence), 10) : null,
+                    items: {
+                        create: parsedItems.map((it: any) => ({
+                            description: String(it.description || ''),
+                            quantity: Number(it.quantity || 1),
+                            unitPrice: parseFloat(String(it.unitPrice || 0)),
+                            totalPrice: parseFloat(String(it.totalPrice || 0)),
+                            accountCode: it.accountCode || null,
+                            stockLevel: it.stockLevel || null,
+                            unitOfMeasure: it.unitOfMeasure || null,
+                            partNumber: it.partNumber || null,
+                        })),
+                    },
+                },
+                include: {
+                    items: true,
+                    requester: { select: { id: true, name: true, email: true } },
+                    department: { select: { id: true, name: true, code: true } },
+                },
+            });
+
+            console.log('[POST /requests] Request created with ID:', created.id);
+
+            // Handle file attachments
+            if (req.files && Array.isArray(req.files) && req.files.length > 0) {
+                console.log('[POST /requests] Processing', req.files.length, 'file attachments');
+                for (const file of req.files) {
+                    const fileUrl = `http://heron:4000/uploads/${file.filename}`;
+                    console.log('[POST /requests] Creating attachment:', file.originalname);
+                    await prisma.requestAttachment.create({
+                        data: {
+                            requestId: created.id,
+                            filename: file.originalname,
+                            url: fileUrl,
+                            mimeType: file.mimetype,
+                            uploadedById: parseInt(String(userId), 10),
+                        },
+                    });
+                }
+            }
+
+            // Reload with attachments
+            const final = await prisma.request.findUnique({
+                where: { id: created.id },
+                include: {
+                    items: true,
+                    requester: { select: { id: true, name: true, email: true } },
+                    department: { select: { id: true, name: true, code: true } },
+                    attachments: true,
+                },
+            });
+
+            return res.status(201).json(final);
+        } catch (e: any) {
+            console.error('POST /requests error:', e);
+            return res.status(500).json({ message: e?.message || 'Failed to create request' });
+        }
     }
-});
+);
 
 // GET /requests/:id - fetch a single request by ID for editing
 app.get('/requests/:id', async (req, res) => {
@@ -1623,6 +1756,11 @@ app.get('/requests/:id', async (req, res) => {
                 requester: { select: { id: true, name: true, email: true } },
                 department: { select: { id: true, name: true, code: true } },
                 currentAssignee: { select: { id: true, name: true, email: true } },
+                attachments: true,
+                headerDeptCode: true,
+                headerMonth: true,
+                headerYear: true,
+                headerSequence: true,
                 statusHistory: true,
                 actions: true,
             },
@@ -1682,6 +1820,7 @@ app.get('/requests/:id', async (req, res) => {
                             requester: { select: { id: true, name: true, email: true } },
                             department: { select: { id: true, name: true, code: true } },
                             currentAssignee: { select: { id: true, name: true, email: true } },
+                            attachments: true,
                             statusHistory: true,
                             actions: true,
                         },
@@ -1828,6 +1967,15 @@ app.get('/requests/:id/pdf', async (req, res) => {
             .replace('{{actionDate}}', formatDate(request.actionDate))
             .replace('{{procurementComments}}', request.procurementComments || '—')
             .replace('{{now}}', new Date().toLocaleString('en-US'));
+
+        // Header code placeholders
+        const seq = request.headerSequence !== null && request.headerSequence !== undefined ? String(request.headerSequence).padStart(3, '0') : '—';
+        html = html
+            .replace(/{{headerDeptCode}}/g, request.headerDeptCode || '—')
+            .replace(/{{headerMonth}}/g, request.headerMonth || '—')
+            .replace(/{{headerYear}}/g, request.headerYear ? String(request.headerYear) : '—')
+            .replace(/{{headerSequence}}/g, seq)
+            .replace(/{{headerCode}}/g, `${request.headerDeptCode || '—'}/${request.headerMonth || '—'}/${request.headerYear ? String(request.headerYear) : '—'}/${seq}`);
 
         // Try chrome-based render first; if it fails (server missing deps), fallback to PDFKit
         let pdf: Buffer | null = null;
@@ -2021,8 +2169,9 @@ app.post('/requests/:id/action', async (req, res) => {
                 nextAssigneeId = procurement?.id || null;
             } else if (request.status === 'PROCUREMENT_REVIEW') {
                 // Procurement approved -> final approval (ready to send to vendor)
+                // Keep the procurement approver assigned so they can download PDF & dispatch
                 nextStatus = 'FINANCE_APPROVED';
-                nextAssigneeId = null;
+                nextAssigneeId = parseInt(String(userId), 10);
             }
         } else if (action === 'SEND_TO_VENDOR') {
             if (request.status !== 'FINANCE_APPROVED') {
@@ -2421,6 +2570,269 @@ app.get('/api/auth/login', (req, res) => {
 app.get('/api/auth/test-login', (req, res) => {
     res.status(405).json({ message: 'Use POST method' });
 });
+
+// ============================================
+// EVALUATION ENDPOINTS
+// ============================================
+
+// GET /api/evaluations - List all evaluations with filters
+app.get(
+    '/api/evaluations',
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+        const { status, search, dueBefore, dueAfter } = req.query;
+
+        const where: Prisma.EvaluationWhereInput = {};
+
+        if (status && status !== 'ALL') {
+            where.status = status as any;
+        }
+
+        if (search) {
+            where.OR = [
+                { evalNumber: { contains: search as string, mode: 'insensitive' } },
+                { rfqNumber: { contains: search as string, mode: 'insensitive' } },
+                { rfqTitle: { contains: search as string, mode: 'insensitive' } },
+                { description: { contains: search as string, mode: 'insensitive' } },
+            ];
+        }
+
+        if (dueBefore) {
+            where.dueDate = { ...where.dueDate, lte: new Date(dueBefore as string) };
+        }
+
+        if (dueAfter) {
+            where.dueDate = { ...where.dueDate, gte: new Date(dueAfter as string) };
+        }
+
+        const evaluations = await prisma.evaluation.findMany({
+            where,
+            include: {
+                creator: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                    },
+                },
+                validator: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                    },
+                },
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+
+        res.json({ success: true, data: evaluations });
+    })
+);
+
+// GET /api/evaluations/:id - Get single evaluation by ID
+app.get(
+    '/api/evaluations/:id',
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+        const { id } = req.params;
+
+        const evaluation = await prisma.evaluation.findUnique({
+            where: { id: parseInt(id) },
+            include: {
+                creator: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                    },
+                },
+                validator: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                    },
+                },
+            },
+        });
+
+        if (!evaluation) {
+            throw new NotFoundError('Evaluation not found');
+        }
+
+        res.json({ success: true, data: evaluation });
+    })
+);
+
+// POST /api/evaluations - Create new evaluation
+app.post(
+    '/api/evaluations',
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+        const user = (req as any).user;
+        const { evalNumber, rfqNumber, rfqTitle, description, sectionA, dueDate, evaluator } = req.body;
+
+        if (!evalNumber || !rfqNumber || !rfqTitle) {
+            throw new BadRequestError('Missing required fields: evalNumber, rfqNumber, rfqTitle');
+        }
+
+        // Check if evalNumber already exists
+        const existing = await prisma.evaluation.findUnique({
+            where: { evalNumber },
+        });
+
+        if (existing) {
+            throw new BadRequestError('Evaluation number already exists');
+        }
+
+        const evaluation = await prisma.evaluation.create({
+            data: {
+                evalNumber,
+                rfqNumber,
+                rfqTitle,
+                description,
+                sectionA,
+                evaluator,
+                dueDate: dueDate ? new Date(dueDate) : null,
+                createdBy: user.id,
+                status: 'PENDING',
+            },
+            include: {
+                creator: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                    },
+                },
+            },
+        });
+
+        res.status(201).json({ success: true, data: evaluation });
+    })
+);
+
+// PATCH /api/evaluations/:id - Update evaluation
+app.patch(
+    '/api/evaluations/:id',
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+        const { id } = req.params;
+        const { status, sectionA, sectionB, sectionC, sectionD, sectionE, validationNotes } = req.body;
+
+        const existing = await prisma.evaluation.findUnique({
+            where: { id: parseInt(id) },
+        });
+
+        if (!existing) {
+            throw new NotFoundError('Evaluation not found');
+        }
+
+        const updateData: Prisma.EvaluationUpdateInput = {};
+
+        if (status) updateData.status = status;
+        if (sectionA) updateData.sectionA = sectionA;
+        if (sectionB) updateData.sectionB = sectionB;
+        if (sectionC) updateData.sectionC = sectionC;
+        if (sectionD) updateData.sectionD = sectionD;
+        if (sectionE) updateData.sectionE = sectionE;
+        if (validationNotes) updateData.validationNotes = validationNotes;
+
+        const evaluation = await prisma.evaluation.update({
+            where: { id: parseInt(id) },
+            data: updateData,
+            include: {
+                creator: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                    },
+                },
+                validator: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                    },
+                },
+            },
+        });
+
+        res.json({ success: true, data: evaluation });
+    })
+);
+
+// PATCH /api/evaluations/:id/committee - Update committee section data
+app.patch(
+    '/api/evaluations/:id/committee',
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+        const { id } = req.params;
+        const { section, data } = req.body;
+
+        if (!section || !data) {
+            throw new BadRequestError('Missing required fields: section, data');
+        }
+
+        const existing = await prisma.evaluation.findUnique({
+            where: { id: parseInt(id) },
+        });
+
+        if (!existing) {
+            throw new NotFoundError('Evaluation not found');
+        }
+
+        const updateData: Prisma.EvaluationUpdateInput = {};
+        const sectionKey = `section${section.toUpperCase()}` as keyof Prisma.EvaluationUpdateInput;
+        updateData[sectionKey] = data;
+
+        // Auto-update status to COMMITTEE_REVIEW if still PENDING
+        if (existing.status === 'PENDING') {
+            updateData.status = 'COMMITTEE_REVIEW';
+        }
+
+        const evaluation = await prisma.evaluation.update({
+            where: { id: parseInt(id) },
+            data: updateData,
+            include: {
+                creator: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                    },
+                },
+            },
+        });
+
+        res.json({ success: true, data: evaluation });
+    })
+);
+
+// DELETE /api/evaluations/:id - Delete evaluation
+app.delete(
+    '/api/evaluations/:id',
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+        const { id } = req.params;
+
+        const existing = await prisma.evaluation.findUnique({
+            where: { id: parseInt(id) },
+        });
+
+        if (!existing) {
+            throw new NotFoundError('Evaluation not found');
+        }
+
+        await prisma.evaluation.delete({
+            where: { id: parseInt(id) },
+        });
+
+        res.json({ success: true, message: 'Evaluation deleted successfully' });
+    })
+);
 
 // Stats API routes
 app.use('/api/stats', statsRouter);

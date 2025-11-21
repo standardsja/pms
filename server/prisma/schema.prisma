@@ -124,6 +124,10 @@ model User {
   stageHistory IdeaStageHistory[]
   auditLogs    AuditLog[]
   notifications Notification[]
+  
+  // Procurement Evaluation relations
+  createdEvaluations   Evaluation[] @relation("EvaluationCreator")
+  validatedEvaluations Evaluation[] @relation("EvaluationValidator")
 }
 
 model Department {
@@ -238,6 +242,12 @@ model Request {
   procurementApproved   Boolean? @default(false)
   actionDate            String?
   procurementComments   String?
+
+  // Header code fields for final document
+  headerDeptCode String?
+  headerMonth    String?
+  headerYear     Int?
+  headerSequence Int?
 
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -491,4 +501,86 @@ model Notification {
 
   @@index([userId])
   @@index([createdAt])
+}
+
+// ============================================
+// PROCUREMENT EVALUATION DOMAIN
+// ============================================
+
+enum EvaluationStatus {
+  PENDING
+  IN_PROGRESS
+  COMMITTEE_REVIEW
+  COMPLETED
+  VALIDATED
+  REJECTED
+}
+
+enum ProcurementMethod {
+  INTERNATIONAL_COMPETITIVE_BIDDING
+  NATIONAL_COMPETITIVE_BIDDING
+  RESTRICTED_BIDDING
+  SINGLE_SOURCE
+  EMERGENCY_SINGLE_SOURCE
+}
+
+enum ContractType {
+  GOODS
+  CONSULTING_SERVICES
+  NON_CONSULTING_SERVICES
+  WORKS
+}
+
+enum AwardCriteria {
+  LOWEST_COST
+  MOST_ADVANTAGEOUS_BID
+}
+
+enum EvaluatorAction {
+  RECOMMENDED
+  REJECTED
+  DEFERRED
+}
+
+model Evaluation {
+  id             Int               @id @default(autoincrement())
+  evalNumber     String            @unique
+  rfqNumber      String
+  rfqTitle       String
+  description    String?           @db.Text
+  status         EvaluationStatus  @default(PENDING)
+  
+  // Section A: Procurement Details (stored as JSON for flexibility)
+  sectionA       Json?
+  
+  // Section B: Eligibility & Compliance (array of bidders)
+  sectionB       Json?
+  
+  // Section C: Evaluator Comments & Recommendation
+  sectionC       Json?
+  
+  // Section D: Summary
+  sectionD       Json?
+  
+  // Section E: Final Recommendation
+  sectionE       Json?
+  
+  // Metadata
+  createdBy      Int
+  creator        User              @relation("EvaluationCreator", fields: [createdBy], references: [id])
+  
+  evaluator      String?
+  dueDate        DateTime?
+  validatedBy    Int?
+  validator      User?             @relation("EvaluationValidator", fields: [validatedBy], references: [id])
+  validatedAt    DateTime?
+  validationNotes String?          @db.Text
+  
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  
+  @@index([status])
+  @@index([createdBy])
+  @@index([evalNumber])
+  @@index([rfqNumber])
 }
