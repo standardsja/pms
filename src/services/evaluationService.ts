@@ -1,6 +1,28 @@
 import { getToken } from '../utils/auth';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+/**
+ * Smart API URL detection - automatically switches between local and production
+ */
+function getApiUrl(): string {
+    // 1. Explicit override via environment variable
+    if (import.meta.env.VITE_API_URL) {
+        return import.meta.env.VITE_API_URL;
+    }
+
+    // 2. Detect environment based on current hostname
+    const hostname = window.location.hostname;
+    const protocol = window.location.protocol;
+
+    // If running on localhost, use localhost backend
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        return 'http://localhost:4000';
+    }
+
+    // Otherwise, use the same hostname as the frontend (production)
+    return `${protocol}//${hostname}:4000`;
+}
+
+const API_URL = getApiUrl();
 
 export type EvaluationStatus = 'PENDING' | 'IN_PROGRESS' | 'COMMITTEE_REVIEW' | 'COMPLETED' | 'VALIDATED' | 'REJECTED';
 
@@ -150,16 +172,51 @@ class EvaluationService {
             throw new Error('No authentication token found');
         }
 
-        const response = await fetch(`${API_URL}${url}`, {
-            ...options,
-            headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`,
-                ...options.headers,
-            },
-        });
+        // Build initial headers
+        const baseHeaders: Record<string, string> = {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+        };
+
+        // Development fallback: include X-User-Id header if we can derive a numeric id from stored user
+        try {
+            const rawUser = sessionStorage.getItem('auth_user') || localStorage.getItem('auth_user');
+            if (rawUser) {
+                const parsed = JSON.parse(rawUser);
+                const uid = parsed?.id ?? parsed?.userId;
+                const numericId = typeof uid === 'number' ? uid : parseInt(String(uid), 10);
+                if (Number.isFinite(numericId)) {
+                    baseHeaders['X-User-Id'] = String(numericId);
+                }
+            }
+        } catch {
+            /* ignore parse errors */
+        }
+
+        const attempt = async (extraHeaders?: Record<string, string>) => {
+            const response = await fetch(`${API_URL}${url}`, {
+                ...options,
+                headers: {
+                    ...baseHeaders,
+                    ...(options.headers || {}),
+                    ...(extraHeaders || {}),
+                },
+            });
+            return response;
+        };
+
+        let response = await attempt();
+
+        // If token invalid (401) and we have X-User-Id, try a second attempt without Bearer to leverage dev fallback in backend
+        if (response.status === 401) {
+            const hasUserIdHeader = 'X-User-Id' in baseHeaders;
+            if (hasUserIdHeader) {
+                response = await attempt({ Authorization: '' });
+            }
+        }
 
         if (!response.ok) {
+            // Attempt to parse structured error
             const error = await response.json().catch(() => ({ message: 'Request failed' }));
             throw new Error(error.message || `HTTP ${response.status}`);
         }

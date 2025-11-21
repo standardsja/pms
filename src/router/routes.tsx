@@ -284,6 +284,10 @@ const routes = [
         element: <EvaluationCommittee />,
     },
     {
+        path: '/procurement/evaluation/committee',
+        element: <EvaluationCommittee />,
+    },
+    {
         path: '/procurement/review',
         element: <ReviewList />,
     },

@@ -125,6 +125,10 @@ model User {
   auditLogs    AuditLog[]
   notifications Notification[]
   
+  // Messages relations
+  sentMessages     Message[] @relation("MessagesSent")
+  receivedMessages Message[] @relation("MessagesReceived")
+  
   // Procurement Evaluation relations
   createdEvaluations   Evaluation[] @relation("EvaluationCreator")
   validatedEvaluations Evaluation[] @relation("EvaluationValidator")
@@ -500,6 +504,22 @@ model Notification {
   createdAt DateTime         @default(now())
 
   @@index([userId])
+  @@index([createdAt])
+}
+
+model Message {
+  id         Int       @id @default(autoincrement())
+  fromUserId Int
+  toUserId   Int
+  fromUser   User      @relation("MessagesSent", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUser     User      @relation("MessagesReceived", fields: [toUserId], references: [id], onDelete: Cascade)
+  subject    String
+  body       String    @db.Text
+  readAt     DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([toUserId])
+  @@index([fromUserId])
   @@index([createdAt])
 }
 

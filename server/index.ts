@@ -531,9 +531,286 @@ app.get('/api/auth/me', authMiddleware, async (req, res) => {
     });
 });
 
-// =============== Innovation Hub: Ideas (Committee) ===============
+// =============== Notifications & Messages ===============
 
-// List ideas with optional filters: status, sort
+// GET /api/notifications - Fetch user notifications
+app.get('/api/notifications', authMiddleware, async (req, res) => {
+    try {
+        const user = (req as any).user as { sub?: number };
+        const userId = user.sub;
+
+        if (!userId) {
+            return res.status(401).json({ success: false, message: 'User not authenticated' });
+        }
+
+        // Fetch notifications for the user, ordered by most recent first
+        const notifications = await prisma.notification.findMany({
+            where: { userId },
+            orderBy: { createdAt: 'desc' },
+            take: 50, // Limit to last 50 notifications
+            include: {
+                user: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                    },
+                },
+            },
+        });
+
+        res.json({
+            success: true,
+            data: notifications,
+        });
+    } catch (error) {
+        console.error('GET /api/notifications error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch notifications',
+            details: error instanceof Error ? error.message : String(error),
+        });
+    }
+});
+
+// PATCH /api/notifications/:id/read - Mark notification as read
+app.patch('/api/notifications/:id/read', authMiddleware, async (req, res) => {
+    try {
+        const user = (req as any).user as { sub?: number };
+        const userId = user.sub;
+        const notificationId = parseInt(req.params.id, 10);
+
+        if (!userId) {
+            return res.status(401).json({ success: false, message: 'User not authenticated' });
+        }
+
+        if (isNaN(notificationId)) {
+            return res.status(400).json({ success: false, message: 'Invalid notification ID' });
+        }
+
+        // Verify notification belongs to user
+        const notification = await prisma.notification.findUnique({
+            where: { id: notificationId },
+        });
+
+        if (!notification) {
+            return res.status(404).json({ success: false, message: 'Notification not found' });
+        }
+
+        if (notification.userId !== userId) {
+            return res.status(403).json({ success: false, message: 'Not authorized to update this notification' });
+        }
+
+        // Mark as read
+        const updated = await prisma.notification.update({
+            where: { id: notificationId },
+            data: { readAt: new Date() },
+        });
+
+        res.json({
+            success: true,
+            data: updated,
+        });
+    } catch (error) {
+        console.error('PATCH /api/notifications/:id/read error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to mark notification as read',
+            details: error instanceof Error ? error.message : String(error),
+        });
+    }
+});
+
+// DELETE /api/notifications/:id - Delete notification
+app.delete('/api/notifications/:id', authMiddleware, async (req, res) => {
+    try {
+        const user = (req as any).user as { sub?: number };
+        const userId = user.sub;
+        const notificationId = parseInt(req.params.id, 10);
+
+        if (!userId) {
+            return res.status(401).json({ success: false, message: 'User not authenticated' });
+        }
+
+        if (isNaN(notificationId)) {
+            return res.status(400).json({ success: false, message: 'Invalid notification ID' });
+        }
+
+        // Verify notification belongs to user
+        const notification = await prisma.notification.findUnique({
+            where: { id: notificationId },
+        });
+
+        if (!notification) {
+            return res.status(404).json({ success: false, message: 'Notification not found' });
+        }
+
+        if (notification.userId !== userId) {
+            return res.status(403).json({ success: false, message: 'Not authorized to delete this notification' });
+        }
+
+        // Delete notification
+        await prisma.notification.delete({
+            where: { id: notificationId },
+        });
+
+        res.json({
+            success: true,
+            message: 'Notification deleted',
+        });
+    } catch (error) {
+        console.error('DELETE /api/notifications/:id error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to delete notification',
+            details: error instanceof Error ? error.message : String(error),
+        });
+    }
+});
+
+// GET /api/messages - Fetch user messages
+app.get('/api/messages', authMiddleware, async (req, res) => {
+    try {
+        const user = (req as any).user as { sub?: number };
+        const userId = user.sub;
+
+        if (!userId) {
+            return res.status(401).json({ success: false, message: 'User not authenticated' });
+        }
+
+        // Fetch messages where user is the recipient
+        const messages = await prisma.message.findMany({
+            where: { toUserId: userId },
+            orderBy: { createdAt: 'desc' },
+            take: 50,
+            include: {
+                fromUser: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                    },
+                },
+                toUser: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                    },
+                },
+            },
+        });
+
+        res.json({
+            success: true,
+            data: messages,
+        });
+    } catch (error) {
+        console.error('GET /api/messages error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch messages',
+            details: error instanceof Error ? error.message : String(error),
+        });
+    }
+});
+
+// PATCH /api/messages/:id/read - Mark message as read
+app.patch('/api/messages/:id/read', authMiddleware, async (req, res) => {
+    try {
+        const user = (req as any).user as { sub?: number };
+        const userId = user.sub;
+        const messageId = parseInt(req.params.id, 10);
+
+        if (!userId) {
+            return res.status(401).json({ success: false, message: 'User not authenticated' });
+        }
+
+        if (isNaN(messageId)) {
+            return res.status(400).json({ success: false, message: 'Invalid message ID' });
+        }
+
+        // Verify message is for this user
+        const message = await prisma.message.findUnique({
+            where: { id: messageId },
+        });
+
+        if (!message) {
+            return res.status(404).json({ success: false, message: 'Message not found' });
+        }
+
+        if (message.toUserId !== userId) {
+            return res.status(403).json({ success: false, message: 'Not authorized to update this message' });
+        }
+
+        // Mark as read
+        const updated = await prisma.message.update({
+            where: { id: messageId },
+            data: { readAt: new Date() },
+        });
+
+        res.json({
+            success: true,
+            data: updated,
+        });
+    } catch (error) {
+        console.error('PATCH /api/messages/:id/read error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to mark message as read',
+            details: error instanceof Error ? error.message : String(error),
+        });
+    }
+});
+
+// DELETE /api/messages/:id - Delete message
+app.delete('/api/messages/:id', authMiddleware, async (req, res) => {
+    try {
+        const user = (req as any).user as { sub?: number };
+        const userId = user.sub;
+        const messageId = parseInt(req.params.id, 10);
+
+        if (!userId) {
+            return res.status(401).json({ success: false, message: 'User not authenticated' });
+        }
+
+        if (isNaN(messageId)) {
+            return res.status(400).json({ success: false, message: 'Invalid message ID' });
+        }
+
+        // Verify message is for this user
+        const message = await prisma.message.findUnique({
+            where: { id: messageId },
+        });
+
+        if (!message) {
+            return res.status(404).json({ success: false, message: 'Message not found' });
+        }
+
+        if (message.toUserId !== userId) {
+            return res.status(403).json({ success: false, message: 'Not authorized to delete this message' });
+        }
+
+        // Delete message
+        await prisma.message.delete({
+            where: { id: messageId },
+        });
+
+        res.json({
+            success: true,
+            message: 'Message deleted',
+        });
+    } catch (error) {
+        console.error('DELETE /api/messages/:id error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to delete message',
+            details: error instanceof Error ? error.message : String(error),
+        });
+    }
+});
+
+// =============== Innovation Hub: Ideas (Committee) ===============// List ideas with optional filters: status, sort
 app.get('/api/ideas', authMiddleware, async (req, res) => {
     try {
         // Attempt a one-time repair of legacy enum values to avoid Prisma enum read errors
@@ -1153,7 +1430,40 @@ app.post('/api/ideas/:id/approve', authMiddleware, requireCommittee, async (req,
                 reviewedAt: new Date(),
                 reviewNotes: notes || null,
             },
+            include: {
+                submitter: {
+                    select: { id: true, name: true, email: true },
+                },
+            },
         });
+
+        // Create notification for idea submitter
+        if (updated.submittedBy) {
+            await prisma.notification
+                .create({
+                    data: {
+                        userId: updated.submittedBy,
+                        type: 'IDEA_APPROVED',
+                        message: `Your innovation idea "${updated.title}" has been approved by the committee!`,
+                        data: { ideaId: updated.id, reviewNotes: notes },
+                    },
+                })
+                .catch((err: any) => console.error('Failed to create approval notification:', err));
+
+            // Create message for idea submitter
+            await prisma.message
+                .create({
+                    data: {
+                        fromUserId: user.sub,
+                        toUserId: updated.submittedBy,
+                        subject: `Innovation Idea Approved: ${updated.title}`,
+                        body: `Great news! Your innovation idea "${updated.title}" has been reviewed and approved by the Innovation Committee.${
+                            notes ? `\n\nReviewer Notes: ${notes}` : ''
+                        }\n\nYou can now track its progress in the Innovation Hub dashboard.`,
+                    },
+                })
+                .catch((err: any) => console.error('Failed to create approval message:', err));
+        }
 
         // Emit WebSocket event
         emitIdeaStatusChanged(updated.id, 'PENDING_REVIEW', 'APPROVED');
@@ -1183,7 +1493,42 @@ app.post('/api/ideas/:id/reject', authMiddleware, requireCommittee, async (req, 
                 reviewedAt: new Date(),
                 reviewNotes: notes || null,
             },
+            include: {
+                submitter: {
+                    select: { id: true, name: true, email: true },
+                },
+            },
         });
+
+        // Create notification for idea submitter
+        if (updated.submittedBy) {
+            await prisma.notification
+                .create({
+                    data: {
+                        userId: updated.submittedBy,
+                        type: 'STAGE_CHANGED',
+                        message: `Your innovation idea "${updated.title}" has been reviewed`,
+                        data: { ideaId: updated.id, status: 'REJECTED', reviewNotes: notes },
+                    },
+                })
+                .catch((err: any) => console.error('Failed to create rejection notification:', err));
+
+            // Create message for idea submitter with feedback
+            await prisma.message
+                .create({
+                    data: {
+                        fromUserId: user.sub,
+                        toUserId: updated.submittedBy,
+                        subject: `Innovation Idea Review: ${updated.title}`,
+                        body: `Thank you for submitting your innovation idea "${
+                            updated.title
+                        }". After careful review by the Innovation Committee, we are unable to proceed with this idea at this time.${
+                            notes ? `\n\nReviewer Feedback: ${notes}` : ''
+                        }\n\nWe encourage you to continue innovating and submitting new ideas!`,
+                    },
+                })
+                .catch((err: any) => console.error('Failed to create rejection message:', err));
+        }
 
         // Invalidate ideas cache
         await cacheDeletePattern('ideas:*');
@@ -1203,7 +1548,25 @@ app.post('/api/ideas/:id/promote', authMiddleware, requireCommittee, async (req,
 
         const code = projectCode && String(projectCode).trim().length > 0 ? String(projectCode).trim() : `BSJ-PROJ-${new Date().getFullYear()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
 
-        // Optimized: Use updateMany with conditional where - no separate findUnique
+        // Get the idea first to notify submitter
+        const idea = await prisma.idea.findUnique({
+            where: { id: parseInt(id, 10) },
+            include: {
+                submitter: {
+                    select: { id: true, name: true, email: true },
+                },
+            },
+        });
+
+        if (!idea) {
+            return res.status(404).json({ message: 'Idea not found' });
+        }
+
+        if (idea.status !== 'APPROVED') {
+            return res.status(400).json({ message: 'Idea must be approved before promotion' });
+        }
+
+        // Update to promoted status
         const result = await prisma.idea.updateMany({
             where: {
                 id: parseInt(id, 10),
@@ -1217,10 +1580,34 @@ app.post('/api/ideas/:id/promote', authMiddleware, requireCommittee, async (req,
         });
 
         if (result.count === 0) {
-            // Check if idea exists or is not approved
-            const idea = await prisma.idea.findUnique({ where: { id: parseInt(id, 10) } });
-            if (!idea) return res.status(404).json({ message: 'Idea not found' });
-            return res.status(400).json({ message: 'Idea must be APPROVED before promotion' });
+            return res.status(400).json({ message: 'Idea must be APPROVED before promotion or not found' });
+        }
+
+        // Create notification for idea submitter
+        if (idea.submittedBy) {
+            const user = (req as any).user as { sub: number };
+            await prisma.notification
+                .create({
+                    data: {
+                        userId: idea.submittedBy,
+                        type: 'STAGE_CHANGED',
+                        message: `Your innovation idea "${idea.title}" has been promoted to a project!`,
+                        data: { ideaId: idea.id, projectCode: code },
+                    },
+                })
+                .catch((err: any) => console.error('Failed to create promotion notification:', err));
+
+            // Create message for idea submitter
+            await prisma.message
+                .create({
+                    data: {
+                        fromUserId: user.sub,
+                        toUserId: idea.submittedBy,
+                        subject: `Innovation Idea Promoted: ${idea.title}`,
+                        body: `Congratulations! Your innovation idea "${idea.title}" has been promoted to an official project!\\n\\nProject Code: ${code}\\n\\nThis is a significant achievement and demonstrates the value of your innovative thinking. The project team will be in touch with next steps.`,
+                    },
+                })
+                .catch((err: any) => console.error('Failed to create promotion message:', err));
         }
 
         // Fetch updated idea to return full data
@@ -1948,22 +2335,22 @@ app.get('/requests/:id/pdf', async (req, res) => {
             .replace('{{description}}', request.description || '—')
             .replace('{{itemsRows}}', itemsRows)
             .replace('{{managerName}}', request.managerName || '—')
-            .replace('{{managerApprovalDate}}', formatDate(request.actionDate))
+            .replace('{{managerApprovalDate}}', formatDate(request.actionDate ? new Date(request.actionDate) : null))
             .replace('{{headName}}', request.headName || '—')
-            .replace('{{hodApprovalDate}}', formatDate(request.actionDate))
+            .replace('{{hodApprovalDate}}', formatDate(request.actionDate ? new Date(request.actionDate) : null))
             .replace('{{budgetOfficerName}}', request.budgetOfficerName || '—')
             .replace('{{budgetManagerName}}', request.budgetManagerName || '—')
-            .replace('{{financeApprovalDate}}', formatDate(request.actionDate))
+            .replace('{{financeApprovalDate}}', formatDate(request.actionDate ? new Date(request.actionDate) : null))
             .replace('{{commitmentNumber}}', request.commitmentNumber || '—')
             .replace('{{accountingCode}}', request.accountingCode || '—')
-            .replace('{{procurementApprovalDate}}', formatDate(request.actionDate))
+            .replace('{{procurementApprovalDate}}', formatDate(request.actionDate ? new Date(request.actionDate) : null))
             .replace('{{status}}', request.status || '—')
             .replace('{{assigneeName}}', request.currentAssignee?.name || '—')
             .replace('{{submittedDate}}', formatDate(request.submittedAt))
             .replace('{{procurementCaseNumber}}', request.procurementCaseNumber || '—')
             .replace('{{receivedBy}}', request.receivedBy || '—')
-            .replace('{{dateReceived}}', formatDate(request.dateReceived))
-            .replace('{{actionDate}}', formatDate(request.actionDate))
+            .replace('{{dateReceived}}', formatDate(request.dateReceived ? new Date(request.dateReceived) : null))
+            .replace('{{actionDate}}', formatDate(request.actionDate ? new Date(request.actionDate) : null))
             .replace('{{procurementComments}}', request.procurementComments || '—')
             .replace('{{now}}', new Date().toLocaleString('en-US'));
 
@@ -1986,11 +2373,12 @@ app.get('/requests/:id/pdf', async (req, res) => {
             });
             const page = await browser.newPage();
             await page.setContent(html, { waitUntil: 'networkidle0' });
-            pdf = await page.pdf({
+            const pdfBuffer = await page.pdf({
                 format: 'A4',
                 printBackground: true,
                 margin: { top: '20px', right: '20px', bottom: '20px', left: '20px' },
             });
+            pdf = Buffer.from(pdfBuffer);
             await browser.close();
         } catch (chromeErr) {
             console.error('Puppeteer render failed, falling back to PDFKit:', chromeErr);
@@ -1998,17 +2386,19 @@ app.get('/requests/:id/pdf', async (req, res) => {
 
         if (!pdf) {
             // Minimal, reliable fallback using PDFKit (no system deps)
-            const { default: PDFDocument } = await import('pdfkit');
-            const doc = new PDFDocument({ size: 'A4', margin: 28 });
+            const PDFDocument = (await import('pdfkit')).default;
+            const doc = new (PDFDocument as any)({ size: 'A4', margin: 28 });
             const chunks: Buffer[] = [];
             const done = new Promise<Buffer>((resolve) => {
                 doc.on('data', (d: Buffer) => chunks.push(d));
                 doc.on('end', () => resolve(Buffer.concat(chunks)));
             });
 
-            doc.fontSize(14).text('BUREAU OF STANDARDS JAMAICA', { align: 'center' });
+            doc.fontSize(14);
+            doc.text('BUREAU OF STANDARDS JAMAICA', { align: 'center' });
             doc.moveDown(0.3);
-            doc.fontSize(12).text('PROCUREMENT REQUISITION FORM', { align: 'center' });
+            doc.fontSize(12);
+            doc.text('PROCUREMENT REQUISITION FORM', { align: 'center' });
             doc.moveDown();
             doc.fontSize(10);
             const ref = request.reference || String(id);
@@ -2574,6 +2964,27 @@ app.get('/api/auth/test-login', (req, res) => {
 // EVALUATION ENDPOINTS
 // ============================================
 
+// Temporary runtime guard function: checks delegate presence at call time (not just startup)
+function hasEvaluationDelegate(): boolean {
+    // Use runtime inspection; PrismaClient type will include evaluation after successful generate
+    // Avoid direct method invocation when undefined.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const evalDelegate: any = (prisma as any).evaluation;
+    return Boolean(evalDelegate && typeof evalDelegate.findMany === 'function');
+}
+
+// Expose lightweight version/debug info
+const GIT_COMMIT = process.env.GIT_COMMIT || 'untracked';
+app.get('/api/_version', (req, res) => {
+    res.json({
+        commit: GIT_COMMIT,
+        hasEvaluationDelegate: hasEvaluationDelegate(),
+        pid: process.pid,
+        uptimeSeconds: Math.round(process.uptime()),
+        timestamp: new Date().toISOString(),
+    });
+});
+
 // GET /api/evaluations - List all evaluations with filters
 app.get(
     '/api/evaluations',
@@ -2584,52 +2995,62 @@ app.get(
         return;
 
         const { status, search, dueBefore, dueAfter } = req.query;
-
-        const where: Prisma.EvaluationWhereInput = {};
-
-        if (status && status !== 'ALL') {
-            where.status = status as any;
-        }
-
-        if (search) {
-            where.OR = [
-                { evalNumber: { contains: search as string, mode: 'insensitive' } },
-                { rfqNumber: { contains: search as string, mode: 'insensitive' } },
-                { rfqTitle: { contains: search as string, mode: 'insensitive' } },
-                { description: { contains: search as string, mode: 'insensitive' } },
-            ];
-        }
-
-        if (dueBefore) {
-            where.dueDate = { ...where.dueDate, lte: new Date(dueBefore as string) };
-        }
-
-        if (dueAfter) {
-            where.dueDate = { ...where.dueDate, gte: new Date(dueAfter as string) };
-        }
-
-        const evaluations = await prisma.evaluation.findMany({
-            where,
-            include: {
-                creator: {
-                    select: {
-                        id: true,
-                        name: true,
-                        email: true,
-                    },
+        if (hasEvaluationDelegate()) {
+            const where: Prisma.EvaluationWhereInput = {};
+            if (status && status !== 'ALL') where.status = status as any;
+            if (search) {
+                where.OR = [
+                    { evalNumber: { contains: search as string } },
+                    { rfqNumber: { contains: search as string } },
+                    { rfqTitle: { contains: search as string } },
+                    { description: { contains: search as string } },
+                ];
+            }
+            if (dueBefore) {
+                where.dueDate = where.dueDate && typeof where.dueDate === 'object' ? { ...where.dueDate, lte: new Date(dueBefore as string) } : { lte: new Date(dueBefore as string) };
+            }
+            if (dueAfter) {
+                where.dueDate = where.dueDate && typeof where.dueDate === 'object' ? { ...where.dueDate, gte: new Date(dueAfter as string) } : { gte: new Date(dueAfter as string) };
+            }
+            const evaluations = await (prisma as any).evaluation.findMany({
+                where,
+                include: {
+                    creator: { select: { id: true, name: true, email: true } },
+                    validator: { select: { id: true, name: true, email: true } },
                 },
-                validator: {
-                    select: {
-                        id: true,
-                        name: true,
-                        email: true,
-                    },
-                },
-            },
-            orderBy: { createdAt: 'desc' },
-        });
-
-        res.json({ success: true, data: evaluations });
+                orderBy: { createdAt: 'desc' },
+            });
+            return res.json({ success: true, data: evaluations });
+        }
+        // Raw SQL fallback
+        const rows = await prisma.$queryRawUnsafe<any>(
+            'SELECT e.*, uc.id AS creatorId, uc.name AS creatorName, uc.email AS creatorEmail, uv.id AS validatorId, uv.name AS validatorName, uv.email AS validatorEmail FROM Evaluation e LEFT JOIN User uc ON e.createdBy = uc.id LEFT JOIN User uv ON e.validatedBy = uv.id ORDER BY e.createdAt DESC'
+        );
+        const mapped = rows.map((r: any) => ({
+            id: r.id,
+            evalNumber: r.evalNumber,
+            rfqNumber: r.rfqNumber,
+            rfqTitle: r.rfqTitle,
+            description: r.description,
+            status: r.status,
+            sectionA: r.sectionA ?? null,
+            sectionB: r.sectionB ?? null,
+            sectionC: r.sectionC ?? null,
+            sectionD: r.sectionD ?? null,
+            sectionE: r.sectionE ?? null,
+            createdBy: r.createdBy,
+            creator: { id: r.creatorId, name: r.creatorName, email: r.creatorEmail },
+            evaluator: r.evaluator,
+            dueDate: r.dueDate ? r.dueDate : null,
+            validatedBy: r.validatedBy,
+            validator: r.validatorId ? { id: r.validatorId, name: r.validatorName, email: r.validatorEmail } : null,
+            validatedAt: r.validatedAt ?? null,
+            validationNotes: r.validationNotes ?? null,
+            createdAt: r.createdAt,
+            updatedAt: r.updatedAt,
+            _fallback: true,
+        }));
+        res.json({ success: true, data: mapped, meta: { fallback: true } });
     })
 );
 
@@ -2639,32 +3060,49 @@ app.get(
     authMiddleware,
     asyncHandler(async (req, res) => {
         const { id } = req.params;
-
-        const evaluation = await prisma.evaluation.findUnique({
-            where: { id: parseInt(id) },
-            include: {
-                creator: {
-                    select: {
-                        id: true,
-                        name: true,
-                        email: true,
-                    },
+        if (hasEvaluationDelegate()) {
+            const evaluation = await (prisma as any).evaluation.findUnique({
+                where: { id: parseInt(id) },
+                include: {
+                    creator: { select: { id: true, name: true, email: true } },
+                    validator: { select: { id: true, name: true, email: true } },
                 },
-                validator: {
-                    select: {
-                        id: true,
-                        name: true,
-                        email: true,
-                    },
-                },
-            },
-        });
-
-        if (!evaluation) {
-            throw new NotFoundError('Evaluation not found');
+            });
+            if (!evaluation) throw new NotFoundError('Evaluation not found');
+            return res.json({ success: true, data: evaluation });
         }
-
-        res.json({ success: true, data: evaluation });
+        const rows = await prisma.$queryRawUnsafe<any>(
+            `SELECT e.*, uc.id AS creatorId, uc.name AS creatorName, uc.email AS creatorEmail, uv.id AS validatorId, uv.name AS validatorName, uv.email AS validatorEmail FROM Evaluation e LEFT JOIN User uc ON e.createdBy = uc.id LEFT JOIN User uv ON e.validatedBy = uv.id WHERE e.id = ${parseInt(
+                id
+            )} LIMIT 1`
+        );
+        const r = rows[0];
+        if (!r) throw new NotFoundError('Evaluation not found');
+        const mapped = {
+            id: r.id,
+            evalNumber: r.evalNumber,
+            rfqNumber: r.rfqNumber,
+            rfqTitle: r.rfqTitle,
+            description: r.description,
+            status: r.status,
+            sectionA: r.sectionA ?? null,
+            sectionB: r.sectionB ?? null,
+            sectionC: r.sectionC ?? null,
+            sectionD: r.sectionD ?? null,
+            sectionE: r.sectionE ?? null,
+            createdBy: r.createdBy,
+            creator: { id: r.creatorId, name: r.creatorName, email: r.creatorEmail },
+            evaluator: r.evaluator,
+            dueDate: r.dueDate ? r.dueDate : null,
+            validatedBy: r.validatedBy,
+            validator: r.validatorId ? { id: r.validatorId, name: r.validatorName, email: r.validatorEmail } : null,
+            validatedAt: r.validatedAt ?? null,
+            validationNotes: r.validationNotes ?? null,
+            createdAt: r.createdAt,
+            updatedAt: r.updatedAt,
+            _fallback: true,
+        };
+        res.json({ success: true, data: mapped, meta: { fallback: true } });
     })
 );
 
@@ -2681,38 +3119,58 @@ app.post(
         }
 
         // Check if evalNumber already exists
-        const existing = await prisma.evaluation.findUnique({
-            where: { evalNumber },
-        });
-
-        if (existing) {
-            throw new BadRequestError('Evaluation number already exists');
-        }
-
-        const evaluation = await prisma.evaluation.create({
-            data: {
-                evalNumber,
-                rfqNumber,
-                rfqTitle,
-                description,
-                sectionA,
-                evaluator,
-                dueDate: dueDate ? new Date(dueDate) : null,
-                createdBy: user.id,
-                status: 'PENDING',
-            },
-            include: {
-                creator: {
-                    select: {
-                        id: true,
-                        name: true,
-                        email: true,
-                    },
+        if (hasEvaluationDelegate()) {
+            // Check duplicate using delegate
+            const existing = await (prisma as any).evaluation.findUnique({ where: { evalNumber } });
+            if (existing) throw new BadRequestError('Evaluation number already exists');
+            const evaluation = await (prisma as any).evaluation.create({
+                data: {
+                    evalNumber,
+                    rfqNumber,
+                    rfqTitle,
+                    description,
+                    sectionA,
+                    evaluator,
+                    dueDate: dueDate ? new Date(dueDate) : null,
+                    createdBy: user.id,
+                    status: 'PENDING',
                 },
-            },
-        });
-
-        res.status(201).json({ success: true, data: evaluation });
+                include: { creator: { select: { id: true, name: true, email: true } } },
+            });
+            return res.status(201).json({ success: true, data: evaluation });
+        }
+        // Fallback duplicate check via raw SQL
+        const dupRows = await prisma.$queryRawUnsafe<any>(`SELECT id FROM Evaluation WHERE evalNumber='${evalNumber.replace(/'/g, "''")}' LIMIT 1`);
+        if (dupRows[0]) throw new BadRequestError('Evaluation number already exists');
+        await prisma.$executeRawUnsafe(
+            `INSERT INTO Evaluation (evalNumber, rfqNumber, rfqTitle, description, sectionA, createdBy, evaluator, dueDate, status, createdAt, updatedAt) VALUES (
+              '${evalNumber}', '${rfqNumber}', '${rfqTitle}', ${description ? `'${description.replace(/'/g, "''")}'` : 'NULL'}, ${
+                sectionA ? `'${JSON.stringify(sectionA).replace(/'/g, "''")}'` : 'NULL'
+            }, ${user.id}, ${evaluator ? `'${evaluator.replace(/'/g, "''")}'` : 'NULL'}, ${
+                dueDate ? `'${new Date(dueDate).toISOString().slice(0, 19).replace('T', ' ')}'` : 'NULL'
+            }, 'PENDING', NOW(), NOW())`
+        );
+        const createdRow = await prisma.$queryRawUnsafe<any>(
+            `SELECT e.*, uc.id AS creatorId, uc.name AS creatorName, uc.email AS creatorEmail FROM Evaluation e LEFT JOIN User uc ON e.createdBy = uc.id WHERE e.evalNumber='${evalNumber}' LIMIT 1`
+        );
+        const r = createdRow[0];
+        const mapped = {
+            id: r.id,
+            evalNumber: r.evalNumber,
+            rfqNumber: r.rfqNumber,
+            rfqTitle: r.rfqTitle,
+            description: r.description,
+            status: r.status,
+            sectionA: r.sectionA ?? null,
+            createdBy: r.createdBy,
+            creator: { id: r.creatorId, name: r.creatorName, email: r.creatorEmail },
+            evaluator: r.evaluator,
+            dueDate: r.dueDate ?? null,
+            createdAt: r.createdAt,
+            updatedAt: r.updatedAt,
+            _fallback: true,
+        };
+        res.status(201).json({ success: true, data: mapped, meta: { fallback: true } });
     })
 );
 
@@ -2724,12 +3182,12 @@ app.patch(
         const { id } = req.params;
         const { status, sectionA, sectionB, sectionC, sectionD, sectionE, validationNotes } = req.body;
 
-        const existing = await prisma.evaluation.findUnique({
-            where: { id: parseInt(id) },
-        });
-
-        if (!existing) {
-            throw new NotFoundError('Evaluation not found');
+        if (!hasEvaluationDelegate()) {
+            const checkRow = await prisma.$queryRawUnsafe<any>(`SELECT id FROM Evaluation WHERE id = ${parseInt(id)} LIMIT 1`);
+            if (!checkRow[0]) throw new NotFoundError('Evaluation not found');
+        } else {
+            const existing = await (prisma as any).evaluation.findUnique({ where: { id: parseInt(id) } });
+            if (!existing) throw new NotFoundError('Evaluation not found');
         }
 
         const updateData: Prisma.EvaluationUpdateInput = {};
@@ -2742,28 +3200,61 @@ app.patch(
         if (sectionE) updateData.sectionE = sectionE;
         if (validationNotes) updateData.validationNotes = validationNotes;
 
-        const evaluation = await prisma.evaluation.update({
-            where: { id: parseInt(id) },
-            data: updateData,
-            include: {
-                creator: {
-                    select: {
-                        id: true,
-                        name: true,
-                        email: true,
-                    },
-                },
-                validator: {
-                    select: {
-                        id: true,
-                        name: true,
-                        email: true,
-                    },
-                },
-            },
-        });
-
-        res.json({ success: true, data: evaluation });
+        if (hasEvaluationDelegate()) {
+            const evaluation = await (prisma as any).evaluation.update({
+                where: { id: parseInt(id) },
+                data: updateData,
+                include: { creator: { select: { id: true, name: true, email: true } }, validator: { select: { id: true, name: true, email: true } } },
+            });
+            return res.json({ success: true, data: evaluation });
+        }
+        // Raw update: construct dynamic SET clause
+        const sets: string[] = [];
+        const jsonFields: Array<[string, any]> = [
+            ['sectionA', sectionA],
+            ['sectionB', sectionB],
+            ['sectionC', sectionC],
+            ['sectionD', sectionD],
+            ['sectionE', sectionE],
+        ];
+        if (status) sets.push(`status='${String(status).replace(/'/g, "''")}'`);
+        for (const [key, val] of jsonFields) {
+            if (val !== undefined) sets.push(`${key}=${val === null ? 'NULL' : `'${JSON.stringify(val).replace(/'/g, "''")}'`}`);
+        }
+        if (validationNotes) sets.push(`validationNotes='${String(validationNotes).replace(/'/g, "''")}'`);
+        sets.push('updatedAt=NOW()');
+        if (sets.length) await prisma.$executeRawUnsafe(`UPDATE Evaluation SET ${sets.join(', ')} WHERE id=${parseInt(id)}`);
+        const row = await prisma.$queryRawUnsafe<any>(
+            `SELECT e.*, uc.id AS creatorId, uc.name AS creatorName, uc.email AS creatorEmail, uv.id AS validatorId, uv.name AS validatorName, uv.email AS validatorEmail FROM Evaluation e LEFT JOIN User uc ON e.createdBy = uc.id LEFT JOIN User uv ON e.validatedBy = uv.id WHERE e.id = ${parseInt(
+                id
+            )} LIMIT 1`
+        );
+        const r = row[0];
+        const mapped = {
+            id: r.id,
+            evalNumber: r.evalNumber,
+            rfqNumber: r.rfqNumber,
+            rfqTitle: r.rfqTitle,
+            description: r.description,
+            status: r.status,
+            sectionA: r.sectionA ?? null,
+            sectionB: r.sectionB ?? null,
+            sectionC: r.sectionC ?? null,
+            sectionD: r.sectionD ?? null,
+            sectionE: r.sectionE ?? null,
+            createdBy: r.createdBy,
+            creator: { id: r.creatorId, name: r.creatorName, email: r.creatorEmail },
+            evaluator: r.evaluator,
+            dueDate: r.dueDate ?? null,
+            validatedBy: r.validatedBy,
+            validator: r.validatorId ? { id: r.validatorId, name: r.validatorName, email: r.validatorEmail } : null,
+            validatedAt: r.validatedAt ?? null,
+            validationNotes: r.validationNotes ?? null,
+            createdAt: r.createdAt,
+            updatedAt: r.updatedAt,
+            _fallback: true,
+        };
+        res.json({ success: true, data: mapped, meta: { fallback: true } });
     })
 );
 
@@ -2779,13 +3270,14 @@ app.patch(
             throw new BadRequestError('Missing required fields: section, data');
         }
 
-        const existing = await prisma.evaluation.findUnique({
-            where: { id: parseInt(id) },
-        });
-
-        if (!existing) {
-            throw new NotFoundError('Evaluation not found');
+        let existing: any = null;
+        if (hasEvaluationDelegate()) {
+            existing = await (prisma as any).evaluation.findUnique({ where: { id: parseInt(id) } });
+        } else {
+            const checkRow = await prisma.$queryRawUnsafe<any>(`SELECT id, status FROM Evaluation WHERE id = ${parseInt(id)} LIMIT 1`);
+            existing = checkRow[0];
         }
+        if (!existing) throw new NotFoundError('Evaluation not found');
 
         const updateData: Prisma.EvaluationUpdateInput = {};
         const sectionKey = `section${section.toUpperCase()}` as keyof Prisma.EvaluationUpdateInput;
@@ -2796,21 +3288,48 @@ app.patch(
             updateData.status = 'COMMITTEE_REVIEW';
         }
 
-        const evaluation = await prisma.evaluation.update({
-            where: { id: parseInt(id) },
-            data: updateData,
-            include: {
-                creator: {
-                    select: {
-                        id: true,
-                        name: true,
-                        email: true,
-                    },
-                },
-            },
-        });
-
-        res.json({ success: true, data: evaluation });
+        if (hasEvaluationDelegate()) {
+            const evaluation = await (prisma as any).evaluation.update({
+                where: { id: parseInt(id) },
+                data: updateData,
+                include: { creator: { select: { id: true, name: true, email: true } } },
+            });
+            return res.json({ success: true, data: evaluation });
+        }
+        const sets: string[] = [];
+        const sectionField = `section${section.toUpperCase()}`;
+        sets.push(`${sectionField}='${JSON.stringify(data).replace(/'/g, "''")}'`);
+        if (existing.status === 'PENDING') sets.push(`status='COMMITTEE_REVIEW'`);
+        sets.push('updatedAt=NOW()');
+        await prisma.$executeRawUnsafe(`UPDATE Evaluation SET ${sets.join(', ')} WHERE id=${parseInt(id)}`);
+        const row = await prisma.$queryRawUnsafe<any>(
+            `SELECT e.*, uc.id AS creatorId, uc.name AS creatorName, uc.email AS creatorEmail FROM Evaluation e LEFT JOIN User uc ON e.createdBy = uc.id WHERE e.id = ${parseInt(id)} LIMIT 1`
+        );
+        const r = row[0];
+        const mapped = {
+            id: r.id,
+            evalNumber: r.evalNumber,
+            rfqNumber: r.rfqNumber,
+            rfqTitle: r.rfqTitle,
+            description: r.description,
+            status: r.status,
+            sectionA: r.sectionA ?? null,
+            sectionB: r.sectionB ?? null,
+            sectionC: r.sectionC ?? null,
+            sectionD: r.sectionD ?? null,
+            sectionE: r.sectionE ?? null,
+            createdBy: r.createdBy,
+            creator: { id: r.creatorId, name: r.creatorName, email: r.creatorEmail },
+            evaluator: r.evaluator,
+            dueDate: r.dueDate ?? null,
+            validatedBy: r.validatedBy,
+            validatedAt: r.validatedAt ?? null,
+            validationNotes: r.validationNotes ?? null,
+            createdAt: r.createdAt,
+            updatedAt: r.updatedAt,
+            _fallback: true,
+        };
+        res.json({ success: true, data: mapped, meta: { fallback: true } });
     })
 );
 
@@ -2820,25 +3339,41 @@ app.delete(
     authMiddleware,
     asyncHandler(async (req, res) => {
         const { id } = req.params;
-
-        const existing = await prisma.evaluation.findUnique({
-            where: { id: parseInt(id) },
-        });
-
-        if (!existing) {
-            throw new NotFoundError('Evaluation not found');
+        if (hasEvaluationDelegate()) {
+            const existing = await (prisma as any).evaluation.findUnique({ where: { id: parseInt(id) } });
+            if (!existing) throw new NotFoundError('Evaluation not found');
+            await (prisma as any).evaluation.delete({ where: { id: parseInt(id) } });
+            return res.json({ success: true, message: 'Evaluation deleted successfully' });
         }
-
-        await prisma.evaluation.delete({
-            where: { id: parseInt(id) },
-        });
-
-        res.json({ success: true, message: 'Evaluation deleted successfully' });
+        const checkRow = await prisma.$queryRawUnsafe<any>(`SELECT id FROM Evaluation WHERE id = ${parseInt(id)} LIMIT 1`);
+        if (!checkRow[0]) throw new NotFoundError('Evaluation not found');
+        await prisma.$executeRawUnsafe(`DELETE FROM Evaluation WHERE id = ${parseInt(id)}`);
+        res.json({ success: true, message: 'Evaluation deleted successfully', meta: { fallback: true } });
     })
 );
 
 // Stats API routes
 app.use('/api/stats', statsRouter);
+
+// DEBUG: List all registered routes (temporary; remove in production)
+app.get('/api/_routes', (req, res) => {
+    const routes: Array<{ path: string; methods: string[] }> = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (app as any)._router.stack.forEach((middleware: any) => {
+        if (middleware.route) {
+            const { path, methods } = middleware.route;
+            routes.push({ path, methods: Object.keys(methods).filter((m) => methods[m]) });
+        } else if (middleware.name === 'router' && middleware.handle?.stack) {
+            middleware.handle.stack.forEach((handler: any) => {
+                if (handler.route) {
+                    const { path, methods } = handler.route;
+                    routes.push({ path, methods: Object.keys(methods).filter((m) => methods[m]) });
+                }
+            });
+        }
+    });
+    res.json({ routes });
+});
 
 // No longer need this - using httpServer created at top
 // let server: http.Server | null = null;
