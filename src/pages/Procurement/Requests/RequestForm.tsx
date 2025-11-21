@@ -603,18 +603,16 @@ const RequestForm = () => {
 
     return (
         <div className="p-6">
-            <div className="mb-6 relative">
-                <div className="flex items-start justify-between">
-                    <div className="mb-6 relative">
-                        <div className="flex items-start justify-between">
-                            <div className="w-32 hidden md:block" />
-                            <div className="flex-1 text-center">
-                                <h1 className="text-2xl font-semibold">BUREAU OF STANDARDS JAMAICA</h1>
-                                <h2 className="text-xl font-semibold mt-1 underline">PROCUREMENT REQUISITION FORM</h2>
-                                <div className="text-sm italic text-gray-500 mt-2">This form authorizes the Procurement Unit to act on your behalf.</div>
-                                <div className="mt-4 flex justify-center">
-                                    {/* Inline dropdown controls styled as brackets */}
-                                    <div className="flex items-center gap-1 text-sm font-semibold">
+            <div className="mb-6">
+                <div className="flex justify-center">
+                    <div className="w-full max-w-4xl">
+                        <div className="text-center">
+                            <h1 className="text-2xl font-semibold">BUREAU OF STANDARDS JAMAICA</h1>
+                            <h2 className="text-xl font-semibold mt-1 underline">PROCUREMENT REQUISITION FORM</h2>
+                            <div className="text-sm italic text-gray-500 mt-2">This form authorizes the Procurement Unit to act on your behalf.</div>
+                            <div className="mt-4 flex justify-center">
+                                {/* Inline dropdown controls styled as brackets */}
+                                <div className="flex items-center gap-1 text-sm font-semibold">
                                         <span className="inline-flex items-center bg-yellow-600 text-white rounded-sm">
                                             <span className="px-1">[</span>
                                             <select
@@ -681,11 +679,9 @@ const RequestForm = () => {
                                     </div>
                                 </div>
                             </div>
-                            <div className="w-32" />
                         </div>
                     </div>
                 </div>
-            </div>
 
             <div className="bg-white dark:bg-slate-800 shadow rounded p-6">
                 <form onSubmit={handleSubmit} className="space-y-6">
