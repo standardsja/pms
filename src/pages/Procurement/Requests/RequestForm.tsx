@@ -214,7 +214,7 @@ const RequestForm = () => {
                 setPriority(priorityValue);
                 if (request.currency) {
                     const validCurrencies = ['JMD', 'USD', 'EUR', 'GBP', 'JPY', 'CNY', 'CAD', 'AUD', 'CHF', 'INR', 'BRL', 'ZAR', 'MXN', 'SEK', 'NZD', 'TTD', 'BBD', 'XCD'];
-                    setCurrency(validCurrencies.includes(request.currency) ? request.currency as any : 'JMD');
+                    setCurrency(validCurrencies.includes(request.currency) ? (request.currency as any) : 'JMD');
                 }
                 setCommentsJustification(request.description || '');
 
@@ -711,7 +711,33 @@ const RequestForm = () => {
                             </div>
                             <div>
                                 <label className="block text-sm font-medium mb-2">Currency</label>
-                                <select className="form-select w-full" value={currency} onChange={(e) => setCurrency(e.target.value as 'JMD' | 'USD' | 'EUR' | 'GBP' | 'JPY' | 'CNY' | 'CAD' | 'AUD' | 'CHF' | 'INR' | 'BRL' | 'ZAR' | 'MXN' | 'SEK' | 'NZD' | 'TTD' | 'BBD' | 'XCD')}>
+                                <select
+                                    className="form-select w-full"
+                                    value={currency}
+                                    onChange={(e) =>
+                                        setCurrency(
+                                            e.target.value as
+                                                | 'JMD'
+                                                | 'USD'
+                                                | 'EUR'
+                                                | 'GBP'
+                                                | 'JPY'
+                                                | 'CNY'
+                                                | 'CAD'
+                                                | 'AUD'
+                                                | 'CHF'
+                                                | 'INR'
+                                                | 'BRL'
+                                                | 'ZAR'
+                                                | 'MXN'
+                                                | 'SEK'
+                                                | 'NZD'
+                                                | 'TTD'
+                                                | 'BBD'
+                                                | 'XCD'
+                                        )
+                                    }
+                                >
                                     <option value="JMD">JMD - Jamaican Dollar</option>
                                     <option value="USD">USD - US Dollar</option>
                                     <option value="EUR">EUR - Euro</option>
