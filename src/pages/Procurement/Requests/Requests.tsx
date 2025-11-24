@@ -10,6 +10,7 @@ import { Request, ApiResponse } from '../../../types/request.types';
 import { getStatusBadge } from '../../../utils/statusBadges';
 import { searchRequests, filterRequests, onlyMine, paginate, formatDate, sortRequestsByDateDesc, adaptRequestsResponse, normalizeStatus } from '../../../utils/requestUtils';
 import RequestDetailsContent from '../../../components/RequestDetailsContent';
+import { checkExecutiveThreshold, getThresholdBadge, shouldShowThresholdNotification } from '../../../utils/thresholdUtils';
 
 const MySwal = withReactContent(Swal);
 
@@ -29,6 +30,7 @@ const Requests = () => {
     // Current user from localStorage (aligns with RequestForm pattern)
     const [currentUserName, setCurrentUserName] = useState<string>('');
     const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+    const [currentUserRoles, setCurrentUserRoles] = useState<string[]>([]);
     const showMineOnly = location.pathname.endsWith('/mine');
 
     // Load current user (supports session/local storage + legacy userProfile)
@@ -39,9 +41,19 @@ const Requests = () => {
             const user = authRaw ? JSON.parse(authRaw) : legacyRaw ? JSON.parse(legacyRaw) : null;
             setCurrentUserName(user?.name || user?.fullName || '');
             setCurrentUserId(user?.id ? Number(user.id) : user?.userId ? Number(user.userId) : null);
+
+            // Safely extract roles, ensuring we have a clean array of strings
+            let roles: string[] = [];
+            if (user?.roles && Array.isArray(user.roles)) {
+                roles = user.roles.filter(Boolean); // Remove any falsy values
+            } else if (user?.role) {
+                roles = [user.role];
+            }
+            setCurrentUserRoles(roles);
         } catch {
             setCurrentUserName('');
             setCurrentUserId(null);
+            setCurrentUserRoles([]);
         }
     }, []);
 
@@ -57,7 +69,7 @@ const Requests = () => {
                 if (token) headers['Authorization'] = `Bearer ${token}`;
                 // Hitting backend directly on port 4000 since Vite proxy only rewrites '/api' paths.
                 // TODO: Move to an env-driven API base and/or add a Vite proxy for '/requests'.
-                const res = await fetch('http://heron:4000/requests', {
+                const res = await fetch('http://localhost:4000/requests', {
                     headers,
                     signal: controller.signal,
                 });
@@ -131,6 +143,22 @@ const Requests = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [query, statusFilter, departmentFilter, page]);
 
+    // Calculate threshold notifications for procurement officers
+    const thresholdNotifications = useMemo(() => {
+        if (!shouldShowThresholdNotification(currentUserRoles)) return null;
+
+        const highValueRequests = filteredRequests.filter((r) => {
+            const procurementTypes = Array.isArray(r.procurementType) ? r.procurementType : [];
+            const alert = checkExecutiveThreshold(r.totalEstimated || 0, procurementTypes);
+            return alert.isRequired;
+        });
+
+        return {
+            count: highValueRequests.length,
+            requests: highValueRequests,
+        };
+    }, [currentUserRoles, filteredRequests]);
+
     // View request details modal (React content, no HTML strings)
     const viewDetails = (req: Request) => {
         MySwal.fire({
@@ -155,6 +183,22 @@ const Requests = () => {
                     </button>
                 </div>
             </div>
+
+            {/* Threshold notification banner for procurement officers */}
+            {thresholdNotifications && thresholdNotifications.count > 0 && (
+                <div className="mb-4 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                    <div className="flex items-center gap-2">
+                        <span className="text-orange-600 text-lg">⚠️</span>
+                        <div className="flex-1">
+                            <p className="text-orange-800 font-medium">Executive Director Approval Required</p>
+                            <p className="text-orange-700 text-sm">
+                                {thresholdNotifications.count} request{thresholdNotifications.count !== 1 ? 's' : ''} exceed{thresholdNotifications.count === 1 ? 's' : ''} procurement thresholds and
+                                require Executive Director evaluation before proceeding.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Filter & Search controls */}
             <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -264,10 +308,29 @@ const Requests = () => {
                     <tbody className="text-sm">
                         {paged.map((r) => {
                             const badge = getStatusBadge(r.status);
+
+                            // Check if this request exceeds executive threshold
+                            const procurementTypes = Array.isArray(r.procurementType) ? r.procurementType : [];
+                            const thresholdAlert = checkExecutiveThreshold(r.totalEstimated || 0, procurementTypes);
+                            const thresholdBadge = getThresholdBadge(thresholdAlert);
+                            const showThresholdAlert = shouldShowThresholdNotification(currentUserRoles) && thresholdAlert.isRequired;
+
                             return (
                                 <tr key={r.id} className="border-t last:border-b hover:bg-slate-50 dark:hover:bg-slate-700">
                                     <td className="px-4 py-3 font-medium">{r.id}</td>
-                                    <td className="px-4 py-3">{r.title}</td>
+                                    <td className="px-4 py-3">
+                                        <div className="flex flex-col gap-1">
+                                            <span>{r.title}</span>
+                                            {showThresholdAlert && (
+                                                <div className="flex items-center gap-1">
+                                                    <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium border ${thresholdBadge.className}`}>
+                                                        <span>{thresholdBadge.icon}</span>
+                                                        {thresholdBadge.text}
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </td>
                                     <td className="px-4 py-3">{r.requester}</td>
                                     <td className="px-4 py-3">{r.department}</td>
                                     <td className="px-4 py-3">

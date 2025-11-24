@@ -1925,6 +1925,9 @@ app.get('/requests', async (_req, res) => {
                 departmentId: true,
                 status: true,
                 currentAssigneeId: true,
+                totalEstimated: true,
+                currency: true,
+                procurementType: true,
                 createdAt: true,
                 updatedAt: true,
                 requester: { select: { id: true, name: true, email: true } },
@@ -1955,6 +1958,9 @@ app.get('/requests', async (_req, res) => {
                             departmentId: true,
                             status: true,
                             currentAssigneeId: true,
+                            totalEstimated: true,
+                            currency: true,
+                            procurementType: true,
                             createdAt: true,
                             updatedAt: true,
                             requester: { select: { id: true, name: true, email: true } },
@@ -1967,12 +1973,21 @@ app.get('/requests', async (_req, res) => {
                         },
                     });
                     return res.json(requests);
-                } catch (retryErr: any) {
-                    console.error('GET /requests retry after patch failed:', retryErr);
+                } catch (retryE: any) {
+                    const retryMessage = String(retryE?.message || '');
+                    return res.status(500).json({
+                        error: 'Failed to retrieve requests after attempted repair',
+                        details: retryMessage,
+                    });
                 }
+            } else {
+                return res.status(500).json({
+                    error: 'Request status repair required but failed',
+                    details: message,
+                });
             }
         }
-        return res.status(500).json({ message: 'Failed to fetch requests' });
+        return res.status(500).json({ error: message });
     }
 });
 
@@ -2362,11 +2377,11 @@ app.get('/requests/:id/pdf', async (req, res) => {
         // Header code placeholders
         const seq = request.headerSequence !== null && request.headerSequence !== undefined ? String(request.headerSequence).padStart(3, '0') : '—';
         html = html
-            .replace(/{{headerDeptCode}}/g, request.headerDeptCode || '—')
-            .replace(/{{headerMonth}}/g, request.headerMonth || '—')
-            .replace(/{{headerYear}}/g, request.headerYear ? String(request.headerYear) : '—')
-            .replace(/{{headerSequence}}/g, seq)
-            .replace(/{{headerCode}}/g, `${request.headerDeptCode || '—'}/${request.headerMonth || '—'}/${request.headerYear ? String(request.headerYear) : '—'}/${seq}`);
+            .replace('{{headerDeptCode}}', request.headerDeptCode || '—')
+            .replace('{{headerMonth}}', request.headerMonth || '—')
+            .replace('{{headerYear}}', request.headerYear ? String(request.headerYear) : '—')
+            .replace('{{headerSequence}}', seq)
+            .replace('{{headerCode}}', `${request.headerDeptCode || '—'}/${request.headerMonth || '—'}/${request.headerYear ? String(request.headerYear) : '—'}/${seq}`);
 
         // Try chrome-based render first; if it fails (server missing deps), fallback to PDFKit
         let pdf: Buffer | null = null;
@@ -2563,9 +2578,8 @@ app.post('/requests/:id/action', async (req, res) => {
                 nextAssigneeId = procurement?.id || null;
             } else if (request.status === 'PROCUREMENT_REVIEW') {
                 // Procurement approved -> final approval (ready to send to vendor)
-                // Keep the procurement approver assigned so they can download PDF & dispatch
                 nextStatus = 'FINANCE_APPROVED';
-                nextAssigneeId = parseInt(String(userId), 10);
+                nextAssigneeId = null;
             }
         } else if (action === 'SEND_TO_VENDOR') {
             if (request.status !== 'FINANCE_APPROVED') {
