@@ -2001,6 +2001,7 @@ app.post(
             const { title, description, departmentId, items = [], totalEstimated, currency, priority, procurementType, headerDeptCode, headerMonth, headerYear, headerSequence } = req.body || {};
 
             console.log('[POST /requests] Parsed fields - title:', title, 'departmentId:', departmentId);
+            console.log('[POST /requests] Header fields - deptCode:', headerDeptCode, 'month:', headerMonth, 'year:', headerYear, 'seq:', headerSequence);
 
             if (!title || !departmentId) {
                 return res.status(400).json({ message: 'Title and department are required' });
@@ -2988,6 +2989,10 @@ app.get(
     '/api/evaluations',
     authMiddleware,
     asyncHandler(async (req, res) => {
+        // Temporarily return empty array until Evaluation model is fully configured
+        res.json({ success: true, data: [] });
+        return;
+
         const { status, search, dueBefore, dueAfter } = req.query;
         if (hasEvaluationDelegate()) {
             const where: Prisma.EvaluationWhereInput = {};
