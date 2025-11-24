@@ -34,7 +34,10 @@ const app = express();
 const httpServer = http.createServer(app);
 const PORT = process.env.PORT ? Number(process.env.PORT) : 4000;
 const APP_ENV = process.env.APP_ENV || 'production';
-const API_HOST = APP_ENV === 'local' ? 'localhost' : process.env.API_HOST || 'heron';
+// In production, bind to 0.0.0.0 unless overridden via API_HOST
+const API_HOST = APP_ENV === 'local' ? 'localhost' : process.env.API_HOST || '0.0.0.0';
+// Public host for logs (what users type in the browser)
+const PUBLIC_HOST = process.env.API_PUBLIC_HOST || (APP_ENV === 'local' ? 'localhost' : 'heron');
 const JWT_SECRET = process.env.JWT_SECRET || 'devsecret-change-me';
 
 let trendingJobInterval: NodeJS.Timeout | null = null;
@@ -3691,9 +3694,9 @@ async function start() {
 
         httpServer.listen(PORT, API_HOST, () => {
             console.log(`🚀 Environment: ${APP_ENV.toUpperCase()}`);
-            console.log(`API server listening on http://${API_HOST}:${PORT}`);
-            console.log(`WebSocket server ready on ws://${API_HOST}:${PORT}`);
-            console.log(`Health check: http://${API_HOST}:${PORT}/health`);
+            console.log(`API server listening on http://${PUBLIC_HOST}:${PORT} (bind ${API_HOST})`);
+            console.log(`WebSocket server ready on ws://${PUBLIC_HOST}:${PORT}`);
+            console.log(`Health check: http://${PUBLIC_HOST}:${PORT}/health`);
         });
     } catch (err) {
         console.error('Startup error:', err);
