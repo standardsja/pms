@@ -7,8 +7,8 @@ async function checkProcurementManagerRole() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 email: 'proc.manager@bsj.gov.jm',
-                password: 'Passw0rd!'
-            })
+                password: 'Passw0rd!',
+            }),
         });
 
         if (loginResponse.ok) {

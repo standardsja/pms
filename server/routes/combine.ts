@@ -30,7 +30,7 @@ router.get('/', authMiddleware, async (req, res) => {
         if (!userRoleInfo.canCombineRequests) {
             return res.status(403).json({
                 message: 'Access denied. Only procurement officers and procurement managers can combine requests.',
-                code: 'INSUFFICIENT_PERMISSIONS'
+                code: 'INSUFFICIENT_PERMISSIONS',
             });
         }
 
@@ -40,7 +40,7 @@ router.get('/', authMiddleware, async (req, res) => {
             // This should not happen due to the canCombineRequests check above, but as a fallback
             return res.status(403).json({
                 message: 'Access denied. Invalid role for combining requests.',
-                code: 'INVALID_ROLE'
+                code: 'INVALID_ROLE',
             });
         }
 
@@ -110,7 +110,7 @@ router.post('/combine', authMiddleware, async (req, res) => {
         if (!userRoleInfo.canCombineRequests) {
             return res.status(403).json({
                 error: 'Access denied. Only procurement officers and procurement managers can combine requests.',
-                code: 'INSUFFICIENT_PERMISSIONS'
+                code: 'INSUFFICIENT_PERMISSIONS',
             });
         }
 

@@ -266,14 +266,12 @@ export function checkCombinePermissions(
     // Only allow procurement officers, procurement managers, and admins to combine requests
     const isProcurementOfficer = userRoles.some((role) => {
         const roleUpper = role.toUpperCase();
-        return ['PROCUREMENT_OFFICER', 'PROCUREMENT OFFICER', 'PROCUREMENT'].includes(roleUpper) ||
-               (roleUpper.includes('PROCUREMENT') && roleUpper.includes('OFFICER'));
+        return ['PROCUREMENT_OFFICER', 'PROCUREMENT OFFICER', 'PROCUREMENT'].includes(roleUpper) || (roleUpper.includes('PROCUREMENT') && roleUpper.includes('OFFICER'));
     });
 
     const isProcurementManager = userRoles.some((role) => {
         const roleUpper = role.toUpperCase();
-        return ['PROCUREMENT_MANAGER', 'PROCUREMENT MANAGER'].includes(roleUpper) ||
-               (roleUpper.includes('PROCUREMENT') && roleUpper.includes('MANAGER'));
+        return ['PROCUREMENT_MANAGER', 'PROCUREMENT MANAGER'].includes(roleUpper) || (roleUpper.includes('PROCUREMENT') && roleUpper.includes('MANAGER'));
     });
 
     const isAdmin = userRoles.some((role) => {

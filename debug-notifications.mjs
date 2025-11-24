@@ -10,8 +10,8 @@ async function debugNotifications() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 email: 'proc1@bsj.gov.jm',
-                password: 'Passw0rd!'
-            })
+                password: 'Passw0rd!',
+            }),
         });
 
         const loginData = await loginResponse.json();
@@ -20,7 +20,7 @@ async function debugNotifications() {
         // Fetch notifications
         const notificationsResponse = await fetch(`${API_URL}/api/notifications`, {
             method: 'GET',
-            headers: { 'Authorization': `Bearer ${loginData.token}` }
+            headers: { Authorization: `Bearer ${loginData.token}` },
         });
 
         const rawText = await notificationsResponse.text();
@@ -32,7 +32,6 @@ async function debugNotifications() {
         } catch (e) {
             console.log('Failed to parse as JSON:', e.message);
         }
-
     } catch (error) {
         console.error('Error:', error.message);
     }

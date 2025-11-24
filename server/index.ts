@@ -2118,10 +2118,10 @@ app.post(
                 const totalValue = totalEstimated || 0;
                 const procurementTypes = Array.isArray(procurementType) ? procurementType : [];
                 const thresholdResult = checkProcurementThresholds(totalValue, procurementTypes, currency);
-                
+
                 if (thresholdResult.requiresExecutiveApproval) {
                     console.log(`[POST /requests] Request ${created.reference} exceeds threshold, notifying procurement officers`);
-                    
+
                     // Send notifications to procurement officers
                     await createThresholdNotifications({
                         requestId: created.id,
@@ -2132,7 +2132,7 @@ app.post(
                         totalValue,
                         currency,
                         thresholdAmount: thresholdResult.thresholdAmount,
-                        category: thresholdResult.category
+                        category: thresholdResult.category,
                     });
                 }
             } catch (notificationError) {
