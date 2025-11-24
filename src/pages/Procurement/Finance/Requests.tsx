@@ -151,6 +151,35 @@ const FinanceRequests = () => {
           body: JSON.stringify({ 
             action: apiAction,
             comment: comment.trim() || undefined
+          }),
+        });
+
+        if (!res.ok) {
+          const error = await res.json().catch(() => ({}));
+          throw new Error(error.message || 'Failed to process action');
+        }
+
+        // Remove from list after successful action
+        setRequests(prev => prev.filter(r => r.id !== req.id));
+
+        await MySwal.fire({
+          icon: 'success',
+          title: action === 'approve' ? 'Request Approved' : 'Request Returned',
+          html: comment ? `<div style="text-align:left; margin-top: 12px;"><strong>Your comment:</strong><br/><div style="background: #f3f4f6; padding: 8px; border-radius: 4px; margin-top: 6px;">${comment}</div></div>` : undefined,
+          timer: 2000,
+          showConfirmButton: false,
+        });
+      } catch (err: any) {
+        console.error('Error processing action:', err);
+        MySwal.fire({
+          icon: 'error',
+          title: 'Action Failed',
+          text: err.message || 'Failed to process the action. Please try again.',
+        });
+      }
+    }
+  };
+
   if (loading) {
     return (
       <div className="p-6">
