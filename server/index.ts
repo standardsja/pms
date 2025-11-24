@@ -672,15 +672,19 @@ app.delete('/api/notifications/:id', authMiddleware, async (req, res) => {
 
 // GET /api/messages - Fetch user messages
 app.get('/api/messages', authMiddleware, async (req, res) => {
+    console.log('[/api/messages] Request received');
     try {
         const user = (req as any).user as { sub?: number };
         const userId = user.sub;
+        console.log('[/api/messages] User ID:', userId);
 
         if (!userId) {
+            console.log('[/api/messages] No user ID - returning 401');
             return res.status(401).json({ success: false, message: 'User not authenticated' });
         }
 
         // Fetch messages where user is the recipient
+        console.log('[/api/messages] Fetching messages for user:', userId);
         const messages = await prisma.message.findMany({
             where: { toUserId: userId },
             orderBy: { createdAt: 'desc' },
@@ -703,6 +707,7 @@ app.get('/api/messages', authMiddleware, async (req, res) => {
             },
         });
 
+        console.log('[/api/messages] Found', messages.length, 'messages');
         res.json({
             success: true,
             data: messages,

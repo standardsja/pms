@@ -83,7 +83,7 @@ const RequestForm = () => {
     const [budgetComments, setBudgetComments] = useState('');
     const [budgetOfficerName, setBudgetOfficerName] = useState('');
     const [budgetManagerName, setBudgetManagerName] = useState('');
-    const [currency, setCurrency] = useState<'JMD' | 'USD'>('JMD');
+    const [currency, setCurrency] = useState<'JMD' | 'USD' | 'EUR' | 'GBP' | 'JPY' | 'CNY' | 'CAD' | 'AUD' | 'CHF' | 'INR' | 'BRL' | 'ZAR' | 'MXN' | 'SEK' | 'NZD' | 'TTD' | 'BBD' | 'XCD'>('JMD');
     const [procurementCaseNumber, setProcurementCaseNumber] = useState('');
     const [receivedBy, setReceivedBy] = useState('');
     const [dateReceived, setDateReceived] = useState('');
@@ -212,7 +212,10 @@ const RequestForm = () => {
                 // Map database enum priority (URGENT/HIGH/MEDIUM/LOW) to form values (urgent/high/medium/low)
                 const priorityValue = request.priority ? request.priority.toLowerCase() : 'medium';
                 setPriority(priorityValue);
-                if (request.currency) setCurrency(request.currency === 'USD' ? 'USD' : 'JMD');
+                if (request.currency) {
+                    const validCurrencies = ['JMD', 'USD', 'EUR', 'GBP', 'JPY', 'CNY', 'CAD', 'AUD', 'CHF', 'INR', 'BRL', 'ZAR', 'MXN', 'SEK', 'NZD', 'TTD', 'BBD', 'XCD'];
+                    setCurrency(validCurrencies.includes(request.currency) ? (request.currency as any) : 'JMD');
+                }
                 setCommentsJustification(request.description || '');
 
                 // Load procurement type from JSON field
@@ -708,9 +711,51 @@ const RequestForm = () => {
                             </div>
                             <div>
                                 <label className="block text-sm font-medium mb-2">Currency</label>
-                                <select className="form-select w-full" value={currency} onChange={(e) => setCurrency(e.target.value as 'JMD' | 'USD')}>
+                                <select
+                                    className="form-select w-full"
+                                    value={currency}
+                                    onChange={(e) =>
+                                        setCurrency(
+                                            e.target.value as
+                                                | 'JMD'
+                                                | 'USD'
+                                                | 'EUR'
+                                                | 'GBP'
+                                                | 'JPY'
+                                                | 'CNY'
+                                                | 'CAD'
+                                                | 'AUD'
+                                                | 'CHF'
+                                                | 'INR'
+                                                | 'BRL'
+                                                | 'ZAR'
+                                                | 'MXN'
+                                                | 'SEK'
+                                                | 'NZD'
+                                                | 'TTD'
+                                                | 'BBD'
+                                                | 'XCD'
+                                        )
+                                    }
+                                >
                                     <option value="JMD">JMD - Jamaican Dollar</option>
                                     <option value="USD">USD - US Dollar</option>
+                                    <option value="EUR">EUR - Euro</option>
+                                    <option value="GBP">GBP - British Pound Sterling</option>
+                                    <option value="JPY">JPY - Japanese Yen</option>
+                                    <option value="CNY">CNY - Chinese Yuan</option>
+                                    <option value="CAD">CAD - Canadian Dollar</option>
+                                    <option value="AUD">AUD - Australian Dollar</option>
+                                    <option value="CHF">CHF - Swiss Franc</option>
+                                    <option value="INR">INR - Indian Rupee</option>
+                                    <option value="BRL">BRL - Brazilian Real</option>
+                                    <option value="ZAR">ZAR - South African Rand</option>
+                                    <option value="MXN">MXN - Mexican Peso</option>
+                                    <option value="SEK">SEK - Swedish Krona</option>
+                                    <option value="NZD">NZD - New Zealand Dollar</option>
+                                    <option value="TTD">TTD - Trinidad and Tobago Dollar</option>
+                                    <option value="BBD">BBD - Barbados Dollar</option>
+                                    <option value="XCD">XCD - East Caribbean Dollar</option>
                                 </select>
                             </div>
                             <div>
@@ -1002,7 +1047,7 @@ const RequestForm = () => {
 
                         {/* Comments/Justification */}
                         <div className="mb-4">
-                            <label className="block text-sm font-medium mb-2">Comments/Justification:</label>
+                            <label className="block text-sm font-medium mb-2">Comments/Justification(Why is it needed?):</label>
                             <textarea
                                 value={commentsJustification}
                                 onChange={(e) => setCommentsJustification(e.target.value)}
