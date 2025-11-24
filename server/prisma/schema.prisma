@@ -132,6 +132,11 @@ model User {
   // Procurement Evaluation relations
   createdEvaluations   Evaluation[] @relation("EvaluationCreator")
   validatedEvaluations Evaluation[] @relation("EvaluationValidator")
+  sectionAVerifications Evaluation[] @relation("SectionAVerifier")
+  sectionBVerifications Evaluation[] @relation("SectionBVerifier")
+  sectionCVerifications Evaluation[] @relation("SectionCVerifier")
+  sectionDVerifications Evaluation[] @relation("SectionDVerifier")
+  sectionEVerifications Evaluation[] @relation("SectionEVerifier")
 }
 
 model Department {
@@ -536,6 +541,14 @@ enum EvaluationStatus {
   REJECTED
 }
 
+enum SectionVerificationStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  SUBMITTED
+  RETURNED
+  VERIFIED
+}
+
 enum ProcurementMethod {
   INTERNATIONAL_COMPETITIVE_BIDDING
   NATIONAL_COMPETITIVE_BIDDING
@@ -572,18 +585,43 @@ model Evaluation {
   
   // Section A: Procurement Details (stored as JSON for flexibility)
   sectionA       Json?
+  sectionAStatus SectionVerificationStatus @default(NOT_STARTED)
+  sectionAVerifiedBy Int?
+  sectionAVerifier   User?  @relation("SectionAVerifier", fields: [sectionAVerifiedBy], references: [id])
+  sectionAVerifiedAt DateTime?
+  sectionANotes      String? @db.Text
   
   // Section B: Eligibility & Compliance (array of bidders)
   sectionB       Json?
+  sectionBStatus SectionVerificationStatus @default(NOT_STARTED)
+  sectionBVerifiedBy Int?
+  sectionBVerifier   User?  @relation("SectionBVerifier", fields: [sectionBVerifiedBy], references: [id])
+  sectionBVerifiedAt DateTime?
+  sectionBNotes      String? @db.Text
   
   // Section C: Evaluator Comments & Recommendation
   sectionC       Json?
+  sectionCStatus SectionVerificationStatus @default(NOT_STARTED)
+  sectionCVerifiedBy Int?
+  sectionCVerifier   User?  @relation("SectionCVerifier", fields: [sectionCVerifiedBy], references: [id])
+  sectionCVerifiedAt DateTime?
+  sectionCNotes      String? @db.Text
   
   // Section D: Summary
   sectionD       Json?
+  sectionDStatus SectionVerificationStatus @default(NOT_STARTED)
+  sectionDVerifiedBy Int?
+  sectionDVerifier   User?  @relation("SectionDVerifier", fields: [sectionDVerifiedBy], references: [id])
+  sectionDVerifiedAt DateTime?
+  sectionDNotes      String? @db.Text
   
   // Section E: Final Recommendation
   sectionE       Json?
+  sectionEStatus SectionVerificationStatus @default(NOT_STARTED)
+  sectionEVerifiedBy Int?
+  sectionEVerifier   User?  @relation("SectionEVerifier", fields: [sectionEVerifiedBy], references: [id])
+  sectionEVerifiedAt DateTime?
+  sectionENotes      String? @db.Text
   
   // Metadata
   createdBy      Int

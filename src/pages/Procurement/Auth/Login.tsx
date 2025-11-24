@@ -116,9 +116,9 @@ const Login = () => {
             const userRoles: string[] = user.roles || (user.role ? [user.role] : []);
             const normalizedRoles = userRoles.map((r) => String(r).toUpperCase());
 
-            // Evaluation Committee members go straight to their committee page regardless of onboarding state
+            // Evaluation Committee members go straight to their committee dashboard regardless of onboarding state
             if (normalizedRoles.includes('EVALUATION_COMMITTEE')) {
-                navigate('/procurement/evaluation/committee');
+                navigate('/evaluation/committee/dashboard');
                 return;
             }
 
@@ -179,7 +179,7 @@ const Login = () => {
                     const userRoles: string[] = user.roles || (user.role ? [user.role] : []);
                     const normalizedRoles = userRoles.map((r) => String(r).toUpperCase());
                     if (normalizedRoles.includes('EVALUATION_COMMITTEE')) {
-                        navigate('/procurement/evaluation/committee');
+                        navigate('/evaluation/committee/dashboard');
                         return;
                     }
                     if (normalizedRoles.includes('INNOVATION_COMMITTEE')) {

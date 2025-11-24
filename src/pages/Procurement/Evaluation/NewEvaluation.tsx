@@ -119,6 +119,19 @@ const NewEvaluation = () => {
             // Generate evaluation number (in production, backend should generate this)
             const evalNumber = `PRO_70_F_14/${String(Date.now()).slice(-5)}`;
 
+            // Helper function to safely parse numbers
+            const safeParseFloat = (value: string | undefined): number => {
+                if (!value || value.trim() === '') return 0;
+                const parsed = parseFloat(value);
+                return isNaN(parsed) ? 0 : parsed;
+            };
+
+            const safeParseInt = (value: string | undefined): number => {
+                if (!value || value.trim() === '') return 0;
+                const parsed = parseInt(value);
+                return isNaN(parsed) ? 0 : parsed;
+            };
+
             // Prepare the evaluation data matching the backend API structure
             const evaluationData: CreateEvaluationDTO = {
                 evalNumber,
@@ -128,14 +141,14 @@ const NewEvaluation = () => {
                 evaluator: formData.evaluator || undefined,
                 dueDate: formData.bidValidityExpiration || undefined,
                 sectionA: {
-                    comparableEstimate: parseFloat(formData.comparableEstimate),
-                    fundedBy: formData.fundedBy,
-                    tenderClosingDate: formData.tenderClosingDate,
-                    tenderClosingTime: formData.tenderClosingTime,
-                    tenderOpeningDate: formData.tenderOpeningDate,
-                    tenderOpeningTime: formData.tenderOpeningTime,
-                    actualOpeningDate: formData.actualOpeningDate,
-                    actualOpeningTime: formData.actualOpeningTime,
+                    comparableEstimate: safeParseFloat(formData.comparableEstimate),
+                    fundedBy: formData.fundedBy || '',
+                    tenderClosingDate: formData.tenderClosingDate || '',
+                    tenderClosingTime: formData.tenderClosingTime || '',
+                    tenderOpeningDate: formData.tenderOpeningDate || '',
+                    tenderOpeningTime: formData.tenderOpeningTime || '',
+                    actualOpeningDate: formData.actualOpeningDate || '',
+                    actualOpeningTime: formData.actualOpeningTime || '',
                     procurementMethod:
                         formData.procurementMethod === 'National Competitive Bidding'
                             ? 'NATIONAL_COMPETITIVE_BIDDING'
@@ -146,7 +159,7 @@ const NewEvaluation = () => {
                             : formData.procurementMethod === 'Single Source'
                             ? 'SINGLE_SOURCE'
                             : 'EMERGENCY_SINGLE_SOURCE',
-                    advertisementMethods: formData.advertisementMethods,
+                    advertisementMethods: Array.isArray(formData.advertisementMethods) && formData.advertisementMethods.length > 0 ? formData.advertisementMethods : ['Not Specified'],
                     contractType:
                         formData.contractType === 'Goods'
                             ? 'GOODS'
@@ -155,13 +168,13 @@ const NewEvaluation = () => {
                             : formData.contractType === 'Non-Consulting Services'
                             ? 'NON_CONSULTING_SERVICES'
                             : 'WORKS',
-                    bidSecurity: formData.bidSecurity,
-                    tenderPeriodStartDate: formData.tenderPeriodStartDate,
-                    tenderPeriodEndDate: formData.tenderPeriodEndDate,
-                    tenderPeriodDays: formData.tenderPeriodDays ? parseInt(formData.tenderPeriodDays) : 0,
-                    bidValidityDays: parseInt(formData.bidValidityDays),
-                    bidValidityExpiration: formData.bidValidityExpiration,
-                    numberOfBidsRequested: parseInt(formData.numberOfBidsRequested),
+                    bidSecurity: formData.bidSecurity || '',
+                    tenderPeriodStartDate: formData.tenderPeriodStartDate || '',
+                    tenderPeriodEndDate: formData.tenderPeriodEndDate || '',
+                    tenderPeriodDays: safeParseInt(formData.tenderPeriodDays),
+                    bidValidityDays: safeParseInt(formData.bidValidityDays),
+                    bidValidityExpiration: formData.bidValidityExpiration || '',
+                    numberOfBidsRequested: safeParseInt(formData.numberOfBidsRequested),
                     numberOfBidsReceived: 0, // Will be updated later
                     arithmeticErrorIdentified: formData.arithmeticErrorIdentified === 'Yes',
                     retender: formData.retender === 'Yes',
@@ -170,6 +183,8 @@ const NewEvaluation = () => {
                     awardCriteria: formData.awardCriteria === 'Lowest Cost' ? 'LOWEST_COST' : 'MOST_ADVANTAGEOUS_BID',
                 },
             };
+
+            console.log('Sending evaluation data to backend:', JSON.stringify(evaluationData, null, 2));
 
             const result = await evaluationService.createEvaluation(evaluationData);
 
