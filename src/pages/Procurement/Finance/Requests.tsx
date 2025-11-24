@@ -280,7 +280,16 @@ const FinanceRequests = () => {
                                             {r.department.code}
                                         </span>
                                     </td>
-                                    <td className="px-4 py-3">{getStatusBadge(r.status)}</td>
+                                    <td className="px-4 py-3">
+                                        {(() => {
+                                            const badge = getStatusBadge(r.status);
+                                            return (
+                                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${badge.bg} ${badge.text}`}>
+                                                    {badge.label}
+                                                </span>
+                                            );
+                                        })()}
+                                    </td>
                                     <td className="px-4 py-3 font-medium">
                                         {r.currency} ${(r.totalEstimated || 0).toFixed(2)}
                                     </td>
