@@ -26,12 +26,7 @@ const NewEvaluationComplete = () => {
             return;
         }
         const roles = (u?.roles || (u?.role ? [u.role] : [])).map((r) => r.toUpperCase());
-        const hasAccess = roles.some((role) => 
-            role.includes('PROCUREMENT_OFFICER') || 
-            role.includes('PROCUREMENT_MANAGER') || 
-            role.includes('PROCUREMENT') || 
-            role.includes('MANAGER')
-        );
+        const hasAccess = roles.some((role) => role.includes('PROCUREMENT_OFFICER') || role.includes('PROCUREMENT_MANAGER') || role.includes('PROCUREMENT') || role.includes('MANAGER'));
         if (!hasAccess) {
             navigate('/procurement/evaluation');
         }
@@ -81,7 +76,7 @@ const NewEvaluationComplete = () => {
                 complianceNotes: '',
                 technicalScore: '',
                 specifications: '',
-            }
+            },
         ],
     });
 
@@ -160,24 +155,22 @@ const NewEvaluationComplete = () => {
                     complianceNotes: '',
                     technicalScore: '',
                     specifications: '',
-                }
-            ]
+                },
+            ],
         });
     };
 
     const removeBidder = (id: number) => {
         setSectionB({
             ...sectionB,
-            bidders: sectionB.bidders.filter(b => b.id !== id)
+            bidders: sectionB.bidders.filter((b) => b.id !== id),
         });
     };
 
     const updateBidder = (id: number, field: string, value: any) => {
         setSectionB({
             ...sectionB,
-            bidders: sectionB.bidders.map(b => 
-                b.id === id ? { ...b, [field]: value } : b
-            )
+            bidders: sectionB.bidders.map((b) => (b.id === id ? { ...b, [field]: value } : b)),
         });
     };
 
@@ -191,7 +184,7 @@ const NewEvaluationComplete = () => {
 
         // Validate Section B
         if (sectionB.bidders.length === 0) missingFields.push('At least one bidder');
-        const invalidBidders = sectionB.bidders.filter(b => !b.name || !b.bidAmount);
+        const invalidBidders = sectionB.bidders.filter((b) => !b.name || !b.bidAmount);
         if (invalidBidders.length > 0) missingFields.push('All bidder names and amounts');
 
         // Validate Section C
@@ -244,8 +237,12 @@ const NewEvaluationComplete = () => {
                     tenderOpeningTime: sectionA.tenderOpeningTime,
                     actualOpeningDate: sectionA.actualOpeningDate,
                     actualOpeningTime: sectionA.actualOpeningTime,
-                    procurementMethod: sectionA.procurementMethod === 'National Competitive Bidding' ? 'NATIONAL_COMPETITIVE_BIDDING' : 
-                                      sectionA.procurementMethod === 'International Competitive Bidding' ? 'INTERNATIONAL_COMPETITIVE_BIDDING' : 'OTHER',
+                    procurementMethod:
+                        sectionA.procurementMethod === 'National Competitive Bidding'
+                            ? 'NATIONAL_COMPETITIVE_BIDDING'
+                            : sectionA.procurementMethod === 'International Competitive Bidding'
+                            ? 'INTERNATIONAL_COMPETITIVE_BIDDING'
+                            : 'OTHER',
                     contractType: sectionA.contractType === 'Goods' ? 'GOODS' : sectionA.contractType === 'Services' ? 'SERVICES' : 'WORKS',
                     bidSecurity: sectionA.bidSecurity,
                     tenderPeriodStartDate: sectionA.tenderPeriodStartDate,
@@ -258,7 +255,7 @@ const NewEvaluationComplete = () => {
                     awardCriteria: sectionA.awardCriteria === 'Lowest Cost' ? 'LOWEST_COST' : 'MOST_ADVANTAGEOUS_BID',
                 },
                 sectionB: {
-                    bidders: sectionB.bidders.map(b => ({
+                    bidders: sectionB.bidders.map((b) => ({
                         name: b.name,
                         bidAmount: safeParseFloat(b.bidAmount),
                         eligibilityMet: b.eligibilityMet,
@@ -495,15 +492,7 @@ const NewEvaluationComplete = () => {
                                 <label htmlFor="fundedBy" className="mb-2 block font-semibold">
                                     Funded By
                                 </label>
-                                <input
-                                    id="fundedBy"
-                                    name="fundedBy"
-                                    type="text"
-                                    className="form-input"
-                                    placeholder="BSJ"
-                                    value={sectionA.fundedBy}
-                                    onChange={handleSectionAChange}
-                                />
+                                <input id="fundedBy" name="fundedBy" type="text" className="form-input" placeholder="BSJ" value={sectionA.fundedBy} onChange={handleSectionAChange} />
                             </div>
                         </div>
                     </div>
@@ -515,53 +504,25 @@ const NewEvaluationComplete = () => {
                                 <label htmlFor="tenderClosingDate" className="mb-2 block font-semibold">
                                     Tender Closing Date
                                 </label>
-                                <input
-                                    id="tenderClosingDate"
-                                    name="tenderClosingDate"
-                                    type="date"
-                                    className="form-input"
-                                    value={sectionA.tenderClosingDate}
-                                    onChange={handleSectionAChange}
-                                />
+                                <input id="tenderClosingDate" name="tenderClosingDate" type="date" className="form-input" value={sectionA.tenderClosingDate} onChange={handleSectionAChange} />
                             </div>
                             <div>
                                 <label htmlFor="tenderClosingTime" className="mb-2 block font-semibold">
                                     Tender Closing Time
                                 </label>
-                                <input
-                                    id="tenderClosingTime"
-                                    name="tenderClosingTime"
-                                    type="time"
-                                    className="form-input"
-                                    value={sectionA.tenderClosingTime}
-                                    onChange={handleSectionAChange}
-                                />
+                                <input id="tenderClosingTime" name="tenderClosingTime" type="time" className="form-input" value={sectionA.tenderClosingTime} onChange={handleSectionAChange} />
                             </div>
                             <div>
                                 <label htmlFor="tenderOpeningDate" className="mb-2 block font-semibold">
                                     Tender Opening Date
                                 </label>
-                                <input
-                                    id="tenderOpeningDate"
-                                    name="tenderOpeningDate"
-                                    type="date"
-                                    className="form-input"
-                                    value={sectionA.tenderOpeningDate}
-                                    onChange={handleSectionAChange}
-                                />
+                                <input id="tenderOpeningDate" name="tenderOpeningDate" type="date" className="form-input" value={sectionA.tenderOpeningDate} onChange={handleSectionAChange} />
                             </div>
                             <div>
                                 <label htmlFor="tenderOpeningTime" className="mb-2 block font-semibold">
                                     Tender Opening Time
                                 </label>
-                                <input
-                                    id="tenderOpeningTime"
-                                    name="tenderOpeningTime"
-                                    type="time"
-                                    className="form-input"
-                                    value={sectionA.tenderOpeningTime}
-                                    onChange={handleSectionAChange}
-                                />
+                                <input id="tenderOpeningTime" name="tenderOpeningTime" type="time" className="form-input" value={sectionA.tenderOpeningTime} onChange={handleSectionAChange} />
                             </div>
                         </div>
                     </div>
@@ -573,13 +534,7 @@ const NewEvaluationComplete = () => {
                                 <label htmlFor="procurementMethod" className="mb-2 block font-semibold">
                                     Procurement Method
                                 </label>
-                                <select
-                                    id="procurementMethod"
-                                    name="procurementMethod"
-                                    className="form-select"
-                                    value={sectionA.procurementMethod}
-                                    onChange={handleSectionAChange}
-                                >
+                                <select id="procurementMethod" name="procurementMethod" className="form-select" value={sectionA.procurementMethod} onChange={handleSectionAChange}>
                                     <option value="National Competitive Bidding">National Competitive Bidding</option>
                                     <option value="International Competitive Bidding">International Competitive Bidding</option>
                                     <option value="Request for Quotation">Request for Quotation</option>
@@ -590,13 +545,7 @@ const NewEvaluationComplete = () => {
                                 <label htmlFor="contractType" className="mb-2 block font-semibold">
                                     Contract Type
                                 </label>
-                                <select
-                                    id="contractType"
-                                    name="contractType"
-                                    className="form-select"
-                                    value={sectionA.contractType}
-                                    onChange={handleSectionAChange}
-                                >
+                                <select id="contractType" name="contractType" className="form-select" value={sectionA.contractType} onChange={handleSectionAChange}>
                                     <option value="Goods">Goods</option>
                                     <option value="Services">Services</option>
                                     <option value="Works">Works</option>
@@ -606,13 +555,7 @@ const NewEvaluationComplete = () => {
                                 <label htmlFor="bidSecurity" className="mb-2 block font-semibold">
                                     Bid Security Required
                                 </label>
-                                <select
-                                    id="bidSecurity"
-                                    name="bidSecurity"
-                                    className="form-select"
-                                    value={sectionA.bidSecurity}
-                                    onChange={handleSectionAChange}
-                                >
+                                <select id="bidSecurity" name="bidSecurity" className="form-select" value={sectionA.bidSecurity} onChange={handleSectionAChange}>
                                     <option value="Yes">Yes</option>
                                     <option value="No">No</option>
                                     <option value="N/A">N/A</option>
@@ -689,9 +632,7 @@ const NewEvaluationComplete = () => {
                                             />
                                         </div>
                                         <div>
-                                            <label className="mb-2 block font-semibold">
-                                                Technical Score (Committee Use)
-                                            </label>
+                                            <label className="mb-2 block font-semibold">Technical Score (Committee Use)</label>
                                             <input
                                                 type="number"
                                                 step="0.01"
@@ -704,9 +645,7 @@ const NewEvaluationComplete = () => {
                                             />
                                         </div>
                                         <div>
-                                            <label className="mb-2 block font-semibold">
-                                                Eligibility Met
-                                            </label>
+                                            <label className="mb-2 block font-semibold">Eligibility Met</label>
                                             <select
                                                 className="form-select"
                                                 value={bidder.eligibilityMet ? 'Yes' : 'No'}
@@ -717,9 +656,7 @@ const NewEvaluationComplete = () => {
                                             </select>
                                         </div>
                                         <div className="md:col-span-2">
-                                            <label className="mb-2 block font-semibold">
-                                                Specifications & Quantities Review
-                                            </label>
+                                            <label className="mb-2 block font-semibold">Specifications & Quantities Review</label>
                                             <textarea
                                                 rows={3}
                                                 className="form-textarea"
@@ -729,9 +666,7 @@ const NewEvaluationComplete = () => {
                                             />
                                         </div>
                                         <div className="md:col-span-2">
-                                            <label className="mb-2 block font-semibold">
-                                                Compliance Notes (Committee Use)
-                                            </label>
+                                            <label className="mb-2 block font-semibold">Compliance Notes (Committee Use)</label>
                                             <textarea
                                                 rows={2}
                                                 className="form-textarea bg-gray-100 dark:bg-gray-700"
@@ -776,14 +711,7 @@ const NewEvaluationComplete = () => {
                                 <label htmlFor="actionTaken" className="mb-2 block font-semibold">
                                     Action Taken <span className="text-danger">*</span>
                                 </label>
-                                <select
-                                    id="actionTaken"
-                                    name="actionTaken"
-                                    className="form-select"
-                                    value={sectionC.actionTaken}
-                                    onChange={handleSectionCChange}
-                                    required
-                                >
+                                <select id="actionTaken" name="actionTaken" className="form-select" value={sectionC.actionTaken} onChange={handleSectionCChange} required>
                                     <option value="Recommended">Recommended</option>
                                     <option value="Rejected">Rejected</option>
                                     <option value="Deferred">Deferred</option>
@@ -846,15 +774,7 @@ const NewEvaluationComplete = () => {
                                     <label htmlFor="evaluatorDate" className="mb-2 block font-semibold">
                                         Date <span className="text-danger">*</span>
                                     </label>
-                                    <input
-                                        id="evaluatorDate"
-                                        name="evaluatorDate"
-                                        type="date"
-                                        className="form-input"
-                                        value={sectionC.evaluatorDate}
-                                        onChange={handleSectionCChange}
-                                        required
-                                    />
+                                    <input id="evaluatorDate" name="evaluatorDate" type="date" className="form-input" value={sectionC.evaluatorDate} onChange={handleSectionCChange} required />
                                 </div>
                             </div>
                         </div>
@@ -1096,13 +1016,7 @@ const NewEvaluationComplete = () => {
                                     <label htmlFor="budgetAvailability" className="mb-2 block font-semibold">
                                         Budget Availability
                                     </label>
-                                    <select
-                                        id="budgetAvailability"
-                                        name="budgetAvailability"
-                                        className="form-select"
-                                        value={sectionE.budgetAvailability}
-                                        onChange={handleSectionEChange}
-                                    >
+                                    <select id="budgetAvailability" name="budgetAvailability" className="form-select" value={sectionE.budgetAvailability} onChange={handleSectionEChange}>
                                         <option value="Yes">Yes</option>
                                         <option value="No">No</option>
                                     </select>
