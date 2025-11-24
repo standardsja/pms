@@ -77,135 +77,29 @@ const FinanceRequests = () => {
       }
     };
 
+    fetchRequests();
+  }, [currentUserId]);
+
+  const pending = useMemo(() => requests.filter(r => 
+    r.status === 'FINANCE_REVIEW' || r.status === 'BUDGET_MANAGER_REVIEW'
+  ), [requests]);
+
   const viewDetails = (req: Req) => {
     // Navigate to the request form in view mode
     navigate(`/apps/requests/${req.id}`);
-  };      <p><strong>Justification:</strong></p>
-          <p style="background: #f3f4f6; padding: 8px; border-radius: 4px; font-size: 0.9em;">${req.justification}</p>
-        </div>
-      `,
-      width: '600px',
-      confirmButtonText: 'Close',
-    });
   };
 
-  // Allow Finance to adjust Funding Source and Budget Code
-  const editBudget = async (req: Req) => {
-    const options = [
-      'Operational Budget',
-      'Capital Budget',
-      'Project Budget',
-      'Grant Funded',
-      'Other',
-    ];
-
-    const html = `
-      <div style="text-align:left">
-        <label style="display:block;font-weight:600;margin-bottom:6px">Funding Source <span style="color:#ef4444">*</span></label>
-        <select id="swal-funding-source" class="swal2-select" style="width:100%">
-          ${options.map((o) => `<option value="${o}" ${o === req.fundingSource ? 'selected' : ''}>${o}</option>`).join('')}
-        </select>
-        <div style="height:10px"></div>
   // Navigate to edit the request (Finance officers can edit budget fields)
   const editRequest = (req: Req) => {
     navigate(`/apps/requests/${req.id}`);
-  };    .right { text-align: right; }
-        .muted { color: #64748b; }
-        @media print { .no-print { display: none; } }
-      </style>
-    `;
-    const html = `
-      <!doctype html>
-      <html>
-        <head>
-          <meta charset="utf-8" />
-          <title>Request ${safe(req.id)}</title>
-          ${css}
-        </head>
-        <body>
-          <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:8px">
-            <h1>Procurement Request</h1>
-            <div class="muted">Printed: ${new Date().toLocaleString()}</div>
-          </div>
-          <div class="row">
-            <div class="box">
-              <h2>Request</h2>
-              <div><strong>ID:</strong> ${safe(req.id)}</div>
-              <div><strong>Title:</strong> ${safe(req.title)}</div>
-              <div><strong>Date:</strong> ${safe(req.date)}</div>
-              <div><strong>Status:</strong> ${safe(req.status)}</div>
-            </div>
-            <div class="box">
-              <h2>Requester</h2>
-              <div><strong>Name:</strong> ${safe(req.requester)}</div>
-              <div><strong>Department:</strong> ${safe(req.department)}</div>
-            </div>
-          </div>
-          <div class="row" style="margin-top:10px">
-            <div class="box">
-              <h2>Budget</h2>
-              <div><strong>Funding Source:</strong> ${safe(req.fundingSource || '—')}</div>
-              <div><strong>Budget Code:</strong> ${safe(req.budgetCode || '—')}</div>
-              <div><strong>Total Amount:</strong> $${req.totalEstimated.toFixed(2)}</div>
-            </div>
-          </div>
-          <div class="box" style="margin-top:10px">
-            <h2>Justification</h2>
-            <div>${safe(req.justification)}</div>
+  };
+
   // Print/Download PDF
   const downloadPdf = (req: Req) => {
     const url = `http://heron:4000/requests/${req.id}/pdf`;
     window.open(url, '_blank');
-  };  </div>
+  };
 
-      <div className="bg-white dark:bg-slate-800 shadow rounded overflow-hidden">
-        <table className="min-w-full table-auto">
-          <thead className="bg-slate-50 dark:bg-slate-700 text-sm">
-            <tr>
-              <th className="px-4 py-3 text-left">ID</th>
-              <th className="px-4 py-3 text-left">Title</th>
-              <th className="px-4 py-3 text-left">Requester</th>
-              <th className="px-4 py-3 text-left">Department</th>
-              <th className="px-4 py-3 text-left">Amount</th>
-              <th className="px-4 py-3 text-left">Budget Code</th>
-              <th className="px-4 py-3 text-left">Date</th>
-              <th className="px-4 py-3 text-left">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="text-sm">
-            {pending.length === 0 && (
-              <tr>
-                <td className="px-4 py-6 text-center text-gray-500" colSpan={8}>No requests pending finance verification.</td>
-              </tr>
-            )}
-            {pending.map((r) => (
-              <tr key={r.id} className="border-t last:border-b hover:bg-slate-50 dark:hover:bg-slate-700">
-                <td className="px-4 py-3 font-medium">{r.id}</td>
-                <td className="px-4 py-3">{r.title}</td>
-                <td className="px-4 py-3">{r.requester}</td>
-                <td className="px-4 py-3">{r.department}</td>
-                <td className="px-4 py-3 font-medium">${r.totalEstimated.toFixed(2)}</td>
-                <td className="px-4 py-3 text-xs">{r.budgetCode || '—'}</td>
-                <td className="px-4 py-3">{r.date}</td>
-                <td className="px-4 py-3">
-                  <div className="flex gap-2">
-                    <button
-                      className="p-1.5 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600"
-                      onClick={() => viewDetails(r)}
-                      title="View Details"
-                    >
-                      <IconEye className="w-5 h-5" />
-                    </button>
-                    <button
-                      className="p-1.5 rounded hover:bg-amber-50 dark:hover:bg-amber-900/20 text-amber-600"
-                      onClick={() => editBudget(r)}
-                      title="Edit Funding/Budget Code"
-                    >
-                      <IconEdit className="w-5 h-5" />
-                    </button>
-                    <button
-                      className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200"
-                      onClick={() => printRequest(r)}
   const handleAction = async (req: Req, action: 'approve' | 'return') => {
     const result = await MySwal.fire({
       title: action === 'approve' ? 'Approve Request for Budget Verification' : 'Return Request',
