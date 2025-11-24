@@ -2519,7 +2519,7 @@ app.post('/requests/:id/submit', async (req, res) => {
 app.post('/requests/:id/action', async (req, res) => {
     try {
         const { id } = req.params;
-        const { action } = req.body; // 'APPROVE' or 'REJECT'
+        const { action, comment } = req.body; // 'APPROVE' or 'REJECT' with optional comment
         const userId = req.headers['x-user-id'];
 
         if (!userId) {
@@ -2596,6 +2596,16 @@ app.post('/requests/:id/action', async (req, res) => {
         // Update request with new status (with safe fallback if enum is missing in DB)
         let updated;
         try {
+            // Build the status history comment
+            let historyComment = '';
+            if (action === 'APPROVE') {
+                historyComment = comment ? `Approved at ${request.status} stage: ${comment}` : `Approved at ${request.status} stage`;
+            } else if (action === 'REJECT') {
+                historyComment = comment ? `Returned from ${request.status} stage: ${comment}` : `Returned from ${request.status} stage`;
+            } else if (action === 'SEND_TO_VENDOR') {
+                historyComment = comment ? `Sent to vendor: ${comment}` : `Sent to vendor`;
+            }
+
             updated = await prisma.request.update({
                 where: { id: parseInt(id, 10) },
                 data: {
@@ -2605,7 +2615,7 @@ app.post('/requests/:id/action', async (req, res) => {
                         create: {
                             status: nextStatus,
                             changedById: parseInt(String(userId), 10),
-                            comment: `${action === 'APPROVE' ? 'Approved' : 'Rejected'} at ${request.status} stage`,
+                            comment: historyComment,
                         },
                     },
                 },
