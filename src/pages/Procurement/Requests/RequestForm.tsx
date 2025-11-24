@@ -1002,7 +1002,7 @@ const RequestForm = () => {
 
                         {/* Comments/Justification */}
                         <div className="mb-4">
-                            <label className="block text-sm font-medium mb-2">Comments/Justification:</label>
+                            <label className="block text-sm font-medium mb-2">Comments/Justification(Why is it needed?):</label>
                             <textarea
                                 value={commentsJustification}
                                 onChange={(e) => setCommentsJustification(e.target.value)}
