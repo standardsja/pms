@@ -33,6 +33,8 @@ import statsRouter from './routes/stats';
 const app = express();
 const httpServer = http.createServer(app);
 const PORT = process.env.PORT ? Number(process.env.PORT) : 4000;
+const APP_ENV = process.env.APP_ENV || 'production';
+const API_HOST = APP_ENV === 'local' ? 'localhost' : process.env.API_HOST || 'heron';
 const JWT_SECRET = process.env.JWT_SECRET || 'devsecret-change-me';
 
 let trendingJobInterval: NodeJS.Timeout | null = null;
@@ -3004,10 +3006,6 @@ app.get(
     '/api/evaluations',
     authMiddleware,
     asyncHandler(async (req, res) => {
-        // Temporarily return empty array until Evaluation model is fully configured
-        res.json({ success: true, data: [] });
-        return;
-
         const { status, search, dueBefore, dueAfter } = req.query;
         if (hasEvaluationDelegate()) {
             const where: Prisma.EvaluationWhereInput = {};
@@ -3021,16 +3019,29 @@ app.get(
                 ];
             }
             if (dueBefore) {
-                where.dueDate = where.dueDate && typeof where.dueDate === 'object' ? { ...where.dueDate, lte: new Date(dueBefore as string) } : { lte: new Date(dueBefore as string) };
+                if (where.dueDate && typeof where.dueDate === 'object' && !Array.isArray(where.dueDate)) {
+                    where.dueDate = { ...(where.dueDate as object), lte: new Date(dueBefore as string) };
+                } else {
+                    where.dueDate = { lte: new Date(dueBefore as string) };
+                }
             }
             if (dueAfter) {
-                where.dueDate = where.dueDate && typeof where.dueDate === 'object' ? { ...where.dueDate, gte: new Date(dueAfter as string) } : { gte: new Date(dueAfter as string) };
+                if (where.dueDate && typeof where.dueDate === 'object' && !Array.isArray(where.dueDate)) {
+                    where.dueDate = { ...(where.dueDate as object), gte: new Date(dueAfter as string) };
+                } else {
+                    where.dueDate = { gte: new Date(dueAfter as string) };
+                }
             }
             const evaluations = await (prisma as any).evaluation.findMany({
                 where,
                 include: {
                     creator: { select: { id: true, name: true, email: true } },
                     validator: { select: { id: true, name: true, email: true } },
+                    sectionAVerifier: { select: { id: true, name: true, email: true } },
+                    sectionBVerifier: { select: { id: true, name: true, email: true } },
+                    sectionCVerifier: { select: { id: true, name: true, email: true } },
+                    sectionDVerifier: { select: { id: true, name: true, email: true } },
+                    sectionEVerifier: { select: { id: true, name: true, email: true } },
                 },
                 orderBy: { createdAt: 'desc' },
             });
@@ -3038,7 +3049,23 @@ app.get(
         }
         // Raw SQL fallback
         const rows = await prisma.$queryRawUnsafe<any>(
-            'SELECT e.*, uc.id AS creatorId, uc.name AS creatorName, uc.email AS creatorEmail, uv.id AS validatorId, uv.name AS validatorName, uv.email AS validatorEmail FROM Evaluation e LEFT JOIN User uc ON e.createdBy = uc.id LEFT JOIN User uv ON e.validatedBy = uv.id ORDER BY e.createdAt DESC'
+            `SELECT e.*, 
+             uc.id AS creatorId, uc.name AS creatorName, uc.email AS creatorEmail, 
+             uv.id AS validatorId, uv.name AS validatorName, uv.email AS validatorEmail,
+             ua.id AS sectionAVerifierId, ua.name AS sectionAVerifierName, ua.email AS sectionAVerifierEmail,
+             ub.id AS sectionBVerifierId, ub.name AS sectionBVerifierName, ub.email AS sectionBVerifierEmail,
+             uc_v.id AS sectionCVerifierId, uc_v.name AS sectionCVerifierName, uc_v.email AS sectionCVerifierEmail,
+             ud.id AS sectionDVerifierId, ud.name AS sectionDVerifierName, ud.email AS sectionDVerifierEmail,
+             ue.id AS sectionEVerifierId, ue.name AS sectionEVerifierName, ue.email AS sectionEVerifierEmail
+             FROM Evaluation e 
+             LEFT JOIN User uc ON e.createdBy = uc.id 
+             LEFT JOIN User uv ON e.validatedBy = uv.id
+             LEFT JOIN User ua ON e.sectionAVerifiedBy = ua.id
+             LEFT JOIN User ub ON e.sectionBVerifiedBy = ub.id
+             LEFT JOIN User uc_v ON e.sectionCVerifiedBy = uc_v.id
+             LEFT JOIN User ud ON e.sectionDVerifiedBy = ud.id
+             LEFT JOIN User ue ON e.sectionEVerifiedBy = ue.id
+             ORDER BY e.createdAt DESC`
         );
         const mapped = rows.map((r: any) => ({
             id: r.id,
@@ -3052,6 +3079,31 @@ app.get(
             sectionC: r.sectionC ?? null,
             sectionD: r.sectionD ?? null,
             sectionE: r.sectionE ?? null,
+            sectionAStatus: r.sectionAStatus || 'NOT_STARTED',
+            sectionAVerifiedBy: r.sectionAVerifiedBy,
+            sectionAVerifier: r.sectionAVerifierId ? { id: r.sectionAVerifierId, name: r.sectionAVerifierName, email: r.sectionAVerifierEmail } : null,
+            sectionAVerifiedAt: r.sectionAVerifiedAt ?? null,
+            sectionANotes: r.sectionANotes ?? null,
+            sectionBStatus: r.sectionBStatus || 'NOT_STARTED',
+            sectionBVerifiedBy: r.sectionBVerifiedBy,
+            sectionBVerifier: r.sectionBVerifierId ? { id: r.sectionBVerifierId, name: r.sectionBVerifierName, email: r.sectionBVerifierEmail } : null,
+            sectionBVerifiedAt: r.sectionBVerifiedAt ?? null,
+            sectionBNotes: r.sectionBNotes ?? null,
+            sectionCStatus: r.sectionCStatus || 'NOT_STARTED',
+            sectionCVerifiedBy: r.sectionCVerifiedBy,
+            sectionCVerifier: r.sectionCVerifierId ? { id: r.sectionCVerifierId, name: r.sectionCVerifierName, email: r.sectionCVerifierEmail } : null,
+            sectionCVerifiedAt: r.sectionCVerifiedAt ?? null,
+            sectionCNotes: r.sectionCNotes ?? null,
+            sectionDStatus: r.sectionDStatus || 'NOT_STARTED',
+            sectionDVerifiedBy: r.sectionDVerifiedBy,
+            sectionDVerifier: r.sectionDVerifierId ? { id: r.sectionDVerifierId, name: r.sectionDVerifierName, email: r.sectionDVerifierEmail } : null,
+            sectionDVerifiedAt: r.sectionDVerifiedAt ?? null,
+            sectionDNotes: r.sectionDNotes ?? null,
+            sectionEStatus: r.sectionEStatus || 'NOT_STARTED',
+            sectionEVerifiedBy: r.sectionEVerifiedBy,
+            sectionEVerifier: r.sectionEVerifierId ? { id: r.sectionEVerifierId, name: r.sectionEVerifierName, email: r.sectionEVerifierEmail } : null,
+            sectionEVerifiedAt: r.sectionEVerifiedAt ?? null,
+            sectionENotes: r.sectionENotes ?? null,
             createdBy: r.createdBy,
             creator: { id: r.creatorId, name: r.creatorName, email: r.creatorEmail },
             evaluator: r.evaluator,
@@ -3080,15 +3132,34 @@ app.get(
                 include: {
                     creator: { select: { id: true, name: true, email: true } },
                     validator: { select: { id: true, name: true, email: true } },
+                    sectionAVerifier: { select: { id: true, name: true, email: true } },
+                    sectionBVerifier: { select: { id: true, name: true, email: true } },
+                    sectionCVerifier: { select: { id: true, name: true, email: true } },
+                    sectionDVerifier: { select: { id: true, name: true, email: true } },
+                    sectionEVerifier: { select: { id: true, name: true, email: true } },
                 },
             });
             if (!evaluation) throw new NotFoundError('Evaluation not found');
             return res.json({ success: true, data: evaluation });
         }
         const rows = await prisma.$queryRawUnsafe<any>(
-            `SELECT e.*, uc.id AS creatorId, uc.name AS creatorName, uc.email AS creatorEmail, uv.id AS validatorId, uv.name AS validatorName, uv.email AS validatorEmail FROM Evaluation e LEFT JOIN User uc ON e.createdBy = uc.id LEFT JOIN User uv ON e.validatedBy = uv.id WHERE e.id = ${parseInt(
-                id
-            )} LIMIT 1`
+            `SELECT e.*, 
+             uc.id AS creatorId, uc.name AS creatorName, uc.email AS creatorEmail, 
+             uv.id AS validatorId, uv.name AS validatorName, uv.email AS validatorEmail,
+             ua.id AS sectionAVerifierId, ua.name AS sectionAVerifierName, ua.email AS sectionAVerifierEmail,
+             ub.id AS sectionBVerifierId, ub.name AS sectionBVerifierName, ub.email AS sectionBVerifierEmail,
+             uc_v.id AS sectionCVerifierId, uc_v.name AS sectionCVerifierName, uc_v.email AS sectionCVerifierEmail,
+             ud.id AS sectionDVerifierId, ud.name AS sectionDVerifierName, ud.email AS sectionDVerifierEmail,
+             ue.id AS sectionEVerifierId, ue.name AS sectionEVerifierName, ue.email AS sectionEVerifierEmail
+             FROM Evaluation e 
+             LEFT JOIN User uc ON e.createdBy = uc.id 
+             LEFT JOIN User uv ON e.validatedBy = uv.id
+             LEFT JOIN User ua ON e.sectionAVerifiedBy = ua.id
+             LEFT JOIN User ub ON e.sectionBVerifiedBy = ub.id
+             LEFT JOIN User uc_v ON e.sectionCVerifiedBy = uc_v.id
+             LEFT JOIN User ud ON e.sectionDVerifiedBy = ud.id
+             LEFT JOIN User ue ON e.sectionEVerifiedBy = ue.id
+             WHERE e.id = ${parseInt(id)} LIMIT 1`
         );
         const r = rows[0];
         if (!r) throw new NotFoundError('Evaluation not found');
@@ -3099,11 +3170,42 @@ app.get(
             rfqTitle: r.rfqTitle,
             description: r.description,
             status: r.status,
+
             sectionA: r.sectionA ?? null,
+            sectionAStatus: r.sectionAStatus || 'NOT_STARTED',
+            sectionAVerifiedBy: r.sectionAVerifiedBy,
+            sectionAVerifier: r.sectionAVerifierId ? { id: r.sectionAVerifierId, name: r.sectionAVerifierName, email: r.sectionAVerifierEmail } : null,
+            sectionAVerifiedAt: r.sectionAVerifiedAt ?? null,
+            sectionANotes: r.sectionANotes ?? null,
+
             sectionB: r.sectionB ?? null,
+            sectionBStatus: r.sectionBStatus || 'NOT_STARTED',
+            sectionBVerifiedBy: r.sectionBVerifiedBy,
+            sectionBVerifier: r.sectionBVerifierId ? { id: r.sectionBVerifierId, name: r.sectionBVerifierName, email: r.sectionBVerifierEmail } : null,
+            sectionBVerifiedAt: r.sectionBVerifiedAt ?? null,
+            sectionBNotes: r.sectionBNotes ?? null,
+
             sectionC: r.sectionC ?? null,
+            sectionCStatus: r.sectionCStatus || 'NOT_STARTED',
+            sectionCVerifiedBy: r.sectionCVerifiedBy,
+            sectionCVerifier: r.sectionCVerifierId ? { id: r.sectionCVerifierId, name: r.sectionCVerifierName, email: r.sectionCVerifierEmail } : null,
+            sectionCVerifiedAt: r.sectionCVerifiedAt ?? null,
+            sectionCNotes: r.sectionCNotes ?? null,
+
             sectionD: r.sectionD ?? null,
+            sectionDStatus: r.sectionDStatus || 'NOT_STARTED',
+            sectionDVerifiedBy: r.sectionDVerifiedBy,
+            sectionDVerifier: r.sectionDVerifierId ? { id: r.sectionDVerifierId, name: r.sectionDVerifierName, email: r.sectionDVerifierEmail } : null,
+            sectionDVerifiedAt: r.sectionDVerifiedAt ?? null,
+            sectionDNotes: r.sectionDNotes ?? null,
+
             sectionE: r.sectionE ?? null,
+            sectionEStatus: r.sectionEStatus || 'NOT_STARTED',
+            sectionEVerifiedBy: r.sectionEVerifiedBy,
+            sectionEVerifier: r.sectionEVerifierId ? { id: r.sectionEVerifierId, name: r.sectionEVerifierName, email: r.sectionEVerifierEmail } : null,
+            sectionEVerifiedAt: r.sectionEVerifiedAt ?? null,
+            sectionENotes: r.sectionENotes ?? null,
+
             createdBy: r.createdBy,
             creator: { id: r.creatorId, name: r.creatorName, email: r.creatorEmail },
             evaluator: r.evaluator,
@@ -3128,6 +3230,25 @@ app.post(
         const user = (req as any).user;
         const { evalNumber, rfqNumber, rfqTitle, description, sectionA, dueDate, evaluator } = req.body;
 
+        // JWT payload uses 'sub' for user ID, fallback to 'id' for compatibility
+        const userId = user?.sub || user?.id;
+
+        console.log('Creating evaluation with data:', {
+            evalNumber,
+            rfqNumber,
+            rfqTitle,
+            description,
+            dueDate,
+            evaluator,
+            sectionA: JSON.stringify(sectionA),
+            userId,
+        });
+
+        // Check if user is authenticated
+        if (!user || !userId) {
+            throw new BadRequestError('User not authenticated. Please log in again.');
+        }
+
         if (!evalNumber || !rfqNumber || !rfqTitle) {
             throw new BadRequestError('Missing required fields: evalNumber, rfqNumber, rfqTitle');
         }
@@ -3137,21 +3258,32 @@ app.post(
             // Check duplicate using delegate
             const existing = await (prisma as any).evaluation.findUnique({ where: { evalNumber } });
             if (existing) throw new BadRequestError('Evaluation number already exists');
-            const evaluation = await (prisma as any).evaluation.create({
-                data: {
-                    evalNumber,
-                    rfqNumber,
-                    rfqTitle,
-                    description,
-                    sectionA,
-                    evaluator,
-                    dueDate: dueDate ? new Date(dueDate) : null,
-                    createdBy: user.id,
-                    status: 'PENDING',
-                },
-                include: { creator: { select: { id: true, name: true, email: true } } },
-            });
-            return res.status(201).json({ success: true, data: evaluation });
+
+            try {
+                const evaluation = await (prisma as any).evaluation.create({
+                    data: {
+                        evalNumber,
+                        rfqNumber,
+                        rfqTitle,
+                        description: description || null,
+                        sectionA: sectionA || null,
+                        evaluator: evaluator || null,
+                        dueDate: dueDate ? new Date(dueDate) : null,
+                        createdBy: userId,
+                        status: 'PENDING',
+                    },
+                    include: { creator: { select: { id: true, name: true, email: true } } },
+                });
+                console.log('✅ Evaluation created successfully:', evaluation.id);
+                return res.status(201).json({ success: true, data: evaluation });
+            } catch (error) {
+                console.error('❌ Prisma create error:', error);
+                if (error instanceof Error) {
+                    console.error('Error message:', error.message);
+                    console.error('Error stack:', error.stack);
+                }
+                throw error;
+            }
         }
         // Fallback duplicate check via raw SQL
         const dupRows = await prisma.$queryRawUnsafe<any>(`SELECT id FROM Evaluation WHERE evalNumber='${evalNumber.replace(/'/g, "''")}' LIMIT 1`);
@@ -3160,7 +3292,7 @@ app.post(
             `INSERT INTO Evaluation (evalNumber, rfqNumber, rfqTitle, description, sectionA, createdBy, evaluator, dueDate, status, createdAt, updatedAt) VALUES (
               '${evalNumber}', '${rfqNumber}', '${rfqTitle}', ${description ? `'${description.replace(/'/g, "''")}'` : 'NULL'}, ${
                 sectionA ? `'${JSON.stringify(sectionA).replace(/'/g, "''")}'` : 'NULL'
-            }, ${user.id}, ${evaluator ? `'${evaluator.replace(/'/g, "''")}'` : 'NULL'}, ${
+            }, ${userId}, ${evaluator ? `'${evaluator.replace(/'/g, "''")}'` : 'NULL'}, ${
                 dueDate ? `'${new Date(dueDate).toISOString().slice(0, 19).replace('T', ' ')}'` : 'NULL'
             }, 'PENDING', NOW(), NOW())`
         );
@@ -3347,6 +3479,171 @@ app.patch(
     })
 );
 
+// POST /api/evaluations/:id/sections/:section/submit - Submit section for committee review
+app.post(
+    '/api/evaluations/:id/sections/:section/submit',
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+        const { id, section } = req.params;
+        const sectionUpper = section.toUpperCase();
+
+        if (!['A', 'B', 'C', 'D', 'E'].includes(sectionUpper)) {
+            throw new BadRequestError('Invalid section. Must be A, B, C, D, or E');
+        }
+
+        let existing: any = null;
+        if (hasEvaluationDelegate()) {
+            existing = await (prisma as any).evaluation.findUnique({ where: { id: parseInt(id) } });
+        } else {
+            const checkRow = await prisma.$queryRawUnsafe<any>(`SELECT * FROM Evaluation WHERE id = ${parseInt(id)} LIMIT 1`);
+            existing = checkRow[0];
+        }
+        if (!existing) throw new NotFoundError('Evaluation not found');
+
+        // Check if section data exists
+        const sectionDataKey = `section${sectionUpper}`;
+        if (!existing[sectionDataKey]) {
+            throw new BadRequestError(`Section ${sectionUpper} has no data to submit`);
+        }
+
+        const updateData: any = {};
+        const statusField = `section${sectionUpper}Status`;
+        updateData[statusField] = 'SUBMITTED';
+
+        if (hasEvaluationDelegate()) {
+            const evaluation = await (prisma as any).evaluation.update({
+                where: { id: parseInt(id) },
+                data: updateData,
+                include: {
+                    creator: { select: { id: true, name: true, email: true } },
+                    [`section${sectionUpper}Verifier`]: { select: { id: true, name: true, email: true } },
+                },
+            });
+            return res.json({ success: true, data: evaluation, message: `Section ${sectionUpper} submitted for review` });
+        }
+
+        await prisma.$executeRawUnsafe(`UPDATE Evaluation SET ${statusField}='SUBMITTED', updatedAt=NOW() WHERE id=${parseInt(id)}`);
+        res.json({ success: true, message: `Section ${sectionUpper} submitted for review`, meta: { fallback: true } });
+    })
+);
+
+// POST /api/evaluations/:id/sections/:section/verify - Committee verifies section (approve)
+app.post(
+    '/api/evaluations/:id/sections/:section/verify',
+    authMiddleware,
+    requireCommittee,
+    asyncHandler(async (req, res) => {
+        const { id, section } = req.params;
+        const { notes } = req.body;
+        const userId = req.user!.userId;
+        const sectionUpper = section.toUpperCase();
+
+        if (!['A', 'B', 'C', 'D', 'E'].includes(sectionUpper)) {
+            throw new BadRequestError('Invalid section. Must be A, B, C, D, or E');
+        }
+
+        let existing: any = null;
+        if (hasEvaluationDelegate()) {
+            existing = await (prisma as any).evaluation.findUnique({ where: { id: parseInt(id) } });
+        } else {
+            const checkRow = await prisma.$queryRawUnsafe<any>(`SELECT * FROM Evaluation WHERE id = ${parseInt(id)} LIMIT 1`);
+            existing = checkRow[0];
+        }
+        if (!existing) throw new NotFoundError('Evaluation not found');
+
+        const statusField = `section${sectionUpper}Status`;
+        if (existing[statusField] !== 'SUBMITTED') {
+            throw new BadRequestError(`Section ${sectionUpper} must be submitted before verification`);
+        }
+
+        const updateData: any = {};
+        updateData[statusField] = 'VERIFIED';
+        updateData[`section${sectionUpper}VerifiedBy`] = userId;
+        updateData[`section${sectionUpper}VerifiedAt`] = new Date();
+        if (notes) updateData[`section${sectionUpper}Notes`] = notes;
+
+        if (hasEvaluationDelegate()) {
+            const evaluation = await (prisma as any).evaluation.update({
+                where: { id: parseInt(id) },
+                data: updateData,
+                include: {
+                    creator: { select: { id: true, name: true, email: true } },
+                    [`section${sectionUpper}Verifier`]: { select: { id: true, name: true, email: true } },
+                },
+            });
+            return res.json({ success: true, data: evaluation, message: `Section ${sectionUpper} verified` });
+        }
+
+        const sets: string[] = [`${statusField}='VERIFIED'`, `section${sectionUpper}VerifiedBy=${userId}`, `section${sectionUpper}VerifiedAt=NOW()`, 'updatedAt=NOW()'];
+        if (notes) sets.push(`section${sectionUpper}Notes='${notes.replace(/'/g, "''")}'`);
+        await prisma.$executeRawUnsafe(`UPDATE Evaluation SET ${sets.join(', ')} WHERE id=${parseInt(id)}`);
+        res.json({ success: true, message: `Section ${sectionUpper} verified`, meta: { fallback: true } });
+    })
+);
+
+// POST /api/evaluations/:id/sections/:section/return - Committee returns section for changes
+app.post(
+    '/api/evaluations/:id/sections/:section/return',
+    authMiddleware,
+    requireCommittee,
+    asyncHandler(async (req, res) => {
+        const { id, section } = req.params;
+        const { notes } = req.body;
+        const userId = req.user!.userId;
+        const sectionUpper = section.toUpperCase();
+
+        if (!['A', 'B', 'C', 'D', 'E'].includes(sectionUpper)) {
+            throw new BadRequestError('Invalid section. Must be A, B, C, D, or E');
+        }
+
+        if (!notes || notes.trim() === '') {
+            throw new BadRequestError('Notes are required when returning a section');
+        }
+
+        let existing: any = null;
+        if (hasEvaluationDelegate()) {
+            existing = await (prisma as any).evaluation.findUnique({ where: { id: parseInt(id) } });
+        } else {
+            const checkRow = await prisma.$queryRawUnsafe<any>(`SELECT * FROM Evaluation WHERE id = ${parseInt(id)} LIMIT 1`);
+            existing = checkRow[0];
+        }
+        if (!existing) throw new NotFoundError('Evaluation not found');
+
+        const statusField = `section${sectionUpper}Status`;
+        if (existing[statusField] !== 'SUBMITTED') {
+            throw new BadRequestError(`Section ${sectionUpper} must be submitted before returning`);
+        }
+
+        const updateData: any = {};
+        updateData[statusField] = 'RETURNED';
+        updateData[`section${sectionUpper}VerifiedBy`] = userId;
+        updateData[`section${sectionUpper}VerifiedAt`] = new Date();
+        updateData[`section${sectionUpper}Notes`] = notes;
+
+        if (hasEvaluationDelegate()) {
+            const evaluation = await (prisma as any).evaluation.update({
+                where: { id: parseInt(id) },
+                data: updateData,
+                include: {
+                    creator: { select: { id: true, name: true, email: true } },
+                    [`section${sectionUpper}Verifier`]: { select: { id: true, name: true, email: true } },
+                },
+            });
+            return res.json({ success: true, data: evaluation, message: `Section ${sectionUpper} returned for changes` });
+        }
+
+        const sets: string[] = [
+            `${statusField}='RETURNED'`,
+            `section${sectionUpper}VerifiedBy=${userId}`,
+            `section${sectionUpper}VerifiedAt=NOW()`,
+            `section${sectionUpper}Notes='${notes.replace(/'/g, "''")}'`,
+            'updatedAt=NOW()',
+        ];
+        await prisma.$executeRawUnsafe(`UPDATE Evaluation SET ${sets.join(', ')} WHERE id=${parseInt(id)}`);
+        res.json({ success: true, message: `Section ${sectionUpper} returned for changes`, meta: { fallback: true } });
+    })
+);
+
 // DELETE /api/evaluations/:id - Delete evaluation
 app.delete(
     '/api/evaluations/:id',
@@ -3406,10 +3703,11 @@ async function start() {
         initAnalyticsJob(); // Start analytics aggregation job
         initWebSocket(httpServer); // Initialize WebSocket server
 
-        httpServer.listen(PORT, () => {
-            console.log(`API server listening on http://localhost:${PORT}`);
-            console.log(`WebSocket server ready on ws://localhost:${PORT}`);
-            console.log(`Health check: http://localhost:${PORT}/health`);
+        httpServer.listen(PORT, API_HOST, () => {
+            console.log(`🚀 Environment: ${APP_ENV.toUpperCase()}`);
+            console.log(`API server listening on http://${API_HOST}:${PORT}`);
+            console.log(`WebSocket server ready on ws://${API_HOST}:${PORT}`);
+            console.log(`Health check: http://${API_HOST}:${PORT}/health`);
         });
     } catch (err) {
         console.error('Startup error:', err);

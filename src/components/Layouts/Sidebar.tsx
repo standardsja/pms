@@ -65,7 +65,7 @@ const Sidebar = () => {
     const isInnovationHub = location.pathname.startsWith('/innovation');
     // Compute dashboard path for logo/home
     const dashboardPath = isEvaluationCommittee
-        ? '/procurement/evaluation/committee'
+        ? '/evaluation/committee/dashboard'
         : isCommitteeMember
         ? '/innovation/committee/dashboard'
         : isInnovationHub
@@ -179,13 +179,13 @@ const Sidebar = () => {
                                 <>
                                     <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
                                         <IconMinus className="w-4 h-5 flex-none hidden" />
-                                        <span>Evaluation Committee</span>
+                                        <span>Committee Verification</span>
                                     </h2>
                                     <li className="nav-item">
-                                        <NavLink to="/procurement/evaluation/committee" className="group">
+                                        <NavLink to="/evaluation/committee/dashboard" className="group">
                                             <div className="flex items-center">
-                                                <IconClipboardText className="group-hover:!text-primary shrink-0" />
-                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Committee Evaluation</span>
+                                                <IconMenuDashboard className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Dashboard</span>
                                             </div>
                                         </NavLink>
                                     </li>

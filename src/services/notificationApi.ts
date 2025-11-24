@@ -14,9 +14,14 @@ const getApiUrl = () => {
 
     // Check if running on localhost or 127.0.0.1
     const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const isHeron = window.location.hostname === 'heron';
 
     if (isLocal) {
         return 'http://localhost:4000';
+    }
+
+    if (isHeron) {
+        return 'http://heron:4000';
     }
 
     // Production: use the same hostname as frontend
