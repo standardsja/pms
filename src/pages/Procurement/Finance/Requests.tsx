@@ -37,9 +37,19 @@ const FinanceRequests = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    // Get current user profile
-    const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
-    const currentUserId = userProfile?.id || userProfile?.userId || null;
+    // Get current user profile - with error handling
+    let userProfile: any = {};
+    let currentUserId: number | null = null;
+    
+    try {
+        const profileStr = localStorage.getItem('userProfile');
+        if (profileStr) {
+            userProfile = JSON.parse(profileStr);
+            currentUserId = userProfile?.id || userProfile?.userId || null;
+        }
+    } catch (err) {
+        console.error('Failed to parse user profile:', err);
+    }
 
     useEffect(() => {
         dispatch(setPageTitle('Finance Verification'));
