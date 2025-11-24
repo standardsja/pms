@@ -41,7 +41,7 @@ const Requests = () => {
             const user = authRaw ? JSON.parse(authRaw) : legacyRaw ? JSON.parse(legacyRaw) : null;
             setCurrentUserName(user?.name || user?.fullName || '');
             setCurrentUserId(user?.id ? Number(user.id) : user?.userId ? Number(user.userId) : null);
-            
+
             // Safely extract roles, ensuring we have a clean array of strings
             let roles: string[] = [];
             if (user?.roles && Array.isArray(user.roles)) {
