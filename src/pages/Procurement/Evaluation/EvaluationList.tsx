@@ -6,8 +6,11 @@ import IconClipboardText from '../../../components/Icon/IconClipboardText';
 import IconPlus from '../../../components/Icon/IconPlus';
 import IconEye from '../../../components/Icon/IconEye';
 import IconFile from '../../../components/Icon/IconFile';
+import IconUsersGroup from '../../../components/Icon/IconUsersGroup';
+import IconEdit from '../../../components/Icon/IconEdit';
 import { useTranslation } from 'react-i18next';
 import { evaluationService, type Evaluation, type EvaluationStatus } from '../../../services/evaluationService';
+import { getUser } from '../../../utils/auth';
 
 type DisplayStatus = 'Pending' | 'In Progress' | 'Committee Review' | 'Completed' | 'Validated' | 'Rejected';
 
@@ -32,10 +35,24 @@ const EvaluationList = () => {
     const [statusFilter, setStatusFilter] = useState<DisplayStatus | 'ALL'>('ALL');
     const [dueBefore, setDueBefore] = useState<string>('');
     const [dueAfter, setDueAfter] = useState<string>('');
+    const [isCommittee, setIsCommittee] = useState(false);
+    const [isProcurement, setIsProcurement] = useState(false);
 
     useEffect(() => {
         dispatch(setPageTitle(t('evaluation.pageTitle', 'BSJ Evaluation Reports')));
     }, [dispatch, t]);
+
+    // Check user role
+    useEffect(() => {
+        const u = getUser();
+        if (u) {
+            const roles = (u?.roles || (u?.role ? [u.role] : [])).map((r) => r.toUpperCase());
+            const hasCommitteeRole = roles.some((role) => role.includes('COMMITTEE') || role.includes('EVALUATION_COMMITTEE'));
+            const hasProcurementRole = roles.some((role) => role.includes('PROCUREMENT_OFFICER') || role.includes('PROCUREMENT_MANAGER') || role.includes('PROCUREMENT'));
+            setIsCommittee(hasCommitteeRole);
+            setIsProcurement(hasProcurementRole);
+        }
+    }, []);
 
     // Fetch evaluations from backend
     useEffect(() => {
@@ -138,10 +155,18 @@ const EvaluationList = () => {
                     <h2 className="text-2xl font-bold">{t('evaluation.heading', 'BSJ Evaluation Reports')}</h2>
                     <p className="text-white-dark">{t('evaluation.subheading', 'Create and manage BSJ procurement evaluation reports with committee workflow')}</p>
                 </div>
-                <Link to="/procurement/evaluation/new" className="btn btn-primary gap-2">
-                    <IconPlus />
-                    {t('evaluation.actions.new', 'Create BSJ Evaluation')}
-                </Link>
+                <div className="flex gap-2">
+                    {isCommittee && (
+                        <Link to="/evaluation/committee/dashboard" className="btn btn-info gap-2">
+                            <IconUsersGroup />
+                            Committee Dashboard
+                        </Link>
+                    )}
+                    <Link to="/procurement/evaluation/new" className="btn btn-primary gap-2">
+                        <IconPlus />
+                        {t('evaluation.actions.new', 'Create BSJ Evaluation')}
+                    </Link>
+                </div>
             </div>
 
             {/* Stats */}
@@ -257,6 +282,16 @@ const EvaluationList = () => {
                                                 >
                                                     <IconEye className="h-4 w-4" />
                                                 </button>
+                                                {isProcurement && (
+                                                    <Link to={`/procurement/evaluation/${evaluation.id}/workspace`} className="btn btn-sm btn-warning" title="Work on Evaluation">
+                                                        <IconEdit className="h-4 w-4" />
+                                                    </Link>
+                                                )}
+                                                {isCommittee && (
+                                                    <Link to={`/evaluation/${evaluation.id}/committee`} className="btn btn-sm btn-outline-info" title="Committee Verification">
+                                                        <IconUsersGroup className="h-4 w-4" />
+                                                    </Link>
+                                                )}
                                                 {(evaluation.status === 'COMPLETED' || evaluation.status === 'VALIDATED') && (
                                                     <button className="btn btn-sm btn-success" title={t('evaluation.actions.generateReport', 'Download Report')}>
                                                         <IconFile className="h-4 w-4" />

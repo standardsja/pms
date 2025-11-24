@@ -26,6 +26,8 @@ const API_URL = getApiUrl();
 
 export type EvaluationStatus = 'PENDING' | 'IN_PROGRESS' | 'COMMITTEE_REVIEW' | 'COMPLETED' | 'VALIDATED' | 'REJECTED';
 
+export type SectionVerificationStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'SUBMITTED' | 'RETURNED' | 'VERIFIED';
+
 export type ProcurementMethod = 'INTERNATIONAL_COMPETITIVE_BIDDING' | 'NATIONAL_COMPETITIVE_BIDDING' | 'RESTRICTED_BIDDING' | 'SINGLE_SOURCE' | 'EMERGENCY_SINGLE_SOURCE';
 
 export type ContractType = 'GOODS' | 'CONSULTING_SERVICES' | 'NON_CONSULTING_SERVICES' | 'WORKS';
@@ -113,11 +115,42 @@ export interface Evaluation {
     rfqTitle: string;
     description?: string;
     status: EvaluationStatus;
+
     sectionA?: SectionA;
+    sectionAStatus: SectionVerificationStatus;
+    sectionAVerifiedBy?: number;
+    sectionAVerifier?: { id: number; name: string | null; email: string };
+    sectionAVerifiedAt?: string;
+    sectionANotes?: string;
+
     sectionB?: SectionB;
+    sectionBStatus: SectionVerificationStatus;
+    sectionBVerifiedBy?: number;
+    sectionBVerifier?: { id: number; name: string | null; email: string };
+    sectionBVerifiedAt?: string;
+    sectionBNotes?: string;
+
     sectionC?: SectionC;
+    sectionCStatus: SectionVerificationStatus;
+    sectionCVerifiedBy?: number;
+    sectionCVerifier?: { id: number; name: string | null; email: string };
+    sectionCVerifiedAt?: string;
+    sectionCNotes?: string;
+
     sectionD?: SectionD;
+    sectionDStatus: SectionVerificationStatus;
+    sectionDVerifiedBy?: number;
+    sectionDVerifier?: { id: number; name: string | null; email: string };
+    sectionDVerifiedAt?: string;
+    sectionDNotes?: string;
+
     sectionE?: SectionE;
+    sectionEStatus: SectionVerificationStatus;
+    sectionEVerifiedBy?: number;
+    sectionEVerifier?: { id: number; name: string | null; email: string };
+    sectionEVerifiedAt?: string;
+    sectionENotes?: string;
+
     createdBy: number;
     creator: {
         id: number;
@@ -263,6 +296,29 @@ class EvaluationService {
         const result = await this.fetchWithAuth(`/api/evaluations/${id}/committee`, {
             method: 'PATCH',
             body: JSON.stringify({ section, data }),
+        });
+        return result.data;
+    }
+
+    async submitSection(id: number, section: 'A' | 'B' | 'C' | 'D' | 'E'): Promise<Evaluation> {
+        const result = await this.fetchWithAuth(`/api/evaluations/${id}/sections/${section}/submit`, {
+            method: 'POST',
+        });
+        return result.data;
+    }
+
+    async verifySection(id: number, section: 'A' | 'B' | 'C' | 'D' | 'E', notes?: string): Promise<Evaluation> {
+        const result = await this.fetchWithAuth(`/api/evaluations/${id}/sections/${section}/verify`, {
+            method: 'POST',
+            body: JSON.stringify({ notes }),
+        });
+        return result.data;
+    }
+
+    async returnSection(id: number, section: 'A' | 'B' | 'C' | 'D' | 'E', notes: string): Promise<Evaluation> {
+        const result = await this.fetchWithAuth(`/api/evaluations/${id}/sections/${section}/return`, {
+            method: 'POST',
+            body: JSON.stringify({ notes }),
         });
         return result.data;
     }
