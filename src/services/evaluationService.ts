@@ -13,9 +13,12 @@ function getApiUrl(): string {
     const hostname = window.location.hostname;
     const protocol = window.location.protocol;
 
-    // If running on localhost, use localhost backend
+    // If running on localhost or heron, use appropriate backend
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
         return 'http://localhost:4000';
+    }
+    if (hostname === 'heron') {
+        return 'http://heron:4000';
     }
 
     // Otherwise, use the same hostname as the frontend (production)
