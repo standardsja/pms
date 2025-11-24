@@ -105,13 +105,13 @@ const FinanceRequests = () => {
     const pending = useMemo(() => requests.filter((r) => r.status === 'FINANCE_REVIEW' || r.status === 'BUDGET_MANAGER_REVIEW'), [requests]);
 
     const viewDetails = (req: Req) => {
-        // Navigate to the request form in view mode
-        navigate(`/apps/requests/${req.id}`);
+        // Navigate to the request form in edit mode
+        navigate(`/apps/requests/edit/${req.id}`);
     };
 
     // Navigate to edit the request (Finance officers can edit budget fields)
     const editRequest = (req: Req) => {
-        navigate(`/apps/requests/${req.id}`);
+        navigate(`/apps/requests/edit/${req.id}`);
     };
 
     // Print/Download PDF
