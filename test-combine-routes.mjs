@@ -2,19 +2,19 @@ import fetch from 'node-fetch';
 
 async function testCombineRoutes() {
     console.log('🧪 Testing Combine Routes...');
-    
+
     try {
         // First login as a procurement officer
         console.log('1️⃣ Logging in as procurement officer...');
         const loginResponse = await fetch('http://localhost:4000/api/auth/login', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
             },
             body: JSON.stringify({
                 email: 'proc1@bsj.gov.jm',
-                password: 'Passw0rd!'
-            })
+                password: 'Passw0rd!',
+            }),
         });
 
         if (!loginResponse.ok) {
@@ -30,9 +30,9 @@ async function testCombineRoutes() {
         const getResponse = await fetch('http://localhost:4000/api/requests/combine?combinable=true', {
             method: 'GET',
             headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-            }
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json',
+            },
         });
 
         console.log('GET Response status:', getResponse.status);
@@ -49,16 +49,16 @@ async function testCombineRoutes() {
         const postResponse = await fetch('http://localhost:4000/api/requests/combine', {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json',
             },
             body: JSON.stringify({
                 // Minimal test payload to see if endpoint exists
                 title: 'Test',
                 description: 'Test',
                 items: [],
-                originalRequestIds: []
-            })
+                originalRequestIds: [],
+            }),
         });
 
         console.log('POST Response status:', postResponse.status);
@@ -70,7 +70,6 @@ async function testCombineRoutes() {
             const errorText = await postResponse.text();
             console.log('POST Error response:', errorText);
         }
-
     } catch (error) {
         console.error('❌ Test failed:', error.message);
     }
