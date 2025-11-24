@@ -105,5 +105,21 @@ export function getThresholdBadge(alert: ThresholdAlert): {
  */
 export function shouldShowThresholdNotification(userRoles: string[] = []): boolean {
     const roles = userRoles.filter(Boolean).map((role) => role.toUpperCase());
-    return roles.some((role) => ['PROCUREMENT_OFFICER', 'PROCUREMENT_MANAGER', 'PROCUREMENT', 'MANAGER', 'ADMIN'].includes(role) || role.includes('PROCUREMENT'));
+    
+    // Check for specific procurement roles
+    const isProcurementOfficer = roles.some((role) => 
+        ['PROCUREMENT_OFFICER', 'PROCUREMENT OFFICER', 'PROCUREMENT'].includes(role) ||
+        (role.includes('PROCUREMENT') && role.includes('OFFICER'))
+    );
+    
+    const isProcurementManager = roles.some((role) => 
+        ['PROCUREMENT_MANAGER', 'PROCUREMENT MANAGER'].includes(role) ||
+        (role.includes('PROCUREMENT') && role.includes('MANAGER'))
+    );
+    
+    const isAdmin = roles.some((role) => 
+        ['ADMIN', 'ADMINISTRATOR', 'SUPER_ADMIN'].includes(role)
+    );
+    
+    return isProcurementOfficer || isProcurementManager || isAdmin;
 }

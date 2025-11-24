@@ -26,25 +26,22 @@ router.get('/', authMiddleware, async (req, res) => {
         // Role-based filtering using improved role checking
         const userRoleInfo = checkUserRoles(userRoles);
 
-        if (userRoleInfo.isProcurementUser) {
-            // All procurement users (officers, managers, admins) can see all combinable requests
-        } else if (userRoleInfo.isDepartmentHead) {
-            // Department heads can only see requests from their department
-            // First, get the user's department
-            const user = await prisma.user.findUnique({
-                where: { id: userId },
-                include: { department: true },
+        // Only procurement officers, procurement managers, and admins can combine requests
+        if (!userRoleInfo.canCombineRequests) {
+            return res.status(403).json({
+                message: 'Access denied. Only procurement officers and procurement managers can combine requests.',
+                code: 'INSUFFICIENT_PERMISSIONS'
             });
+        }
 
-            if (user?.department) {
-                whereClause.departmentId = user.department.id;
-            } else {
-                // If no department, fallback to only their own requests
-                whereClause.requesterId = userId;
-            }
+        if (userRoleInfo.isProcurementOfficer || userRoleInfo.isProcurementManager || userRoleInfo.isAdmin) {
+            // Procurement users can see all combinable requests
         } else {
-            // Regular users can only see their own requests
-            whereClause.requesterId = userId;
+            // This should not happen due to the canCombineRequests check above, but as a fallback
+            return res.status(403).json({
+                message: 'Access denied. Invalid role for combining requests.',
+                code: 'INVALID_ROLE'
+            });
         }
 
         const requests = await prisma.request.findMany({
@@ -106,15 +103,16 @@ router.post('/combine', authMiddleware, async (req, res) => {
         const userId = authReq.user.sub;
         const userRoles = authReq.user.roles || [];
 
-        // Validate user has permission to combine requests
-        if (!hasPermission(userRoles, 'combine_requests')) {
-            return res.status(403).json({
-                error: 'You do not have permission to combine requests. Only procurement staff and department heads can combine requests.',
-            });
-        }
-
         // Get user role information for permission checking
         const userRoleInfo = checkUserRoles(userRoles);
+
+        // Only procurement officers, procurement managers, and admins can combine requests
+        if (!userRoleInfo.canCombineRequests) {
+            return res.status(403).json({
+                error: 'Access denied. Only procurement officers and procurement managers can combine requests.',
+                code: 'INSUFFICIENT_PERMISSIONS'
+            });
+        }
 
         // Validate that user has permission to combine requests
         const originalRequests = await prisma.request.findMany({
@@ -134,12 +132,12 @@ router.post('/combine', authMiddleware, async (req, res) => {
             });
         }
 
-        // Check cross-department permissions using role utility
+        // Check cross-department permissions - procurement users can combine across departments
         const departments = [...new Set(originalRequests.map((req) => req.department?.name))];
 
-        if (!userRoleInfo.isProcurementUser && departments.length > 1) {
+        if (departments.length > 1 && !(userRoleInfo.isProcurementOfficer || userRoleInfo.isProcurementManager || userRoleInfo.isAdmin)) {
             return res.status(403).json({
-                error: 'Cross-department combination requires procurement permissions',
+                error: 'Cross-department combination requires procurement officer or manager permissions',
             });
         }
 

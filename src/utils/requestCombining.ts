@@ -263,16 +263,28 @@ export function checkCombinePermissions(
     let canCombine = false;
     let requiresApproval = false;
 
-    // Only allow procurement users and admins to combine requests
-    const isProcurementUser = userRoles.some((role) => {
+    // Only allow procurement officers, procurement managers, and admins to combine requests
+    const isProcurementOfficer = userRoles.some((role) => {
         const roleUpper = role.toUpperCase();
-        return roleUpper.includes('PROCUREMENT') || roleUpper.includes('ADMIN');
+        return ['PROCUREMENT_OFFICER', 'PROCUREMENT OFFICER', 'PROCUREMENT'].includes(roleUpper) ||
+               (roleUpper.includes('PROCUREMENT') && roleUpper.includes('OFFICER'));
     });
 
-    if (isProcurementUser) {
+    const isProcurementManager = userRoles.some((role) => {
+        const roleUpper = role.toUpperCase();
+        return ['PROCUREMENT_MANAGER', 'PROCUREMENT MANAGER'].includes(roleUpper) ||
+               (roleUpper.includes('PROCUREMENT') && roleUpper.includes('MANAGER'));
+    });
+
+    const isAdmin = userRoles.some((role) => {
+        const roleUpper = role.toUpperCase();
+        return ['ADMIN', 'ADMINISTRATOR', 'SUPER_ADMIN'].includes(roleUpper);
+    });
+
+    if (isProcurementOfficer || isProcurementManager || isAdmin) {
         canCombine = true;
     } else {
-        reasons.push('Only procurement staff and administrators can combine requests');
+        reasons.push('Only procurement officers, procurement managers, and administrators can combine requests');
     }
 
     // Cross-department combinations require approval

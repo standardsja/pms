@@ -24,6 +24,8 @@ import { batchUpdateIdeas, getCommitteeDashboardStats, getPendingIdeasForReview,
 import { initWebSocket, emitIdeaCreated, emitIdeaStatusChanged, emitVoteUpdated, emitBatchApproval, emitCommentAdded } from './services/websocketService';
 import { initAnalyticsJob, stopAnalyticsJob, getAnalytics, getCategoryAnalytics, getTimeBasedAnalytics } from './services/analyticsService';
 import { requestMonitoringMiddleware, trackCacheHit, trackCacheMiss, getMetrics, getHealthStatus, getSlowEndpoints, getErrorProneEndpoints } from './services/monitoringService';
+import { checkProcurementThresholds } from './services/thresholdService';
+import { createThresholdNotifications } from './services/notificationService';
 import type { Prisma } from '@prisma/client';
 import { requireCommittee as requireCommitteeRole, requireAdmin } from './middleware/rbac';
 import { validate, createIdeaSchema, voteSchema, approveRejectIdeaSchema, promoteIdeaSchema, sanitizeInput as sanitize } from './middleware/validation';
@@ -2110,6 +2112,33 @@ app.post(
                     attachments: true,
                 },
             });
+
+            // Check if request exceeds thresholds and notify procurement officers
+            try {
+                const totalValue = totalEstimated || 0;
+                const procurementTypes = Array.isArray(procurementType) ? procurementType : [];
+                const thresholdResult = checkProcurementThresholds(totalValue, procurementTypes, currency);
+                
+                if (thresholdResult.requiresExecutiveApproval) {
+                    console.log(`[POST /requests] Request ${created.reference} exceeds threshold, notifying procurement officers`);
+                    
+                    // Send notifications to procurement officers
+                    await createThresholdNotifications({
+                        requestId: created.id,
+                        requestReference: created.reference,
+                        requestTitle: title,
+                        requesterName: final?.requester?.name || 'Unknown',
+                        departmentName: final?.department?.name || 'Unknown',
+                        totalValue,
+                        currency,
+                        thresholdAmount: thresholdResult.thresholdAmount,
+                        category: thresholdResult.category
+                    });
+                }
+            } catch (notificationError) {
+                // Don't fail the request creation if notifications fail
+                console.error('[POST /requests] Failed to send threshold notifications:', notificationError);
+            }
 
             return res.status(201).json(final);
         } catch (e: any) {
