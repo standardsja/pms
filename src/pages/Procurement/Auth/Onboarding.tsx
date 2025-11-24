@@ -1,5 +1,4 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import packageInfo from '../../../../package.json';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { setPageTitle } from '../../../store/themeConfigSlice';
@@ -847,7 +846,7 @@ const Onboarding = () => {
                                 <span className="font-medium">99.9% Uptime SLA</span>
                             </div>
                         </div>
-                        <p className="text-xs text-gray-400 dark:text-gray-500">Powered by SPINX Enterprise Platform v{packageInfo.version} • © 2025 Bureau of Standards Jamaica</p>
+                        <p className="text-xs text-gray-400 dark:text-gray-500">Powered by SPINX Enterprise Platform v2.0.0 • © 2025 Bureau of Standards Jamaica</p>
                     </div>
                 </div>
             </div>

@@ -171,6 +171,12 @@ export const adaptRequestsResponse = (input: unknown): Request[] => {
         const v = r.currentAssignee?.name ?? r.currentAssigneeName ?? r.assigneeName ?? r.assignee_name;
         return toStr(v);
     };
+    const pickProcurementType = (r: any): string[] => {
+        const pt = r.procurementType ?? r.procurement_type ?? r.category ?? r.type;
+        if (Array.isArray(pt)) return pt.map(toStr);
+        if (pt != null) return [toStr(pt)];
+        return [];
+    };
 
     return raw.map((r: any): Request => {
         const items = pickItems(r);
@@ -185,6 +191,8 @@ export const adaptRequestsResponse = (input: unknown): Request[] => {
             totalEstimated: pickTotal(r, items),
             fundingSource: r.fundingSource ?? r.funding_source,
             budgetCode: r.budgetCode ?? r.budget_code,
+            procurementType: pickProcurementType(r),
+            currency: toStr(r.currency ?? 'JMD'),
             currentAssigneeId: pickAssigneeId(r),
             currentAssigneeName: pickAssigneeName(r),
             justification: pickJustification(r),

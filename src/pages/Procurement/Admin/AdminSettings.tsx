@@ -15,7 +15,7 @@ const AdminSettings = () => {
         dispatch(setPageTitle('Admin Settings'));
     });
 
-    const [activeTab, setActiveTab] = useState<'users' | 'departments' | 'workflows' | 'templates' | 'approvals' | 'general' | 'reassign'>('users');
+    const [activeTab, setActiveTab] = useState<'users' | 'departments' | 'workflows' | 'templates' | 'approvals' | 'general' | 'reassign' | 'splintering'>('users');
 
     // Modal states
     const [showModal, setShowModal] = useState<{ open: boolean; title: string; message: string; tone: 'success' | 'warning' | 'danger' }>({ open: false, title: '', message: '', tone: 'success' });
@@ -254,6 +254,15 @@ const AdminSettings = () => {
                         >
                             <IconSettings className="h-5 w-5" />
                             Reassign Requests
+                        </button>
+                    </li>
+                    <li>
+                        <button
+                            onClick={() => setActiveTab('splintering')}
+                            className={`-mb-[1px] flex items-center gap-2 border-b border-transparent p-5 py-3 hover:text-primary ${activeTab === 'splintering' ? '!border-primary text-primary' : ''}`}
+                        >
+                            <IconSettings className="h-5 w-5" />
+                            🚨 Anti-Splintering
                         </button>
                     </li>
                     <li>
@@ -737,7 +746,7 @@ function ReassignRequestsTab() {
     async function loadData() {
         setLoading(true);
         try {
-            const [reqsRes, usersRes] = await Promise.all([fetch('http://heron:4000/requests'), fetch('http://heron:4000/admin/users')]);
+            const [reqsRes, usersRes] = await Promise.all([fetch('http://localhost:4000/requests'), fetch('http://localhost:4000/admin/users')]);
             const reqs = await reqsRes.json();
             const usrs = await usersRes.json();
             setRequests(reqs);

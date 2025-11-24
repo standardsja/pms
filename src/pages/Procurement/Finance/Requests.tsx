@@ -28,6 +28,10 @@ interface Req {
     budgetComments?: string;
     budgetOfficerName?: string;
     budgetManagerName?: string;
+    headerDeptCode?: string;
+    headerMonth?: string;
+    headerYear?: number;
+    headerSequence?: number;
 }
 
 const FinanceRequests = () => {
@@ -105,13 +109,13 @@ const FinanceRequests = () => {
     const pending = useMemo(() => requests.filter((r) => r.status === 'FINANCE_REVIEW' || r.status === 'BUDGET_MANAGER_REVIEW'), [requests]);
 
     const viewDetails = (req: Req) => {
-        // Navigate to the request form in view mode
-        navigate(`/apps/requests/${req.id}`);
+        // Navigate to the request form in edit mode
+        navigate(`/apps/requests/edit/${req.id}`);
     };
 
     // Navigate to edit the request (Finance officers can edit budget fields)
     const editRequest = (req: Req) => {
-        navigate(`/apps/requests/${req.id}`);
+        navigate(`/apps/requests/edit/${req.id}`);
     };
 
     // Print/Download PDF
@@ -128,7 +132,7 @@ const FinanceRequests = () => {
           <p style="margin: 4px 0;"><strong>Request:</strong> ${req.reference} - ${req.title}</p>
           <p style="margin: 4px 0;"><strong>Requester:</strong> ${req.requester.name}</p>
           <p style="margin: 4px 0;"><strong>Department:</strong> ${req.department.name}</p>
-          <p style="margin: 4px 0;"><strong>Amount:</strong> ${req.currency} $${(req.totalEstimated || 0).toFixed(2)}</p>
+          <p style="margin: 4px 0;"><strong>Amount:</strong> ${req.currency} $${(Number(req.totalEstimated) || 0).toFixed(2)}</p>
           ${req.accountingCode ? `<p style="margin: 4px 0;"><strong>Accounting Code:</strong> ${req.accountingCode}</p>` : ''}
         </div>
         ${
@@ -270,61 +274,75 @@ const FinanceRequests = () => {
                                     </td>
                                 </tr>
                             )}
-                            {pending.map((r) => (
-                                <tr key={r.id} className="border-t last:border-b hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
-                                    <td className="px-4 py-3 font-medium text-primary">{r.reference}</td>
-                                    <td className="px-4 py-3">{r.title}</td>
-                                    <td className="px-4 py-3">{r.requester.name}</td>
-                                    <td className="px-4 py-3">
-                                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                                            {r.department.code}
-                                        </span>
-                                    </td>
-                                    <td className="px-4 py-3">{getStatusBadge(r.status)}</td>
-                                    <td className="px-4 py-3 font-medium">
-                                        {r.currency} ${(r.totalEstimated || 0).toFixed(2)}
-                                    </td>
-                                    <td className="px-4 py-3 text-xs font-mono">{r.accountingCode || '—'}</td>
-                                    <td className="px-4 py-3 text-xs text-gray-500">{new Date(r.createdAt).toLocaleDateString()}</td>
-                                    <td className="px-4 py-3">
-                                        <div className="flex gap-2 items-center">
-                                            <button
-                                                className="p-1.5 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 dark:text-blue-400 transition-colors"
-                                                onClick={() => viewDetails(r)}
-                                                title="View Full Details"
-                                            >
-                                                <IconEye className="w-5 h-5" />
-                                            </button>
-                                            <button
-                                                className="p-1.5 rounded hover:bg-amber-50 dark:hover:bg-amber-900/20 text-amber-600 dark:text-amber-400 transition-colors"
-                                                onClick={() => editRequest(r)}
-                                                title="Edit Budget Fields"
-                                            >
-                                                <IconEdit className="w-5 h-5" />
-                                            </button>
-                                            <button
-                                                className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 transition-colors"
-                                                onClick={() => downloadPdf(r)}
-                                                title="Download PDF"
-                                            >
-                                                <IconPrinter className="w-5 h-5" />
-                                            </button>
-                                            <button
-                                                className="px-3 py-1.5 rounded bg-emerald-600 text-white hover:bg-emerald-700 text-xs font-medium transition-colors"
-                                                onClick={() => handleAction(r, 'approve')}
-                                            >
-                                                Approve
-                                            </button>
-                                            <button
-                                                className="px-3 py-1.5 rounded bg-rose-600 text-white hover:bg-rose-700 text-xs font-medium transition-colors"
-                                                onClick={() => handleAction(r, 'return')}
-                                            >
-                                                Return
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
+                            {pending.map((r) => {
+                                // Format the form code from header fields
+                                const deptCode = r.headerDeptCode || r.department.code || '---';
+                                const month = r.headerMonth || '---';
+                                const year = r.headerYear || '----';
+                                const sequence = r.headerSequence !== undefined && r.headerSequence !== null ? String(r.headerSequence).padStart(3, '0') : '000';
+                                const formCode = `[${deptCode}]/[${month}]/[${year}]/[${sequence}]`;
+
+                                return (
+                                    <tr key={r.id} className="border-t last:border-b hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+                                        <td className="px-4 py-3 font-medium text-primary">{formCode}</td>
+                                        <td className="px-4 py-3">{r.title}</td>
+                                        <td className="px-4 py-3">{r.requester.name}</td>
+                                        <td className="px-4 py-3">
+                                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                                                {r.department.code}
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            {(() => {
+                                                const badge = getStatusBadge(r.status);
+                                                return <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${badge.bg} ${badge.text}`}>{badge.label}</span>;
+                                            })()}
+                                        </td>
+                                        <td className="px-4 py-3 font-medium">
+                                            {r.currency} ${(Number(r.totalEstimated) || 0).toFixed(2)}
+                                        </td>
+                                        <td className="px-4 py-3 text-xs font-mono">{r.accountingCode || '—'}</td>
+                                        <td className="px-4 py-3 text-xs text-gray-500">{new Date(r.createdAt).toLocaleDateString()}</td>
+                                        <td className="px-4 py-3">
+                                            <div className="flex gap-2 items-center">
+                                                <button
+                                                    className="p-1.5 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 dark:text-blue-400 transition-colors"
+                                                    onClick={() => viewDetails(r)}
+                                                    title="View Full Details"
+                                                >
+                                                    <IconEye className="w-5 h-5" />
+                                                </button>
+                                                <button
+                                                    className="p-1.5 rounded hover:bg-amber-50 dark:hover:bg-amber-900/20 text-amber-600 dark:text-amber-400 transition-colors"
+                                                    onClick={() => editRequest(r)}
+                                                    title="Edit Budget Fields"
+                                                >
+                                                    <IconEdit className="w-5 h-5" />
+                                                </button>
+                                                <button
+                                                    className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 transition-colors"
+                                                    onClick={() => downloadPdf(r)}
+                                                    title="Download PDF"
+                                                >
+                                                    <IconPrinter className="w-5 h-5" />
+                                                </button>
+                                                <button
+                                                    className="px-3 py-1.5 rounded bg-emerald-600 text-white hover:bg-emerald-700 text-xs font-medium transition-colors"
+                                                    onClick={() => handleAction(r, 'approve')}
+                                                >
+                                                    Approve
+                                                </button>
+                                                <button
+                                                    className="px-3 py-1.5 rounded bg-rose-600 text-white hover:bg-rose-700 text-xs font-medium transition-colors"
+                                                    onClick={() => handleAction(r, 'return')}
+                                                >
+                                                    Return
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
                         </tbody>
                     </table>
                 </div>

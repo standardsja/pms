@@ -2,6 +2,7 @@ import { lazy } from 'react';
 import OnboardingGuard from '../components/OnboardingGuard';
 import AdminRoute from '../components/AdminRoute';
 import CommitteeRoute from '../components/CommitteeRoute';
+import ProcurementRoute from '../components/ProcurementRoute';
 
 // Main Pages
 const Index = lazy(() => import('../pages/Index'));
@@ -58,6 +59,7 @@ const AdminSettings = lazy(() => import('../pages/Procurement/Admin/AdminSetting
 // Request Pages
 const Requests = lazy(() => import('../pages/Procurement/Requests/Requests'));
 const RequestForm = lazy(() => import('../pages/Procurement/Requests/RequestForm'));
+const CombineRequests = lazy(() => import('../pages/Procurement/Requests/CombineRequests'));
 const FinanceRequests = lazy(() => import('../pages/Procurement/Finance/Requests'));
 
 // Department Head Pages
@@ -440,6 +442,14 @@ const routes = [
     {
         path: '/apps/requests/edit/:id',
         element: <RequestForm />,
+    },
+    {
+        path: '/apps/requests/combine',
+        element: (
+            <ProcurementRoute>
+                <CombineRequests />
+            </ProcurementRoute>
+        ),
     },
 
     // ============================================
