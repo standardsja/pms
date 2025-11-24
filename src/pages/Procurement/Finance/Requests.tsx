@@ -61,20 +61,36 @@ const FinanceRequests = () => {
             setLoading(true);
             setError(null);
             try {
+                if (!currentUserId) {
+                    throw new Error('User not logged in');
+                }
+
                 const res = await fetch('http://heron:4000/requests', {
                     headers: {
-                        'x-user-id': String(currentUserId || ''),
+                        'x-user-id': String(currentUserId),
+                        'Content-Type': 'application/json',
                     },
                 });
 
                 if (!res.ok) {
-                    throw new Error('Failed to fetch requests');
+                    const errorText = await res.text();
+                    console.error('Backend error response:', errorText);
+                    throw new Error(`Failed to fetch requests (${res.status})`);
+                }
+
+                const contentType = res.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    const text = await res.text();
+                    console.error('Non-JSON response:', text);
+                    throw new Error('Server returned invalid response');
                 }
 
                 const data = await res.json();
 
-                // Filter for finance-related statuses
-                const financeRequests = data.filter((r: any) => r.status === 'FINANCE_REVIEW' || r.status === 'BUDGET_MANAGER_REVIEW');
+                // Safely filter for finance-related statuses
+                const financeRequests = Array.isArray(data) 
+                    ? data.filter((r: any) => r && (r.status === 'FINANCE_REVIEW' || r.status === 'BUDGET_MANAGER_REVIEW'))
+                    : [];
 
                 setRequests(financeRequests);
             } catch (err: any) {
