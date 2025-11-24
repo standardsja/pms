@@ -1,88 +1,86 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useDispatch } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import { setPageTitle } from '../../../store/themeConfigSlice';
 import IconEye from '../../../components/Icon/IconEye';
 import IconEdit from '../../../components/Icon/IconEdit';
 import IconPrinter from '../../../components/Icon/IconPrinter';
+import { getStatusBadge } from '../../../utils/statusBadges';
 
 const MySwal = withReactContent(Swal);
 
 interface Req {
-  id: string;
+  id: number;
+  reference: string;
   title: string;
-  requester: string;
-  department: string;
+  description?: string;
+  requester: { id: number; name: string; email: string };
+  department: { id: number; name: string; code: string };
   status: string;
-  date: string;
-  totalEstimated: number;
-  fundingSource: string;
-  budgetCode?: string;
-  justification: string;
+  createdAt: string;
+  totalEstimated: number | null;
+  currency: string;
+  priority: string;
+  commitmentNumber?: string;
+  accountingCode?: string;
+  budgetComments?: string;
+  budgetOfficerName?: string;
+  budgetManagerName?: string;
 }
 
 const FinanceRequests = () => {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const [requests, setRequests] = useState<Req[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Get current user profile
+  const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
+  const currentUserId = userProfile?.id || userProfile?.userId || null;
+
   useEffect(() => {
     dispatch(setPageTitle('Finance Verification'));
   }, [dispatch]);
 
-  const [requests, setRequests] = useState<Req[]>([
-    { 
-      id: 'REQ-001', 
-      title: 'Purchase Office Chairs', 
-      requester: 'Alice Johnson', 
-      department: 'HR', 
-      status: 'Pending Finance', 
-      date: '2025-10-20',
-      totalEstimated: 5400.00,
-      fundingSource: 'Operational Budget',
-      budgetCode: 'OP-2025-HR-001',
-      justification: 'Current chairs are worn out and causing ergonomic issues. Need 18 chairs for new office layout.'
-    },
-    { 
-      id: 'REQ-002', 
-      title: 'Subscription: Design Tool', 
-      requester: 'Mark Benson', 
-      department: 'Design', 
-      status: 'Approved', 
-      date: '2025-10-14',
-      totalEstimated: 2400.00,
-      fundingSource: 'Operational Budget',
-      budgetCode: 'OP-2025-DES-003',
-      justification: 'Annual license renewal for Adobe Creative Cloud for design team (10 users).'
-    },
-    { 
-      id: 'REQ-003', 
-      title: 'Laptop Replacement', 
-      requester: 'Samuel Lee', 
-      department: 'Engineering', 
-      status: 'Pending Finance', 
-      date: '2025-09-30',
-      totalEstimated: 3200.00,
-      fundingSource: 'Capital Budget',
-      budgetCode: 'CAP-2025-ENG-012',
-      justification: 'Replace 5-year-old laptop with slow performance affecting development work. Required for new project requirements.'
-    },
-  ]);
+  // Fetch requests with FINANCE_REVIEW or BUDGET_MANAGER_REVIEW status
+  useEffect(() => {
+    const fetchRequests = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch('http://heron:4000/requests', {
+          headers: {
+            'x-user-id': String(currentUserId || ''),
+          },
+        });
 
-  const pending = useMemo(() => requests.filter(r => r.status === 'Pending Finance'), [requests]);
+        if (!res.ok) {
+          throw new Error('Failed to fetch requests');
+        }
 
-  const viewDetails = async (req: Req) => {
-    await MySwal.fire({
-      title: `${req.id}: ${req.title}`,
-      html: `
-        <div style="text-align: left; line-height: 1.6;">
-          <p><strong>Requester:</strong> ${req.requester}</p>
-          <p><strong>Department:</strong> ${req.department}</p>
-          <p><strong>Date Submitted:</strong> ${req.date}</p>
-          <hr style="margin: 12px 0;" />
-          <p><strong>Total Estimated Cost:</strong> $${req.totalEstimated.toFixed(2)}</p>
-          <p><strong>Funding Source:</strong> ${req.fundingSource}</p>
-          ${req.budgetCode ? `<p><strong>Budget Code:</strong> ${req.budgetCode}</p>` : ''}
-          <hr style="margin: 12px 0;" />
-          <p><strong>Justification:</strong></p>
+        const data = await res.json();
+        
+        // Filter for finance-related statuses
+        const financeRequests = data.filter((r: any) => 
+          r.status === 'FINANCE_REVIEW' || r.status === 'BUDGET_MANAGER_REVIEW'
+        );
+        
+        setRequests(financeRequests);
+      } catch (err: any) {
+        console.error('Error fetching finance requests:', err);
+        setError(err.message || 'Failed to load requests');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+  const viewDetails = (req: Req) => {
+    // Navigate to the request form in view mode
+    navigate(`/apps/requests/${req.id}`);
+  };      <p><strong>Justification:</strong></p>
           <p style="background: #f3f4f6; padding: 8px; border-radius: 4px; font-size: 0.9em;">${req.justification}</p>
         </div>
       `,
@@ -108,51 +106,10 @@ const FinanceRequests = () => {
           ${options.map((o) => `<option value="${o}" ${o === req.fundingSource ? 'selected' : ''}>${o}</option>`).join('')}
         </select>
         <div style="height:10px"></div>
-        <label style="display:block;font-weight:600;margin-bottom:6px">Budget Code</label>
-        <input id="swal-budget-code" class="swal2-input" style="width:100%" placeholder="e.g., OP-2025-HR-001" value="${req.budgetCode || ''}" />
-      </div>
-    `;
-
-    const result = await MySwal.fire({
-      title: `Edit Budget: ${req.id}`,
-      html,
-      focusConfirm: false,
-      showCancelButton: true,
-      confirmButtonText: 'Save Changes',
-      preConfirm: () => {
-        const fs = document.getElementById('swal-funding-source') as HTMLSelectElement | null;
-        const bc = document.getElementById('swal-budget-code') as HTMLInputElement | null;
-        if (!fs || !fs.value) {
-          MySwal.showValidationMessage('Funding Source is required');
-          return;
-        }
-        return { fundingSource: fs.value, budgetCode: bc ? bc.value.trim() : '' };
-      },
-    });
-
-    if (result.isConfirmed && result.value) {
-      const { fundingSource, budgetCode } = result.value as { fundingSource: string; budgetCode: string };
-      setRequests((prev) => prev.map((r) => (r.id === req.id ? { ...r, fundingSource, budgetCode } : r)));
-      await MySwal.fire({ icon: 'success', title: 'Budget updated', timer: 900, showConfirmButton: false });
-    }
-  };
-
-  // Print a clean copy of the request details
-  const printRequest = (req: Req) => {
-    const safe = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as any)[c]);
-    const w = window.open('', 'PRINT', 'height=800,width=900');
-    if (!w) return;
-    const css = `
-      <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; margin: 24px; color: #0f172a; }
-        h1 { font-size: 22px; margin: 0 0 6px; }
-        h2 { font-size: 16px; margin: 18px 0 8px; }
-        .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-        .box { background: #f8fafc; padding: 10px; border-radius: 6px; border: 1px solid #e2e8f0; }
-        table { width: 100%; border-collapse: collapse; font-size: 13px; }
-        th, td { border: 1px solid #e2e8f0; padding: 8px; text-align: left; }
-        th { background: #f1f5f9; }
-        .right { text-align: right; }
+  // Navigate to edit the request (Finance officers can edit budget fields)
+  const editRequest = (req: Req) => {
+    navigate(`/apps/requests/${req.id}`);
+  };    .right { text-align: right; }
         .muted { color: #64748b; }
         @media print { .no-print { display: none; } }
       </style>
@@ -195,76 +152,11 @@ const FinanceRequests = () => {
           <div class="box" style="margin-top:10px">
             <h2>Justification</h2>
             <div>${safe(req.justification)}</div>
-          </div>
-          <div class="no-print" style="margin-top:16px;text-align:right">
-            <button onclick="window.print()" style="padding:8px 12px;border:1px solid #cbd5e1;border-radius:6px;background:#0ea5e9;color:white">Print</button>
-          </div>
-          <script>window.print();</script>
-        </body>
-      </html>
-    `;
-    w.document.write(html);
-    w.document.close();
-    w.focus();
-  };
-
-  const handleAction = async (req: Req, action: 'approve' | 'return') => {
-    const result = await MySwal.fire({
-      title: action === 'approve' ? 'Approve Request for Budget Verification' : 'Return Request',
-      html: `
-        <div style="text-align: left; margin-bottom: 16px; background: #f9fafb; padding: 12px; border-radius: 4px;">
-          <p style="margin: 4px 0;"><strong>Request:</strong> ${req.id} - ${req.title}</p>
-          <p style="margin: 4px 0;"><strong>Amount:</strong> $${req.totalEstimated.toFixed(2)}</p>
-          <p style="margin: 4px 0;"><strong>Budget:</strong> ${req.fundingSource}${req.budgetCode ? ` (${req.budgetCode})` : ''}</p>
-        </div>
-        ${action === 'approve' 
-          ? '<p style="margin-bottom: 12px;">Confirm that budget is available and funds can be allocated for this request.</p>' 
-          : '<p style="margin-bottom: 12px;">Please provide a reason for returning this request to the requester.</p>'}
-      `,
-      input: 'textarea',
-      inputLabel: action === 'approve' ? 'Comment (Optional)' : 'Comment (Required)',
-      inputPlaceholder: action === 'approve' 
-        ? 'Add any notes about budget allocation, conditions, or restrictions...' 
-        : 'Explain why the request is being returned (budget unavailable, missing information, etc.)...',
-      inputAttributes: { 'aria-label': 'Comment' },
-      inputValidator: (value) => {
-        if (action === 'return' && !value) return 'A comment is required to return a request';
-        return undefined;
-      },
-      showCancelButton: true,
-      confirmButtonText: action === 'approve' ? 'Approve & Verify Budget' : 'Return to Requester',
-      confirmButtonColor: action === 'approve' ? '#16a34a' : '#ef4444',
-      cancelButtonText: 'Cancel',
-    });
-
-    if (result.isConfirmed) {
-      const comment = (result.value as string) || '';
-      setRequests(prev => prev.map(r => {
-        if (r.id !== req.id) return r;
-        return {
-          ...r,
-          status: action === 'approve' ? 'Finance Verified' : 'Returned by Finance',
-        };
-      }));
-
-      // basic escaping to avoid injecting HTML via comment
-      const safe = (s: string) => s.replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'} as any)[c]);
-      await MySwal.fire({
-        icon: 'success',
-        title: action === 'approve' ? 'Verified' : 'Returned',
-        html: comment ? `<div style=\"text-align:left\"><strong>Comment:</strong><br/>${safe(comment)}</div>` : undefined,
-        timer: 1200,
-        showConfirmButton: false,
-      });
-    }
-  };
-
-  return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold">Finance Verification Queue</h1>
-        <p className="text-sm text-muted-foreground">Approve or return acquisition requests with comments</p>
-      </div>
+  // Print/Download PDF
+  const downloadPdf = (req: Req) => {
+    const url = `http://heron:4000/requests/${req.id}/pdf`;
+    window.open(url, '_blank');
+  };  </div>
 
       <div className="bg-white dark:bg-slate-800 shadow rounded overflow-hidden">
         <table className="min-w-full table-auto">
@@ -314,31 +206,183 @@ const FinanceRequests = () => {
                     <button
                       className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200"
                       onClick={() => printRequest(r)}
-                      title="Print Request"
-                    >
-                      <IconPrinter className="w-5 h-5" />
-                    </button>
-                    <button
-                      className="px-3 py-1 rounded bg-emerald-600 text-white hover:opacity-95 text-xs font-medium"
-                      onClick={() => handleAction(r, 'approve')}
-                    >
-                      Approve
-                    </button>
-                    <button
-                      className="px-3 py-1 rounded bg-rose-600 text-white hover:opacity-95 text-xs font-medium"
-                      onClick={() => handleAction(r, 'return')}
-                    >
-                      Return
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+  const handleAction = async (req: Req, action: 'approve' | 'return') => {
+    const result = await MySwal.fire({
+      title: action === 'approve' ? 'Approve Request for Budget Verification' : 'Return Request',
+      html: `
+        <div style="text-align: left; margin-bottom: 16px; background: #f9fafb; padding: 12px; border-radius: 4px;">
+          <p style="margin: 4px 0;"><strong>Request:</strong> ${req.reference} - ${req.title}</p>
+          <p style="margin: 4px 0;"><strong>Requester:</strong> ${req.requester.name}</p>
+          <p style="margin: 4px 0;"><strong>Department:</strong> ${req.department.name}</p>
+          <p style="margin: 4px 0;"><strong>Amount:</strong> ${req.currency} $${(req.totalEstimated || 0).toFixed(2)}</p>
+          ${req.accountingCode ? `<p style="margin: 4px 0;"><strong>Accounting Code:</strong> ${req.accountingCode}</p>` : ''}
+        </div>
+        ${action === 'approve' 
+          ? '<p style="margin-bottom: 12px;">Confirm that budget is available and funds can be allocated for this request.</p>' 
+          : '<p style="margin-bottom: 12px; color: #dc2626; font-weight: 500;">Please provide a reason for returning this request to the requester.</p>'}
+      `,
+      input: 'textarea',
+      inputLabel: action === 'approve' ? 'Comment (Optional)' : 'Comment (Required)',
+      inputPlaceholder: action === 'approve' 
+        ? 'Add any notes about budget allocation, conditions, or restrictions...' 
+        : 'Explain why the request is being returned (e.g., budget unavailable, missing information, incorrect accounting code)...',
+      inputAttributes: { 
+        'aria-label': 'Comment',
+        rows: '4'
+      },
+      inputValidator: (value) => {
+        if (action === 'return' && !value?.trim()) {
+          return 'A comment is required to return a request';
+        }
+        return undefined;
+      },
+      showCancelButton: true,
+      confirmButtonText: action === 'approve' ? 'Approve & Verify Budget' : 'Return to Requester',
+      confirmButtonColor: action === 'approve' ? '#16a34a' : '#dc2626',
+      cancelButtonText: 'Cancel',
+    });
+
+    if (result.isConfirmed) {
+      const comment = (result.value as string) || '';
+      
+      try {
+        // Call backend API to approve or reject
+        const apiAction = action === 'approve' ? 'APPROVE' : 'REJECT';
+        const res = await fetch(`http://heron:4000/requests/${req.id}/action`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-id': String(currentUserId || ''),
+          },
+          body: JSON.stringify({ 
+            action: apiAction,
+            comment: comment.trim() || undefined
+  if (loading) {
+    return (
+      <div className="p-6">
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        </div>
       </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded p-4">
+          <p className="text-red-800 dark:text-red-200">Error: {error}</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-6">
+      <div className="mb-6">
+        <h1 className="text-2xl font-semibold">Finance Verification Queue</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+          Review and approve procurement requests assigned to Finance. Use <strong>Approve</strong> to advance requests or <strong>Return</strong> with required comments to send back to requester.
+        </p>
+      </div>
+
+      <div className="bg-white dark:bg-slate-800 shadow rounded overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="min-w-full table-auto">
+            <thead className="bg-slate-50 dark:bg-slate-700 text-sm font-semibold">
+              <tr>
+                <th className="px-4 py-3 text-left">Reference</th>
+                <th className="px-4 py-3 text-left">Title</th>
+                <th className="px-4 py-3 text-left">Requester</th>
+                <th className="px-4 py-3 text-left">Department</th>
+                <th className="px-4 py-3 text-left">Status</th>
+                <th className="px-4 py-3 text-left">Amount</th>
+                <th className="px-4 py-3 text-left">Acct Code</th>
+                <th className="px-4 py-3 text-left">Date</th>
+                <th className="px-4 py-3 text-left w-64">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="text-sm">
+              {pending.length === 0 && (
+                <tr>
+                  <td className="px-4 py-8 text-center text-gray-500 dark:text-gray-400" colSpan={9}>
+                    <div className="flex flex-col items-center gap-2">
+                      <svg className="w-12 h-12 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      <p className="font-medium">No requests pending finance verification</p>
+                      <p className="text-xs">Finance requests will appear here when submitted for review</p>
+                    </div>
+                  </td>
+                </tr>
+              )}
+              {pending.map((r) => (
+                <tr key={r.id} className="border-t last:border-b hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+                  <td className="px-4 py-3 font-medium text-primary">{r.reference}</td>
+                  <td className="px-4 py-3">{r.title}</td>
+                  <td className="px-4 py-3">{r.requester.name}</td>
+                  <td className="px-4 py-3">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                      {r.department.code}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">{getStatusBadge(r.status)}</td>
+                  <td className="px-4 py-3 font-medium">
+                    {r.currency} ${(r.totalEstimated || 0).toFixed(2)}
+                  </td>
+                  <td className="px-4 py-3 text-xs font-mono">{r.accountingCode || '—'}</td>
+                  <td className="px-4 py-3 text-xs text-gray-500">
+                    {new Date(r.createdAt).toLocaleDateString()}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-2 items-center">
+                      <button
+                        className="p-1.5 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 dark:text-blue-400 transition-colors"
+                        onClick={() => viewDetails(r)}
+                        title="View Full Details"
+                      >
+                        <IconEye className="w-5 h-5" />
+                      </button>
+                      <button
+                        className="p-1.5 rounded hover:bg-amber-50 dark:hover:bg-amber-900/20 text-amber-600 dark:text-amber-400 transition-colors"
+                        onClick={() => editRequest(r)}
+                        title="Edit Budget Fields"
+                      >
+                        <IconEdit className="w-5 h-5" />
+                      </button>
+                      <button
+                        className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 transition-colors"
+                        onClick={() => downloadPdf(r)}
+                        title="Download PDF"
+                      >
+                        <IconPrinter className="w-5 h-5" />
+                      </button>
+                      <button
+                        className="px-3 py-1.5 rounded bg-emerald-600 text-white hover:bg-emerald-700 text-xs font-medium transition-colors"
+                        onClick={() => handleAction(r, 'approve')}
+                      >
+                        Approve
+                      </button>
+                      <button
+                        className="px-3 py-1.5 rounded bg-rose-600 text-white hover:bg-rose-700 text-xs font-medium transition-colors"
+                        onClick={() => handleAction(r, 'return')}
+                      >
+                        Return
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {pending.length > 0 && (
+        <div className="mt-4 text-sm text-gray-500 dark:text-gray-400">
+          <p>Showing {pending.length} request{pending.length !== 1 ? 's' : ''} pending finance review</p>
+        </div>
+      )}
     </div>
   );
 };
-
-export default FinanceRequests;
