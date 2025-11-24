@@ -83,6 +83,13 @@ export async function fetchMessages(): Promise<Message[]> {
             headers: authHeaders(),
         });
 
+        // Check if response is JSON before parsing
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            console.error('Messages API returned non-JSON response:', response.status, response.statusText);
+            return [];
+        }
+
         const result = await response.json();
 
         if (result.success) {

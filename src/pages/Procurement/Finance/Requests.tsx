@@ -340,3 +340,5 @@ const FinanceRequests = () => {
         </div>
     );
 };
+
+export default FinanceRequests;
