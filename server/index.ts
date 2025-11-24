@@ -3685,9 +3685,9 @@ async function start() {
         initAnalyticsJob(); // Start analytics aggregation job
         initWebSocket(httpServer); // Initialize WebSocket server
 
-        httpServer.listen(PORT, 'heron', () => {
-            console.log(`API server listening on http://heron:${PORT}`);
-            console.log(`WebSocket server ready on ws://heron:${PORT}`);
+        httpServer.listen(PORT, '0.0.0.0', () => {
+            console.log(`API server listening on http://0.0.0.0:${PORT} (accessible via heron:${PORT})`);
+            console.log(`WebSocket server ready on ws://0.0.0.0:${PORT}`);
             console.log(`Health check: http://heron:${PORT}/health`);
         });
     } catch (err) {
