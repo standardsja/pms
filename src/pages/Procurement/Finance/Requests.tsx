@@ -299,7 +299,7 @@ const FinanceRequests = () => {
                                             })()}
                                         </td>
                                         <td className="px-4 py-3 font-medium">
-                                            {r.currency} ${(r.totalEstimated || 0).toFixed(2)}
+                                            {r.currency} ${(Number(r.totalEstimated) || 0).toFixed(2)}
                                         </td>
                                         <td className="px-4 py-3 text-xs font-mono">{r.accountingCode || '—'}</td>
                                         <td className="px-4 py-3 text-xs text-gray-500">{new Date(r.createdAt).toLocaleDateString()}</td>
