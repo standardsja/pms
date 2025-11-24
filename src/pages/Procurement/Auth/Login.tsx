@@ -38,8 +38,25 @@ const Login = () => {
         setIsLoading(true);
 
         try {
+            // Get API URL from environment or detect based on hostname
+            const getApiUrl = () => {
+                if (import.meta.env.VITE_API_URL) {
+                    return import.meta.env.VITE_API_URL;
+                }
+                const hostname = window.location.hostname;
+                if (hostname === 'localhost' || hostname === '127.0.0.1') {
+                    return 'http://localhost:4000';
+                }
+                if (hostname === 'heron') {
+                    return 'http://heron:4000';
+                }
+                return `${window.location.protocol}//${hostname}:4000`;
+            };
+
+            const apiUrl = getApiUrl();
+
             // Primary: real password login
-            let res = await fetch('http://heron:4000/api/auth/login', {
+            let res = await fetch(`${apiUrl}/api/auth/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password }),
@@ -50,7 +67,7 @@ const Login = () => {
             // try the non-password helper endpoint to unblock UX. This will NOT run in production builds.
             if (!res.ok && import.meta.env.DEV) {
                 try {
-                    const fallbackRes = await fetch('http://heron:4000/auth/test-login', {
+                    const fallbackRes = await fetch(`${apiUrl}/auth/test-login`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ email: String(email).toLowerCase().trim() }),

@@ -33,6 +33,8 @@ import statsRouter from './routes/stats';
 const app = express();
 const httpServer = http.createServer(app);
 const PORT = process.env.PORT ? Number(process.env.PORT) : 4000;
+const APP_ENV = process.env.APP_ENV || 'production';
+const API_HOST = APP_ENV === 'local' ? 'localhost' : process.env.API_HOST || 'heron';
 const JWT_SECRET = process.env.JWT_SECRET || 'devsecret-change-me';
 
 let trendingJobInterval: NodeJS.Timeout | null = null;
@@ -670,19 +672,15 @@ app.delete('/api/notifications/:id', authMiddleware, async (req, res) => {
 
 // GET /api/messages - Fetch user messages
 app.get('/api/messages', authMiddleware, async (req, res) => {
-    console.log('[/api/messages] Request received');
     try {
         const user = (req as any).user as { sub?: number };
         const userId = user.sub;
-        console.log('[/api/messages] User ID:', userId);
 
         if (!userId) {
-            console.log('[/api/messages] No user ID - returning 401');
             return res.status(401).json({ success: false, message: 'User not authenticated' });
         }
 
         // Fetch messages where user is the recipient
-        console.log('[/api/messages] Fetching messages for user:', userId);
         const messages = await prisma.message.findMany({
             where: { toUserId: userId },
             orderBy: { createdAt: 'desc' },
@@ -705,7 +703,6 @@ app.get('/api/messages', authMiddleware, async (req, res) => {
             },
         });
 
-        console.log('[/api/messages] Found', messages.length, 'messages');
         res.json({
             success: true,
             data: messages,
@@ -3219,6 +3216,9 @@ app.post(
         const user = (req as any).user;
         const { evalNumber, rfqNumber, rfqTitle, description, sectionA, dueDate, evaluator } = req.body;
 
+        // JWT payload uses 'sub' for user ID, fallback to 'id' for compatibility
+        const userId = user?.sub || user?.id;
+
         console.log('Creating evaluation with data:', {
             evalNumber,
             rfqNumber,
@@ -3227,8 +3227,13 @@ app.post(
             dueDate,
             evaluator,
             sectionA: JSON.stringify(sectionA),
-            userId: user?.id,
+            userId,
         });
+
+        // Check if user is authenticated
+        if (!user || !userId) {
+            throw new BadRequestError('User not authenticated. Please log in again.');
+        }
 
         if (!evalNumber || !rfqNumber || !rfqTitle) {
             throw new BadRequestError('Missing required fields: evalNumber, rfqNumber, rfqTitle');
@@ -3248,22 +3253,21 @@ app.post(
                         rfqTitle,
                         description: description || null,
                         sectionA: sectionA || null,
-                        sectionAStatus: 'NOT_STARTED',
-                        sectionBStatus: 'NOT_STARTED',
-                        sectionCStatus: 'NOT_STARTED',
-                        sectionDStatus: 'NOT_STARTED',
-                        sectionEStatus: 'NOT_STARTED',
                         evaluator: evaluator || null,
                         dueDate: dueDate ? new Date(dueDate) : null,
-                        createdBy: user.id,
+                        createdBy: userId,
                         status: 'PENDING',
                     },
                     include: { creator: { select: { id: true, name: true, email: true } } },
                 });
+                console.log('✅ Evaluation created successfully:', evaluation.id);
                 return res.status(201).json({ success: true, data: evaluation });
             } catch (error) {
-                console.error('Prisma create error:', error);
-                console.error('Error details:', JSON.stringify(error, null, 2));
+                console.error('❌ Prisma create error:', error);
+                if (error instanceof Error) {
+                    console.error('Error message:', error.message);
+                    console.error('Error stack:', error.stack);
+                }
                 throw error;
             }
         }
@@ -3274,7 +3278,7 @@ app.post(
             `INSERT INTO Evaluation (evalNumber, rfqNumber, rfqTitle, description, sectionA, createdBy, evaluator, dueDate, status, createdAt, updatedAt) VALUES (
               '${evalNumber}', '${rfqNumber}', '${rfqTitle}', ${description ? `'${description.replace(/'/g, "''")}'` : 'NULL'}, ${
                 sectionA ? `'${JSON.stringify(sectionA).replace(/'/g, "''")}'` : 'NULL'
-            }, ${user.id}, ${evaluator ? `'${evaluator.replace(/'/g, "''")}'` : 'NULL'}, ${
+            }, ${userId}, ${evaluator ? `'${evaluator.replace(/'/g, "''")}'` : 'NULL'}, ${
                 dueDate ? `'${new Date(dueDate).toISOString().slice(0, 19).replace('T', ' ')}'` : 'NULL'
             }, 'PENDING', NOW(), NOW())`
         );
@@ -3685,10 +3689,11 @@ async function start() {
         initAnalyticsJob(); // Start analytics aggregation job
         initWebSocket(httpServer); // Initialize WebSocket server
 
-        httpServer.listen(PORT, '0.0.0.0', () => {
-            console.log(`API server listening on http://0.0.0.0:${PORT} (accessible via heron:${PORT})`);
-            console.log(`WebSocket server ready on ws://0.0.0.0:${PORT}`);
-            console.log(`Health check: http://heron:${PORT}/health`);
+        httpServer.listen(PORT, API_HOST, () => {
+            console.log(`🚀 Environment: ${APP_ENV.toUpperCase()}`);
+            console.log(`API server listening on http://${API_HOST}:${PORT}`);
+            console.log(`WebSocket server ready on ws://${API_HOST}:${PORT}`);
+            console.log(`Health check: http://${API_HOST}:${PORT}/health`);
         });
     } catch (err) {
         console.error('Startup error:', err);

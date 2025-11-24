@@ -4,8 +4,9 @@ import { getToken } from '../utils/auth';
  * Smart API URL detection - automatically switches between local and production
  */
 function getApiUrl(): string {
-    // 1. Explicit override via environment variable
+    // 1. Explicit override via environment variable (ALWAYS takes priority)
     if (import.meta.env.VITE_API_URL) {
+        console.log('Using VITE_API_URL:', import.meta.env.VITE_API_URL);
         return import.meta.env.VITE_API_URL;
     }
 
