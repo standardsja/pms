@@ -1920,6 +1920,9 @@ app.get('/requests', async (_req, res) => {
                 departmentId: true,
                 status: true,
                 currentAssigneeId: true,
+                totalEstimated: true,
+                currency: true,
+                procurementType: true,
                 createdAt: true,
                 updatedAt: true,
                 requester: { select: { id: true, name: true, email: true } },
@@ -1950,6 +1953,9 @@ app.get('/requests', async (_req, res) => {
                             departmentId: true,
                             status: true,
                             currentAssigneeId: true,
+                            totalEstimated: true,
+                            currency: true,
+                            procurementType: true,
                             createdAt: true,
                             updatedAt: true,
                             requester: { select: { id: true, name: true, email: true } },
@@ -1962,12 +1968,21 @@ app.get('/requests', async (_req, res) => {
                         },
                     });
                     return res.json(requests);
-                } catch (retryErr: any) {
-                    console.error('GET /requests retry after patch failed:', retryErr);
+                } catch (retryE: any) {
+                    const retryMessage = String(retryE?.message || '');
+                    return res.status(500).json({
+                        error: 'Failed to retrieve requests after attempted repair',
+                        details: retryMessage,
+                    });
                 }
+            } else {
+                return res.status(500).json({
+                    error: 'Request status repair required but failed',
+                    details: message,
+                });
             }
         }
-        return res.status(500).json({ message: 'Failed to fetch requests' });
+        return res.status(500).json({ error: message });
     }
 });
 

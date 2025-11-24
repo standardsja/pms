@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { PrismaClient, RequestStatus } from '@prisma/client';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth';
+import { checkUserRoles, hasPermission } from '../utils/roleUtils';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -22,10 +23,12 @@ router.get('/', authMiddleware, async (req, res) => {
             };
         }
 
-        // Role-based filtering
-        if (userRoles.includes('Procurement Officer') || userRoles.includes('Procurement Manager')) {
-            // Procurement users can see all combinable requests
-        } else if (userRoles.includes('Department Head')) {
+        // Role-based filtering using improved role checking
+        const userRoleInfo = checkUserRoles(userRoles);
+
+        if (userRoleInfo.isProcurementUser) {
+            // All procurement users (officers, managers, admins) can see all combinable requests
+        } else if (userRoleInfo.isDepartmentHead) {
             // Department heads can only see requests from their department
             // First, get the user's department
             const user = await prisma.user.findUnique({
@@ -103,6 +106,16 @@ router.post('/combine', authMiddleware, async (req, res) => {
         const userId = authReq.user.sub;
         const userRoles = authReq.user.roles || [];
 
+        // Validate user has permission to combine requests
+        if (!hasPermission(userRoles, 'combine_requests')) {
+            return res.status(403).json({
+                error: 'You do not have permission to combine requests. Only procurement staff and department heads can combine requests.',
+            });
+        }
+
+        // Get user role information for permission checking
+        const userRoleInfo = checkUserRoles(userRoles);
+
         // Validate that user has permission to combine requests
         const originalRequests = await prisma.request.findMany({
             where: {
@@ -121,11 +134,10 @@ router.post('/combine', authMiddleware, async (req, res) => {
             });
         }
 
-        // Check permissions
+        // Check cross-department permissions using role utility
         const departments = [...new Set(originalRequests.map((req) => req.department?.name))];
-        const isProcurementUser = userRoles.includes('Procurement Officer') || userRoles.includes('Procurement Manager');
 
-        if (!isProcurementUser && departments.length > 1) {
+        if (!userRoleInfo.isProcurementUser && departments.length > 1) {
             return res.status(403).json({
                 error: 'Cross-department combination requires procurement permissions',
             });
