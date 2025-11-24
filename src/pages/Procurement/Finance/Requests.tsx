@@ -132,7 +132,7 @@ const FinanceRequests = () => {
           <p style="margin: 4px 0;"><strong>Request:</strong> ${req.reference} - ${req.title}</p>
           <p style="margin: 4px 0;"><strong>Requester:</strong> ${req.requester.name}</p>
           <p style="margin: 4px 0;"><strong>Department:</strong> ${req.department.name}</p>
-          <p style="margin: 4px 0;"><strong>Amount:</strong> ${req.currency} $${(req.totalEstimated || 0).toFixed(2)}</p>
+          <p style="margin: 4px 0;"><strong>Amount:</strong> ${req.currency} $${(Number(req.totalEstimated) || 0).toFixed(2)}</p>
           ${req.accountingCode ? `<p style="margin: 4px 0;"><strong>Accounting Code:</strong> ${req.accountingCode}</p>` : ''}
         </div>
         ${
