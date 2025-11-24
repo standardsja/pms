@@ -57,8 +57,15 @@ const AssignRequests = () => {
             setError(null);
 
             try {
+                const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
+                const currentUserId = userProfile?.id || userProfile?.userId || null;
+
                 // Fetch procurement officers
-                const officersRes = await fetch(`${apiUrl}/users/procurement-officers`);
+                const officersRes = await fetch(`${apiUrl}/users/procurement-officers`, {
+                    headers: {
+                        'x-user-id': String(currentUserId || ''),
+                    },
+                });
                 if (!officersRes.ok) throw new Error('Failed to fetch procurement officers');
                 const officersData = await officersRes.json();
                 setOfficers(officersData);

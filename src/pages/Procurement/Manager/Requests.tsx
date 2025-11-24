@@ -66,7 +66,11 @@ const ProcurementManagerRequests = () => {
 
             try {
                 const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:4000' : `http://${window.location.hostname}:4000`;
-                const res = await fetch(`${apiUrl}/requests`);
+                const res = await fetch(`${apiUrl}/requests`, {
+                    headers: {
+                        'x-user-id': String(currentUserId || ''),
+                    },
+                });
 
                 // Check if response is JSON
                 const contentType = res.headers.get('content-type');

@@ -38,7 +38,14 @@ const LoadBalancingSettings = () => {
             setError(null);
 
             try {
-                const res = await fetch(`${apiUrl}/procurement/load-balancing-settings`);
+                const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
+                const currentUserId = userProfile?.id || userProfile?.userId || null;
+
+                const res = await fetch(`${apiUrl}/procurement/load-balancing-settings`, {
+                    headers: {
+                        'x-user-id': String(currentUserId || ''),
+                    },
+                });
                 if (!res.ok) {
                     if (res.status === 404) {
                         // Settings don't exist yet, use defaults
