@@ -40,7 +40,7 @@ const FinanceRequests = () => {
     // Get current user profile - with error handling
     let userProfile: any = {};
     let currentUserId: number | null = null;
-    
+
     try {
         const profileStr = localStorage.getItem('userProfile');
         if (profileStr) {
