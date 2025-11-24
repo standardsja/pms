@@ -33,6 +33,8 @@ import statsRouter from './routes/stats';
 const app = express();
 const httpServer = http.createServer(app);
 const PORT = process.env.PORT ? Number(process.env.PORT) : 4000;
+const APP_ENV = process.env.APP_ENV || 'production';
+const API_HOST = APP_ENV === 'local' ? 'localhost' : process.env.API_HOST || 'heron';
 const JWT_SECRET = process.env.JWT_SECRET || 'devsecret-change-me';
 
 let trendingJobInterval: NodeJS.Timeout | null = null;
@@ -3680,10 +3682,11 @@ async function start() {
         initAnalyticsJob(); // Start analytics aggregation job
         initWebSocket(httpServer); // Initialize WebSocket server
 
-        httpServer.listen(PORT, 'heron', () => {
-            console.log(`API server listening on http://heron:${PORT}`);
-            console.log(`WebSocket server ready on ws://heron:${PORT}`);
-            console.log(`Health check: http://heron:${PORT}/health`);
+        httpServer.listen(PORT, API_HOST, () => {
+            console.log(`🚀 Environment: ${APP_ENV.toUpperCase()}`);
+            console.log(`API server listening on http://${API_HOST}:${PORT}`);
+            console.log(`WebSocket server ready on ws://${API_HOST}:${PORT}`);
+            console.log(`Health check: http://${API_HOST}:${PORT}/health`);
         });
     } catch (err) {
         console.error('Startup error:', err);
