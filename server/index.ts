@@ -3216,6 +3216,9 @@ app.post(
         const user = (req as any).user;
         const { evalNumber, rfqNumber, rfqTitle, description, sectionA, dueDate, evaluator } = req.body;
 
+        // JWT payload uses 'sub' for user ID, fallback to 'id' for compatibility
+        const userId = user?.sub || user?.id;
+
         console.log('Creating evaluation with data:', {
             evalNumber,
             rfqNumber,
@@ -3224,8 +3227,13 @@ app.post(
             dueDate,
             evaluator,
             sectionA: JSON.stringify(sectionA),
-            userId: user?.id,
+            userId,
         });
+
+        // Check if user is authenticated
+        if (!user || !userId) {
+            throw new BadRequestError('User not authenticated. Please log in again.');
+        }
 
         if (!evalNumber || !rfqNumber || !rfqTitle) {
             throw new BadRequestError('Missing required fields: evalNumber, rfqNumber, rfqTitle');
@@ -3245,22 +3253,21 @@ app.post(
                         rfqTitle,
                         description: description || null,
                         sectionA: sectionA || null,
-                        sectionAStatus: 'NOT_STARTED',
-                        sectionBStatus: 'NOT_STARTED',
-                        sectionCStatus: 'NOT_STARTED',
-                        sectionDStatus: 'NOT_STARTED',
-                        sectionEStatus: 'NOT_STARTED',
                         evaluator: evaluator || null,
                         dueDate: dueDate ? new Date(dueDate) : null,
-                        createdBy: user.id,
+                        createdBy: userId,
                         status: 'PENDING',
                     },
                     include: { creator: { select: { id: true, name: true, email: true } } },
                 });
+                console.log('✅ Evaluation created successfully:', evaluation.id);
                 return res.status(201).json({ success: true, data: evaluation });
             } catch (error) {
-                console.error('Prisma create error:', error);
-                console.error('Error details:', JSON.stringify(error, null, 2));
+                console.error('❌ Prisma create error:', error);
+                if (error instanceof Error) {
+                    console.error('Error message:', error.message);
+                    console.error('Error stack:', error.stack);
+                }
                 throw error;
             }
         }
@@ -3271,7 +3278,7 @@ app.post(
             `INSERT INTO Evaluation (evalNumber, rfqNumber, rfqTitle, description, sectionA, createdBy, evaluator, dueDate, status, createdAt, updatedAt) VALUES (
               '${evalNumber}', '${rfqNumber}', '${rfqTitle}', ${description ? `'${description.replace(/'/g, "''")}'` : 'NULL'}, ${
                 sectionA ? `'${JSON.stringify(sectionA).replace(/'/g, "''")}'` : 'NULL'
-            }, ${user.id}, ${evaluator ? `'${evaluator.replace(/'/g, "''")}'` : 'NULL'}, ${
+            }, ${userId}, ${evaluator ? `'${evaluator.replace(/'/g, "''")}'` : 'NULL'}, ${
                 dueDate ? `'${new Date(dueDate).toISOString().slice(0, 19).replace('T', ' ')}'` : 'NULL'
             }, 'PENDING', NOW(), NOW())`
         );
