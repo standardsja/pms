@@ -80,3 +80,7 @@ export function isRemembered(): boolean {
     return false;
   }
 }
+
+export function isAuthenticated(): boolean {
+  return getToken() !== null;
+}

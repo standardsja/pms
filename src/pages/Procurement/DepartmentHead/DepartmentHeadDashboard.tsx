@@ -23,7 +23,7 @@ const DepartmentHeadDashboard = () => {
         const controller = new AbortController();
         async function loadRequests() {
             try {
-                const apiBase = (import.meta as any).env?.VITE_API_URL as string | undefined;
+                const apiBase = 'http://heron:4000';
                 const endpoint = apiBase ? `${apiBase.replace(/\/$/, '')}/requisitions` : '/api/requisitions';
                 const token = localStorage.getItem('auth_token') || '';
                 const res = await fetch(endpoint, {

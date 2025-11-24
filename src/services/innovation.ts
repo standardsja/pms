@@ -13,7 +13,7 @@ function getAuthToken(): string | null {
 }
 
 function apiBase(): string {
-    return import.meta?.env?.VITE_API_URL || '';
+    return 'http://heron:4000';
 }
 
 function buildUrl(path: string, params?: Record<string, string | number | boolean | undefined | null>) {

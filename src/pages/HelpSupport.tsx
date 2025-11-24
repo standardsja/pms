@@ -106,185 +106,168 @@ const HelpSupport = () => {
             faq.category.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
-    const quickLinks = [
-        { title: 'RFQ Quick Guide', icon: <IconFile />, link: '/procurement/rfq/list' },
-        { title: 'Supplier Directory', icon: <IconUser />, link: '/procurement/suppliers' },
-        { title: 'Evaluation Templates', icon: <IconClipboardText />, link: '/procurement/evaluation' },
-        { title: 'PO Templates', icon: <IconCreditCard />, link: '/procurement/purchase-orders' },
-        { title: 'Procurement Policies', icon: <IconInfoCircle />, link: '#' },
-        { title: 'Training Videos', icon: <IconInfoCircle />, link: '#' },
-    ];
-
     return (
-        <div>
-            <ul className="flex space-x-2 rtl:space-x-reverse">
-                <li>
-                    <Link to="/" className="text-primary hover:underline">
-                        Dashboard
-                    </Link>
-                </li>
-                <li className="before:content-['/'] ltr:before:mr-2 rtl:before:ml-2">
-                    <span>Help & Support</span>
-                </li>
-            </ul>
-
-            <div className="pt-5">
-                {/* Header */}
-                <div className="mb-6">
-                    <h2 className="text-2xl font-bold mb-2">Help & Support Center</h2>
-                    <p className="text-white-dark">Find answers to common questions and get assistance with the Smart Portal for Information Exchange</p>
-                </div>
-
-                {/* Contact Support */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
-                    <div className="panel">
-                        <div className="flex items-center mb-5">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                                <IconMail className="h-5 w-5" />
-                            </div>
-                            <h5 className="text-lg font-semibold ltr:ml-3 rtl:mr-3">Email Support</h5>
-                        </div>
-                        <p className="text-white-dark mb-3">Get help via email from our support team</p>
-                        <a href="mailto:procurement.support@company.com" className="text-primary hover:underline font-semibold">
-                            procurement.support@company.com
-                        </a>
-                        <p className="text-xs text-white-dark mt-2">Response within 24 hours</p>
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-gray-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+            <div className="container mx-auto px-6 py-12 max-w-7xl">
+                <div className="pt-5">
+                    {/* Header */}
+                    <div className="text-center mb-12">
+                        <h1 className="text-4xl font-semibold text-gray-900 dark:text-white mb-3">Help & Support Center</h1>
+                        <p className="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">Find answers to common questions and get assistance with SPINX Enterprise Platform</p>
                     </div>
 
-                    <div className="panel">
-                        <div className="flex items-center mb-5">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-success/10 text-success">
-                                <IconPhone className="h-5 w-5" />
-                            </div>
-                            <h5 className="text-lg font-semibold ltr:ml-3 rtl:mr-3">Phone Support</h5>
-                        </div>
-                        <p className="text-white-dark mb-3">Call us for urgent assistance</p>
-                        <a href="tel:+18765551234" className="text-success hover:underline font-semibold">
-                            +1 (876) 555-1234
-                        </a>
-                        <p className="text-xs text-white-dark mt-2">Mon-Fri: 8:00 AM - 5:00 PM</p>
-                    </div>
-
-                    <div className="panel">
-                        <div className="flex items-center mb-5">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-info/10 text-info">
-                                <IconInfoCircle className="h-5 w-5" />
-                            </div>
-                            <h5 className="text-lg font-semibold ltr:ml-3 rtl:mr-3">IT Help Desk</h5>
-                        </div>
-                        <p className="text-white-dark mb-3">Technical issues and system access</p>
-                        <a href="mailto:helpdesk@company.com" className="text-info hover:underline font-semibold">
-                            helpdesk@company.com
-                        </a>
-                        <p className="text-xs text-white-dark mt-2">Ext: 2500</p>
-                    </div>
-                </div>
-
-                {/* Quick Links */}
-                <div className="panel mb-6">
-                    <h5 className="text-lg font-semibold mb-5">Quick Access Resources</h5>
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                        {quickLinks.map((item, index) => (
-                            <Link
-                                key={index}
-                                to={item.link}
-                                className="flex flex-col items-center justify-center p-4 border border-white-light dark:border-white-light/10 rounded-lg hover:border-primary hover:shadow-lg transition-all"
-                            >
-                                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary mb-2">{item.icon}</div>
-                                <span className="text-center text-sm font-semibold">{item.title}</span>
-                            </Link>
-                        ))}
-                    </div>
-                </div>
-
-                {/* Search FAQs */}
-                <div className="panel mb-6">
-                    <h5 className="text-lg font-semibold mb-5">Search Frequently Asked Questions</h5>
-                    <div className="relative">
-                        <input type="text" placeholder="Search for answers..." className="form-input ltr:pl-10 rtl:pr-10" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
-                        <div className="absolute top-1/2 -translate-y-1/2 ltr:left-3 rtl:right-3">
-                            <IconSearch className="text-white-dark" />
-                        </div>
-                    </div>
-                </div>
-
-                {/* FAQs */}
-                <div className="panel">
-                    <h5 className="text-lg font-semibold mb-5">Frequently Asked Questions</h5>
-                    {filteredFaqs.length === 0 ? (
-                        <div className="text-center py-10">
-                            <IconInfoCircle className="w-16 h-16 mx-auto text-white-dark mb-4" />
-                            <p className="text-white-dark">No FAQs found matching your search.</p>
-                        </div>
-                    ) : (
-                        <div className="space-y-2">
-                            {filteredFaqs.map((faq) => (
-                                <div key={faq.id} className="border border-[#d3d3d3] dark:border-[#1b2e4b] rounded">
-                                    <button
-                                        type="button"
-                                        className={`p-4 w-full flex items-center text-white-dark dark:bg-[#1b2e4b] font-semibold hover:bg-primary/10 ${
-                                            activeAccordion === faq.id ? '!bg-primary text-white' : ''
-                                        }`}
-                                        onClick={() => toggleAccordion(faq.id)}
-                                    >
-                                        <div className="flex items-center gap-3 flex-1 text-left">
-                                            <div className={activeAccordion === faq.id ? 'text-white' : 'text-primary'}>{faq.icon}</div>
-                                            <div>
-                                                <div className="text-xs opacity-80 mb-1">{faq.category}</div>
-                                                <div className={activeAccordion === faq.id ? 'text-white' : 'text-black dark:text-white'}>{faq.question}</div>
-                                            </div>
-                                        </div>
-                                        <div className={`ltr:ml-auto rtl:mr-auto ${activeAccordion === faq.id ? 'rotate-180' : ''}`}>
-                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                                <path d="M19 9L12 15L5 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                                            </svg>
-                                        </div>
-                                    </button>
-                                    {activeAccordion === faq.id && (
-                                        <div className="p-4 text-[13px] border-t border-[#d3d3d3] dark:border-[#1b2e4b]">
-                                            <p className="text-white-dark">{faq.answer}</p>
-                                        </div>
-                                    )}
+                    {/* Contact Support */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+                        <div className="panel hover:shadow-lg transition-shadow duration-300">
+                            <div className="flex items-center mb-5">
+                                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 dark:bg-blue-900/20 text-primary">
+                                    <IconMail className="h-6 w-6" />
                                 </div>
-                            ))}
+                                <h5 className="text-lg font-semibold ltr:ml-3 rtl:mr-3 text-gray-900 dark:text-white">Email Support</h5>
+                            </div>
+                            <p className="text-gray-600 dark:text-gray-400 mb-3">Get help via email from our support team</p>
+                            <a href="mailto:support@bsj.gov.jm" className="text-primary hover:text-primary/80 font-medium transition-colors">
+                                support@bsj.gov.jm
+                            </a>
+                            <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">Response within 24 hours</p>
                         </div>
-                    )}
-                </div>
 
-                {/* System Status */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
-                    <div className="panel">
-                        <h5 className="text-lg font-semibold mb-5">System Status</h5>
-                        <div className="space-y-3">
-                            <div className="flex items-center justify-between">
-                                <span className="text-white-dark">Procurement System</span>
-                                <span className="badge bg-success">Operational</span>
+                        <div className="panel hover:shadow-lg transition-shadow duration-300">
+                            <div className="flex items-center mb-5">
+                                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-50 dark:bg-emerald-900/20 text-success">
+                                    <IconPhone className="h-6 w-6" />
+                                </div>
+                                <h5 className="text-lg font-semibold ltr:ml-3 rtl:mr-3 text-gray-900 dark:text-white">Phone Support</h5>
                             </div>
-                            <div className="flex items-center justify-between">
-                                <span className="text-white-dark">Supplier Portal</span>
-                                <span className="badge bg-success">Operational</span>
+                            <p className="text-gray-600 dark:text-gray-400 mb-3">Call us for urgent assistance</p>
+                            <a href="tel:+18769265140" className="text-success hover:text-success/80 font-medium transition-colors">
+                                +1 (876) 926-5140
+                            </a>
+                            <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">Mon-Fri: 8:00 AM - 4:30 PM</p>
+                        </div>
+
+                        <div className="panel hover:shadow-lg transition-shadow duration-300">
+                            <div className="flex items-center mb-5">
+                                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-50 dark:bg-indigo-900/20 text-info">
+                                    <IconInfoCircle className="h-6 w-6" />
+                                </div>
+                                <h5 className="text-lg font-semibold ltr:ml-3 rtl:mr-3 text-gray-900 dark:text-white">IT Help Desk</h5>
                             </div>
-                            <div className="flex items-center justify-between">
-                                <span className="text-white-dark">Email Notifications</span>
-                                <span className="badge bg-success">Operational</span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                                <span className="text-white-dark">Report Generation</span>
-                                <span className="badge bg-success">Operational</span>
+                            <p className="text-gray-600 dark:text-gray-400 mb-3">Technical issues and system access</p>
+                            <a href="mailto:it@bsj.gov.jm" className="text-info hover:text-info/80 font-medium transition-colors">
+                                it@bsj.gov.jm
+                            </a>
+                            <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">Internal Extension Available</p>
+                        </div>
+                    </div>
+
+                    {/* Search FAQs */}
+                    <div className="panel mb-8 shadow-sm">
+                        <h5 className="text-xl font-semibold mb-5 text-gray-900 dark:text-white">Search Knowledge Base</h5>
+                        <div className="relative">
+                            <input
+                                type="text"
+                                placeholder="Search for answers..."
+                                className="form-input ltr:pl-12 rtl:pr-12 h-12 text-base"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                            />
+                            <div className="absolute top-1/2 -translate-y-1/2 ltr:left-4 rtl:right-4">
+                                <IconSearch className="text-gray-400 w-5 h-5" />
                             </div>
                         </div>
                     </div>
 
-                    <div className="panel">
-                        <h5 className="text-lg font-semibold mb-5">Need More Help?</h5>
-                        <div className="space-y-4">
-                            <p className="text-white-dark">If you can't find the answer you're looking for, our support team is ready to assist you.</p>
-                            <button type="button" className="btn btn-primary w-full">
-                                Submit a Support Ticket
-                            </button>
-                            <Link to="/procurement/admin" className="btn btn-outline-primary w-full">
-                                Request System Training
-                            </Link>
+                    {/* FAQs */}
+                    <div className="panel shadow-sm">
+                        <h5 className="text-xl font-semibold mb-6 text-gray-900 dark:text-white">Frequently Asked Questions</h5>
+                        {filteredFaqs.length === 0 ? (
+                            <div className="text-center py-10">
+                                <IconInfoCircle className="w-16 h-16 mx-auto text-white-dark mb-4" />
+                                <p className="text-white-dark">No FAQs found matching your search.</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-3">
+                                {filteredFaqs.map((faq) => (
+                                    <div key={faq.id} className="border border-gray-200 dark:border-gray-700 rounded-lg hover:border-gray-300 dark:hover:border-gray-600 transition-colors">
+                                        <button
+                                            type="button"
+                                            className={`p-5 w-full flex items-center font-medium hover:bg-gray-50 dark:hover:bg-gray-800/50 rounded-lg transition-colors ${
+                                                activeAccordion === faq.id ? 'bg-gray-50 dark:bg-gray-800/50' : ''
+                                            }`}
+                                            onClick={() => toggleAccordion(faq.id)}
+                                        >
+                                            <div className="flex items-center gap-4 flex-1 text-left">
+                                                <div className="text-primary dark:text-blue-400">{faq.icon}</div>
+                                                <div className="flex-1">
+                                                    <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">{faq.category}</div>
+                                                    <div className="text-gray-900 dark:text-white font-medium">{faq.question}</div>
+                                                </div>
+                                            </div>
+                                            <div className={`ltr:ml-4 rtl:mr-4 transition-transform duration-200 text-gray-400 ${activeAccordion === faq.id ? 'rotate-180' : ''}`}>
+                                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                    <path d="M19 9L12 15L5 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                                </svg>
+                                            </div>
+                                        </button>
+                                        {activeAccordion === faq.id && (
+                                            <div className="px-5 pb-5 pt-2">
+                                                <p className="text-gray-600 dark:text-gray-400 leading-relaxed">{faq.answer}</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* System Status */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
+                        <div className="panel shadow-sm">
+                            <h5 className="text-xl font-semibold mb-6 text-gray-900 dark:text-white">System Status</h5>
+                            <div className="space-y-4">
+                                <div className="flex items-center justify-between py-2">
+                                    <span className="text-gray-700 dark:text-gray-300 font-medium">Procurement System</span>
+                                    <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 text-sm font-medium rounded-full">
+                                        <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></div>
+                                        Operational
+                                    </span>
+                                </div>
+                                <div className="flex items-center justify-between py-2">
+                                    <span className="text-gray-700 dark:text-gray-300 font-medium">Innovation Hub</span>
+                                    <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 text-sm font-medium rounded-full">
+                                        <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></div>
+                                        Operational
+                                    </span>
+                                </div>
+                                <div className="flex items-center justify-between py-2">
+                                    <span className="text-gray-700 dark:text-gray-300 font-medium">Email Notifications</span>
+                                    <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 text-sm font-medium rounded-full">
+                                        <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></div>
+                                        Operational
+                                    </span>
+                                </div>
+                                <div className="flex items-center justify-between py-2">
+                                    <span className="text-gray-700 dark:text-gray-300 font-medium">Report Generation</span>
+                                    <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 text-sm font-medium rounded-full">
+                                        <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></div>
+                                        Operational
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="panel shadow-sm">
+                            <h5 className="text-xl font-semibold mb-6 text-gray-900 dark:text-white">Need More Help?</h5>
+                            <div className="space-y-4">
+                                <p className="text-gray-600 dark:text-gray-400 leading-relaxed">If you can't find the answer you're looking for, our support team is ready to assist you.</p>
+                                <button type="button" className="btn btn-primary w-full h-11 font-medium">
+                                    Submit a Support Ticket
+                                </button>
+                                <a href="mailto:support@bsj.gov.jm?subject=Training Request - SPINX Enterprise Platform" className="btn btn-outline-primary w-full h-11 font-medium">
+                                    Request System Training
+                                </a>
+                            </div>
                         </div>
                     </div>
                 </div>

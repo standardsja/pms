@@ -4,6 +4,7 @@ import { IRootState } from './store';
 import { toggleRTL, toggleTheme, toggleLocale, toggleMenu, toggleLayout, toggleAnimation, toggleNavbar, toggleSemidark, toggleAccent } from './store/themeConfigSlice';
 import { verifyToken } from './store/authSlice';
 import store from './store';
+import { applyHolidayTheme } from './utils/holidayTheme';
 
 function App({ children }: PropsWithChildren) {
     const themeConfig = useSelector((state: IRootState) => state.themeConfig);
@@ -25,6 +26,16 @@ function App({ children }: PropsWithChildren) {
         if (token) {
             dispatch(verifyToken() as any);
         }
+
+        // Apply holiday theme
+        applyHolidayTheme();
+
+        // Check for theme changes daily
+        const holidayInterval = setInterval(() => {
+            applyHolidayTheme();
+        }, 1000 * 60 * 60 * 24); // Check daily
+
+        return () => clearInterval(holidayInterval);
     }, [dispatch, themeConfig.theme, themeConfig.menu, themeConfig.layout, themeConfig.rtlClass, themeConfig.animation, themeConfig.navbar, themeConfig.locale, themeConfig.semidark]);
 
     return (

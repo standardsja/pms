@@ -757,7 +757,8 @@ pre.hljs {
 
 /* Custom Login Screen Animations */
 @keyframes gradient-shift {
-    0%, 100% {
+    0%,
+    100% {
         transform: translateY(0) scale(1);
     }
     50% {
@@ -776,6 +777,43 @@ pre.hljs {
     }
 }
 
+@keyframes blob {
+    0%,
+    100% {
+        transform: translate(0, 0) scale(1);
+    }
+    33% {
+        transform: translate(30px, -50px) scale(1.1);
+    }
+    66% {
+        transform: translate(-20px, 20px) scale(0.9);
+    }
+}
+
+@keyframes fadeInUp {
+    0% {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes shake {
+    0%,
+    100% {
+        transform: translateX(0);
+    }
+    25% {
+        transform: translateX(-5px);
+    }
+    75% {
+        transform: translateX(5px);
+    }
+}
+
 .animate-gradient-shift {
     animation: gradient-shift 8s ease-in-out infinite;
 }
@@ -783,6 +821,18 @@ pre.hljs {
 .animate-fade-in-up {
     animation: fade-in-up 0.6s ease-out forwards;
     opacity: 0;
+}
+
+.animate-blob {
+    animation: blob 7s infinite;
+}
+
+.animate-fadeInUp {
+    animation: fadeInUp 0.6s ease-out forwards;
+}
+
+.animate-shake {
+    animation: shake 0.5s ease-in-out;
 }
 
 .animation-delay-200 {
@@ -803,4 +853,112 @@ pre.hljs {
 
 .animation-delay-600 {
     animation-delay: 0.6s;
+}
+
+.animation-delay-2000 {
+    animation-delay: 2s;
+}
+
+.animation-delay-4000 {
+    animation-delay: 4s;
+}
+
+/* Hide scrollbar for modern browsers */
+.hide-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+
+.hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+/* Jamaican Holiday Theme Styles */
+@keyframes jamaica-pulse {
+    0%,
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.8;
+        transform: scale(1.05);
+    }
+}
+
+@keyframes confetti-fall {
+    0% {
+        transform: translateY(-100%) rotate(0deg);
+        opacity: 1;
+    }
+    100% {
+        transform: translateY(100vh) rotate(360deg);
+        opacity: 0;
+    }
+}
+
+@keyframes flag-wave {
+    0%,
+    100% {
+        transform: rotate(-2deg);
+    }
+    50% {
+        transform: rotate(2deg);
+    }
+}
+
+/* Holiday theme active indicator */
+.holiday-active {
+    --holiday-primary: #006b3f;
+    --holiday-secondary: #fcd116;
+    --holiday-accent: #000000;
+}
+
+/* Jamaica flag colors */
+.holiday-emancipation,
+.holiday-independence,
+.holiday-heroes {
+    --holiday-primary: #006b3f;
+    --holiday-secondary: #fcd116;
+    --holiday-accent: #000000;
+}
+
+/* Christmas colors */
+.holiday-christmas,
+.holiday-boxing {
+    --holiday-primary: #c41e3a;
+    --holiday-secondary: #0f8a5f;
+    --holiday-accent: #ffd700;
+}
+
+/* New Year colors */
+.holiday-new-year {
+    --holiday-primary: #ffd700;
+    --holiday-secondary: #ffa500;
+    --holiday-accent: #ff6b6b;
+}
+
+.holiday-theme {
+    position: relative;
+}
+
+.holiday-theme::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at top right, var(--holiday-accent) 0%, transparent 70%);
+    opacity: 0.1;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.animate-jamaica-pulse {
+    animation: jamaica-pulse 2s ease-in-out infinite;
+}
+
+.animate-flag-wave {
+    animation: flag-wave 3s ease-in-out infinite;
 }

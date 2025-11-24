@@ -8,6 +8,12 @@ import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 import http from 'http';
+import { fileURLToPath } from 'url';
+
+// ES module equivalent of __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 import rateLimit from 'express-rate-limit';
 import { prisma, ensureDbConnection } from './prismaClient';
 import { initRedis, closeRedis, cacheGet, cacheSet, cacheDelete, cacheDeletePattern } from './config/redis';
@@ -22,10 +28,13 @@ import type { Prisma } from '@prisma/client';
 import { requireCommittee as requireCommitteeRole, requireAdmin } from './middleware/rbac';
 import { validate, createIdeaSchema, voteSchema, approveRejectIdeaSchema, promoteIdeaSchema, sanitizeInput as sanitize } from './middleware/validation';
 import { errorHandler, notFoundHandler, asyncHandler, NotFoundError, BadRequestError } from './middleware/errorHandler';
+import statsRouter from './routes/stats';
 
 const app = express();
 const httpServer = http.createServer(app);
 const PORT = process.env.PORT ? Number(process.env.PORT) : 4000;
+const APP_ENV = process.env.APP_ENV || 'production';
+const API_HOST = APP_ENV === 'local' ? 'localhost' : process.env.API_HOST || 'heron';
 const JWT_SECRET = process.env.JWT_SECRET || 'devsecret-change-me';
 
 let trendingJobInterval: NodeJS.Timeout | null = null;
@@ -71,7 +80,13 @@ const batchLimiter = rateLimit({
 });
 
 app.use(cors());
-app.use(express.json());
+// Only parse JSON for non-multipart requests (let multer handle multipart)
+app.use((req, res, next) => {
+    if (req.is('multipart/form-data')) {
+        return next();
+    }
+    express.json()(req, res, next);
+});
 app.use(morgan('dev'));
 app.use(requestMonitoringMiddleware); // Performance monitoring
 app.use(sanitize); // Sanitize all inputs
@@ -160,6 +175,50 @@ const upload = multer({
     fileFilter: (_req, file, cb) => {
         if (/^image\//.test(file.mimetype)) cb(null, true);
         else cb(new Error('Only image uploads are allowed'));
+    },
+});
+
+// Separate multer instance for request attachments (allows documents)
+const uploadAttachments = multer({
+    storage: multer.diskStorage({
+        destination: (_req, _file, cb) => {
+            // Use the same uploads directory served by express.static (UPLOAD_DIR)
+            // UPLOAD_DIR is created earlier in the file and points to process.cwd()/uploads
+            const dest = path.resolve(process.cwd(), 'uploads');
+            if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
+            cb(null, dest);
+        },
+        filename: (_req, file, cb) => {
+            const ext = path.extname(file.originalname);
+            const base = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9_-]/g, '_');
+            cb(null, `attachment_${Date.now()}_${base}${ext}`);
+        },
+    }),
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB for documents
+    fileFilter: (_req, file, cb) => {
+        console.log('[uploadAttachments] File:', file.originalname, 'Type:', file.mimetype);
+        // Allow common document types and images
+        const allowedTypes = [
+            'application/pdf',
+            'application/msword',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/vnd.ms-excel',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'image/jpeg',
+            'image/jpg',
+            'image/png',
+            'image/gif',
+        ];
+        // Also allow by file extension as backup
+        const ext = path.extname(file.originalname).toLowerCase();
+        const allowedExtensions = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.jpg', '.jpeg', '.png', '.gif'];
+
+        if (allowedTypes.includes(file.mimetype) || allowedExtensions.includes(ext)) {
+            cb(null, true);
+        } else {
+            console.log('[uploadAttachments] Rejected file type:', file.mimetype, 'Extension:', ext);
+            cb(new Error(`File type not allowed: ${file.mimetype}. Allowed: PDF, Word, Excel, JPG, PNG`));
+        }
     },
 });
 
@@ -474,9 +533,286 @@ app.get('/api/auth/me', authMiddleware, async (req, res) => {
     });
 });
 
-// =============== Innovation Hub: Ideas (Committee) ===============
+// =============== Notifications & Messages ===============
 
-// List ideas with optional filters: status, sort
+// GET /api/notifications - Fetch user notifications
+app.get('/api/notifications', authMiddleware, async (req, res) => {
+    try {
+        const user = (req as any).user as { sub?: number };
+        const userId = user.sub;
+
+        if (!userId) {
+            return res.status(401).json({ success: false, message: 'User not authenticated' });
+        }
+
+        // Fetch notifications for the user, ordered by most recent first
+        const notifications = await prisma.notification.findMany({
+            where: { userId },
+            orderBy: { createdAt: 'desc' },
+            take: 50, // Limit to last 50 notifications
+            include: {
+                user: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                    },
+                },
+            },
+        });
+
+        res.json({
+            success: true,
+            data: notifications,
+        });
+    } catch (error) {
+        console.error('GET /api/notifications error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch notifications',
+            details: error instanceof Error ? error.message : String(error),
+        });
+    }
+});
+
+// PATCH /api/notifications/:id/read - Mark notification as read
+app.patch('/api/notifications/:id/read', authMiddleware, async (req, res) => {
+    try {
+        const user = (req as any).user as { sub?: number };
+        const userId = user.sub;
+        const notificationId = parseInt(req.params.id, 10);
+
+        if (!userId) {
+            return res.status(401).json({ success: false, message: 'User not authenticated' });
+        }
+
+        if (isNaN(notificationId)) {
+            return res.status(400).json({ success: false, message: 'Invalid notification ID' });
+        }
+
+        // Verify notification belongs to user
+        const notification = await prisma.notification.findUnique({
+            where: { id: notificationId },
+        });
+
+        if (!notification) {
+            return res.status(404).json({ success: false, message: 'Notification not found' });
+        }
+
+        if (notification.userId !== userId) {
+            return res.status(403).json({ success: false, message: 'Not authorized to update this notification' });
+        }
+
+        // Mark as read
+        const updated = await prisma.notification.update({
+            where: { id: notificationId },
+            data: { readAt: new Date() },
+        });
+
+        res.json({
+            success: true,
+            data: updated,
+        });
+    } catch (error) {
+        console.error('PATCH /api/notifications/:id/read error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to mark notification as read',
+            details: error instanceof Error ? error.message : String(error),
+        });
+    }
+});
+
+// DELETE /api/notifications/:id - Delete notification
+app.delete('/api/notifications/:id', authMiddleware, async (req, res) => {
+    try {
+        const user = (req as any).user as { sub?: number };
+        const userId = user.sub;
+        const notificationId = parseInt(req.params.id, 10);
+
+        if (!userId) {
+            return res.status(401).json({ success: false, message: 'User not authenticated' });
+        }
+
+        if (isNaN(notificationId)) {
+            return res.status(400).json({ success: false, message: 'Invalid notification ID' });
+        }
+
+        // Verify notification belongs to user
+        const notification = await prisma.notification.findUnique({
+            where: { id: notificationId },
+        });
+
+        if (!notification) {
+            return res.status(404).json({ success: false, message: 'Notification not found' });
+        }
+
+        if (notification.userId !== userId) {
+            return res.status(403).json({ success: false, message: 'Not authorized to delete this notification' });
+        }
+
+        // Delete notification
+        await prisma.notification.delete({
+            where: { id: notificationId },
+        });
+
+        res.json({
+            success: true,
+            message: 'Notification deleted',
+        });
+    } catch (error) {
+        console.error('DELETE /api/notifications/:id error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to delete notification',
+            details: error instanceof Error ? error.message : String(error),
+        });
+    }
+});
+
+// GET /api/messages - Fetch user messages
+app.get('/api/messages', authMiddleware, async (req, res) => {
+    try {
+        const user = (req as any).user as { sub?: number };
+        const userId = user.sub;
+
+        if (!userId) {
+            return res.status(401).json({ success: false, message: 'User not authenticated' });
+        }
+
+        // Fetch messages where user is the recipient
+        const messages = await prisma.message.findMany({
+            where: { toUserId: userId },
+            orderBy: { createdAt: 'desc' },
+            take: 50,
+            include: {
+                fromUser: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                    },
+                },
+                toUser: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                    },
+                },
+            },
+        });
+
+        res.json({
+            success: true,
+            data: messages,
+        });
+    } catch (error) {
+        console.error('GET /api/messages error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch messages',
+            details: error instanceof Error ? error.message : String(error),
+        });
+    }
+});
+
+// PATCH /api/messages/:id/read - Mark message as read
+app.patch('/api/messages/:id/read', authMiddleware, async (req, res) => {
+    try {
+        const user = (req as any).user as { sub?: number };
+        const userId = user.sub;
+        const messageId = parseInt(req.params.id, 10);
+
+        if (!userId) {
+            return res.status(401).json({ success: false, message: 'User not authenticated' });
+        }
+
+        if (isNaN(messageId)) {
+            return res.status(400).json({ success: false, message: 'Invalid message ID' });
+        }
+
+        // Verify message is for this user
+        const message = await prisma.message.findUnique({
+            where: { id: messageId },
+        });
+
+        if (!message) {
+            return res.status(404).json({ success: false, message: 'Message not found' });
+        }
+
+        if (message.toUserId !== userId) {
+            return res.status(403).json({ success: false, message: 'Not authorized to update this message' });
+        }
+
+        // Mark as read
+        const updated = await prisma.message.update({
+            where: { id: messageId },
+            data: { readAt: new Date() },
+        });
+
+        res.json({
+            success: true,
+            data: updated,
+        });
+    } catch (error) {
+        console.error('PATCH /api/messages/:id/read error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to mark message as read',
+            details: error instanceof Error ? error.message : String(error),
+        });
+    }
+});
+
+// DELETE /api/messages/:id - Delete message
+app.delete('/api/messages/:id', authMiddleware, async (req, res) => {
+    try {
+        const user = (req as any).user as { sub?: number };
+        const userId = user.sub;
+        const messageId = parseInt(req.params.id, 10);
+
+        if (!userId) {
+            return res.status(401).json({ success: false, message: 'User not authenticated' });
+        }
+
+        if (isNaN(messageId)) {
+            return res.status(400).json({ success: false, message: 'Invalid message ID' });
+        }
+
+        // Verify message is for this user
+        const message = await prisma.message.findUnique({
+            where: { id: messageId },
+        });
+
+        if (!message) {
+            return res.status(404).json({ success: false, message: 'Message not found' });
+        }
+
+        if (message.toUserId !== userId) {
+            return res.status(403).json({ success: false, message: 'Not authorized to delete this message' });
+        }
+
+        // Delete message
+        await prisma.message.delete({
+            where: { id: messageId },
+        });
+
+        res.json({
+            success: true,
+            message: 'Message deleted',
+        });
+    } catch (error) {
+        console.error('DELETE /api/messages/:id error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to delete message',
+            details: error instanceof Error ? error.message : String(error),
+        });
+    }
+});
+
+// =============== Innovation Hub: Ideas (Committee) ===============// List ideas with optional filters: status, sort
 app.get('/api/ideas', authMiddleware, async (req, res) => {
     try {
         // Attempt a one-time repair of legacy enum values to avoid Prisma enum read errors
@@ -490,6 +826,7 @@ app.get('/api/ideas', authMiddleware, async (req, res) => {
             mine,
             cursor,
             limit = '20',
+            tag,
         } = req.query as {
             status?: string;
             sort?: string;
@@ -497,6 +834,7 @@ app.get('/api/ideas', authMiddleware, async (req, res) => {
             mine?: string;
             cursor?: string;
             limit?: string;
+            tag?: string | string[];
         };
         const user = (req as any).user as { roles?: string[]; sub?: number };
         const isCommittee = user.roles && user.roles.includes('INNOVATION_COMMITTEE');
@@ -516,6 +854,26 @@ app.get('/api/ideas', authMiddleware, async (req, res) => {
         // Filter to current user's ideas if mine=true
         if (mine === 'true' && user.sub) {
             where.submittedBy = user.sub;
+        }
+
+        // Filter by tag name(s) if provided (supports comma-separated or multiple query params)
+        if (tag) {
+            const tags = Array.isArray(tag)
+                ? tag.flatMap((t) =>
+                      String(t)
+                          .split(',')
+                          .map((s) => s.trim())
+                          .filter(Boolean)
+                  )
+                : String(tag)
+                      .split(',')
+                      .map((s) => s.trim())
+                      .filter(Boolean);
+            if (tags.length) {
+                where.tags = {
+                    some: { tag: { name: { in: tags } } },
+                } as any;
+            }
         }
         // If user is NOT committee and not filtering to their own, show APPROVED and PROMOTED ideas
         else if (!isCommittee) {
@@ -555,6 +913,9 @@ app.get('/api/ideas', authMiddleware, async (req, res) => {
                         email: true,
                     },
                 },
+                tags: {
+                    include: { tag: true },
+                },
                 _count: {
                     select: {
                         comments: true,
@@ -584,6 +945,8 @@ app.get('/api/ideas', authMiddleware, async (req, res) => {
             commentCount: idea._count?.comments || 0,
             hasVoted: voteMap.has(idea.id) ? (voteMap.get(idea.id) === 'UPVOTE' ? 'up' : 'down') : null,
             submittedBy: idea.isAnonymous ? 'Anonymous' : idea.submitter?.name || idea.submitter?.email || 'Unknown',
+            tags: Array.isArray(idea.tags) ? idea.tags.map((it: any) => it.tag?.name).filter(Boolean) : [],
+            tagObjects: Array.isArray(idea.tags) ? idea.tags.map((it: any) => ({ id: it.tagId, name: it.tag?.name })).filter((t: any) => t.name) : [],
         }));
 
         // Generate ETag from response content
@@ -756,6 +1119,7 @@ app.get('/api/ideas/:id', authMiddleware, async (req, res) => {
                             email: true,
                         },
                     },
+                    tags: { include: { tag: true } },
                     _count: {
                         select: {
                             comments: true,
@@ -787,7 +1151,10 @@ app.get('/api/ideas/:id', authMiddleware, async (req, res) => {
             .then(() => updateIdeaTrendingScore(ideaId))
             .catch((err) => console.error('Failed to update view count/trending:', err));
 
-        return res.json({ ...idea, hasVoted, submittedBy, commentCount });
+        const tags = Array.isArray((idea as any).tags) ? (idea as any).tags.map((it: any) => it.tag?.name).filter(Boolean) : [];
+        const tagObjects = Array.isArray((idea as any).tags) ? (idea as any).tags.map((it: any) => ({ id: it.tagId, name: it.tag?.name })).filter((t: any) => t.name) : [];
+
+        return res.json({ ...idea, hasVoted, submittedBy, commentCount, tags, tagObjects });
     } catch (e: any) {
         console.error('GET /api/ideas/:id error:', e);
         return res.status(500).json({ error: 'Unable to load idea', message: 'Unable to load idea details. Please try again later.' });
@@ -986,6 +1353,7 @@ app.post('/api/ideas', authMiddleware, ideaCreationLimiter, upload.single('image
     try {
         const user = (req as any).user as { sub: number | string };
         const { title, description, category } = (req.body || {}) as Record<string, string>;
+        const tagIdsRaw = (req.body?.tagIds ?? '') as string;
 
         if (!title || !description || !category) {
             return res.status(400).json({ message: 'title, description and category are required' });
@@ -1004,8 +1372,21 @@ app.post('/api/ideas', authMiddleware, ideaCreationLimiter, upload.single('image
             },
         });
 
+        // Attach tags if provided (expects comma-separated list of ids)
+        const tagIds: number[] = String(tagIdsRaw)
+            .split(',')
+            .map((s) => parseInt(s.trim(), 10))
+            .filter((n) => Number.isFinite(n));
+        if (tagIds.length) {
+            // createMany for efficiency; ignore duplicates
+            await prisma.ideaTag.createMany({
+                data: tagIds.map((tid) => ({ ideaId: idea.id, tagId: tid })),
+                skipDuplicates: true,
+            });
+        }
+
         if (req.file) {
-            const fileUrl = `/uploads/${req.file.filename}`;
+            const fileUrl = `http://heron:4000/uploads/${req.file.filename}`;
             await prisma.ideaAttachment.create({
                 data: {
                     ideaId: idea.id,
@@ -1018,7 +1399,10 @@ app.post('/api/ideas', authMiddleware, ideaCreationLimiter, upload.single('image
         }
 
         // Reload with attachments included
-        const created = await prisma.idea.findUnique({ where: { id: idea.id }, include: { attachments: true } });
+        const created = await prisma.idea.findUnique({
+            where: { id: idea.id },
+            include: { attachments: true, tags: { include: { tag: true } } },
+        });
 
         // Emit WebSocket event
         emitIdeaCreated(created);
@@ -1048,7 +1432,40 @@ app.post('/api/ideas/:id/approve', authMiddleware, requireCommittee, async (req,
                 reviewedAt: new Date(),
                 reviewNotes: notes || null,
             },
+            include: {
+                submitter: {
+                    select: { id: true, name: true, email: true },
+                },
+            },
         });
+
+        // Create notification for idea submitter
+        if (updated.submittedBy) {
+            await prisma.notification
+                .create({
+                    data: {
+                        userId: updated.submittedBy,
+                        type: 'IDEA_APPROVED',
+                        message: `Your innovation idea "${updated.title}" has been approved by the committee!`,
+                        data: { ideaId: updated.id, reviewNotes: notes },
+                    },
+                })
+                .catch((err: any) => console.error('Failed to create approval notification:', err));
+
+            // Create message for idea submitter
+            await prisma.message
+                .create({
+                    data: {
+                        fromUserId: user.sub,
+                        toUserId: updated.submittedBy,
+                        subject: `Innovation Idea Approved: ${updated.title}`,
+                        body: `Great news! Your innovation idea "${updated.title}" has been reviewed and approved by the Innovation Committee.${
+                            notes ? `\n\nReviewer Notes: ${notes}` : ''
+                        }\n\nYou can now track its progress in the Innovation Hub dashboard.`,
+                    },
+                })
+                .catch((err: any) => console.error('Failed to create approval message:', err));
+        }
 
         // Emit WebSocket event
         emitIdeaStatusChanged(updated.id, 'PENDING_REVIEW', 'APPROVED');
@@ -1078,7 +1495,42 @@ app.post('/api/ideas/:id/reject', authMiddleware, requireCommittee, async (req, 
                 reviewedAt: new Date(),
                 reviewNotes: notes || null,
             },
+            include: {
+                submitter: {
+                    select: { id: true, name: true, email: true },
+                },
+            },
         });
+
+        // Create notification for idea submitter
+        if (updated.submittedBy) {
+            await prisma.notification
+                .create({
+                    data: {
+                        userId: updated.submittedBy,
+                        type: 'STAGE_CHANGED',
+                        message: `Your innovation idea "${updated.title}" has been reviewed`,
+                        data: { ideaId: updated.id, status: 'REJECTED', reviewNotes: notes },
+                    },
+                })
+                .catch((err: any) => console.error('Failed to create rejection notification:', err));
+
+            // Create message for idea submitter with feedback
+            await prisma.message
+                .create({
+                    data: {
+                        fromUserId: user.sub,
+                        toUserId: updated.submittedBy,
+                        subject: `Innovation Idea Review: ${updated.title}`,
+                        body: `Thank you for submitting your innovation idea "${
+                            updated.title
+                        }". After careful review by the Innovation Committee, we are unable to proceed with this idea at this time.${
+                            notes ? `\n\nReviewer Feedback: ${notes}` : ''
+                        }\n\nWe encourage you to continue innovating and submitting new ideas!`,
+                    },
+                })
+                .catch((err: any) => console.error('Failed to create rejection message:', err));
+        }
 
         // Invalidate ideas cache
         await cacheDeletePattern('ideas:*');
@@ -1098,7 +1550,25 @@ app.post('/api/ideas/:id/promote', authMiddleware, requireCommittee, async (req,
 
         const code = projectCode && String(projectCode).trim().length > 0 ? String(projectCode).trim() : `BSJ-PROJ-${new Date().getFullYear()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
 
-        // Optimized: Use updateMany with conditional where - no separate findUnique
+        // Get the idea first to notify submitter
+        const idea = await prisma.idea.findUnique({
+            where: { id: parseInt(id, 10) },
+            include: {
+                submitter: {
+                    select: { id: true, name: true, email: true },
+                },
+            },
+        });
+
+        if (!idea) {
+            return res.status(404).json({ message: 'Idea not found' });
+        }
+
+        if (idea.status !== 'APPROVED') {
+            return res.status(400).json({ message: 'Idea must be approved before promotion' });
+        }
+
+        // Update to promoted status
         const result = await prisma.idea.updateMany({
             where: {
                 id: parseInt(id, 10),
@@ -1112,10 +1582,34 @@ app.post('/api/ideas/:id/promote', authMiddleware, requireCommittee, async (req,
         });
 
         if (result.count === 0) {
-            // Check if idea exists or is not approved
-            const idea = await prisma.idea.findUnique({ where: { id: parseInt(id, 10) } });
-            if (!idea) return res.status(404).json({ message: 'Idea not found' });
-            return res.status(400).json({ message: 'Idea must be APPROVED before promotion' });
+            return res.status(400).json({ message: 'Idea must be APPROVED before promotion or not found' });
+        }
+
+        // Create notification for idea submitter
+        if (idea.submittedBy) {
+            const user = (req as any).user as { sub: number };
+            await prisma.notification
+                .create({
+                    data: {
+                        userId: idea.submittedBy,
+                        type: 'STAGE_CHANGED',
+                        message: `Your innovation idea "${idea.title}" has been promoted to a project!`,
+                        data: { ideaId: idea.id, projectCode: code },
+                    },
+                })
+                .catch((err: any) => console.error('Failed to create promotion notification:', err));
+
+            // Create message for idea submitter
+            await prisma.message
+                .create({
+                    data: {
+                        fromUserId: user.sub,
+                        toUserId: idea.submittedBy,
+                        subject: `Innovation Idea Promoted: ${idea.title}`,
+                        body: `Congratulations! Your innovation idea "${idea.title}" has been promoted to an official project!\\n\\nProject Code: ${code}\\n\\nThis is a significant achievement and demonstrates the value of your innovative thinking. The project team will be in touch with next steps.`,
+                    },
+                })
+                .catch((err: any) => console.error('Failed to create promotion message:', err));
         }
 
         // Fetch updated idea to return full data
@@ -1428,11 +1922,18 @@ app.get('/requests', async (_req, res) => {
                 departmentId: true,
                 status: true,
                 currentAssigneeId: true,
+                totalEstimated: true,
+                currency: true,
+                procurementType: true,
                 createdAt: true,
                 updatedAt: true,
                 requester: { select: { id: true, name: true, email: true } },
                 department: { select: { id: true, name: true, code: true } },
                 currentAssignee: { select: { id: true, name: true, email: true } },
+                headerDeptCode: true,
+                headerMonth: true,
+                headerYear: true,
+                headerSequence: true,
             },
         });
         return res.json(requests);
@@ -1454,78 +1955,164 @@ app.get('/requests', async (_req, res) => {
                             departmentId: true,
                             status: true,
                             currentAssigneeId: true,
+                            totalEstimated: true,
+                            currency: true,
+                            procurementType: true,
                             createdAt: true,
                             updatedAt: true,
                             requester: { select: { id: true, name: true, email: true } },
                             department: { select: { id: true, name: true, code: true } },
                             currentAssignee: { select: { id: true, name: true, email: true } },
+                            headerDeptCode: true,
+                            headerMonth: true,
+                            headerYear: true,
+                            headerSequence: true,
                         },
                     });
                     return res.json(requests);
-                } catch (retryErr: any) {
-                    console.error('GET /requests retry after patch failed:', retryErr);
+                } catch (retryE: any) {
+                    const retryMessage = String(retryE?.message || '');
+                    return res.status(500).json({
+                        error: 'Failed to retrieve requests after attempted repair',
+                        details: retryMessage,
+                    });
                 }
+            } else {
+                return res.status(500).json({
+                    error: 'Request status repair required but failed',
+                    details: message,
+                });
             }
         }
-        return res.status(500).json({ message: 'Failed to fetch requests' });
+        return res.status(500).json({ error: message });
     }
 });
 
-// POST /requests - create a new procurement request
-app.post('/requests', async (req, res) => {
-    try {
-        const userId = req.headers['x-user-id'];
-        if (!userId) {
-            return res.status(401).json({ message: 'User ID required' });
-        }
-
-        const { title, description, departmentId, items = [], totalEstimated, currency, priority, procurementType } = req.body || {};
-
-        if (!title || !departmentId) {
-            return res.status(400).json({ message: 'Title and department are required' });
-        }
-
-        // Generate reference
-        const reference = `REQ-${Date.now()}`;
-
-        const created = await prisma.request.create({
-            data: {
-                reference,
-                title,
-                description: description || null,
-                requesterId: parseInt(String(userId), 10),
-                departmentId: parseInt(String(departmentId), 10),
-                totalEstimated: totalEstimated ? parseFloat(String(totalEstimated)) : null,
-                currency: currency || 'JMD',
-                priority: priority || 'MEDIUM',
-                procurementType: procurementType || null,
-                status: 'DRAFT',
-                items: {
-                    create: items.map((it: any) => ({
-                        description: String(it.description || ''),
-                        quantity: Number(it.quantity || 1),
-                        unitPrice: parseFloat(String(it.unitPrice || 0)),
-                        totalPrice: parseFloat(String(it.totalPrice || 0)),
-                        accountCode: it.accountCode || null,
-                        stockLevel: it.stockLevel || null,
-                        unitOfMeasure: it.unitOfMeasure || null,
-                        partNumber: it.partNumber || null,
-                    })),
-                },
-            },
-            include: {
-                items: true,
-                requester: { select: { id: true, name: true, email: true } },
-                department: { select: { id: true, name: true, code: true } },
-            },
+// POST /requests - create a new procurement request (with optional file attachments)
+app.post(
+    '/requests',
+    (req, res, next) => {
+        uploadAttachments.array('attachments', 10)(req, res, (err) => {
+            if (err) {
+                console.error('[POST /requests] Multer error:', err);
+                return res.status(400).json({
+                    message: err.message || 'File upload failed',
+                    error: err.message,
+                });
+            }
+            next();
         });
+    },
+    async (req, res) => {
+        try {
+            console.log('[POST /requests] Request received');
+            console.log('[POST /requests] Headers:', req.headers['x-user-id']);
+            console.log('[POST /requests] Body keys:', Object.keys(req.body));
+            console.log('[POST /requests] Files:', req.files ? (req.files as any[]).map((f) => f.originalname) : 'none');
 
-        return res.status(201).json(created);
-    } catch (e: any) {
-        console.error('POST /requests error:', e);
-        return res.status(500).json({ message: e?.message || 'Failed to create request' });
+            const userId = req.headers['x-user-id'];
+            if (!userId) {
+                return res.status(401).json({ message: 'User ID required' });
+            }
+
+            const { title, description, departmentId, items = [], totalEstimated, currency, priority, procurementType, headerDeptCode, headerMonth, headerYear, headerSequence } = req.body || {};
+
+            console.log('[POST /requests] Parsed fields - title:', title, 'departmentId:', departmentId);
+            console.log('[POST /requests] Header fields - deptCode:', headerDeptCode, 'month:', headerMonth, 'year:', headerYear, 'seq:', headerSequence);
+
+            if (!title || !departmentId) {
+                return res.status(400).json({ message: 'Title and department are required' });
+            }
+
+            // Parse items if it comes as JSON string (from FormData)
+            let parsedItems;
+            try {
+                parsedItems = typeof items === 'string' ? JSON.parse(items) : items;
+                console.log('[POST /requests] Parsed items count:', parsedItems.length);
+            } catch (parseErr: any) {
+                console.error('[POST /requests] Failed to parse items:', parseErr);
+                return res.status(400).json({ message: 'Invalid items format', error: parseErr.message });
+            }
+
+            // Generate reference
+            const reference = `REQ-${Date.now()}`;
+
+            console.log('[POST /requests] Creating request with reference:', reference);
+
+            const created = await prisma.request.create({
+                data: {
+                    reference,
+                    title,
+                    description: description || null,
+                    requesterId: parseInt(String(userId), 10),
+                    departmentId: parseInt(String(departmentId), 10),
+                    totalEstimated: totalEstimated ? parseFloat(String(totalEstimated)) : null,
+                    currency: currency || 'JMD',
+                    priority: priority || 'MEDIUM',
+                    procurementType: procurementType || null,
+                    status: 'DRAFT',
+                    headerDeptCode: headerDeptCode || null,
+                    headerMonth: headerMonth || null,
+                    headerYear: headerYear ? parseInt(String(headerYear), 10) : null,
+                    headerSequence: headerSequence ? parseInt(String(headerSequence), 10) : null,
+                    items: {
+                        create: parsedItems.map((it: any) => ({
+                            description: String(it.description || ''),
+                            quantity: Number(it.quantity || 1),
+                            unitPrice: parseFloat(String(it.unitPrice || 0)),
+                            totalPrice: parseFloat(String(it.totalPrice || 0)),
+                            accountCode: it.accountCode || null,
+                            stockLevel: it.stockLevel || null,
+                            unitOfMeasure: it.unitOfMeasure || null,
+                            partNumber: it.partNumber || null,
+                        })),
+                    },
+                },
+                include: {
+                    items: true,
+                    requester: { select: { id: true, name: true, email: true } },
+                    department: { select: { id: true, name: true, code: true } },
+                },
+            });
+
+            console.log('[POST /requests] Request created with ID:', created.id);
+
+            // Handle file attachments
+            if (req.files && Array.isArray(req.files) && req.files.length > 0) {
+                console.log('[POST /requests] Processing', req.files.length, 'file attachments');
+                for (const file of req.files) {
+                    const fileUrl = `http://heron:4000/uploads/${file.filename}`;
+                    console.log('[POST /requests] Creating attachment:', file.originalname);
+                    await prisma.requestAttachment.create({
+                        data: {
+                            requestId: created.id,
+                            filename: file.originalname,
+                            url: fileUrl,
+                            mimeType: file.mimetype,
+                            uploadedById: parseInt(String(userId), 10),
+                        },
+                    });
+                }
+            }
+
+            // Reload with attachments
+            const final = await prisma.request.findUnique({
+                where: { id: created.id },
+                include: {
+                    items: true,
+                    requester: { select: { id: true, name: true, email: true } },
+                    department: { select: { id: true, name: true, code: true } },
+                    attachments: true,
+                },
+            });
+
+            return res.status(201).json(final);
+        } catch (e: any) {
+            console.error('POST /requests error:', e);
+            return res.status(500).json({ message: e?.message || 'Failed to create request' });
+        }
     }
-});
+);
 
 // GET /requests/:id - fetch a single request by ID for editing
 app.get('/requests/:id', async (req, res) => {
@@ -1572,6 +2159,11 @@ app.get('/requests/:id', async (req, res) => {
                 requester: { select: { id: true, name: true, email: true } },
                 department: { select: { id: true, name: true, code: true } },
                 currentAssignee: { select: { id: true, name: true, email: true } },
+                attachments: true,
+                headerDeptCode: true,
+                headerMonth: true,
+                headerYear: true,
+                headerSequence: true,
                 statusHistory: true,
                 actions: true,
             },
@@ -1631,6 +2223,7 @@ app.get('/requests/:id', async (req, res) => {
                             requester: { select: { id: true, name: true, email: true } },
                             department: { select: { id: true, name: true, code: true } },
                             currentAssignee: { select: { id: true, name: true, email: true } },
+                            attachments: true,
                             statusHistory: true,
                             actions: true,
                         },
@@ -1652,9 +2245,12 @@ app.patch('/requests/:id', async (req, res) => {
         const { id } = req.params;
         const updates = req.body || {};
 
+        // Remove deprecated fields that no longer exist in schema
+        const { budgetOfficerApproved, budgetManagerApproved, ...cleanUpdates } = updates;
+
         const updated = await prisma.request.update({
             where: { id: parseInt(id, 10) },
-            data: updates,
+            data: cleanUpdates,
             include: {
                 items: true,
                 requester: { select: { id: true, name: true, email: true } },
@@ -1675,9 +2271,12 @@ app.put('/requests/:id', async (req, res) => {
         const { id } = req.params;
         const updates = req.body || {};
 
+        // Remove deprecated fields that no longer exist in schema
+        const { budgetOfficerApproved, budgetManagerApproved, ...cleanUpdates } = updates;
+
         const updated = await prisma.request.update({
             where: { id: parseInt(id, 10) },
-            data: updates,
+            data: cleanUpdates,
             include: {
                 items: true,
                 requester: { select: { id: true, name: true, email: true } },
@@ -1689,6 +2288,167 @@ app.put('/requests/:id', async (req, res) => {
     } catch (e: any) {
         console.error('PUT /requests/:id error:', e);
         return res.status(500).json({ message: e?.message || 'Failed to update request' });
+    }
+});
+
+// GET /requests/:id/pdf - generate PDF for a request
+app.get('/requests/:id/pdf', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const request = await prisma.request.findUnique({
+            where: { id: parseInt(id, 10) },
+            include: {
+                items: true,
+                requester: true,
+                department: true,
+                currentAssignee: true,
+            },
+        });
+
+        if (!request) {
+            return res.status(404).json({ error: 'Not Found', message: 'Route GET /requests/9/pdf does not exist', statusCode: 404 });
+        }
+
+        // Load HTML template
+        const templatePath = path.join(process.cwd(), 'server', 'templates', 'request-pdf.html');
+        let html = fs.readFileSync(templatePath, 'utf-8');
+
+        // Helper to format date
+        const formatDate = (date: Date | null | undefined) => {
+            if (!date) return '—';
+            return new Date(date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+        };
+
+        // Helper to format currency
+        const formatCurrency = (value: any) => {
+            if (value == null) return '—';
+            return parseFloat(String(value)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        };
+
+        // Generate items rows
+        const itemsRows = request.items
+            .map(
+                (item, idx) => `
+        <tr>
+          <td>${idx + 1}</td>
+          <td>${item.description || '—'}</td>
+          <td style="text-align: center;">${item.quantity || '—'}</td>
+          <td style="text-align: right;">${formatCurrency(item.unitPrice)}</td>
+          <td style="text-align: right;">${formatCurrency(parseFloat(String(item.quantity || 0)) * parseFloat(String(item.unitPrice || 0)))}</td>
+        </tr>`
+            )
+            .join('');
+
+        // Replace placeholders
+        html = html
+            .replace('{{reference}}', request.reference || '—')
+            .replace('{{submittedAt}}', formatDate(request.submittedAt))
+            .replace('{{requesterName}}', request.requester?.name || '—')
+            .replace('{{requesterEmail}}', request.requester?.email || '—')
+            .replace('{{departmentName}}', request.department?.name || '—')
+            .replace('{{priority}}', request.priority || '—')
+            .replace('{{currency}}', request.currency || 'JMD')
+            .replace(/{{totalEstimated}}/g, formatCurrency(request.totalEstimated))
+            .replace('{{description}}', request.description || '—')
+            .replace('{{itemsRows}}', itemsRows)
+            .replace('{{managerName}}', request.managerName || '—')
+            .replace('{{managerApprovalDate}}', formatDate(request.actionDate ? new Date(request.actionDate) : null))
+            .replace('{{headName}}', request.headName || '—')
+            .replace('{{hodApprovalDate}}', formatDate(request.actionDate ? new Date(request.actionDate) : null))
+            .replace('{{budgetOfficerName}}', request.budgetOfficerName || '—')
+            .replace('{{budgetManagerName}}', request.budgetManagerName || '—')
+            .replace('{{financeApprovalDate}}', formatDate(request.actionDate ? new Date(request.actionDate) : null))
+            .replace('{{commitmentNumber}}', request.commitmentNumber || '—')
+            .replace('{{accountingCode}}', request.accountingCode || '—')
+            .replace('{{procurementApprovalDate}}', formatDate(request.actionDate ? new Date(request.actionDate) : null))
+            .replace('{{status}}', request.status || '—')
+            .replace('{{assigneeName}}', request.currentAssignee?.name || '—')
+            .replace('{{submittedDate}}', formatDate(request.submittedAt))
+            .replace('{{procurementCaseNumber}}', request.procurementCaseNumber || '—')
+            .replace('{{receivedBy}}', request.receivedBy || '—')
+            .replace('{{dateReceived}}', formatDate(request.dateReceived ? new Date(request.dateReceived) : null))
+            .replace('{{actionDate}}', formatDate(request.actionDate ? new Date(request.actionDate) : null))
+            .replace('{{procurementComments}}', request.procurementComments || '—')
+            .replace('{{now}}', new Date().toLocaleString('en-US'));
+
+        // Header code placeholders
+        const seq = request.headerSequence !== null && request.headerSequence !== undefined ? String(request.headerSequence).padStart(3, '0') : '—';
+        html = html
+            .replace('{{headerDeptCode}}', request.headerDeptCode || '—')
+            .replace('{{headerMonth}}', request.headerMonth || '—')
+            .replace('{{headerYear}}', request.headerYear ? String(request.headerYear) : '—')
+            .replace('{{headerSequence}}', seq)
+            .replace('{{headerCode}}', `${request.headerDeptCode || '—'}/${request.headerMonth || '—'}/${request.headerYear ? String(request.headerYear) : '—'}/${seq}`);
+
+        // Try chrome-based render first; if it fails (server missing deps), fallback to PDFKit
+        let pdf: Buffer | null = null;
+        try {
+            const puppeteer = await import('puppeteer');
+            const browser = await puppeteer.default.launch({
+                headless: true,
+                args: ['--no-sandbox', '--disable-setuid-sandbox'],
+            });
+            const page = await browser.newPage();
+            await page.setContent(html, { waitUntil: 'networkidle0' });
+            const pdfBuffer = await page.pdf({
+                format: 'A4',
+                printBackground: true,
+                margin: { top: '20px', right: '20px', bottom: '20px', left: '20px' },
+            });
+            pdf = Buffer.from(pdfBuffer);
+            await browser.close();
+        } catch (chromeErr) {
+            console.error('Puppeteer render failed, falling back to PDFKit:', chromeErr);
+        }
+
+        if (!pdf) {
+            // Minimal, reliable fallback using PDFKit (no system deps)
+            const PDFDocument = (await import('pdfkit')).default;
+            const doc = new (PDFDocument as any)({ size: 'A4', margin: 28 });
+            const chunks: Buffer[] = [];
+            const done = new Promise<Buffer>((resolve) => {
+                doc.on('data', (d: Buffer) => chunks.push(d));
+                doc.on('end', () => resolve(Buffer.concat(chunks)));
+            });
+
+            doc.fontSize(14);
+            doc.text('BUREAU OF STANDARDS JAMAICA', { align: 'center' });
+            doc.moveDown(0.3);
+            doc.fontSize(12);
+            doc.text('PROCUREMENT REQUISITION FORM', { align: 'center' });
+            doc.moveDown();
+            doc.fontSize(10);
+            const ref = request.reference || String(id);
+            doc.text(`Reference: ${ref}`);
+            doc.text(`Submitted: ${request.submittedAt ? new Date(request.submittedAt).toLocaleString() : '—'}`);
+            doc.moveDown();
+            doc.text(`Requested by: ${request.requester?.name || '—'} (${request.requester?.email || '—'})`);
+            doc.text(`Department: ${request.department?.name || '—'}`);
+            doc.text(`Priority: ${request.priority || '—'} | Currency: ${request.currency || 'JMD'}`);
+            doc.text(`Estimated Total: ${request.totalEstimated ?? '—'}`);
+            doc.moveDown();
+            doc.text('Justification:', { underline: true });
+            doc.text(request.description || '—');
+            doc.moveDown();
+            doc.text('Items:', { underline: true });
+            request.items.forEach((it: any, idx: number) => {
+                const qty = it.quantity ?? '—';
+                const up = it.unitPrice ?? '—';
+                const sub = (Number(it.quantity || 0) * Number(it.unitPrice || 0)).toFixed(2);
+                doc.text(`${idx + 1}. ${it.description || '—'} | Qty: ${qty} | Unit: ${up} | Subtotal: ${sub}`);
+            });
+            doc.end();
+            pdf = await done;
+        }
+
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `inline; filename="request-${request.reference || id}.pdf"`);
+        res.setHeader('Cache-Control', 'no-store');
+        res.setHeader('Content-Length', String(pdf.length));
+        res.status(200).end(pdf);
+    } catch (e: any) {
+        console.error('GET /requests/:id/pdf error:', e);
+        return res.status(500).json({ error: 'PDF Generation Failed', message: e?.message || 'Failed to generate PDF' });
     }
 });
 
@@ -1793,26 +2553,30 @@ app.post('/requests/:id/action', async (req, res) => {
                 nextStatus = 'HOD_REVIEW';
                 nextAssigneeId = hod?.id || null;
             } else if (request.status === 'HOD_REVIEW') {
-                // HOD approved -> send to Procurement
+                // HOD approved -> send to Finance Officer
+                const financeOfficer = await prisma.user.findFirst({
+                    where: { roles: { some: { role: { name: 'FINANCE' } } } },
+                });
+                nextStatus = 'FINANCE_REVIEW';
+                nextAssigneeId = financeOfficer?.id || null;
+            } else if (request.status === 'FINANCE_REVIEW') {
+                // Finance Officer approved -> MUST go to Budget Manager (required step)
+                const budgetManager = await prisma.user.findFirst({
+                    where: { roles: { some: { role: { name: 'BUDGET_MANAGER' } } } },
+                });
+                nextStatus = 'BUDGET_MANAGER_REVIEW';
+                nextAssigneeId = budgetManager?.id || null;
+            } else if (request.status === 'BUDGET_MANAGER_REVIEW') {
+                // Budget Manager approved -> send to Procurement for final processing
                 const procurement = await prisma.user.findFirst({
                     where: { roles: { some: { role: { name: 'PROCUREMENT' } } } },
                 });
                 nextStatus = 'PROCUREMENT_REVIEW';
                 nextAssigneeId = procurement?.id || null;
             } else if (request.status === 'PROCUREMENT_REVIEW') {
-                // Procurement approved -> send to Finance
-                const finance = await prisma.user.findFirst({
-                    where: { roles: { some: { role: { name: 'FINANCE' } } } },
-                });
-                nextStatus = 'FINANCE_REVIEW';
-                nextAssigneeId = finance?.id || null;
-            } else if (request.status === 'FINANCE_REVIEW') {
-                // Finance approved -> final approval, assign back to Procurement
+                // Procurement approved -> final approval (ready to send to vendor)
                 nextStatus = 'FINANCE_APPROVED';
-                const procurement = await prisma.user.findFirst({
-                    where: { roles: { some: { role: { name: 'PROCUREMENT' } } } },
-                });
-                nextAssigneeId = procurement?.id || null;
+                nextAssigneeId = null;
             }
         } else if (action === 'SEND_TO_VENDOR') {
             if (request.status !== 'FINANCE_APPROVED') {
@@ -1826,27 +2590,63 @@ app.post('/requests/:id/action', async (req, res) => {
             nextAssigneeId = request.requesterId;
         }
 
-        // Update request with new status
-        const updated = await prisma.request.update({
-            where: { id: parseInt(id, 10) },
-            data: {
-                status: nextStatus,
-                currentAssigneeId: nextAssigneeId,
-                statusHistory: {
-                    create: {
-                        status: nextStatus,
-                        changedById: parseInt(String(userId), 10),
-                        comment: `${action === 'APPROVE' ? 'Approved' : 'Rejected'} at ${request.status} stage`,
+        // Update request with new status (with safe fallback if enum is missing in DB)
+        let updated;
+        try {
+            updated = await prisma.request.update({
+                where: { id: parseInt(id, 10) },
+                data: {
+                    status: nextStatus,
+                    currentAssigneeId: nextAssigneeId,
+                    statusHistory: {
+                        create: {
+                            status: nextStatus,
+                            changedById: parseInt(String(userId), 10),
+                            comment: `${action === 'APPROVE' ? 'Approved' : 'Rejected'} at ${request.status} stage`,
+                        },
                     },
                 },
-            },
-            include: {
-                items: true,
-                requester: { select: { id: true, name: true, email: true } },
-                department: { select: { id: true, name: true, code: true } },
-                currentAssignee: { select: { id: true, name: true, email: true } },
-            },
-        });
+                include: {
+                    items: true,
+                    requester: { select: { id: true, name: true, email: true } },
+                    department: { select: { id: true, name: true, code: true } },
+                    currentAssignee: { select: { id: true, name: true, email: true } },
+                },
+            });
+        } catch (e: any) {
+            const msg = String(e?.message || '');
+            const enumProblem = msg.includes('BUDGET_MANAGER_REVIEW') || msg.toLowerCase().includes('invalid enum');
+            if (enumProblem && request.status === 'FINANCE_REVIEW') {
+                // Fallback: if DB enum lacks BUDGET_MANAGER_REVIEW, treat as FINANCE_APPROVED
+                const procurement = await prisma.user.findFirst({
+                    where: { roles: { some: { role: { name: 'PROCUREMENT' } } } },
+                });
+                const fallbackStatus = 'FINANCE_APPROVED' as const;
+                updated = await prisma.request.update({
+                    where: { id: parseInt(id, 10) },
+                    data: {
+                        status: fallbackStatus,
+                        currentAssigneeId: procurement?.id || null,
+                        statusHistory: {
+                            create: {
+                                status: fallbackStatus,
+                                changedById: parseInt(String(userId), 10),
+                                comment: 'Approved at FINANCE_REVIEW (fallback applied)',
+                            },
+                        },
+                    },
+                    include: {
+                        items: true,
+                        requester: { select: { id: true, name: true, email: true } },
+                        department: { select: { id: true, name: true, code: true } },
+                        currentAssignee: { select: { id: true, name: true, email: true } },
+                    },
+                });
+                console.warn('Fallback applied: DB enum missing BUDGET_MANAGER_REVIEW; advanced to FINANCE_APPROVED');
+            } else {
+                throw e;
+            }
+        }
 
         return res.json(updated);
     } catch (e: any) {
@@ -1855,27 +2655,32 @@ app.post('/requests/:id/action', async (req, res) => {
     }
 });
 
-// GET /api/tags - return empty array for now (Innovation Hub expects this)
+// GET /api/tags - list all tags
 app.get('/api/tags', async (_req, res) => {
     try {
-        // TODO: Implement tags table if needed
-        res.json([]);
+        const tags = await prisma.tag.findMany({ orderBy: { name: 'asc' } });
+        res.json(tags.map((t) => ({ id: t.id, name: t.name })));
     } catch (e: any) {
         console.error('GET /api/tags error:', e);
         res.status(500).json({ message: 'Failed to fetch tags' });
     }
 });
 
-// POST /api/tags - create new tag (stub for now)
+// POST /api/tags - create new tag (idempotent by name)
 app.post('/api/tags', async (req, res) => {
     try {
-        const { name } = req.body || {};
-        if (!name) {
+        const { name } = (req.body || {}) as { name?: string };
+        const trimmed = (name || '').trim();
+        if (!trimmed) {
             return res.status(400).json({ message: 'Tag name is required' });
         }
-        // TODO: Implement tags table - for now return mock success
-        const tag = { id: Date.now(), name: String(name) };
-        res.status(201).json(tag);
+
+        // Try to find existing by exact name; if not exists, create
+        let tag = await prisma.tag.findUnique({ where: { name: trimmed } });
+        if (!tag) {
+            tag = await prisma.tag.create({ data: { name: trimmed } });
+        }
+        res.status(201).json({ id: tag.id, name: tag.name });
     } catch (e: any) {
         console.error('POST /api/tags error:', e);
         res.status(500).json({ message: 'Failed to create tag' });
@@ -2171,6 +2976,716 @@ app.get('/api/auth/test-login', (req, res) => {
     res.status(405).json({ message: 'Use POST method' });
 });
 
+// ============================================
+// EVALUATION ENDPOINTS
+// ============================================
+
+// Temporary runtime guard function: checks delegate presence at call time (not just startup)
+function hasEvaluationDelegate(): boolean {
+    // Use runtime inspection; PrismaClient type will include evaluation after successful generate
+    // Avoid direct method invocation when undefined.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const evalDelegate: any = (prisma as any).evaluation;
+    return Boolean(evalDelegate && typeof evalDelegate.findMany === 'function');
+}
+
+// Expose lightweight version/debug info
+const GIT_COMMIT = process.env.GIT_COMMIT || 'untracked';
+app.get('/api/_version', (req, res) => {
+    res.json({
+        commit: GIT_COMMIT,
+        hasEvaluationDelegate: hasEvaluationDelegate(),
+        pid: process.pid,
+        uptimeSeconds: Math.round(process.uptime()),
+        timestamp: new Date().toISOString(),
+    });
+});
+
+// GET /api/evaluations - List all evaluations with filters
+app.get(
+    '/api/evaluations',
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+        const { status, search, dueBefore, dueAfter } = req.query;
+        if (hasEvaluationDelegate()) {
+            const where: Prisma.EvaluationWhereInput = {};
+            if (status && status !== 'ALL') where.status = status as any;
+            if (search) {
+                where.OR = [
+                    { evalNumber: { contains: search as string } },
+                    { rfqNumber: { contains: search as string } },
+                    { rfqTitle: { contains: search as string } },
+                    { description: { contains: search as string } },
+                ];
+            }
+            if (dueBefore) {
+                if (where.dueDate && typeof where.dueDate === 'object' && !Array.isArray(where.dueDate)) {
+                    where.dueDate = { ...(where.dueDate as object), lte: new Date(dueBefore as string) };
+                } else {
+                    where.dueDate = { lte: new Date(dueBefore as string) };
+                }
+            }
+            if (dueAfter) {
+                if (where.dueDate && typeof where.dueDate === 'object' && !Array.isArray(where.dueDate)) {
+                    where.dueDate = { ...(where.dueDate as object), gte: new Date(dueAfter as string) };
+                } else {
+                    where.dueDate = { gte: new Date(dueAfter as string) };
+                }
+            }
+            const evaluations = await (prisma as any).evaluation.findMany({
+                where,
+                include: {
+                    creator: { select: { id: true, name: true, email: true } },
+                    validator: { select: { id: true, name: true, email: true } },
+                    sectionAVerifier: { select: { id: true, name: true, email: true } },
+                    sectionBVerifier: { select: { id: true, name: true, email: true } },
+                    sectionCVerifier: { select: { id: true, name: true, email: true } },
+                    sectionDVerifier: { select: { id: true, name: true, email: true } },
+                    sectionEVerifier: { select: { id: true, name: true, email: true } },
+                },
+                orderBy: { createdAt: 'desc' },
+            });
+            return res.json({ success: true, data: evaluations });
+        }
+        // Raw SQL fallback
+        const rows = await prisma.$queryRawUnsafe<any>(
+            `SELECT e.*, 
+             uc.id AS creatorId, uc.name AS creatorName, uc.email AS creatorEmail, 
+             uv.id AS validatorId, uv.name AS validatorName, uv.email AS validatorEmail,
+             ua.id AS sectionAVerifierId, ua.name AS sectionAVerifierName, ua.email AS sectionAVerifierEmail,
+             ub.id AS sectionBVerifierId, ub.name AS sectionBVerifierName, ub.email AS sectionBVerifierEmail,
+             uc_v.id AS sectionCVerifierId, uc_v.name AS sectionCVerifierName, uc_v.email AS sectionCVerifierEmail,
+             ud.id AS sectionDVerifierId, ud.name AS sectionDVerifierName, ud.email AS sectionDVerifierEmail,
+             ue.id AS sectionEVerifierId, ue.name AS sectionEVerifierName, ue.email AS sectionEVerifierEmail
+             FROM Evaluation e 
+             LEFT JOIN User uc ON e.createdBy = uc.id 
+             LEFT JOIN User uv ON e.validatedBy = uv.id
+             LEFT JOIN User ua ON e.sectionAVerifiedBy = ua.id
+             LEFT JOIN User ub ON e.sectionBVerifiedBy = ub.id
+             LEFT JOIN User uc_v ON e.sectionCVerifiedBy = uc_v.id
+             LEFT JOIN User ud ON e.sectionDVerifiedBy = ud.id
+             LEFT JOIN User ue ON e.sectionEVerifiedBy = ue.id
+             ORDER BY e.createdAt DESC`
+        );
+        const mapped = rows.map((r: any) => ({
+            id: r.id,
+            evalNumber: r.evalNumber,
+            rfqNumber: r.rfqNumber,
+            rfqTitle: r.rfqTitle,
+            description: r.description,
+            status: r.status,
+            sectionA: r.sectionA ?? null,
+            sectionB: r.sectionB ?? null,
+            sectionC: r.sectionC ?? null,
+            sectionD: r.sectionD ?? null,
+            sectionE: r.sectionE ?? null,
+            sectionAStatus: r.sectionAStatus || 'NOT_STARTED',
+            sectionAVerifiedBy: r.sectionAVerifiedBy,
+            sectionAVerifier: r.sectionAVerifierId ? { id: r.sectionAVerifierId, name: r.sectionAVerifierName, email: r.sectionAVerifierEmail } : null,
+            sectionAVerifiedAt: r.sectionAVerifiedAt ?? null,
+            sectionANotes: r.sectionANotes ?? null,
+            sectionBStatus: r.sectionBStatus || 'NOT_STARTED',
+            sectionBVerifiedBy: r.sectionBVerifiedBy,
+            sectionBVerifier: r.sectionBVerifierId ? { id: r.sectionBVerifierId, name: r.sectionBVerifierName, email: r.sectionBVerifierEmail } : null,
+            sectionBVerifiedAt: r.sectionBVerifiedAt ?? null,
+            sectionBNotes: r.sectionBNotes ?? null,
+            sectionCStatus: r.sectionCStatus || 'NOT_STARTED',
+            sectionCVerifiedBy: r.sectionCVerifiedBy,
+            sectionCVerifier: r.sectionCVerifierId ? { id: r.sectionCVerifierId, name: r.sectionCVerifierName, email: r.sectionCVerifierEmail } : null,
+            sectionCVerifiedAt: r.sectionCVerifiedAt ?? null,
+            sectionCNotes: r.sectionCNotes ?? null,
+            sectionDStatus: r.sectionDStatus || 'NOT_STARTED',
+            sectionDVerifiedBy: r.sectionDVerifiedBy,
+            sectionDVerifier: r.sectionDVerifierId ? { id: r.sectionDVerifierId, name: r.sectionDVerifierName, email: r.sectionDVerifierEmail } : null,
+            sectionDVerifiedAt: r.sectionDVerifiedAt ?? null,
+            sectionDNotes: r.sectionDNotes ?? null,
+            sectionEStatus: r.sectionEStatus || 'NOT_STARTED',
+            sectionEVerifiedBy: r.sectionEVerifiedBy,
+            sectionEVerifier: r.sectionEVerifierId ? { id: r.sectionEVerifierId, name: r.sectionEVerifierName, email: r.sectionEVerifierEmail } : null,
+            sectionEVerifiedAt: r.sectionEVerifiedAt ?? null,
+            sectionENotes: r.sectionENotes ?? null,
+            createdBy: r.createdBy,
+            creator: { id: r.creatorId, name: r.creatorName, email: r.creatorEmail },
+            evaluator: r.evaluator,
+            dueDate: r.dueDate ? r.dueDate : null,
+            validatedBy: r.validatedBy,
+            validator: r.validatorId ? { id: r.validatorId, name: r.validatorName, email: r.validatorEmail } : null,
+            validatedAt: r.validatedAt ?? null,
+            validationNotes: r.validationNotes ?? null,
+            createdAt: r.createdAt,
+            updatedAt: r.updatedAt,
+            _fallback: true,
+        }));
+        res.json({ success: true, data: mapped, meta: { fallback: true } });
+    })
+);
+
+// GET /api/evaluations/:id - Get single evaluation by ID
+app.get(
+    '/api/evaluations/:id',
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+        const { id } = req.params;
+        if (hasEvaluationDelegate()) {
+            const evaluation = await (prisma as any).evaluation.findUnique({
+                where: { id: parseInt(id) },
+                include: {
+                    creator: { select: { id: true, name: true, email: true } },
+                    validator: { select: { id: true, name: true, email: true } },
+                    sectionAVerifier: { select: { id: true, name: true, email: true } },
+                    sectionBVerifier: { select: { id: true, name: true, email: true } },
+                    sectionCVerifier: { select: { id: true, name: true, email: true } },
+                    sectionDVerifier: { select: { id: true, name: true, email: true } },
+                    sectionEVerifier: { select: { id: true, name: true, email: true } },
+                },
+            });
+            if (!evaluation) throw new NotFoundError('Evaluation not found');
+            return res.json({ success: true, data: evaluation });
+        }
+        const rows = await prisma.$queryRawUnsafe<any>(
+            `SELECT e.*, 
+             uc.id AS creatorId, uc.name AS creatorName, uc.email AS creatorEmail, 
+             uv.id AS validatorId, uv.name AS validatorName, uv.email AS validatorEmail,
+             ua.id AS sectionAVerifierId, ua.name AS sectionAVerifierName, ua.email AS sectionAVerifierEmail,
+             ub.id AS sectionBVerifierId, ub.name AS sectionBVerifierName, ub.email AS sectionBVerifierEmail,
+             uc_v.id AS sectionCVerifierId, uc_v.name AS sectionCVerifierName, uc_v.email AS sectionCVerifierEmail,
+             ud.id AS sectionDVerifierId, ud.name AS sectionDVerifierName, ud.email AS sectionDVerifierEmail,
+             ue.id AS sectionEVerifierId, ue.name AS sectionEVerifierName, ue.email AS sectionEVerifierEmail
+             FROM Evaluation e 
+             LEFT JOIN User uc ON e.createdBy = uc.id 
+             LEFT JOIN User uv ON e.validatedBy = uv.id
+             LEFT JOIN User ua ON e.sectionAVerifiedBy = ua.id
+             LEFT JOIN User ub ON e.sectionBVerifiedBy = ub.id
+             LEFT JOIN User uc_v ON e.sectionCVerifiedBy = uc_v.id
+             LEFT JOIN User ud ON e.sectionDVerifiedBy = ud.id
+             LEFT JOIN User ue ON e.sectionEVerifiedBy = ue.id
+             WHERE e.id = ${parseInt(id)} LIMIT 1`
+        );
+        const r = rows[0];
+        if (!r) throw new NotFoundError('Evaluation not found');
+        const mapped = {
+            id: r.id,
+            evalNumber: r.evalNumber,
+            rfqNumber: r.rfqNumber,
+            rfqTitle: r.rfqTitle,
+            description: r.description,
+            status: r.status,
+
+            sectionA: r.sectionA ?? null,
+            sectionAStatus: r.sectionAStatus || 'NOT_STARTED',
+            sectionAVerifiedBy: r.sectionAVerifiedBy,
+            sectionAVerifier: r.sectionAVerifierId ? { id: r.sectionAVerifierId, name: r.sectionAVerifierName, email: r.sectionAVerifierEmail } : null,
+            sectionAVerifiedAt: r.sectionAVerifiedAt ?? null,
+            sectionANotes: r.sectionANotes ?? null,
+
+            sectionB: r.sectionB ?? null,
+            sectionBStatus: r.sectionBStatus || 'NOT_STARTED',
+            sectionBVerifiedBy: r.sectionBVerifiedBy,
+            sectionBVerifier: r.sectionBVerifierId ? { id: r.sectionBVerifierId, name: r.sectionBVerifierName, email: r.sectionBVerifierEmail } : null,
+            sectionBVerifiedAt: r.sectionBVerifiedAt ?? null,
+            sectionBNotes: r.sectionBNotes ?? null,
+
+            sectionC: r.sectionC ?? null,
+            sectionCStatus: r.sectionCStatus || 'NOT_STARTED',
+            sectionCVerifiedBy: r.sectionCVerifiedBy,
+            sectionCVerifier: r.sectionCVerifierId ? { id: r.sectionCVerifierId, name: r.sectionCVerifierName, email: r.sectionCVerifierEmail } : null,
+            sectionCVerifiedAt: r.sectionCVerifiedAt ?? null,
+            sectionCNotes: r.sectionCNotes ?? null,
+
+            sectionD: r.sectionD ?? null,
+            sectionDStatus: r.sectionDStatus || 'NOT_STARTED',
+            sectionDVerifiedBy: r.sectionDVerifiedBy,
+            sectionDVerifier: r.sectionDVerifierId ? { id: r.sectionDVerifierId, name: r.sectionDVerifierName, email: r.sectionDVerifierEmail } : null,
+            sectionDVerifiedAt: r.sectionDVerifiedAt ?? null,
+            sectionDNotes: r.sectionDNotes ?? null,
+
+            sectionE: r.sectionE ?? null,
+            sectionEStatus: r.sectionEStatus || 'NOT_STARTED',
+            sectionEVerifiedBy: r.sectionEVerifiedBy,
+            sectionEVerifier: r.sectionEVerifierId ? { id: r.sectionEVerifierId, name: r.sectionEVerifierName, email: r.sectionEVerifierEmail } : null,
+            sectionEVerifiedAt: r.sectionEVerifiedAt ?? null,
+            sectionENotes: r.sectionENotes ?? null,
+
+            createdBy: r.createdBy,
+            creator: { id: r.creatorId, name: r.creatorName, email: r.creatorEmail },
+            evaluator: r.evaluator,
+            dueDate: r.dueDate ? r.dueDate : null,
+            validatedBy: r.validatedBy,
+            validator: r.validatorId ? { id: r.validatorId, name: r.validatorName, email: r.validatorEmail } : null,
+            validatedAt: r.validatedAt ?? null,
+            validationNotes: r.validationNotes ?? null,
+            createdAt: r.createdAt,
+            updatedAt: r.updatedAt,
+            _fallback: true,
+        };
+        res.json({ success: true, data: mapped, meta: { fallback: true } });
+    })
+);
+
+// POST /api/evaluations - Create new evaluation
+app.post(
+    '/api/evaluations',
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+        const user = (req as any).user;
+        const { evalNumber, rfqNumber, rfqTitle, description, sectionA, dueDate, evaluator } = req.body;
+
+        // JWT payload uses 'sub' for user ID, fallback to 'id' for compatibility
+        const userId = user?.sub || user?.id;
+
+        console.log('Creating evaluation with data:', {
+            evalNumber,
+            rfqNumber,
+            rfqTitle,
+            description,
+            dueDate,
+            evaluator,
+            sectionA: JSON.stringify(sectionA),
+            userId,
+        });
+
+        // Check if user is authenticated
+        if (!user || !userId) {
+            throw new BadRequestError('User not authenticated. Please log in again.');
+        }
+
+        if (!evalNumber || !rfqNumber || !rfqTitle) {
+            throw new BadRequestError('Missing required fields: evalNumber, rfqNumber, rfqTitle');
+        }
+
+        // Check if evalNumber already exists
+        if (hasEvaluationDelegate()) {
+            // Check duplicate using delegate
+            const existing = await (prisma as any).evaluation.findUnique({ where: { evalNumber } });
+            if (existing) throw new BadRequestError('Evaluation number already exists');
+
+            try {
+                const evaluation = await (prisma as any).evaluation.create({
+                    data: {
+                        evalNumber,
+                        rfqNumber,
+                        rfqTitle,
+                        description: description || null,
+                        sectionA: sectionA || null,
+                        evaluator: evaluator || null,
+                        dueDate: dueDate ? new Date(dueDate) : null,
+                        createdBy: userId,
+                        status: 'PENDING',
+                    },
+                    include: { creator: { select: { id: true, name: true, email: true } } },
+                });
+                console.log('✅ Evaluation created successfully:', evaluation.id);
+                return res.status(201).json({ success: true, data: evaluation });
+            } catch (error) {
+                console.error('❌ Prisma create error:', error);
+                if (error instanceof Error) {
+                    console.error('Error message:', error.message);
+                    console.error('Error stack:', error.stack);
+                }
+                throw error;
+            }
+        }
+        // Fallback duplicate check via raw SQL
+        const dupRows = await prisma.$queryRawUnsafe<any>(`SELECT id FROM Evaluation WHERE evalNumber='${evalNumber.replace(/'/g, "''")}' LIMIT 1`);
+        if (dupRows[0]) throw new BadRequestError('Evaluation number already exists');
+        await prisma.$executeRawUnsafe(
+            `INSERT INTO Evaluation (evalNumber, rfqNumber, rfqTitle, description, sectionA, createdBy, evaluator, dueDate, status, createdAt, updatedAt) VALUES (
+              '${evalNumber}', '${rfqNumber}', '${rfqTitle}', ${description ? `'${description.replace(/'/g, "''")}'` : 'NULL'}, ${
+                sectionA ? `'${JSON.stringify(sectionA).replace(/'/g, "''")}'` : 'NULL'
+            }, ${userId}, ${evaluator ? `'${evaluator.replace(/'/g, "''")}'` : 'NULL'}, ${
+                dueDate ? `'${new Date(dueDate).toISOString().slice(0, 19).replace('T', ' ')}'` : 'NULL'
+            }, 'PENDING', NOW(), NOW())`
+        );
+        const createdRow = await prisma.$queryRawUnsafe<any>(
+            `SELECT e.*, uc.id AS creatorId, uc.name AS creatorName, uc.email AS creatorEmail FROM Evaluation e LEFT JOIN User uc ON e.createdBy = uc.id WHERE e.evalNumber='${evalNumber}' LIMIT 1`
+        );
+        const r = createdRow[0];
+        const mapped = {
+            id: r.id,
+            evalNumber: r.evalNumber,
+            rfqNumber: r.rfqNumber,
+            rfqTitle: r.rfqTitle,
+            description: r.description,
+            status: r.status,
+            sectionA: r.sectionA ?? null,
+            createdBy: r.createdBy,
+            creator: { id: r.creatorId, name: r.creatorName, email: r.creatorEmail },
+            evaluator: r.evaluator,
+            dueDate: r.dueDate ?? null,
+            createdAt: r.createdAt,
+            updatedAt: r.updatedAt,
+            _fallback: true,
+        };
+        res.status(201).json({ success: true, data: mapped, meta: { fallback: true } });
+    })
+);
+
+// PATCH /api/evaluations/:id - Update evaluation
+app.patch(
+    '/api/evaluations/:id',
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+        const { id } = req.params;
+        const { status, sectionA, sectionB, sectionC, sectionD, sectionE, validationNotes } = req.body;
+
+        if (!hasEvaluationDelegate()) {
+            const checkRow = await prisma.$queryRawUnsafe<any>(`SELECT id FROM Evaluation WHERE id = ${parseInt(id)} LIMIT 1`);
+            if (!checkRow[0]) throw new NotFoundError('Evaluation not found');
+        } else {
+            const existing = await (prisma as any).evaluation.findUnique({ where: { id: parseInt(id) } });
+            if (!existing) throw new NotFoundError('Evaluation not found');
+        }
+
+        const updateData: Prisma.EvaluationUpdateInput = {};
+
+        if (status) updateData.status = status;
+        if (sectionA) updateData.sectionA = sectionA;
+        if (sectionB) updateData.sectionB = sectionB;
+        if (sectionC) updateData.sectionC = sectionC;
+        if (sectionD) updateData.sectionD = sectionD;
+        if (sectionE) updateData.sectionE = sectionE;
+        if (validationNotes) updateData.validationNotes = validationNotes;
+
+        if (hasEvaluationDelegate()) {
+            const evaluation = await (prisma as any).evaluation.update({
+                where: { id: parseInt(id) },
+                data: updateData,
+                include: { creator: { select: { id: true, name: true, email: true } }, validator: { select: { id: true, name: true, email: true } } },
+            });
+            return res.json({ success: true, data: evaluation });
+        }
+        // Raw update: construct dynamic SET clause
+        const sets: string[] = [];
+        const jsonFields: Array<[string, any]> = [
+            ['sectionA', sectionA],
+            ['sectionB', sectionB],
+            ['sectionC', sectionC],
+            ['sectionD', sectionD],
+            ['sectionE', sectionE],
+        ];
+        if (status) sets.push(`status='${String(status).replace(/'/g, "''")}'`);
+        for (const [key, val] of jsonFields) {
+            if (val !== undefined) sets.push(`${key}=${val === null ? 'NULL' : `'${JSON.stringify(val).replace(/'/g, "''")}'`}`);
+        }
+        if (validationNotes) sets.push(`validationNotes='${String(validationNotes).replace(/'/g, "''")}'`);
+        sets.push('updatedAt=NOW()');
+        if (sets.length) await prisma.$executeRawUnsafe(`UPDATE Evaluation SET ${sets.join(', ')} WHERE id=${parseInt(id)}`);
+        const row = await prisma.$queryRawUnsafe<any>(
+            `SELECT e.*, uc.id AS creatorId, uc.name AS creatorName, uc.email AS creatorEmail, uv.id AS validatorId, uv.name AS validatorName, uv.email AS validatorEmail FROM Evaluation e LEFT JOIN User uc ON e.createdBy = uc.id LEFT JOIN User uv ON e.validatedBy = uv.id WHERE e.id = ${parseInt(
+                id
+            )} LIMIT 1`
+        );
+        const r = row[0];
+        const mapped = {
+            id: r.id,
+            evalNumber: r.evalNumber,
+            rfqNumber: r.rfqNumber,
+            rfqTitle: r.rfqTitle,
+            description: r.description,
+            status: r.status,
+            sectionA: r.sectionA ?? null,
+            sectionB: r.sectionB ?? null,
+            sectionC: r.sectionC ?? null,
+            sectionD: r.sectionD ?? null,
+            sectionE: r.sectionE ?? null,
+            createdBy: r.createdBy,
+            creator: { id: r.creatorId, name: r.creatorName, email: r.creatorEmail },
+            evaluator: r.evaluator,
+            dueDate: r.dueDate ?? null,
+            validatedBy: r.validatedBy,
+            validator: r.validatorId ? { id: r.validatorId, name: r.validatorName, email: r.validatorEmail } : null,
+            validatedAt: r.validatedAt ?? null,
+            validationNotes: r.validationNotes ?? null,
+            createdAt: r.createdAt,
+            updatedAt: r.updatedAt,
+            _fallback: true,
+        };
+        res.json({ success: true, data: mapped, meta: { fallback: true } });
+    })
+);
+
+// PATCH /api/evaluations/:id/committee - Update committee section data
+app.patch(
+    '/api/evaluations/:id/committee',
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+        const { id } = req.params;
+        const { section, data } = req.body;
+
+        if (!section || !data) {
+            throw new BadRequestError('Missing required fields: section, data');
+        }
+
+        let existing: any = null;
+        if (hasEvaluationDelegate()) {
+            existing = await (prisma as any).evaluation.findUnique({ where: { id: parseInt(id) } });
+        } else {
+            const checkRow = await prisma.$queryRawUnsafe<any>(`SELECT id, status FROM Evaluation WHERE id = ${parseInt(id)} LIMIT 1`);
+            existing = checkRow[0];
+        }
+        if (!existing) throw new NotFoundError('Evaluation not found');
+
+        const updateData: Prisma.EvaluationUpdateInput = {};
+        const sectionKey = `section${section.toUpperCase()}` as keyof Prisma.EvaluationUpdateInput;
+        updateData[sectionKey] = data;
+
+        // Auto-update status to COMMITTEE_REVIEW if still PENDING
+        if (existing.status === 'PENDING') {
+            updateData.status = 'COMMITTEE_REVIEW';
+        }
+
+        if (hasEvaluationDelegate()) {
+            const evaluation = await (prisma as any).evaluation.update({
+                where: { id: parseInt(id) },
+                data: updateData,
+                include: { creator: { select: { id: true, name: true, email: true } } },
+            });
+            return res.json({ success: true, data: evaluation });
+        }
+        const sets: string[] = [];
+        const sectionField = `section${section.toUpperCase()}`;
+        sets.push(`${sectionField}='${JSON.stringify(data).replace(/'/g, "''")}'`);
+        if (existing.status === 'PENDING') sets.push(`status='COMMITTEE_REVIEW'`);
+        sets.push('updatedAt=NOW()');
+        await prisma.$executeRawUnsafe(`UPDATE Evaluation SET ${sets.join(', ')} WHERE id=${parseInt(id)}`);
+        const row = await prisma.$queryRawUnsafe<any>(
+            `SELECT e.*, uc.id AS creatorId, uc.name AS creatorName, uc.email AS creatorEmail FROM Evaluation e LEFT JOIN User uc ON e.createdBy = uc.id WHERE e.id = ${parseInt(id)} LIMIT 1`
+        );
+        const r = row[0];
+        const mapped = {
+            id: r.id,
+            evalNumber: r.evalNumber,
+            rfqNumber: r.rfqNumber,
+            rfqTitle: r.rfqTitle,
+            description: r.description,
+            status: r.status,
+            sectionA: r.sectionA ?? null,
+            sectionB: r.sectionB ?? null,
+            sectionC: r.sectionC ?? null,
+            sectionD: r.sectionD ?? null,
+            sectionE: r.sectionE ?? null,
+            createdBy: r.createdBy,
+            creator: { id: r.creatorId, name: r.creatorName, email: r.creatorEmail },
+            evaluator: r.evaluator,
+            dueDate: r.dueDate ?? null,
+            validatedBy: r.validatedBy,
+            validatedAt: r.validatedAt ?? null,
+            validationNotes: r.validationNotes ?? null,
+            createdAt: r.createdAt,
+            updatedAt: r.updatedAt,
+            _fallback: true,
+        };
+        res.json({ success: true, data: mapped, meta: { fallback: true } });
+    })
+);
+
+// POST /api/evaluations/:id/sections/:section/submit - Submit section for committee review
+app.post(
+    '/api/evaluations/:id/sections/:section/submit',
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+        const { id, section } = req.params;
+        const sectionUpper = section.toUpperCase();
+
+        if (!['A', 'B', 'C', 'D', 'E'].includes(sectionUpper)) {
+            throw new BadRequestError('Invalid section. Must be A, B, C, D, or E');
+        }
+
+        let existing: any = null;
+        if (hasEvaluationDelegate()) {
+            existing = await (prisma as any).evaluation.findUnique({ where: { id: parseInt(id) } });
+        } else {
+            const checkRow = await prisma.$queryRawUnsafe<any>(`SELECT * FROM Evaluation WHERE id = ${parseInt(id)} LIMIT 1`);
+            existing = checkRow[0];
+        }
+        if (!existing) throw new NotFoundError('Evaluation not found');
+
+        // Check if section data exists
+        const sectionDataKey = `section${sectionUpper}`;
+        if (!existing[sectionDataKey]) {
+            throw new BadRequestError(`Section ${sectionUpper} has no data to submit`);
+        }
+
+        const updateData: any = {};
+        const statusField = `section${sectionUpper}Status`;
+        updateData[statusField] = 'SUBMITTED';
+
+        if (hasEvaluationDelegate()) {
+            const evaluation = await (prisma as any).evaluation.update({
+                where: { id: parseInt(id) },
+                data: updateData,
+                include: {
+                    creator: { select: { id: true, name: true, email: true } },
+                    [`section${sectionUpper}Verifier`]: { select: { id: true, name: true, email: true } },
+                },
+            });
+            return res.json({ success: true, data: evaluation, message: `Section ${sectionUpper} submitted for review` });
+        }
+
+        await prisma.$executeRawUnsafe(`UPDATE Evaluation SET ${statusField}='SUBMITTED', updatedAt=NOW() WHERE id=${parseInt(id)}`);
+        res.json({ success: true, message: `Section ${sectionUpper} submitted for review`, meta: { fallback: true } });
+    })
+);
+
+// POST /api/evaluations/:id/sections/:section/verify - Committee verifies section (approve)
+app.post(
+    '/api/evaluations/:id/sections/:section/verify',
+    authMiddleware,
+    requireCommittee,
+    asyncHandler(async (req, res) => {
+        const { id, section } = req.params;
+        const { notes } = req.body;
+        const userId = req.user!.userId;
+        const sectionUpper = section.toUpperCase();
+
+        if (!['A', 'B', 'C', 'D', 'E'].includes(sectionUpper)) {
+            throw new BadRequestError('Invalid section. Must be A, B, C, D, or E');
+        }
+
+        let existing: any = null;
+        if (hasEvaluationDelegate()) {
+            existing = await (prisma as any).evaluation.findUnique({ where: { id: parseInt(id) } });
+        } else {
+            const checkRow = await prisma.$queryRawUnsafe<any>(`SELECT * FROM Evaluation WHERE id = ${parseInt(id)} LIMIT 1`);
+            existing = checkRow[0];
+        }
+        if (!existing) throw new NotFoundError('Evaluation not found');
+
+        const statusField = `section${sectionUpper}Status`;
+        if (existing[statusField] !== 'SUBMITTED') {
+            throw new BadRequestError(`Section ${sectionUpper} must be submitted before verification`);
+        }
+
+        const updateData: any = {};
+        updateData[statusField] = 'VERIFIED';
+        updateData[`section${sectionUpper}VerifiedBy`] = userId;
+        updateData[`section${sectionUpper}VerifiedAt`] = new Date();
+        if (notes) updateData[`section${sectionUpper}Notes`] = notes;
+
+        if (hasEvaluationDelegate()) {
+            const evaluation = await (prisma as any).evaluation.update({
+                where: { id: parseInt(id) },
+                data: updateData,
+                include: {
+                    creator: { select: { id: true, name: true, email: true } },
+                    [`section${sectionUpper}Verifier`]: { select: { id: true, name: true, email: true } },
+                },
+            });
+            return res.json({ success: true, data: evaluation, message: `Section ${sectionUpper} verified` });
+        }
+
+        const sets: string[] = [`${statusField}='VERIFIED'`, `section${sectionUpper}VerifiedBy=${userId}`, `section${sectionUpper}VerifiedAt=NOW()`, 'updatedAt=NOW()'];
+        if (notes) sets.push(`section${sectionUpper}Notes='${notes.replace(/'/g, "''")}'`);
+        await prisma.$executeRawUnsafe(`UPDATE Evaluation SET ${sets.join(', ')} WHERE id=${parseInt(id)}`);
+        res.json({ success: true, message: `Section ${sectionUpper} verified`, meta: { fallback: true } });
+    })
+);
+
+// POST /api/evaluations/:id/sections/:section/return - Committee returns section for changes
+app.post(
+    '/api/evaluations/:id/sections/:section/return',
+    authMiddleware,
+    requireCommittee,
+    asyncHandler(async (req, res) => {
+        const { id, section } = req.params;
+        const { notes } = req.body;
+        const userId = req.user!.userId;
+        const sectionUpper = section.toUpperCase();
+
+        if (!['A', 'B', 'C', 'D', 'E'].includes(sectionUpper)) {
+            throw new BadRequestError('Invalid section. Must be A, B, C, D, or E');
+        }
+
+        if (!notes || notes.trim() === '') {
+            throw new BadRequestError('Notes are required when returning a section');
+        }
+
+        let existing: any = null;
+        if (hasEvaluationDelegate()) {
+            existing = await (prisma as any).evaluation.findUnique({ where: { id: parseInt(id) } });
+        } else {
+            const checkRow = await prisma.$queryRawUnsafe<any>(`SELECT * FROM Evaluation WHERE id = ${parseInt(id)} LIMIT 1`);
+            existing = checkRow[0];
+        }
+        if (!existing) throw new NotFoundError('Evaluation not found');
+
+        const statusField = `section${sectionUpper}Status`;
+        if (existing[statusField] !== 'SUBMITTED') {
+            throw new BadRequestError(`Section ${sectionUpper} must be submitted before returning`);
+        }
+
+        const updateData: any = {};
+        updateData[statusField] = 'RETURNED';
+        updateData[`section${sectionUpper}VerifiedBy`] = userId;
+        updateData[`section${sectionUpper}VerifiedAt`] = new Date();
+        updateData[`section${sectionUpper}Notes`] = notes;
+
+        if (hasEvaluationDelegate()) {
+            const evaluation = await (prisma as any).evaluation.update({
+                where: { id: parseInt(id) },
+                data: updateData,
+                include: {
+                    creator: { select: { id: true, name: true, email: true } },
+                    [`section${sectionUpper}Verifier`]: { select: { id: true, name: true, email: true } },
+                },
+            });
+            return res.json({ success: true, data: evaluation, message: `Section ${sectionUpper} returned for changes` });
+        }
+
+        const sets: string[] = [
+            `${statusField}='RETURNED'`,
+            `section${sectionUpper}VerifiedBy=${userId}`,
+            `section${sectionUpper}VerifiedAt=NOW()`,
+            `section${sectionUpper}Notes='${notes.replace(/'/g, "''")}'`,
+            'updatedAt=NOW()',
+        ];
+        await prisma.$executeRawUnsafe(`UPDATE Evaluation SET ${sets.join(', ')} WHERE id=${parseInt(id)}`);
+        res.json({ success: true, message: `Section ${sectionUpper} returned for changes`, meta: { fallback: true } });
+    })
+);
+
+// DELETE /api/evaluations/:id - Delete evaluation
+app.delete(
+    '/api/evaluations/:id',
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+        const { id } = req.params;
+        if (hasEvaluationDelegate()) {
+            const existing = await (prisma as any).evaluation.findUnique({ where: { id: parseInt(id) } });
+            if (!existing) throw new NotFoundError('Evaluation not found');
+            await (prisma as any).evaluation.delete({ where: { id: parseInt(id) } });
+            return res.json({ success: true, message: 'Evaluation deleted successfully' });
+        }
+        const checkRow = await prisma.$queryRawUnsafe<any>(`SELECT id FROM Evaluation WHERE id = ${parseInt(id)} LIMIT 1`);
+        if (!checkRow[0]) throw new NotFoundError('Evaluation not found');
+        await prisma.$executeRawUnsafe(`DELETE FROM Evaluation WHERE id = ${parseInt(id)}`);
+        res.json({ success: true, message: 'Evaluation deleted successfully', meta: { fallback: true } });
+    })
+);
+
+// Stats API routes
+app.use('/api/stats', statsRouter);
+
+// DEBUG: List all registered routes (temporary; remove in production)
+app.get('/api/_routes', (req, res) => {
+    const routes: Array<{ path: string; methods: string[] }> = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (app as any)._router.stack.forEach((middleware: any) => {
+        if (middleware.route) {
+            const { path, methods } = middleware.route;
+            routes.push({ path, methods: Object.keys(methods).filter((m) => methods[m]) });
+        } else if (middleware.name === 'router' && middleware.handle?.stack) {
+            middleware.handle.stack.forEach((handler: any) => {
+                if (handler.route) {
+                    const { path, methods } = handler.route;
+                    routes.push({ path, methods: Object.keys(methods).filter((m) => methods[m]) });
+                }
+            });
+        }
+    });
+    res.json({ routes });
+});
+
 // No longer need this - using httpServer created at top
 // let server: http.Server | null = null;
 
@@ -2188,10 +3703,11 @@ async function start() {
         initAnalyticsJob(); // Start analytics aggregation job
         initWebSocket(httpServer); // Initialize WebSocket server
 
-        httpServer.listen(PORT, () => {
-            console.log(`API server listening on http://localhost:${PORT}`);
-            console.log(`WebSocket server ready on ws://localhost:${PORT}`);
-            console.log(`Health check: http://localhost:${PORT}/health`);
+        httpServer.listen(PORT, API_HOST, () => {
+            console.log(`🚀 Environment: ${APP_ENV.toUpperCase()}`);
+            console.log(`API server listening on http://${API_HOST}:${PORT}`);
+            console.log(`WebSocket server ready on ws://${API_HOST}:${PORT}`);
+            console.log(`Health check: http://${API_HOST}:${PORT}/health`);
         });
     } catch (err) {
         console.error('Startup error:', err);

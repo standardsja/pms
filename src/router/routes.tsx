@@ -1,9 +1,12 @@
 import { lazy } from 'react';
+import OnboardingGuard from '../components/OnboardingGuard';
 import AdminRoute from '../components/AdminRoute';
 import CommitteeRoute from '../components/CommitteeRoute';
+import ProcurementRoute from '../components/ProcurementRoute';
 
 // Main Pages
 const Index = lazy(() => import('../pages/Index'));
+const LandingPage = lazy(() => import('../pages/LandingPage'));
 const Error = lazy(() => import('../components/Error'));
 
 // Auth Pages
@@ -26,6 +29,9 @@ const QuoteDetail = lazy(() => import('../pages/Procurement/Quotes/QuoteDetail')
 const EvaluationList = lazy(() => import('../pages/Procurement/Evaluation/EvaluationList'));
 const NewEvaluation = lazy(() => import('../pages/Procurement/Evaluation/NewEvaluation'));
 const EvaluationDetail = lazy(() => import('../pages/Procurement/Evaluation/EvaluationDetail'));
+const EvaluationWorkspace = lazy(() => import('../pages/Procurement/Evaluation/EvaluationWorkspace'));
+const EvaluationCommittee = lazy(() => import('../pages/Procurement/Evaluation/EvaluationCommittee'));
+const EvaluationCommitteeDashboard = lazy(() => import('../pages/Procurement/Evaluation/CommitteeDashboard'));
 const ReviewList = lazy(() => import('../pages/Procurement/Review/ReviewList'));
 const ReviewDetail = lazy(() => import('../pages/Procurement/Review/ReviewDetail'));
 const ApprovalsList = lazy(() => import('../pages/Procurement/Approvals/ApprovalsList'));
@@ -53,6 +59,7 @@ const AdminSettings = lazy(() => import('../pages/Procurement/Admin/AdminSetting
 // Request Pages
 const Requests = lazy(() => import('../pages/Procurement/Requests/Requests'));
 const RequestForm = lazy(() => import('../pages/Procurement/Requests/RequestForm'));
+const CombineRequests = lazy(() => import('../pages/Procurement/Requests/CombineRequests'));
 const FinanceRequests = lazy(() => import('../pages/Procurement/Finance/Requests'));
 
 // Department Head Pages
@@ -108,22 +115,33 @@ const routes = [
     },
     {
         path: '/onboarding',
-        element: <Onboarding />,
+        element: (
+            <OnboardingGuard>
+                <Onboarding />
+            </OnboardingGuard>
+        ),
         layout: 'blank',
     },
 
     // ============================================
     // MODULE SELECTOR / ONBOARDING
     // ============================================
-    // Root should redirect to dashboard when authenticated; otherwise to login
+    // Root path shows ModuleSelector for authenticated users or redirects to login
     {
         path: '/',
-        element: <Index />, // Index can decide or be a lightweight landing; keep as is to avoid blank layout login forcing
+        element: <LandingPage />,
+        layout: 'blank',
     },
-    // Optional: keep a direct route to the old selector (not linked)
+    // Keep legacy dashboard route for direct access
+    {
+        path: '/dashboard',
+        element: <Index />,
+    },
+    // Direct route to module selector
     {
         path: '/modules',
         element: <ModuleSelector />,
+        layout: 'blank',
     },
 
     // ============================================
@@ -258,12 +276,24 @@ const routes = [
         element: <EvaluationList />,
     },
     {
+        path: '/evaluation/committee/dashboard',
+        element: <EvaluationCommitteeDashboard />,
+    },
+    {
         path: '/procurement/evaluation/new',
         element: <NewEvaluation />,
     },
     {
         path: '/procurement/evaluation/:id',
         element: <EvaluationDetail />,
+    },
+    {
+        path: '/procurement/evaluation/:id/workspace',
+        element: <EvaluationWorkspace />,
+    },
+    {
+        path: '/evaluation/:id/committee',
+        element: <EvaluationCommittee />,
     },
     {
         path: '/procurement/review',
@@ -413,6 +443,14 @@ const routes = [
         path: '/apps/requests/edit/:id',
         element: <RequestForm />,
     },
+    {
+        path: '/apps/requests/combine',
+        element: (
+            <ProcurementRoute>
+                <CombineRequests />
+            </ProcurementRoute>
+        ),
+    },
 
     // ============================================
     // ADMIN ROUTES
@@ -444,6 +482,7 @@ const routes = [
     {
         path: '/help',
         element: <HelpSupport />,
+        layout: 'blank',
     },
 
     // ============================================

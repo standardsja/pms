@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
@@ -42,32 +42,29 @@ const ViewIdeas = () => {
         dispatch(setPageTitle(t('innovation.view.title')));
         let active = true;
 
-        const mapIdeas = (apiIdeas: any[]): Idea[] => apiIdeas.map(idea => ({
-            id: String(idea.id),
-            title: idea.title,
-            description: idea.description,
-            category: idea.category,
-            submittedBy: idea.submittedBy || 'Unknown',
-            submittedAt: idea.createdAt ? new Date(idea.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-            voteCount: idea.voteCount || 0,
-            upvoteCount: Math.max(0, idea.upvoteCount || 0),
-            downvoteCount: Math.max(0, idea.downvoteCount || 0),
-            hasVoted: idea.hasVoted || false,
-            viewCount: idea.viewCount || 0,
-            status: (idea.status === 'APPROVED'
-                ? 'APPROVED'
-                : idea.status === 'PROMOTED_TO_PROJECT'
-                ? 'IMPLEMENTED'
-                : 'UNDER_REVIEW') as Idea['status'],
-            tags: [],
-            firstAttachmentUrl: (idea as any).firstAttachmentUrl || (idea as any).attachments?.[0]?.fileUrl || null,
-            attachmentsCount: (idea as any).attachments?.length || 0,
-        }));
+        const mapIdeas = (apiIdeas: any[]): Idea[] =>
+            apiIdeas.map((idea) => ({
+                id: String(idea.id),
+                title: idea.title,
+                description: idea.description,
+                category: idea.category,
+                submittedBy: idea.submittedBy || 'Unknown',
+                submittedAt: idea.createdAt ? new Date(idea.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+                voteCount: idea.voteCount || 0,
+                upvoteCount: Math.max(0, idea.upvoteCount || 0),
+                downvoteCount: Math.max(0, idea.downvoteCount || 0),
+                hasVoted: idea.hasVoted || false,
+                viewCount: idea.viewCount || 0,
+                status: (idea.status === 'APPROVED' ? 'APPROVED' : idea.status === 'PROMOTED_TO_PROJECT' ? 'IMPLEMENTED' : 'UNDER_REVIEW') as Idea['status'],
+                tags: Array.isArray(idea.tags) ? idea.tags : [],
+                firstAttachmentUrl: (idea as any).firstAttachmentUrl || (idea as any).attachments?.[0]?.fileUrl || null,
+                attachmentsCount: (idea as any).attachments?.length || 0,
+            }));
 
         const loadIdeas = async (showLoader = true) => {
             if (showLoader) setIsLoading(true);
             try {
-                const response = await fetchIdeas({ 
+                const response = await fetchIdeas({
                     includeAttachments: true,
                     status: statusFilters.length ? statusFilters : undefined,
                     category: categoryFilters.length ? categoryFilters : undefined,
@@ -96,7 +93,7 @@ const ViewIdeas = () => {
             }
         };
 
-    loadIdeas();
+        loadIdeas();
         const intervalId = setInterval(() => loadIdeas(false), 60000);
         const visibilityHandler = () => {
             if (document.visibilityState === 'visible') loadIdeas(false);
@@ -142,68 +139,151 @@ const ViewIdeas = () => {
 
     const getStatusBadge = (status: string) => {
         const badges: Record<string, { color: string; icon: JSX.Element }> = {
-            APPROVED: { 
-                color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300', 
-                icon: <svg className="w-3.5 h-3.5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> 
+            APPROVED: {
+                color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300',
+                icon: (
+                    <svg className="w-3.5 h-3.5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                ),
             },
-            UNDER_REVIEW: { 
-                color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300', 
-                icon: <svg className="w-3.5 h-3.5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> 
+            UNDER_REVIEW: {
+                color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300',
+                icon: (
+                    <svg className="w-3.5 h-3.5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                ),
             },
-            IMPLEMENTED: { 
-                color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300', 
-                icon: <svg className="w-3.5 h-3.5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg> 
+            IMPLEMENTED: {
+                color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300',
+                icon: (
+                    <svg className="w-3.5 h-3.5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"
+                        />
+                    </svg>
+                ),
             },
         };
         return badges[status] || badges.APPROVED;
     };
 
-    const filteredIdeas = ideas.filter(idea => {
+    const counts = useMemo(() => {
+        const approved = ideas.filter((i) => i.status === 'APPROVED').length;
+        const underReview = ideas.filter((i) => i.status === 'UNDER_REVIEW').length;
+        const implemented = ideas.filter((i) => i.status === 'IMPLEMENTED').length;
+        return { total: ideas.length, approved, underReview, implemented };
+    }, [ideas]);
+
+    const filteredIdeas = ideas.filter((idea) => {
         const matchesCategoryUI = filter === 'all' || idea.category === filter;
         const matchesMultiCategory = categoryFilters.length ? categoryFilters.includes(idea.category) : true;
-        const matchesMultiStatus = statusFilters.length ? statusFilters.includes(idea.status === 'UNDER_REVIEW' ? 'PENDING_REVIEW' : (idea.status === 'IMPLEMENTED' ? 'PROMOTED_TO_PROJECT' : idea.status)) : true;
-        const matchesSearch = idea.title.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-                            idea.description.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-                            idea.tags.some(tag => tag.toLowerCase().includes(debouncedSearch.toLowerCase()));
+        const matchesMultiStatus = statusFilters.length
+            ? statusFilters.includes(idea.status === 'UNDER_REVIEW' ? 'PENDING_REVIEW' : idea.status === 'IMPLEMENTED' ? 'PROMOTED_TO_PROJECT' : idea.status)
+            : true;
+        const matchesSearch =
+            idea.title.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+            idea.description.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+            idea.tags.some((tag) => tag.toLowerCase().includes(debouncedSearch.toLowerCase()));
         return matchesCategoryUI && matchesMultiCategory && matchesMultiStatus && matchesSearch;
     });
 
     return (
         <div className="space-y-6">
-            {/* Header */}
-            <div className="flex items-start justify-between">
-                <div>
-                    <h1 className="text-4xl font-black text-gray-900 dark:text-white flex items-center gap-3">
-                        <svg className="w-12 h-12 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" role="img" aria-label="diamond">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-                        </svg>
-                        {t('innovation.view.title')}
-                    </h1>
-                    <p className="text-lg text-gray-600 dark:text-gray-400 mt-2">
-                        {t('innovation.view.subtitle')}
-                    </p>
+            {/* Hero Header */}
+            <div className="panel bg-gradient-to-r from-cyan-600 to-blue-600 text-white overflow-hidden relative">
+                <div className="absolute inset-0 opacity-10 pointer-events-none">
+                    <div className="absolute -top-16 -right-16 w-80 h-80 bg-white rounded-full" />
+                    <div className="absolute -bottom-20 -left-20 w-64 h-64 bg-white rounded-full" />
                 </div>
-                <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 p-1 rounded-lg">
-                    <button
-                        onClick={() => setViewMode('grid')}
-                        className={`p-2 rounded ${viewMode === 'grid' ? 'bg-white dark:bg-gray-700 shadow' : ''}`}
-                        aria-label={t('innovation.view.viewMode.grid')}
-                        aria-pressed={viewMode === 'grid'}
-                    >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-                        </svg>
-                    </button>
-                    <button
-                        onClick={() => setViewMode('list')}
-                        className={`p-2 rounded ${viewMode === 'list' ? 'bg-white dark:bg-gray-700 shadow' : ''}`}
-                        aria-label={t('innovation.view.viewMode.list')}
-                        aria-pressed={viewMode === 'list'}
-                    >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                        </svg>
-                    </button>
+                <div className="relative z-10 p-6 sm:p-8">
+                    <div className="flex items-start justify-between gap-6 flex-wrap">
+                        <div className="flex-1 min-w-[280px]">
+                            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/15 backdrop-blur-md text-xs font-semibold mb-3">
+                                <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse" />
+                                <span>{t('innovation.view.badge', { defaultValue: 'Idea Gallery' })}</span>
+                            </div>
+                            <h1 className="text-3xl sm:text-4xl font-black flex items-center gap-3 mb-2">
+                                <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24" role="img" aria-label="diamond" aria-hidden="true">
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
+                                    />
+                                </svg>
+                                {t('innovation.view.title')}
+                            </h1>
+                            <p className="text-white/90 max-w-2xl">{t('innovation.view.subtitle')}</p>
+                        </div>
+                        <div className="flex items-center gap-2 bg-white/15 backdrop-blur-sm p-1 rounded-lg">
+                            <button
+                                onClick={() => setViewMode('grid')}
+                                className={`p-3 rounded transition-all ${viewMode === 'grid' ? 'bg-white/30 text-white shadow' : 'text-white/70 hover:text-white'}`}
+                                aria-label={t('innovation.view.viewMode.grid')}
+                                aria-pressed={viewMode === 'grid'}
+                            >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"
+                                    />
+                                </svg>
+                            </button>
+                            <button
+                                onClick={() => setViewMode('list')}
+                                className={`p-3 rounded transition-all ${viewMode === 'list' ? 'bg-white/30 text-white shadow' : 'text-white/70 hover:text-white'}`}
+                                aria-label={t('innovation.view.viewMode.list')}
+                                aria-pressed={viewMode === 'list'}
+                            >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Summary Strip */}
+            <div className="panel bg-gradient-to-r from-slate-50 to-indigo-50 dark:from-slate-900/20 dark:to-indigo-900/20 border border-indigo-200/60 dark:border-indigo-800/40">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300 text-xs font-semibold">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                        {t('innovation.view.summary.live', { defaultValue: 'Live' })}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 text-sm">
+                        <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            {t('innovation.view.summary.underReview', { defaultValue: 'Under Review' })}: {counts.underReview}
+                        </span>
+                        <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                            {t('innovation.view.summary.approved', { defaultValue: 'Approved' })}: {counts.approved}
+                        </span>
+                        <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                            </svg>
+                            {t('innovation.view.summary.implemented', { defaultValue: 'Promoted' })}: {counts.implemented}
+                        </span>
+                        <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100 text-slate-800 dark:bg-slate-800/60 dark:text-slate-300">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                            {t('innovation.view.summary.total', { defaultValue: 'Total' })}: {counts.total}
+                        </span>
+                    </div>
                 </div>
             </div>
 
@@ -227,13 +307,15 @@ const ViewIdeas = () => {
                     <div className="flex flex-col gap-2">
                         <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{t('innovation.view.filters.category')}</span>
                         <div className="flex flex-wrap gap-2">
-                            {['PROCESS_IMPROVEMENT','TECHNOLOGY','CUSTOMER_SERVICE','SUSTAINABILITY','COST_REDUCTION','PRODUCT_INNOVATION','OTHER'].map((cat) => {
+                            {['PROCESS_IMPROVEMENT', 'TECHNOLOGY', 'CUSTOMER_SERVICE', 'SUSTAINABILITY', 'COST_REDUCTION', 'PRODUCT_INNOVATION', 'OTHER'].map((cat) => {
                                 const active = categoryFilters.includes(cat);
                                 return (
                                     <button
                                         key={cat}
-                                        onClick={() => setCategoryFilters(active ? categoryFilters.filter(c => c !== cat) : [...categoryFilters, cat])}
-                                        className={`px-3 py-1 rounded-full text-xs font-medium transition ${active ? 'bg-primary text-white shadow' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
+                                        onClick={() => setCategoryFilters(active ? categoryFilters.filter((c) => c !== cat) : [...categoryFilters, cat])}
+                                        className={`px-3 py-1 rounded-full text-xs font-medium transition ${
+                                            active ? 'bg-primary text-white shadow' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                                        }`}
                                         aria-pressed={active}
                                     >
                                         {t(`innovation.categories.${cat}`)}
@@ -245,13 +327,15 @@ const ViewIdeas = () => {
                     <div className="flex flex-col gap-2">
                         <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{t('innovation.view.filters.status')}</span>
                         <div className="flex flex-wrap gap-2">
-                            {['PENDING_REVIEW','APPROVED','REJECTED','PROMOTED_TO_PROJECT','DRAFT'].map((s) => {
+                            {['PENDING_REVIEW', 'APPROVED', 'REJECTED', 'PROMOTED_TO_PROJECT', 'DRAFT'].map((s) => {
                                 const active = statusFilters.includes(s);
                                 return (
                                     <button
                                         key={s}
-                                        onClick={() => setStatusFilters(active ? statusFilters.filter(x => x !== s) : [...statusFilters, s])}
-                                        className={`px-3 py-1 rounded-full text-xs font-medium transition ${active ? 'bg-secondary text-white shadow' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
+                                        onClick={() => setStatusFilters(active ? statusFilters.filter((x) => x !== s) : [...statusFilters, s])}
+                                        className={`px-3 py-1 rounded-full text-xs font-medium transition ${
+                                            active ? 'bg-secondary text-white shadow' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                                        }`}
                                         aria-pressed={active}
                                     >
                                         {t(`innovation.view.statusFilter.${s}`, { defaultValue: s })}
@@ -263,11 +347,13 @@ const ViewIdeas = () => {
                     <div className="flex flex-col gap-2">
                         <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{t('innovation.view.filters.sort')}</span>
                         <div className="flex gap-2">
-                            {(['recent','popular','trending'] as const).map((srt) => (
+                            {(['recent', 'popular', 'trending'] as const).map((srt) => (
                                 <button
                                     key={srt}
                                     onClick={() => setSortBy(srt)}
-                                    className={`px-3 py-1 rounded-full text-xs font-medium transition ${sortBy === srt ? 'bg-primary/80 text-white shadow' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
+                                    className={`px-3 py-1 rounded-full text-xs font-medium transition ${
+                                        sortBy === srt ? 'bg-primary/80 text-white shadow' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                                    }`}
                                     aria-pressed={sortBy === srt}
                                 >
                                     <span className="inline-flex items-center gap-1.5">
@@ -278,7 +364,12 @@ const ViewIdeas = () => {
                                         )}
                                         {srt === 'popular' && (
                                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                                                <path
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                    strokeWidth={2}
+                                                    d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
+                                                />
                                             </svg>
                                         )}
                                         {srt === 'trending' && (
@@ -295,7 +386,12 @@ const ViewIdeas = () => {
                     <div className="flex flex-col gap-2">
                         <button
                             type="button"
-                            onClick={() => { setCategoryFilters([]); setStatusFilters([]); setSortBy('recent'); setFilter('all'); }}
+                            onClick={() => {
+                                setCategoryFilters([]);
+                                setStatusFilters([]);
+                                setSortBy('recent');
+                                setFilter('all');
+                            }}
                             className="btn btn-outline-danger btn-sm"
                         >
                             {t('innovation.view.filters.clearAll', { defaultValue: 'Clear Filters' })}
@@ -307,7 +403,7 @@ const ViewIdeas = () => {
             {/* Ideas Display */}
             {isLoading ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {[1,2,3,4,5,6].map((i) => (
+                    {[1, 2, 3, 4, 5, 6].map((i) => (
                         <div key={i} className="rounded-2xl overflow-hidden shadow-md animate-pulse bg-white dark:bg-gray-800 h-64"></div>
                     ))}
                 </div>
@@ -340,25 +436,19 @@ const ViewIdeas = () => {
                                                     loading="lazy"
                                                 />
                                                 {idea.attachmentsCount && idea.attachmentsCount > 1 && (
-                                                    <span className="absolute -top-2 -right-2 bg-black/80 text-white text-xs rounded-full px-2 py-0.5">
-                                                        +{idea.attachmentsCount - 1}
-                                                    </span>
+                                                    <span className="absolute -top-2 -right-2 bg-black/80 text-white text-xs rounded-full px-2 py-0.5">+{idea.attachmentsCount - 1}</span>
                                                 )}
                                             </div>
                                         </div>
                                     )}
                                     <div className="absolute bottom-3 left-3 right-3">
-                                        <h3 className="text-white font-bold text-lg line-clamp-2 drop-shadow-lg">
-                                            {idea.title}
-                                        </h3>
+                                        <h3 className="text-white font-bold text-lg line-clamp-2 drop-shadow-lg">{idea.title}</h3>
                                     </div>
                                 </div>
 
                                 {/* Content */}
                                 <div className="p-5">
-                                    <p className="text-gray-600 dark:text-gray-400 text-sm line-clamp-3 mb-4">
-                                        {idea.description}
-                                    </p>
+                                    <p className="text-gray-600 dark:text-gray-400 text-sm line-clamp-3 mb-4">{idea.description}</p>
 
                                     {/* Tags */}
                                     <div className="flex flex-wrap gap-2 mb-4">
@@ -387,7 +477,12 @@ const ViewIdeas = () => {
                                             <span className="flex items-center gap-1 text-gray-600 dark:text-gray-400">
                                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                    <path
+                                                        strokeLinecap="round"
+                                                        strokeLinejoin="round"
+                                                        strokeWidth={2}
+                                                        d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                                                    />
                                                 </svg>
                                                 {t('innovation.view.engagement.views', { count: idea.viewCount })}
                                             </span>
@@ -415,25 +510,17 @@ const ViewIdeas = () => {
                     {filteredIdeas.map((idea) => {
                         const statusBadge = getStatusBadge(idea.status);
                         return (
-                            <Link
-                                key={idea.id}
-                                to={`/innovation/ideas/${idea.id}`}
-                                className="panel hover:shadow-lg transition-all group"
-                            >
+                            <Link key={idea.id} to={`/innovation/ideas/${idea.id}`} className="panel hover:shadow-lg transition-all group">
                                 <div className="flex gap-4">
                                     <div className={`w-2 rounded-full bg-gradient-to-b ${getCategoryColor(idea.category)}`}></div>
                                     <div className="flex-1">
                                         <div className="flex items-start justify-between gap-4 mb-2">
-                                            <h3 className="text-xl font-bold text-gray-900 dark:text-white group-hover:text-primary transition-colors">
-                                                {idea.title}
-                                            </h3>
+                                            <h3 className="text-xl font-bold text-gray-900 dark:text-white group-hover:text-primary transition-colors">{idea.title}</h3>
                                             <span className={`px-3 py-1 rounded-full text-xs font-bold ${statusBadge.color} whitespace-nowrap`}>
                                                 {statusBadge.icon} {t(`innovation.view.status.${idea.status === 'UNDER_REVIEW' ? 'underReview' : idea.status.toLowerCase()}`)}
                                             </span>
                                         </div>
-                                        <p className="text-gray-600 dark:text-gray-400 mb-3">
-                                            {idea.description}
-                                        </p>
+                                        <p className="text-gray-600 dark:text-gray-400 mb-3">{idea.description}</p>
                                         <div className="flex items-center justify-between">
                                             <div className="flex flex-wrap gap-2">
                                                 {idea.tags.map((tag, idx) => (
@@ -458,7 +545,12 @@ const ViewIdeas = () => {
                                                 <span className="flex items-center gap-1">
                                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                        <path
+                                                            strokeLinecap="round"
+                                                            strokeLinejoin="round"
+                                                            strokeWidth={2}
+                                                            d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                                                        />
                                                     </svg>
                                                     {t('innovation.view.engagement.views', { count: idea.viewCount })}
                                                 </span>
@@ -486,7 +578,13 @@ const ViewIdeas = () => {
                     </svg>
                     <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{t('innovation.view.empty.title')}</h3>
                     <p className="text-gray-600 dark:text-gray-400 mb-6">{t('innovation.view.empty.message')}</p>
-                    <button onClick={() => { setSearchTerm(''); setFilter('all'); }} className="btn btn-outline-primary">
+                    <button
+                        onClick={() => {
+                            setSearchTerm('');
+                            setFilter('all');
+                        }}
+                        className="btn btn-outline-primary"
+                    >
                         {t('innovation.view.empty.action')}
                     </button>
                 </div>

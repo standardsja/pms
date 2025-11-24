@@ -1,47 +1,48 @@
 // Shared request-related TypeScript interfaces
 
 export interface RequestItem {
-	description: string;
-	quantity: number;
-	unitPrice: number;
+    description: string;
+    quantity: number;
+    unitPrice: number;
 }
 
 export interface CommentEntry {
-	actor: string;
-	date: string; // ISO date string or human-readable date
-	text: string;
+    actor: string;
+    date: string; // ISO date string or human-readable date
+    text: string;
 }
 
 export interface StatusHistoryEntry {
-	status: string;
-	date: string; // ISO date string or human-readable date
-	actor: string;
-	note: string;
+    status: string;
+    date: string; // ISO date string or human-readable date
+    actor: string;
+    note: string;
 }
 
 export interface Request {
-	id: string;
-	title: string;
-	requester: string;
-	department: string;
-	status: string;
-	date: string;
-	items: RequestItem[];
-	totalEstimated: number;
-	fundingSource?: string;
-	budgetCode?: string;
-	// Optional assignee metadata for routing/filters (present when backend includes it)
-	currentAssigneeId?: number | null;
-	currentAssigneeName?: string;
-	justification: string;
-	comments: CommentEntry[];
-	statusHistory: StatusHistoryEntry[];
+    id: string;
+    title: string;
+    requester: string;
+    department: string;
+    status: string;
+    date: string;
+    items: RequestItem[];
+    totalEstimated: number;
+    fundingSource?: string;
+    budgetCode?: string;
+    procurementType?: string[]; // Array of procurement types: ['goods', 'consulting', etc.]
+    currency?: string;
+    // Optional assignee metadata for routing/filters (present when backend includes it)
+    currentAssigneeId?: number | null;
+    currentAssigneeName?: string;
+    justification: string;
+    comments: CommentEntry[];
+    statusHistory: StatusHistoryEntry[];
 }
 
 export interface ApiResponse<T = any> {
-	success?: boolean;
-	message?: string;
-	data?: T;
-	errors?: Record<string, string[]>;
+    success?: boolean;
+    message?: string;
+    data?: T;
+    errors?: Record<string, string[]>;
 }
-

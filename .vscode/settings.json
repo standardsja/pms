@@ -35,5 +35,6 @@
         "typescript": "javascript",
         "typescriptreact": "javascript"
     },
-    "prisma.showPrismaDataPlatformNotification": false
+    "prisma.showPrismaDataPlatformNotification": false,
+    "prisma.pinToPrisma6": true
 }

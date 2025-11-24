@@ -8,8 +8,9 @@ import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import { Request, ApiResponse } from '../../../types/request.types';
 import { getStatusBadge } from '../../../utils/statusBadges';
-import { searchRequests, filterRequests, onlyMine, paginate, formatDate, sortRequestsByDateDesc, adaptRequestsResponse } from '../../../utils/requestUtils';
+import { searchRequests, filterRequests, onlyMine, paginate, formatDate, sortRequestsByDateDesc, adaptRequestsResponse, normalizeStatus } from '../../../utils/requestUtils';
 import RequestDetailsContent from '../../../components/RequestDetailsContent';
+import { checkExecutiveThreshold, getThresholdBadge, shouldShowThresholdNotification } from '../../../utils/thresholdUtils';
 
 const MySwal = withReactContent(Swal);
 
@@ -17,7 +18,7 @@ const Requests = () => {
     const dispatch = useDispatch();
     const navigate = useNavigate();
     const location = useLocation();
-    
+
     useEffect(() => {
         dispatch(setPageTitle('Requests'));
     }, [dispatch]);
@@ -28,7 +29,8 @@ const Requests = () => {
 
     // Current user from localStorage (aligns with RequestForm pattern)
     const [currentUserName, setCurrentUserName] = useState<string>('');
-    const [currentUserId, setCurrentUserId] = useState<number|null>(null);
+    const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+    const [currentUserRoles, setCurrentUserRoles] = useState<string[]>([]);
     const showMineOnly = location.pathname.endsWith('/mine');
 
     // Load current user (supports session/local storage + legacy userProfile)
@@ -38,10 +40,20 @@ const Requests = () => {
             const legacyRaw = localStorage.getItem('userProfile');
             const user = authRaw ? JSON.parse(authRaw) : legacyRaw ? JSON.parse(legacyRaw) : null;
             setCurrentUserName(user?.name || user?.fullName || '');
-            setCurrentUserId(user?.id ? Number(user.id) : (user?.userId ? Number(user.userId) : null));
+            setCurrentUserId(user?.id ? Number(user.id) : user?.userId ? Number(user.userId) : null);
+
+            // Safely extract roles, ensuring we have a clean array of strings
+            let roles: string[] = [];
+            if (user?.roles && Array.isArray(user.roles)) {
+                roles = user.roles.filter(Boolean); // Remove any falsy values
+            } else if (user?.role) {
+                roles = [user.role];
+            }
+            setCurrentUserRoles(roles);
         } catch {
             setCurrentUserName('');
             setCurrentUserId(null);
+            setCurrentUserRoles([]);
         }
     }, []);
 
@@ -95,22 +107,16 @@ const Requests = () => {
 
     const sorted = useMemo(() => sortRequestsByDateDesc(requests), [requests]);
     const searched = useMemo(() => searchRequests(sorted, query), [sorted, query]);
-    const filteredByMeta = useMemo(
-        () => filterRequests(searched, { status: statusFilter, department: departmentFilter }),
-        [searched, statusFilter, departmentFilter]
-    );
+    const filteredByMeta = useMemo(() => filterRequests(searched, { status: statusFilter, department: departmentFilter }), [searched, statusFilter, departmentFilter]);
     // Show requests where user is requester or current assignee
-    const filteredRequests = useMemo(
-        () => {
-            if (!showMineOnly) return filteredByMeta;
-            return filteredByMeta.filter(r => {
-                // @ts-ignore: backend may return string or number for id
-                const assigneeId = r.currentAssigneeId ? Number(r.currentAssigneeId) : null;
-                return (r.requester === currentUserName) || (currentUserId && assigneeId === currentUserId);
-            });
-        },
-        [showMineOnly, filteredByMeta, currentUserName, currentUserId]
-    );
+    const filteredRequests = useMemo(() => {
+        if (!showMineOnly) return filteredByMeta;
+        return filteredByMeta.filter((r) => {
+            // @ts-ignore: backend may return string or number for id
+            const assigneeId = r.currentAssigneeId ? Number(r.currentAssigneeId) : null;
+            return r.requester === currentUserName || (currentUserId && assigneeId === currentUserId);
+        });
+    }, [showMineOnly, filteredByMeta, currentUserName, currentUserId]);
 
     // Pagination
     const [page, setPage] = useState<number>(() => {
@@ -124,14 +130,34 @@ const Requests = () => {
     // Keep URL query params in sync with current UI state
     useEffect(() => {
         const params = new URLSearchParams(location.search);
-        if (query) params.set('q', query); else params.delete('q');
-        if (statusFilter) params.set('status', statusFilter); else params.delete('status');
-        if (departmentFilter) params.set('dept', departmentFilter); else params.delete('dept');
-        if (page > 1) params.set('page', String(page)); else params.delete('page');
+        if (query) params.set('q', query);
+        else params.delete('q');
+        if (statusFilter) params.set('status', statusFilter);
+        else params.delete('status');
+        if (departmentFilter) params.set('dept', departmentFilter);
+        else params.delete('dept');
+        if (page > 1) params.set('page', String(page));
+        else params.delete('page');
         const search = params.toString();
         navigate({ pathname: location.pathname, search: search ? `?${search}` : '' }, { replace: true });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [query, statusFilter, departmentFilter, page]);
+
+    // Calculate threshold notifications for procurement officers
+    const thresholdNotifications = useMemo(() => {
+        if (!shouldShowThresholdNotification(currentUserRoles)) return null;
+
+        const highValueRequests = filteredRequests.filter((r) => {
+            const procurementTypes = Array.isArray(r.procurementType) ? r.procurementType : [];
+            const alert = checkExecutiveThreshold(r.totalEstimated || 0, procurementTypes);
+            return alert.isRequired;
+        });
+
+        return {
+            count: highValueRequests.length,
+            requests: highValueRequests,
+        };
+    }, [currentUserRoles, filteredRequests]);
 
     // View request details modal (React content, no HTML strings)
     const viewDetails = (req: Request) => {
@@ -140,9 +166,10 @@ const Requests = () => {
             width: '800px',
             showCloseButton: true,
             showConfirmButton: false,
-            customClass: { popup: 'text-left' }
+            customClass: { popup: 'text-left' },
         });
-    };    return (
+    };
+    return (
         <div className="p-6">
             <div className="flex items-center justify-between mb-6">
                 <div>
@@ -150,16 +177,28 @@ const Requests = () => {
                     <p className="text-sm text-muted-foreground">Manage acquisition and procurement requests</p>
                 </div>
                 <div>
-                    <button
-                        className="inline-flex items-center gap-2 px-4 py-2 rounded bg-primary text-white hover:opacity-95"
-                        type="button"
-                        onClick={() => navigate('/apps/requests/new')}
-                    >
+                    <button className="inline-flex items-center gap-2 px-4 py-2 rounded bg-primary text-white hover:opacity-95" type="button" onClick={() => navigate('/apps/requests/new')}>
                         <IconPlus />
                         New Request
                     </button>
                 </div>
             </div>
+
+            {/* Threshold notification banner for procurement officers */}
+            {thresholdNotifications && thresholdNotifications.count > 0 && (
+                <div className="mb-4 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                    <div className="flex items-center gap-2">
+                        <span className="text-orange-600 text-lg">⚠️</span>
+                        <div className="flex-1">
+                            <p className="text-orange-800 font-medium">Executive Director Approval Required</p>
+                            <p className="text-orange-700 text-sm">
+                                {thresholdNotifications.count} request{thresholdNotifications.count !== 1 ? 's' : ''} exceed{thresholdNotifications.count === 1 ? 's' : ''} procurement thresholds and
+                                require Executive Director evaluation before proceeding.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Filter & Search controls */}
             <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -193,7 +232,10 @@ const Requests = () => {
                 <input
                     type="text"
                     value={query}
-                    onChange={(e) => { setQuery(e.target.value); setPage(1); }}
+                    onChange={(e) => {
+                        setQuery(e.target.value);
+                        setPage(1);
+                    }}
                     placeholder="Search by ID, Title, Requester, Dept"
                     className="form-input w-64"
                     aria-label="Search requests"
@@ -201,45 +243,55 @@ const Requests = () => {
 
                 <select
                     value={statusFilter}
-                    onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+                    onChange={(e) => {
+                        setStatusFilter(e.target.value);
+                        setPage(1);
+                    }}
                     className="form-select"
                     aria-label="Filter by status"
                 >
                     <option value="">All Statuses</option>
-                    <option>Pending Finance</option>
-                    <option>Finance Verified</option>
-                    <option>Pending Procurement</option>
-                    <option>Approved</option>
-                    <option>Returned by Finance</option>
-                    <option>Rejected</option>
-                    <option>Fulfilled</option>
+                    {[
+                        ...new Set(
+                            requests
+                                .map((r) => r.status)
+                                .map((s) => s && s.trim())
+                                .filter(Boolean)
+                        ),
+                    ]
+                        .map((s) => ({ raw: s as string, norm: normalizeStatus(s as string) }))
+                        .sort((a, b) => a.norm.localeCompare(b.norm))
+                        .map(({ raw, norm }) => (
+                            <option key={raw} value={norm}>
+                                {norm}
+                            </option>
+                        ))}
                 </select>
 
                 <select
                     value={departmentFilter}
-                    onChange={(e) => { setDepartmentFilter(e.target.value); setPage(1); }}
+                    onChange={(e) => {
+                        setDepartmentFilter(e.target.value);
+                        setPage(1);
+                    }}
                     className="form-select"
                     aria-label="Filter by department"
                 >
                     <option value="">All Departments</option>
-                    {[...new Set(requests.map(r => r.department).filter(Boolean) as string[])]
+                    {[...new Set(requests.map((f) => f.department).filter(Boolean) as string[])]
                         .sort((a, b) => a.localeCompare(b))
-                        .map(dep => (
-                            <option key={dep} value={dep}>{dep}</option>
+                        .map((dep) => (
+                            <option key={dep} value={dep}>
+                                {dep}
+                            </option>
                         ))}
                 </select>
             </div>
 
             <div className="bg-white dark:bg-slate-800 shadow rounded overflow-hidden" aria-busy={isLoading}>
-                {isLoading && (
-                    <div className="p-6 text-center text-sm text-gray-500">Loading requests…</div>
-                )}
-                {error && !isLoading && (
-                    <div className="p-6 text-center text-sm text-red-600">{error}</div>
-                )}
-                {!isLoading && !error && filteredRequests.length === 0 && (
-                    <div className="p-6 text-center text-sm text-gray-500">No requests found.</div>
-                )}
+                {isLoading && <div className="p-6 text-center text-sm text-gray-500">Loading requests…</div>}
+                {error && !isLoading && <div className="p-6 text-center text-sm text-red-600">{error}</div>}
+                {!isLoading && !error && filteredRequests.length === 0 && <div className="p-6 text-center text-sm text-gray-500">No requests found.</div>}
                 <table className="min-w-full table-auto">
                     <thead className="bg-slate-50 dark:bg-slate-700 text-sm">
                         <tr>
@@ -256,17 +308,34 @@ const Requests = () => {
                     <tbody className="text-sm">
                         {paged.map((r) => {
                             const badge = getStatusBadge(r.status);
+
+                            // Check if this request exceeds executive threshold
+                            const procurementTypes = Array.isArray(r.procurementType) ? r.procurementType : [];
+                            const thresholdAlert = checkExecutiveThreshold(r.totalEstimated || 0, procurementTypes);
+                            const thresholdBadge = getThresholdBadge(thresholdAlert);
+                            const showThresholdAlert = shouldShowThresholdNotification(currentUserRoles) && thresholdAlert.isRequired;
+
                             return (
                                 <tr key={r.id} className="border-t last:border-b hover:bg-slate-50 dark:hover:bg-slate-700">
                                     <td className="px-4 py-3 font-medium">{r.id}</td>
-                                    <td className="px-4 py-3">{r.title}</td>
+                                    <td className="px-4 py-3">
+                                        <div className="flex flex-col gap-1">
+                                            <span>{r.title}</span>
+                                            {showThresholdAlert && (
+                                                <div className="flex items-center gap-1">
+                                                    <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium border ${thresholdBadge.className}`}>
+                                                        <span>{thresholdBadge.icon}</span>
+                                                        {thresholdBadge.text}
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </td>
                                     <td className="px-4 py-3">{r.requester}</td>
                                     <td className="px-4 py-3">{r.department}</td>
                                     <td className="px-4 py-3">
                                         {r.currentAssigneeName ? (
-                                            <span className="text-blue-600 dark:text-blue-400 font-medium">
-                                                {r.currentAssigneeName}
-                                            </span>
+                                            <span className="text-blue-600 dark:text-blue-400 font-medium">{r.currentAssigneeName}</span>
                                         ) : (
                                             <span className="text-gray-400 dark:text-gray-500 italic">—</span>
                                         )}
@@ -288,10 +357,7 @@ const Requests = () => {
                                                 <IconEye className="w-5 h-5" />
                                             </button>
                                             {currentUserId && r.currentAssigneeId != null && Number(r.currentAssigneeId) === Number(currentUserId) && (
-                                                <button
-                                                    className="px-3 py-1 rounded bg-blue-600 text-white text-sm hover:bg-blue-700"
-                                                    onClick={() => navigate(`/apps/requests/edit/${r.id}`)}
-                                                >
+                                                <button className="px-3 py-1 rounded bg-blue-600 text-white text-sm hover:bg-blue-700" onClick={() => navigate(`/apps/requests/edit/${r.id}`)}>
                                                     Review
                                                 </button>
                                             )}
@@ -309,19 +375,13 @@ const Requests = () => {
                             Showing {(page - 1) * pageSize + 1}-{Math.min(page * pageSize, filteredRequests.length)} of {filteredRequests.length}
                         </div>
                         <div className="flex items-center gap-2">
-                            <button
-                                className="px-3 py-1 rounded border disabled:opacity-50"
-                                onClick={() => setPage(p => Math.max(1, p - 1))}
-                                disabled={page === 1}
-                            >
+                            <button className="px-3 py-1 rounded border disabled:opacity-50" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>
                                 Previous
                             </button>
-                            <span>Page {page} of {pageCount}</span>
-                            <button
-                                className="px-3 py-1 rounded border disabled:opacity-50"
-                                onClick={() => setPage(p => Math.min(pageCount, p + 1))}
-                                disabled={page === pageCount}
-                            >
+                            <span>
+                                Page {page} of {pageCount}
+                            </span>
+                            <button className="px-3 py-1 rounded border disabled:opacity-50" onClick={() => setPage((p) => Math.min(pageCount, p + 1))} disabled={page === pageCount}>
                                 Next
                             </button>
                         </div>
