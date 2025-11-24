@@ -88,9 +88,7 @@ const FinanceRequests = () => {
                 const data = await res.json();
 
                 // Safely filter for finance-related statuses
-                const financeRequests = Array.isArray(data) 
-                    ? data.filter((r: any) => r && (r.status === 'FINANCE_REVIEW' || r.status === 'BUDGET_MANAGER_REVIEW'))
-                    : [];
+                const financeRequests = Array.isArray(data) ? data.filter((r: any) => r && (r.status === 'FINANCE_REVIEW' || r.status === 'BUDGET_MANAGER_REVIEW')) : [];
 
                 setRequests(financeRequests);
             } catch (err: any) {
