@@ -233,9 +233,7 @@ const AssignRequests = () => {
                                         key={req.id}
                                         onClick={() => setSelectedRequest(req.id)}
                                         className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                                            isSelected
-                                                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                                                : 'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-700'
+                                            isSelected ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-700'
                                         }`}
                                     >
                                         <div className="flex items-start justify-between mb-2">

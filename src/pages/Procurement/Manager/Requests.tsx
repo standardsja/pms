@@ -200,9 +200,7 @@ const ProcurementManagerRequests = () => {
         <div className="p-6">
             <div className="mb-6">
                 <h1 className="text-2xl font-semibold">Procurement Manager Queue</h1>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                    Review requests awaiting procurement processing. You can self-assign requests or delegate them to procurement officers.
-                </p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Review requests awaiting procurement processing. You can self-assign requests or delegate them to procurement officers.</p>
             </div>
 
             <div className="bg-white dark:bg-slate-800 shadow rounded overflow-hidden">

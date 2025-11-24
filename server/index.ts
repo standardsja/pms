@@ -2847,7 +2847,7 @@ app.get('/procurement/load-balancing-settings', async (req, res) => {
         // Check if settings table exists, if not return default settings
         // For now, we'll store settings in a simple JSON format in the database
         // You may want to create a dedicated Settings table in schema.prisma
-        
+
         // Return default settings for now
         // TODO: Implement persistent storage in database
         const defaultSettings = {

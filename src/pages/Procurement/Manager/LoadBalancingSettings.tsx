@@ -280,9 +280,7 @@ const LoadBalancingSettings = () => {
                     <button
                         onClick={handleSave}
                         disabled={saving}
-                        className={`flex-1 px-6 py-3 rounded-lg font-semibold text-white transition-colors ${
-                            saving ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
-                        }`}
+                        className={`flex-1 px-6 py-3 rounded-lg font-semibold text-white transition-colors ${saving ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
                     >
                         {saving ? 'Saving...' : 'Save Settings'}
                     </button>
