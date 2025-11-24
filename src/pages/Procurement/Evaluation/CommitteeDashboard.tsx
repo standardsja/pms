@@ -49,7 +49,7 @@ const CommitteeDashboard = () => {
         const roles = (u?.roles || (u?.role ? [u.role] : [])).map((r) => r.toUpperCase());
         const isCommittee = roles.some((role) => role.includes('COMMITTEE') || role.includes('EVALUATION_COMMITTEE'));
         if (!isCommittee) {
-            navigate('/evaluation/committee/dashboard');
+            navigate('/procurement/evaluation');
         }
     }, [navigate]);
 

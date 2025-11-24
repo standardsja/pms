@@ -181,8 +181,13 @@ export interface CreateEvaluationDTO {
     rfqTitle: string;
     description?: string;
     sectionA?: SectionA;
+    sectionB?: SectionB;
+    sectionC?: SectionC;
+    sectionD?: SectionD;
+    sectionE?: SectionE;
     evaluator?: string;
     dueDate?: string;
+    submitToCommittee?: boolean;
 }
 
 export interface UpdateEvaluationDTO {

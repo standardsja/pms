@@ -100,6 +100,14 @@ const EvaluationList = () => {
         return base;
     }, [evaluations]);
 
+    const hasNewSubmissions = (e: Evaluation) => {
+        try {
+            return e.sectionAStatus === 'SUBMITTED' || e.sectionBStatus === 'SUBMITTED' || e.sectionCStatus === 'SUBMITTED' || e.sectionDStatus === 'SUBMITTED' || e.sectionEStatus === 'SUBMITTED';
+        } catch {
+            return false;
+        }
+    };
+
     const handleViewDetails = (evaluationId: number) => {
         navigate(`/procurement/evaluation/${evaluationId}`);
     };
@@ -271,7 +279,10 @@ const EvaluationList = () => {
                                         <td>{evaluation.evaluator || evaluation.creator.name || '-'}</td>
                                         <td>{formatDate(evaluation.dueDate)}</td>
                                         <td>
-                                            <span className={`badge ${getStatusBadge(evaluation.status)}`}>{statusMap[evaluation.status]}</span>
+                                            <div className="flex items-center gap-2">
+                                                <span className={`badge ${getStatusBadge(evaluation.status)}`}>{statusMap[evaluation.status]}</span>
+                                                {isCommittee && hasNewSubmissions(evaluation) && <span className="badge bg-info">New</span>}
+                                            </div>
                                         </td>
                                         <td>
                                             <div className="flex gap-2">
@@ -282,11 +293,7 @@ const EvaluationList = () => {
                                                 >
                                                     <IconEye className="h-4 w-4" />
                                                 </button>
-                                                {isProcurement && (
-                                                    <Link to={`/procurement/evaluation/${evaluation.id}/workspace`} className="btn btn-sm btn-warning" title="Work on Evaluation">
-                                                        <IconEdit className="h-4 w-4" />
-                                                    </Link>
-                                                )}
+                                                {/* Workspace removed as per new flow */}
                                                 {isCommittee && (
                                                     <Link to={`/evaluation/${evaluation.id}/committee`} className="btn btn-sm btn-outline-info" title="Committee Verification">
                                                         <IconUsersGroup className="h-4 w-4" />

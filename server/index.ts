@@ -25,7 +25,7 @@ import { initWebSocket, emitIdeaCreated, emitIdeaStatusChanged, emitVoteUpdated,
 import { initAnalyticsJob, stopAnalyticsJob, getAnalytics, getCategoryAnalytics, getTimeBasedAnalytics } from './services/analyticsService';
 import { requestMonitoringMiddleware, trackCacheHit, trackCacheMiss, getMetrics, getHealthStatus, getSlowEndpoints, getErrorProneEndpoints } from './services/monitoringService';
 import type { Prisma } from '@prisma/client';
-import { requireCommittee as requireCommitteeRole, requireAdmin } from './middleware/rbac';
+import { requireCommittee as requireCommitteeRole, requireEvaluationCommittee, requireAdmin } from './middleware/rbac';
 import { validate, createIdeaSchema, voteSchema, approveRejectIdeaSchema, promoteIdeaSchema, sanitizeInput as sanitize } from './middleware/validation';
 import { errorHandler, notFoundHandler, asyncHandler, NotFoundError, BadRequestError } from './middleware/errorHandler';
 import statsRouter from './routes/stats';
@@ -3241,7 +3241,8 @@ app.post(
     authMiddleware,
     asyncHandler(async (req, res) => {
         const user = (req as any).user;
-        const { evalNumber, rfqNumber, rfqTitle, description, sectionA, dueDate, evaluator } = req.body;
+        const { evalNumber, rfqNumber, rfqTitle, description, sectionA, sectionB, sectionC, sectionD, sectionE, dueDate, evaluator, submitToCommittee: submitToCommitteeRaw } = req.body;
+        const submitToCommittee = Boolean(submitToCommitteeRaw);
 
         // JWT payload uses 'sub' for user ID, fallback to 'id' for compatibility
         const userId = user?.sub || user?.id;
@@ -3280,10 +3281,19 @@ app.post(
                         rfqTitle,
                         description: description || null,
                         sectionA: sectionA || null,
+                        sectionAStatus: sectionA && submitToCommittee ? 'SUBMITTED' : 'NOT_STARTED',
+                        sectionB: sectionB || null,
+                        sectionBStatus: sectionB && submitToCommittee ? 'SUBMITTED' : 'NOT_STARTED',
+                        sectionC: sectionC || null,
+                        sectionCStatus: sectionC && submitToCommittee ? 'SUBMITTED' : 'NOT_STARTED',
+                        sectionD: sectionD || null,
+                        sectionDStatus: sectionD && submitToCommittee ? 'SUBMITTED' : 'NOT_STARTED',
+                        sectionE: sectionE || null,
+                        sectionEStatus: sectionE && submitToCommittee ? 'SUBMITTED' : 'NOT_STARTED',
                         evaluator: evaluator || null,
                         dueDate: dueDate ? new Date(dueDate) : null,
                         createdBy: userId,
-                        status: 'PENDING',
+                        status: submitToCommittee ? 'COMMITTEE_REVIEW' : 'IN_PROGRESS',
                     },
                     include: { creator: { select: { id: true, name: true, email: true } } },
                 });
@@ -3301,13 +3311,26 @@ app.post(
         // Fallback duplicate check via raw SQL
         const dupRows = await prisma.$queryRawUnsafe<any>(`SELECT id FROM Evaluation WHERE evalNumber='${evalNumber.replace(/'/g, "''")}' LIMIT 1`);
         if (dupRows[0]) throw new BadRequestError('Evaluation number already exists');
+
+        const evalStatus = submitToCommittee ? 'COMMITTEE_REVIEW' : 'IN_PROGRESS';
+
         await prisma.$executeRawUnsafe(
-            `INSERT INTO Evaluation (evalNumber, rfqNumber, rfqTitle, description, sectionA, createdBy, evaluator, dueDate, status, createdAt, updatedAt) VALUES (
-              '${evalNumber}', '${rfqNumber}', '${rfqTitle}', ${description ? `'${description.replace(/'/g, "''")}'` : 'NULL'}, ${
-                sectionA ? `'${JSON.stringify(sectionA).replace(/'/g, "''")}'` : 'NULL'
-            }, ${userId}, ${evaluator ? `'${evaluator.replace(/'/g, "''")}'` : 'NULL'}, ${
-                dueDate ? `'${new Date(dueDate).toISOString().slice(0, 19).replace('T', ' ')}'` : 'NULL'
-            }, 'PENDING', NOW(), NOW())`
+            `INSERT INTO Evaluation (evalNumber, rfqNumber, rfqTitle, description, sectionA, sectionAStatus, sectionB, sectionBStatus, sectionC, sectionCStatus, sectionD, sectionDStatus, sectionE, sectionEStatus, createdBy, evaluator, dueDate, status, createdAt, updatedAt) VALUES (
+                            '${evalNumber}', '${rfqNumber}', '${rfqTitle}', 
+                            ${description ? `'${description.replace(/'/g, "''")}'` : 'NULL'}, 
+                            ${sectionA ? `'${JSON.stringify(sectionA).replace(/'/g, "''")}'` : 'NULL'}, 
+                            ${sectionA && submitToCommittee ? "'SUBMITTED'" : "'NOT_STARTED'"},
+                            ${sectionB ? `'${JSON.stringify(sectionB).replace(/'/g, "''")}'` : 'NULL'}, 
+                            ${sectionB && submitToCommittee ? "'SUBMITTED'" : "'NOT_STARTED'"},
+                            ${sectionC ? `'${JSON.stringify(sectionC).replace(/'/g, "''")}'` : 'NULL'}, 
+                            ${sectionC && submitToCommittee ? "'SUBMITTED'" : "'NOT_STARTED'"},
+                            ${sectionD ? `'${JSON.stringify(sectionD).replace(/'/g, "''")}'` : 'NULL'}, 
+                            ${sectionD && submitToCommittee ? "'SUBMITTED'" : "'NOT_STARTED'"},
+                            ${sectionE ? `'${JSON.stringify(sectionE).replace(/'/g, "''")}'` : 'NULL'}, 
+                            ${sectionE && submitToCommittee ? "'SUBMITTED'" : "'NOT_STARTED'"},
+                            ${userId}, 
+                            ${evaluator ? `'${evaluator.replace(/'/g, "''")}'` : 'NULL'}, 
+                            ${dueDate ? `'${new Date(dueDate).toISOString().slice(0, 19).replace('T', ' ')}'` : 'NULL'}, '${evalStatus}', NOW(), NOW())`
         );
         const createdRow = await prisma.$queryRawUnsafe<any>(
             `SELECT e.*, uc.id AS creatorId, uc.name AS creatorName, uc.email AS creatorEmail FROM Evaluation e LEFT JOIN User uc ON e.createdBy = uc.id WHERE e.evalNumber='${evalNumber}' LIMIT 1`
@@ -3544,11 +3567,12 @@ app.post(
 app.post(
     '/api/evaluations/:id/sections/:section/verify',
     authMiddleware,
-    requireCommittee,
+    requireEvaluationCommittee,
     asyncHandler(async (req, res) => {
         const { id, section } = req.params;
         const { notes } = req.body;
-        const userId = req.user!.userId;
+        const userObj: any = (req as any).user;
+        const userId = userObj?.sub || userObj?.id;
         const sectionUpper = section.toUpperCase();
 
         if (!['A', 'B', 'C', 'D', 'E'].includes(sectionUpper)) {
@@ -3598,11 +3622,12 @@ app.post(
 app.post(
     '/api/evaluations/:id/sections/:section/return',
     authMiddleware,
-    requireCommittee,
+    requireEvaluationCommittee,
     asyncHandler(async (req, res) => {
         const { id, section } = req.params;
         const { notes } = req.body;
-        const userId = req.user!.userId;
+        const userObj: any = (req as any).user;
+        const userId = userObj?.sub || userObj?.id;
         const sectionUpper = section.toUpperCase();
 
         if (!['A', 'B', 'C', 'D', 'E'].includes(sectionUpper)) {
