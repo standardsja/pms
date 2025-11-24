@@ -18,6 +18,9 @@ const Onboarding = lazy(() => import('../pages/Procurement/Auth/Onboarding'));
 // Procurement Pages
 const ProcurementDashboard = lazy(() => import('../pages/Procurement/Dashboard'));
 const ProcurementManagerDashboard = lazy(() => import('../pages/Procurement/Manager/ProcurementManagerDashboard'));
+const ProcurementManagerRequests = lazy(() => import('../pages/Procurement/Manager/Requests'));
+const ProcurementManagerAssignRequests = lazy(() => import('../pages/Procurement/Manager/AssignRequests'));
+const ProcurementManagerLoadBalancingSettings = lazy(() => import('../pages/Procurement/Manager/LoadBalancingSettings'));
 const RFQsAwaitingApproval = lazy(() => import('../pages/Procurement/Manager/RFQsAwaitingApproval'));
 const EvaluationsToValidate = lazy(() => import('../pages/Procurement/Manager/EvaluationsToValidate'));
 const RFQList = lazy(() => import('../pages/Procurement/RFQ/RFQList'));
@@ -238,6 +241,18 @@ const routes = [
     {
         path: '/procurement/manager',
         element: <ProcurementManagerDashboard />,
+    },
+    {
+        path: '/procurement/manager/requests',
+        element: <ProcurementManagerRequests />,
+    },
+    {
+        path: '/procurement/manager/assign',
+        element: <ProcurementManagerAssignRequests />,
+    },
+    {
+        path: '/procurement/manager/settings',
+        element: <ProcurementManagerLoadBalancingSettings />,
     },
     {
         path: '/procurement/manager/rfqs-awaiting',
