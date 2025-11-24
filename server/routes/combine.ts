@@ -95,7 +95,7 @@ router.get('/', authMiddleware, async (req, res) => {
 });
 
 // Combine multiple requests into one
-router.post('/combine', authMiddleware, async (req, res) => {
+router.post('/', authMiddleware, async (req, res) => {
     try {
         const { title, description, items, originalRequestIds, combinationConfig, requiresApproval, totalEstimated, currency, priority, targetDepartment } = req.body;
 

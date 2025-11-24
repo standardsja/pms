@@ -31,6 +31,7 @@ import { requireCommittee as requireCommitteeRole, requireAdmin } from './middle
 import { validate, createIdeaSchema, voteSchema, approveRejectIdeaSchema, promoteIdeaSchema, sanitizeInput as sanitize } from './middleware/validation';
 import { errorHandler, notFoundHandler, asyncHandler, NotFoundError, BadRequestError } from './middleware/errorHandler';
 import statsRouter from './routes/stats';
+import combineRouter from './routes/combine';
 
 const app = express();
 const httpServer = http.createServer(app);
@@ -3699,6 +3700,9 @@ app.delete(
 
 // Stats API routes
 app.use('/api/stats', statsRouter);
+
+// Combine requests API routes
+app.use('/api/requests/combine', combineRouter);
 
 // DEBUG: List all registered routes (temporary; remove in production)
 app.get('/api/_routes', (req, res) => {
