@@ -2430,7 +2430,9 @@ app.post('/requests/:id/forward-to-executive', authMiddleware, async (req, res) 
                 requestId: updated.id,
                 performedById: userId,
                 action: 'COMMENT',
-                comment: comment || `Forwarded to Executive Director for approval (exceeds ${thresholdResult.category} threshold of ${request.currency} ${thresholdResult.thresholdAmount.toLocaleString()})`,
+                comment:
+                    comment ||
+                    `Forwarded to Executive Director for approval (exceeds ${thresholdResult.category} threshold of ${request.currency} ${thresholdResult.thresholdAmount.toLocaleString()})`,
             },
         });
 

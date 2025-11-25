@@ -47,11 +47,9 @@ const Requests = () => {
             let roles: string[] = [];
             if (user?.roles && Array.isArray(user.roles)) {
                 // Roles might be strings or objects with a 'name' property
-                roles = user.roles
-                    .map((r: any) => typeof r === 'string' ? r : (r?.name || r?.role?.name))
-                    .filter(Boolean); // Remove any falsy values
+                roles = user.roles.map((r: any) => (typeof r === 'string' ? r : r?.name || r?.role?.name)).filter(Boolean); // Remove any falsy values
             } else if (user?.role) {
-                roles = [typeof user.role === 'string' ? user.role : (user.role?.name || '')];
+                roles = [typeof user.role === 'string' ? user.role : user.role?.name || ''];
             }
             console.log('🔍 [Requests] Current user roles:', roles);
             console.log('🔍 [Requests] Raw user object:', user);
@@ -480,7 +478,7 @@ const Requests = () => {
                                                 // Show button if: user is procurement manager, request exceeds threshold, not already in executive review
                                                 const normalizedStatus = normalizeStatus(r.status || '');
                                                 const showForwardButton = isProcurementManager && thresholdAlert.isRequired && normalizedStatus !== 'EXECUTIVE_REVIEW';
-                                                
+
                                                 // Debug logging for first few requests
                                                 if (filteredRequests.indexOf(r) < 3) {
                                                     console.log(`🔍 [Request ${r.id}] isProcurementManager:`, isProcurementManager);
@@ -489,7 +487,7 @@ const Requests = () => {
                                                     console.log(`🔍 [Request ${r.id}] normalizedStatus:`, normalizedStatus);
                                                     console.log(`🔍 [Request ${r.id}] showForwardButton:`, showForwardButton);
                                                 }
-                                                
+
                                                 return showForwardButton ? (
                                                     <button
                                                         className="p-1.5 rounded hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600"
