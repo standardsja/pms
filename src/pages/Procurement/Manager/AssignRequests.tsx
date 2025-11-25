@@ -123,6 +123,9 @@ const AssignRequests = () => {
     // requests currently assigned to an officer being viewed
     const officerRequests = viewingOfficerRequests !== null && allRequests.length > 0 ? allRequests.filter((r) => r.currentAssigneeId === viewingOfficerRequests) : [];
 
+    const displayRequests = viewingOfficerRequests !== null ? officerRequests : filteredRequests;
+    const displayTitle = viewingOfficerRequests !== null ? `Requests assigned to ${officers.find((o) => o.id === viewingOfficerRequests)?.name || 'Officer'}` : 'Unassigned Requests';
+
     const handleOfficerClick = (officerId: number) => {
         // If already viewing this officer, toggle off
         if (viewingOfficerRequests === officerId) {
@@ -132,9 +135,12 @@ const AssignRequests = () => {
             return;
         }
 
-        // If a request is already selected (from viewing an officer), clicking another officer will select them as target for reassignment
+        // If a request is already selected (from viewing an officer), clicking another officer will trigger reassignment
         if (viewingOfficerRequests && selectedRequest) {
-            setSelectedOfficer(officerId);
+            // if clicked the same officer, ignore
+            if (officerId === viewingOfficerRequests) return;
+            // perform reassignment flow directly
+            handleAssign(officerId, selectedRequest);
             return;
         }
 
@@ -160,8 +166,11 @@ const AssignRequests = () => {
         setFilteredOfficers(filtered);
     }, [officers, officerSearch, sortBy]);
 
-    const handleAssign = async () => {
-        if (!selectedRequest || !selectedOfficer) {
+    const handleAssign = async (overrideOfficer?: number, overrideRequest?: number) => {
+        const assigneeId = overrideOfficer ?? selectedOfficer;
+        const reqId = overrideRequest ?? selectedRequest;
+
+        if (!reqId || !assigneeId) {
             MySwal.fire({
                 icon: 'warning',
                 title: 'Selection Required',
@@ -171,8 +180,8 @@ const AssignRequests = () => {
         }
 
         // request may be in allRequests (when reassigning) or in unassigned requests
-        const request = allRequests.find((r) => r.id === selectedRequest) || requests.find((r) => r.id === selectedRequest);
-        const officer = officers.find((o) => o.id === selectedOfficer);
+        const request = allRequests.find((r) => r.id === reqId) || requests.find((r) => r.id === reqId);
+        const officer = officers.find((o) => o.id === assigneeId);
 
         if (!request || !officer) return;
 
@@ -204,14 +213,14 @@ const AssignRequests = () => {
                 const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
                 const currentUserId = userProfile?.id || userProfile?.userId || null;
 
-                const res = await fetch(`${apiUrl}/requests/${selectedRequest}/assign`, {
+                const res = await fetch(`${apiUrl}/requests/${reqId}/assign`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'x-user-id': String(currentUserId || ''),
                     },
                     body: JSON.stringify({
-                        assigneeId: selectedOfficer,
+                        assigneeId: assigneeId,
                     }),
                 });
 
@@ -221,9 +230,10 @@ const AssignRequests = () => {
                 }
 
                 // Remove assigned request from unassigned list (no-op in reassignment view)
-                setRequests((prev) => prev.filter((r) => r.id !== selectedRequest));
+
+                setRequests((prev) => prev.filter((r) => r.id !== reqId));
                 // Update full list
-                setAllRequests((prev) => prev.map((r) => (r.id === selectedRequest ? { ...r, currentAssigneeId: selectedOfficer } : r)));
+                setAllRequests((prev) => prev.map((r) => (r.id === reqId ? { ...r, currentAssigneeId: assigneeId } : r)));
 
                 const previousAssigneeId = request.currentAssigneeId;
                 // Clear selections
@@ -234,8 +244,8 @@ const AssignRequests = () => {
                 // Update officer workloads: increment new assignee, decrement previous assignee if exists
                 setOfficers((prev) =>
                     prev.map((o) => {
-                        if (o.id === selectedOfficer) return { ...o, assignedCount: o.assignedCount + 1 };
-                        if (previousAssigneeId && o.id === previousAssigneeId && previousAssigneeId !== selectedOfficer) return { ...o, assignedCount: Math.max(0, o.assignedCount - 1) };
+                        if (o.id === assigneeId) return { ...o, assignedCount: o.assignedCount + 1 };
+                        if (previousAssigneeId && o.id === previousAssigneeId && previousAssigneeId !== assigneeId) return { ...o, assignedCount: Math.max(0, o.assignedCount - 1) };
                         return o;
                     })
                 );
@@ -368,10 +378,10 @@ const AssignRequests = () => {
                                         d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                                     />
                                 </svg>
-                                Unassigned Requests
+                                {displayTitle}
                             </h2>
                             <span className="badge bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-3 py-1">
-                                {filteredRequests.length} of {requests.length}
+                                {displayRequests.length} of {viewingOfficerRequests !== null ? officerRequests.length : requests.length}
                             </span>
                         </div>
                         <div className="relative">
@@ -391,7 +401,7 @@ const AssignRequests = () => {
                         </div>
                     </div>
 
-                    {filteredRequests.length === 0 ? (
+                    {displayRequests.length === 0 ? (
                         <div className="text-center py-16 text-gray-500 dark:text-gray-400">
                             <svg className="w-20 h-20 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path
@@ -401,8 +411,8 @@ const AssignRequests = () => {
                                     d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                                 />
                             </svg>
-                            <p className="font-semibold text-lg">{requestSearch ? 'No matching requests' : 'No unassigned requests'}</p>
-                            <p className="text-sm mt-1">{requestSearch ? 'Try adjusting your search criteria' : 'All requests have been assigned to officers'}</p>
+                            <p className="font-semibold text-lg">{requestSearch ? 'No matching requests' : viewingOfficerRequests !== null ? 'No requests assigned to this officer' : 'No unassigned requests'}</p>
+                            <p className="text-sm mt-1">{requestSearch ? 'Try adjusting your search criteria' : viewingOfficerRequests !== null ? 'This officer has no assigned requests' : 'All requests have been assigned to officers'}</p>
                             {requestSearch && (
                                 <button onClick={() => setRequestSearch('')} className="btn btn-primary btn-sm mt-3">
                                     Clear Search
@@ -411,18 +421,22 @@ const AssignRequests = () => {
                         </div>
                     ) : (
                         <div className="space-y-2 max-h-[600px] overflow-y-auto pr-2">
-                            {filteredRequests.map((req) => {
+                            {displayRequests.map((req) => {
                                 const deptCode = req.headerDeptCode || req.department.code || '---';
                                 const month = req.headerMonth || '---';
                                 const year = req.headerYear || '----';
                                 const sequence = req.headerSequence !== undefined && req.headerSequence !== null ? String(req.headerSequence).padStart(3, '0') : '000';
                                 const formCode = `[${deptCode}]/[${month}]/[${year}]/[${sequence}]`;
-                                const isSelected = selectedRequest === req.id;
+                                            const isSelected = selectedRequest === req.id;
 
                                 return (
                                     <div
                                         key={req.id}
-                                        onClick={() => setSelectedRequest(req.id)}
+                                        onClick={() => {
+                                            setSelectedRequest(req.id);
+                                            // when viewing an officer's requests, set selectedOfficer to that officer if not already
+                                            if (viewingOfficerRequests !== null) setSelectedOfficer(viewingOfficerRequests);
+                                        }}
                                         className={`group relative p-4 border-2 rounded-lg cursor-pointer transition-all duration-200 ${
                                             isSelected
                                                 ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-md scale-[1.01]'
@@ -562,7 +576,7 @@ const AssignRequests = () => {
                                 return (
                                     <div
                                         key={officer.id}
-                                        onClick={() => setSelectedOfficer(officer.id)}
+                                        onClick={() => handleOfficerClick(officer.id)}
                                         className={`group relative p-4 border-2 rounded-lg cursor-pointer transition-all duration-200 ${
                                             isSelected
                                                 ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20 shadow-md scale-[1.01]'
@@ -659,7 +673,7 @@ const AssignRequests = () => {
                         </div>
                     </div>
                     <div className="flex flex-wrap gap-3">
-                        <button onClick={handleAssign} className="flex-1 btn bg-gradient-to-r from-blue-600 to-purple-600 text-white border-0 shadow-lg hover:from-blue-700 hover:to-purple-700 gap-2">
+                        <button onClick={() => handleAssign()} className="flex-1 btn bg-gradient-to-r from-blue-600 to-purple-600 text-white border-0 shadow-lg hover:from-blue-700 hover:to-purple-700 gap-2">
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
