@@ -220,6 +220,10 @@ const AssignRequests = () => {
             setViewingOfficerRequests(null);
             setSelectedOfficer(null);
             setSelectedRequest(null);
+        } else if (viewingOfficerRequests && selectedRequest) {
+            // If we're viewing an officer's requests and have a request selected,
+            // clicking another officer means we want to reassign to them
+            setSelectedOfficer(officerId);
         } else {
             // View this officer's requests
             setViewingOfficerRequests(officerId);
@@ -247,15 +251,20 @@ const AssignRequests = () => {
                     </h2>
 
                     {viewingOfficerRequests && (
-                        <button
-                            onClick={() => {
-                                setViewingOfficerRequests(null);
-                                setSelectedRequest(null);
-                            }}
-                            className="mb-4 text-sm text-blue-600 dark:text-blue-400 hover:underline"
-                        >
-                            ← Back to Unassigned Requests
-                        </button>
+                        <>
+                            <button
+                                onClick={() => {
+                                    setViewingOfficerRequests(null);
+                                    setSelectedRequest(null);
+                                }}
+                                className="mb-3 text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                            >
+                                ← Back to Unassigned Requests
+                            </button>
+                            <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded text-sm text-blue-800 dark:text-blue-200">
+                                <strong>To reassign:</strong> Select a request below, then click on a different officer on the right →
+                            </div>
+                        </>
                     )}
 
                     {(viewingOfficerRequests ? officerRequests : requests).length === 0 ? (

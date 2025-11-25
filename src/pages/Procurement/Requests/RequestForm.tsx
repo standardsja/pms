@@ -476,6 +476,17 @@ const RequestForm = () => {
                     return;
                 }
 
+                // Validate form code is filled out
+                if (!headerDeptCode || !headerMonth || !headerYear || headerSequence === null || headerSequence === undefined) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Form Code Required',
+                        text: 'Please fill out all form code fields (Department Code, Month, Year, and Sequence Number) before submitting.',
+                    });
+                    setIsSubmitting(false);
+                    return;
+                }
+
                 // Map form priority values to enum (medium -> MEDIUM, high -> HIGH, etc.)
                 const priorityMap: Record<string, string> = {
                     urgent: 'URGENT',
