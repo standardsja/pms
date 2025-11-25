@@ -82,10 +82,10 @@ const AssignRequests = () => {
                 if (!requestsRes.ok) throw new Error('Failed to fetch requests');
                 const requestsData = await requestsRes.json();
                 const procurementRequests = Array.isArray(requestsData) ? requestsData.filter((r: any) => r && r.status === 'PROCUREMENT_REVIEW') : [];
-                
+
                 // Store all procurement requests
                 setAllRequests(procurementRequests);
-                
+
                 // Only show unassigned requests in the main list
                 const unassignedRequests = procurementRequests.filter((r: any) => !r.currentAssigneeId);
                 setRequests(unassignedRequests);
@@ -161,12 +161,10 @@ const AssignRequests = () => {
 
                 // Remove assigned request from list
                 setRequests((prev) => prev.filter((r) => r.id !== selectedRequest));
-                
+
                 // Update allRequests to reflect the assignment
-                setAllRequests((prev) => 
-                    prev.map((r) => r.id === selectedRequest ? { ...r, currentAssigneeId: selectedOfficer } : r)
-                );
-                
+                setAllRequests((prev) => prev.map((r) => (r.id === selectedRequest ? { ...r, currentAssigneeId: selectedOfficer } : r)));
+
                 setSelectedRequest(null);
                 setSelectedOfficer(null);
 
@@ -212,10 +210,10 @@ const AssignRequests = () => {
     }
 
     const selectedRequestData = requests.find((r) => r.id === selectedRequest) || allRequests.find((r) => r.id === selectedRequest);
-    
+
     // Get requests for the currently viewed officer
     const officerRequests = viewingOfficerRequests ? allRequests.filter((r) => r.currentAssigneeId === viewingOfficerRequests) : [];
-    
+
     const handleOfficerClick = (officerId: number) => {
         if (viewingOfficerRequests === officerId) {
             // If clicking the same officer, toggle off
@@ -244,12 +242,10 @@ const AssignRequests = () => {
                 {/* Requests Column */}
                 <div className="bg-white dark:bg-slate-800 shadow rounded p-6">
                     <h2 className="text-lg font-semibold mb-4 flex items-center justify-between">
-                        <span>{viewingOfficerRequests ? `Requests for ${officers.find(o => o.id === viewingOfficerRequests)?.name}` : 'Unassigned Requests'}</span>
-                        <span className="text-sm font-normal text-gray-500">
-                            {viewingOfficerRequests ? `${officerRequests.length} assigned` : `${requests.length} total`}
-                        </span>
+                        <span>{viewingOfficerRequests ? `Requests for ${officers.find((o) => o.id === viewingOfficerRequests)?.name}` : 'Unassigned Requests'}</span>
+                        <span className="text-sm font-normal text-gray-500">{viewingOfficerRequests ? `${officerRequests.length} assigned` : `${requests.length} total`}</span>
                     </h2>
-                    
+
                     {viewingOfficerRequests && (
                         <button
                             onClick={() => {
@@ -378,9 +374,7 @@ const AssignRequests = () => {
                                                     <span className={`text-sm font-semibold ${workloadColor}`}>{officer.assignedCount} request(s)</span>
                                                 </div>
                                                 {viewingOfficerRequests === officer.id && (
-                                                    <div className="mt-2 text-xs text-purple-600 dark:text-purple-400 font-medium">
-                                                        ← Viewing this officer's requests
-                                                    </div>
+                                                    <div className="mt-2 text-xs text-purple-600 dark:text-purple-400 font-medium">← Viewing this officer's requests</div>
                                                 )}
                                             </div>
                                             {isSelected && viewingOfficerRequests !== officer.id && (
@@ -447,13 +441,13 @@ const AssignRequests = () => {
                     </div>
                 </div>
             )}
-            
+
             {/* Reassignment Mode - Show when viewing an officer's requests */}
             {viewingOfficerRequests && selectedRequest && selectedOfficer && selectedOfficer !== viewingOfficerRequests && (
                 <div className="mt-6 bg-gradient-to-r from-orange-50 to-yellow-50 dark:from-orange-900/20 dark:to-yellow-900/20 border-2 border-orange-200 dark:border-orange-800 rounded-lg p-6">
                     <h3 className="text-lg font-semibold mb-2 text-orange-900 dark:text-orange-200">Reassign Request</h3>
                     <p className="text-sm text-orange-700 dark:text-orange-300 mb-4">
-                        Moving request from <strong>{officers.find(o => o.id === viewingOfficerRequests)?.name}</strong> to <strong>{officers.find(o => o.id === selectedOfficer)?.name}</strong>
+                        Moving request from <strong>{officers.find((o) => o.id === viewingOfficerRequests)?.name}</strong> to <strong>{officers.find((o) => o.id === selectedOfficer)?.name}</strong>
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                         <div>
@@ -461,8 +455,10 @@ const AssignRequests = () => {
                             {selectedRequestData && (
                                 <div className="bg-white dark:bg-slate-800 p-4 rounded border border-gray-200 dark:border-gray-700">
                                     <p className="font-semibold text-blue-600 dark:text-blue-400">
-                                        {selectedRequestData.headerDeptCode ? 
-                                            `[${selectedRequestData.headerDeptCode}]/[${selectedRequestData.headerMonth}]/[${selectedRequestData.headerYear}]/[${String(selectedRequestData.headerSequence).padStart(3, '0')}]` 
+                                        {selectedRequestData.headerDeptCode
+                                            ? `[${selectedRequestData.headerDeptCode}]/[${selectedRequestData.headerMonth}]/[${selectedRequestData.headerYear}]/[${String(
+                                                  selectedRequestData.headerSequence
+                                              ).padStart(3, '0')}]`
                                             : selectedRequestData.reference}
                                     </p>
                                     <p className="text-sm mt-1">{selectedRequestData.title}</p>
@@ -478,9 +474,7 @@ const AssignRequests = () => {
                                 <div className="bg-white dark:bg-slate-800 p-4 rounded border border-gray-200 dark:border-gray-700">
                                     <p className="font-semibold">{officers.find((o) => o.id === selectedOfficer)?.name}</p>
                                     <p className="text-sm text-gray-600 dark:text-gray-400">{officers.find((o) => o.id === selectedOfficer)?.email}</p>
-                                    <p className="text-xs text-gray-500 mt-2">
-                                        Current workload: {officers.find((o) => o.id === selectedOfficer)?.assignedCount} request(s)
-                                    </p>
+                                    <p className="text-xs text-gray-500 mt-2">Current workload: {officers.find((o) => o.id === selectedOfficer)?.assignedCount} request(s)</p>
                                 </div>
                             )}
                         </div>
