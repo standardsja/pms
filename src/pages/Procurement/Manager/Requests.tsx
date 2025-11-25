@@ -180,6 +180,60 @@ const ProcurementManagerRequests = () => {
         navigate(`/procurement/manager/assign?requestId=${req.id}`);
     };
 
+    const handleReturn = async (req: Req) => {
+        const result = await MySwal.fire({
+            title: 'Return Request',
+            html: `
+                <div style="text-align: left; margin-bottom: 16px; background: #f9fafb; padding: 12px; border-radius: 4px;">
+                  <p style="margin: 4px 0;"><strong>Request:</strong> ${req.reference} - ${req.title}</p>
+                  <p style="margin: 4px 0;"><strong>Requester:</strong> ${req.requester.name}</p>
+                  <p style="margin: 4px 0;"><strong>Department:</strong> ${req.department.name}</p>
+                  <p style="margin: 4px 0;"><strong>Amount:</strong> ${req.currency} $${(Number(req.totalEstimated) || 0).toFixed(2)}</p>
+                </div>
+                <p style="margin-bottom: 12px; color: #dc2626; font-weight: 500;">Please provide a reason for returning this request to the requester.</p>
+            `,
+            input: 'textarea',
+            inputLabel: 'Comment (Required)',
+            inputPlaceholder: 'Explain why the request is being returned (e.g., budget unavailable, missing information, incorrect accounting code)...',
+            inputAttributes: { 'aria-label': 'Comment', rows: '4' },
+            inputValidator: (value) => {
+                if (!value || !value.trim()) return 'A comment is required to return a request';
+                return undefined;
+            },
+            showCancelButton: true,
+            confirmButtonText: 'Return to Requester',
+            confirmButtonColor: '#dc2626',
+            cancelButtonText: 'Cancel',
+        });
+
+        if (!result.isConfirmed) return;
+        const comment = (result.value as string) || '';
+
+        try {
+            const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:4000' : `http://${window.location.hostname}:4000`;
+            const res = await fetch(`${apiUrl}/requests/${req.id}/action`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-user-id': String(currentUserId || ''),
+                },
+                body: JSON.stringify({ action: 'REJECT', comment: comment.trim() || undefined }),
+            });
+
+            if (!res.ok) {
+                const error = await res.json().catch(() => ({}));
+                throw new Error(error.message || 'Failed to return request');
+            }
+
+            setRequests((prev) => prev.filter((r) => r.id !== req.id));
+
+            await MySwal.fire({ icon: 'success', title: 'Request Returned', html: comment ? `<div style="text-align:left; margin-top: 12px;"><strong>Your comment:</strong><br/><div style="background: #f3f4f6; padding: 8px; border-radius: 4px; margin-top: 6px;">${comment}</div></div>` : undefined, timer: 2000, showConfirmButton: false });
+        } catch (err: any) {
+            console.error('Error returning request:', err);
+            MySwal.fire({ icon: 'error', title: 'Return Failed', text: err.message || 'Failed to return the request. Please try again.' });
+        }
+    };
+
     if (loading) {
         return (
             <div className="p-6">
@@ -309,6 +363,13 @@ const ProcurementManagerRequests = () => {
                                                 >
                                                     <IconUsersGroup className="w-4 h-4" />
                                                     Assign
+                                                </button>
+                                                <button
+                                                    className="px-3 py-1.5 rounded bg-red-600 text-white text-xs font-medium hover:bg-red-700 transition-colors"
+                                                    onClick={() => handleReturn(r)}
+                                                    title="Return Request"
+                                                >
+                                                    Return
                                                 </button>
                                             </div>
                                         </td>

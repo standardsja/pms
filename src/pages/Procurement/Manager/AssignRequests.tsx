@@ -48,6 +48,19 @@ const AssignRequests = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
+    // current user
+    let userProfile: any = {};
+    let currentUserId: number | null = null;
+    try {
+        const profileStr = localStorage.getItem('userProfile');
+        if (profileStr) {
+            userProfile = JSON.parse(profileStr);
+            currentUserId = userProfile?.id || userProfile?.userId || null;
+        }
+    } catch (err) {
+        console.error('Error parsing user profile:', err);
+    }
+
     const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:4000' : `http://${window.location.hostname}:4000`;
 
     useEffect(() => {
@@ -201,6 +214,65 @@ const AssignRequests = () => {
         }
     };
 
+    const handleReturn = async (req: Req) => {
+        // Only allow returning if current user is the assignee (backend also enforces)
+        const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
+        const currentUserIdLocal = userProfile?.id || userProfile?.userId || null;
+
+        if (!currentUserIdLocal || req.currentAssigneeId !== currentUserIdLocal) {
+            MySwal.fire({ icon: 'warning', title: 'Not Allowed', text: 'You can only return requests assigned to you.' });
+            return;
+        }
+
+        const result = await MySwal.fire({
+            title: 'Return Request',
+            html: `
+                <div style="text-align: left; margin-bottom: 16px; background: #f9fafb; padding: 12px; border-radius: 4px;">
+                  <p style="margin: 4px 0;"><strong>Request:</strong> ${req.reference || req.id} - ${req.title}</p>
+                  <p style="margin: 4px 0;"><strong>Requester:</strong> ${req.requester.name}</p>
+                  <p style="margin: 4px 0;"><strong>Department:</strong> ${req.department.name}</p>
+                </div>
+                <p style="margin-bottom: 12px; color: #dc2626; font-weight: 500;">Please provide a reason for returning this request to the requester.</p>
+            `,
+            input: 'textarea',
+            inputLabel: 'Comment (Required)',
+            inputPlaceholder: 'Reason for returning this request...',
+            inputAttributes: { 'aria-label': 'Comment', rows: '4' },
+            inputValidator: (value) => {
+                if (!value || !value.trim()) return 'A comment is required to return a request';
+                return undefined;
+            },
+            showCancelButton: true,
+            confirmButtonText: 'Return to Requester',
+            confirmButtonColor: '#dc2626',
+        });
+
+        if (!result.isConfirmed) return;
+        const comment = (result.value as string) || '';
+
+        try {
+            const res = await fetch(`${apiUrl}/requests/${req.id}/action`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-user-id': String(currentUserIdLocal || '') },
+                body: JSON.stringify({ action: 'REJECT', comment: comment.trim() || undefined }),
+            });
+
+            if (!res.ok) {
+                const error = await res.json().catch(() => ({}));
+                throw new Error(error.message || 'Failed to return request');
+            }
+
+            // Remove it from both lists
+            setAllRequests((prev) => prev.filter((r) => r.id !== req.id));
+            setRequests((prev) => prev.filter((r) => r.id !== req.id));
+
+            MySwal.fire({ icon: 'success', title: 'Request Returned', text: 'Request returned to requester.' });
+        } catch (err: any) {
+            console.error('Error returning request:', err);
+            MySwal.fire({ icon: 'error', title: 'Return Failed', text: err.message || 'Failed to return the request. Please try again.' });
+        }
+    };
+
     if (loading) {
         return (
             <div className="p-6">
@@ -338,6 +410,19 @@ const AssignRequests = () => {
                                                 <strong>Amount:</strong> {req.currency} ${(Number(req.totalEstimated) || 0).toFixed(2)}
                                             </p>
                                         </div>
+                                        {isSelected && req.currentAssigneeId === currentUserId && (
+                                            <div className="mt-3 flex gap-2">
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleReturn(req);
+                                                    }}
+                                                    className="px-3 py-1.5 rounded bg-red-600 text-white text-xs font-medium hover:bg-red-700 transition-colors"
+                                                >
+                                                    Return
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
                                 );
                             })}
