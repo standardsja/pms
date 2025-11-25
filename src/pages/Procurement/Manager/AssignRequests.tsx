@@ -532,7 +532,10 @@ const AssignRequests = () => {
                                                                 <circle cx="4" cy="4" r="4" />
                                                             </svg>
                                                             <span className="text-gray-700 dark:text-gray-300">
-                                                                Assigned to: {currentUserId && Number(req.currentAssigneeId) === Number(currentUserId) ? 'You (Manager)' : officers.find((o) => o.id === req.currentAssigneeId)?.name || 'Officer'}
+                                                                Assigned to:{' '}
+                                                                {currentUserId && Number(req.currentAssigneeId) === Number(currentUserId)
+                                                                    ? 'You (Manager)'
+                                                                    : officers.find((o) => o.id === req.currentAssigneeId)?.name || 'Officer'}
                                                             </span>
                                                         </span>
                                                     )}

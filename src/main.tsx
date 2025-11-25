@@ -1,5 +1,5 @@
 import React, { Suspense } from 'react';
-import ReactDOM from 'react-dom/client'
+import ReactDOM from 'react-dom/client';
 
 // Perfect Scrollbar
 import 'react-perfect-scrollbar/dist/css/styles.css';
@@ -40,7 +40,8 @@ if (typeof window !== 'undefined') {
             if (document.getElementById('module-load-diagnostic-banner')) return;
             const banner = document.createElement('div');
             banner.id = 'module-load-diagnostic-banner';
-            banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#fff3cd;color:#856404;border-bottom:1px solid #ffeeba;padding:12px 16px;font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;display:flex;align-items:flex-start;gap:12px;';
+            banner.style.cssText =
+                'position:fixed;top:0;left:0;right:0;z-index:9999;background:#fff3cd;color:#856404;border-bottom:1px solid #ffeeba;padding:12px 16px;font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;display:flex;align-items:flex-start;gap:12px;';
             banner.innerHTML = `
                 <div style="flex:1">
                     <strong>Module load error detected</strong>
@@ -82,7 +83,9 @@ if (typeof window !== 'undefined') {
                     if (e?.filename) url = e.filename;
                     else if (e?.target && e.target.src) url = e.target.src;
 
-                    const isModuleFail = msg.includes('Importing a module script failed') || (e?.target && e.target.tagName === 'SCRIPT' && e?.target.type === 'module' && !!e?.target.src && (e?.message || '').includes('failed'));
+                    const isModuleFail =
+                        msg.includes('Importing a module script failed') ||
+                        (e?.target && e.target.tagName === 'SCRIPT' && e?.target.type === 'module' && !!e?.target.src && (e?.message || '').includes('failed'));
                     if (isModuleFail) {
                         console.error('Module load failure detected', ev);
                         if (url) failing.add(url);
@@ -124,4 +127,3 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
         </Suspense>
     </React.StrictMode>
 );
-
