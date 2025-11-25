@@ -26,12 +26,23 @@ import { initAnalyticsJob, stopAnalyticsJob, getAnalytics, getCategoryAnalytics,
 import { requestMonitoringMiddleware, trackCacheHit, trackCacheMiss, getMetrics, getHealthStatus, getSlowEndpoints, getErrorProneEndpoints } from './services/monitoringService';
 import { checkProcurementThresholds } from './services/thresholdService';
 import { createThresholdNotifications } from './services/notificationService';
+import { checkUserRoles } from './utils/roleUtils';
 import type { Prisma } from '@prisma/client';
 import { requireCommittee as requireCommitteeRole, requireEvaluationCommittee, requireAdmin, requireExecutive } from './middleware/rbac';
 import { validate, createIdeaSchema, voteSchema, approveRejectIdeaSchema, promoteIdeaSchema, sanitizeInput as sanitize } from './middleware/validation';
 import { errorHandler, notFoundHandler, asyncHandler, NotFoundError, BadRequestError } from './middleware/errorHandler';
 import statsRouter from './routes/stats';
 import combineRouter from './routes/combine';
+
+// Type definition for authenticated requests
+interface AuthenticatedRequest extends express.Request {
+    user: {
+        sub: number;
+        email: string;
+        roles: string[];
+        name: string;
+    };
+}
 
 const app = express();
 const httpServer = http.createServer(app);
@@ -2336,6 +2347,124 @@ app.put('/requests/:id', async (req, res) => {
     } catch (e: any) {
         console.error('PUT /requests/:id error:', e);
         return res.status(500).json({ message: e?.message || 'Failed to update request' });
+    }
+});
+
+// POST /requests/:id/forward-to-executive - Forward request to executive director
+app.post('/requests/:id/forward-to-executive', authMiddleware, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { comment } = req.body;
+        const authReq = req as AuthenticatedRequest;
+        const userId = authReq.user.sub;
+        const userRoles = authReq.user.roles || [];
+
+        // Check if user is a procurement manager
+        const userRoleInfo = checkUserRoles(userRoles);
+        if (!userRoleInfo.isProcurementManager && !userRoleInfo.isAdmin) {
+            return res.status(403).json({
+                error: 'Access denied. Only procurement managers can forward requests to executive director.',
+                code: 'INSUFFICIENT_PERMISSIONS',
+            });
+        }
+
+        // Get the request with threshold check
+        const request = await prisma.request.findUnique({
+            where: { id: parseInt(id, 10) },
+            include: {
+                requester: { select: { name: true, email: true } },
+                department: { select: { name: true, code: true } },
+            },
+        });
+
+        if (!request) {
+            return res.status(404).json({ error: 'Request not found' });
+        }
+
+        // Check if request exceeds threshold
+        const totalValue = request.totalEstimated || 0;
+        const procurementTypes = Array.isArray(request.procurementType) ? request.procurementType : [];
+        const thresholdResult = checkProcurementThresholds(totalValue, procurementTypes, request.currency || 'JMD');
+
+        if (!thresholdResult.requiresExecutiveApproval) {
+            return res.status(400).json({
+                error: 'Request does not exceed threshold for executive approval',
+                thresholdAmount: thresholdResult.thresholdAmount,
+                requestValue: totalValue,
+            });
+        }
+
+        // Find executive director
+        const executiveDirector = await prisma.user.findFirst({
+            where: {
+                roles: {
+                    some: {
+                        role: { name: 'EXECUTIVE_DIRECTOR' },
+                    },
+                },
+            },
+        });
+
+        if (!executiveDirector) {
+            return res.status(500).json({ error: 'Executive Director not found in system' });
+        }
+
+        // Update request status and assign to executive director
+        const updated = await prisma.request.update({
+            where: { id: parseInt(id, 10) },
+            data: {
+                status: 'EXECUTIVE_REVIEW',
+                currentAssigneeId: executiveDirector.id,
+            },
+            include: {
+                items: true,
+                requester: { select: { id: true, name: true, email: true } },
+                department: { select: { id: true, name: true, code: true } },
+                currentAssignee: { select: { id: true, name: true, email: true } },
+            },
+        });
+
+        // Create audit log
+        await prisma.requestAction.create({
+            data: {
+                requestId: updated.id,
+                performedById: userId,
+                action: 'COMMENT',
+                comment: comment || `Forwarded to Executive Director for approval (exceeds ${thresholdResult.category} threshold of ${request.currency} ${thresholdResult.thresholdAmount.toLocaleString()})`,
+            },
+        });
+
+        // Create notification for executive director
+        await prisma.notification.create({
+            data: {
+                userId: executiveDirector.id,
+                type: 'THRESHOLD_EXCEEDED',
+                message: `High-value ${thresholdResult.category.replace('_', '/')} request "${request.title}" (${request.currency} ${totalValue.toLocaleString()}) forwarded for your approval`,
+                data: {
+                    requestId: updated.id,
+                    requestReference: updated.reference,
+                    requestTitle: updated.title,
+                    requesterName: request.requester?.name || 'Unknown',
+                    departmentName: request.department?.name || 'Unknown',
+                    totalValue,
+                    currency: request.currency || 'JMD',
+                    thresholdAmount: thresholdResult.thresholdAmount,
+                    category: thresholdResult.category,
+                    forwardedBy: userId,
+                },
+            },
+        });
+
+        console.log(`[FORWARD TO EXECUTIVE] Request ${updated.reference} forwarded to Executive Director by user ${userId}`);
+
+        return res.json({
+            success: true,
+            message: 'Request forwarded to Executive Director successfully',
+            request: updated,
+        });
+    } catch (e: any) {
+        console.error('POST /requests/:id/forward-to-executive error:', e);
+        return res.status(500).json({ message: e?.message || 'Failed to forward request' });
     }
 });
 

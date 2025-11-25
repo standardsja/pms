@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { setPageTitle } from '../../../store/themeConfigSlice';
 import IconPlus from '../../../components/Icon/IconPlus';
 import IconEye from '../../../components/Icon/IconEye';
+import IconSend from '../../../components/Icon/IconSend';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import { Request, ApiResponse } from '../../../types/request.types';
@@ -45,12 +46,19 @@ const Requests = () => {
             // Safely extract roles, ensuring we have a clean array of strings
             let roles: string[] = [];
             if (user?.roles && Array.isArray(user.roles)) {
-                roles = user.roles.filter(Boolean); // Remove any falsy values
+                // Roles might be strings or objects with a 'name' property
+                roles = user.roles
+                    .map((r: any) => typeof r === 'string' ? r : (r?.name || r?.role?.name))
+                    .filter(Boolean); // Remove any falsy values
             } else if (user?.role) {
-                roles = [user.role];
+                roles = [typeof user.role === 'string' ? user.role : (user.role?.name || '')];
             }
+            console.log('🔍 [Requests] Current user roles:', roles);
+            console.log('🔍 [Requests] Raw user object:', user);
+            console.log('🔍 [Requests] Raw roles array:', user?.roles);
             setCurrentUserRoles(roles);
-        } catch {
+        } catch (err) {
+            console.error('🔍 [Requests] Error loading user:', err);
             setCurrentUserName('');
             setCurrentUserId(null);
             setCurrentUserRoles([]);
@@ -169,6 +177,105 @@ const Requests = () => {
             customClass: { popup: 'text-left' },
         });
     };
+
+    // Forward request to executive director (for procurement managers)
+    const forwardToExecutive = async (req: Request) => {
+        // Check if user is procurement manager
+        const isProcurementManager = currentUserRoles.some((role) => {
+            const roleUpper = role.toUpperCase();
+            return ['PROCUREMENT_MANAGER', 'PROCUREMENT MANAGER'].includes(roleUpper) || (roleUpper.includes('PROCUREMENT') && roleUpper.includes('MANAGER'));
+        });
+
+        if (!isProcurementManager) {
+            MySwal.fire({
+                icon: 'error',
+                title: 'Access Denied',
+                text: 'Only procurement managers can forward requests to Executive Director',
+            });
+            return;
+        }
+
+        // Check if request exceeds threshold
+        const procurementTypes = Array.isArray(req.procurementType) ? req.procurementType : [];
+        const thresholdAlert = checkExecutiveThreshold(req.totalEstimated || 0, procurementTypes, req.currency);
+
+        if (!thresholdAlert.isRequired) {
+            MySwal.fire({
+                icon: 'info',
+                title: 'No Executive Approval Needed',
+                text: `This request (${req.currency} ${(req.totalEstimated || 0).toLocaleString()}) does not exceed the threshold for executive approval.`,
+            });
+            return;
+        }
+
+        // Confirm forward action
+        const result = await MySwal.fire({
+            title: 'Forward to Executive Director?',
+            html: `
+                <div class="text-left">
+                    <p class="mb-2">Request: <strong>${req.title}</strong></p>
+                    <p class="mb-2">Value: <strong>${req.currency} ${(req.totalEstimated || 0).toLocaleString()}</strong></p>
+                    <p class="mb-4">This request exceeds the ${thresholdAlert.category} threshold and requires Executive Director approval.</p>
+                    <label class="block mb-2 font-medium">Optional Comment:</label>
+                    <textarea
+                        id="forward-comment"
+                        class="w-full p-2 border rounded"
+                        rows="3"
+                        placeholder="Add a note for the Executive Director..."
+                    ></textarea>
+                </div>
+            `,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Forward to Executive',
+            cancelButtonText: 'Cancel',
+            confirmButtonColor: '#3085d6',
+            preConfirm: () => {
+                const comment = (document.getElementById('forward-comment') as HTMLTextAreaElement)?.value || '';
+                return comment;
+            },
+        });
+
+        if (!result.isConfirmed) return;
+
+        try {
+            const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
+            const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:4000' : `http://${window.location.hostname}:4000`;
+
+            const response = await fetch(`${apiUrl}/requests/${req.id}/forward-to-executive`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                    comment: result.value || '',
+                }),
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || data.message || 'Failed to forward request');
+            }
+
+            MySwal.fire({
+                icon: 'success',
+                title: 'Request Forwarded',
+                text: 'The request has been forwarded to the Executive Director for approval.',
+            });
+
+            // Refresh the requests list
+            window.location.reload();
+        } catch (error) {
+            MySwal.fire({
+                icon: 'error',
+                title: 'Forward Failed',
+                text: error instanceof Error ? error.message : 'Failed to forward request',
+            });
+        }
+    };
+
     return (
         <div className="p-6">
             <div className="flex items-center justify-between mb-6">
@@ -361,6 +468,39 @@ const Requests = () => {
                                                     Review
                                                 </button>
                                             )}
+                                            {(() => {
+                                                // Check if user is procurement manager
+                                                const isProcurementManager = currentUserRoles.some((role) => {
+                                                    const roleUpper = role.toUpperCase();
+                                                    return ['PROCUREMENT_MANAGER', 'PROCUREMENT MANAGER'].includes(roleUpper) || (roleUpper.includes('PROCUREMENT') && roleUpper.includes('MANAGER'));
+                                                });
+                                                // Check if request exceeds threshold
+                                                const procurementTypes = Array.isArray(r.procurementType) ? r.procurementType : [];
+                                                const thresholdAlert = checkExecutiveThreshold(r.totalEstimated || 0, procurementTypes, r.currency);
+                                                // Show button if: user is procurement manager, request exceeds threshold, not already in executive review
+                                                const normalizedStatus = normalizeStatus(r.status || '');
+                                                const showForwardButton = isProcurementManager && thresholdAlert.isRequired && normalizedStatus !== 'EXECUTIVE_REVIEW';
+                                                
+                                                // Debug logging for first few requests
+                                                if (filteredRequests.indexOf(r) < 3) {
+                                                    console.log(`🔍 [Request ${r.id}] isProcurementManager:`, isProcurementManager);
+                                                    console.log(`🔍 [Request ${r.id}] thresholdAlert:`, thresholdAlert);
+                                                    console.log(`🔍 [Request ${r.id}] totalEstimated:`, r.totalEstimated, r.currency);
+                                                    console.log(`🔍 [Request ${r.id}] normalizedStatus:`, normalizedStatus);
+                                                    console.log(`🔍 [Request ${r.id}] showForwardButton:`, showForwardButton);
+                                                }
+                                                
+                                                return showForwardButton ? (
+                                                    <button
+                                                        className="p-1.5 rounded hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600"
+                                                        onClick={() => forwardToExecutive(r)}
+                                                        title="Forward to Executive Director"
+                                                        aria-label={`Forward request ${r.id} to Executive Director`}
+                                                    >
+                                                        <IconSend className="w-5 h-5" />
+                                                    </button>
+                                                ) : null;
+                                            })()}
                                         </div>
                                     </td>
                                 </tr>
