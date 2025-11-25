@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { PrismaClient, RequestStatus } from '@prisma/client';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth';
 import { checkUserRoles, hasPermission } from '../utils/roleUtils';
+import { checkProcurementThresholds } from '../services/thresholdService';
+import { createThresholdNotifications } from '../services/notificationService';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -218,6 +220,45 @@ router.post('/', authMiddleware, async (req, res) => {
             combinedRequestId: result.id,
             totalValue: totalEstimated,
         });
+
+        // Check if combined request exceeds thresholds and notify procurement officers
+        try {
+            const totalValue = totalEstimated || 0;
+            const procurementTypes = items.map((item: any) => item.procurementType).filter(Boolean);
+            const requestCurrency = currency || 'JMD';
+            const thresholdResult = checkProcurementThresholds(totalValue, procurementTypes, requestCurrency);
+
+            if (thresholdResult.requiresExecutiveApproval) {
+                console.log(`[COMBINE] Combined request ${result.reference} exceeds threshold, notifying procurement officers`);
+
+                // Fetch the full combined request details for notifications
+                const combinedRequestFull = await prisma.request.findUnique({
+                    where: { id: result.id },
+                    include: {
+                        requester: { select: { name: true } },
+                        department: { select: { name: true } },
+                    },
+                });
+
+                // Send notifications to procurement officers
+                await createThresholdNotifications({
+                    requestId: result.id,
+                    requestReference: result.reference,
+                    requestTitle: title,
+                    requesterName: combinedRequestFull?.requester?.name || 'Unknown',
+                    departmentName: combinedRequestFull?.department?.name || 'Unknown',
+                    totalValue,
+                    currency: requestCurrency,
+                    thresholdAmount: thresholdResult.thresholdAmount,
+                    category: thresholdResult.category,
+                });
+
+                console.log(`[COMBINE] Threshold notifications sent for combined request ${result.reference}`);
+            }
+        } catch (notificationError) {
+            // Don't fail the combination if notifications fail
+            console.error('[COMBINE] Failed to send threshold notifications:', notificationError);
+        }
 
         res.json({
             success: true,
