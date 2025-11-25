@@ -128,8 +128,9 @@ const EvaluationList = () => {
                 return 'bg-success';
             case 'VALIDATED':
                 return 'bg-primary';
-            case 'IN_PROGRESS':
             case 'COMMITTEE_REVIEW':
+                return 'bg-success';
+            case 'IN_PROGRESS':
                 return 'bg-warning';
             case 'PENDING':
                 return 'bg-info';
