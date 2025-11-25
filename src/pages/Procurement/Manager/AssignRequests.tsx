@@ -110,7 +110,8 @@ const AssignRequests = () => {
             return;
         }
 
-        const request = requests.find((r) => r.id === selectedRequest);
+        // In reassignment view, the selected request may be in allRequests, not the unassigned list
+        const request = allRequests.find((r) => r.id === selectedRequest) || requests.find((r) => r.id === selectedRequest);
         const officer = officers.find((o) => o.id === selectedOfficer);
 
         if (!request || !officer) return;
@@ -159,7 +160,7 @@ const AssignRequests = () => {
                     throw new Error(error.message || 'Failed to assign request');
                 }
 
-                // Remove assigned request from list
+                // Remove assigned request from unassigned list (no-op in reassignment view)
                 setRequests((prev) => prev.filter((r) => r.id !== selectedRequest));
 
                 // Update allRequests to reflect the assignment
@@ -169,7 +170,18 @@ const AssignRequests = () => {
                 setSelectedOfficer(null);
 
                 // Update officer's assigned count
-                setOfficers((prev) => prev.map((o) => (o.id === selectedOfficer ? { ...o, assignedCount: o.assignedCount + 1 } : o)));
+                const previousAssigneeId = request.currentAssigneeId;
+                setOfficers((prev) =>
+                    prev.map((o) => {
+                        if (o.id === selectedOfficer) {
+                            return { ...o, assignedCount: o.assignedCount + 1 };
+                        }
+                        if (previousAssigneeId && o.id === previousAssigneeId && previousAssigneeId !== selectedOfficer) {
+                            return { ...o, assignedCount: Math.max(0, o.assignedCount - 1) };
+                        }
+                        return o;
+                    })
+                );
 
                 MySwal.fire({
                     icon: 'success',
