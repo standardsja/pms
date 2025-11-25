@@ -139,7 +139,12 @@ const AssignRequests = () => {
     const officerRequests = viewingOfficerRequests !== null && allRequests.length > 0 ? allRequests.filter((r) => r.currentAssigneeId === viewingOfficerRequests) : [];
 
     const displayRequests = viewingOfficerRequests !== null ? officerRequests : filteredRequests;
-    const displayTitle = viewingOfficerRequests !== null ? `Requests assigned to ${officers.find((o) => o.id === viewingOfficerRequests)?.name || 'Officer'}` : isProcurementManager ? 'Manager Inbox' : 'Unassigned Requests';
+    const displayTitle =
+        viewingOfficerRequests !== null
+            ? `Requests assigned to ${officers.find((o) => o.id === viewingOfficerRequests)?.name || 'Officer'}`
+            : isProcurementManager
+            ? 'Manager Inbox'
+            : 'Unassigned Requests';
 
     const handleOfficerClick = (officerId: number) => {
         // If already viewing this officer, toggle off
