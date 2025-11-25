@@ -429,12 +429,24 @@ const Onboarding = () => {
                         </div>
                         <div className="p-6 bg-white dark:bg-gray-800">
                             <div className="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 max-h-[75vh]">
-                                {/* Replace src below with final asset if needed */}
+                                {/* Prefer a custom image if present (drop your replacement as
+                                    public/assets/images/procurement/steps-custom.jpg).
+                                    If that file is missing the code falls back to the
+                                    original `steps.jpg`. */}
                                 <img
-                                    src="/assets/images/procurement/steps.jpg"
+                                    src="/assets/images/procurement/steps-custom.jpg"
                                     alt="Diagram showing the 7 steps of the procurement process"
                                     className="w-full h-auto max-h-[70vh] object-contain"
                                     loading="lazy"
+                                    onError={(e) => {
+                                        // fallback to the original filename if custom not present
+                                        try {
+                                            (e.currentTarget as HTMLImageElement).onerror = null;
+                                            (e.currentTarget as HTMLImageElement).src = '/assets/images/procurement/steps.jpg';
+                                        } catch (err) {
+                                            // noop
+                                        }
+                                    }}
                                 />
                             </div>
                             <p className="mt-4 text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
