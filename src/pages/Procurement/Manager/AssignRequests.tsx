@@ -33,6 +33,7 @@ interface Req {
     headerMonth?: string;
     headerYear?: number;
     headerSequence?: number;
+    currentAssigneeId?: number | null;
 }
 
 const AssignRequests = () => {
@@ -43,6 +44,7 @@ const AssignRequests = () => {
 
     const [officers, setOfficers] = useState<ProcurementOfficer[]>([]);
     const [requests, setRequests] = useState<Req[]>([]);
+    const [allRequests, setAllRequests] = useState<Req[]>([]);
     const [filteredRequests, setFilteredRequests] = useState<Req[]>([]);
     const [filteredOfficers, setFilteredOfficers] = useState<ProcurementOfficer[]>([]);
     const [selectedRequest, setSelectedRequest] = useState<number | null>(preselectedRequestId ? parseInt(preselectedRequestId) : null);
@@ -79,11 +81,17 @@ const AssignRequests = () => {
                 setOfficers(officersData);
 
                 // Fetch requests at PROCUREMENT_REVIEW status
-                const requestsRes = await fetch(`${apiUrl}/requests`);
+                const requestsRes = await fetch(`${apiUrl}/requests`, {
+                    headers: {
+                        'x-user-id': String(currentUserId || ''),
+                    },
+                });
                 if (!requestsRes.ok) throw new Error('Failed to fetch requests');
                 const requestsData = await requestsRes.json();
                 const procurementRequests = Array.isArray(requestsData) ? requestsData.filter((r: any) => r && r.status === 'PROCUREMENT_REVIEW') : [];
-                setRequests(procurementRequests);
+                // keep full list and also set unassigned list
+                setAllRequests(procurementRequests);
+                setRequests(procurementRequests.filter((r: any) => !r.currentAssigneeId));
             } catch (err: any) {
                 console.error('Error fetching data:', err);
                 setError(err.message || 'Failed to load data');
@@ -111,6 +119,30 @@ const AssignRequests = () => {
         setFilteredRequests(filtered);
     }, [requests, requestSearch]);
 
+    // requests currently assigned to an officer being viewed
+    const officerRequests = (viewingOfficerRequests !== null && allRequests.length > 0) ? allRequests.filter((r) => r.currentAssigneeId === viewingOfficerRequests) : [];
+
+    const handleOfficerClick = (officerId: number) => {
+        // If already viewing this officer, toggle off
+        if (viewingOfficerRequests === officerId) {
+            setViewingOfficerRequests(null);
+            setSelectedRequest(null);
+            setSelectedOfficer(null);
+            return;
+        }
+
+        // If a request is already selected (from viewing an officer), clicking another officer will select them as target for reassignment
+        if (viewingOfficerRequests && selectedRequest) {
+            setSelectedOfficer(officerId);
+            return;
+        }
+
+        // Otherwise, start viewing this officer's requests
+        setViewingOfficerRequests(officerId);
+        setSelectedRequest(null);
+        setSelectedOfficer(officerId);
+    };
+
     // Filter and sort officers
     useEffect(() => {
         let filtered = [...officers];
@@ -137,7 +169,8 @@ const AssignRequests = () => {
             return;
         }
 
-        const request = requests.find((r) => r.id === selectedRequest);
+        // request may be in allRequests (when reassigning) or in unassigned requests
+        const request = allRequests.find((r) => r.id === selectedRequest) || requests.find((r) => r.id === selectedRequest);
         const officer = officers.find((o) => o.id === selectedOfficer);
 
         if (!request || !officer) return;
@@ -186,13 +219,25 @@ const AssignRequests = () => {
                     throw new Error(error.message || 'Failed to assign request');
                 }
 
-                // Remove assigned request from list
+                // Remove assigned request from unassigned list (no-op in reassignment view)
                 setRequests((prev) => prev.filter((r) => r.id !== selectedRequest));
+                // Update full list
+                setAllRequests((prev) => prev.map((r) => (r.id === selectedRequest ? { ...r, currentAssigneeId: selectedOfficer } : r)));
+
+                const previousAssigneeId = request.currentAssigneeId;
+                // Clear selections
                 setSelectedRequest(null);
                 setSelectedOfficer(null);
+                setViewingOfficerRequests(null);
 
-                // Update officer's assigned count
-                setOfficers((prev) => prev.map((o) => (o.id === selectedOfficer ? { ...o, assignedCount: o.assignedCount + 1 } : o)));
+                // Update officer workloads: increment new assignee, decrement previous assignee if exists
+                setOfficers((prev) =>
+                    prev.map((o) => {
+                        if (o.id === selectedOfficer) return { ...o, assignedCount: o.assignedCount + 1 };
+                        if (previousAssigneeId && o.id === previousAssigneeId && previousAssigneeId !== selectedOfficer) return { ...o, assignedCount: Math.max(0, o.assignedCount - 1) };
+                        return o;
+                    })
+                );
 
                 MySwal.fire({
                     icon: 'success',
