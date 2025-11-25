@@ -97,6 +97,8 @@ const RequestForm = () => {
     const [headerSequence, setHeaderSequence] = useState<number | null>(0);
     const paddedSequence = String(headerSequence ?? 0).padStart(3, '0');
     const headerPreview = `[${headerDeptCode || '---'}]/[${headerMonth || '---'}]/[${headerYear || '----'}]/[${paddedSequence}]`;
+
+    const isFormCodeComplete = Boolean(headerDeptCode && headerMonth && headerYear !== null && headerSequence !== null && headerSequence !== undefined);
     // prevent duplicate submissions when network is slow
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [managerApproved, setManagerApproved] = useState(false);
@@ -697,6 +699,11 @@ const RequestForm = () => {
                                     </span>
                                 </div>
                             </div>
+                            {!isEditMode && !isFormCodeComplete && (
+                                <div className="mt-3 text-sm text-yellow-800 bg-yellow-50 dark:bg-yellow-900/20 rounded p-2">
+                                    <strong>Form Code Required:</strong> Please complete Department, Month, Year and Sequence before submitting.
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -1369,8 +1376,11 @@ const RequestForm = () => {
                     <div className="flex flex-wrap items-center gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
                         <button
                             type="submit"
-                            disabled={isSubmitting}
-                            className={`px-6 py-2 rounded bg-primary text-white font-medium ${isSubmitting ? 'opacity-60 cursor-not-allowed' : 'hover:opacity-95'}`}
+                            disabled={isSubmitting || (!isEditMode && !isFormCodeComplete)}
+                            className={`px-6 py-2 rounded bg-primary text-white font-medium ${
+                                isSubmitting || (!isEditMode && !isFormCodeComplete) ? 'opacity-60 cursor-not-allowed' : 'hover:opacity-95'
+                            }`}
+                            title={!isEditMode && !isFormCodeComplete ? 'Complete the form code before submitting' : undefined}
                         >
                             {isSubmitting ? (isEditMode ? 'Saving…' : 'Submitting…') : isEditMode ? 'Save Changes' : 'Submit Procurement Request'}
                         </button>

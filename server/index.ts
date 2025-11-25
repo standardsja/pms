@@ -2600,10 +2600,17 @@ app.post('/requests/:id/action', async (req, res) => {
                 nextStatus = 'BUDGET_MANAGER_REVIEW';
                 nextAssigneeId = budgetManager?.id || null;
             } else if (request.status === 'BUDGET_MANAGER_REVIEW') {
-                // Budget Manager approved -> send to Procurement for final processing
-                const procurement = await prisma.user.findFirst({
-                    where: { roles: { some: { role: { name: 'PROCUREMENT' } } } },
+                // Budget Manager approved -> send to Procurement Manager for delegation
+                // Prefer PROCUREMENT_MANAGER, fall back to PROCUREMENT officer if none exists
+                const procurementManager = await prisma.user.findFirst({
+                    where: { roles: { some: { role: { name: 'PROCUREMENT_MANAGER' } } } },
                 });
+                let procurement = procurementManager;
+                if (!procurement) {
+                    procurement = await prisma.user.findFirst({
+                        where: { roles: { some: { role: { name: 'PROCUREMENT' } } } },
+                    });
+                }
                 nextStatus = 'PROCUREMENT_REVIEW';
                 nextAssigneeId = procurement?.id || null;
             } else if (request.status === 'PROCUREMENT_REVIEW') {
@@ -2661,9 +2668,17 @@ app.post('/requests/:id/action', async (req, res) => {
             const enumProblem = msg.includes('BUDGET_MANAGER_REVIEW') || msg.toLowerCase().includes('invalid enum');
             if (enumProblem && request.status === 'FINANCE_REVIEW') {
                 // Fallback: if DB enum lacks BUDGET_MANAGER_REVIEW, treat as FINANCE_APPROVED
-                const procurement = await prisma.user.findFirst({
-                    where: { roles: { some: { role: { name: 'PROCUREMENT' } } } },
+                // Fallback: if DB enum lacks BUDGET_MANAGER_REVIEW, treat as FINANCE_APPROVED
+                // Assign to PROCUREMENT_MANAGER if available, else to PROCUREMENT officer
+                const procurementManager = await prisma.user.findFirst({
+                    where: { roles: { some: { role: { name: 'PROCUREMENT_MANAGER' } } } },
                 });
+                let procurement = procurementManager;
+                if (!procurement) {
+                    procurement = await prisma.user.findFirst({
+                        where: { roles: { some: { role: { name: 'PROCUREMENT' } } } },
+                    });
+                }
                 const fallbackStatus = 'FINANCE_APPROVED' as const;
                 updated = await prisma.request.update({
                     where: { id: parseInt(id, 10) },
