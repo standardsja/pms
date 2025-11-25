@@ -32,8 +32,7 @@ const QuoteDetail = lazy(() => import('../pages/Procurement/Quotes/QuoteDetail')
 const EvaluationList = lazy(() => import('../pages/Procurement/Evaluation/EvaluationList'));
 const NewEvaluation = lazy(() => import('../pages/Procurement/Evaluation/NewEvaluationComplete'));
 const EvaluationEdit = lazy(() => import('../pages/Procurement/Evaluation/EvaluationEdit'));
-// const EvaluationDetail = lazy(() => import('../pages/Procurement/Evaluation/EvaluationDetail'));
-// const EvaluationWorkspace = lazy(() => import('../pages/Procurement/Evaluation/EvaluationWorkspace'));
+const EvaluationDetail = lazy(() => import('../pages/Procurement/Evaluation/EvaluationDetail'));
 const EvaluationCommittee = lazy(() => import('../pages/Procurement/Evaluation/EvaluationCommittee'));
 const EvaluationCommitteeDashboard = lazy(() => import('../pages/Procurement/Evaluation/CommitteeDashboard'));
 const ReviewList = lazy(() => import('../pages/Procurement/Review/ReviewList'));
@@ -305,7 +304,7 @@ const routes = [
     },
     {
         path: '/procurement/evaluation/:id',
-        element: <EvaluationList />, // Temporarily redirect to list - EvaluationDetail missing
+        element: <EvaluationDetail />,
     },
     // Workspace route removed (no longer used)
     {

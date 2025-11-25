@@ -35,7 +35,7 @@ const API_URL = getApiUrl();
 export interface Notification {
     id: number;
     userId: number;
-    type: 'MENTION' | 'STAGE_CHANGED' | 'IDEA_APPROVED' | 'THRESHOLD_EXCEEDED';
+    type: 'MENTION' | 'STAGE_CHANGED' | 'IDEA_APPROVED' | 'THRESHOLD_EXCEEDED' | 'EVALUATION_VERIFIED' | 'EVALUATION_RETURNED';
     message: string;
     data?: any;
     readAt: string | null;
@@ -58,9 +58,13 @@ function authHeaders(): Record<string, string> {
     const user = getUser();
     const h: Record<string, string> = { 'Content-Type': 'application/json' };
 
-    // Backend accepts either x-user-id or Authorization: Bearer <id>
+    // Backend accepts either x-user-id or Authorization: Bearer <token>
     if (user?.id) {
-        h['x-user-id'] = user.id;
+        // Convert string ID to number for backend
+        const numericId = typeof user.id === 'string' ? parseInt(user.id, 10) : user.id;
+        if (!isNaN(numericId)) {
+            h['x-user-id'] = String(numericId);
+        }
     }
     if (token) {
         h['Authorization'] = `Bearer ${token}`;
@@ -83,10 +87,11 @@ export async function fetchNotifications(): Promise<Notification[]> {
         if (result.success) {
             return result.data;
         }
-        console.error('Failed to fetch notifications:', result.message);
+        // Silently return empty array on API errors
         return [];
     } catch (error) {
-        console.error('Error fetching notifications:', error);
+        // Silently handle connection errors (server not running, network issues, etc.)
+        // This prevents console spam when backend is offline
         return [];
     }
 }
@@ -104,7 +109,7 @@ export async function markNotificationAsRead(notificationId: number): Promise<bo
         const result = await response.json();
         return result.success === true;
     } catch (error) {
-        console.error('Error marking notification as read:', error);
+        // Silently handle errors
         return false;
     }
 }
@@ -122,7 +127,7 @@ export async function deleteNotification(notificationId: number): Promise<boolea
         const result = await response.json();
         return result.success === true;
     } catch (error) {
-        console.error('Error deleting notification:', error);
+        // Silently handle errors
         return false;
     }
 }

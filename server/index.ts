@@ -3796,19 +3796,44 @@ app.patch(
         const { id, section } = req.params;
         const sectionData = req.body;
         const sectionUpper = section.toUpperCase();
+        const userObj: any = (req as any).user;
+        const userId = userObj?.sub || userObj?.id;
+
+        // Validate ID is numeric
+        const evaluationId = parseInt(id);
+        if (isNaN(evaluationId) || evaluationId <= 0) {
+            throw new BadRequestError('Invalid evaluation ID');
+        }
 
         if (!['A', 'B', 'C', 'D', 'E'].includes(sectionUpper)) {
             throw new BadRequestError('Invalid section. Must be A, B, C, D, or E');
         }
 
+        // Validate section data is provided
+        if (!sectionData || typeof sectionData !== 'object') {
+            throw new BadRequestError('Section data is required');
+        }
+
         let existing: any = null;
         if (hasEvaluationDelegate()) {
-            existing = await (prisma as any).evaluation.findUnique({ where: { id: parseInt(id) } });
+            existing = await (prisma as any).evaluation.findUnique({ where: { id: evaluationId } });
         } else {
-            const checkRow = await prisma.$queryRawUnsafe<any>(`SELECT * FROM Evaluation WHERE id = ${parseInt(id)} LIMIT 1`);
+            const checkRow = await prisma.$queryRawUnsafe<any>(`SELECT * FROM Evaluation WHERE id = ${evaluationId} LIMIT 1`);
             existing = checkRow[0];
         }
         if (!existing) throw new NotFoundError('Evaluation not found');
+
+        // Authorization: Only the creator or procurement officers can update sections
+        if (existing.createdBy !== userId) {
+            // Check if user has procurement role
+            const roles = userObj?.roles || [];
+            const isProcurement = roles.some(
+                (r: string) => r.toUpperCase().includes('PROCUREMENT_OFFICER') || r.toUpperCase().includes('PROCUREMENT_MANAGER') || r.toUpperCase().includes('PROCUREMENT')
+            );
+            if (!isProcurement) {
+                throw new BadRequestError('Unauthorized to update this evaluation');
+            }
+        }
 
         const updateData: any = {};
         updateData[`section${sectionUpper}`] = sectionData;
@@ -3849,15 +3874,21 @@ app.post(
         const { id, section } = req.params;
         const sectionUpper = section.toUpperCase();
 
+        // Validate ID is numeric
+        const evaluationId = parseInt(id);
+        if (isNaN(evaluationId) || evaluationId <= 0) {
+            throw new BadRequestError('Invalid evaluation ID');
+        }
+
         if (!['A', 'B', 'C', 'D', 'E'].includes(sectionUpper)) {
             throw new BadRequestError('Invalid section. Must be A, B, C, D, or E');
         }
 
         let existing: any = null;
         if (hasEvaluationDelegate()) {
-            existing = await (prisma as any).evaluation.findUnique({ where: { id: parseInt(id) } });
+            existing = await (prisma as any).evaluation.findUnique({ where: { id: evaluationId } });
         } else {
-            const checkRow = await prisma.$queryRawUnsafe<any>(`SELECT * FROM Evaluation WHERE id = ${parseInt(id)} LIMIT 1`);
+            const checkRow = await prisma.$queryRawUnsafe<any>(`SELECT * FROM Evaluation WHERE id = ${evaluationId} LIMIT 1`);
             existing = checkRow[0];
         }
         if (!existing) throw new NotFoundError('Evaluation not found');
@@ -3934,6 +3965,40 @@ app.post(
                     [`section${sectionUpper}Verifier`]: { select: { id: true, name: true, email: true } },
                 },
             });
+
+            // Check if all sections are now verified
+            const allSections = ['A', 'B', 'C', 'D', 'E'];
+            const allVerified = allSections.every((s) => {
+                const sectionStatus = evaluation[`section${s}Status`];
+                return sectionStatus === 'VERIFIED';
+            });
+
+            // If all sections verified, update evaluation status and notify creator
+            if (allVerified && evaluation.status !== 'COMPLETED') {
+                await (prisma as any).evaluation.update({
+                    where: { id: parseInt(id) },
+                    data: { status: 'COMPLETED' },
+                });
+
+                // Send notification to creator
+                try {
+                    await prisma.notification.create({
+                        data: {
+                            userId: evaluation.createdBy,
+                            type: 'EVALUATION_VERIFIED',
+                            message: `Evaluation ${evaluation.evalNumber} has been fully verified by the committee and is now completed.`,
+                            data: {
+                                evaluationId: evaluation.id,
+                                evalNumber: evaluation.evalNumber,
+                                rfqTitle: evaluation.rfqTitle,
+                            },
+                        },
+                    });
+                } catch (notifErr) {
+                    console.error('Failed to create notification:', notifErr);
+                }
+            }
+
             return res.json({ success: true, data: evaluation, message: `Section ${sectionUpper} verified` });
         }
 

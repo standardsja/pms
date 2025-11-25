@@ -61,7 +61,7 @@ const EvaluationCommittee = () => {
                         setSectionCForm(data.sectionC as SectionCType);
                     } else {
                         const today = new Date().toISOString().slice(0, 10);
-                        setSectionCForm({
+                        const defaultForm: SectionCType = {
                             comments: '',
                             criticalIssues: '',
                             actionTaken: 'RECOMMENDED',
@@ -70,7 +70,8 @@ const EvaluationCommittee = () => {
                             evaluatorName: '',
                             evaluatorTitle: '',
                             evaluationDate: today,
-                        } as SectionCType);
+                        };
+                        setSectionCForm(defaultForm);
                     }
                 }
             } catch (err: any) {
@@ -90,6 +91,14 @@ const EvaluationCommittee = () => {
 
     const handleVerifySection = async (section: 'A' | 'B' | 'C' | 'D' | 'E') => {
         if (!evaluation || !isCommittee) return;
+
+        const status = getSectionStatus(section);
+        if (status !== 'SUBMITTED') {
+            setAlertMessage(`Section ${section} must be submitted before verification`);
+            setShowErrorAlert(true);
+            setTimeout(() => setShowErrorAlert(false), 5000);
+            return;
+        }
 
         try {
             setLoading(true);
@@ -191,7 +200,17 @@ const EvaluationCommittee = () => {
             for (const s of targets) {
                 await evaluationService.verifySection(evaluation.id, s, bulkNotes || undefined);
             }
-            setAlertMessage(`Verified ${targets.length} section${targets.length > 1 ? 's' : ''}`);
+
+            // Reload to check if all sections are now verified
+            const updatedEval = await evaluationService.getEvaluationById(evaluation.id);
+            const allVerified = sectionIds.every((s) => updatedEval[`section${s}Status` as keyof typeof updatedEval] === 'VERIFIED');
+
+            if (allVerified) {
+                setAlertMessage(`All sections verified! Evaluation completed and procurement officer has been notified.`);
+            } else {
+                setAlertMessage(`Verified ${targets.length} section${targets.length > 1 ? 's' : ''}`);
+            }
+
             setShowSuccessAlert(true);
             setBulkNotes('');
             await loadEvaluation(true);
@@ -253,12 +272,17 @@ const EvaluationCommittee = () => {
             for (const s of targets) {
                 await evaluationService.verifySection(evaluation.id, s, bulkNotes || undefined);
             }
-            if (allWouldBeVerified) {
-                await evaluationService.updateEvaluation(evaluation.id, { status: 'COMPLETED' });
-                setAlertMessage('All sections verified. Evaluation marked as Completed.');
+
+            // The backend automatically updates status to COMPLETED and sends notification when all verified
+            const updatedEval = await evaluationService.getEvaluationById(evaluation.id);
+            const allVerified = sectionIds.every((s) => updatedEval[`section${s}Status` as keyof typeof updatedEval] === 'VERIFIED');
+
+            if (allVerified) {
+                setAlertMessage('All sections verified and evaluation completed! Procurement officer has been notified.');
             } else {
                 setAlertMessage(`Verified ${targets.length} section${targets.length > 1 ? 's' : ''}`);
             }
+
             setShowSuccessAlert(true);
             setBulkNotes('');
             await loadEvaluation(true);

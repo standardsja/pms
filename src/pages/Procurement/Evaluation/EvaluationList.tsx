@@ -101,6 +101,7 @@ const EvaluationList = () => {
     }, [evaluations]);
 
     const hasNewSubmissions = (e: Evaluation) => {
+        if (!e) return false;
         try {
             return e.sectionAStatus === 'SUBMITTED' || e.sectionBStatus === 'SUBMITTED' || e.sectionCStatus === 'SUBMITTED' || e.sectionDStatus === 'SUBMITTED' || e.sectionEStatus === 'SUBMITTED';
         } catch {
@@ -109,6 +110,7 @@ const EvaluationList = () => {
     };
 
     const hasReturnedSections = (e: Evaluation) => {
+        if (!e) return false;
         try {
             return e.sectionAStatus === 'RETURNED' || e.sectionBStatus === 'RETURNED' || e.sectionCStatus === 'RETURNED' || e.sectionDStatus === 'RETURNED' || e.sectionEStatus === 'RETURNED';
         } catch {
@@ -291,6 +293,7 @@ const EvaluationList = () => {
                                                 <span className={`badge ${getStatusBadge(evaluation.status)}`}>{statusMap[evaluation.status]}</span>
                                                 {isCommittee && hasNewSubmissions(evaluation) && <span className="badge bg-info">New</span>}
                                                 {isProcurement && hasReturnedSections(evaluation) && <span className="badge bg-warning">Returned</span>}
+                                                {isProcurement && evaluation.status === 'COMPLETED' && <span className="badge bg-success animate-pulse">✓ Verified</span>}
                                             </div>
                                         </td>
                                         <td>

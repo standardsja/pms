@@ -260,10 +260,12 @@ class EvaluationService {
         if (!response.ok) {
             // Attempt to parse structured error
             const error = await response.json().catch(() => ({ message: 'Request failed' }));
-            throw new Error(error.message || `HTTP ${response.status}`);
+            const errorMessage = error.message || error.error || `HTTP ${response.status}: ${response.statusText}`;
+            throw new Error(errorMessage);
         }
 
-        return response.json();
+        const data = await response.json();
+        return data;
     }
 
     async getEvaluations(filters?: EvaluationFilters): Promise<Evaluation[]> {

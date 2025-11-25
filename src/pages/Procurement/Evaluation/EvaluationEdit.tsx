@@ -44,10 +44,16 @@ const EvaluationEdit = () => {
     }, [navigate]);
 
     useEffect(() => {
+        if (!id || isNaN(parseInt(id))) {
+            setError('Invalid evaluation ID');
+            setLoading(false);
+            return;
+        }
         loadEvaluation();
     }, [id]);
 
     const loadEvaluation = async () => {
+        if (!id) return;
         try {
             setLoading(true);
             setError(null);
@@ -84,6 +90,10 @@ const EvaluationEdit = () => {
             else if (section === 'D') sectionData = sectionDForm;
             else if (section === 'E') sectionData = sectionEForm;
 
+            if (!sectionData) {
+                throw new Error('No data to update for this section');
+            }
+
             await evaluationService.updateSection(evaluation.id, section, sectionData);
             setAlertMessage(`Section ${section} updated successfully`);
             setShowSuccessAlert(true);
@@ -106,14 +116,18 @@ const EvaluationEdit = () => {
             await evaluationService.submitSection(evaluation.id, section);
             setAlertMessage(`Section ${section} resubmitted to committee for review`);
             setShowSuccessAlert(true);
-            await loadEvaluation();
+            const updatedEval = await evaluationService.getEvaluationById(evaluation.id);
+            setEvaluation(updatedEval);
+
             setTimeout(() => {
                 setShowSuccessAlert(false);
-                // If no more returned sections, go back to list
+                // Check updated evaluation for remaining returned sections
                 const hasReturned =
-                    evaluation.sectionAStatus === 'RETURNED' || evaluation.sectionBStatus === 'RETURNED' || evaluation.sectionDStatus === 'RETURNED' || evaluation.sectionEStatus === 'RETURNED';
+                    updatedEval.sectionAStatus === 'RETURNED' || updatedEval.sectionBStatus === 'RETURNED' || updatedEval.sectionDStatus === 'RETURNED' || updatedEval.sectionEStatus === 'RETURNED';
                 if (!hasReturned) {
                     navigate('/procurement/evaluation');
+                } else {
+                    setCurrentSection(null);
                 }
             }, 2000);
         } catch (err: any) {
@@ -129,17 +143,18 @@ const EvaluationEdit = () => {
         if (!evaluation) return [];
         const sections: Array<{ id: 'A' | 'B' | 'D' | 'E'; title: string; notes: string }> = [];
 
+        // Section C is committee-only and should not be editable by Procurement
         if (evaluation.sectionAStatus === 'RETURNED') {
-            sections.push({ id: 'A', title: 'Section A: Procurement Details', notes: evaluation.sectionANotes || '' });
+            sections.push({ id: 'A', title: 'Section A: Procurement Details', notes: evaluation.sectionANotes || 'No notes provided' });
         }
         if (evaluation.sectionBStatus === 'RETURNED') {
-            sections.push({ id: 'B', title: 'Section B: Bidders & Compliance', notes: evaluation.sectionBNotes || '' });
+            sections.push({ id: 'B', title: 'Section B: Bidders & Compliance', notes: evaluation.sectionBNotes || 'No notes provided' });
         }
         if (evaluation.sectionDStatus === 'RETURNED') {
-            sections.push({ id: 'D', title: 'Section D: Summary', notes: evaluation.sectionDNotes || '' });
+            sections.push({ id: 'D', title: 'Section D: Summary', notes: evaluation.sectionDNotes || 'No notes provided' });
         }
         if (evaluation.sectionEStatus === 'RETURNED') {
-            sections.push({ id: 'E', title: 'Section E: Procurement Officer Recommendation', notes: evaluation.sectionENotes || '' });
+            sections.push({ id: 'E', title: 'Section E: Procurement Officer Recommendation', notes: evaluation.sectionENotes || 'No notes provided' });
         }
 
         return sections;
