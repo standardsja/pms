@@ -16,13 +16,13 @@ export interface ThresholdResult {
 /**
  * Check if a request requires Executive Director approval based on value thresholds
  */
-export function checkProcurementThresholds(totalValue: number, procurementTypes: string[], currency: string = 'USD'): ThresholdResult {
+export function checkProcurementThresholds(totalValue: number, procurementTypes: string[], currency: string = 'JMD'): ThresholdResult {
     // Convert all types to lowercase for comparison
     const types = procurementTypes.map((type) => type.toLowerCase());
 
-    // Define threshold amounts (in USD)
-    const WORKS_THRESHOLD = 5000000; // $5M
-    const GOODS_SERVICES_THRESHOLD = 3000000; // $3M
+    // Define threshold amounts (in JMD)
+    const WORKS_THRESHOLD = 5000000; // JMD $5M
+    const GOODS_SERVICES_THRESHOLD = 3000000; // JMD $3M
 
     // Determine category and applicable threshold
     const isWorks = types.includes('works') || types.includes('construction') || types.includes('infrastructure');

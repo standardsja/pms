@@ -109,7 +109,8 @@ const Header = () => {
             const data = await fetchMessages();
             setMessages(data);
         } catch (error) {
-            console.error('Failed to load messages:', error);
+            // Silently handle errors - messages will be empty
+            setMessages([]);
         } finally {
             setMessagesLoading(false);
         }
@@ -133,7 +134,8 @@ const Header = () => {
             const data = await fetchNotifications();
             setNotifications(data);
         } catch (error) {
-            console.error('Failed to load notifications:', error);
+            // Silently handle errors - notifications will be empty
+            setNotifications([]);
         } finally {
             setNotificationsLoading(false);
         }
@@ -524,6 +526,7 @@ const Header = () => {
                                                     MENTION: '👤',
                                                     STAGE_CHANGED: '🔄',
                                                     IDEA_APPROVED: '✅',
+                                                    THRESHOLD_EXCEEDED: '⚠️',
                                                 };
                                                 const icon = notificationTypeIcons[notification.type] || '🔔';
 

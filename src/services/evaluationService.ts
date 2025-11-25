@@ -181,8 +181,13 @@ export interface CreateEvaluationDTO {
     rfqTitle: string;
     description?: string;
     sectionA?: SectionA;
+    sectionB?: SectionB;
+    sectionC?: SectionC;
+    sectionD?: SectionD;
+    sectionE?: SectionE;
     evaluator?: string;
     dueDate?: string;
+    submitToCommittee?: boolean;
 }
 
 export interface UpdateEvaluationDTO {
@@ -255,10 +260,12 @@ class EvaluationService {
         if (!response.ok) {
             // Attempt to parse structured error
             const error = await response.json().catch(() => ({ message: 'Request failed' }));
-            throw new Error(error.message || `HTTP ${response.status}`);
+            const errorMessage = error.message || error.error || `HTTP ${response.status}: ${response.statusText}`;
+            throw new Error(errorMessage);
         }
 
-        return response.json();
+        const data = await response.json();
+        return data;
     }
 
     async getEvaluations(filters?: EvaluationFilters): Promise<Evaluation[]> {
@@ -311,6 +318,14 @@ class EvaluationService {
         return result.data;
     }
 
+    async updateSection(id: number, section: 'A' | 'B' | 'C' | 'D' | 'E', data: any): Promise<Evaluation> {
+        const result = await this.fetchWithAuth(`/api/evaluations/${id}/sections/${section}`, {
+            method: 'PATCH',
+            body: JSON.stringify(data),
+        });
+        return result.data;
+    }
+
     async verifySection(id: number, section: 'A' | 'B' | 'C' | 'D' | 'E', notes?: string): Promise<Evaluation> {
         const result = await this.fetchWithAuth(`/api/evaluations/${id}/sections/${section}/verify`, {
             method: 'POST',
@@ -321,6 +336,14 @@ class EvaluationService {
 
     async returnSection(id: number, section: 'A' | 'B' | 'C' | 'D' | 'E', notes: string): Promise<Evaluation> {
         const result = await this.fetchWithAuth(`/api/evaluations/${id}/sections/${section}/return`, {
+            method: 'POST',
+            body: JSON.stringify({ notes }),
+        });
+        return result.data;
+    }
+
+    async validateEvaluation(id: number, notes?: string): Promise<Evaluation> {
+        const result = await this.fetchWithAuth(`/api/evaluations/${id}/validate`, {
             method: 'POST',
             body: JSON.stringify({ notes }),
         });

@@ -54,7 +54,7 @@ const CombineRequests = () => {
             setError(null);
             try {
                 const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
-                const response = await fetch(`http://localhost:4000/api/requests?combinable=true`, {
+                const response = await fetch(`http://localhost:4000/api/requests/combine?combinable=true`, {
                     headers: {
                         Authorization: `Bearer ${token}`,
                         'Content-Type': 'application/json',
