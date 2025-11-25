@@ -54,6 +54,7 @@ const AssignRequests = () => {
     const [requestSearch, setRequestSearch] = useState('');
     const [officerSearch, setOfficerSearch] = useState('');
     const [sortBy, setSortBy] = useState<'workload' | 'name'>('workload');
+    const [viewingOfficerRequests, setViewingOfficerRequests] = useState<number | null>(null);
 
     const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:4000' : `http://${window.location.hostname}:4000`;
 
