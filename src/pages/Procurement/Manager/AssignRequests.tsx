@@ -562,14 +562,14 @@ const AssignRequests = () => {
                             </span>
                         </div>
                         <div className="space-y-2">
-                                    {selectedRequest && (
-                                        <div className="mb-2 text-sm bg-yellow-50 dark:bg-yellow-900/10 rounded p-2 text-yellow-800 flex items-center justify-between">
-                                            <div>
-                                                <strong>Request selected:</strong> Click an officer to assign this request, or use the Confirm Assignment panel.
-                                            </div>
-                                            <div className="text-xs text-yellow-700">Selected ID: {selectedRequest}</div>
-                                        </div>
-                                    )}
+                            {selectedRequest && (
+                                <div className="mb-2 text-sm bg-yellow-50 dark:bg-yellow-900/10 rounded p-2 text-yellow-800 flex items-center justify-between">
+                                    <div>
+                                        <strong>Request selected:</strong> Click an officer to assign this request, or use the Confirm Assignment panel.
+                                    </div>
+                                    <div className="text-xs text-yellow-700">Selected ID: {selectedRequest}</div>
+                                </div>
+                            )}
                             <div className="relative">
                                 <input
                                     type="text"
