@@ -102,12 +102,12 @@ const EvaluationCommittee = () => {
 
         try {
             setLoading(true);
-            await evaluationService.verifySection(evaluation.id, section, verificationNotes);
+            const updatedEval = await evaluationService.verifySection(evaluation.id, section, verificationNotes);
+            setEvaluation(updatedEval);
             setAlertMessage(`Section ${section} verified successfully`);
             setShowSuccessAlert(true);
             setVerificationNotes('');
             setActiveSection(null);
-            await loadEvaluation(true);
             setTimeout(() => setShowSuccessAlert(false), 3000);
         } catch (err: any) {
             setAlertMessage(err.message || 'Failed to verify section');
@@ -130,12 +130,12 @@ const EvaluationCommittee = () => {
 
         try {
             setLoading(true);
-            await evaluationService.returnSection(evaluation.id, section, verificationNotes);
+            const updatedEval = await evaluationService.returnSection(evaluation.id, section, verificationNotes);
+            setEvaluation(updatedEval);
             setAlertMessage(`Section ${section} returned for changes`);
             setShowSuccessAlert(true);
             setVerificationNotes('');
             setActiveSection(null);
-            await loadEvaluation(true);
             setTimeout(() => setShowSuccessAlert(false), 3000);
         } catch (err: any) {
             setAlertMessage(err.message || 'Failed to return section');
@@ -197,13 +197,15 @@ const EvaluationCommittee = () => {
 
         try {
             setLoading(true);
+            let updatedEval = evaluation;
             for (const s of targets) {
-                await evaluationService.verifySection(evaluation.id, s, bulkNotes || undefined);
+                updatedEval = await evaluationService.verifySection(evaluation.id, s, bulkNotes || undefined);
             }
 
-            // Reload to check if all sections are now verified
-            const updatedEval = await evaluationService.getEvaluationById(evaluation.id);
+            // Check if all sections are now verified
             const allVerified = sectionIds.every((s) => updatedEval[`section${s}Status` as keyof typeof updatedEval] === 'VERIFIED');
+
+            setEvaluation(updatedEval);
 
             if (allVerified) {
                 setAlertMessage(`All sections verified! Evaluation completed and procurement officer has been notified.`);
@@ -213,7 +215,6 @@ const EvaluationCommittee = () => {
 
             setShowSuccessAlert(true);
             setBulkNotes('');
-            await loadEvaluation(true);
             setTimeout(() => setShowSuccessAlert(false), 3000);
         } catch (err: any) {
             setAlertMessage(err.message || 'Failed to verify all sections');
@@ -243,13 +244,14 @@ const EvaluationCommittee = () => {
 
         try {
             setLoading(true);
+            let updatedEval = evaluation;
             for (const s of targets) {
-                await evaluationService.returnSection(evaluation.id, s, bulkNotes);
+                updatedEval = await evaluationService.returnSection(evaluation.id, s, bulkNotes);
             }
+            setEvaluation(updatedEval);
             setAlertMessage(`Returned ${targets.length} section${targets.length > 1 ? 's' : ''} for changes`);
             setShowSuccessAlert(true);
             setBulkNotes('');
-            await loadEvaluation(true);
             setTimeout(() => setShowSuccessAlert(false), 3000);
         } catch (err: any) {
             setAlertMessage(err.message || 'Failed to return sections');
@@ -269,13 +271,15 @@ const EvaluationCommittee = () => {
         });
         try {
             setLoading(true);
+            let updatedEval = evaluation;
             for (const s of targets) {
-                await evaluationService.verifySection(evaluation.id, s, bulkNotes || undefined);
+                updatedEval = await evaluationService.verifySection(evaluation.id, s, bulkNotes || undefined);
             }
 
             // The backend automatically updates status to COMPLETED and sends notification when all verified
-            const updatedEval = await evaluationService.getEvaluationById(evaluation.id);
             const allVerified = sectionIds.every((s) => updatedEval[`section${s}Status` as keyof typeof updatedEval] === 'VERIFIED');
+
+            setEvaluation(updatedEval);
 
             if (allVerified) {
                 setAlertMessage('All sections verified and evaluation completed! Procurement officer has been notified.');
@@ -285,7 +289,6 @@ const EvaluationCommittee = () => {
 
             setShowSuccessAlert(true);
             setBulkNotes('');
-            await loadEvaluation(true);
             setTimeout(() => setShowSuccessAlert(false), 3000);
         } catch (err: any) {
             setAlertMessage(err.message || 'Failed to process bulk verification');

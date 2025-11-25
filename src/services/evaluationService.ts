@@ -342,6 +342,14 @@ class EvaluationService {
         return result.data;
     }
 
+    async validateEvaluation(id: number, notes?: string): Promise<Evaluation> {
+        const result = await this.fetchWithAuth(`/api/evaluations/${id}/validate`, {
+            method: 'POST',
+            body: JSON.stringify({ notes }),
+        });
+        return result.data;
+    }
+
     async deleteEvaluation(id: number): Promise<void> {
         await this.fetchWithAuth(`/api/evaluations/${id}`, {
             method: 'DELETE',

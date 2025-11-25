@@ -1379,13 +1379,22 @@ const NewEvaluationComplete = () => {
             {/* Action Footer - Sticky */}
             <div className="panel sticky bottom-4 z-10 border-t-4 border-primary shadow-2xl">
                 <div className="flex flex-wrap items-center justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-warning/20 text-warning">
-                            <IconInfoCircle className="h-5 w-5" />
+                    <div className="space-y-2">
+                        <div className="flex items-center gap-3">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-warning/20 text-warning">
+                                <IconInfoCircle className="h-5 w-5" />
+                            </div>
+                            <div>
+                                <p className="text-sm font-semibold">Committee Review Fields</p>
+                                <p className="text-xs text-white-dark">Gray background fields will be completed during committee verification</p>
+                            </div>
                         </div>
-                        <div>
-                            <p className="text-sm font-semibold">Committee Review Fields</p>
-                            <p className="text-xs text-white-dark">Gray background fields will be completed during committee verification</p>
+                        <div className="flex items-center gap-2 text-xs ml-13">
+                            <span className="badge bg-warning/10 text-warning border border-warning/20 px-2 py-1">Save Draft: Pending</span>
+                            <span className="text-white-dark">→ In Progress → Committee Review</span>
+                            <span className="text-white-dark mx-2">|</span>
+                            <span className="badge bg-success/10 text-success border border-success/20 px-2 py-1">Submit: Committee Review</span>
+                            <span className="text-white-dark">→ Completed → Validated</span>
                         </div>
                     </div>
                     <div className="flex gap-3">

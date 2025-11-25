@@ -695,11 +695,18 @@ const NewEvaluation = () => {
                 </div>
 
                 {/* Action Buttons */}
-                <div className="flex flex-wrap items-center justify-end gap-3">
-                    <Link to="/procurement/evaluation" className="btn btn-outline-secondary">
-                        {t('common.cancel', 'Cancel')}
-                    </Link>
-                    <button onClick={handleCreateEvaluation} className="btn btn-success gap-2" disabled={loading}>
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div className="flex items-center gap-2 text-sm">
+                        <span className="badge bg-info/10 text-info border border-info/20 px-3 py-1.5">
+                            Creates as: <strong className="ml-1">Pending (Draft)</strong>
+                        </span>
+                        <span className="text-white-dark">→ In Progress → Committee Review → Completed → Validated</span>
+                    </div>
+                    <div className="flex gap-3">
+                        <Link to="/procurement/evaluation" className="btn btn-outline-secondary">
+                            {t('common.cancel', 'Cancel')}
+                        </Link>
+                        <button onClick={handleCreateEvaluation} className="btn btn-success gap-2" disabled={loading}>
                         {loading ? (
                             <>
                                 <span className="animate-spin border-2 border-white border-l-transparent rounded-full w-4 h-4 inline-block align-middle"></span>

@@ -6,6 +6,7 @@ import IconClipboardText from '../../../components/Icon/IconClipboardText';
 import IconPlus from '../../../components/Icon/IconPlus';
 import IconEye from '../../../components/Icon/IconEye';
 import IconFile from '../../../components/Icon/IconFile';
+import IconChecks from '../../../components/Icon/IconChecks';
 import IconUsersGroup from '../../../components/Icon/IconUsersGroup';
 import IconEdit from '../../../components/Icon/IconEdit';
 import { useTranslation } from 'react-i18next';
@@ -37,6 +38,7 @@ const EvaluationList = () => {
     const [dueAfter, setDueAfter] = useState<string>('');
     const [isCommittee, setIsCommittee] = useState(false);
     const [isProcurement, setIsProcurement] = useState(false);
+    const [isExecutive, setIsExecutive] = useState(false);
 
     useEffect(() => {
         dispatch(setPageTitle(t('evaluation.pageTitle', 'BSJ Evaluation Reports')));
@@ -49,8 +51,10 @@ const EvaluationList = () => {
             const roles = (u?.roles || (u?.role ? [u.role] : [])).map((r) => r.toUpperCase());
             const hasCommitteeRole = roles.some((role) => role.includes('COMMITTEE') || role.includes('EVALUATION_COMMITTEE'));
             const hasProcurementRole = roles.some((role) => role.includes('PROCUREMENT_OFFICER') || role.includes('PROCUREMENT_MANAGER') || role.includes('PROCUREMENT'));
+            const hasExecutiveRole = roles.some((role) => role.includes('EXECUTIVE_DIRECTOR'));
             setIsCommittee(hasCommitteeRole);
             setIsProcurement(hasProcurementRole);
+            setIsExecutive(hasExecutiveRole);
         }
     }, []);
 
@@ -118,8 +122,33 @@ const EvaluationList = () => {
         }
     };
 
+    const hasStartedEditing = (e: Evaluation) => {
+        if (!e) return false;
+        try {
+            const statuses = [e.sectionAStatus, e.sectionBStatus, e.sectionCStatus, e.sectionDStatus, e.sectionEStatus];
+            const anyInProgress = statuses.some((s) => s === 'IN_PROGRESS');
+            const anySubmitted = statuses.some((s) => s === 'SUBMITTED');
+            const anyReturned = statuses.some((s) => s === 'RETURNED');
+            return e.status === 'IN_PROGRESS' && anyInProgress && !anySubmitted && !anyReturned;
+        } catch {
+            return false;
+        }
+    };
+
     const handleViewDetails = (evaluationId: number) => {
         navigate(`/procurement/evaluation/${evaluationId}`);
+    };
+
+    const handleValidate = async (evaluationId: number) => {
+        try {
+            setLoading(true);
+            const updated = await evaluationService.validateEvaluation(evaluationId);
+            setEvaluations((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
+        } catch (err: any) {
+            setError(err.message || 'Failed to validate evaluation');
+        } finally {
+            setLoading(false);
+        }
     };
 
     const getStatusBadge = (status: EvaluationStatus) => {
@@ -129,7 +158,7 @@ const EvaluationList = () => {
             case 'VALIDATED':
                 return 'bg-primary';
             case 'COMMITTEE_REVIEW':
-                return 'bg-success';
+                return 'bg-warning';
             case 'IN_PROGRESS':
                 return 'bg-warning';
             case 'PENDING':
@@ -292,9 +321,26 @@ const EvaluationList = () => {
                                         <td>
                                             <div className="flex items-center gap-2">
                                                 <span className={`badge ${getStatusBadge(evaluation.status)}`}>{statusMap[evaluation.status]}</span>
-                                                {isCommittee && hasNewSubmissions(evaluation) && <span className="badge bg-info">New</span>}
-                                                {isProcurement && hasReturnedSections(evaluation) && <span className="badge bg-warning">Returned</span>}
-                                                {isProcurement && evaluation.status === 'COMPLETED' && <span className="badge bg-success animate-pulse">✓ Verified</span>}
+                                                {isCommittee && hasNewSubmissions(evaluation) && (
+                                                    <span className="badge bg-info" title="Submitted sections awaiting committee review">
+                                                        New
+                                                    </span>
+                                                )}
+                                                {isProcurement && hasReturnedSections(evaluation) && (
+                                                    <span className="badge bg-warning" title="Sections returned by committee; needs updates">
+                                                        Returned
+                                                    </span>
+                                                )}
+                                                {hasStartedEditing(evaluation) && (
+                                                    <span className="badge bg-secondary" title="First edits saved; not yet submitted">
+                                                        Edited
+                                                    </span>
+                                                )}
+                                                {isProcurement && evaluation.status === 'COMPLETED' && (
+                                                    <span className="badge bg-success animate-pulse" title="All sections verified; evaluation completed">
+                                                        ✓ Verified
+                                                    </span>
+                                                )}
                                             </div>
                                         </td>
                                         <td>
@@ -320,6 +366,11 @@ const EvaluationList = () => {
                                                 {(evaluation.status === 'COMPLETED' || evaluation.status === 'VALIDATED') && (
                                                     <button className="btn btn-sm btn-success" title={t('evaluation.actions.generateReport', 'Download Report')}>
                                                         <IconFile className="h-4 w-4" />
+                                                    </button>
+                                                )}
+                                                {isExecutive && evaluation.status === 'COMPLETED' && (
+                                                    <button onClick={() => handleValidate(evaluation.id)} className="btn btn-sm btn-primary" title="Validate Evaluation">
+                                                        <IconChecks className="h-4 w-4" />
                                                     </button>
                                                 )}
                                             </div>
