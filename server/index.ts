@@ -3788,6 +3788,57 @@ app.patch(
     })
 );
 
+// PATCH /api/evaluations/:id/sections/:section - Update a section (for returned sections)
+app.patch(
+    '/api/evaluations/:id/sections/:section',
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+        const { id, section } = req.params;
+        const sectionData = req.body;
+        const sectionUpper = section.toUpperCase();
+
+        if (!['A', 'B', 'C', 'D', 'E'].includes(sectionUpper)) {
+            throw new BadRequestError('Invalid section. Must be A, B, C, D, or E');
+        }
+
+        let existing: any = null;
+        if (hasEvaluationDelegate()) {
+            existing = await (prisma as any).evaluation.findUnique({ where: { id: parseInt(id) } });
+        } else {
+            const checkRow = await prisma.$queryRawUnsafe<any>(`SELECT * FROM Evaluation WHERE id = ${parseInt(id)} LIMIT 1`);
+            existing = checkRow[0];
+        }
+        if (!existing) throw new NotFoundError('Evaluation not found');
+
+        const updateData: any = {};
+        updateData[`section${sectionUpper}`] = sectionData;
+        // Clear return notes when updating
+        updateData[`section${sectionUpper}Notes`] = null;
+        updateData[`section${sectionUpper}VerifiedAt`] = null;
+        updateData[`section${sectionUpper}VerifiedBy`] = null;
+        // Set status to IN_PROGRESS so it can be resubmitted
+        updateData[`section${sectionUpper}Status`] = 'IN_PROGRESS';
+
+        if (hasEvaluationDelegate()) {
+            const evaluation = await (prisma as any).evaluation.update({
+                where: { id: parseInt(id) },
+                data: updateData,
+                include: {
+                    creator: { select: { id: true, name: true, email: true } },
+                    [`section${sectionUpper}Verifier`]: { select: { id: true, name: true, email: true } },
+                },
+            });
+            return res.json({ success: true, data: evaluation, message: `Section ${sectionUpper} updated` });
+        }
+
+        const jsonData = JSON.stringify(sectionData).replace(/'/g, "''");
+        await prisma.$executeRawUnsafe(
+            `UPDATE Evaluation SET section${sectionUpper}='${jsonData}', section${sectionUpper}Status='IN_PROGRESS', section${sectionUpper}Notes=NULL, section${sectionUpper}VerifiedAt=NULL, section${sectionUpper}VerifiedBy=NULL, updatedAt=NOW() WHERE id=${parseInt(id)}`
+        );
+        res.json({ success: true, message: `Section ${sectionUpper} updated`, meta: { fallback: true } });
+    })
+);
+
 // POST /api/evaluations/:id/sections/:section/submit - Submit section for committee review
 app.post(
     '/api/evaluations/:id/sections/:section/submit',
@@ -3930,6 +3981,8 @@ app.post(
         updateData[`section${sectionUpper}VerifiedBy`] = userId;
         updateData[`section${sectionUpper}VerifiedAt`] = new Date();
         updateData[`section${sectionUpper}Notes`] = notes;
+        // Change evaluation status back to IN_PROGRESS so Procurement can edit and resubmit
+        updateData.status = 'IN_PROGRESS';
 
         if (hasEvaluationDelegate()) {
             const evaluation = await (prisma as any).evaluation.update({
@@ -3948,6 +4001,7 @@ app.post(
             `section${sectionUpper}VerifiedBy=${userId}`,
             `section${sectionUpper}VerifiedAt=NOW()`,
             `section${sectionUpper}Notes='${notes.replace(/'/g, "''")}'`,
+            `status='IN_PROGRESS'`,
             'updatedAt=NOW()',
         ];
         await prisma.$executeRawUnsafe(`UPDATE Evaluation SET ${sets.join(', ')} WHERE id=${parseInt(id)}`);

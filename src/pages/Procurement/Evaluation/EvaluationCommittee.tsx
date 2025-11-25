@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { setPageTitle } from '../../../store/themeConfigSlice';
@@ -7,7 +7,7 @@ import IconChecks from '../../../components/Icon/IconChecks';
 import IconX from '../../../components/Icon/IconX';
 import { getUser } from '../../../utils/auth';
 import { useTranslation } from 'react-i18next';
-import { evaluationService, type Evaluation, type SectionVerificationStatus } from '../../../services/evaluationService';
+import { evaluationService, type Evaluation, type SectionVerificationStatus, type SectionC as SectionCType } from '../../../services/evaluationService';
 
 const EvaluationCommittee = () => {
     const dispatch = useDispatch();
@@ -24,6 +24,8 @@ const EvaluationCommittee = () => {
     const [verificationNotes, setVerificationNotes] = useState('');
     const [isCommittee, setIsCommittee] = useState(false);
     const [activeSection, setActiveSection] = useState<'A' | 'B' | 'C' | 'D' | 'E' | null>(null);
+    const [bulkNotes, setBulkNotes] = useState('');
+    const [sectionCForm, setSectionCForm] = useState<SectionCType | null>(null);
 
     useEffect(() => {
         dispatch(setPageTitle('Committee Verification'));
@@ -47,24 +49,41 @@ const EvaluationCommittee = () => {
         setIsCommittee(true);
     }, [navigate]);
 
-    // Load evaluation data
-    useEffect(() => {
-        loadEvaluation();
-    }, [id]);
-
-    const loadEvaluation = async () => {
+    const loadEvaluation = useCallback(async (preserveSectionC = false) => {
         try {
             setLoading(true);
             setError(null);
             const data = await evaluationService.getEvaluationById(parseInt(id || '0'));
             setEvaluation(data);
+            if (!preserveSectionC) {
+                if (data?.sectionC) {
+                    setSectionCForm(data.sectionC as SectionCType);
+                } else {
+                    const today = new Date().toISOString().slice(0, 10);
+                    setSectionCForm({
+                        comments: '',
+                        criticalIssues: '',
+                        actionTaken: 'RECOMMENDED',
+                        recommendedSupplier: '',
+                        recommendedAmountInclusiveGCT: 0,
+                        evaluatorName: '',
+                        evaluatorTitle: '',
+                        evaluationDate: today,
+                    } as SectionCType);
+                }
+            }
         } catch (err: any) {
             console.error('Failed to load evaluation:', err);
             setError(err.message || 'Failed to load evaluation');
         } finally {
             setLoading(false);
         }
-    };
+    }, [id]);
+
+    // Load evaluation data
+    useEffect(() => {
+        loadEvaluation();
+    }, [loadEvaluation]);
 
     const handleVerifySection = async (section: 'A' | 'B' | 'C' | 'D' | 'E') => {
         if (!evaluation || !isCommittee) return;
@@ -76,7 +95,7 @@ const EvaluationCommittee = () => {
             setShowSuccessAlert(true);
             setVerificationNotes('');
             setActiveSection(null);
-            await loadEvaluation();
+            await loadEvaluation(true);
             setTimeout(() => setShowSuccessAlert(false), 3000);
         } catch (err: any) {
             setAlertMessage(err.message || 'Failed to verify section');
@@ -104,7 +123,7 @@ const EvaluationCommittee = () => {
             setShowSuccessAlert(true);
             setVerificationNotes('');
             setActiveSection(null);
-            await loadEvaluation();
+            await loadEvaluation(true);
             setTimeout(() => setShowSuccessAlert(false), 3000);
         } catch (err: any) {
             setAlertMessage(err.message || 'Failed to return section');
@@ -150,7 +169,218 @@ const EvaluationCommittee = () => {
         }
     };
 
-    const renderSectionContent = (section: 'A' | 'B' | 'C' | 'D' | 'E', title: string) => {
+    const sectionIds: Array<'A' | 'B' | 'C' | 'D' | 'E'> = ['A', 'B', 'C', 'D', 'E'];
+    const getSubmittedSections = (): Array<'A' | 'B' | 'C' | 'D' | 'E'> => sectionIds.filter((s) => getSectionStatus(s) === 'SUBMITTED');
+    const getReturnableSections = (): Array<'A' | 'B' | 'C' | 'D' | 'E'> => sectionIds.filter((s) => getSectionStatus(s) !== 'VERIFIED' && getSectionStatus(s) !== 'NOT_STARTED');
+
+    const handleVerifyAll = async () => {
+        if (!evaluation || !isCommittee) return;
+        const targets = getSubmittedSections();
+        if (targets.length === 0) {
+            setAlertMessage('No sections are awaiting review.');
+            setShowErrorAlert(true);
+            setTimeout(() => setShowErrorAlert(false), 3000);
+            return;
+        }
+
+        try {
+            setLoading(true);
+            for (const s of targets) {
+                await evaluationService.verifySection(evaluation.id, s, bulkNotes || undefined);
+            }
+            setAlertMessage(`Verified ${targets.length} section${targets.length > 1 ? 's' : ''}`);
+            setShowSuccessAlert(true);
+            setBulkNotes('');
+            await loadEvaluation(true);
+            setTimeout(() => setShowSuccessAlert(false), 3000);
+        } catch (err: any) {
+            setAlertMessage(err.message || 'Failed to verify all sections');
+            setShowErrorAlert(true);
+            setTimeout(() => setShowErrorAlert(false), 5000);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleReturnAll = async () => {
+        if (!evaluation || !isCommittee) return;
+        if (!bulkNotes || bulkNotes.trim() === '') {
+            setAlertMessage('Please provide notes to return the evaluation.');
+            setShowErrorAlert(true);
+            setTimeout(() => setShowErrorAlert(false), 4000);
+            return;
+        }
+
+        const targets = getReturnableSections();
+        if (targets.length === 0) {
+            setAlertMessage('No sections to return.');
+            setShowErrorAlert(true);
+            setTimeout(() => setShowErrorAlert(false), 3000);
+            return;
+        }
+
+        try {
+            setLoading(true);
+            for (const s of targets) {
+                await evaluationService.returnSection(evaluation.id, s, bulkNotes);
+            }
+            setAlertMessage(`Returned ${targets.length} section${targets.length > 1 ? 's' : ''} for changes`);
+            setShowSuccessAlert(true);
+            setBulkNotes('');
+            await loadEvaluation(true);
+            setTimeout(() => setShowSuccessAlert(false), 3000);
+        } catch (err: any) {
+            setAlertMessage(err.message || 'Failed to return sections');
+            setShowErrorAlert(true);
+            setTimeout(() => setShowErrorAlert(false), 5000);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleVerifyAllAndComplete = async () => {
+        if (!evaluation || !isCommittee) return;
+        const targets = getSubmittedSections();
+        const allWouldBeVerified = sectionIds.every((s) => {
+            const st = getSectionStatus(s);
+            return st === 'VERIFIED' || st === 'SUBMITTED';
+        });
+        try {
+            setLoading(true);
+            for (const s of targets) {
+                await evaluationService.verifySection(evaluation.id, s, bulkNotes || undefined);
+            }
+            if (allWouldBeVerified) {
+                await evaluationService.updateEvaluation(evaluation.id, { status: 'COMPLETED' });
+                setAlertMessage('All sections verified. Evaluation marked as Completed.');
+            } else {
+                setAlertMessage(`Verified ${targets.length} section${targets.length > 1 ? 's' : ''}`);
+            }
+            setShowSuccessAlert(true);
+            setBulkNotes('');
+            await loadEvaluation(true);
+            setTimeout(() => setShowSuccessAlert(false), 3000);
+        } catch (err: any) {
+            setAlertMessage(err.message || 'Failed to process bulk verification');
+            setShowErrorAlert(true);
+            setTimeout(() => setShowErrorAlert(false), 5000);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Helpers to render section data in a structured report layout
+    const titleCase = (str: string) =>
+        str
+            .replace(/([a-z])([A-Z])/g, '$1 $2')
+            .replace(/_/g, ' ')
+            .replace(/\s+/g, ' ')
+            .replace(/\b\w/g, (c) => c.toUpperCase());
+
+    // Reusable Field Components for consistent layout
+    const FieldGroup = ({ title, color = 'primary', children }: { title: string; color?: string; children: React.ReactNode }) => (
+        <div className={`panel border-l-4 border-${color}`}>
+            <div className="mb-5">
+                <h5 className={`text-lg font-bold text-${color}`}>{title}</h5>
+            </div>
+            <div className="grid gap-5 md:grid-cols-2">
+                {children}
+            </div>
+        </div>
+    );
+
+    const Field = ({ label, value, fullWidth = false }: { label: string; value: any; fullWidth?: boolean }) => (
+        <div className={fullWidth ? 'md:col-span-2' : ''}>
+            <label className="mb-2 block text-sm font-semibold text-white-dark">{label}</label>
+            <div className="rounded border border-white-light dark:border-dark bg-white-light dark:bg-[#1b2e4b] px-4 py-3 text-sm">
+                {value !== null && value !== undefined && value !== '' ? String(value) : '-'}
+            </div>
+        </div>
+    );
+
+    const TextAreaField = ({ label, value, fullWidth = true }: { label: string; value: any; fullWidth?: boolean }) => (
+        <div className={fullWidth ? 'md:col-span-2' : ''}>
+            <label className="mb-2 block text-sm font-semibold text-white-dark">{label}</label>
+            <div className="rounded border border-white-light dark:border-dark bg-white-light dark:bg-[#1b2e4b] px-4 py-3 text-sm min-h-[80px] whitespace-pre-wrap">
+                {value !== null && value !== undefined && value !== '' ? String(value) : '-'}
+            </div>
+        </div>
+    );
+
+    // Section renderers matching NewEvaluationComplete layout
+    const renderSectionAFormStyle = (sectionA: any) => (
+        <div className="space-y-6">
+            <FieldGroup title="Basic Information" color="primary">
+                <Field label="RFQ Number" value={evaluation?.rfqNumber} />
+                <Field label="RFQ Title" value={evaluation?.rfqTitle} />
+                <TextAreaField label="Description" value={evaluation?.description || ''} />
+            </FieldGroup>
+            <FieldGroup title="Financial Information" color="success">
+                <Field label="Comparable Estimate (JMD)" value={sectionA?.comparableEstimate} />
+                <Field label="Funded By" value={sectionA?.fundedBy} />
+            </FieldGroup>
+            <FieldGroup title="Tender Schedule" color="info">
+                <Field label="Tender Closing Date" value={sectionA?.tenderClosingDate} />
+                <Field label="Tender Closing Time" value={sectionA?.tenderClosingTime} />
+                <Field label="Tender Opening Date" value={sectionA?.tenderOpeningDate} />
+                <Field label="Tender Opening Time" value={sectionA?.tenderOpeningTime} />
+                <Field label="Actual Opening Date" value={sectionA?.actualOpeningDate} />
+                <Field label="Actual Opening Time" value={sectionA?.actualOpeningTime} />
+            </FieldGroup>
+            <FieldGroup title="Procurement Method & Type" color="warning">
+                <Field label="Procurement Method" value={titleCase(String(sectionA?.procurementMethod || ''))} />
+                <Field label="Contract Type" value={titleCase(String(sectionA?.contractType || ''))} />
+                <Field label="Bid Security Required" value={sectionA?.bidSecurity} />
+                <Field label="Award Criteria" value={titleCase(String(sectionA?.awardCriteria || ''))} />
+                <Field label="Bid Validity (Days)" value={sectionA?.bidValidityDays} />
+                <Field label="Number of Bids Requested" value={sectionA?.numberOfBidsRequested} />
+                <Field label="Arithmetic Error Identified" value={sectionA?.arithmeticErrorIdentified ? 'Yes' : 'No'} />
+                <Field label="Retender" value={sectionA?.retender ? 'Yes' : 'No'} />
+            </FieldGroup>
+        </div>
+    );
+
+    const renderSectionBFormStyle = (sectionB: any) => {
+        const bidders = sectionB?.bidders || [];
+        return (
+            <div className="space-y-6">
+                <FieldGroup title="Eligibility Requirements & Compliance Matrix" color="primary">
+                    <div className="md:col-span-2">
+                        <label className="mb-2 block text-sm font-semibold text-white-dark">Total Bidders</label>
+                        <div className="rounded border border-white-light dark:border-dark bg-white-light dark:bg-[#1b2e4b] px-4 py-3 text-sm font-bold">
+                            {bidders.length}
+                        </div>
+                    </div>
+                </FieldGroup>
+                {bidders.map((bidder: any, index: number) => (
+                    <FieldGroup key={index} title={`Bidder ${index + 1}: ${bidder.name || 'Unnamed'}`} color="info">
+                        <Field label="Bidder Name" value={bidder.name} />
+                        <Field label="Bid Amount (JMD)" value={bidder.bidAmount} />
+                        <Field label="Eligibility Met" value={bidder.eligibilityMet ? 'Yes' : 'No'} />
+                        <Field label="Technical Score" value={bidder.technicalScore} />
+                        <TextAreaField label="Compliance Notes" value={bidder.complianceNotes} />
+                        <TextAreaField label="Specifications" value={bidder.specifications} />
+                    </FieldGroup>
+                ))}
+            </div>
+        );
+    };
+
+    const renderSectionDFormStyle = (sectionD: any) => (
+        <FieldGroup title="Summary" color="warning">
+            <TextAreaField label="Evaluation Summary" value={sectionD?.summary} />
+        </FieldGroup>
+    );
+
+    const renderSectionEFormStyle = (sectionE: any) => (
+        <FieldGroup title="Final Recommendation" color="success">
+            <TextAreaField label="Recommendation" value={sectionE?.finalRecommendation} />
+            <Field label="% Difference" value={sectionE?.percentageDifference} />
+            <Field label="Prepared By" value={sectionE?.preparedBy} />
+        </FieldGroup>
+    );
+
+    const renderSectionContent = useCallback((section: 'A' | 'B' | 'C' | 'D' | 'E', title: string) => {
         const status = getSectionStatus(section);
         const sectionData = evaluation?.[`section${section}` as keyof Evaluation];
         const sectionNotes = evaluation?.[`section${section}Notes` as keyof Evaluation] as string | undefined;
@@ -185,13 +415,146 @@ const EvaluationCommittee = () => {
                     </div>
                 )}
 
-                {/* Section Data Display */}
-                <div className="rounded border border-white-light p-4 dark:border-dark bg-[#fafafa] dark:bg-[#0e1726]">
-                    {sectionData ? (
-                        <pre className="text-sm overflow-auto max-h-96 font-mono whitespace-pre-wrap break-words">{JSON.stringify(sectionData, null, 2)}</pre>
-                    ) : (
-                        <p className="text-white-dark text-sm italic">No data provided for this section</p>
+                {/* Section Data Display (report style) */}
+                <div className="animate-[fadeIn_0.3s_ease-in-out]">
+                    {section === 'A' && renderSectionAFormStyle(sectionData)}
+                    {section === 'B' && renderSectionBFormStyle(sectionData)}
+                    {section === 'C' && (
+                        <div className="space-y-6">
+                            {!isCommittee ? (
+                                <>
+                                    <FieldGroup title="Evaluator Comments" color="warning">
+                                        <TextAreaField label="Comments" value={(sectionData as SectionCType)?.comments} />
+                                        <TextAreaField label="Critical Issues" value={(sectionData as SectionCType)?.criticalIssues} />
+                                        <Field label="Action Taken" value={titleCase(String((sectionData as SectionCType)?.actionTaken || ''))} />
+                                        <Field label="Recommended Supplier" value={(sectionData as SectionCType)?.recommendedSupplier} />
+                                        <Field label="Recommended Amount (Incl. GCT)" value={(sectionData as SectionCType)?.recommendedAmountInclusiveGCT} />
+                                    </FieldGroup>
+                                    <FieldGroup title="Evaluator Details" color="info">
+                                        <Field label="Evaluator Name" value={(sectionData as SectionCType)?.evaluatorName} />
+                                        <Field label="Evaluator Title" value={(sectionData as SectionCType)?.evaluatorTitle} />
+                                        <Field label="Evaluation Date" value={(sectionData as SectionCType)?.evaluationDate} />
+                                    </FieldGroup>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="panel border-l-4 border-warning">
+                                        <div className="mb-5">
+                                            <h5 className="text-lg font-bold text-warning">Evaluator Comments</h5>
+                                        </div>
+                                        <div className="grid gap-5 md:grid-cols-2">
+                                            <div className="md:col-span-2">
+                                                <label className="mb-2 block font-semibold">Comments</label>
+                                                <textarea
+                                                    className="form-textarea"
+                                                    rows={3}
+                                                    value={sectionCForm?.comments || ''}
+                                                    onChange={(e) => setSectionCForm((prev) => (prev ? { ...prev, comments: e.target.value } : null))}
+                                                />
+                                            </div>
+                                            <div className="md:col-span-2">
+                                                <label className="mb-2 block font-semibold">Critical Issues</label>
+                                                <textarea
+                                                    className="form-textarea"
+                                                    rows={3}
+                                                    value={sectionCForm?.criticalIssues || ''}
+                                                    onChange={(e) => setSectionCForm((prev) => (prev ? { ...prev, criticalIssues: e.target.value } : null))}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="mb-2 block font-semibold">Action Taken</label>
+                                                <select
+                                                    className="form-select"
+                                                    value={sectionCForm?.actionTaken || 'RECOMMENDED'}
+                                                    onChange={(e) => setSectionCForm((prev) => (prev ? { ...prev, actionTaken: e.target.value as SectionCType['actionTaken'] } : null))}
+                                                >
+                                                    <option value="RECOMMENDED">Recommended</option>
+                                                    <option value="REJECTED">Rejected</option>
+                                                    <option value="DEFERRED">Deferred</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="mb-2 block font-semibold">Recommended Supplier</label>
+                                                <input
+                                                    className="form-input"
+                                                    value={sectionCForm?.recommendedSupplier || ''}
+                                                    onChange={(e) => setSectionCForm((prev) => (prev ? { ...prev, recommendedSupplier: e.target.value } : null))}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="mb-2 block font-semibold">Recommended Amount (Incl. GCT)</label>
+                                                <input
+                                                    type="number"
+                                                    className="form-input"
+                                                    value={sectionCForm?.recommendedAmountInclusiveGCT ?? 0}
+                                                    onChange={(e) => setSectionCForm((prev) => (prev ? { ...prev, recommendedAmountInclusiveGCT: Number(e.target.value) } : null))}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="panel border-l-4 border-info">
+                                        <div className="mb-5">
+                                            <h5 className="text-lg font-bold text-info">Evaluator Details</h5>
+                                        </div>
+                                        <div className="grid gap-5 md:grid-cols-2">
+                                            <div>
+                                                <label className="mb-2 block font-semibold">Evaluator Name</label>
+                                                <input
+                                                    className="form-input"
+                                                    value={sectionCForm?.evaluatorName || ''}
+                                                    onChange={(e) => setSectionCForm((prev) => (prev ? { ...prev, evaluatorName: e.target.value } : null))}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="mb-2 block font-semibold">Evaluator Title</label>
+                                                <input
+                                                    className="form-input"
+                                                    value={sectionCForm?.evaluatorTitle || ''}
+                                                    onChange={(e) => setSectionCForm((prev) => (prev ? { ...prev, evaluatorTitle: e.target.value } : null))}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="mb-2 block font-semibold">Evaluation Date</label>
+                                                <input
+                                                    type="date"
+                                                    className="form-input"
+                                                    value={sectionCForm?.evaluationDate || ''}
+                                                    onChange={(e) => setSectionCForm((prev) => (prev ? { ...prev, evaluationDate: e.target.value } : null))}
+                                                />
+                                            </div>
+                                            <div className="md:col-span-2 flex justify-end">
+                                                <button
+                                                    className="btn btn-primary"
+                                                    onClick={async () => {
+                                                        if (!evaluation || !sectionCForm) return;
+                                                        try {
+                                                            setLoading(true);
+                                                            await evaluationService.updateCommitteeSection(evaluation.id, 'C', sectionCForm);
+                                                            setAlertMessage('Section C saved');
+                                                            setShowSuccessAlert(true);
+                                                            await loadEvaluation(true);
+                                                            setTimeout(() => setShowSuccessAlert(false), 2000);
+                                                        } catch (err: any) {
+                                                            setAlertMessage(err.message || 'Failed to save Section C');
+                                                            setShowErrorAlert(true);
+                                                            setTimeout(() => setShowErrorAlert(false), 4000);
+                                                        } finally {
+                                                            setLoading(false);
+                                                        }
+                                                    }}
+                                                >
+                                                    Save Section C
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+                        </div>
                     )}
+                    {section === 'D' && renderSectionDFormStyle(sectionData)}
+                    {section === 'E' && renderSectionEFormStyle(sectionData)}
+                    {!sectionData && <p className="text-white-dark text-sm italic">No data provided for this section</p>}
                 </div>
 
                 {/* Committee Review Actions */}
@@ -243,7 +606,7 @@ const EvaluationCommittee = () => {
                 )}
             </div>
         );
-    };
+    }, [evaluation, activeSection, isCommittee, verificationNotes, loading, sectionCForm]);
 
     if (loading && !evaluation) {
         return (
@@ -322,6 +685,30 @@ const EvaluationCommittee = () => {
                 {renderSectionContent('C', 'Section C: Evaluator Comments & Recommendation')}
                 {renderSectionContent('D', 'Section D: Summary')}
                 {renderSectionContent('E', 'Section E: Procurement Officer Recommendation')}
+                {isCommittee && (
+                    <div className="sticky bottom-0 mt-6 bg-[#0e1726]/60 dark:bg-[#0e1726]/60 backdrop-blur supports-[backdrop-filter]:bg-white/70 rounded border-2 border-primary p-4">
+                        <div className="mb-3 text-sm text-white-dark">Bulk action applies to all relevant sections (Submitted for Verify; all non‑verified for Return).</div>
+                        <div className="mb-3">
+                            <label className="mb-1 block font-semibold">Notes</label>
+                            <textarea className="form-textarea" rows={3} placeholder="Notes (required for Return All)" value={bulkNotes} onChange={(e) => setBulkNotes(e.target.value)} />
+                        </div>
+                        <div className="flex flex-wrap gap-3">
+                            <button onClick={handleVerifyAll} className="btn btn-success" disabled={loading || getSubmittedSections().length === 0}>
+                                Verify All ({getSubmittedSections().length})
+                            </button>
+                            <button
+                                onClick={handleVerifyAllAndComplete}
+                                className="btn btn-primary"
+                                disabled={loading || (getSubmittedSections().length === 0 && !sectionIds.every((s) => getSectionStatus(s) === 'VERIFIED'))}
+                            >
+                                Verify All & Complete
+                            </button>
+                            <button onClick={handleReturnAll} className="btn btn-danger" disabled={loading || getReturnableSections().length === 0}>
+                                Return All ({getReturnableSections().length})
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );

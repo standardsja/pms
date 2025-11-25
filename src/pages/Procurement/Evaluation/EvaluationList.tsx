@@ -108,6 +108,14 @@ const EvaluationList = () => {
         }
     };
 
+    const hasReturnedSections = (e: Evaluation) => {
+        try {
+            return e.sectionAStatus === 'RETURNED' || e.sectionBStatus === 'RETURNED' || e.sectionCStatus === 'RETURNED' || e.sectionDStatus === 'RETURNED' || e.sectionEStatus === 'RETURNED';
+        } catch {
+            return false;
+        }
+    };
+
     const handleViewDetails = (evaluationId: number) => {
         navigate(`/procurement/evaluation/${evaluationId}`);
     };
@@ -282,6 +290,7 @@ const EvaluationList = () => {
                                             <div className="flex items-center gap-2">
                                                 <span className={`badge ${getStatusBadge(evaluation.status)}`}>{statusMap[evaluation.status]}</span>
                                                 {isCommittee && hasNewSubmissions(evaluation) && <span className="badge bg-info">New</span>}
+                                                {isProcurement && hasReturnedSections(evaluation) && <span className="badge bg-warning">Returned</span>}
                                             </div>
                                         </td>
                                         <td>
@@ -293,7 +302,12 @@ const EvaluationList = () => {
                                                 >
                                                     <IconEye className="h-4 w-4" />
                                                 </button>
-                                                {/* Workspace removed as per new flow */}
+                                                {/* Edit button for Procurement when sections are returned */}
+                                                {isProcurement && hasReturnedSections(evaluation) && (
+                                                    <Link to={`/procurement/evaluation/${evaluation.id}/edit`} className="btn btn-sm btn-outline-warning" title="Edit Returned Sections">
+                                                        <IconEdit className="h-4 w-4" />
+                                                    </Link>
+                                                )}
                                                 {isCommittee && (
                                                     <Link to={`/evaluation/${evaluation.id}/committee`} className="btn btn-sm btn-outline-info" title="Committee Verification">
                                                         <IconUsersGroup className="h-4 w-4" />

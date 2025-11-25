@@ -316,6 +316,14 @@ class EvaluationService {
         return result.data;
     }
 
+    async updateSection(id: number, section: 'A' | 'B' | 'C' | 'D' | 'E', data: any): Promise<Evaluation> {
+        const result = await this.fetchWithAuth(`/api/evaluations/${id}/sections/${section}`, {
+            method: 'PATCH',
+            body: JSON.stringify(data),
+        });
+        return result.data;
+    }
+
     async verifySection(id: number, section: 'A' | 'B' | 'C' | 'D' | 'E', notes?: string): Promise<Evaluation> {
         const result = await this.fetchWithAuth(`/api/evaluations/${id}/sections/${section}/verify`, {
             method: 'POST',
