@@ -55,6 +55,7 @@ const AssignRequests = () => {
     const [officerSearch, setOfficerSearch] = useState('');
     const [sortBy, setSortBy] = useState<'workload' | 'name'>('workload');
     const [viewingOfficerRequests, setViewingOfficerRequests] = useState<number | null>(null);
+    const [isProcurementManager, setIsProcurementManager] = useState<boolean>(false);
 
     const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:4000' : `http://${window.location.hostname}:4000`;
 
@@ -81,6 +82,13 @@ const AssignRequests = () => {
                 const officersData = await officersRes.json();
                 setOfficers(officersData);
 
+                // detect if current user is a procurement manager
+                const roles = (userProfile?.roles || []).map((r: any) => {
+                    if (typeof r === 'string') return r;
+                    return r?.role?.name || r?.name || '';
+                });
+                setIsProcurementManager(roles.includes('PROCUREMENT_MANAGER') || roles.includes('Procurement Manager') || roles.includes('PROCUREMENT'));
+
                 // Fetch requests at PROCUREMENT_REVIEW status
                 const requestsRes = await fetch(`${apiUrl}/requests`, {
                     headers: {
@@ -90,9 +98,16 @@ const AssignRequests = () => {
                 if (!requestsRes.ok) throw new Error('Failed to fetch requests');
                 const requestsData = await requestsRes.json();
                 const procurementRequests = Array.isArray(requestsData) ? requestsData.filter((r: any) => r && r.status === 'PROCUREMENT_REVIEW') : [];
-                // keep full list and also set unassigned list
+                // keep full list
                 setAllRequests(procurementRequests);
-                setRequests(procurementRequests.filter((r: any) => !r.currentAssigneeId));
+                // For procurement managers, show requests assigned to them plus unassigned ones (their inbox)
+                if (userProfile && (roles.includes('PROCUREMENT_MANAGER') || roles.includes('Procurement Manager') || roles.includes('PROCUREMENT'))) {
+                    const mgrId = Number(currentUserId);
+                    setRequests(procurementRequests.filter((r: any) => !r.currentAssigneeId || Number(r.currentAssigneeId) === mgrId));
+                } else {
+                    // normal view: show unassigned requests
+                    setRequests(procurementRequests.filter((r: any) => !r.currentAssigneeId));
+                }
             } catch (err: any) {
                 console.error('Error fetching data:', err);
                 setError(err.message || 'Failed to load data');
@@ -124,7 +139,7 @@ const AssignRequests = () => {
     const officerRequests = viewingOfficerRequests !== null && allRequests.length > 0 ? allRequests.filter((r) => r.currentAssigneeId === viewingOfficerRequests) : [];
 
     const displayRequests = viewingOfficerRequests !== null ? officerRequests : filteredRequests;
-    const displayTitle = viewingOfficerRequests !== null ? `Requests assigned to ${officers.find((o) => o.id === viewingOfficerRequests)?.name || 'Officer'}` : 'Unassigned Requests';
+    const displayTitle = viewingOfficerRequests !== null ? `Requests assigned to ${officers.find((o) => o.id === viewingOfficerRequests)?.name || 'Officer'}` : isProcurementManager ? 'Manager Inbox' : 'Unassigned Requests';
 
     const handleOfficerClick = (officerId: number) => {
         // If already viewing this officer, toggle off
@@ -288,7 +303,8 @@ const AssignRequests = () => {
         );
     }
 
-    const selectedRequestData = requests.find((r) => r.id === selectedRequest);
+    // Lookup selected request from full list first (includes assigned requests), fallback to unassigned requests
+    const selectedRequestData = allRequests.find((r) => r.id === selectedRequest) || requests.find((r) => r.id === selectedRequest);
 
     return (
         <div className="space-y-6">
