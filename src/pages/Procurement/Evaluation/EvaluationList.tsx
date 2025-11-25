@@ -9,6 +9,9 @@ import IconFile from '../../../components/Icon/IconFile';
 import IconChecks from '../../../components/Icon/IconChecks';
 import IconUsersGroup from '../../../components/Icon/IconUsersGroup';
 import IconEdit from '../../../components/Icon/IconEdit';
+import IconSearch from '../../../components/Icon/IconSearch';
+import IconX from '../../../components/Icon/IconX';
+import IconRefresh from '../../../components/Icon/IconRefresh';
 import { useTranslation } from 'react-i18next';
 import { evaluationService, type Evaluation, type EvaluationStatus } from '../../../services/evaluationService';
 import { getUser } from '../../../utils/auth';
@@ -197,79 +200,135 @@ const EvaluationList = () => {
     }
 
     return (
-        <div>
-            <div className="mb-6 flex items-center justify-between">
-                <div>
-                    <h2 className="text-2xl font-bold">{t('evaluation.heading', 'BSJ Evaluation Reports')}</h2>
-                    <p className="text-white-dark">{t('evaluation.subheading', 'Create and manage BSJ procurement evaluation reports with committee workflow')}</p>
-                </div>
-                <div className="flex gap-2">
-                    {isCommittee && (
-                        <Link to="/evaluation/committee/dashboard" className="btn btn-info gap-2">
-                            <IconUsersGroup />
-                            Committee Dashboard
+        <div className="space-y-6">
+            {/* Page Header */}
+            <div className="panel bg-gradient-to-r from-blue-500 via-indigo-600 to-purple-600 text-white">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm shadow-lg">
+                            <IconClipboardText className="h-7 w-7" />
+                        </div>
+                        <div>
+                            <h1 className="text-3xl font-bold">{t('evaluation.heading', 'BSJ Evaluation Reports')}</h1>
+                            <p className="text-sm text-white/90 mt-1">{t('evaluation.subheading', 'Professional procurement evaluation management with committee workflow')}</p>
+                        </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                        <button onClick={loadEvaluations} className="btn bg-white/20 backdrop-blur-sm border-white/30 text-white hover:bg-white/30 gap-2">
+                            <IconRefresh className="h-4 w-4" />
+                            Refresh
+                        </button>
+                        {isCommittee && (
+                            <Link to="/evaluation/committee/dashboard" className="btn bg-white text-indigo-600 hover:bg-white/90 gap-2 shadow-lg">
+                                <IconUsersGroup className="h-4 w-4" />
+                                Committee Dashboard
+                            </Link>
+                        )}
+                        <Link to="/procurement/evaluation/new" className="btn bg-white text-blue-600 hover:bg-white/90 gap-2 shadow-lg">
+                            <IconPlus className="h-4 w-4" />
+                            {t('evaluation.actions.new', 'Create New Evaluation')}
                         </Link>
-                    )}
-                    <Link to="/procurement/evaluation/new" className="btn btn-primary gap-2">
-                        <IconPlus />
-                        {t('evaluation.actions.new', 'Create BSJ Evaluation')}
-                    </Link>
+                    </div>
                 </div>
             </div>
 
-            {/* Stats */}
-            <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
-                <div className="panel">
-                    <div className="mb-3 flex items-center justify-between">
-                        <div className="text-lg font-semibold">{t('evaluation.stats.total', 'Total')}</div>
-                        <IconClipboardText className="h-6 w-6 text-primary" />
+            {/* Stats Dashboard */}
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+                <div className="panel bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900 border-l-4 border-slate-500">
+                    <div className="flex items-center justify-between mb-3">
+                        <div className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase">{t('evaluation.stats.total', 'Total')}</div>
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-500/20">
+                            <IconClipboardText className="h-5 w-5 text-slate-600 dark:text-slate-400" />
+                        </div>
                     </div>
-                    <div className="text-3xl font-bold text-primary">{stats.total}</div>
+                    <div className="text-3xl font-bold text-slate-700 dark:text-slate-300">{stats.total}</div>
+                    <p className="text-xs text-slate-500 mt-1">All evaluations</p>
                 </div>
-                <div className="panel">
-                    <div className="mb-3 flex items-center justify-between">
-                        <div className="text-lg font-semibold">{t('evaluation.stats.pending', 'Pending')}</div>
-                        <IconClipboardText className="h-6 w-6 text-info" />
+                <div className="panel bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border-l-4 border-blue-500">
+                    <div className="flex items-center justify-between mb-3">
+                        <div className="text-sm font-semibold text-blue-600 dark:text-blue-400 uppercase">{t('evaluation.stats.pending', 'Pending')}</div>
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-500/20">
+                            <IconClipboardText className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                        </div>
                     </div>
-                    <div className="text-3xl font-bold text-info">{stats.pending}</div>
+                    <div className="text-3xl font-bold text-blue-700 dark:text-blue-300">{stats.pending}</div>
+                    <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Awaiting start</p>
                 </div>
-                <div className="panel">
-                    <div className="mb-3 flex items-center justify-between">
-                        <div className="text-lg font-semibold">{t('evaluation.stats.inProgress', 'In Progress')}</div>
-                        <IconClipboardText className="h-6 w-6 text-warning" />
+                <div className="panel bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-900/20 dark:to-amber-800/20 border-l-4 border-amber-500">
+                    <div className="flex items-center justify-between mb-3">
+                        <div className="text-sm font-semibold text-amber-600 dark:text-amber-400 uppercase">{t('evaluation.stats.inProgress', 'In Progress')}</div>
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-500/20">
+                            <IconEdit className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                        </div>
                     </div>
-                    <div className="text-3xl font-bold text-warning">{stats.inProgress}</div>
+                    <div className="text-3xl font-bold text-amber-700 dark:text-amber-300">{stats.inProgress}</div>
+                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">Being drafted</p>
                 </div>
-                <div className="panel">
-                    <div className="mb-3 flex items-center justify-between">
-                        <div className="text-lg font-semibold">Committee Review</div>
-                        <IconClipboardText className="h-6 w-6 text-warning" />
+                <div className="panel bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 border-l-4 border-orange-500">
+                    <div className="flex items-center justify-between mb-3">
+                        <div className="text-sm font-semibold text-orange-600 dark:text-orange-400 uppercase">Committee Review</div>
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-orange-500/20">
+                            <IconUsersGroup className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+                        </div>
                     </div>
-                    <div className="text-3xl font-bold text-warning">{stats.committeeReview}</div>
+                    <div className="text-3xl font-bold text-orange-700 dark:text-orange-300">{stats.committeeReview}</div>
+                    <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">Under review</p>
                 </div>
-                <div className="panel">
-                    <div className="mb-3 flex items-center justify-between">
-                        <div className="text-lg font-semibold">{t('evaluation.stats.completed', 'Completed')}</div>
-                        <IconClipboardText className="h-6 w-6 text-success" />
+                <div className="panel bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border-l-4 border-green-500">
+                    <div className="flex items-center justify-between mb-3">
+                        <div className="text-sm font-semibold text-green-600 dark:text-green-400 uppercase">{t('evaluation.stats.completed', 'Completed')}</div>
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-500/20">
+                            <IconChecks className="h-5 w-5 text-green-600 dark:text-green-400" />
+                        </div>
                     </div>
-                    <div className="text-3xl font-bold text-success">{stats.completed}</div>
+                    <div className="text-3xl font-bold text-green-700 dark:text-green-300">{stats.completed}</div>
+                    <p className="text-xs text-green-600 dark:text-green-400 mt-1">Verified</p>
                 </div>
-                <div className="panel">
-                    <div className="mb-3 flex items-center justify-between">
-                        <div className="text-lg font-semibold">{t('evaluation.stats.validated', 'Validated')}</div>
-                        <IconClipboardText className="h-6 w-6 text-primary" />
+                <div className="panel bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 border-l-4 border-purple-500">
+                    <div className="flex items-center justify-between mb-3">
+                        <div className="text-sm font-semibold text-purple-600 dark:text-purple-400 uppercase">{t('evaluation.stats.validated', 'Validated')}</div>
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-500/20">
+                            <IconFile className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                        </div>
                     </div>
-                    <div className="text-3xl font-bold text-primary">{stats.validated}</div>
+                    <div className="text-3xl font-bold text-purple-700 dark:text-purple-300">{stats.validated}</div>
+                    <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">Executive approved</p>
                 </div>
             </div>
 
             {/* Evaluations Table */}
             <div className="panel">
-                <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
-                    <h5 className="text-lg font-semibold">{t('evaluation.table.title', 'All Evaluations')}</h5>
-                    <div className="flex flex-wrap gap-2 items-center">
-                        <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('evaluation.table.search', 'Search evaluations...')} className="form-input w-44" />
-                        <select className="form-select w-44" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as DisplayStatus | 'ALL')}>
+                <div className="mb-5 space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+                                <IconClipboardText className="h-5 w-5 text-primary" />
+                            </div>
+                            <div>
+                                <h5 className="text-xl font-bold">{t('evaluation.table.title', 'All Evaluations')}</h5>
+                                <p className="text-xs text-white-dark">
+                                    {filteredEvaluations.length} of {evaluations.length} evaluations
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex flex-wrap gap-3 items-center">
+                        <div className="relative flex-1 min-w-[200px]">
+                            <input
+                                type="text"
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                placeholder={t('evaluation.table.search', 'Search by eval #, RFQ #, title, evaluator...')}
+                                className="form-input pl-10 pr-10"
+                            />
+                            <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                            {search && (
+                                <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                                    <IconX className="h-4 w-4" />
+                                </button>
+                            )}
+                        </div>
+                        <select className="form-select min-w-[160px]" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as DisplayStatus | 'ALL')}>
                             <option value="ALL">{t('evaluation.filters.all', 'All Statuses')}</option>
                             <option value="Pending">{t('evaluation.status.pending', 'Pending')}</option>
                             <option value="In Progress">{t('evaluation.status.inProgress', 'In Progress')}</option>
@@ -278,13 +337,43 @@ const EvaluationList = () => {
                             <option value="Validated">{t('evaluation.status.validated', 'Validated')}</option>
                             <option value="Rejected">Rejected</option>
                         </select>
-                        <input type="date" className="form-input w-36" value={dueAfter} onChange={(e) => setDueAfter(e.target.value)} placeholder={t('evaluation.filters.dueAfter', 'Due After')} />
-                        <input type="date" className="form-input w-36" value={dueBefore} onChange={(e) => setDueBefore(e.target.value)} placeholder={t('evaluation.filters.dueBefore', 'Due Before')} />
+                        <div className="flex gap-2 items-center">
+                            <label className="text-xs text-white-dark whitespace-nowrap">Due:</label>
+                            <input type="date" className="form-input w-36 text-sm" value={dueAfter} onChange={(e) => setDueAfter(e.target.value)} title="Due After" />
+                            <span className="text-white-dark">to</span>
+                            <input type="date" className="form-input w-36 text-sm" value={dueBefore} onChange={(e) => setDueBefore(e.target.value)} title="Due Before" />
+                        </div>
                     </div>
                 </div>
 
                 {filteredEvaluations.length === 0 ? (
-                    <div className="text-center py-8 text-white-dark">No evaluations found. {evaluations.length === 0 && 'Create your first evaluation to get started.'}</div>
+                    <div className="text-center py-16">
+                        <svg className="w-20 h-20 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={1.5}
+                                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                            />
+                        </svg>
+                        <p className="font-semibold text-lg text-gray-700 dark:text-gray-300">
+                            {search || statusFilter !== 'ALL' || dueBefore || dueAfter ? 'No evaluations match your filters' : 'No evaluations found'}
+                        </p>
+                        <p className="text-sm text-white-dark mt-1">{evaluations.length === 0 ? 'Create your first evaluation to get started.' : 'Try adjusting your search or filters.'}</p>
+                        {(search || statusFilter !== 'ALL' || dueBefore || dueAfter) && (
+                            <button
+                                onClick={() => {
+                                    setSearch('');
+                                    setStatusFilter('ALL');
+                                    setDueBefore('');
+                                    setDueAfter('');
+                                }}
+                                className="btn btn-primary btn-sm mt-4"
+                            >
+                                Clear All Filters
+                            </button>
+                        )}
+                    </div>
                 ) : (
                     <div className="table-responsive">
                         <table className="table-hover">
