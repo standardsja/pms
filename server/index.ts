@@ -26,6 +26,7 @@ import { initAnalyticsJob, stopAnalyticsJob, getAnalytics, getCategoryAnalytics,
 import { requestMonitoringMiddleware, trackCacheHit, trackCacheMiss, getMetrics, getHealthStatus, getSlowEndpoints, getErrorProneEndpoints } from './services/monitoringService';
 import { checkProcurementThresholds } from './services/thresholdService';
 import { createThresholdNotifications } from './services/notificationService';
+import * as loadBalancingService from './services/loadBalancingService.js';
 import type { Prisma } from '@prisma/client';
 import { requireCommittee as requireCommitteeRole, requireEvaluationCommittee, requireAdmin, requireExecutive } from './middleware/rbac';
 import { validate, createIdeaSchema, voteSchema, approveRejectIdeaSchema, promoteIdeaSchema, sanitizeInput as sanitize } from './middleware/validation';
@@ -2601,18 +2602,29 @@ app.post('/requests/:id/action', async (req, res) => {
                 nextAssigneeId = budgetManager?.id || null;
             } else if (request.status === 'BUDGET_MANAGER_REVIEW') {
                 // Budget Manager approved -> send to Procurement Manager for delegation
-                // Prefer PROCUREMENT_MANAGER, fall back to PROCUREMENT officer if none exists
-                const procurementManager = await prisma.user.findFirst({
-                    where: { roles: { some: { role: { name: 'PROCUREMENT_MANAGER' } } } },
-                });
-                let procurement = procurementManager;
-                if (!procurement) {
-                    procurement = await prisma.user.findFirst({
-                        where: { roles: { some: { role: { name: 'PROCUREMENT' } } } },
+                // Check if auto-assignment is enabled
+                const lbSettings = await loadBalancingService.getSettings();
+
+                if (lbSettings.enabled && lbSettings.autoAssignOnApproval) {
+                    // Auto-assign using load balancing
+                    nextStatus = 'PROCUREMENT_REVIEW';
+                    const selectedOfficerId = await loadBalancingService.selectOfficer(lbSettings.strategy);
+                    nextAssigneeId = selectedOfficerId;
+                    console.log(`Auto-assigning request ${id} to officer ${selectedOfficerId} using ${lbSettings.strategy}`);
+                } else {
+                    // Manual assignment - prefer PROCUREMENT_MANAGER, fall back to PROCUREMENT officer if none exists
+                    const procurementManager = await prisma.user.findFirst({
+                        where: { roles: { some: { role: { name: 'PROCUREMENT_MANAGER' } } } },
                     });
+                    let procurement = procurementManager;
+                    if (!procurement) {
+                        procurement = await prisma.user.findFirst({
+                            where: { roles: { some: { role: { name: 'PROCUREMENT' } } } },
+                        });
+                    }
+                    nextStatus = 'PROCUREMENT_REVIEW';
+                    nextAssigneeId = procurement?.id || null;
                 }
-                nextStatus = 'PROCUREMENT_REVIEW';
-                nextAssigneeId = procurement?.id || null;
             } else if (request.status === 'PROCUREMENT_REVIEW') {
                 // Procurement approved -> final approval (ready to send to vendor)
                 nextStatus = 'FINANCE_APPROVED';
@@ -2889,19 +2901,10 @@ app.get('/procurement/load-balancing-settings', async (req, res) => {
             return res.status(403).json({ message: 'Only Procurement Managers can view settings' });
         }
 
-        // Check if settings table exists, if not return default settings
-        // For now, we'll store settings in a simple JSON format in the database
-        // You may want to create a dedicated Settings table in schema.prisma
+        // Get settings from database
+        const settings = await loadBalancingService.getSettings();
 
-        // Return default settings for now
-        // TODO: Implement persistent storage in database
-        const defaultSettings = {
-            enabled: false,
-            strategy: 'LEAST_LOADED',
-            autoAssignOnApproval: true,
-        };
-
-        return res.json(defaultSettings);
+        return res.json(settings);
     } catch (e: any) {
         console.error('GET /procurement/load-balancing-settings error:', e);
         return res.status(500).json({ message: e?.message || 'Failed to fetch settings' });
@@ -2939,15 +2942,20 @@ app.post('/procurement/load-balancing-settings', async (req, res) => {
             return res.status(400).json({ message: 'Invalid strategy. Must be LEAST_LOADED, ROUND_ROBIN, or RANDOM' });
         }
 
-        // TODO: Implement persistent storage in database
-        // For now, just acknowledge the settings
-        const settings = {
+        // Update settings in database
+        const settings = await loadBalancingService.updateSettings({
             enabled: enabled !== undefined ? enabled : false,
             strategy: strategy || 'LEAST_LOADED',
             autoAssignOnApproval: autoAssignOnApproval !== undefined ? autoAssignOnApproval : true,
-        };
+        });
 
         console.log('Load balancing settings updated:', settings);
+
+        // If enabled, auto-assign any pending requests
+        if (settings.enabled) {
+            const assignedCount = await loadBalancingService.autoAssignPendingRequests(parseInt(String(userId), 10));
+            console.log(`Auto-assigned ${assignedCount} pending requests after enabling load balancing`);
+        }
 
         return res.json(settings);
     } catch (e: any) {
