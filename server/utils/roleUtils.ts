@@ -25,11 +25,14 @@ export function checkUserRoles(userRoles: string[] = []): UserRoleChecker {
     // Admin roles
     const isAdmin = normalizedRoles.some((role) => ['ADMIN', 'ADMINISTRATOR', 'SUPER_ADMIN'].includes(role));
 
-    // Procurement roles
-    const isProcurementOfficer = normalizedRoles.some((role) => ['PROCUREMENT_OFFICER', 'PROCUREMENT OFFICER', 'PROCUREMENT'].includes(role));
+    // Procurement roles - be more specific to avoid matching non-procurement managers
+    const isProcurementOfficer = normalizedRoles.some(
+        (role) => ['PROCUREMENT_OFFICER', 'PROCUREMENT OFFICER', 'PROCUREMENT'].includes(role) || (role.includes('PROCUREMENT') && role.includes('OFFICER'))
+    );
 
-    const isProcurementManager = normalizedRoles.some((role) => ['PROCUREMENT_MANAGER', 'PROCUREMENT MANAGER', 'MANAGER'].includes(role) || (role.includes('PROCUREMENT') && role.includes('MANAGER')));
+    const isProcurementManager = normalizedRoles.some((role) => ['PROCUREMENT_MANAGER', 'PROCUREMENT MANAGER'].includes(role) || (role.includes('PROCUREMENT') && role.includes('MANAGER')));
 
+    // Only actual procurement roles, not generic managers
     const isProcurementUser = isProcurementOfficer || isProcurementManager || isAdmin;
 
     // Department management roles
@@ -44,8 +47,8 @@ export function checkUserRoles(userRoles: string[] = []): UserRoleChecker {
     // Innovation/Committee roles
     const isCommitteeMember = normalizedRoles.some((role) => ['INNOVATION_COMMITTEE', 'COMMITTEE_MEMBER', 'EVALUATION_COMMITTEE'].includes(role));
 
-    // Derived permissions
-    const canCombineRequests = isProcurementUser || isDepartmentHead;
+    // Derived permissions - only procurement officers and procurement managers can combine requests
+    const canCombineRequests = isProcurementOfficer || isProcurementManager || isAdmin;
     const canApproveRequests = isProcurementUser || isDepartmentHead || isFinanceUser || isExecutiveDirector;
 
     return {

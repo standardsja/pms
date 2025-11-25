@@ -524,6 +524,7 @@ const Header = () => {
                                                     MENTION: '👤',
                                                     STAGE_CHANGED: '🔄',
                                                     IDEA_APPROVED: '✅',
+                                                    THRESHOLD_EXCEEDED: '⚠️',
                                                 };
                                                 const icon = notificationTypeIcons[notification.type] || '🔔';
 

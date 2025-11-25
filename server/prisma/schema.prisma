@@ -82,6 +82,7 @@ enum NotificationType {
   MENTION
   STAGE_CHANGED
   IDEA_APPROVED
+  THRESHOLD_EXCEEDED
 }
 
 enum AuditAction {
