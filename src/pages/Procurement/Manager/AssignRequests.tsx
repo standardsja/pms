@@ -411,8 +411,16 @@ const AssignRequests = () => {
                                     d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                                 />
                             </svg>
-                            <p className="font-semibold text-lg">{requestSearch ? 'No matching requests' : viewingOfficerRequests !== null ? 'No requests assigned to this officer' : 'No unassigned requests'}</p>
-                            <p className="text-sm mt-1">{requestSearch ? 'Try adjusting your search criteria' : viewingOfficerRequests !== null ? 'This officer has no assigned requests' : 'All requests have been assigned to officers'}</p>
+                            <p className="font-semibold text-lg">
+                                {requestSearch ? 'No matching requests' : viewingOfficerRequests !== null ? 'No requests assigned to this officer' : 'No unassigned requests'}
+                            </p>
+                            <p className="text-sm mt-1">
+                                {requestSearch
+                                    ? 'Try adjusting your search criteria'
+                                    : viewingOfficerRequests !== null
+                                    ? 'This officer has no assigned requests'
+                                    : 'All requests have been assigned to officers'}
+                            </p>
                             {requestSearch && (
                                 <button onClick={() => setRequestSearch('')} className="btn btn-primary btn-sm mt-3">
                                     Clear Search
@@ -427,7 +435,7 @@ const AssignRequests = () => {
                                 const year = req.headerYear || '----';
                                 const sequence = req.headerSequence !== undefined && req.headerSequence !== null ? String(req.headerSequence).padStart(3, '0') : '000';
                                 const formCode = `[${deptCode}]/[${month}]/[${year}]/[${sequence}]`;
-                                            const isSelected = selectedRequest === req.id;
+                                const isSelected = selectedRequest === req.id;
 
                                 return (
                                     <div
@@ -673,7 +681,10 @@ const AssignRequests = () => {
                         </div>
                     </div>
                     <div className="flex flex-wrap gap-3">
-                        <button onClick={() => handleAssign()} className="flex-1 btn bg-gradient-to-r from-blue-600 to-purple-600 text-white border-0 shadow-lg hover:from-blue-700 hover:to-purple-700 gap-2">
+                        <button
+                            onClick={() => handleAssign()}
+                            className="flex-1 btn bg-gradient-to-r from-blue-600 to-purple-600 text-white border-0 shadow-lg hover:from-blue-700 hover:to-purple-700 gap-2"
+                        >
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>

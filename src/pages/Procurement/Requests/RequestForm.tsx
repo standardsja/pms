@@ -1377,7 +1377,9 @@ const RequestForm = () => {
                         <button
                             type="submit"
                             disabled={isSubmitting || (!isEditMode && !isFormCodeComplete)}
-                            className={`px-6 py-2 rounded bg-primary text-white font-medium ${isSubmitting || (!isEditMode && !isFormCodeComplete) ? 'opacity-60 cursor-not-allowed' : 'hover:opacity-95'}`}
+                            className={`px-6 py-2 rounded bg-primary text-white font-medium ${
+                                isSubmitting || (!isEditMode && !isFormCodeComplete) ? 'opacity-60 cursor-not-allowed' : 'hover:opacity-95'
+                            }`}
                             title={!isEditMode && !isFormCodeComplete ? 'Complete the form code before submitting' : undefined}
                         >
                             {isSubmitting ? (isEditMode ? 'Saving…' : 'Submitting…') : isEditMode ? 'Save Changes' : 'Submit Procurement Request'}
