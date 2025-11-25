@@ -442,7 +442,7 @@ const Onboarding = () => {
                                         // fallback to the original filename if custom not present
                                         try {
                                             (e.currentTarget as HTMLImageElement).onerror = null;
-                                            (e.currentTarget as HTMLImageElement).src = '/assets/images/procurement/steps.jpg';
+                                            (e.currentTarget as HTMLImageElement).src = '/assets/images/procurement/steps.png';
                                         } catch (err) {
                                             // noop
                                         }
