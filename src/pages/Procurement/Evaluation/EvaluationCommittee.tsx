@@ -49,36 +49,39 @@ const EvaluationCommittee = () => {
         setIsCommittee(true);
     }, [navigate]);
 
-    const loadEvaluation = useCallback(async (preserveSectionC = false) => {
-        try {
-            setLoading(true);
-            setError(null);
-            const data = await evaluationService.getEvaluationById(parseInt(id || '0'));
-            setEvaluation(data);
-            if (!preserveSectionC) {
-                if (data?.sectionC) {
-                    setSectionCForm(data.sectionC as SectionCType);
-                } else {
-                    const today = new Date().toISOString().slice(0, 10);
-                    setSectionCForm({
-                        comments: '',
-                        criticalIssues: '',
-                        actionTaken: 'RECOMMENDED',
-                        recommendedSupplier: '',
-                        recommendedAmountInclusiveGCT: 0,
-                        evaluatorName: '',
-                        evaluatorTitle: '',
-                        evaluationDate: today,
-                    } as SectionCType);
+    const loadEvaluation = useCallback(
+        async (preserveSectionC = false) => {
+            try {
+                setLoading(true);
+                setError(null);
+                const data = await evaluationService.getEvaluationById(parseInt(id || '0'));
+                setEvaluation(data);
+                if (!preserveSectionC) {
+                    if (data?.sectionC) {
+                        setSectionCForm(data.sectionC as SectionCType);
+                    } else {
+                        const today = new Date().toISOString().slice(0, 10);
+                        setSectionCForm({
+                            comments: '',
+                            criticalIssues: '',
+                            actionTaken: 'RECOMMENDED',
+                            recommendedSupplier: '',
+                            recommendedAmountInclusiveGCT: 0,
+                            evaluatorName: '',
+                            evaluatorTitle: '',
+                            evaluationDate: today,
+                        } as SectionCType);
+                    }
                 }
+            } catch (err: any) {
+                console.error('Failed to load evaluation:', err);
+                setError(err.message || 'Failed to load evaluation');
+            } finally {
+                setLoading(false);
             }
-        } catch (err: any) {
-            console.error('Failed to load evaluation:', err);
-            setError(err.message || 'Failed to load evaluation');
-        } finally {
-            setLoading(false);
-        }
-    }, [id]);
+        },
+        [id]
+    );
 
     // Load evaluation data
     useEffect(() => {
@@ -283,9 +286,7 @@ const EvaluationCommittee = () => {
             <div className="mb-5">
                 <h5 className={`text-lg font-bold text-${color}`}>{title}</h5>
             </div>
-            <div className="grid gap-5 md:grid-cols-2">
-                {children}
-            </div>
+            <div className="grid gap-5 md:grid-cols-2">{children}</div>
         </div>
     );
 
@@ -347,9 +348,7 @@ const EvaluationCommittee = () => {
                 <FieldGroup title="Eligibility Requirements & Compliance Matrix" color="primary">
                     <div className="md:col-span-2">
                         <label className="mb-2 block text-sm font-semibold text-white-dark">Total Bidders</label>
-                        <div className="rounded border border-white-light dark:border-dark bg-white-light dark:bg-[#1b2e4b] px-4 py-3 text-sm font-bold">
-                            {bidders.length}
-                        </div>
+                        <div className="rounded border border-white-light dark:border-dark bg-white-light dark:bg-[#1b2e4b] px-4 py-3 text-sm font-bold">{bidders.length}</div>
                     </div>
                 </FieldGroup>
                 {bidders.map((bidder: any, index: number) => (
@@ -380,233 +379,236 @@ const EvaluationCommittee = () => {
         </FieldGroup>
     );
 
-    const renderSectionContent = useCallback((section: 'A' | 'B' | 'C' | 'D' | 'E', title: string) => {
-        const status = getSectionStatus(section);
-        const sectionData = evaluation?.[`section${section}` as keyof Evaluation];
-        const sectionNotes = evaluation?.[`section${section}Notes` as keyof Evaluation] as string | undefined;
-        const sectionVerifier = evaluation?.[`section${section}Verifier` as keyof Evaluation] as { id: number; name: string | null; email: string } | undefined;
+    const renderSectionContent = useCallback(
+        (section: 'A' | 'B' | 'C' | 'D' | 'E', title: string) => {
+            const status = getSectionStatus(section);
+            const sectionData = evaluation?.[`section${section}` as keyof Evaluation];
+            const sectionNotes = evaluation?.[`section${section}Notes` as keyof Evaluation] as string | undefined;
+            const sectionVerifier = evaluation?.[`section${section}Verifier` as keyof Evaluation] as { id: number; name: string | null; email: string } | undefined;
 
-        const isReviewable = status === 'SUBMITTED';
-        const isActive = activeSection === section;
+            const isReviewable = status === 'SUBMITTED';
+            const isActive = activeSection === section;
 
-        return (
-            <div key={section} className="panel mb-5">
-                <div className="mb-4 flex items-center justify-between">
-                    <h5 className="text-lg font-semibold">{title}</h5>
-                    <span className={getStatusBadge(status)}>{getStatusText(status)}</span>
-                </div>
-
-                {/* Status Messages */}
-                {status === 'RETURNED' && sectionNotes && (
-                    <div className="mb-4 rounded bg-danger-light p-4 dark:bg-danger/20">
-                        <h6 className="font-semibold text-danger mb-2">⚠️ Section Returned for Changes</h6>
-                        <p className="text-sm">{sectionNotes}</p>
-                        {sectionVerifier && <p className="text-xs text-white-dark mt-2">Reviewed by: {sectionVerifier.name || sectionVerifier.email}</p>}
+            return (
+                <div key={section} className="panel mb-5">
+                    <div className="mb-4 flex items-center justify-between">
+                        <h5 className="text-lg font-semibold">{title}</h5>
+                        <span className={getStatusBadge(status)}>{getStatusText(status)}</span>
                     </div>
-                )}
 
-                {status === 'VERIFIED' && (
-                    <div className="mb-4 rounded bg-success-light p-4 dark:bg-success/20">
-                        <div className="flex items-center gap-2 mb-1">
-                            <IconChecks className="h-5 w-5 text-success" />
-                            <h6 className="font-semibold text-success">Section Verified</h6>
+                    {/* Status Messages */}
+                    {status === 'RETURNED' && sectionNotes && (
+                        <div className="mb-4 rounded bg-danger-light p-4 dark:bg-danger/20">
+                            <h6 className="font-semibold text-danger mb-2">⚠️ Section Returned for Changes</h6>
+                            <p className="text-sm">{sectionNotes}</p>
+                            {sectionVerifier && <p className="text-xs text-white-dark mt-2">Reviewed by: {sectionVerifier.name || sectionVerifier.email}</p>}
                         </div>
-                        {sectionVerifier && <p className="text-sm text-white-dark">Verified by: {sectionVerifier.name || sectionVerifier.email}</p>}
-                    </div>
-                )}
+                    )}
 
-                {/* Section Data Display (report style) */}
-                <div className="animate-[fadeIn_0.3s_ease-in-out]">
-                    {section === 'A' && renderSectionAFormStyle(sectionData)}
-                    {section === 'B' && renderSectionBFormStyle(sectionData)}
-                    {section === 'C' && (
-                        <div className="space-y-6">
-                            {!isCommittee ? (
-                                <>
-                                    <FieldGroup title="Evaluator Comments" color="warning">
-                                        <TextAreaField label="Comments" value={(sectionData as SectionCType)?.comments} />
-                                        <TextAreaField label="Critical Issues" value={(sectionData as SectionCType)?.criticalIssues} />
-                                        <Field label="Action Taken" value={titleCase(String((sectionData as SectionCType)?.actionTaken || ''))} />
-                                        <Field label="Recommended Supplier" value={(sectionData as SectionCType)?.recommendedSupplier} />
-                                        <Field label="Recommended Amount (Incl. GCT)" value={(sectionData as SectionCType)?.recommendedAmountInclusiveGCT} />
-                                    </FieldGroup>
-                                    <FieldGroup title="Evaluator Details" color="info">
-                                        <Field label="Evaluator Name" value={(sectionData as SectionCType)?.evaluatorName} />
-                                        <Field label="Evaluator Title" value={(sectionData as SectionCType)?.evaluatorTitle} />
-                                        <Field label="Evaluation Date" value={(sectionData as SectionCType)?.evaluationDate} />
-                                    </FieldGroup>
-                                </>
+                    {status === 'VERIFIED' && (
+                        <div className="mb-4 rounded bg-success-light p-4 dark:bg-success/20">
+                            <div className="flex items-center gap-2 mb-1">
+                                <IconChecks className="h-5 w-5 text-success" />
+                                <h6 className="font-semibold text-success">Section Verified</h6>
+                            </div>
+                            {sectionVerifier && <p className="text-sm text-white-dark">Verified by: {sectionVerifier.name || sectionVerifier.email}</p>}
+                        </div>
+                    )}
+
+                    {/* Section Data Display (report style) */}
+                    <div className="animate-[fadeIn_0.3s_ease-in-out]">
+                        {section === 'A' && renderSectionAFormStyle(sectionData)}
+                        {section === 'B' && renderSectionBFormStyle(sectionData)}
+                        {section === 'C' && (
+                            <div className="space-y-6">
+                                {!isCommittee ? (
+                                    <>
+                                        <FieldGroup title="Evaluator Comments" color="warning">
+                                            <TextAreaField label="Comments" value={(sectionData as SectionCType)?.comments} />
+                                            <TextAreaField label="Critical Issues" value={(sectionData as SectionCType)?.criticalIssues} />
+                                            <Field label="Action Taken" value={titleCase(String((sectionData as SectionCType)?.actionTaken || ''))} />
+                                            <Field label="Recommended Supplier" value={(sectionData as SectionCType)?.recommendedSupplier} />
+                                            <Field label="Recommended Amount (Incl. GCT)" value={(sectionData as SectionCType)?.recommendedAmountInclusiveGCT} />
+                                        </FieldGroup>
+                                        <FieldGroup title="Evaluator Details" color="info">
+                                            <Field label="Evaluator Name" value={(sectionData as SectionCType)?.evaluatorName} />
+                                            <Field label="Evaluator Title" value={(sectionData as SectionCType)?.evaluatorTitle} />
+                                            <Field label="Evaluation Date" value={(sectionData as SectionCType)?.evaluationDate} />
+                                        </FieldGroup>
+                                    </>
+                                ) : (
+                                    <>
+                                        <div className="panel border-l-4 border-warning">
+                                            <div className="mb-5">
+                                                <h5 className="text-lg font-bold text-warning">Evaluator Comments</h5>
+                                            </div>
+                                            <div className="grid gap-5 md:grid-cols-2">
+                                                <div className="md:col-span-2">
+                                                    <label className="mb-2 block font-semibold">Comments</label>
+                                                    <textarea
+                                                        className="form-textarea"
+                                                        rows={3}
+                                                        value={sectionCForm?.comments || ''}
+                                                        onChange={(e) => setSectionCForm((prev) => (prev ? { ...prev, comments: e.target.value } : null))}
+                                                    />
+                                                </div>
+                                                <div className="md:col-span-2">
+                                                    <label className="mb-2 block font-semibold">Critical Issues</label>
+                                                    <textarea
+                                                        className="form-textarea"
+                                                        rows={3}
+                                                        value={sectionCForm?.criticalIssues || ''}
+                                                        onChange={(e) => setSectionCForm((prev) => (prev ? { ...prev, criticalIssues: e.target.value } : null))}
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="mb-2 block font-semibold">Action Taken</label>
+                                                    <select
+                                                        className="form-select"
+                                                        value={sectionCForm?.actionTaken || 'RECOMMENDED'}
+                                                        onChange={(e) => setSectionCForm((prev) => (prev ? { ...prev, actionTaken: e.target.value as SectionCType['actionTaken'] } : null))}
+                                                    >
+                                                        <option value="RECOMMENDED">Recommended</option>
+                                                        <option value="REJECTED">Rejected</option>
+                                                        <option value="DEFERRED">Deferred</option>
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label className="mb-2 block font-semibold">Recommended Supplier</label>
+                                                    <input
+                                                        className="form-input"
+                                                        value={sectionCForm?.recommendedSupplier || ''}
+                                                        onChange={(e) => setSectionCForm((prev) => (prev ? { ...prev, recommendedSupplier: e.target.value } : null))}
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="mb-2 block font-semibold">Recommended Amount (Incl. GCT)</label>
+                                                    <input
+                                                        type="number"
+                                                        className="form-input"
+                                                        value={sectionCForm?.recommendedAmountInclusiveGCT ?? 0}
+                                                        onChange={(e) => setSectionCForm((prev) => (prev ? { ...prev, recommendedAmountInclusiveGCT: Number(e.target.value) } : null))}
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="panel border-l-4 border-info">
+                                            <div className="mb-5">
+                                                <h5 className="text-lg font-bold text-info">Evaluator Details</h5>
+                                            </div>
+                                            <div className="grid gap-5 md:grid-cols-2">
+                                                <div>
+                                                    <label className="mb-2 block font-semibold">Evaluator Name</label>
+                                                    <input
+                                                        className="form-input"
+                                                        value={sectionCForm?.evaluatorName || ''}
+                                                        onChange={(e) => setSectionCForm((prev) => (prev ? { ...prev, evaluatorName: e.target.value } : null))}
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="mb-2 block font-semibold">Evaluator Title</label>
+                                                    <input
+                                                        className="form-input"
+                                                        value={sectionCForm?.evaluatorTitle || ''}
+                                                        onChange={(e) => setSectionCForm((prev) => (prev ? { ...prev, evaluatorTitle: e.target.value } : null))}
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="mb-2 block font-semibold">Evaluation Date</label>
+                                                    <input
+                                                        type="date"
+                                                        className="form-input"
+                                                        value={sectionCForm?.evaluationDate || ''}
+                                                        onChange={(e) => setSectionCForm((prev) => (prev ? { ...prev, evaluationDate: e.target.value } : null))}
+                                                    />
+                                                </div>
+                                                <div className="md:col-span-2 flex justify-end">
+                                                    <button
+                                                        className="btn btn-primary"
+                                                        onClick={async () => {
+                                                            if (!evaluation || !sectionCForm) return;
+                                                            try {
+                                                                setLoading(true);
+                                                                await evaluationService.updateCommitteeSection(evaluation.id, 'C', sectionCForm);
+                                                                setAlertMessage('Section C saved');
+                                                                setShowSuccessAlert(true);
+                                                                await loadEvaluation(true);
+                                                                setTimeout(() => setShowSuccessAlert(false), 2000);
+                                                            } catch (err: any) {
+                                                                setAlertMessage(err.message || 'Failed to save Section C');
+                                                                setShowErrorAlert(true);
+                                                                setTimeout(() => setShowErrorAlert(false), 4000);
+                                                            } finally {
+                                                                setLoading(false);
+                                                            }
+                                                        }}
+                                                    >
+                                                        Save Section C
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        )}
+                        {section === 'D' && renderSectionDFormStyle(sectionData)}
+                        {section === 'E' && renderSectionEFormStyle(sectionData)}
+                        {!sectionData && <p className="text-white-dark text-sm italic">No data provided for this section</p>}
+                    </div>
+
+                    {/* Committee Review Actions */}
+                    {isCommittee && isReviewable && (
+                        <div className="mt-4 rounded border-2 border-primary bg-primary-light p-4 dark:bg-primary/10">
+                            <h6 className="font-semibold mb-3">Committee Review</h6>
+
+                            {!isActive ? (
+                                <button onClick={() => setActiveSection(section)} className="btn btn-primary btn-sm">
+                                    Review This Section
+                                </button>
                             ) : (
                                 <>
-                                    <div className="panel border-l-4 border-warning">
-                                        <div className="mb-5">
-                                            <h5 className="text-lg font-bold text-warning">Evaluator Comments</h5>
-                                        </div>
-                                        <div className="grid gap-5 md:grid-cols-2">
-                                            <div className="md:col-span-2">
-                                                <label className="mb-2 block font-semibold">Comments</label>
-                                                <textarea
-                                                    className="form-textarea"
-                                                    rows={3}
-                                                    value={sectionCForm?.comments || ''}
-                                                    onChange={(e) => setSectionCForm((prev) => (prev ? { ...prev, comments: e.target.value } : null))}
-                                                />
-                                            </div>
-                                            <div className="md:col-span-2">
-                                                <label className="mb-2 block font-semibold">Critical Issues</label>
-                                                <textarea
-                                                    className="form-textarea"
-                                                    rows={3}
-                                                    value={sectionCForm?.criticalIssues || ''}
-                                                    onChange={(e) => setSectionCForm((prev) => (prev ? { ...prev, criticalIssues: e.target.value } : null))}
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="mb-2 block font-semibold">Action Taken</label>
-                                                <select
-                                                    className="form-select"
-                                                    value={sectionCForm?.actionTaken || 'RECOMMENDED'}
-                                                    onChange={(e) => setSectionCForm((prev) => (prev ? { ...prev, actionTaken: e.target.value as SectionCType['actionTaken'] } : null))}
-                                                >
-                                                    <option value="RECOMMENDED">Recommended</option>
-                                                    <option value="REJECTED">Rejected</option>
-                                                    <option value="DEFERRED">Deferred</option>
-                                                </select>
-                                            </div>
-                                            <div>
-                                                <label className="mb-2 block font-semibold">Recommended Supplier</label>
-                                                <input
-                                                    className="form-input"
-                                                    value={sectionCForm?.recommendedSupplier || ''}
-                                                    onChange={(e) => setSectionCForm((prev) => (prev ? { ...prev, recommendedSupplier: e.target.value } : null))}
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="mb-2 block font-semibold">Recommended Amount (Incl. GCT)</label>
-                                                <input
-                                                    type="number"
-                                                    className="form-input"
-                                                    value={sectionCForm?.recommendedAmountInclusiveGCT ?? 0}
-                                                    onChange={(e) => setSectionCForm((prev) => (prev ? { ...prev, recommendedAmountInclusiveGCT: Number(e.target.value) } : null))}
-                                                />
-                                            </div>
-                                        </div>
+                                    <div className="mb-4">
+                                        <label htmlFor={`notes-${section}`} className="mb-2 block font-semibold">
+                                            Review Notes <span className="text-danger">*</span>
+                                        </label>
+                                        <textarea
+                                            id={`notes-${section}`}
+                                            rows={4}
+                                            className="form-textarea"
+                                            placeholder="Required for returning section, optional for verification..."
+                                            value={verificationNotes}
+                                            onChange={(e) => setVerificationNotes(e.target.value)}
+                                        />
                                     </div>
-                                    <div className="panel border-l-4 border-info">
-                                        <div className="mb-5">
-                                            <h5 className="text-lg font-bold text-info">Evaluator Details</h5>
-                                        </div>
-                                        <div className="grid gap-5 md:grid-cols-2">
-                                            <div>
-                                                <label className="mb-2 block font-semibold">Evaluator Name</label>
-                                                <input
-                                                    className="form-input"
-                                                    value={sectionCForm?.evaluatorName || ''}
-                                                    onChange={(e) => setSectionCForm((prev) => (prev ? { ...prev, evaluatorName: e.target.value } : null))}
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="mb-2 block font-semibold">Evaluator Title</label>
-                                                <input
-                                                    className="form-input"
-                                                    value={sectionCForm?.evaluatorTitle || ''}
-                                                    onChange={(e) => setSectionCForm((prev) => (prev ? { ...prev, evaluatorTitle: e.target.value } : null))}
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="mb-2 block font-semibold">Evaluation Date</label>
-                                                <input
-                                                    type="date"
-                                                    className="form-input"
-                                                    value={sectionCForm?.evaluationDate || ''}
-                                                    onChange={(e) => setSectionCForm((prev) => (prev ? { ...prev, evaluationDate: e.target.value } : null))}
-                                                />
-                                            </div>
-                                            <div className="md:col-span-2 flex justify-end">
-                                                <button
-                                                    className="btn btn-primary"
-                                                    onClick={async () => {
-                                                        if (!evaluation || !sectionCForm) return;
-                                                        try {
-                                                            setLoading(true);
-                                                            await evaluationService.updateCommitteeSection(evaluation.id, 'C', sectionCForm);
-                                                            setAlertMessage('Section C saved');
-                                                            setShowSuccessAlert(true);
-                                                            await loadEvaluation(true);
-                                                            setTimeout(() => setShowSuccessAlert(false), 2000);
-                                                        } catch (err: any) {
-                                                            setAlertMessage(err.message || 'Failed to save Section C');
-                                                            setShowErrorAlert(true);
-                                                            setTimeout(() => setShowErrorAlert(false), 4000);
-                                                        } finally {
-                                                            setLoading(false);
-                                                        }
-                                                    }}
-                                                >
-                                                    Save Section C
-                                                </button>
-                                            </div>
-                                        </div>
+                                    <div className="flex gap-3">
+                                        <button onClick={() => handleVerifySection(section)} className="btn btn-success gap-2" disabled={loading}>
+                                            <IconChecks className="h-4 w-4" />
+                                            Verify Section
+                                        </button>
+                                        <button onClick={() => handleReturnSection(section)} className="btn btn-danger gap-2" disabled={loading}>
+                                            <IconX className="h-4 w-4" />
+                                            Return Section
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setActiveSection(null);
+                                                setVerificationNotes('');
+                                            }}
+                                            className="btn btn-outline-secondary"
+                                        >
+                                            Cancel
+                                        </button>
                                     </div>
                                 </>
                             )}
                         </div>
                     )}
-                    {section === 'D' && renderSectionDFormStyle(sectionData)}
-                    {section === 'E' && renderSectionEFormStyle(sectionData)}
-                    {!sectionData && <p className="text-white-dark text-sm italic">No data provided for this section</p>}
                 </div>
-
-                {/* Committee Review Actions */}
-                {isCommittee && isReviewable && (
-                    <div className="mt-4 rounded border-2 border-primary bg-primary-light p-4 dark:bg-primary/10">
-                        <h6 className="font-semibold mb-3">Committee Review</h6>
-
-                        {!isActive ? (
-                            <button onClick={() => setActiveSection(section)} className="btn btn-primary btn-sm">
-                                Review This Section
-                            </button>
-                        ) : (
-                            <>
-                                <div className="mb-4">
-                                    <label htmlFor={`notes-${section}`} className="mb-2 block font-semibold">
-                                        Review Notes <span className="text-danger">*</span>
-                                    </label>
-                                    <textarea
-                                        id={`notes-${section}`}
-                                        rows={4}
-                                        className="form-textarea"
-                                        placeholder="Required for returning section, optional for verification..."
-                                        value={verificationNotes}
-                                        onChange={(e) => setVerificationNotes(e.target.value)}
-                                    />
-                                </div>
-                                <div className="flex gap-3">
-                                    <button onClick={() => handleVerifySection(section)} className="btn btn-success gap-2" disabled={loading}>
-                                        <IconChecks className="h-4 w-4" />
-                                        Verify Section
-                                    </button>
-                                    <button onClick={() => handleReturnSection(section)} className="btn btn-danger gap-2" disabled={loading}>
-                                        <IconX className="h-4 w-4" />
-                                        Return Section
-                                    </button>
-                                    <button
-                                        onClick={() => {
-                                            setActiveSection(null);
-                                            setVerificationNotes('');
-                                        }}
-                                        className="btn btn-outline-secondary"
-                                    >
-                                        Cancel
-                                    </button>
-                                </div>
-                            </>
-                        )}
-                    </div>
-                )}
-            </div>
-        );
-    }, [evaluation, activeSection, isCommittee, verificationNotes, loading, sectionCForm]);
+            );
+        },
+        [evaluation, activeSection, isCommittee, verificationNotes, loading, sectionCForm]
+    );
 
     if (loading && !evaluation) {
         return (

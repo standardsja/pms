@@ -3833,7 +3833,9 @@ app.patch(
 
         const jsonData = JSON.stringify(sectionData).replace(/'/g, "''");
         await prisma.$executeRawUnsafe(
-            `UPDATE Evaluation SET section${sectionUpper}='${jsonData}', section${sectionUpper}Status='IN_PROGRESS', section${sectionUpper}Notes=NULL, section${sectionUpper}VerifiedAt=NULL, section${sectionUpper}VerifiedBy=NULL, updatedAt=NOW() WHERE id=${parseInt(id)}`
+            `UPDATE Evaluation SET section${sectionUpper}='${jsonData}', section${sectionUpper}Status='IN_PROGRESS', section${sectionUpper}Notes=NULL, section${sectionUpper}VerifiedAt=NULL, section${sectionUpper}VerifiedBy=NULL, updatedAt=NOW() WHERE id=${parseInt(
+                id
+            )}`
         );
         res.json({ success: true, message: `Section ${sectionUpper} updated`, meta: { fallback: true } });
     })
