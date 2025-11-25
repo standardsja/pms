@@ -227,7 +227,15 @@ const ProcurementManagerRequests = () => {
 
             setRequests((prev) => prev.filter((r) => r.id !== req.id));
 
-            await MySwal.fire({ icon: 'success', title: 'Request Returned', html: comment ? `<div style="text-align:left; margin-top: 12px;"><strong>Your comment:</strong><br/><div style="background: #f3f4f6; padding: 8px; border-radius: 4px; margin-top: 6px;">${comment}</div></div>` : undefined, timer: 2000, showConfirmButton: false });
+            await MySwal.fire({
+                icon: 'success',
+                title: 'Request Returned',
+                html: comment
+                    ? `<div style="text-align:left; margin-top: 12px;"><strong>Your comment:</strong><br/><div style="background: #f3f4f6; padding: 8px; border-radius: 4px; margin-top: 6px;">${comment}</div></div>`
+                    : undefined,
+                timer: 2000,
+                showConfirmButton: false,
+            });
         } catch (err: any) {
             console.error('Error returning request:', err);
             MySwal.fire({ icon: 'error', title: 'Return Failed', text: err.message || 'Failed to return the request. Please try again.' });
