@@ -56,6 +56,8 @@ const AssignRequests = () => {
     const [sortBy, setSortBy] = useState<'workload' | 'name'>('workload');
     const [viewingOfficerRequests, setViewingOfficerRequests] = useState<number | null>(null);
     const [isProcurementManager, setIsProcurementManager] = useState<boolean>(false);
+    const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
+    const currentUserId = userProfile?.id || userProfile?.userId || null;
 
     const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:4000' : `http://${window.location.hostname}:4000`;
 
@@ -100,10 +102,9 @@ const AssignRequests = () => {
                 const procurementRequests = Array.isArray(requestsData) ? requestsData.filter((r: any) => r && r.status === 'PROCUREMENT_REVIEW') : [];
                 // keep full list
                 setAllRequests(procurementRequests);
-                // For procurement managers, show requests assigned to them plus unassigned ones (their inbox)
+                // For procurement managers, show ALL procurement requests (they should see everything and delegate)
                 if (userProfile && (roles.includes('PROCUREMENT_MANAGER') || roles.includes('Procurement Manager') || roles.includes('PROCUREMENT'))) {
-                    const mgrId = Number(currentUserId);
-                    setRequests(procurementRequests.filter((r: any) => !r.currentAssigneeId || Number(r.currentAssigneeId) === mgrId));
+                    setRequests(procurementRequests);
                 } else {
                     // normal view: show unassigned requests
                     setRequests(procurementRequests.filter((r: any) => !r.currentAssigneeId));
@@ -525,6 +526,16 @@ const AssignRequests = () => {
                                                     <span className="font-semibold text-green-600 dark:text-green-400">
                                                         {req.currency} ${(Number(req.totalEstimated) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                     </span>
+                                                    {req.currentAssigneeId && (
+                                                        <span className="ml-3 inline-flex items-center gap-2 text-xs bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">
+                                                            <svg className="w-3 h-3 text-gray-600" viewBox="0 0 8 8" fill="currentColor">
+                                                                <circle cx="4" cy="4" r="4" />
+                                                            </svg>
+                                                            <span className="text-gray-700 dark:text-gray-300">
+                                                                Assigned to: {currentUserId && Number(req.currentAssigneeId) === Number(currentUserId) ? 'You (Manager)' : officers.find((o) => o.id === req.currentAssigneeId)?.name || 'Officer'}
+                                                            </span>
+                                                        </span>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
