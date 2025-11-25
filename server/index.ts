@@ -2117,18 +2117,18 @@ app.post(
             // Check if request exceeds thresholds and notify procurement officers
             try {
                 const totalValue = totalEstimated || 0;
-                const procurementTypes = Array.isArray(procurementType) ? procurementType : (procurementType ? [procurementType] : []);
+                const procurementTypes = Array.isArray(procurementType) ? procurementType : procurementType ? [procurementType] : [];
                 const requestCurrency = currency || 'JMD';
-                
+
                 console.log(`[POST /requests] Checking threshold - Value: ${requestCurrency} ${totalValue}, Types: ${JSON.stringify(procurementTypes)}`);
-                
+
                 const thresholdResult = checkProcurementThresholds(totalValue, procurementTypes, requestCurrency);
-                
+
                 console.log(`[POST /requests] Threshold check result:`, {
                     requiresExecutiveApproval: thresholdResult.requiresExecutiveApproval,
                     thresholdAmount: thresholdResult.thresholdAmount,
                     category: thresholdResult.category,
-                    reason: thresholdResult.reason
+                    reason: thresholdResult.reason,
                 });
 
                 if (thresholdResult.requiresExecutiveApproval) {
@@ -2146,7 +2146,7 @@ app.post(
                         thresholdAmount: thresholdResult.thresholdAmount,
                         category: thresholdResult.category,
                     });
-                    
+
                     console.log(`[POST /requests] Threshold notifications sent successfully for ${created.reference}`);
                 } else {
                     console.log(`[POST /requests] Request ${created.reference} does not exceed threshold (${requestCurrency} ${totalValue} < ${requestCurrency} ${thresholdResult.thresholdAmount})`);
