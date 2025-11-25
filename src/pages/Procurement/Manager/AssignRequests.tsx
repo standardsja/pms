@@ -120,7 +120,7 @@ const AssignRequests = () => {
     }, [requests, requestSearch]);
 
     // requests currently assigned to an officer being viewed
-    const officerRequests = (viewingOfficerRequests !== null && allRequests.length > 0) ? allRequests.filter((r) => r.currentAssigneeId === viewingOfficerRequests) : [];
+    const officerRequests = viewingOfficerRequests !== null && allRequests.length > 0 ? allRequests.filter((r) => r.currentAssigneeId === viewingOfficerRequests) : [];
 
     const handleOfficerClick = (officerId: number) => {
         // If already viewing this officer, toggle off
