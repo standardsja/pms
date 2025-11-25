@@ -53,7 +53,7 @@ const EvaluationEdit = () => {
             setError(null);
             const data = await evaluationService.getEvaluationById(parseInt(id || '0'));
             setEvaluation(data);
-            
+
             // Initialize forms with existing data
             if (data.sectionA) setSectionAForm(data.sectionA);
             if (data.sectionB) setSectionBForm(data.sectionB);
@@ -110,11 +110,8 @@ const EvaluationEdit = () => {
             setTimeout(() => {
                 setShowSuccessAlert(false);
                 // If no more returned sections, go back to list
-                const hasReturned = 
-                    evaluation.sectionAStatus === 'RETURNED' || 
-                    evaluation.sectionBStatus === 'RETURNED' || 
-                    evaluation.sectionDStatus === 'RETURNED' || 
-                    evaluation.sectionEStatus === 'RETURNED';
+                const hasReturned =
+                    evaluation.sectionAStatus === 'RETURNED' || evaluation.sectionBStatus === 'RETURNED' || evaluation.sectionDStatus === 'RETURNED' || evaluation.sectionEStatus === 'RETURNED';
                 if (!hasReturned) {
                     navigate('/procurement/evaluation');
                 }
@@ -131,7 +128,7 @@ const EvaluationEdit = () => {
     const getReturnedSections = () => {
         if (!evaluation) return [];
         const sections: Array<{ id: 'A' | 'B' | 'D' | 'E'; title: string; notes: string }> = [];
-        
+
         if (evaluation.sectionAStatus === 'RETURNED') {
             sections.push({ id: 'A', title: 'Section A: Procurement Details', notes: evaluation.sectionANotes || '' });
         }
@@ -144,7 +141,7 @@ const EvaluationEdit = () => {
         if (evaluation.sectionEStatus === 'RETURNED') {
             sections.push({ id: 'E', title: 'Section E: Procurement Officer Recommendation', notes: evaluation.sectionENotes || '' });
         }
-        
+
         return sections;
     };
 
@@ -229,7 +226,9 @@ const EvaluationEdit = () => {
                         </Link>
                         <div>
                             <h5 className="text-xl font-bold">Edit Returned Sections</h5>
-                            <p className="text-sm text-white-dark mt-1">{evaluation.evalNumber} - {evaluation.rfqTitle}</p>
+                            <p className="text-sm text-white-dark mt-1">
+                                {evaluation.evalNumber} - {evaluation.rfqTitle}
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -243,10 +242,7 @@ const EvaluationEdit = () => {
                         <div key={section.id} className="border-2 border-warning rounded-lg p-4 bg-warning/10">
                             <div className="flex items-center justify-between mb-2">
                                 <h6 className="font-semibold text-warning">{section.title}</h6>
-                                <button
-                                    onClick={() => setCurrentSection(section.id)}
-                                    className="btn btn-sm btn-warning"
-                                >
+                                <button onClick={() => setCurrentSection(section.id)} className="btn btn-sm btn-warning">
                                     Edit Section
                                 </button>
                             </div>
@@ -262,9 +258,7 @@ const EvaluationEdit = () => {
             {/* Section Editor */}
             {currentSection && (
                 <div className="panel">
-                    <h5 className="text-lg font-semibold mb-4">
-                        Editing: Section {currentSection}
-                    </h5>
+                    <h5 className="text-lg font-semibold mb-4">Editing: Section {currentSection}</h5>
                     <div className="mb-4 p-4 bg-info/10 border border-info rounded">
                         <p className="text-sm">
                             <strong>Note:</strong> Make your changes below, click "Save Changes", then click "Resubmit to Committee" when ready.
@@ -272,29 +266,16 @@ const EvaluationEdit = () => {
                     </div>
 
                     {/* Add section-specific form fields here based on currentSection */}
-                    <div className="text-center text-white-dark">
-                        Section {currentSection} editor - Form fields to be implemented
-                    </div>
+                    <div className="text-center text-white-dark">Section {currentSection} editor - Form fields to be implemented</div>
 
                     <div className="flex gap-3 mt-6">
-                        <button
-                            onClick={() => handleUpdateSection(currentSection)}
-                            className="btn btn-primary"
-                            disabled={loading}
-                        >
+                        <button onClick={() => handleUpdateSection(currentSection)} className="btn btn-primary" disabled={loading}>
                             Save Changes
                         </button>
-                        <button
-                            onClick={() => handleSubmitSection(currentSection)}
-                            className="btn btn-success"
-                            disabled={loading}
-                        >
+                        <button onClick={() => handleSubmitSection(currentSection)} className="btn btn-success" disabled={loading}>
                             Save & Resubmit to Committee
                         </button>
-                        <button
-                            onClick={() => setCurrentSection(null)}
-                            className="btn btn-outline-secondary"
-                        >
+                        <button onClick={() => setCurrentSection(null)} className="btn btn-outline-secondary">
                             Cancel
                         </button>
                     </div>
