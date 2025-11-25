@@ -63,9 +63,13 @@ function authHeaders(): Record<string, string> {
     const user = getUser();
     const h: Record<string, string> = { 'Content-Type': 'application/json' };
 
-    // Backend accepts either x-user-id or Authorization: Bearer <id>
+    // Backend accepts either x-user-id or Authorization: Bearer <token>
     if (user?.id) {
-        h['x-user-id'] = user.id;
+        // Convert string ID to number for backend
+        const numericId = typeof user.id === 'string' ? parseInt(user.id, 10) : user.id;
+        if (!isNaN(numericId)) {
+            h['x-user-id'] = String(numericId);
+        }
     }
     if (token) {
         h['Authorization'] = `Bearer ${token}`;
@@ -83,15 +87,23 @@ export async function fetchMessages(): Promise<Message[]> {
             headers: authHeaders(),
         });
 
+        // Check if response is JSON before parsing
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            // Silently return empty array for non-JSON responses (server might be down)
+            return [];
+        }
+
         const result = await response.json();
 
         if (result.success) {
             return result.data;
         }
-        console.error('Failed to fetch messages:', result.message);
+        // Silently return empty array on API errors
         return [];
     } catch (error) {
-        console.error('Error fetching messages:', error);
+        // Silently handle connection errors (server not running, network issues, etc.)
+        // This prevents console spam when backend is offline
         return [];
     }
 }

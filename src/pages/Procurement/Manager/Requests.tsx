@@ -7,6 +7,7 @@ import { setPageTitle } from '../../../store/themeConfigSlice';
 import IconEye from '../../../components/Icon/IconEye';
 import IconEdit from '../../../components/Icon/IconEdit';
 import IconPrinter from '../../../components/Icon/IconPrinter';
+import IconUsersGroup from '../../../components/Icon/IconUsersGroup';
 import { getStatusBadge } from '../../../utils/statusBadges';
 
 const MySwal = withReactContent(Swal);
@@ -26,15 +27,14 @@ interface Req {
     commitmentNumber?: string;
     accountingCode?: string;
     budgetComments?: string;
-    budgetOfficerName?: string;
-    budgetManagerName?: string;
     headerDeptCode?: string;
     headerMonth?: string;
     headerYear?: number;
     headerSequence?: number;
+    currentAssigneeId?: number;
 }
 
-const FinanceRequests = () => {
+const ProcurementManagerRequests = () => {
     const dispatch = useDispatch();
     const navigate = useNavigate();
     const [requests, setRequests] = useState<Req[]>([]);
@@ -52,36 +52,27 @@ const FinanceRequests = () => {
             currentUserId = userProfile?.id || userProfile?.userId || null;
         }
     } catch (err) {
-        console.error('Failed to parse user profile:', err);
+        console.error('Error parsing user profile:', err);
     }
 
     useEffect(() => {
-        dispatch(setPageTitle('Finance Verification'));
+        dispatch(setPageTitle('Procurement Manager - All Requests'));
     }, [dispatch]);
 
-    // Fetch requests with FINANCE_REVIEW or BUDGET_MANAGER_REVIEW status
     useEffect(() => {
         const fetchRequests = async () => {
             setLoading(true);
             setError(null);
-            try {
-                if (!currentUserId) {
-                    throw new Error('User not logged in');
-                }
 
-                const res = await fetch('http://heron:4000/requests', {
+            try {
+                const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:4000' : `http://${window.location.hostname}:4000`;
+                const res = await fetch(`${apiUrl}/requests`, {
                     headers: {
-                        'x-user-id': String(currentUserId),
-                        'Content-Type': 'application/json',
+                        'x-user-id': String(currentUserId || ''),
                     },
                 });
 
-                if (!res.ok) {
-                    const errorText = await res.text();
-                    console.error('Backend error response:', errorText);
-                    throw new Error(`Failed to fetch requests (${res.status})`);
-                }
-
+                // Check if response is JSON
                 const contentType = res.headers.get('content-type');
                 if (!contentType || !contentType.includes('application/json')) {
                     const text = await res.text();
@@ -91,12 +82,12 @@ const FinanceRequests = () => {
 
                 const data = await res.json();
 
-                // Safely filter for finance-related statuses
-                const financeRequests = Array.isArray(data) ? data.filter((r: any) => r && (r.status === 'FINANCE_REVIEW' || r.status === 'BUDGET_MANAGER_REVIEW')) : [];
+                // Filter for PROCUREMENT_REVIEW status (requests that need procurement manager attention)
+                const procurementRequests = Array.isArray(data) ? data.filter((r: any) => r && r.status === 'PROCUREMENT_REVIEW') : [];
 
-                setRequests(financeRequests);
+                setRequests(procurementRequests);
             } catch (err: any) {
-                console.error('Error fetching finance requests:', err);
+                console.error('Error fetching procurement requests:', err);
                 setError(err.message || 'Failed to load requests');
             } finally {
                 setLoading(false);
@@ -104,108 +95,150 @@ const FinanceRequests = () => {
         };
 
         fetchRequests();
-    }, [currentUserId]);
+    }, []);
 
-    const pending = useMemo(() => requests.filter((r) => r.status === 'FINANCE_REVIEW' || r.status === 'BUDGET_MANAGER_REVIEW'), [requests]);
+    // Filter requests at PROCUREMENT_REVIEW status
+    const pending = useMemo(() => requests.filter((r) => r.status === 'PROCUREMENT_REVIEW'), [requests]);
 
     const viewDetails = (req: Req) => {
         // Navigate to the request form in edit mode
         navigate(`/apps/requests/edit/${req.id}`);
     };
 
-    // Navigate to edit the request (Finance officers can edit budget fields)
+    // Navigate to edit the request (Procurement Manager can edit procurement fields)
     const editRequest = (req: Req) => {
         navigate(`/apps/requests/edit/${req.id}`);
     };
 
     // Print/Download PDF
     const downloadPdf = (req: Req) => {
-        const url = `http://heron:4000/requests/${req.id}/pdf`;
+        const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:4000' : `http://${window.location.hostname}:4000`;
+        const url = `${apiUrl}/requests/${req.id}/pdf`;
         window.open(url, '_blank');
     };
 
-    const handleAction = async (req: Req, action: 'approve' | 'return') => {
+    const handleSelfAssign = async (req: Req) => {
         const result = await MySwal.fire({
-            title: action === 'approve' ? 'Approve Request for Budget Verification' : 'Return Request',
+            title: 'Assign to Self',
             html: `
-        <div style="text-align: left; margin-bottom: 16px; background: #f9fafb; padding: 12px; border-radius: 4px;">
-          <p style="margin: 4px 0;"><strong>Request:</strong> ${req.reference} - ${req.title}</p>
-          <p style="margin: 4px 0;"><strong>Requester:</strong> ${req.requester.name}</p>
-          <p style="margin: 4px 0;"><strong>Department:</strong> ${req.department.name}</p>
-          <p style="margin: 4px 0;"><strong>Amount:</strong> ${req.currency} $${(Number(req.totalEstimated) || 0).toFixed(2)}</p>
-          ${req.accountingCode ? `<p style="margin: 4px 0;"><strong>Accounting Code:</strong> ${req.accountingCode}</p>` : ''}
-        </div>
-        ${
-            action === 'approve'
-                ? '<p style="margin-bottom: 12px;">Confirm that budget is available and funds can be allocated for this request.</p>'
-                : '<p style="margin-bottom: 12px; color: #dc2626; font-weight: 500;">Please provide a reason for returning this request to the requester.</p>'
-        }
-      `,
-            input: 'textarea',
-            inputLabel: action === 'approve' ? 'Comment (Optional)' : 'Comment (Required)',
-            inputPlaceholder:
-                action === 'approve'
-                    ? 'Add any notes about budget allocation, conditions, or restrictions...'
-                    : 'Explain why the request is being returned (e.g., budget unavailable, missing information, incorrect accounting code)...',
-            inputAttributes: {
-                'aria-label': 'Comment',
-                rows: '4',
-            },
-            inputValidator: (value) => {
-                if (action === 'return' && !value?.trim()) {
-                    return 'A comment is required to return a request';
-                }
-                return undefined;
-            },
+                <div style="text-align: left; margin-bottom: 16px; background: #f9fafb; padding: 12px; border-radius: 4px;">
+                  <p style="margin: 4px 0;"><strong>Request:</strong> ${req.reference} - ${req.title}</p>
+                  <p style="margin: 4px 0;"><strong>Requester:</strong> ${req.requester.name}</p>
+                  <p style="margin: 4px 0;"><strong>Department:</strong> ${req.department.name}</p>
+                  <p style="margin: 4px 0;"><strong>Amount:</strong> ${req.currency} $${(Number(req.totalEstimated) || 0).toFixed(2)}</p>
+                </div>
+                <p style="margin-bottom: 12px;">Assign this request to yourself for processing?</p>
+            `,
             showCancelButton: true,
-            confirmButtonText: action === 'approve' ? 'Approve & Verify Budget' : 'Return to Requester',
-            confirmButtonColor: action === 'approve' ? '#16a34a' : '#dc2626',
+            confirmButtonText: 'Assign to Me',
+            confirmButtonColor: '#3b82f6',
             cancelButtonText: 'Cancel',
         });
 
         if (result.isConfirmed) {
-            const comment = (result.value as string) || '';
-
             try {
-                // Call backend API to approve or reject
-                const apiAction = action === 'approve' ? 'APPROVE' : 'REJECT';
-                const res = await fetch(`http://heron:4000/requests/${req.id}/action`, {
+                const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:4000' : `http://${window.location.hostname}:4000`;
+                const res = await fetch(`${apiUrl}/requests/${req.id}/assign`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'x-user-id': String(currentUserId || ''),
                     },
                     body: JSON.stringify({
-                        action: apiAction,
-                        comment: comment.trim() || undefined,
+                        assigneeId: currentUserId,
                     }),
                 });
 
                 if (!res.ok) {
                     const error = await res.json().catch(() => ({}));
-                    throw new Error(error.message || 'Failed to process action');
+                    throw new Error(error.message || 'Failed to assign request');
                 }
 
-                // Remove from list after successful action
+                // Remove from list after successful assignment
                 setRequests((prev) => prev.filter((r) => r.id !== req.id));
 
-                await MySwal.fire({
+                MySwal.fire({
                     icon: 'success',
-                    title: action === 'approve' ? 'Request Approved' : 'Request Returned',
-                    html: comment
-                        ? `<div style="text-align:left; margin-top: 12px;"><strong>Your comment:</strong><br/><div style="background: #f3f4f6; padding: 8px; border-radius: 4px; margin-top: 6px;">${comment}</div></div>`
-                        : undefined,
+                    title: 'Request Assigned',
+                    text: 'The request has been assigned to you.',
                     timer: 2000,
                     showConfirmButton: false,
                 });
             } catch (err: any) {
-                console.error('Error processing action:', err);
+                console.error('Error assigning request:', err);
                 MySwal.fire({
                     icon: 'error',
-                    title: 'Action Failed',
-                    text: err.message || 'Failed to process the action. Please try again.',
+                    title: 'Assignment Failed',
+                    text: err.message || 'Failed to assign the request. Please try again.',
                 });
             }
+        }
+    };
+
+    const handleAssignToOfficer = (req: Req) => {
+        // Navigate to assignment page with this request
+        navigate(`/procurement/manager/assign?requestId=${req.id}`);
+    };
+
+    const handleReturn = async (req: Req) => {
+        const result = await MySwal.fire({
+            title: 'Return Request',
+            html: `
+                <div style="text-align: left; margin-bottom: 16px; background: #f9fafb; padding: 12px; border-radius: 4px;">
+                  <p style="margin: 4px 0;"><strong>Request:</strong> ${req.reference} - ${req.title}</p>
+                  <p style="margin: 4px 0;"><strong>Requester:</strong> ${req.requester.name}</p>
+                  <p style="margin: 4px 0;"><strong>Department:</strong> ${req.department.name}</p>
+                  <p style="margin: 4px 0;"><strong>Amount:</strong> ${req.currency} $${(Number(req.totalEstimated) || 0).toFixed(2)}</p>
+                </div>
+                <p style="margin-bottom: 12px; color: #dc2626; font-weight: 500;">Please provide a reason for returning this request to the requester.</p>
+            `,
+            input: 'textarea',
+            inputLabel: 'Comment (Required)',
+            inputPlaceholder: 'Explain why the request is being returned (e.g., budget unavailable, missing information, incorrect accounting code)...',
+            inputAttributes: { 'aria-label': 'Comment', rows: '4' },
+            inputValidator: (value) => {
+                if (!value || !value.trim()) return 'A comment is required to return a request';
+                return undefined;
+            },
+            showCancelButton: true,
+            confirmButtonText: 'Return to Requester',
+            confirmButtonColor: '#dc2626',
+            cancelButtonText: 'Cancel',
+        });
+
+        if (!result.isConfirmed) return;
+        const comment = (result.value as string) || '';
+
+        try {
+            const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:4000' : `http://${window.location.hostname}:4000`;
+            const res = await fetch(`${apiUrl}/requests/${req.id}/action`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-user-id': String(currentUserId || ''),
+                },
+                body: JSON.stringify({ action: 'REJECT', comment: comment.trim() || undefined }),
+            });
+
+            if (!res.ok) {
+                const error = await res.json().catch(() => ({}));
+                throw new Error(error.message || 'Failed to return request');
+            }
+
+            setRequests((prev) => prev.filter((r) => r.id !== req.id));
+
+            await MySwal.fire({
+                icon: 'success',
+                title: 'Request Returned',
+                html: comment
+                    ? `<div style="text-align:left; margin-top: 12px;"><strong>Your comment:</strong><br/><div style="background: #f3f4f6; padding: 8px; border-radius: 4px; margin-top: 6px;">${comment}</div></div>`
+                    : undefined,
+                timer: 2000,
+                showConfirmButton: false,
+            });
+        } catch (err: any) {
+            console.error('Error returning request:', err);
+            MySwal.fire({ icon: 'error', title: 'Return Failed', text: err.message || 'Failed to return the request. Please try again.' });
         }
     };
 
@@ -232,11 +265,8 @@ const FinanceRequests = () => {
     return (
         <div className="p-6">
             <div className="mb-6">
-                <h1 className="text-2xl font-semibold">Finance Verification Queue</h1>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                    Review and approve procurement requests assigned to Finance. Use <strong>Approve</strong> to advance requests or <strong>Return</strong> with required comments to send back to
-                    requester.
-                </p>
+                <h1 className="text-2xl font-semibold">Procurement Manager Queue</h1>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Review requests awaiting procurement processing. You can self-assign requests or delegate them to procurement officers.</p>
             </div>
 
             <div className="bg-white dark:bg-slate-800 shadow rounded overflow-hidden">
@@ -252,7 +282,7 @@ const FinanceRequests = () => {
                                 <th className="px-4 py-3 text-left">Amount</th>
                                 <th className="px-4 py-3 text-left">Acct Code</th>
                                 <th className="px-4 py-3 text-left">Date</th>
-                                <th className="px-4 py-3 text-left w-64">Actions</th>
+                                <th className="px-4 py-3 text-left w-80">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="text-sm">
@@ -268,8 +298,8 @@ const FinanceRequests = () => {
                                                     d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                                                 />
                                             </svg>
-                                            <p className="font-medium">No requests pending finance verification</p>
-                                            <p className="text-xs">Finance requests will appear here when submitted for review</p>
+                                            <p className="font-medium">No requests pending procurement</p>
+                                            <p className="text-xs">Requests will appear here when approved by finance</p>
                                         </div>
                                     </td>
                                 </tr>
@@ -315,7 +345,7 @@ const FinanceRequests = () => {
                                                 <button
                                                     className="p-1.5 rounded hover:bg-amber-50 dark:hover:bg-amber-900/20 text-amber-600 dark:text-amber-400 transition-colors"
                                                     onClick={() => editRequest(r)}
-                                                    title="Edit Budget Fields"
+                                                    title="Edit Request"
                                                 >
                                                     <IconEdit className="w-5 h-5" />
                                                 </button>
@@ -326,15 +356,26 @@ const FinanceRequests = () => {
                                                 >
                                                     <IconPrinter className="w-5 h-5" />
                                                 </button>
+                                                <div className="w-px h-5 bg-gray-300 dark:bg-gray-600"></div>
                                                 <button
-                                                    className="px-3 py-1.5 rounded bg-emerald-600 text-white hover:bg-emerald-700 text-xs font-medium transition-colors"
-                                                    onClick={() => handleAction(r, 'approve')}
+                                                    className="px-3 py-1.5 rounded bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 transition-colors"
+                                                    onClick={() => handleSelfAssign(r)}
+                                                    title="Assign to Self"
                                                 >
-                                                    Approve
+                                                    Assign to Me
                                                 </button>
                                                 <button
-                                                    className="px-3 py-1.5 rounded bg-rose-600 text-white hover:bg-rose-700 text-xs font-medium transition-colors"
-                                                    onClick={() => handleAction(r, 'return')}
+                                                    className="px-3 py-1.5 rounded bg-purple-600 text-white text-xs font-medium hover:bg-purple-700 transition-colors flex items-center gap-1"
+                                                    onClick={() => handleAssignToOfficer(r)}
+                                                    title="Assign to Officer"
+                                                >
+                                                    <IconUsersGroup className="w-4 h-4" />
+                                                    Assign
+                                                </button>
+                                                <button
+                                                    className="px-3 py-1.5 rounded bg-red-600 text-white text-xs font-medium hover:bg-red-700 transition-colors"
+                                                    onClick={() => handleReturn(r)}
+                                                    title="Return Request"
                                                 >
                                                     Return
                                                 </button>
@@ -351,7 +392,7 @@ const FinanceRequests = () => {
             {pending.length > 0 && (
                 <div className="mt-4 text-sm text-gray-500 dark:text-gray-400">
                     <p>
-                        Showing {pending.length} request{pending.length !== 1 ? 's' : ''} pending finance review
+                        Showing {pending.length} request{pending.length !== 1 ? 's' : ''} awaiting procurement assignment
                     </p>
                 </div>
             )}
@@ -359,4 +400,4 @@ const FinanceRequests = () => {
     );
 };
 
-export default FinanceRequests;
+export default ProcurementManagerRequests;

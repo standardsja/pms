@@ -27,7 +27,7 @@ import { requestMonitoringMiddleware, trackCacheHit, trackCacheMiss, getMetrics,
 import { checkProcurementThresholds } from './services/thresholdService';
 import { createThresholdNotifications } from './services/notificationService';
 import type { Prisma } from '@prisma/client';
-import { requireCommittee as requireCommitteeRole, requireAdmin } from './middleware/rbac';
+import { requireCommittee as requireCommitteeRole, requireEvaluationCommittee, requireAdmin, requireExecutive } from './middleware/rbac';
 import { validate, createIdeaSchema, voteSchema, approveRejectIdeaSchema, promoteIdeaSchema, sanitizeInput as sanitize } from './middleware/validation';
 import { errorHandler, notFoundHandler, asyncHandler, NotFoundError, BadRequestError } from './middleware/errorHandler';
 import statsRouter from './routes/stats';
@@ -37,7 +37,10 @@ const app = express();
 const httpServer = http.createServer(app);
 const PORT = process.env.PORT ? Number(process.env.PORT) : 4000;
 const APP_ENV = process.env.APP_ENV || 'production';
-const API_HOST = APP_ENV === 'local' ? 'localhost' : process.env.API_HOST || 'heron';
+// In production, bind to 0.0.0.0 unless overridden via API_HOST
+const API_HOST = APP_ENV === 'local' ? 'localhost' : process.env.API_HOST || '0.0.0.0';
+// Public host for logs (what users type in the browser)
+const PUBLIC_HOST = process.env.API_PUBLIC_HOST || (APP_ENV === 'local' ? 'localhost' : 'heron');
 const JWT_SECRET = process.env.JWT_SECRET || 'devsecret-change-me';
 
 let trendingJobInterval: NodeJS.Timeout | null = null;
@@ -675,19 +678,15 @@ app.delete('/api/notifications/:id', authMiddleware, async (req, res) => {
 
 // GET /api/messages - Fetch user messages
 app.get('/api/messages', authMiddleware, async (req, res) => {
-    console.log('[/api/messages] Request received');
     try {
         const user = (req as any).user as { sub?: number };
         const userId = user.sub;
-        console.log('[/api/messages] User ID:', userId);
 
         if (!userId) {
-            console.log('[/api/messages] No user ID - returning 401');
             return res.status(401).json({ success: false, message: 'User not authenticated' });
         }
 
         // Fetch messages where user is the recipient
-        console.log('[/api/messages] Fetching messages for user:', userId);
         const messages = await prisma.message.findMany({
             where: { toUserId: userId },
             orderBy: { createdAt: 'desc' },
@@ -710,7 +709,6 @@ app.get('/api/messages', authMiddleware, async (req, res) => {
             },
         });
 
-        console.log('[/api/messages] Found', messages.length, 'messages');
         res.json({
             success: true,
             data: messages,
@@ -2566,7 +2564,7 @@ app.post('/requests/:id/submit', async (req, res) => {
 app.post('/requests/:id/action', async (req, res) => {
     try {
         const { id } = req.params;
-        const { action } = req.body; // 'APPROVE' or 'REJECT'
+        const { action, comment } = req.body; // 'APPROVE' or 'REJECT' with optional comment
         const userId = req.headers['x-user-id'];
 
         if (!userId) {
@@ -2643,6 +2641,16 @@ app.post('/requests/:id/action', async (req, res) => {
         // Update request with new status (with safe fallback if enum is missing in DB)
         let updated;
         try {
+            // Build the status history comment
+            let historyComment = '';
+            if (action === 'APPROVE') {
+                historyComment = comment ? `Approved at ${request.status} stage: ${comment}` : `Approved at ${request.status} stage`;
+            } else if (action === 'REJECT') {
+                historyComment = comment ? `Returned from ${request.status} stage: ${comment}` : `Returned from ${request.status} stage`;
+            } else if (action === 'SEND_TO_VENDOR') {
+                historyComment = comment ? `Sent to vendor: ${comment}` : `Sent to vendor`;
+            }
+
             updated = await prisma.request.update({
                 where: { id: parseInt(id, 10) },
                 data: {
@@ -2652,7 +2660,7 @@ app.post('/requests/:id/action', async (req, res) => {
                         create: {
                             status: nextStatus,
                             changedById: parseInt(String(userId), 10),
-                            comment: `${action === 'APPROVE' ? 'Approved' : 'Rejected'} at ${request.status} stage`,
+                            comment: historyComment,
                         },
                     },
                 },
@@ -2702,6 +2710,249 @@ app.post('/requests/:id/action', async (req, res) => {
     } catch (e: any) {
         console.error('POST /requests/:id/action error:', e);
         return res.status(500).json({ message: e?.message || 'Failed to process action' });
+    }
+});
+
+// GET /users/procurement-officers - List all procurement officers with workload
+app.get('/users/procurement-officers', async (req, res) => {
+    try {
+        const userId = req.headers['x-user-id'];
+        if (!userId) {
+            return res.status(401).json({ message: 'User ID required' });
+        }
+
+        // Verify the user is a procurement manager
+        const user = await prisma.user.findUnique({
+            where: { id: parseInt(String(userId), 10) },
+            include: { roles: { include: { role: true } } },
+        });
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        const isProcurementManager = user.roles.some((ur) => ur.role.name === 'PROCUREMENT_MANAGER');
+        if (!isProcurementManager) {
+            return res.status(403).json({ message: 'Only Procurement Managers can view procurement officers' });
+        }
+
+        // Get all users with PROCUREMENT role
+        const officers = await prisma.user.findMany({
+            where: {
+                roles: { some: { role: { name: 'PROCUREMENT' } } },
+            },
+            include: {
+                roles: { include: { role: true } },
+                department: { select: { id: true, name: true, code: true } },
+            },
+        });
+
+        // Count active assignments for each officer (requests currently assigned to them)
+        const officersWithWorkload = await Promise.all(
+            officers.map(async (officer) => {
+                const assignedCount = await prisma.request.count({
+                    where: {
+                        currentAssigneeId: officer.id,
+                        status: { in: ['PROCUREMENT_REVIEW', 'FINANCE_APPROVED'] },
+                    },
+                });
+
+                return {
+                    id: officer.id,
+                    name: officer.name,
+                    email: officer.email,
+                    departmentId: officer.departmentId,
+                    department: officer.department,
+                    assignedCount,
+                };
+            })
+        );
+
+        return res.json(officersWithWorkload);
+    } catch (e: any) {
+        console.error('GET /users/procurement-officers error:', e);
+        return res.status(500).json({ message: e?.message || 'Failed to fetch procurement officers' });
+    }
+});
+
+// POST /requests/:id/assign - Assign request to specific procurement officer
+app.post('/requests/:id/assign', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { assigneeId } = req.body;
+        const userId = req.headers['x-user-id'];
+
+        if (!userId) {
+            return res.status(401).json({ message: 'User ID required' });
+        }
+
+        if (!assigneeId) {
+            return res.status(400).json({ message: 'assigneeId is required' });
+        }
+
+        // Verify the user is a procurement manager or self-assigning
+        const user = await prisma.user.findUnique({
+            where: { id: parseInt(String(userId), 10) },
+            include: { roles: { include: { role: true } } },
+        });
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        const isProcurementManager = user.roles.some((ur) => ur.role.name === 'PROCUREMENT_MANAGER');
+        const isProcurementOfficer = user.roles.some((ur) => ur.role.name === 'PROCUREMENT');
+        const isSelfAssigning = parseInt(String(userId), 10) === parseInt(String(assigneeId), 10);
+
+        // Allow if user is procurement manager OR if user is self-assigning as procurement officer
+        if (!isProcurementManager && !(isProcurementOfficer && isSelfAssigning)) {
+            return res.status(403).json({ message: 'Not authorized to assign requests' });
+        }
+
+        const request = await prisma.request.findUnique({
+            where: { id: parseInt(id, 10) },
+            include: { department: true },
+        });
+
+        if (!request) {
+            return res.status(404).json({ message: 'Request not found' });
+        }
+
+        // Verify request is at PROCUREMENT_REVIEW stage
+        if (request.status !== 'PROCUREMENT_REVIEW') {
+            return res.status(400).json({ message: 'Request must be at PROCUREMENT_REVIEW stage to be assigned' });
+        }
+
+        // Verify assignee has PROCUREMENT or PROCUREMENT_MANAGER role
+        const assignee = await prisma.user.findUnique({
+            where: { id: parseInt(String(assigneeId), 10) },
+            include: { roles: { include: { role: true } } },
+        });
+
+        if (!assignee) {
+            return res.status(404).json({ message: 'Assignee not found' });
+        }
+
+        const hasValidRole = assignee.roles.some((ur) => ur.role.name === 'PROCUREMENT' || ur.role.name === 'PROCUREMENT_MANAGER');
+        if (!hasValidRole) {
+            return res.status(400).json({ message: 'Assignee must have PROCUREMENT or PROCUREMENT_MANAGER role' });
+        }
+
+        // Update the request assignment
+        const updated = await prisma.request.update({
+            where: { id: parseInt(id, 10) },
+            data: {
+                currentAssigneeId: parseInt(String(assigneeId), 10),
+                statusHistory: {
+                    create: {
+                        status: 'PROCUREMENT_REVIEW',
+                        changedById: parseInt(String(userId), 10),
+                        comment: isSelfAssigning ? 'Self-assigned for procurement processing' : `Assigned to ${assignee.name} by Procurement Manager`,
+                    },
+                },
+            },
+            include: {
+                items: true,
+                requester: { select: { id: true, name: true, email: true } },
+                department: { select: { id: true, name: true, code: true } },
+                currentAssignee: { select: { id: true, name: true, email: true } },
+            },
+        });
+
+        return res.json(updated);
+    } catch (e: any) {
+        console.error('POST /requests/:id/assign error:', e);
+        return res.status(500).json({ message: e?.message || 'Failed to assign request' });
+    }
+});
+
+// GET /procurement/load-balancing-settings - Get load balancing configuration
+app.get('/procurement/load-balancing-settings', async (req, res) => {
+    try {
+        const userId = req.headers['x-user-id'];
+        if (!userId) {
+            return res.status(401).json({ message: 'User ID required' });
+        }
+
+        // Verify the user is a procurement manager
+        const user = await prisma.user.findUnique({
+            where: { id: parseInt(String(userId), 10) },
+            include: { roles: { include: { role: true } } },
+        });
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        const isProcurementManager = user.roles.some((ur) => ur.role.name === 'PROCUREMENT_MANAGER');
+        if (!isProcurementManager) {
+            return res.status(403).json({ message: 'Only Procurement Managers can view settings' });
+        }
+
+        // Check if settings table exists, if not return default settings
+        // For now, we'll store settings in a simple JSON format in the database
+        // You may want to create a dedicated Settings table in schema.prisma
+
+        // Return default settings for now
+        // TODO: Implement persistent storage in database
+        const defaultSettings = {
+            enabled: false,
+            strategy: 'LEAST_LOADED',
+            autoAssignOnApproval: true,
+        };
+
+        return res.json(defaultSettings);
+    } catch (e: any) {
+        console.error('GET /procurement/load-balancing-settings error:', e);
+        return res.status(500).json({ message: e?.message || 'Failed to fetch settings' });
+    }
+});
+
+// POST /procurement/load-balancing-settings - Update load balancing configuration
+app.post('/procurement/load-balancing-settings', async (req, res) => {
+    try {
+        const userId = req.headers['x-user-id'];
+        if (!userId) {
+            return res.status(401).json({ message: 'User ID required' });
+        }
+
+        // Verify the user is a procurement manager
+        const user = await prisma.user.findUnique({
+            where: { id: parseInt(String(userId), 10) },
+            include: { roles: { include: { role: true } } },
+        });
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        const isProcurementManager = user.roles.some((ur) => ur.role.name === 'PROCUREMENT_MANAGER');
+        if (!isProcurementManager) {
+            return res.status(403).json({ message: 'Only Procurement Managers can update settings' });
+        }
+
+        const { enabled, strategy, autoAssignOnApproval } = req.body;
+
+        // Validate strategy
+        const validStrategies = ['LEAST_LOADED', 'ROUND_ROBIN', 'RANDOM'];
+        if (strategy && !validStrategies.includes(strategy)) {
+            return res.status(400).json({ message: 'Invalid strategy. Must be LEAST_LOADED, ROUND_ROBIN, or RANDOM' });
+        }
+
+        // TODO: Implement persistent storage in database
+        // For now, just acknowledge the settings
+        const settings = {
+            enabled: enabled !== undefined ? enabled : false,
+            strategy: strategy || 'LEAST_LOADED',
+            autoAssignOnApproval: autoAssignOnApproval !== undefined ? autoAssignOnApproval : true,
+        };
+
+        console.log('Load balancing settings updated:', settings);
+
+        return res.json(settings);
+    } catch (e: any) {
+        console.error('POST /procurement/load-balancing-settings error:', e);
+        return res.status(500).json({ message: e?.message || 'Failed to update settings' });
     }
 });
 
@@ -3278,7 +3529,8 @@ app.post(
     authMiddleware,
     asyncHandler(async (req, res) => {
         const user = (req as any).user;
-        const { evalNumber, rfqNumber, rfqTitle, description, sectionA, dueDate, evaluator } = req.body;
+        const { evalNumber, rfqNumber, rfqTitle, description, sectionA, sectionB, sectionC, sectionD, sectionE, dueDate, evaluator, submitToCommittee: submitToCommitteeRaw } = req.body;
+        const submitToCommittee = Boolean(submitToCommitteeRaw);
 
         // JWT payload uses 'sub' for user ID, fallback to 'id' for compatibility
         const userId = user?.sub || user?.id;
@@ -3317,10 +3569,19 @@ app.post(
                         rfqTitle,
                         description: description || null,
                         sectionA: sectionA || null,
+                        sectionAStatus: sectionA && submitToCommittee ? 'SUBMITTED' : 'NOT_STARTED',
+                        sectionB: sectionB || null,
+                        sectionBStatus: sectionB && submitToCommittee ? 'SUBMITTED' : 'NOT_STARTED',
+                        sectionC: sectionC || null,
+                        sectionCStatus: sectionC && submitToCommittee ? 'SUBMITTED' : 'NOT_STARTED',
+                        sectionD: sectionD || null,
+                        sectionDStatus: sectionD && submitToCommittee ? 'SUBMITTED' : 'NOT_STARTED',
+                        sectionE: sectionE || null,
+                        sectionEStatus: sectionE && submitToCommittee ? 'SUBMITTED' : 'NOT_STARTED',
                         evaluator: evaluator || null,
                         dueDate: dueDate ? new Date(dueDate) : null,
                         createdBy: userId,
-                        status: 'PENDING',
+                        status: submitToCommittee ? 'COMMITTEE_REVIEW' : 'PENDING',
                     },
                     include: { creator: { select: { id: true, name: true, email: true } } },
                 });
@@ -3338,13 +3599,26 @@ app.post(
         // Fallback duplicate check via raw SQL
         const dupRows = await prisma.$queryRawUnsafe<any>(`SELECT id FROM Evaluation WHERE evalNumber='${evalNumber.replace(/'/g, "''")}' LIMIT 1`);
         if (dupRows[0]) throw new BadRequestError('Evaluation number already exists');
+
+        const evalStatus = submitToCommittee ? 'COMMITTEE_REVIEW' : 'PENDING';
+
         await prisma.$executeRawUnsafe(
-            `INSERT INTO Evaluation (evalNumber, rfqNumber, rfqTitle, description, sectionA, createdBy, evaluator, dueDate, status, createdAt, updatedAt) VALUES (
-              '${evalNumber}', '${rfqNumber}', '${rfqTitle}', ${description ? `'${description.replace(/'/g, "''")}'` : 'NULL'}, ${
-                sectionA ? `'${JSON.stringify(sectionA).replace(/'/g, "''")}'` : 'NULL'
-            }, ${userId}, ${evaluator ? `'${evaluator.replace(/'/g, "''")}'` : 'NULL'}, ${
-                dueDate ? `'${new Date(dueDate).toISOString().slice(0, 19).replace('T', ' ')}'` : 'NULL'
-            }, 'PENDING', NOW(), NOW())`
+            `INSERT INTO Evaluation (evalNumber, rfqNumber, rfqTitle, description, sectionA, sectionAStatus, sectionB, sectionBStatus, sectionC, sectionCStatus, sectionD, sectionDStatus, sectionE, sectionEStatus, createdBy, evaluator, dueDate, status, createdAt, updatedAt) VALUES (
+                            '${evalNumber}', '${rfqNumber}', '${rfqTitle}', 
+                            ${description ? `'${description.replace(/'/g, "''")}'` : 'NULL'}, 
+                            ${sectionA ? `'${JSON.stringify(sectionA).replace(/'/g, "''")}'` : 'NULL'}, 
+                            ${sectionA && submitToCommittee ? "'SUBMITTED'" : "'NOT_STARTED'"},
+                            ${sectionB ? `'${JSON.stringify(sectionB).replace(/'/g, "''")}'` : 'NULL'}, 
+                            ${sectionB && submitToCommittee ? "'SUBMITTED'" : "'NOT_STARTED'"},
+                            ${sectionC ? `'${JSON.stringify(sectionC).replace(/'/g, "''")}'` : 'NULL'}, 
+                            ${sectionC && submitToCommittee ? "'SUBMITTED'" : "'NOT_STARTED'"},
+                            ${sectionD ? `'${JSON.stringify(sectionD).replace(/'/g, "''")}'` : 'NULL'}, 
+                            ${sectionD && submitToCommittee ? "'SUBMITTED'" : "'NOT_STARTED'"},
+                            ${sectionE ? `'${JSON.stringify(sectionE).replace(/'/g, "''")}'` : 'NULL'}, 
+                            ${sectionE && submitToCommittee ? "'SUBMITTED'" : "'NOT_STARTED'"},
+                            ${userId}, 
+                            ${evaluator ? `'${evaluator.replace(/'/g, "''")}'` : 'NULL'}, 
+                            ${dueDate ? `'${new Date(dueDate).toISOString().slice(0, 19).replace('T', ' ')}'` : 'NULL'}, '${evalStatus}', NOW(), NOW())`
         );
         const createdRow = await prisma.$queryRawUnsafe<any>(
             `SELECT e.*, uc.id AS creatorId, uc.name AS creatorName, uc.email AS creatorEmail FROM Evaluation e LEFT JOIN User uc ON e.createdBy = uc.id WHERE e.evalNumber='${evalNumber}' LIMIT 1`
@@ -3479,9 +3753,9 @@ app.patch(
         const sectionKey = `section${section.toUpperCase()}` as keyof Prisma.EvaluationUpdateInput;
         updateData[sectionKey] = data;
 
-        // Auto-update status to COMMITTEE_REVIEW if still PENDING
+        // Workflow: Pending -> In Progress on first edits
         if (existing.status === 'PENDING') {
-            updateData.status = 'COMMITTEE_REVIEW';
+            updateData.status = 'IN_PROGRESS';
         }
 
         if (hasEvaluationDelegate()) {
@@ -3495,7 +3769,7 @@ app.patch(
         const sets: string[] = [];
         const sectionField = `section${section.toUpperCase()}`;
         sets.push(`${sectionField}='${JSON.stringify(data).replace(/'/g, "''")}'`);
-        if (existing.status === 'PENDING') sets.push(`status='COMMITTEE_REVIEW'`);
+        if (existing.status === 'PENDING') sets.push(`status='IN_PROGRESS'`);
         sets.push('updatedAt=NOW()');
         await prisma.$executeRawUnsafe(`UPDATE Evaluation SET ${sets.join(', ')} WHERE id=${parseInt(id)}`);
         const row = await prisma.$queryRawUnsafe<any>(
@@ -3529,6 +3803,84 @@ app.patch(
     })
 );
 
+// PATCH /api/evaluations/:id/sections/:section - Update a section (for returned sections)
+app.patch(
+    '/api/evaluations/:id/sections/:section',
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+        const { id, section } = req.params;
+        const sectionData = req.body;
+        const sectionUpper = section.toUpperCase();
+        const userObj: any = (req as any).user;
+        const userId = userObj?.sub || userObj?.id;
+
+        // Validate ID is numeric
+        const evaluationId = parseInt(id);
+        if (isNaN(evaluationId) || evaluationId <= 0) {
+            throw new BadRequestError('Invalid evaluation ID');
+        }
+
+        if (!['A', 'B', 'C', 'D', 'E'].includes(sectionUpper)) {
+            throw new BadRequestError('Invalid section. Must be A, B, C, D, or E');
+        }
+
+        // Validate section data is provided
+        if (!sectionData || typeof sectionData !== 'object') {
+            throw new BadRequestError('Section data is required');
+        }
+
+        let existing: any = null;
+        if (hasEvaluationDelegate()) {
+            existing = await (prisma as any).evaluation.findUnique({ where: { id: evaluationId } });
+        } else {
+            const checkRow = await prisma.$queryRawUnsafe<any>(`SELECT * FROM Evaluation WHERE id = ${evaluationId} LIMIT 1`);
+            existing = checkRow[0];
+        }
+        if (!existing) throw new NotFoundError('Evaluation not found');
+
+        // Authorization: Only the creator or procurement officers can update sections
+        if (existing.createdBy !== userId) {
+            // Check if user has procurement role
+            const roles = userObj?.roles || [];
+            const isProcurement = roles.some(
+                (r: string) => r.toUpperCase().includes('PROCUREMENT_OFFICER') || r.toUpperCase().includes('PROCUREMENT_MANAGER') || r.toUpperCase().includes('PROCUREMENT')
+            );
+            if (!isProcurement) {
+                throw new BadRequestError('Unauthorized to update this evaluation');
+            }
+        }
+
+        const updateData: any = {};
+        updateData[`section${sectionUpper}`] = sectionData;
+        // Clear return notes when updating
+        updateData[`section${sectionUpper}Notes`] = null;
+        updateData[`section${sectionUpper}VerifiedAt`] = null;
+        updateData[`section${sectionUpper}VerifiedBy`] = null;
+        // Set status to IN_PROGRESS so it can be resubmitted
+        updateData[`section${sectionUpper}Status`] = 'IN_PROGRESS';
+
+        if (hasEvaluationDelegate()) {
+            const evaluation = await (prisma as any).evaluation.update({
+                where: { id: parseInt(id) },
+                data: updateData,
+                include: {
+                    creator: { select: { id: true, name: true, email: true } },
+                    [`section${sectionUpper}Verifier`]: { select: { id: true, name: true, email: true } },
+                },
+            });
+            return res.json({ success: true, data: evaluation, message: `Section ${sectionUpper} updated` });
+        }
+
+        const jsonData = JSON.stringify(sectionData).replace(/'/g, "''");
+        await prisma.$executeRawUnsafe(
+            `UPDATE Evaluation SET section${sectionUpper}='${jsonData}', section${sectionUpper}Status='IN_PROGRESS', section${sectionUpper}Notes=NULL, section${sectionUpper}VerifiedAt=NULL, section${sectionUpper}VerifiedBy=NULL, updatedAt=NOW() WHERE id=${parseInt(
+                id
+            )}`
+        );
+        res.json({ success: true, message: `Section ${sectionUpper} updated`, meta: { fallback: true } });
+    })
+);
+
 // POST /api/evaluations/:id/sections/:section/submit - Submit section for committee review
 app.post(
     '/api/evaluations/:id/sections/:section/submit',
@@ -3537,15 +3889,21 @@ app.post(
         const { id, section } = req.params;
         const sectionUpper = section.toUpperCase();
 
+        // Validate ID is numeric
+        const evaluationId = parseInt(id);
+        if (isNaN(evaluationId) || evaluationId <= 0) {
+            throw new BadRequestError('Invalid evaluation ID');
+        }
+
         if (!['A', 'B', 'C', 'D', 'E'].includes(sectionUpper)) {
             throw new BadRequestError('Invalid section. Must be A, B, C, D, or E');
         }
 
         let existing: any = null;
         if (hasEvaluationDelegate()) {
-            existing = await (prisma as any).evaluation.findUnique({ where: { id: parseInt(id) } });
+            existing = await (prisma as any).evaluation.findUnique({ where: { id: evaluationId } });
         } else {
-            const checkRow = await prisma.$queryRawUnsafe<any>(`SELECT * FROM Evaluation WHERE id = ${parseInt(id)} LIMIT 1`);
+            const checkRow = await prisma.$queryRawUnsafe<any>(`SELECT * FROM Evaluation WHERE id = ${evaluationId} LIMIT 1`);
             existing = checkRow[0];
         }
         if (!existing) throw new NotFoundError('Evaluation not found');
@@ -3560,6 +3918,11 @@ app.post(
         const statusField = `section${sectionUpper}Status`;
         updateData[statusField] = 'SUBMITTED';
 
+        // Update evaluation status to COMMITTEE_REVIEW when any section is submitted
+        if (existing.status !== 'COMMITTEE_REVIEW' && existing.status !== 'COMPLETED') {
+            updateData.status = 'COMMITTEE_REVIEW';
+        }
+
         if (hasEvaluationDelegate()) {
             const evaluation = await (prisma as any).evaluation.update({
                 where: { id: parseInt(id) },
@@ -3572,7 +3935,11 @@ app.post(
             return res.json({ success: true, data: evaluation, message: `Section ${sectionUpper} submitted for review` });
         }
 
-        await prisma.$executeRawUnsafe(`UPDATE Evaluation SET ${statusField}='SUBMITTED', updatedAt=NOW() WHERE id=${parseInt(id)}`);
+        const sets: string[] = [`${statusField}='SUBMITTED'`, 'updatedAt=NOW()'];
+        if (existing.status !== 'COMMITTEE_REVIEW' && existing.status !== 'COMPLETED') {
+            sets.push(`status='COMMITTEE_REVIEW'`);
+        }
+        await prisma.$executeRawUnsafe(`UPDATE Evaluation SET ${sets.join(', ')} WHERE id=${parseInt(id)}`);
         res.json({ success: true, message: `Section ${sectionUpper} submitted for review`, meta: { fallback: true } });
     })
 );
@@ -3581,11 +3948,12 @@ app.post(
 app.post(
     '/api/evaluations/:id/sections/:section/verify',
     authMiddleware,
-    requireCommittee,
+    requireEvaluationCommittee,
     asyncHandler(async (req, res) => {
         const { id, section } = req.params;
         const { notes } = req.body;
-        const userId = req.user!.userId;
+        const userObj: any = (req as any).user;
+        const userId = userObj?.sub || userObj?.id;
         const sectionUpper = section.toUpperCase();
 
         if (!['A', 'B', 'C', 'D', 'E'].includes(sectionUpper)) {
@@ -3621,6 +3989,50 @@ app.post(
                     [`section${sectionUpper}Verifier`]: { select: { id: true, name: true, email: true } },
                 },
             });
+
+            // Check if all sections are now verified
+            const allSections = ['A', 'B', 'C', 'D', 'E'];
+            const allVerified = allSections.every((s) => {
+                const sectionStatus = evaluation[`section${s}Status`];
+                return sectionStatus === 'VERIFIED';
+            });
+
+            // If all sections verified, update evaluation status and notify creator
+            if (allVerified && evaluation.status !== 'COMPLETED') {
+                const completedEvaluation = await (prisma as any).evaluation.update({
+                    where: { id: parseInt(id) },
+                    data: { status: 'COMPLETED' },
+                    include: {
+                        creator: { select: { id: true, name: true, email: true } },
+                        sectionAVerifier: { select: { id: true, name: true, email: true } },
+                        sectionBVerifier: { select: { id: true, name: true, email: true } },
+                        sectionCVerifier: { select: { id: true, name: true, email: true } },
+                        sectionDVerifier: { select: { id: true, name: true, email: true } },
+                        sectionEVerifier: { select: { id: true, name: true, email: true } },
+                    },
+                });
+
+                // Send notification to creator
+                try {
+                    await prisma.notification.create({
+                        data: {
+                            userId: completedEvaluation.createdBy,
+                            type: 'EVALUATION_VERIFIED',
+                            message: `Evaluation ${completedEvaluation.evalNumber} has been fully verified by the committee and is now completed.`,
+                            data: {
+                                evaluationId: completedEvaluation.id,
+                                evalNumber: completedEvaluation.evalNumber,
+                                rfqTitle: completedEvaluation.rfqTitle,
+                            },
+                        },
+                    });
+                } catch (notifErr) {
+                    console.error('Failed to create notification:', notifErr);
+                }
+
+                return res.json({ success: true, data: completedEvaluation, message: `Section ${sectionUpper} verified. All sections complete!` });
+            }
+
             return res.json({ success: true, data: evaluation, message: `Section ${sectionUpper} verified` });
         }
 
@@ -3635,11 +4047,12 @@ app.post(
 app.post(
     '/api/evaluations/:id/sections/:section/return',
     authMiddleware,
-    requireCommittee,
+    requireEvaluationCommittee,
     asyncHandler(async (req, res) => {
         const { id, section } = req.params;
         const { notes } = req.body;
-        const userId = req.user!.userId;
+        const userObj: any = (req as any).user;
+        const userId = userObj?.sub || userObj?.id;
         const sectionUpper = section.toUpperCase();
 
         if (!['A', 'B', 'C', 'D', 'E'].includes(sectionUpper)) {
@@ -3669,6 +4082,8 @@ app.post(
         updateData[`section${sectionUpper}VerifiedBy`] = userId;
         updateData[`section${sectionUpper}VerifiedAt`] = new Date();
         updateData[`section${sectionUpper}Notes`] = notes;
+        // Change evaluation status back to IN_PROGRESS so Procurement can edit and resubmit
+        updateData.status = 'IN_PROGRESS';
 
         if (hasEvaluationDelegate()) {
             const evaluation = await (prisma as any).evaluation.update({
@@ -3679,6 +4094,27 @@ app.post(
                     [`section${sectionUpper}Verifier`]: { select: { id: true, name: true, email: true } },
                 },
             });
+
+            // Send notification to creator that section was returned
+            try {
+                await prisma.notification.create({
+                    data: {
+                        userId: evaluation.createdBy,
+                        type: 'EVALUATION_RETURNED',
+                        message: `Section ${sectionUpper} of Evaluation ${evaluation.evalNumber} has been returned for changes. Please review the committee's notes.`,
+                        data: {
+                            evaluationId: evaluation.id,
+                            evalNumber: evaluation.evalNumber,
+                            rfqTitle: evaluation.rfqTitle,
+                            section: sectionUpper,
+                            notes: notes,
+                        },
+                    },
+                });
+            } catch (notifErr) {
+                console.error('Failed to create notification:', notifErr);
+            }
+
             return res.json({ success: true, data: evaluation, message: `Section ${sectionUpper} returned for changes` });
         }
 
@@ -3687,10 +4123,80 @@ app.post(
             `section${sectionUpper}VerifiedBy=${userId}`,
             `section${sectionUpper}VerifiedAt=NOW()`,
             `section${sectionUpper}Notes='${notes.replace(/'/g, "''")}'`,
+            `status='IN_PROGRESS'`,
             'updatedAt=NOW()',
         ];
         await prisma.$executeRawUnsafe(`UPDATE Evaluation SET ${sets.join(', ')} WHERE id=${parseInt(id)}`);
         res.json({ success: true, message: `Section ${sectionUpper} returned for changes`, meta: { fallback: true } });
+    })
+);
+
+// POST /api/evaluations/:id/validate - Executive Director validates a completed evaluation
+app.post(
+    '/api/evaluations/:id/validate',
+    authMiddleware,
+    requireExecutive,
+    asyncHandler(async (req, res) => {
+        const { id } = req.params;
+        const { notes } = req.body as { notes?: string };
+        const userObj: any = (req as any).user;
+        const userId = parseInt(userObj?.sub || userObj?.id);
+
+        if (isNaN(parseInt(id))) throw new BadRequestError('Invalid evaluation ID');
+
+        let existing: any = null;
+        if (hasEvaluationDelegate()) {
+            existing = await (prisma as any).evaluation.findUnique({ where: { id: parseInt(id) } });
+        } else {
+            const checkRow = await prisma.$queryRawUnsafe<any>(`SELECT * FROM Evaluation WHERE id = ${parseInt(id)} LIMIT 1`);
+            existing = checkRow[0];
+        }
+        if (!existing) throw new NotFoundError('Evaluation not found');
+
+        if (existing.status !== 'COMPLETED' && existing.status !== 'VALIDATED') {
+            throw new BadRequestError('Only completed evaluations can be validated');
+        }
+
+        // If already validated, just return the current record
+        if (existing.status === 'VALIDATED') {
+            return res.json({ success: true, data: existing, message: 'Evaluation already validated' });
+        }
+
+        if (hasEvaluationDelegate()) {
+            const updated = await (prisma as any).evaluation.update({
+                where: { id: parseInt(id) },
+                data: { status: 'VALIDATED', validatedBy: userId, validatedAt: new Date(), validationNotes: notes || null },
+                include: {
+                    creator: { select: { id: true, name: true, email: true } },
+                    validator: { select: { id: true, name: true, email: true } },
+                },
+            });
+
+            // Optional: notify creator about validation
+            try {
+                await prisma.notification.create({
+                    data: {
+                        userId: updated.createdBy,
+                        type: 'EVALUATION_VERIFIED',
+                        message: `Evaluation ${updated.evalNumber} has been validated by the Executive Director.`,
+                        data: { evaluationId: updated.id, evalNumber: updated.evalNumber, rfqTitle: updated.rfqTitle },
+                    },
+                });
+            } catch (e) {
+                console.error('Failed to create validation notification:', e);
+            }
+
+            return res.json({ success: true, data: updated, message: 'Evaluation validated' });
+        }
+
+        // Fallback: raw SQL path
+        const safeNotes = notes ? notes.replace(/'/g, "''") : null;
+        await prisma.$executeRawUnsafe(
+            `UPDATE Evaluation SET status='VALIDATED', validatedBy=${userId}, validatedAt=NOW(), validationNotes=${safeNotes ? `'${safeNotes}'` : 'NULL'}, updatedAt=NOW() WHERE id=${parseInt(id)}`
+        );
+        const row = await prisma.$queryRawUnsafe<any>(`SELECT * FROM Evaluation WHERE id = ${parseInt(id)} LIMIT 1`);
+        const updated = row[0];
+        res.json({ success: true, data: updated, message: 'Evaluation validated' });
     })
 );
 
@@ -3758,9 +4264,9 @@ async function start() {
 
         httpServer.listen(PORT, API_HOST, () => {
             console.log(`🚀 Environment: ${APP_ENV.toUpperCase()}`);
-            console.log(`API server listening on http://${API_HOST}:${PORT}`);
-            console.log(`WebSocket server ready on ws://${API_HOST}:${PORT}`);
-            console.log(`Health check: http://${API_HOST}:${PORT}/health`);
+            console.log(`API server listening on http://${PUBLIC_HOST}:${PORT} (bind ${API_HOST})`);
+            console.log(`WebSocket server ready on ws://${PUBLIC_HOST}:${PORT}`);
+            console.log(`Health check: http://${PUBLIC_HOST}:${PORT}/health`);
         });
     } catch (err) {
         console.error('Startup error:', err);

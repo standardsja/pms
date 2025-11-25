@@ -18,6 +18,9 @@ const Onboarding = lazy(() => import('../pages/Procurement/Auth/Onboarding'));
 // Procurement Pages
 const ProcurementDashboard = lazy(() => import('../pages/Procurement/Dashboard'));
 const ProcurementManagerDashboard = lazy(() => import('../pages/Procurement/Manager/ProcurementManagerDashboard'));
+const ProcurementManagerRequests = lazy(() => import('../pages/Procurement/Manager/Requests'));
+const ProcurementManagerAssignRequests = lazy(() => import('../pages/Procurement/Manager/AssignRequests'));
+const ProcurementManagerLoadBalancingSettings = lazy(() => import('../pages/Procurement/Manager/LoadBalancingSettings'));
 const RFQsAwaitingApproval = lazy(() => import('../pages/Procurement/Manager/RFQsAwaitingApproval'));
 const EvaluationsToValidate = lazy(() => import('../pages/Procurement/Manager/EvaluationsToValidate'));
 const RFQList = lazy(() => import('../pages/Procurement/RFQ/RFQList'));
@@ -27,9 +30,9 @@ const QuotesList = lazy(() => import('../pages/Procurement/Quotes/QuotesList'));
 const NewQuote = lazy(() => import('../pages/Procurement/Quotes/NewQuote'));
 const QuoteDetail = lazy(() => import('../pages/Procurement/Quotes/QuoteDetail'));
 const EvaluationList = lazy(() => import('../pages/Procurement/Evaluation/EvaluationList'));
-const NewEvaluation = lazy(() => import('../pages/Procurement/Evaluation/NewEvaluation'));
+const NewEvaluation = lazy(() => import('../pages/Procurement/Evaluation/NewEvaluationComplete'));
+const EvaluationEdit = lazy(() => import('../pages/Procurement/Evaluation/EvaluationEdit'));
 const EvaluationDetail = lazy(() => import('../pages/Procurement/Evaluation/EvaluationDetail'));
-const EvaluationWorkspace = lazy(() => import('../pages/Procurement/Evaluation/EvaluationWorkspace'));
 const EvaluationCommittee = lazy(() => import('../pages/Procurement/Evaluation/EvaluationCommittee'));
 const EvaluationCommitteeDashboard = lazy(() => import('../pages/Procurement/Evaluation/CommitteeDashboard'));
 const ReviewList = lazy(() => import('../pages/Procurement/Review/ReviewList'));
@@ -240,6 +243,18 @@ const routes = [
         element: <ProcurementManagerDashboard />,
     },
     {
+        path: '/procurement/manager/requests',
+        element: <ProcurementManagerRequests />,
+    },
+    {
+        path: '/procurement/manager/assign',
+        element: <ProcurementManagerAssignRequests />,
+    },
+    {
+        path: '/procurement/manager/settings',
+        element: <ProcurementManagerLoadBalancingSettings />,
+    },
+    {
         path: '/procurement/manager/rfqs-awaiting',
         element: <RFQsAwaitingApproval />,
     },
@@ -284,13 +299,14 @@ const routes = [
         element: <NewEvaluation />,
     },
     {
+        path: '/procurement/evaluation/:id/edit',
+        element: <EvaluationEdit />,
+    },
+    {
         path: '/procurement/evaluation/:id',
         element: <EvaluationDetail />,
     },
-    {
-        path: '/procurement/evaluation/:id/workspace',
-        element: <EvaluationWorkspace />,
-    },
+    // Workspace route removed (no longer used)
     {
         path: '/evaluation/:id/committee',
         element: <EvaluationCommittee />,

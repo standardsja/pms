@@ -476,6 +476,17 @@ const RequestForm = () => {
                     return;
                 }
 
+                // Validate form code is filled out
+                if (!headerDeptCode || !headerMonth || !headerYear || headerSequence === null || headerSequence === undefined) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Form Code Required',
+                        text: 'Please fill out all form code fields (Department Code, Month, Year, and Sequence Number) before submitting.',
+                    });
+                    setIsSubmitting(false);
+                    return;
+                }
+
                 // Map form priority values to enum (medium -> MEDIUM, high -> HIGH, etc.)
                 const priorityMap: Record<string, string> = {
                     urgent: 'URGENT',
@@ -622,6 +633,7 @@ const RequestForm = () => {
                                             className="bg-transparent border-0 text-white font-semibold text-sm focus:ring-0 px-1 cursor-pointer"
                                             value={headerDeptCode}
                                             onChange={(e) => setHeaderDeptCode(e.target.value)}
+                                            disabled={isEditMode}
                                         >
                                             <option value="">---</option>
                                             {DEPARTMENT_CODES.map((code) => (
@@ -638,6 +650,7 @@ const RequestForm = () => {
                                             className="bg-transparent border-0 text-white font-semibold text-sm focus:ring-0 px-1 cursor-pointer"
                                             value={headerMonth}
                                             onChange={(e) => setHeaderMonth(e.target.value)}
+                                            disabled={isEditMode}
                                         >
                                             <option value="">---</option>
                                             {MONTHS.map((m) => (
@@ -654,6 +667,7 @@ const RequestForm = () => {
                                             className="bg-transparent border-0 text-white font-semibold text-sm focus:ring-0 px-1 cursor-pointer w-16"
                                             value={headerYear ?? ''}
                                             onChange={(e) => setHeaderYear(e.target.value ? parseInt(e.target.value, 10) : null)}
+                                            disabled={isEditMode}
                                         >
                                             <option value="">----</option>
                                             {Array.from({ length: HEADER_YEAR_SPAN }).map((_, i) => {
@@ -676,6 +690,8 @@ const RequestForm = () => {
                                             value={headerSequence ?? 0}
                                             onChange={(e) => setHeaderSequence(e.target.value ? parseInt(e.target.value, 10) : 0)}
                                             className="bg-transparent border-0 text-white font-semibold text-sm focus:ring-0 w-10 text-center"
+                                            disabled={isEditMode}
+                                            readOnly={isEditMode}
                                         />
                                         ]
                                     </span>
