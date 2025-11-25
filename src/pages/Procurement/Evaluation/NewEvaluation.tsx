@@ -707,18 +707,19 @@ const NewEvaluation = () => {
                             {t('common.cancel', 'Cancel')}
                         </Link>
                         <button onClick={handleCreateEvaluation} className="btn btn-success gap-2" disabled={loading}>
-                        {loading ? (
-                            <>
-                                <span className="animate-spin border-2 border-white border-l-transparent rounded-full w-4 h-4 inline-block align-middle"></span>
-                                Creating...
-                            </>
-                        ) : (
-                            <>
-                                <IconChecks className="h-4 w-4" />
-                                {t('evaluation.new.create', 'Create Evaluation')}
-                            </>
-                        )}
-                    </button>
+                            {loading ? (
+                                <>
+                                    <span className="animate-spin border-2 border-white border-l-transparent rounded-full w-4 h-4 inline-block align-middle"></span>
+                                    Creating...
+                                </>
+                            ) : (
+                                <>
+                                    <IconChecks className="h-4 w-4" />
+                                    {t('evaluation.new.create', 'Create Evaluation')}
+                                </>
+                            )}
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
