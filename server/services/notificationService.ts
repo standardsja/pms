@@ -47,11 +47,11 @@ export async function createThresholdNotifications(data: ThresholdNotificationDa
 
                 const isAdmin = userRoles.some((role) => ['ADMIN', 'ADMINISTRATOR', 'SUPER_ADMIN'].includes(role));
 
-                return isProcurementOfficer || isProcurementManager || isAdmin;
+                return (isProcurementOfficer || isProcurementManager || isAdmin) && user.name !== null;
             })
             .map((user) => ({
                 id: user.id,
-                name: user.name,
+                name: user.name!,
                 email: user.email,
             }));
 
@@ -135,11 +135,11 @@ export async function getProcurementNotificationUsers(): Promise<Array<{ id: num
 
                 const isAdmin = userRoles.some((role) => ['ADMIN', 'ADMINISTRATOR', 'SUPER_ADMIN'].includes(role));
 
-                return isProcurementOfficer || isProcurementManager || isAdmin;
+                return (isProcurementOfficer || isProcurementManager || isAdmin) && user.name !== null;
             })
             .map((user) => ({
                 id: user.id,
-                name: user.name,
+                name: user.name!,
                 email: user.email,
             }));
     } catch (error) {
