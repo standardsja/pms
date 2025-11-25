@@ -425,7 +425,7 @@ const Onboarding = () => {
                         </button>
                         <div className="px-6 py-5 border-b border-gray-200 dark:border-gray-700 flex items-center gap-3">
                             <span className="text-2xl">📊</span>
-                            <h2 className="text-xl font-semibold tracking-wide">7 Steps of the Procurement Process</h2>
+                            <h2 className="text-xl font-semibold tracking-wide">6 Steps of the Procurement Process</h2>
                         </div>
                         <div className="p-6 bg-white dark:bg-gray-800">
                             <div className="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 max-h-[75vh]">
