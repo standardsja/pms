@@ -562,6 +562,14 @@ const AssignRequests = () => {
                             </span>
                         </div>
                         <div className="space-y-2">
+                                    {selectedRequest && (
+                                        <div className="mb-2 text-sm bg-yellow-50 dark:bg-yellow-900/10 rounded p-2 text-yellow-800 flex items-center justify-between">
+                                            <div>
+                                                <strong>Request selected:</strong> Click an officer to assign this request, or use the Confirm Assignment panel.
+                                            </div>
+                                            <div className="text-xs text-yellow-700">Selected ID: {selectedRequest}</div>
+                                        </div>
+                                    )}
                             <div className="relative">
                                 <input
                                     type="text"
@@ -660,6 +668,39 @@ const AssignRequests = () => {
                                                 </div>
                                                 <span className={`text-xs font-medium px-2 py-0.5 rounded ${workloadColors[workloadLevel]}`}>{workloadLabels[workloadLevel]}</span>
                                             </div>
+                                            {/* If a request is selected, show explicit assign button */}
+                                            {selectedRequest && (
+                                                <div className="mt-2 flex items-center gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            // If officer is already the assignee, show warning
+                                                            const selected = allRequests.find((r) => r.id === selectedRequest) || requests.find((r) => r.id === selectedRequest);
+                                                            if (selected && selected.currentAssigneeId && Number(selected.currentAssigneeId) === officer.id) {
+                                                                MySwal.fire({ icon: 'info', title: 'No-op', text: 'This officer is already assigned to the selected request.' });
+                                                                return;
+                                                            }
+                                                            handleAssign(officer.id, selectedRequest);
+                                                        }}
+                                                        className="btn btn-sm bg-purple-600 text-white hover:bg-purple-700"
+                                                    >
+                                                        Assign Selected Request
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            // Quick view of officer's assigned requests
+                                                            setViewingOfficerRequests(officer.id);
+                                                            setSelectedOfficer(officer.id);
+                                                        }}
+                                                        className="btn btn-sm btn-outline-secondary"
+                                                    >
+                                                        View Assigned
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 );
