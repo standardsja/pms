@@ -617,6 +617,46 @@ const RequestForm = () => {
         }
     };
 
+    const handleResubmit = async () => {
+        if (!id) return;
+        const raw = localStorage.getItem('userProfile');
+        const profile = raw ? JSON.parse(raw) : null;
+        const userId = profile?.id || profile?.userId || null;
+        if (!userId) {
+            Swal.fire({ icon: 'error', title: 'Not logged in' });
+            return;
+        }
+
+        const confirm = await Swal.fire({
+            icon: 'question',
+            title: 'Resubmit request',
+            text: 'Send this returned request back into the approval workflow?',
+            showCancelButton: true,
+            confirmButtonText: 'Resubmit',
+        });
+        if (!confirm.isConfirmed) return;
+
+        try {
+            setIsSubmitting(true);
+            const resp = await fetch(`http://heron:4000/requests/${id}/submit`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-user-id': String(userId) },
+                body: JSON.stringify({}),
+            });
+            if (!resp.ok) {
+                const err = await resp.json().catch(() => ({}));
+                throw new Error(err.message || resp.statusText || 'Failed to resubmit');
+            }
+            Swal.fire({ icon: 'success', title: 'Resubmitted', text: 'Your request has been sent for review.' });
+            navigate('/apps/requests');
+        } catch (err: any) {
+            console.error('Resubmit failed', err);
+            Swal.fire({ icon: 'error', title: 'Failed to resubmit', text: err?.message || String(err) });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
     return (
         <div className="p-6">
             <div className="mb-6">
@@ -1393,6 +1433,12 @@ const RequestForm = () => {
                                     Mark as Sent to Vendor
                                 </button>
                             </>
+                        )}
+                        {/* If this is an existing request returned to the requester (DRAFT), show a Resubmit button */}
+                        {isEditMode && requestMeta?.status === 'DRAFT' && Number(requestMeta.currentAssigneeId) === Number(currentUserId) && (
+                            <button type="button" onClick={handleResubmit} disabled={isSubmitting} className={`px-6 py-2 rounded bg-primary-600 text-white ${isSubmitting ? 'opacity-60 cursor-not-allowed' : 'hover:bg-primary-700'}`}>
+                                {isSubmitting ? 'Resubmitting…' : 'Resubmit for Review'}
+                            </button>
                         )}
                         <button
                             type="button"
