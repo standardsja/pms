@@ -577,10 +577,7 @@ app.get('/api/notifications', authMiddleware, async (req, res) => {
                 console.warn('Prisma enum mismatch when fetching notifications, falling back to raw query:', msg);
                 try {
                     // Use a raw SQL query to avoid Prisma enum coercion errors. Results will be raw rows.
-                    const rows: any = await prisma.$queryRawUnsafe(
-                        `SELECT * FROM "Notification" WHERE "userId" = $1 ORDER BY "createdAt" DESC LIMIT 50`,
-                        userId
-                    );
+                    const rows: any = await prisma.$queryRawUnsafe(`SELECT * FROM "Notification" WHERE "userId" = $1 ORDER BY "createdAt" DESC LIMIT 50`, userId);
                     notifications = rows || [];
                 } catch (rawErr) {
                     console.error('Raw fallback for notifications failed:', rawErr);

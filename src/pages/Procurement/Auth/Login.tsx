@@ -53,7 +53,7 @@ const Login = () => {
             // Dev-only fallback: if backend login endpoint returns 404/500 during local setup,
             // try the non-password helper endpoint to unblock UX. This will NOT run in production builds.
             if (!res.ok && import.meta.env.DEV) {
-                    try {
+                try {
                     // Use relative path so Vite proxy can route to backend in dev
                     const fallbackRes = await fetch(`${apiUrl}/auth/test-login`, {
                         method: 'POST',
