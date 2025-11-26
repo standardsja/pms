@@ -435,7 +435,7 @@ const Onboarding = () => {
                                     original `steps.jpg`. */}
                                 <img
                                     src="/assets/images/procurement/steps-custom.jpg"
-                                    alt="Diagram showing the 7 steps of the procurement process"
+                                    alt="Diagram showing the 6 steps of the procurement process"
                                     className="w-full h-auto max-h-[70vh] object-contain"
                                     loading="lazy"
                                     onError={(e) => {
