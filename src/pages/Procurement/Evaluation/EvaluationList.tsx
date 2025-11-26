@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { setPageTitle } from '../../../store/themeConfigSlice';
 import IconClipboardText from '../../../components/Icon/IconClipboardText';
 import IconPlus from '../../../components/Icon/IconPlus';
@@ -29,6 +29,8 @@ const statusMap: Record<EvaluationStatus, DisplayStatus> = {
 
 const EvaluationList = () => {
     const dispatch = useDispatch();
+    const authLoading = useSelector((state: any) => state.auth.isLoading);
+    const authUser = useSelector((state: any) => state.auth.user);
     const navigate = useNavigate();
     const { t } = useTranslation();
 
@@ -60,6 +62,15 @@ const EvaluationList = () => {
             setIsExecutive(hasExecutiveRole);
         }
     }, []);
+
+    // Auth gate
+    if (authLoading || !authUser) {
+        return (
+            <div className="flex justify-center items-center min-h-[400px]">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+        );
+    }
 
     // Fetch evaluations from backend
     useEffect(() => {

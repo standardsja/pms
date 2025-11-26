@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { setPageTitle } from '../../../store/themeConfigSlice';
 import IconArrowLeft from '../../../components/Icon/IconArrowLeft';
 import IconChecks from '../../../components/Icon/IconChecks';
@@ -11,6 +11,8 @@ import { evaluationService, type Evaluation, type SectionVerificationStatus, typ
 
 const EvaluationCommittee = () => {
     const dispatch = useDispatch();
+    const authLoading = useSelector((state: any) => state.auth.isLoading);
+    const authUser = useSelector((state: any) => state.auth.user);
     const navigate = useNavigate();
     const { id } = useParams();
     const { t } = useTranslation();
@@ -88,6 +90,14 @@ const EvaluationCommittee = () => {
     useEffect(() => {
         loadEvaluation();
     }, [loadEvaluation]);
+
+    if (authLoading || !authUser) {
+        return (
+            <div className="flex justify-center items-center min-h-[400px]">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+        );
+    }
 
     const handleVerifySection = async (section: 'A' | 'B' | 'C' | 'D' | 'E') => {
         if (!evaluation || !isCommittee) return;
