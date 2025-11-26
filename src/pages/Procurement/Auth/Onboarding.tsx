@@ -29,9 +29,25 @@ const Onboarding = () => {
     const query = useMemo(() => new URLSearchParams(search), [search]);
     const forceOnboarding = query.get('force') === '1' || query.get('reset') === '1';
     const currentUser = getUser();
-    const userRoles: string[] = (currentUser as any)?.roles || ((currentUser as any)?.role ? [(currentUser as any).role] : []);
+
+    // Safely extract roles - handle both string arrays and object arrays
+    const userRoles: string[] = useMemo(() => {
+        const rawRoles = (currentUser as any)?.roles;
+        if (Array.isArray(rawRoles)) {
+            return rawRoles.map((r: any) => (typeof r === 'string' ? r : r?.name || r?.role?.name)).filter(Boolean);
+        } else if ((currentUser as any)?.role) {
+            const singleRole = (currentUser as any).role;
+            return [typeof singleRole === 'string' ? singleRole : singleRole?.name || ''].filter(Boolean);
+        }
+        return [];
+    }, [currentUser]);
+
     const isCommittee = userRoles.includes('INNOVATION_COMMITTEE');
-    const isProcurementManager = userRoles.includes('PROCUREMENT_MANAGER') || userRoles.includes('MANAGER') || userRoles.some((r) => r && r.toUpperCase().includes('MANAGER'));
+    // More precise procurement manager check - must have BOTH "PROCUREMENT" AND "MANAGER" in role
+    const isProcurementManager = userRoles.some((role) => {
+        const roleUpper = role.toUpperCase();
+        return roleUpper === 'PROCUREMENT_MANAGER' || roleUpper === 'PROCUREMENT MANAGER' || (roleUpper.includes('PROCUREMENT') && roleUpper.includes('MANAGER'));
+    });
     const isRequester = !isProcurementManager && userRoles.some((r) => r && r.toUpperCase().includes('REQUEST'));
 
     const [selected, setSelected] = useState<ModuleKey | null>(null);
@@ -84,9 +100,17 @@ const Onboarding = () => {
 
     useEffect(() => {
         dispatch(setPageTitle(t('onboarding.title')));
+
+        // Debug logging
+        console.log('🔍 [Onboarding] User roles:', userRoles);
+        console.log('🔍 [Onboarding] isProcurementManager:', isProcurementManager);
+        console.log('🔍 [Onboarding] isCommittee:', isCommittee);
+        console.log('🔍 [Onboarding] isRequester:', isRequester);
+
         // If a committee-ONLY member lands here, redirect them to their dashboard
         const isCommitteeOnly = isCommittee && userRoles.length === 1;
         if (isCommitteeOnly) {
+            console.log('🔍 [Onboarding] Redirecting committee-only user to committee dashboard');
             navigate('/innovation/committee/dashboard', { replace: true });
             return;
         }
