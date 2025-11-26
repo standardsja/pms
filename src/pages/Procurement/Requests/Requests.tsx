@@ -249,7 +249,7 @@ const Requests = () => {
 
         try {
             const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
-            const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:4000' : `http://${window.location.hostname}:4000`;
+            const apiUrl = 'http://heron:4000';
 
             const response = await fetch(`${apiUrl}/requests/${req.id}/forward-to-executive`, {
                 method: 'POST',
