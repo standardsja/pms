@@ -122,6 +122,9 @@ const Profile = () => {
 
     const isRtl = useSelector((state: IRootState) => state.themeConfig.rtlClass) === 'rtl';
 
+    // Normalize user roles to CODE format (e.g., 'Procurement Manager' -> 'PROCUREMENT_MANAGER') for reliable checks
+    const roleCodes: string[] = Array.isArray(user?.roles) ? (user!.roles as Array<string>).map((r) => (typeof r === 'string' ? r : String(r))).map((s) => s.toUpperCase().replace(/\s+/g, '_')) : [];
+
     if (isLoading) {
         return (
             <div className="flex justify-center items-center min-h-[400px]">
@@ -292,7 +295,7 @@ const Profile = () => {
                         </div>
                         <div className="group">
                             <ul className="list-inside list-disc text-white-dark font-semibold mb-7 space-y-2">
-                                {user?.roles?.includes('PROCUREMENT_MANAGER') && (
+                                {roleCodes.includes('PROCUREMENT_MANAGER') && (
                                     <>
                                         <li>Full Procurement Access</li>
                                         <li>Request Creation & Management</li>
@@ -302,7 +305,7 @@ const Profile = () => {
                                         <li>Reporting & Analytics</li>
                                     </>
                                 )}
-                                {user?.roles?.includes('PROCUREMENT_OFFICER') && (
+                                {roleCodes.includes('PROCUREMENT_OFFICER') && (
                                     <>
                                         <li>Request Processing</li>
                                         <li>Quote Processing</li>
@@ -310,14 +313,14 @@ const Profile = () => {
                                         <li>Request Fulfillment</li>
                                     </>
                                 )}
-                                {user?.roles?.includes('DEPT_MANAGER') && (
+                                {roleCodes.some((c) => c === 'DEPT_MANAGER' || c === 'DEPARTMENT_HEAD') && (
                                     <>
                                         <li>Department Request Approval</li>
                                         <li>Budget Review</li>
                                         <li>Team Request Management</li>
                                     </>
                                 )}
-                                {user?.roles?.includes('EVALUATION_COMMITTEE') && (
+                                {roleCodes.some((c) => c === 'EVALUATION_COMMITTEE' || c === 'INNOVATION_COMMITTEE') && (
                                     <>
                                         <li>Quote Evaluation</li>
                                         <li>Vendor Assessment</li>

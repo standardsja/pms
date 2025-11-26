@@ -224,7 +224,9 @@ const Requests = () => {
                 <div class="text-left">
                     <p class="mb-2">Request: <strong>${req.title}</strong></p>
                     <p class="mb-2">Value: <strong>${req.currency} ${(req.totalEstimated || 0).toLocaleString()}</strong></p>
-                    <p class="mb-4">This request exceeds the ${thresholdAlert.category} threshold and requires Executive Director approval.</p>
+                    <p class="mb-4">This request exceeds the ${
+                        thresholdAlert.thresholdType === 'works' ? 'works' : thresholdAlert.thresholdType === 'goods_services' ? 'goods/services' : 'applicable'
+                    } threshold and requires Executive Director approval.</p>
                     <label class="block mb-2 font-medium">Optional Comment:</label>
                     <textarea
                         id="forward-comment"
