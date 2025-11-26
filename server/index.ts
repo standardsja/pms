@@ -2306,6 +2306,23 @@ app.patch('/requests/:id', async (req, res) => {
             },
         });
 
+        // Create a notification for the new assignee (if any)
+        try {
+            const assigneeId = updated.currentAssignee?.id || updated.currentAssigneeId || null;
+            if (assigneeId) {
+                await prisma.notification.create({
+                    data: {
+                        userId: Number(assigneeId),
+                        type: 'STAGE_CHANGED',
+                        message: `Request ${updated.reference || updated.id} has been submitted and assigned to you for ${updated.status}`,
+                        data: { requestId: updated.id, status: updated.status },
+                    },
+                });
+            }
+        } catch (notifErr) {
+            console.warn('Failed to create notification on submit:', notifErr);
+        }
+
         return res.json(updated);
     } catch (e: any) {
         console.error('PATCH /requests/:id error:', e);
@@ -2331,6 +2348,23 @@ app.put('/requests/:id', async (req, res) => {
                 department: { select: { id: true, name: true, code: true } },
             },
         });
+
+        // Notify the assignee after explicit assignment
+        try {
+            const assigneeId = updated.currentAssignee?.id || updated.currentAssigneeId || null;
+            if (assigneeId) {
+                await prisma.notification.create({
+                    data: {
+                        userId: Number(assigneeId),
+                        type: 'STAGE_CHANGED',
+                        message: `Request ${updated.reference || updated.id} has been assigned to you for ${updated.status}`,
+                        data: { requestId: updated.id, status: updated.status, assignedBy: parseInt(String(userId), 10) },
+                    },
+                });
+            }
+        } catch (notifErr) {
+            console.warn('Failed to create notification on assign:', notifErr);
+        }
 
         return res.json(updated);
     } catch (e: any) {
@@ -2553,6 +2587,23 @@ app.post('/requests/:id/submit', async (req, res) => {
             },
         });
 
+        // Notify the department manager (new assignee) that a request was submitted
+        try {
+            const assigneeId = updated.currentAssignee?.id || updated.currentAssigneeId || null;
+            if (assigneeId) {
+                await prisma.notification.create({
+                    data: {
+                        userId: Number(assigneeId),
+                        type: 'STAGE_CHANGED',
+                        message: `Request ${updated.reference || updated.id} has been submitted and assigned to you for ${updated.status}`,
+                        data: { requestId: updated.id, status: updated.status, assignedBy: request.requesterId },
+                    },
+                });
+            }
+        } catch (notifErr) {
+            console.warn('Failed to create notification on submit:', notifErr);
+        }
+
         return res.json(updated);
     } catch (e: any) {
         console.error('POST /requests/:id/submit error:', e);
@@ -2615,17 +2666,10 @@ app.post('/requests/:id/action', async (req, res) => {
                 nextStatus = 'BUDGET_MANAGER_REVIEW';
                 nextAssigneeId = budgetManager?.id || null;
             } else if (request.status === 'BUDGET_MANAGER_REVIEW') {
-                // Budget Manager approved -> send to Procurement Manager for delegation
-                // Prefer PROCUREMENT_MANAGER, fall back to PROCUREMENT officer if none exists
-                const procurementManager = await prisma.user.findFirst({
-                    where: { roles: { some: { role: { name: 'PROCUREMENT_MANAGER' } } } },
+                // Budget Manager approved -> send to Procurement for final processing
+                const procurement = await prisma.user.findFirst({
+                    where: { roles: { some: { role: { name: 'PROCUREMENT' } } } },
                 });
-                let procurement = procurementManager;
-                if (!procurement) {
-                    procurement = await prisma.user.findFirst({
-                        where: { roles: { some: { role: { name: 'PROCUREMENT' } } } },
-                    });
-                }
                 nextStatus = 'PROCUREMENT_REVIEW';
                 nextAssigneeId = procurement?.id || null;
             } else if (request.status === 'PROCUREMENT_REVIEW') {
@@ -2678,22 +2722,31 @@ app.post('/requests/:id/action', async (req, res) => {
                     currentAssignee: { select: { id: true, name: true, email: true } },
                 },
             });
+
+            // Notify the next assignee (procurement manager/officer) if present (normal path)
+            try {
+                const assigneeId = updated.currentAssignee?.id || updated.currentAssigneeId || null;
+                if (assigneeId) {
+                    await prisma.notification.create({
+                        data: {
+                            userId: Number(assigneeId),
+                            type: 'STAGE_CHANGED',
+                            message: `Request ${updated.reference || updated.id} has advanced to ${updated.status} and is assigned to you`,
+                            data: { requestId: updated.id, status: updated.status },
+                        },
+                    });
+                }
+            } catch (notifErr) {
+                console.warn('Failed to create notification on approve action:', notifErr);
+            }
         } catch (e: any) {
             const msg = String(e?.message || '');
             const enumProblem = msg.includes('BUDGET_MANAGER_REVIEW') || msg.toLowerCase().includes('invalid enum');
             if (enumProblem && request.status === 'FINANCE_REVIEW') {
                 // Fallback: if DB enum lacks BUDGET_MANAGER_REVIEW, treat as FINANCE_APPROVED
-                // Fallback: if DB enum lacks BUDGET_MANAGER_REVIEW, treat as FINANCE_APPROVED
-                // Assign to PROCUREMENT_MANAGER if available, else to PROCUREMENT officer
-                const procurementManager = await prisma.user.findFirst({
-                    where: { roles: { some: { role: { name: 'PROCUREMENT_MANAGER' } } } },
+                const procurement = await prisma.user.findFirst({
+                    where: { roles: { some: { role: { name: 'PROCUREMENT' } } } },
                 });
-                let procurement = procurementManager;
-                if (!procurement) {
-                    procurement = await prisma.user.findFirst({
-                        where: { roles: { some: { role: { name: 'PROCUREMENT' } } } },
-                    });
-                }
                 const fallbackStatus = 'FINANCE_APPROVED' as const;
                 updated = await prisma.request.update({
                     where: { id: parseInt(id, 10) },
@@ -2716,6 +2769,24 @@ app.post('/requests/:id/action', async (req, res) => {
                     },
                 });
                 console.warn('Fallback applied: DB enum missing BUDGET_MANAGER_REVIEW; advanced to FINANCE_APPROVED');
+            }
+
+            // Notify the next assignee (procurement manager/officer) if present
+            try {
+                const assigneeId = updated.currentAssignee?.id || updated.currentAssigneeId || null;
+                if (assigneeId) {
+                    await prisma.notification.create({
+                        data: {
+                            userId: Number(assigneeId),
+                            type: 'STAGE_CHANGED',
+                            message: `Request ${updated.reference || updated.id} has advanced to ${updated.status} and is assigned to you`,
+                            data: { requestId: updated.id, status: updated.status },
+                        },
+                    });
+                }
+            } catch (notifErr) {
+                console.warn('Failed to create notification on approve action:', notifErr);
+            }
             } else {
                 throw e;
             }
