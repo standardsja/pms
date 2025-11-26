@@ -468,6 +468,14 @@ const RequestForm = () => {
                     procurementComments,
                     procurementApproved,
                 };
+                // Determine if this save is also an approval action (reviewer checked approve boxes)
+                const isApproving =
+                    (requestMeta?.status === 'DEPARTMENT_REVIEW' && managerApproved === true) ||
+                    (requestMeta?.status === 'HOD_REVIEW' && headApproved === true) ||
+                    (requestMeta?.status === 'PROCUREMENT_REVIEW' && procurementApproved === true) ||
+                    (requestMeta?.status === 'FINANCE_REVIEW' && budgetOfficerApproved) ||
+                    (requestMeta?.status === 'BUDGET_MANAGER_REVIEW' && budgetManagerApproved);
+
                 // If the current operation is a requester saving a DRAFT (not approving), include
                 // the main requester-editable fields (description, items, totals) so changes persist.
                 const isRequesterSavingDraft = requestMeta?.status === 'DRAFT' && !isApproving;
@@ -505,6 +513,11 @@ const RequestForm = () => {
                                 const err = await uploadResp.json().catch(() => ({}));
                                 throw new Error(err.message || uploadResp.statusText || 'Attachment upload failed');
                             }
+                            // Parse created attachment records and merge into existingAttachments so UI updates immediately
+                            const created = await uploadResp.json().catch(() => []);
+                            if (Array.isArray(created) && created.length > 0) {
+                                setExistingAttachments((prev) => [...(prev || []), ...created]);
+                            }
                             // Clear the new attachments list after successful upload so we don't reupload them
                             setAttachments([]);
                         } catch (uploadErr: any) {
@@ -530,12 +543,6 @@ const RequestForm = () => {
                     throw new Error(err.error || resp.statusText || 'Update failed');
                 }
                 // Automatically perform approval action if reviewer checked the approval box
-                const isApproving =
-                    (requestMeta?.status === 'DEPARTMENT_REVIEW' && managerApproved === true) ||
-                    (requestMeta?.status === 'HOD_REVIEW' && headApproved === true) ||
-                    (requestMeta?.status === 'PROCUREMENT_REVIEW' && procurementApproved === true) ||
-                    (requestMeta?.status === 'FINANCE_REVIEW' && budgetOfficerApproved) ||
-                    (requestMeta?.status === 'BUDGET_MANAGER_REVIEW' && budgetManagerApproved);
 
                 if (isApproving) {
                     try {
