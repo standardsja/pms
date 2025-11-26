@@ -473,8 +473,52 @@ const RequestForm = () => {
                         // Do NOT navigate so user can retry approval without losing context
                     }
                 } else {
-                    Swal.fire({ icon: 'success', title: 'Request updated', text: 'Your information has been saved' });
-                    navigate('/apps/requests');
+                    // If this is a returned draft and the current user is the original requester,
+                    // offer to resubmit the request now (preserving the same form code fields).
+                    const requesterId = requestRequesterId;
+                    const isRequesterEditingDraft = requestMeta?.status === 'DRAFT' && requesterId && Number(requesterId) === Number(userId);
+
+                    if (isRequesterEditingDraft) {
+                        const confirmResubmit = await Swal.fire({
+                            icon: 'question',
+                            title: 'Save and resubmit?',
+                            text: 'This request was returned and is currently a draft. Do you want to save your changes and resubmit it for review now?',
+                            showCancelButton: true,
+                            confirmButtonText: 'Save & Resubmit',
+                            cancelButtonText: 'Save Only',
+                        });
+
+                        if (confirmResubmit.isConfirmed) {
+                            try {
+                                const submitResp = await fetch(`http://heron:4000/requests/${id}/submit`, {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                        'x-user-id': String(userId),
+                                    },
+                                    body: JSON.stringify({}),
+                                });
+                                if (!submitResp.ok) {
+                                    const err = await submitResp.json().catch(() => ({}));
+                                    throw new Error(err.error || submitResp.statusText || 'Resubmit failed');
+                                }
+                                Swal.fire({ icon: 'success', title: 'Request resubmitted', text: 'Your request has been sent for review.' });
+                                navigate('/apps/requests');
+                            } catch (submitErr: any) {
+                                console.error('Resubmit after save failed', submitErr);
+                                Swal.fire({ icon: 'error', title: 'Resubmit failed', text: submitErr?.message || String(submitErr) });
+                                // Do NOT navigate so user can try resubmitting again
+                                setIsSubmitting(false);
+                                return;
+                            }
+                        } else {
+                            Swal.fire({ icon: 'success', title: 'Request updated', text: 'Your information has been saved' });
+                            navigate('/apps/requests');
+                        }
+                    } else {
+                        Swal.fire({ icon: 'success', title: 'Request updated', text: 'Your information has been saved' });
+                        navigate('/apps/requests');
+                    }
                 }
             } else {
                 // Create new request with attachments using FormData
