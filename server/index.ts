@@ -554,25 +554,44 @@ app.get('/api/notifications', authMiddleware, async (req, res) => {
         }
 
         // Fetch notifications for the user, ordered by most recent first
-        const notifications = await prisma.notification.findMany({
-            where: { userId },
-            orderBy: { createdAt: 'desc' },
-            take: 50, // Limit to last 50 notifications
-            include: {
-                user: {
-                    select: {
-                        id: true,
-                        name: true,
-                        email: true,
+        let notifications;
+        try {
+            notifications = await prisma.notification.findMany({
+                where: { userId },
+                orderBy: { createdAt: 'desc' },
+                take: 50, // Limit to last 50 notifications
+                include: {
+                    user: {
+                        select: {
+                            id: true,
+                            name: true,
+                            email: true,
+                        },
                     },
                 },
-            },
-        });
+            });
+        } catch (err: any) {
+            // Handle cases where DB contains enum values not present in the Prisma schema
+            const msg = String(err?.message || '');
+            if (msg.toLowerCase().includes('not found in enum') || msg.toLowerCase().includes('invalid enum')) {
+                console.warn('Prisma enum mismatch when fetching notifications, falling back to raw query:', msg);
+                try {
+                    // Use a raw SQL query to avoid Prisma enum coercion errors. Results will be raw rows.
+                    const rows: any = await prisma.$queryRawUnsafe(
+                        `SELECT * FROM "Notification" WHERE "userId" = $1 ORDER BY "createdAt" DESC LIMIT 50`,
+                        userId
+                    );
+                    notifications = rows || [];
+                } catch (rawErr) {
+                    console.error('Raw fallback for notifications failed:', rawErr);
+                    throw rawErr;
+                }
+            } else {
+                throw err;
+            }
+        }
 
-        res.json({
-            success: true,
-            data: notifications,
-        });
+        res.json({ success: true, data: notifications });
     } catch (error) {
         console.error('GET /api/notifications error:', error);
         res.status(500).json({
@@ -2771,6 +2790,8 @@ app.post('/requests/:id/action', async (req, res) => {
                     },
                 });
                 console.warn('Fallback applied: DB enum missing BUDGET_MANAGER_REVIEW; advanced to FINANCE_APPROVED');
+            } else {
+                throw e;
             }
 
             // Notify the next assignee (procurement manager/officer) if present
@@ -2788,9 +2809,6 @@ app.post('/requests/:id/action', async (req, res) => {
                 }
             } catch (notifErr) {
                 console.warn('Failed to create notification on approve action:', notifErr);
-            }
-            } else {
-                throw e;
             }
         }
 
