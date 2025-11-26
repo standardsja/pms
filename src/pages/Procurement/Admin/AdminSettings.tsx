@@ -746,7 +746,7 @@ function ReassignRequestsTab() {
     async function loadData() {
         setLoading(true);
         try {
-            const [reqsRes, usersRes] = await Promise.all([fetch('http://localhost:4000/requests'), fetch('http://localhost:4000/admin/users')]);
+            const [reqsRes, usersRes] = await Promise.all([fetch('http://heron:4000/requests'), fetch('http://heron:4000/admin/users')]);
             const reqs = await reqsRes.json();
             const usrs = await usersRes.json();
             setRequests(reqs);
