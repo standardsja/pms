@@ -125,6 +125,8 @@ const RequestForm = () => {
 
     // Track request metadata to gate editing by stage & assignee
     const [requestMeta, setRequestMeta] = useState<{ status?: string; currentAssigneeId?: number } | null>(null);
+    // Track the original requester id so returned drafts can be resubmitted by the requester
+    const [requestRequesterId, setRequestRequesterId] = useState<number | null>(null);
 
     // Determine field permissions strictly by workflow stage + assignee
     const isAssignee = !!(isEditMode && requestMeta?.currentAssigneeId && currentUserId && Number(requestMeta.currentAssigneeId) === Number(currentUserId));
@@ -282,6 +284,9 @@ const RequestForm = () => {
                 // Track status and assignee for edit gating
                 const assigneeId = request.currentAssignee?.id || request.currentAssigneeId || null;
                 setRequestMeta({ status: request.status, currentAssigneeId: assigneeId ? Number(assigneeId) : undefined });
+                // Track requester id so the requester can resubmit returned drafts even if currentAssignee wasn't populated
+                const requesterId = request.requester?.id || request.requesterId || null;
+                setRequestRequesterId(requesterId ? Number(requesterId) : null);
             } catch (err) {
                 console.error('Error fetching request:', err);
                 Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to load request data' });
@@ -1435,7 +1440,7 @@ const RequestForm = () => {
                             </>
                         )}
                         {/* If this is an existing request returned to the requester (DRAFT), show a Resubmit button */}
-                        {isEditMode && requestMeta?.status === 'DRAFT' && Number(requestMeta.currentAssigneeId) === Number(currentUserId) && (
+                        {isEditMode && requestMeta?.status === 'DRAFT' && (Number(requestMeta.currentAssigneeId) === Number(currentUserId) || Number(requestRequesterId) === Number(currentUserId)) && (
                             <button
                                 type="button"
                                 onClick={handleResubmit}
