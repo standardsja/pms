@@ -38,7 +38,9 @@ const httpServer = http.createServer(app);
 const PORT = process.env.PORT ? Number(process.env.PORT) : 4000;
 const APP_ENV = process.env.APP_ENV || 'production';
 // In production, bind to 0.0.0.0 unless overridden via API_HOST
-const API_HOST = APP_ENV === 'local' ? 'localhost' : process.env.API_HOST || '0.0.0.0';
+// Bind address for the HTTP server. In local development we bind to 0.0.0.0
+// so that other hostnames (e.g. Docker host aliases like `heron`) can reach the server.
+const API_HOST = process.env.API_HOST || (APP_ENV === 'local' ? '0.0.0.0' : '0.0.0.0');
 // Public host for logs (what users type in the browser)
 const PUBLIC_HOST = process.env.API_PUBLIC_HOST || (APP_ENV === 'local' ? 'localhost' : 'heron');
 const JWT_SECRET = process.env.JWT_SECRET || 'devsecret-change-me';
