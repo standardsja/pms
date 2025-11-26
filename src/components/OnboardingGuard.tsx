@@ -4,6 +4,7 @@ import { Navigate, useLocation } from 'react-router-dom';
 /**
  * Route guard to prevent returning to Onboarding after selection/completion.
  * - Allows access when query contains force=1/reset=1/clear=1
+ * - Allows access when user is not authenticated (will be handled by auth guard)
  * - Otherwise, if selectedModule exists or onboardingComplete is true, redirects away with replace
  */
 export default function OnboardingGuard({ children }: PropsWithChildren) {
@@ -14,18 +15,47 @@ export default function OnboardingGuard({ children }: PropsWithChildren) {
     const reset = params.get('reset') === '1';
     const clear = params.get('clear') === '1';
 
+    // Allow access with override parameters
     if (force || reset || clear) {
         return <>{children}</>;
     }
 
     try {
-        const selectedModule = localStorage.getItem('selectedModule');
-        const done = localStorage.getItem('onboardingComplete') === 'true';
-        if (selectedModule || done) {
-            return <Navigate to="/" replace />;
+        // Check if user is authenticated
+        const authToken = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
+
+        // If not authenticated, allow (will be redirected by auth guard)
+        if (!authToken) {
+            return <>{children}</>;
         }
-    } catch {
-        // If localStorage is unavailable, allow access
+
+        // Check onboarding completion status
+        const selectedModule = localStorage.getItem('selectedModule');
+        const lastModule = localStorage.getItem('lastModule');
+        const done = localStorage.getItem('onboardingComplete') === 'true';
+
+        // Only redirect if both conditions are met:
+        // 1. User has completed onboarding OR selected a module
+        // 2. User has a valid redirect target (lastModule or selectedModule)
+        if ((done || selectedModule) && (lastModule || selectedModule)) {
+            // Redirect to the appropriate module path
+            const redirectModule = selectedModule || lastModule;
+
+            // Map modules to their default paths
+            const modulePaths: Record<string, string> = {
+                pms: '/procurement/dashboard',
+                ih: '/innovation/dashboard',
+                committee: '/innovation/committee/dashboard',
+                budgeting: '/budgeting/dashboard',
+                audit: '/audit/dashboard',
+            };
+
+            const redirectPath = modulePaths[redirectModule] || '/';
+            return <Navigate to={redirectPath} replace />;
+        }
+    } catch (err) {
+        // If localStorage is unavailable or error occurs, allow access
+        console.error('[OnboardingGuard] Error:', err);
     }
 
     return <>{children}</>;
