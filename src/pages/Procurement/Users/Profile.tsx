@@ -18,6 +18,9 @@ import IconFile from '../../../components/Icon/IconFile';
 import IconClipboardText from '../../../components/Icon/IconClipboardText';
 import IconChecks from '../../../components/Icon/IconChecks';
 import IconPlus from '../../../components/Icon/IconPlus';
+import IconUsers from '../../../components/Icon/IconUsers';
+import IconSettings from '../../../components/Icon/IconSettings';
+import IconLayoutGrid from '../../../components/Icon/IconLayoutGrid';
 
 const Profile = () => {
     const dispatch = useDispatch();
@@ -422,21 +425,21 @@ const Profile = () => {
                                 <IconPlus className="w-5 h-5 ltr:mr-2 rtl:ml-2" />
                                 Create New Request
                             </Link>
-                            <Link to="/apps/requests" className="btn btn-info w-full">
+                            <Link to="/apps/procurement-manager/all-requests" className="btn btn-info w-full">
                                 <IconFile className="w-5 h-5 ltr:mr-2 rtl:ml-2" />
-                                Review Quotes
+                                All Requests
                             </Link>
-                            <Link to="/apps/evaluation" className="btn btn-success w-full">
+                            <Link to="/apps/procurement-manager/assign-requests" className="btn btn-success w-full">
+                                <IconUsers className="w-5 h-5 ltr:mr-2 rtl:ml-2" />
+                                Assign Requests
+                            </Link>
+                            <Link to="/apps/procurement-manager/load-balancing" className="btn btn-warning w-full">
+                                <IconSettings className="w-5 h-5 ltr:mr-2 rtl:ml-2" />
+                                Load Balancing
+                            </Link>
+                            <Link to="/apps/procurement-manager/evaluations" className="btn btn-secondary w-full">
                                 <IconClipboardText className="w-5 h-5 ltr:mr-2 rtl:ml-2" />
-                                Start Evaluation
-                            </Link>
-                            <Link to="/apps/suppliers" className="btn btn-secondary w-full">
-                                <IconShoppingBag className="w-5 h-5 ltr:mr-2 rtl:ml-2" />
-                                Manage Suppliers
-                            </Link>
-                            <Link to="/apps/reports" className="btn btn-dark w-full">
-                                <IconCreditCard className="w-5 h-5 ltr:mr-2 rtl:ml-2" />
-                                View Reports
+                                Evaluations to Validate
                             </Link>
                         </div>
                     </div>
