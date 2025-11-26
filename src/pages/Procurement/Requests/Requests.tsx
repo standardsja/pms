@@ -74,7 +74,7 @@ const Requests = () => {
                 const headers: Record<string, string> = {};
                 if (token) headers['Authorization'] = `Bearer ${token}`;
                 // Use backend API URL based on current hostname
-                const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:4000' : `http://${window.location.hostname}:4000`;
+                const apiUrl = 'http://heron:4000';
                 const res = await fetch(`${apiUrl}/requests`, {
                     headers,
                     signal: controller.signal,

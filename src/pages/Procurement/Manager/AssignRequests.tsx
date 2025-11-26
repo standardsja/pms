@@ -10,6 +10,7 @@ import IconSearch from '../../../components/Icon/IconSearch';
 import IconRefresh from '../../../components/Icon/IconRefresh';
 import IconX from '../../../components/Icon/IconX';
 import { getStatusBadge } from '../../../utils/statusBadges';
+import { getToken, getUser } from '../../../utils/auth';
 
 const MySwal = withReactContent(Swal);
 
@@ -55,8 +56,13 @@ const AssignRequests = () => {
     const [officerSearch, setOfficerSearch] = useState('');
     const [sortBy, setSortBy] = useState<'workload' | 'name'>('workload');
     const [viewingOfficerRequests, setViewingOfficerRequests] = useState<number | null>(null);
+    const [isProcurementManager, setIsProcurementManager] = useState<boolean>(false);
 
-    const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:4000' : `http://${window.location.hostname}:4000`;
+    const currentUser = getUser();
+    const currentUserId = currentUser?.id || null;
+    const token = getToken();
+
+    const apiUrl = 'http://heron:4000';
 
     useEffect(() => {
         dispatch(setPageTitle('Assign Requests'));
@@ -68,31 +74,50 @@ const AssignRequests = () => {
             setError(null);
 
             try {
-                const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
-                const currentUserId = userProfile?.id || userProfile?.userId || null;
+                const token = getToken();
+                const currentUser = getUser();
+                const currentUserId = currentUser?.id || null;
+
+                if (!token) {
+                    throw new Error('Authentication required');
+                }
 
                 // Fetch procurement officers
                 const officersRes = await fetch(`${apiUrl}/users/procurement-officers`, {
                     headers: {
+                        Authorization: `Bearer ${token}`,
                         'x-user-id': String(currentUserId || ''),
+                        'Content-Type': 'application/json',
                     },
                 });
                 if (!officersRes.ok) throw new Error('Failed to fetch procurement officers');
                 const officersData = await officersRes.json();
                 setOfficers(officersData);
 
+                // detect if current user is a procurement manager
+                const roles = Array.isArray(currentUser?.roles) ? currentUser.roles : currentUser?.role ? [currentUser.role] : [];
+                setIsProcurementManager(roles.includes('PROCUREMENT_MANAGER') || roles.includes('Procurement Manager') || roles.includes('PROCUREMENT'));
+
                 // Fetch requests at PROCUREMENT_REVIEW status
                 const requestsRes = await fetch(`${apiUrl}/requests`, {
                     headers: {
+                        Authorization: `Bearer ${token}`,
                         'x-user-id': String(currentUserId || ''),
+                        'Content-Type': 'application/json',
                     },
                 });
                 if (!requestsRes.ok) throw new Error('Failed to fetch requests');
                 const requestsData = await requestsRes.json();
                 const procurementRequests = Array.isArray(requestsData) ? requestsData.filter((r: any) => r && r.status === 'PROCUREMENT_REVIEW') : [];
-                // keep full list and also set unassigned list
+                // keep full list
                 setAllRequests(procurementRequests);
-                setRequests(procurementRequests.filter((r: any) => !r.currentAssigneeId));
+                // For procurement managers, show ALL procurement requests (they should see everything and delegate)
+                if (currentUser && roles.some((r: string) => ['PROCUREMENT_MANAGER', 'Procurement Manager', 'PROCUREMENT'].includes(r))) {
+                    setRequests(procurementRequests);
+                } else {
+                    // normal view: show unassigned requests
+                    setRequests(procurementRequests.filter((r: any) => !r.currentAssigneeId));
+                }
             } catch (err: any) {
                 console.error('Error fetching data:', err);
                 setError(err.message || 'Failed to load data');
@@ -123,6 +148,14 @@ const AssignRequests = () => {
     // requests currently assigned to an officer being viewed
     const officerRequests = viewingOfficerRequests !== null && allRequests.length > 0 ? allRequests.filter((r) => r.currentAssigneeId === viewingOfficerRequests) : [];
 
+    const displayRequests = viewingOfficerRequests !== null ? officerRequests : filteredRequests;
+    const displayTitle =
+        viewingOfficerRequests !== null
+            ? `Requests assigned to ${officers.find((o) => o.id === viewingOfficerRequests)?.name || 'Officer'}`
+            : isProcurementManager
+            ? 'Manager Inbox'
+            : 'Unassigned Requests';
+
     const handleOfficerClick = (officerId: number) => {
         // If already viewing this officer, toggle off
         if (viewingOfficerRequests === officerId) {
@@ -132,9 +165,12 @@ const AssignRequests = () => {
             return;
         }
 
-        // If a request is already selected (from viewing an officer), clicking another officer will select them as target for reassignment
+        // If a request is already selected (from viewing an officer), clicking another officer will trigger reassignment
         if (viewingOfficerRequests && selectedRequest) {
-            setSelectedOfficer(officerId);
+            // if clicked the same officer, ignore
+            if (officerId === viewingOfficerRequests) return;
+            // perform reassignment flow directly
+            handleAssign(officerId, selectedRequest);
             return;
         }
 
@@ -160,8 +196,11 @@ const AssignRequests = () => {
         setFilteredOfficers(filtered);
     }, [officers, officerSearch, sortBy]);
 
-    const handleAssign = async () => {
-        if (!selectedRequest || !selectedOfficer) {
+    const handleAssign = async (overrideOfficer?: number, overrideRequest?: number) => {
+        const assigneeId = overrideOfficer ?? selectedOfficer;
+        const reqId = overrideRequest ?? selectedRequest;
+
+        if (!reqId || !assigneeId) {
             MySwal.fire({
                 icon: 'warning',
                 title: 'Selection Required',
@@ -171,8 +210,8 @@ const AssignRequests = () => {
         }
 
         // request may be in allRequests (when reassigning) or in unassigned requests
-        const request = allRequests.find((r) => r.id === selectedRequest) || requests.find((r) => r.id === selectedRequest);
-        const officer = officers.find((o) => o.id === selectedOfficer);
+        const request = allRequests.find((r) => r.id === reqId) || requests.find((r) => r.id === reqId);
+        const officer = officers.find((o) => o.id === assigneeId);
 
         if (!request || !officer) return;
 
@@ -201,17 +240,23 @@ const AssignRequests = () => {
 
         if (result.isConfirmed) {
             try {
-                const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
-                const currentUserId = userProfile?.id || userProfile?.userId || null;
+                const token = getToken();
+                const currentUser = getUser();
+                const currentUserId = currentUser?.id || null;
 
-                const res = await fetch(`${apiUrl}/requests/${selectedRequest}/assign`, {
+                if (!token) {
+                    throw new Error('Authentication required');
+                }
+
+                const res = await fetch(`${apiUrl}/requests/${reqId}/assign`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
+                        Authorization: `Bearer ${token}`,
                         'x-user-id': String(currentUserId || ''),
                     },
                     body: JSON.stringify({
-                        assigneeId: selectedOfficer,
+                        assigneeId: assigneeId,
                     }),
                 });
 
@@ -221,9 +266,10 @@ const AssignRequests = () => {
                 }
 
                 // Remove assigned request from unassigned list (no-op in reassignment view)
-                setRequests((prev) => prev.filter((r) => r.id !== selectedRequest));
+
+                setRequests((prev) => prev.filter((r) => r.id !== reqId));
                 // Update full list
-                setAllRequests((prev) => prev.map((r) => (r.id === selectedRequest ? { ...r, currentAssigneeId: selectedOfficer } : r)));
+                setAllRequests((prev) => prev.map((r) => (r.id === reqId ? { ...r, currentAssigneeId: assigneeId } : r)));
 
                 const previousAssigneeId = request.currentAssigneeId;
                 // Clear selections
@@ -234,8 +280,8 @@ const AssignRequests = () => {
                 // Update officer workloads: increment new assignee, decrement previous assignee if exists
                 setOfficers((prev) =>
                     prev.map((o) => {
-                        if (o.id === selectedOfficer) return { ...o, assignedCount: o.assignedCount + 1 };
-                        if (previousAssigneeId && o.id === previousAssigneeId && previousAssigneeId !== selectedOfficer) return { ...o, assignedCount: Math.max(0, o.assignedCount - 1) };
+                        if (o.id === assigneeId) return { ...o, assignedCount: o.assignedCount + 1 };
+                        if (previousAssigneeId && o.id === previousAssigneeId && previousAssigneeId !== assigneeId) return { ...o, assignedCount: Math.max(0, o.assignedCount - 1) };
                         return o;
                     })
                 );
@@ -278,7 +324,8 @@ const AssignRequests = () => {
         );
     }
 
-    const selectedRequestData = requests.find((r) => r.id === selectedRequest);
+    // Lookup selected request from full list first (includes assigned requests), fallback to unassigned requests
+    const selectedRequestData = allRequests.find((r) => r.id === selectedRequest) || requests.find((r) => r.id === selectedRequest);
 
     return (
         <div className="space-y-6">
@@ -368,10 +415,10 @@ const AssignRequests = () => {
                                         d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                                     />
                                 </svg>
-                                Unassigned Requests
+                                {displayTitle}
                             </h2>
                             <span className="badge bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-3 py-1">
-                                {filteredRequests.length} of {requests.length}
+                                {displayRequests.length} of {viewingOfficerRequests !== null ? officerRequests.length : requests.length}
                             </span>
                         </div>
                         <div className="relative">
@@ -391,7 +438,7 @@ const AssignRequests = () => {
                         </div>
                     </div>
 
-                    {filteredRequests.length === 0 ? (
+                    {displayRequests.length === 0 ? (
                         <div className="text-center py-16 text-gray-500 dark:text-gray-400">
                             <svg className="w-20 h-20 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path
@@ -401,8 +448,16 @@ const AssignRequests = () => {
                                     d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                                 />
                             </svg>
-                            <p className="font-semibold text-lg">{requestSearch ? 'No matching requests' : 'No unassigned requests'}</p>
-                            <p className="text-sm mt-1">{requestSearch ? 'Try adjusting your search criteria' : 'All requests have been assigned to officers'}</p>
+                            <p className="font-semibold text-lg">
+                                {requestSearch ? 'No matching requests' : viewingOfficerRequests !== null ? 'No requests assigned to this officer' : 'No unassigned requests'}
+                            </p>
+                            <p className="text-sm mt-1">
+                                {requestSearch
+                                    ? 'Try adjusting your search criteria'
+                                    : viewingOfficerRequests !== null
+                                    ? 'This officer has no assigned requests'
+                                    : 'All requests have been assigned to officers'}
+                            </p>
                             {requestSearch && (
                                 <button onClick={() => setRequestSearch('')} className="btn btn-primary btn-sm mt-3">
                                     Clear Search
@@ -411,7 +466,7 @@ const AssignRequests = () => {
                         </div>
                     ) : (
                         <div className="space-y-2 max-h-[600px] overflow-y-auto pr-2">
-                            {filteredRequests.map((req) => {
+                            {displayRequests.map((req) => {
                                 const deptCode = req.headerDeptCode || req.department.code || '---';
                                 const month = req.headerMonth || '---';
                                 const year = req.headerYear || '----';
@@ -422,7 +477,11 @@ const AssignRequests = () => {
                                 return (
                                     <div
                                         key={req.id}
-                                        onClick={() => setSelectedRequest(req.id)}
+                                        onClick={() => {
+                                            setSelectedRequest(req.id);
+                                            // when viewing an officer's requests, set selectedOfficer to that officer if not already
+                                            if (viewingOfficerRequests !== null) setSelectedOfficer(viewingOfficerRequests);
+                                        }}
                                         className={`group relative p-4 border-2 rounded-lg cursor-pointer transition-all duration-200 ${
                                             isSelected
                                                 ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-md scale-[1.01]'
@@ -482,6 +541,19 @@ const AssignRequests = () => {
                                                     <span className="font-semibold text-green-600 dark:text-green-400">
                                                         {req.currency} ${(Number(req.totalEstimated) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                     </span>
+                                                    {req.currentAssigneeId && (
+                                                        <span className="ml-3 inline-flex items-center gap-2 text-xs bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">
+                                                            <svg className="w-3 h-3 text-gray-600" viewBox="0 0 8 8" fill="currentColor">
+                                                                <circle cx="4" cy="4" r="4" />
+                                                            </svg>
+                                                            <span className="text-gray-700 dark:text-gray-300">
+                                                                Assigned to:{' '}
+                                                                {currentUserId && Number(req.currentAssigneeId) === Number(currentUserId)
+                                                                    ? 'You (Manager)'
+                                                                    : officers.find((o) => o.id === req.currentAssigneeId)?.name || 'Officer'}
+                                                            </span>
+                                                        </span>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
@@ -505,6 +577,14 @@ const AssignRequests = () => {
                             </span>
                         </div>
                         <div className="space-y-2">
+                            {selectedRequest && (
+                                <div className="mb-2 text-sm bg-yellow-50 dark:bg-yellow-900/10 rounded p-2 text-yellow-800 flex items-center justify-between">
+                                    <div>
+                                        <strong>Request selected:</strong> Click an officer to assign this request, or use the Confirm Assignment panel.
+                                    </div>
+                                    <div className="text-xs text-yellow-700">Selected ID: {selectedRequest}</div>
+                                </div>
+                            )}
                             <div className="relative">
                                 <input
                                     type="text"
@@ -562,7 +642,7 @@ const AssignRequests = () => {
                                 return (
                                     <div
                                         key={officer.id}
-                                        onClick={() => setSelectedOfficer(officer.id)}
+                                        onClick={() => handleOfficerClick(officer.id)}
                                         className={`group relative p-4 border-2 rounded-lg cursor-pointer transition-all duration-200 ${
                                             isSelected
                                                 ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20 shadow-md scale-[1.01]'
@@ -603,6 +683,39 @@ const AssignRequests = () => {
                                                 </div>
                                                 <span className={`text-xs font-medium px-2 py-0.5 rounded ${workloadColors[workloadLevel]}`}>{workloadLabels[workloadLevel]}</span>
                                             </div>
+                                            {/* If a request is selected, show explicit assign button */}
+                                            {selectedRequest && (
+                                                <div className="mt-2 flex items-center gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            // If officer is already the assignee, show warning
+                                                            const selected = allRequests.find((r) => r.id === selectedRequest) || requests.find((r) => r.id === selectedRequest);
+                                                            if (selected && selected.currentAssigneeId && Number(selected.currentAssigneeId) === officer.id) {
+                                                                MySwal.fire({ icon: 'info', title: 'No-op', text: 'This officer is already assigned to the selected request.' });
+                                                                return;
+                                                            }
+                                                            handleAssign(officer.id, selectedRequest);
+                                                        }}
+                                                        className="btn btn-sm bg-purple-600 text-white hover:bg-purple-700"
+                                                    >
+                                                        Assign Selected Request
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            // Quick view of officer's assigned requests
+                                                            setViewingOfficerRequests(officer.id);
+                                                            setSelectedOfficer(officer.id);
+                                                        }}
+                                                        className="btn btn-sm btn-outline-secondary"
+                                                    >
+                                                        View Assigned
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 );
@@ -659,7 +772,10 @@ const AssignRequests = () => {
                         </div>
                     </div>
                     <div className="flex flex-wrap gap-3">
-                        <button onClick={handleAssign} className="flex-1 btn bg-gradient-to-r from-blue-600 to-purple-600 text-white border-0 shadow-lg hover:from-blue-700 hover:to-purple-700 gap-2">
+                        <button
+                            onClick={() => handleAssign()}
+                            className="flex-1 btn bg-gradient-to-r from-blue-600 to-purple-600 text-white border-0 shadow-lg hover:from-blue-700 hover:to-purple-700 gap-2"
+                        >
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>

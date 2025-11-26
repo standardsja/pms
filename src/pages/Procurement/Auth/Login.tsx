@@ -38,19 +38,12 @@ const Login = () => {
         setIsLoading(true);
 
         try {
-            // Get API URL from environment or detect based on hostname
+            // Get API URL from environment or use heron
             const getApiUrl = () => {
                 if (import.meta.env.VITE_API_URL) {
                     return import.meta.env.VITE_API_URL;
                 }
-                const hostname = window.location.hostname;
-                if (hostname === 'localhost' || hostname === '127.0.0.1') {
-                    return 'http://localhost:4000';
-                }
-                if (hostname === 'heron') {
-                    return 'http://heron:4000';
-                }
-                return `${window.location.protocol}//${hostname}:4000`;
+                return 'http://heron:4000';
             };
 
             const apiUrl = getApiUrl();

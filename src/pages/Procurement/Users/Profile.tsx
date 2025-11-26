@@ -3,31 +3,131 @@ import { useDispatch, useSelector } from 'react-redux';
 import { IRootState } from '../../../store';
 import Dropdown from '../../../components/Dropdown';
 import { setPageTitle } from '../../../store/themeConfigSlice';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { getToken, getUser } from '../../../utils/auth';
 import IconPencilPaper from '../../../components/Icon/IconPencilPaper';
-import IconCoffee from '../../../components/Icon/IconCoffee';
 import IconCalendar from '../../../components/Icon/IconCalendar';
 import IconMapPin from '../../../components/Icon/IconMapPin';
 import IconMail from '../../../components/Icon/IconMail';
 import IconPhone from '../../../components/Icon/IconPhone';
-import IconTwitter from '../../../components/Icon/IconTwitter';
-import IconDribbble from '../../../components/Icon/IconDribbble';
-import IconGithub from '../../../components/Icon/IconGithub';
 import IconShoppingBag from '../../../components/Icon/IconShoppingBag';
 import IconTag from '../../../components/Icon/IconTag';
 import IconCreditCard from '../../../components/Icon/IconCreditCard';
-import IconClock from '../../../components/Icon/IconClock';
 import IconHorizontalDots from '../../../components/Icon/IconHorizontalDots';
 import IconFile from '../../../components/Icon/IconFile';
 import IconClipboardText from '../../../components/Icon/IconClipboardText';
 import IconChecks from '../../../components/Icon/IconChecks';
+import IconPlus from '../../../components/Icon/IconPlus';
 
 const Profile = () => {
     const dispatch = useDispatch();
+    const { user } = useSelector((state: IRootState) => state.auth);
+    const [profileData, setProfileData] = useState<any>(null);
+    const [recentActivities, setRecentActivities] = useState<any[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
     useEffect(() => {
         dispatch(setPageTitle('Profile'));
-    });
-    const isRtl = useSelector((state: IRootState) => state.themeConfig.rtlClass) === 'rtl' ? true : false;
+    }, [dispatch]);
+
+    useEffect(() => {
+        const fetchProfileData = async () => {
+            try {
+                const token = getToken();
+                const currentUser = getUser();
+
+                if (!token || !currentUser) {
+                    setIsLoading(false);
+                    return;
+                }
+
+                // Fetch user profile details
+                const response = await fetch(`http://heron:4000/api/users/${currentUser.id}`, {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'x-user-id': currentUser.id.toString(),
+                        'Content-Type': 'application/json',
+                    },
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    setProfileData(data);
+                }
+
+                // Fetch recent activities/requests
+                const activitiesResponse = await fetch(`http://heron:4000/api/requests?limit=7`, {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'x-user-id': currentUser.id.toString(),
+                        'Content-Type': 'application/json',
+                    },
+                });
+
+                if (activitiesResponse.ok) {
+                    const activitiesData = await activitiesResponse.json();
+                    setRecentActivities(activitiesData.slice(0, 7));
+                }
+            } catch (error) {
+                console.error('Error fetching profile data:', error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchProfileData();
+    }, []);
+
+    const formatDate = (date: string) => {
+        const now = new Date();
+        const past = new Date(date);
+        const diffMs = now.getTime() - past.getTime();
+        const diffMins = Math.floor(diffMs / 60000);
+        const diffHours = Math.floor(diffMs / 3600000);
+        const diffDays = Math.floor(diffMs / 86400000);
+
+        if (diffMins < 60) return `${diffMins} mins ago`;
+        if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+        return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+    };
+
+    const getStatusBadge = (status: string) => {
+        const statusMap: Record<string, { class: string; label: string }> = {
+            APPROVED: { class: 'bg-success', label: 'Approved' },
+            SUBMITTED: { class: 'bg-info', label: 'In Review' },
+            PENDING_DELIVERY: { class: 'bg-warning', label: 'Pending Delivery' },
+            IN_EVALUATION: { class: 'bg-primary', label: 'Under Evaluation' },
+            AWAITING_QUOTES: { class: 'bg-secondary', label: 'Awaiting Quotes' },
+            COMPLETED: { class: 'bg-success', label: 'Completed' },
+            IN_TRANSIT: { class: 'bg-info', label: 'In Transit' },
+            DRAFT: { class: 'bg-secondary', label: 'Draft' },
+        };
+        return statusMap[status] || { class: 'bg-secondary', label: status };
+    };
+
+    const getUserRoles = () => {
+        if (!user?.roles || user.roles.length === 0) return 'User';
+        const roleLabels: Record<string, string> = {
+            PROCUREMENT_MANAGER: 'Procurement Manager',
+            PROCUREMENT_OFFICER: 'Procurement Officer',
+            DEPT_MANAGER: 'Department Manager',
+            BUDGET_MANAGER: 'Budget Manager',
+            EVALUATION_COMMITTEE: 'Evaluation Committee',
+        };
+        return user.roles.map((role: string) => roleLabels[role] || role).join(', ');
+    };
+
+    const isRtl = useSelector((state: IRootState) => state.themeConfig.rtlClass) === 'rtl';
+
+    if (isLoading) {
+        return (
+            <div className="flex justify-center items-center min-h-[400px]">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+        );
+    }
+
+    const displayUser = profileData || user;
     return (
         <div>
             <ul className="flex space-x-2 rtl:space-x-reverse">
@@ -52,39 +152,32 @@ const Profile = () => {
                         <div className="mb-5">
                             <div className="flex flex-col justify-center items-center">
                                 <img src="/assets/images/user-profile.jpeg" alt="img" className="w-24 h-24 rounded-full object-cover  mb-5" />
-                                <p className="font-semibold text-primary text-xl">John Doe</p>
+                                <p className="font-semibold text-primary text-xl">{displayUser?.full_name || 'User'}</p>
                             </div>
                             <ul className="mt-5 flex flex-col max-w-[160px] m-auto space-y-4 font-semibold text-white-dark">
                                 <li className="flex items-center gap-2">
                                     <IconShoppingBag className="shrink-0" />
-                                    Procurement Officer
+                                    {getUserRoles()}
                                 </li>
                                 <li className="flex items-center gap-2">
                                     <IconCalendar className="shrink-0" />
-                                    Joined: Jan 2024
+                                    Joined: {displayUser?.createdAt ? new Date(displayUser.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'Jan 2024'}
                                 </li>
                                 <li className="flex items-center gap-2">
                                     <IconMapPin className="shrink-0" />
-                                    Kingston, Jamaica
+                                    {displayUser?.location || 'Kingston, Jamaica'}
                                 </li>
                                 <li>
                                     <button className="flex items-center gap-2">
                                         <IconMail className="w-5 h-5 shrink-0" />
-                                        <span className="text-primary truncate">john.doe@company.com</span>
+                                        <span className="text-primary truncate">{displayUser?.email || 'N/A'}</span>
                                     </button>
                                 </li>
                                 <li className="flex items-center gap-2">
                                     <IconPhone />
                                     <span className="whitespace-nowrap" dir="ltr">
-                                        +1 (876) 555-1234
+                                        {displayUser?.phone || '+1 (876) 555-1234'}
                                     </span>
-                                </li>
-                            </ul>
-                            <ul className="mt-7 flex items-center justify-center gap-2">
-                                <li>
-                                    <Link to="/procurement/rfq/list" className="btn btn-primary flex items-center justify-center rounded-full px-4 h-10">
-                                        View RFQs
-                                    </Link>
                                 </li>
                             </ul>
                         </div>
@@ -105,77 +198,46 @@ const Profile = () => {
                                         </tr>
                                     </thead>
                                     <tbody className="dark:text-white-dark">
-                                        <tr>
-                                            <td>RFQ-2024-045 - Office Supplies</td>
-                                            <td><span className="badge bg-success">Approved</span></td>
-                                            <td>
-                                                <div className="h-1.5 bg-[#ebedf2] dark:bg-dark/40 rounded-full flex w-full">
-                                                    <div className="bg-success rounded-full w-full"></div>
-                                                </div>
-                                            </td>
-                                            <td className="text-center">5 mins ago</td>
-                                        </tr>
-                                        <tr>
-                                            <td>EVAL-2024-032 - IT Equipment</td>
-                                            <td><span className="badge bg-info">In Review</span></td>
-                                            <td>
-                                                <div className="h-1.5 bg-[#ebedf2] dark:bg-dark/40 rounded-full flex w-full">
-                                                    <div className="bg-info rounded-full w-[75%]"></div>
-                                                </div>
-                                            </td>
-                                            <td className="text-center">1 hour ago</td>
-                                        </tr>
-                                        <tr>
-                                            <td>PO-2024-098 - Furniture</td>
-                                            <td><span className="badge bg-warning">Pending Delivery</span></td>
-                                            <td>
-                                                <div className="h-1.5 bg-[#ebedf2] dark:bg-dark/40 rounded-full flex w-full">
-                                                    <div className="bg-warning rounded-full  w-[60%]"></div>
-                                                </div>
-                                            </td>
-                                            <td className="text-center">2 hours ago</td>
-                                        </tr>
-                                        <tr>
-                                            <td>Q-2024-123 - Cleaning Services</td>
-                                            <td><span className="badge bg-primary">Under Evaluation</span></td>
-                                            <td>
-                                                <div className="h-1.5 bg-[#ebedf2] dark:bg-dark/40 rounded-full flex w-full">
-                                                    <div className="bg-primary rounded-full  w-[45%]"></div>
-                                                </div>
-                                            </td>
-                                            <td className="text-center">5 hours ago</td>
-                                        </tr>
+                                        {recentActivities.length > 0 ? (
+                                            recentActivities.map((activity, index) => {
+                                                const status = getStatusBadge(activity.status);
+                                                const progress =
+                                                    activity.status === 'COMPLETED' || activity.status === 'APPROVED'
+                                                        ? 100
+                                                        : activity.status === 'IN_TRANSIT'
+                                                        ? 80
+                                                        : activity.status === 'IN_EVALUATION' || activity.status === 'SUBMITTED'
+                                                        ? 75
+                                                        : activity.status === 'PENDING_DELIVERY'
+                                                        ? 60
+                                                        : activity.status === 'AWAITING_QUOTES'
+                                                        ? 30
+                                                        : 50;
 
-                                        <tr>
-                                            <td>RFQ-2024-046 - Security Equipment</td>
-                                            <td><span className="badge bg-secondary">Awaiting Quotes</span></td>
-                                            <td>
-                                                <div className="h-1.5 bg-[#ebedf2] dark:bg-dark/40 rounded-full flex w-full">
-                                                    <div className="bg-secondary  rounded-full  w-[30%]"></div>
-                                                </div>
-                                            </td>
-                                            <td className="text-center">1 day ago</td>
-                                        </tr>
-                                        <tr>
-                                            <td>EVAL-2024-033 - Janitorial Supplies</td>
-                                            <td><span className="badge bg-success">Completed</span></td>
-                                            <td>
-                                                <div className="h-1.5 bg-[#ebedf2] dark:bg-dark/40 rounded-full flex w-full">
-                                                    <div className="bg-success rounded-full  w-full"></div>
-                                                </div>
-                                            </td>
-                                            <td className="text-center">2 days ago</td>
-                                        </tr>
-                                        <tr>
-                                            <td>PO-2024-099 - Network Hardware</td>
-                                            <td><span className="badge bg-info">In Transit</span></td>
-                                            <td>
-                                                <div className="h-1.5 bg-[#ebedf2] dark:bg-dark/40 rounded-full flex w-full">
-                                                    <div className="bg-info rounded-full w-[80%]"></div>
-                                                </div>
-                                            </td>
-                                            <td className="text-center">3 days ago</td>
-                                        </tr>
+                                                return (
+                                                    <tr key={activity.id || index}>
+                                                        <td>
+                                                            {activity.reference} - {activity.title}
+                                                        </td>
+                                                        <td>
+                                                            <span className={`badge ${status.class}`}>{status.label}</span>
+                                                        </td>
+                                                        <td>
+                                                            <div className="h-1.5 bg-[#ebedf2] dark:bg-dark/40 rounded-full flex w-full">
+                                                                <div className={`${status.class.replace('bg-', 'bg-')} rounded-full`} style={{ width: `${progress}%` }}></div>
+                                                            </div>
+                                                        </td>
+                                                        <td className="text-center">{formatDate(activity.updatedAt || activity.createdAt)}</td>
+                                                    </tr>
+                                                );
+                                            })
+                                        ) : (
+                                            <tr>
+                                                <td colSpan={4} className="text-center py-4">
+                                                    No recent activities
+                                                </td>
+                                            </tr>
+                                        )}
                                     </tbody>
                                 </table>
                             </div>
@@ -188,20 +250,6 @@ const Profile = () => {
                             <h5 className="font-semibold text-lg dark:text-white-light">Performance Summary</h5>
                         </div>
                         <div className="space-y-4">
-                            <div className="border border-[#ebedf2] rounded dark:bg-[#1b2e4b] dark:border-0">
-                                <div className="flex items-center justify-between p-4 py-2">
-                                    <div className="grid place-content-center w-9 h-9 rounded-md bg-primary-light dark:bg-primary text-primary dark:text-primary-light">
-                                        <IconFile />
-                                    </div>
-                                    <div className="ltr:ml-4 rtl:mr-4 flex items-start justify-between flex-auto font-semibold">
-                                        <h6 className="text-white-dark text-[13px] dark:text-white-dark">
-                                            Active RFQs
-                                            <span className="block text-base text-[#515365] dark:text-white-light">12 RFQs</span>
-                                        </h6>
-                                        <p className="ltr:ml-auto rtl:mr-auto text-primary">+3 this week</p>
-                                    </div>
-                                </div>
-                            </div>
                             <div className="border border-[#ebedf2] rounded dark:bg-[#1b2e4b] dark:border-0">
                                 <div className="flex items-center justify-between p-4 py-2">
                                     <div className="grid place-content-center w-9 h-9 rounded-md bg-info-light dark:bg-info text-info dark:text-info-light">
@@ -235,22 +283,52 @@ const Profile = () => {
                     <div className="panel">
                         <div className="flex items-center justify-between mb-10">
                             <h5 className="font-semibold text-lg dark:text-white-light">Department Access</h5>
-                            <Link to="/settings" className="btn btn-primary">Manage Settings</Link>
+                            <Link to="/settings" className="btn btn-primary">
+                                Manage Settings
+                            </Link>
                         </div>
                         <div className="group">
                             <ul className="list-inside list-disc text-white-dark font-semibold mb-7 space-y-2">
-                                <li>Full Procurement Access</li>
-                                <li>RFQ Creation & Management</li>
-                                <li>Quote Evaluation Rights</li>
-                                <li>Purchase Order Generation</li>
-                                <li>Supplier Management</li>
-                                <li>Reporting & Analytics</li>
+                                {user?.roles?.includes('PROCUREMENT_MANAGER') && (
+                                    <>
+                                        <li>Full Procurement Access</li>
+                                        <li>Request Creation & Management</li>
+                                        <li>Quote Evaluation Rights</li>
+                                        <li>Purchase Order Generation</li>
+                                        <li>Supplier Management</li>
+                                        <li>Reporting & Analytics</li>
+                                    </>
+                                )}
+                                {user?.roles?.includes('PROCUREMENT_OFFICER') && (
+                                    <>
+                                        <li>Request Processing</li>
+                                        <li>Quote Processing</li>
+                                        <li>Vendor Communication</li>
+                                        <li>Request Fulfillment</li>
+                                    </>
+                                )}
+                                {user?.roles?.includes('DEPT_MANAGER') && (
+                                    <>
+                                        <li>Department Request Approval</li>
+                                        <li>Budget Review</li>
+                                        <li>Team Request Management</li>
+                                    </>
+                                )}
+                                {user?.roles?.includes('EVALUATION_COMMITTEE') && (
+                                    <>
+                                        <li>Quote Evaluation</li>
+                                        <li>Vendor Assessment</li>
+                                        <li>Recommendation Rights</li>
+                                    </>
+                                )}
+                                {(!user?.roles || user.roles.length === 0) && <li>Standard User Access</li>}
                             </ul>
                             <div className="flex items-center justify-between mb-4 font-semibold">
                                 <p className="flex items-center rounded-full bg-success px-2 py-1 text-xs text-white-light font-semibold">
-                                    <IconChecks className="w-3 h-3 ltr:mr-1 rtl:ml-1" />Active Account
+                                    <IconChecks className="w-3 h-3 ltr:mr-1 rtl:ml-1" />
+                                    Active Account
                                 </p>
-                                <p className="text-primary">Procurement Officer</p>
+                                <p className="text-primary">{getUserRoles()}</p>
                             </div>
                         </div>
                     </div>
@@ -340,23 +418,23 @@ const Profile = () => {
                             <h5 className="font-semibold text-lg dark:text-white-light">Quick Actions</h5>
                         </div>
                         <div className="space-y-3">
-                            <Link to="/procurement/rfq/new" className="btn btn-primary w-full">
-                                <IconFile className="w-5 h-5 ltr:mr-2 rtl:ml-2" />
-                                Create New RFQ
+                            <Link to="/apps/requests/new" className="btn btn-primary w-full">
+                                <IconPlus className="w-5 h-5 ltr:mr-2 rtl:ml-2" />
+                                Create New Request
                             </Link>
-                            <Link to="/procurement/quotes" className="btn btn-info w-full">
-                                <IconTag className="w-5 h-5 ltr:mr-2 rtl:ml-2" />
+                            <Link to="/apps/requests" className="btn btn-info w-full">
+                                <IconFile className="w-5 h-5 ltr:mr-2 rtl:ml-2" />
                                 Review Quotes
                             </Link>
-                            <Link to="/procurement/evaluation" className="btn btn-success w-full">
+                            <Link to="/apps/evaluation" className="btn btn-success w-full">
                                 <IconClipboardText className="w-5 h-5 ltr:mr-2 rtl:ml-2" />
                                 Start Evaluation
                             </Link>
-                            <Link to="/procurement/suppliers" className="btn btn-secondary w-full">
+                            <Link to="/apps/suppliers" className="btn btn-secondary w-full">
                                 <IconShoppingBag className="w-5 h-5 ltr:mr-2 rtl:ml-2" />
                                 Manage Suppliers
                             </Link>
-                            <Link to="/procurement/reports" className="btn btn-dark w-full">
+                            <Link to="/apps/reports" className="btn btn-dark w-full">
                                 <IconCreditCard className="w-5 h-5 ltr:mr-2 rtl:ml-2" />
                                 View Reports
                             </Link>

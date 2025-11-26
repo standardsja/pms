@@ -647,3 +647,13 @@ model Evaluation {
   @@index([evalNumber])
   @@index([rfqNumber])
 }
+
+model LoadBalancingSettings {
+  id                    Int      @id @default(autoincrement())
+  enabled               Boolean  @default(false)
+  strategy              String   @default("LEAST_LOADED") // LEAST_LOADED, ROUND_ROBIN, RANDOM
+  autoAssignOnApproval  Boolean  @default(true)
+  lastRoundRobinIndex   Int      @default(0)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
