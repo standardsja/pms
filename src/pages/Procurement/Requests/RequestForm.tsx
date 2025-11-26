@@ -333,6 +333,43 @@ const RequestForm = () => {
         setAttachments(attachments.filter((_, i) => i !== index));
     };
 
+    // Remove an existing attachment (stored in DB)
+    const removeExistingAttachment = async (attachmentId: number) => {
+        if (!id) return;
+        const raw = localStorage.getItem('userProfile');
+        const profile = raw ? JSON.parse(raw) : null;
+        const userId = profile?.id || profile?.userId || null;
+        if (!userId) {
+            Swal.fire({ icon: 'error', title: 'Not logged in' });
+            return;
+        }
+
+        const confirm = await Swal.fire({
+            icon: 'warning',
+            title: 'Delete attachment?',
+            text: 'This will permanently remove the attachment from the request.',
+            showCancelButton: true,
+            confirmButtonText: 'Delete',
+        });
+        if (!confirm.isConfirmed) return;
+
+        try {
+            const resp = await fetch(`http://heron:4000/requests/${id}/attachments/${attachmentId}`, {
+                method: 'DELETE',
+                headers: { 'x-user-id': String(userId) },
+            });
+            if (!resp.ok) {
+                const err = await resp.json().catch(() => ({}));
+                throw new Error(err.message || resp.statusText || 'Failed to delete attachment');
+            }
+            setExistingAttachments(existingAttachments.filter((a) => a.id !== attachmentId));
+            Swal.fire({ icon: 'success', title: 'Deleted', text: 'Attachment removed' });
+        } catch (err: any) {
+            console.error('Failed to delete attachment', err);
+            Swal.fire({ icon: 'error', title: 'Delete failed', text: err?.message || String(err) });
+        }
+    };
+
     const handleProcurementTypeChange = (type: string) => {
         if (procurementType.includes(type)) {
             setProcurementType(procurementType.filter((t) => t !== type));
@@ -431,6 +468,53 @@ const RequestForm = () => {
                     procurementComments,
                     procurementApproved,
                 };
+                    // If the current operation is a requester saving a DRAFT (not approving), include
+                    // the main requester-editable fields (description, items, totals) so changes persist.
+                    const isRequesterSavingDraft = requestMeta?.status === 'DRAFT' && (!isApproving);
+                    if (isRequesterSavingDraft) {
+                        const itemsPayload = items.map((it) => ({
+                            description: it.description || '',
+                            quantity: Number(it.quantity || 0),
+                            unitPrice: Number(it.unitCost || 0),
+                            totalPrice: Number((it.quantity || 0) * (it.unitCost || 0)),
+                            accountCode: it['accountCode'] || null,
+                            stockLevel: it.stockLevel || null,
+                            unitOfMeasure: it.unitOfMeasure || null,
+                            partNumber: it.partNumber || null,
+                        }));
+
+                        // Prisma nested write to replace items: delete existing then create new
+                        (updatePayload as any).description = commentsJustification;
+                        (updatePayload as any).items = { deleteMany: {}, create: itemsPayload };
+                        (updatePayload as any).totalEstimated = estimatedTotal;
+                        (updatePayload as any).currency = currency;
+                        (updatePayload as any).priority = priority ? priority.toUpperCase() : undefined;
+                        if (procurementType && procurementType.length > 0) (updatePayload as any).procurementType = JSON.stringify(procurementType);
+                
+                        // If there are new files selected for upload, send them first to the attachments endpoint
+                        if (attachments.length > 0 && id) {
+                            try {
+                                const fd = new FormData();
+                                attachments.forEach((f) => fd.append('attachments', f));
+                                const uploadResp = await fetch(`http://heron:4000/requests/${id}/attachments`, {
+                                    method: 'POST',
+                                    headers: { 'x-user-id': String(userId) },
+                                    body: fd,
+                                });
+                                if (!uploadResp.ok) {
+                                    const err = await uploadResp.json().catch(() => ({}));
+                                    throw new Error(err.message || uploadResp.statusText || 'Attachment upload failed');
+                                }
+                                // Clear the new attachments list after successful upload so we don't reupload them
+                                setAttachments([]);
+                            } catch (uploadErr: any) {
+                                console.error('Attachment upload failed', uploadErr);
+                                Swal.fire({ icon: 'error', title: 'Upload failed', text: uploadErr?.message || String(uploadErr) });
+                                setIsSubmitting(false);
+                                return;
+                            }
+                        }
+                    }
 
                 const resp = await fetch(`http://heron:4000/requests/${id}`, {
                     method: 'PUT',

@@ -2629,6 +2629,67 @@ app.post('/requests/:id/submit', async (req, res) => {
     }
 });
 
+// POST /requests/:id/attachments - upload attachments for an existing request
+app.post('/requests/:id/attachments', uploadAttachments.array('attachments'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const userId = req.headers['x-user-id'];
+
+        if (!userId) return res.status(401).json({ message: 'User ID required' });
+
+        const files = (req.files || []) as Express.Multer.File[];
+        if (!files.length) return res.status(400).json({ message: 'No files uploaded' });
+
+        const created: any[] = [];
+        for (const file of files) {
+            const url = `http://${PUBLIC_HOST}:${PORT}/uploads/${file.filename}`;
+            const att = await prisma.requestAttachment.create({
+                data: {
+                    requestId: parseInt(id, 10),
+                    filename: file.originalname,
+                    url,
+                    mimeType: file.mimetype || null,
+                    uploadedById: parseInt(String(userId), 10),
+                },
+            });
+            created.push(att);
+        }
+
+        res.status(201).json({ success: true, data: created });
+    } catch (e: any) {
+        console.error('POST /requests/:id/attachments error:', e);
+        res.status(500).json({ message: e?.message || 'Failed to upload attachments' });
+    }
+});
+
+// DELETE /requests/:id/attachments/:attachmentId - delete an attachment
+app.delete('/requests/:id/attachments/:attachmentId', async (req, res) => {
+    try {
+        const { id, attachmentId } = req.params;
+        const userId = req.headers['x-user-id'];
+        if (!userId) return res.status(401).json({ message: 'User ID required' });
+
+        const att = await prisma.requestAttachment.findUnique({ where: { id: parseInt(attachmentId, 10) } });
+        if (!att) return res.status(404).json({ message: 'Attachment not found' });
+        if (att.requestId !== parseInt(id, 10)) return res.status(400).json({ message: 'Attachment does not belong to this request' });
+
+        // Attempt to unlink file from disk (best-effort)
+        try {
+            const filename = path.basename(att.url || '');
+            const filepath = path.resolve(process.cwd(), 'uploads', filename);
+            if (fs.existsSync(filepath)) fs.unlinkSync(filepath);
+        } catch (fsErr) {
+            console.warn('Failed to remove attachment file from disk:', fsErr);
+        }
+
+        await prisma.requestAttachment.delete({ where: { id: parseInt(attachmentId, 10) } });
+        res.json({ success: true });
+    } catch (e: any) {
+        console.error('DELETE /requests/:id/attachments/:attachmentId error:', e);
+        res.status(500).json({ message: e?.message || 'Failed to delete attachment' });
+    }
+});
+
 // POST /requests/:id/action - approve/reject requests (manager, HOD, procurement, finance)
 app.post('/requests/:id/action', async (req, res) => {
     try {
