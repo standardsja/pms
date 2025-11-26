@@ -1436,7 +1436,12 @@ const RequestForm = () => {
                         )}
                         {/* If this is an existing request returned to the requester (DRAFT), show a Resubmit button */}
                         {isEditMode && requestMeta?.status === 'DRAFT' && Number(requestMeta.currentAssigneeId) === Number(currentUserId) && (
-                            <button type="button" onClick={handleResubmit} disabled={isSubmitting} className={`px-6 py-2 rounded bg-primary-600 text-white ${isSubmitting ? 'opacity-60 cursor-not-allowed' : 'hover:bg-primary-700'}`}>
+                            <button
+                                type="button"
+                                onClick={handleResubmit}
+                                disabled={isSubmitting}
+                                className={`px-6 py-2 rounded bg-primary-600 text-white ${isSubmitting ? 'opacity-60 cursor-not-allowed' : 'hover:bg-primary-700'}`}
+                            >
                                 {isSubmitting ? 'Resubmitting…' : 'Resubmit for Review'}
                             </button>
                         )}
