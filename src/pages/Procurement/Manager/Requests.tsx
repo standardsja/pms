@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
@@ -9,6 +9,7 @@ import IconEdit from '../../../components/Icon/IconEdit';
 import IconPrinter from '../../../components/Icon/IconPrinter';
 import IconUsersGroup from '../../../components/Icon/IconUsersGroup';
 import { getStatusBadge } from '../../../utils/statusBadges';
+import { selectAuthLoading, selectUser } from '../../../store/authSlice';
 
 const MySwal = withReactContent(Swal);
 
@@ -37,6 +38,8 @@ interface Req {
 const ProcurementManagerRequests = () => {
     const dispatch = useDispatch();
     const navigate = useNavigate();
+    const authLoading = useSelector(selectAuthLoading);
+    const authUser = useSelector(selectUser);
     const [requests, setRequests] = useState<Req[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -96,6 +99,15 @@ const ProcurementManagerRequests = () => {
 
         fetchRequests();
     }, []);
+
+    // Auth gate spinner
+    if (authLoading || !authUser) {
+        return (
+            <div className="flex justify-center items-center min-h-[400px]">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+        );
+    }
 
     // Filter requests at PROCUREMENT_REVIEW status
     const pending = useMemo(() => requests.filter((r) => r.status === 'PROCUREMENT_REVIEW'), [requests]);

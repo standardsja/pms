@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { setPageTitle } from '../../../store/themeConfigSlice';
 import { Link } from 'react-router-dom';
 import IconEye from '../../../components/Icon/IconEye';
+import { selectAuthLoading, selectUser } from '../../../store/authSlice';
 
 
 type Evaluation = {
@@ -17,6 +18,8 @@ type Evaluation = {
 
 const EvaluationsToValidate = () => {
     const dispatch = useDispatch();
+    const authLoading = useSelector(selectAuthLoading);
+    const authUser = useSelector(selectUser);
 
     useEffect(() => {
         dispatch(setPageTitle('Evaluation Reports to Validate'));
@@ -46,6 +49,14 @@ const EvaluationsToValidate = () => {
         setValidateTarget(null);
         setNotes('');
     };
+
+    if (authLoading || !authUser) {
+        return (
+            <div className="flex justify-center items-center min-h-[300px]">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-6">

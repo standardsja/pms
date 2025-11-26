@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { setPageTitle } from '../../../store/themeConfigSlice';
 import { Link } from 'react-router-dom';
 import IconChecks from '../../../components/Icon/IconChecks';
 import IconFile from '../../../components/Icon/IconFile';
 import IconEye from '../../../components/Icon/IconEye';
+import { selectAuthLoading, selectUser } from '../../../store/authSlice';
 import ReactApexChart from 'react-apexcharts';
 import type { ApexOptions } from 'apexcharts';
 
@@ -29,6 +30,8 @@ type Evaluation = {
 
 const ProcurementManagerDashboard = () => {
 	const dispatch = useDispatch();
+	const authLoading = useSelector(selectAuthLoading);
+	const authUser = useSelector(selectUser);
 
 	useEffect(() => {
 		dispatch(setPageTitle('Procurement Manager Dashboard'));
@@ -156,6 +159,14 @@ const ProcurementManagerDashboard = () => {
 
 		return { trendOptions, trendSeries, spendOptions, spendSeries, scoreOptions, scoreSeries };
 	}, [rfqs, pendingRFQs, pendingEvals]);
+
+	if (authLoading || !authUser) {
+		return (
+			<div className="flex justify-center items-center min-h-[400px]">
+				<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+			</div>
+		);
+	}
 
 	return (
 		<div className="space-y-6">

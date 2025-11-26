@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import { setPageTitle } from '../../../store/themeConfigSlice';
@@ -9,6 +9,7 @@ import IconX from '../../../components/Icon/IconX';
 import IconRefresh from '../../../components/Icon/IconRefresh';
 import IconInfoCircle from '../../../components/Icon/IconInfoCircle';
 import { getToken, getUser } from '../../../utils/auth';
+import { selectAuthLoading, selectUser } from '../../../store/authSlice';
 
 const MySwal = withReactContent(Swal);
 
@@ -28,6 +29,8 @@ const LoadBalancingSettings = () => {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const authLoading = useSelector(selectAuthLoading);
+    const authUser = useSelector(selectUser);
 
     const apiUrl = 'http://heron:4000';
 
@@ -76,6 +79,16 @@ const LoadBalancingSettings = () => {
 
         fetchSettings();
     }, [apiUrl]);
+
+    if (authLoading || !authUser) {
+        return (
+            <div className="p-6">
+                <div className="flex items-center justify-center h-64">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+                </div>
+            </div>
+        );
+    }
 
     const handleSave = async () => {
         setSaving(true);

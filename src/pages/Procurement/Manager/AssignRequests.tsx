@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
@@ -11,6 +11,7 @@ import IconRefresh from '../../../components/Icon/IconRefresh';
 import IconX from '../../../components/Icon/IconX';
 import { getStatusBadge } from '../../../utils/statusBadges';
 import { getToken, getUser } from '../../../utils/auth';
+import { selectAuthLoading, selectUser } from '../../../store/authSlice';
 
 const MySwal = withReactContent(Swal);
 
@@ -61,6 +62,8 @@ const AssignRequests = () => {
     const currentUser = getUser();
     const currentUserId = currentUser?.id || null;
     const token = getToken();
+    const authLoading = useSelector(selectAuthLoading);
+    const authUser = useSelector(selectUser);
 
     const apiUrl = 'http://heron:4000';
 
@@ -326,6 +329,14 @@ const AssignRequests = () => {
 
     // Lookup selected request from full list first (includes assigned requests), fallback to unassigned requests
     const selectedRequestData = allRequests.find((r) => r.id === selectedRequest) || requests.find((r) => r.id === selectedRequest);
+
+    if (authLoading || !authUser) {
+        return (
+            <div className="flex justify-center items-center min-h-[400px]">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-6">
