@@ -57,7 +57,7 @@ const Onboarding = () => {
         // Fetch real-time module statistics
         const fetchModuleStats = async () => {
             try {
-                const response = await fetch('/api/stats/modules');
+                const response = await fetch('http://heron:4000/api/stats/modules');
                 if (response.ok) {
                     const data = await response.json();
                     setModuleStats({
