@@ -10,6 +10,7 @@ import IconSearch from '../../../components/Icon/IconSearch';
 import IconRefresh from '../../../components/Icon/IconRefresh';
 import IconX from '../../../components/Icon/IconX';
 import { getStatusBadge } from '../../../utils/statusBadges';
+import { getToken, getUser } from '../../../utils/auth';
 
 const MySwal = withReactContent(Swal);
 
@@ -56,10 +57,12 @@ const AssignRequests = () => {
     const [sortBy, setSortBy] = useState<'workload' | 'name'>('workload');
     const [viewingOfficerRequests, setViewingOfficerRequests] = useState<number | null>(null);
     const [isProcurementManager, setIsProcurementManager] = useState<boolean>(false);
-    const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
-    const currentUserId = userProfile?.id || userProfile?.userId || null;
 
-    const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:4000' : `http://${window.location.hostname}:4000`;
+    const currentUser = getUser();
+    const currentUserId = currentUser?.id || null;
+    const token = getToken();
+
+    const apiUrl = 'http://heron:4000';
 
     useEffect(() => {
         dispatch(setPageTitle('Assign Requests'));
@@ -71,13 +74,20 @@ const AssignRequests = () => {
             setError(null);
 
             try {
-                const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
-                const currentUserId = userProfile?.id || userProfile?.userId || null;
+                const token = getToken();
+                const currentUser = getUser();
+                const currentUserId = currentUser?.id || null;
+
+                if (!token) {
+                    throw new Error('Authentication required');
+                }
 
                 // Fetch procurement officers
                 const officersRes = await fetch(`${apiUrl}/users/procurement-officers`, {
                     headers: {
+                        Authorization: `Bearer ${token}`,
                         'x-user-id': String(currentUserId || ''),
+                        'Content-Type': 'application/json',
                     },
                 });
                 if (!officersRes.ok) throw new Error('Failed to fetch procurement officers');
@@ -85,16 +95,15 @@ const AssignRequests = () => {
                 setOfficers(officersData);
 
                 // detect if current user is a procurement manager
-                const roles = (userProfile?.roles || []).map((r: any) => {
-                    if (typeof r === 'string') return r;
-                    return r?.role?.name || r?.name || '';
-                });
+                const roles = Array.isArray(currentUser?.roles) ? currentUser.roles : currentUser?.role ? [currentUser.role] : [];
                 setIsProcurementManager(roles.includes('PROCUREMENT_MANAGER') || roles.includes('Procurement Manager') || roles.includes('PROCUREMENT'));
 
                 // Fetch requests at PROCUREMENT_REVIEW status
                 const requestsRes = await fetch(`${apiUrl}/requests`, {
                     headers: {
+                        Authorization: `Bearer ${token}`,
                         'x-user-id': String(currentUserId || ''),
+                        'Content-Type': 'application/json',
                     },
                 });
                 if (!requestsRes.ok) throw new Error('Failed to fetch requests');
@@ -103,7 +112,7 @@ const AssignRequests = () => {
                 // keep full list
                 setAllRequests(procurementRequests);
                 // For procurement managers, show ALL procurement requests (they should see everything and delegate)
-                if (userProfile && (roles.includes('PROCUREMENT_MANAGER') || roles.includes('Procurement Manager') || roles.includes('PROCUREMENT'))) {
+                if (currentUser && roles.some((r: string) => ['PROCUREMENT_MANAGER', 'Procurement Manager', 'PROCUREMENT'].includes(r))) {
                     setRequests(procurementRequests);
                 } else {
                     // normal view: show unassigned requests
@@ -231,13 +240,19 @@ const AssignRequests = () => {
 
         if (result.isConfirmed) {
             try {
-                const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
-                const currentUserId = userProfile?.id || userProfile?.userId || null;
+                const token = getToken();
+                const currentUser = getUser();
+                const currentUserId = currentUser?.id || null;
+
+                if (!token) {
+                    throw new Error('Authentication required');
+                }
 
                 const res = await fetch(`${apiUrl}/requests/${reqId}/assign`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
+                        Authorization: `Bearer ${token}`,
                         'x-user-id': String(currentUserId || ''),
                     },
                     body: JSON.stringify({
