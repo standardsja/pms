@@ -2649,8 +2649,32 @@ app.post('/requests/:id/action', async (req, res) => {
             return res.status(404).json({ message: 'Request not found' });
         }
 
-        // Verify user is the current assignee
-        if (request.currentAssigneeId !== parseInt(String(userId), 10)) {
+        // Verify user is the current assignee, but allow a limited override for Procurement Managers
+        const actingUserId = parseInt(String(userId), 10);
+        let isAuthorized = request.currentAssigneeId === actingUserId;
+
+        if (!isAuthorized) {
+            try {
+                const actingUser = await prisma.user.findUnique({
+                    where: { id: actingUserId },
+                    include: { roles: { include: { role: true } } },
+                });
+                const roleNames = (actingUser?.roles || []).map((r: any) => String(r.role?.name || '').toUpperCase());
+
+                const isProcurementManager = roleNames.includes('PROCUREMENT_MANAGER') || roleNames.includes('MANAGER') || roleNames.includes('PROCUREMENT');
+
+                // Allow procurement managers to act as an override when the request is at the PROCUREMENT_REVIEW stage.
+                // This is a narrow exception to support managerial reviews; keep it conservative to avoid bypassing workflow.
+                if (isProcurementManager && request.status === 'PROCUREMENT_REVIEW') {
+                    isAuthorized = true;
+                    console.log(`Authorization override: user ${actingUserId} (procurement manager) acting on request ${id}`);
+                }
+            } catch (roleErr) {
+                console.warn('Failed to evaluate acting user roles for authorization override:', roleErr);
+            }
+        }
+
+        if (!isAuthorized) {
             return res.status(403).json({ message: 'Not authorized to approve this request' });
         }
 
