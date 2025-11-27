@@ -73,7 +73,7 @@ const Onboarding = () => {
         // Fetch real-time module statistics
         const fetchModuleStats = async () => {
             try {
-                const response = await fetch('/api/stats/modules');
+                const response = await fetch('http://heron:4000/api/stats/modules');
                 if (response.ok) {
                     const data = await response.json();
                     setModuleStats({
@@ -449,16 +449,28 @@ const Onboarding = () => {
                         </button>
                         <div className="px-6 py-5 border-b border-gray-200 dark:border-gray-700 flex items-center gap-3">
                             <span className="text-2xl">📊</span>
-                            <h2 className="text-xl font-semibold tracking-wide">7 Steps of the Procurement Process</h2>
+                            <h2 className="text-xl font-semibold tracking-wide">6 Steps of the Procurement Process</h2>
                         </div>
                         <div className="p-6 bg-white dark:bg-gray-800">
                             <div className="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 max-h-[75vh]">
-                                {/* Replace src below with final asset if needed */}
+                                {/* Prefer a custom image if present (drop your replacement as
+                                    public/assets/images/procurement/steps-custom.jpg).
+                                    If that file is missing the code falls back to the
+                                    original `steps.jpg`. */}
                                 <img
-                                    src="/assets/images/procurement/steps.jpg"
-                                    alt="Diagram showing the 7 steps of the procurement process"
+                                    src="/assets/images/procurement/steps-custom.jpg"
+                                    alt="Diagram showing the 6 steps of the procurement process"
                                     className="w-full h-auto max-h-[70vh] object-contain"
                                     loading="lazy"
+                                    onError={(e) => {
+                                        // fallback to the original filename if custom not present
+                                        try {
+                                            (e.currentTarget as HTMLImageElement).onerror = null;
+                                            (e.currentTarget as HTMLImageElement).src = '/assets/images/procurement/steps.png';
+                                        } catch (err) {
+                                            // noop
+                                        }
+                                    }}
                                 />
                             </div>
                             <p className="mt-4 text-sm text-gray-600 dark:text-gray-400 leading-relaxed">

@@ -125,6 +125,8 @@ const RequestForm = () => {
 
     // Track request metadata to gate editing by stage & assignee
     const [requestMeta, setRequestMeta] = useState<{ status?: string; currentAssigneeId?: number } | null>(null);
+    // Track the original requester id so returned drafts can be resubmitted by the requester
+    const [requestRequesterId, setRequestRequesterId] = useState<number | null>(null);
 
     // Determine field permissions strictly by workflow stage + assignee
     const isAssignee = !!(isEditMode && requestMeta?.currentAssigneeId && currentUserId && Number(requestMeta.currentAssigneeId) === Number(currentUserId));
@@ -282,6 +284,9 @@ const RequestForm = () => {
                 // Track status and assignee for edit gating
                 const assigneeId = request.currentAssignee?.id || request.currentAssigneeId || null;
                 setRequestMeta({ status: request.status, currentAssigneeId: assigneeId ? Number(assigneeId) : undefined });
+                // Track requester id so the requester can resubmit returned drafts even if currentAssignee wasn't populated
+                const requesterId = request.requester?.id || request.requesterId || null;
+                setRequestRequesterId(requesterId ? Number(requesterId) : null);
             } catch (err) {
                 console.error('Error fetching request:', err);
                 Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to load request data' });
@@ -326,6 +331,43 @@ const RequestForm = () => {
 
     const removeAttachment = (index: number) => {
         setAttachments(attachments.filter((_, i) => i !== index));
+    };
+
+    // Remove an existing attachment (stored in DB)
+    const removeExistingAttachment = async (attachmentId: number) => {
+        if (!id) return;
+        const raw = localStorage.getItem('userProfile');
+        const profile = raw ? JSON.parse(raw) : null;
+        const userId = profile?.id || profile?.userId || null;
+        if (!userId) {
+            Swal.fire({ icon: 'error', title: 'Not logged in' });
+            return;
+        }
+
+        const confirm = await Swal.fire({
+            icon: 'warning',
+            title: 'Delete attachment?',
+            text: 'This will permanently remove the attachment from the request.',
+            showCancelButton: true,
+            confirmButtonText: 'Delete',
+        });
+        if (!confirm.isConfirmed) return;
+
+        try {
+            const resp = await fetch(`http://heron:4000/requests/${id}/attachments/${attachmentId}`, {
+                method: 'DELETE',
+                headers: { 'x-user-id': String(userId) },
+            });
+            if (!resp.ok) {
+                const err = await resp.json().catch(() => ({}));
+                throw new Error(err.message || resp.statusText || 'Failed to delete attachment');
+            }
+            setExistingAttachments(existingAttachments.filter((a) => a.id !== attachmentId));
+            Swal.fire({ icon: 'success', title: 'Deleted', text: 'Attachment removed' });
+        } catch (err: any) {
+            console.error('Failed to delete attachment', err);
+            Swal.fire({ icon: 'error', title: 'Delete failed', text: err?.message || String(err) });
+        }
     };
 
     const handleProcurementTypeChange = (type: string) => {
@@ -426,6 +468,66 @@ const RequestForm = () => {
                     procurementComments,
                     procurementApproved,
                 };
+                // Determine if this save is also an approval action (reviewer checked approve boxes)
+                const isApproving =
+                    (requestMeta?.status === 'DEPARTMENT_REVIEW' && managerApproved === true) ||
+                    (requestMeta?.status === 'HOD_REVIEW' && headApproved === true) ||
+                    (requestMeta?.status === 'PROCUREMENT_REVIEW' && procurementApproved === true) ||
+                    (requestMeta?.status === 'FINANCE_REVIEW' && budgetOfficerApproved) ||
+                    (requestMeta?.status === 'BUDGET_MANAGER_REVIEW' && budgetManagerApproved);
+
+                // If the current operation is a requester saving a DRAFT (not approving), include
+                // the main requester-editable fields (description, items, totals) so changes persist.
+                const isRequesterSavingDraft = requestMeta?.status === 'DRAFT' && !isApproving;
+                if (isRequesterSavingDraft) {
+                    const itemsPayload = items.map((it) => ({
+                        description: it.description || '',
+                        quantity: Number(it.quantity || 0),
+                        unitPrice: Number(it.unitCost || 0),
+                        totalPrice: Number((it.quantity || 0) * (it.unitCost || 0)),
+                        accountCode: it['accountCode'] || null,
+                        stockLevel: it.stockLevel || null,
+                        unitOfMeasure: it.unitOfMeasure || null,
+                        partNumber: it.partNumber || null,
+                    }));
+
+                    // Prisma nested write to replace items: delete existing then create new
+                    (updatePayload as any).description = commentsJustification;
+                    (updatePayload as any).items = { deleteMany: {}, create: itemsPayload };
+                    (updatePayload as any).totalEstimated = estimatedTotal;
+                    (updatePayload as any).currency = currency;
+                    (updatePayload as any).priority = priority ? priority.toUpperCase() : undefined;
+                    if (procurementType && procurementType.length > 0) (updatePayload as any).procurementType = JSON.stringify(procurementType);
+
+                    // If there are new files selected for upload, send them first to the attachments endpoint
+                    if (attachments.length > 0 && id) {
+                        try {
+                            const fd = new FormData();
+                            attachments.forEach((f) => fd.append('attachments', f));
+                            const uploadResp = await fetch(`http://heron:4000/requests/${id}/attachments`, {
+                                method: 'POST',
+                                headers: { 'x-user-id': String(userId) },
+                                body: fd,
+                            });
+                            if (!uploadResp.ok) {
+                                const err = await uploadResp.json().catch(() => ({}));
+                                throw new Error(err.message || uploadResp.statusText || 'Attachment upload failed');
+                            }
+                            // Parse created attachment records and merge into existingAttachments so UI updates immediately
+                            const created = await uploadResp.json().catch(() => []);
+                            if (Array.isArray(created) && created.length > 0) {
+                                setExistingAttachments((prev) => [...(prev || []), ...created]);
+                            }
+                            // Clear the new attachments list after successful upload so we don't reupload them
+                            setAttachments([]);
+                        } catch (uploadErr: any) {
+                            console.error('Attachment upload failed', uploadErr);
+                            Swal.fire({ icon: 'error', title: 'Upload failed', text: uploadErr?.message || String(uploadErr) });
+                            setIsSubmitting(false);
+                            return;
+                        }
+                    }
+                }
 
                 const resp = await fetch(`http://heron:4000/requests/${id}`, {
                     method: 'PUT',
@@ -441,12 +543,6 @@ const RequestForm = () => {
                     throw new Error(err.error || resp.statusText || 'Update failed');
                 }
                 // Automatically perform approval action if reviewer checked the approval box
-                const isApproving =
-                    (requestMeta?.status === 'DEPARTMENT_REVIEW' && managerApproved === true) ||
-                    (requestMeta?.status === 'HOD_REVIEW' && headApproved === true) ||
-                    (requestMeta?.status === 'PROCUREMENT_REVIEW' && procurementApproved === true) ||
-                    (requestMeta?.status === 'FINANCE_REVIEW' && budgetOfficerApproved) ||
-                    (requestMeta?.status === 'BUDGET_MANAGER_REVIEW' && budgetManagerApproved);
 
                 if (isApproving) {
                     try {
@@ -468,8 +564,52 @@ const RequestForm = () => {
                         // Do NOT navigate so user can retry approval without losing context
                     }
                 } else {
-                    Swal.fire({ icon: 'success', title: 'Request updated', text: 'Your information has been saved' });
-                    navigate('/apps/requests');
+                    // If this is a returned draft and the current user is the original requester,
+                    // offer to resubmit the request now (preserving the same form code fields).
+                    const requesterId = requestRequesterId;
+                    const isRequesterEditingDraft = requestMeta?.status === 'DRAFT' && requesterId && Number(requesterId) === Number(userId);
+
+                    if (isRequesterEditingDraft) {
+                        const confirmResubmit = await Swal.fire({
+                            icon: 'question',
+                            title: 'Save and resubmit?',
+                            text: 'This request was returned and is currently a draft. Do you want to save your changes and resubmit it for review now?',
+                            showCancelButton: true,
+                            confirmButtonText: 'Save & Resubmit',
+                            cancelButtonText: 'Save Only',
+                        });
+
+                        if (confirmResubmit.isConfirmed) {
+                            try {
+                                const submitResp = await fetch(`http://heron:4000/requests/${id}/submit`, {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                        'x-user-id': String(userId),
+                                    },
+                                    body: JSON.stringify({}),
+                                });
+                                if (!submitResp.ok) {
+                                    const err = await submitResp.json().catch(() => ({}));
+                                    throw new Error(err.error || submitResp.statusText || 'Resubmit failed');
+                                }
+                                Swal.fire({ icon: 'success', title: 'Request resubmitted', text: 'Your request has been sent for review.' });
+                                navigate('/apps/requests');
+                            } catch (submitErr: any) {
+                                console.error('Resubmit after save failed', submitErr);
+                                Swal.fire({ icon: 'error', title: 'Resubmit failed', text: submitErr?.message || String(submitErr) });
+                                // Do NOT navigate so user can try resubmitting again
+                                setIsSubmitting(false);
+                                return;
+                            }
+                        } else {
+                            Swal.fire({ icon: 'success', title: 'Request updated', text: 'Your information has been saved' });
+                            navigate('/apps/requests');
+                        }
+                    } else {
+                        Swal.fire({ icon: 'success', title: 'Request updated', text: 'Your information has been saved' });
+                        navigate('/apps/requests');
+                    }
                 }
             } else {
                 // Create new request with attachments using FormData
@@ -614,6 +754,46 @@ const RequestForm = () => {
         } catch (err: any) {
             console.error(err);
             Swal.fire({ icon: 'error', title: 'Failed', text: err?.message || String(err) });
+        }
+    };
+
+    const handleResubmit = async () => {
+        if (!id) return;
+        const raw = localStorage.getItem('userProfile');
+        const profile = raw ? JSON.parse(raw) : null;
+        const userId = profile?.id || profile?.userId || null;
+        if (!userId) {
+            Swal.fire({ icon: 'error', title: 'Not logged in' });
+            return;
+        }
+
+        const confirm = await Swal.fire({
+            icon: 'question',
+            title: 'Resubmit request',
+            text: 'Send this returned request back into the approval workflow?',
+            showCancelButton: true,
+            confirmButtonText: 'Resubmit',
+        });
+        if (!confirm.isConfirmed) return;
+
+        try {
+            setIsSubmitting(true);
+            const resp = await fetch(`http://heron:4000/requests/${id}/submit`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-user-id': String(userId) },
+                body: JSON.stringify({}),
+            });
+            if (!resp.ok) {
+                const err = await resp.json().catch(() => ({}));
+                throw new Error(err.message || resp.statusText || 'Failed to resubmit');
+            }
+            Swal.fire({ icon: 'success', title: 'Resubmitted', text: 'Your request has been sent for review.' });
+            navigate('/apps/requests');
+        } catch (err: any) {
+            console.error('Resubmit failed', err);
+            Swal.fire({ icon: 'error', title: 'Failed to resubmit', text: err?.message || String(err) });
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -1393,6 +1573,17 @@ const RequestForm = () => {
                                     Mark as Sent to Vendor
                                 </button>
                             </>
+                        )}
+                        {/* If this is an existing request returned to the requester (DRAFT), show a Resubmit button */}
+                        {isEditMode && requestMeta?.status === 'DRAFT' && (Number(requestMeta.currentAssigneeId) === Number(currentUserId) || Number(requestRequesterId) === Number(currentUserId)) && (
+                            <button
+                                type="button"
+                                onClick={handleResubmit}
+                                disabled={isSubmitting}
+                                className={`px-6 py-2 rounded bg-primary-600 text-white ${isSubmitting ? 'opacity-60 cursor-not-allowed' : 'hover:bg-primary-700'}`}
+                            >
+                                {isSubmitting ? 'Resubmitting…' : 'Resubmit for Review'}
+                            </button>
                         )}
                         <button
                             type="button"
