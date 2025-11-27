@@ -589,10 +589,38 @@ const RequestForm = () => {
                                     },
                                     body: JSON.stringify({}),
                                 });
-                                if (!submitResp.ok) {
-                                    const err = await submitResp.json().catch(() => ({}));
-                                    throw new Error(err.error || submitResp.statusText || 'Resubmit failed');
+
+                                if (submitResp.status === 409) {
+                                    // Splintering detected — show details and allow override
+                                    const body = await submitResp.json().catch(() => ({}));
+                                    const details = body?.details || body;
+                                    const msg = `Suspicious split purchases detected within the last ${details?.windowDays || ''} days. Combined total: ${details?.combined || ''} (threshold ${details?.threshold || ''}). Do you want to proceed and record an audit notification?`;
+                                    const overrideConfirm = await Swal.fire({ icon: 'warning', title: 'Potential Splintering Detected', text: msg, showCancelButton: true, confirmButtonText: 'Proceed Anyway', cancelButtonText: 'Cancel' });
+                                    if (!overrideConfirm.isConfirmed) {
+                                        setIsSubmitting(false);
+                                        return;
+                                    }
+
+                                    // Resend with override flag
+                                    const overrideResp = await fetch(`http://heron:4000/requests/${id}/submit`, {
+                                        method: 'POST',
+                                        headers: {
+                                            'Content-Type': 'application/json',
+                                            'x-user-id': String(userId),
+                                        },
+                                        body: JSON.stringify({ overrideSplinter: true }),
+                                    });
+                                    if (!overrideResp.ok) {
+                                        const err = await overrideResp.json().catch(() => ({}));
+                                        throw new Error(err.error || overrideResp.statusText || 'Resubmit failed after override');
+                                    }
+                                } else {
+                                    if (!submitResp.ok) {
+                                        const err = await submitResp.json().catch(() => ({}));
+                                        throw new Error(err.error || submitResp.statusText || 'Resubmit failed');
+                                    }
                                 }
+
                                 Swal.fire({ icon: 'success', title: 'Request resubmitted', text: 'Your request has been sent for review.' });
                                 navigate('/apps/requests');
                             } catch (submitErr: any) {
@@ -783,6 +811,32 @@ const RequestForm = () => {
                 headers: { 'Content-Type': 'application/json', 'x-user-id': String(userId) },
                 body: JSON.stringify({}),
             });
+
+            if (resp.status === 409) {
+                const body = await resp.json().catch(() => ({}));
+                const details = body?.details || body;
+                const msg = `Suspicious split purchases detected within the last ${details?.windowDays || ''} days. Combined total: ${details?.combined || ''} (threshold ${details?.threshold || ''}). Do you want to proceed and record an audit notification?`;
+                const overrideConfirm = await Swal.fire({ icon: 'warning', title: 'Potential Splintering Detected', text: msg, showCancelButton: true, confirmButtonText: 'Proceed Anyway', cancelButtonText: 'Cancel' });
+                if (!overrideConfirm.isConfirmed) {
+                    setIsSubmitting(false);
+                    return;
+                }
+
+                const overrideResp = await fetch(`http://heron:4000/requests/${id}/submit`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'x-user-id': String(userId) },
+                    body: JSON.stringify({ overrideSplinter: true }),
+                });
+                if (!overrideResp.ok) {
+                    const err = await overrideResp.json().catch(() => ({}));
+                    throw new Error(err.message || overrideResp.statusText || 'Failed to resubmit (override)');
+                }
+
+                Swal.fire({ icon: 'success', title: 'Resubmitted', text: 'Your request has been sent for review.' });
+                navigate('/apps/requests');
+                return;
+            }
+
             if (!resp.ok) {
                 const err = await resp.json().catch(() => ({}));
                 throw new Error(err.message || resp.statusText || 'Failed to resubmit');

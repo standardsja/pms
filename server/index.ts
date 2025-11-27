@@ -25,6 +25,7 @@ import { initWebSocket, emitIdeaCreated, emitIdeaStatusChanged, emitVoteUpdated,
 import { initAnalyticsJob, stopAnalyticsJob, getAnalytics, getCategoryAnalytics, getTimeBasedAnalytics } from './services/analyticsService';
 import { requestMonitoringMiddleware, trackCacheHit, trackCacheMiss, getMetrics, getHealthStatus, getSlowEndpoints, getErrorProneEndpoints } from './services/monitoringService';
 import { checkProcurementThresholds } from './services/thresholdService';
+import { checkSplintering } from './services/splinteringService';
 import { createThresholdNotifications } from './services/notificationService';
 import type { Prisma } from '@prisma/client';
 import { requireCommittee as requireCommitteeRole, requireEvaluationCommittee, requireAdmin, requireExecutive } from './middleware/rbac';
@@ -2567,6 +2568,43 @@ app.post('/requests/:id/submit', async (req, res) => {
 
         if (request.status !== 'DRAFT') {
             return res.status(400).json({ message: 'Only draft requests can be submitted' });
+        }
+
+        // Splintering check: detect possible split requests to avoid thresholds
+        try {
+            const windowDays = Number(process.env.SPLINTER_WINDOW_DAYS || 30);
+            const threshold = Number(process.env.SPLINTER_THRESHOLD_JMD || 250000);
+            const spl = await checkSplintering(prisma, {
+                requesterId: request.requesterId,
+                departmentId: request.departmentId,
+                total: Number(request.totalEstimated || 0),
+                windowDays,
+                threshold,
+            });
+
+            // If flagged and caller did not include an override, return 409 with details so the client can prompt the user
+            const allowOverride = Boolean(req.body && req.body.overrideSplinter === true);
+            if (spl.flagged && !allowOverride) {
+                return res.status(409).json({ message: 'Potential splintering detected', splinter: true, details: spl });
+            }
+
+            // If flagged and override provided, create an audit Notification so procurement/audit can review
+            if (spl.flagged && allowOverride) {
+                try {
+                    await prisma.notification.create({
+                        data: {
+                            userId: null,
+                            type: 'THRESHOLD_EXCEEDED',
+                            message: `Potential splintering detected for request ${request.reference || request.id} (sum ${spl.combined} >= ${spl.threshold}) - override applied`,
+                            data: { requestId: request.id, splinter: spl },
+                        },
+                    });
+                } catch (notifErr) {
+                    console.warn('Failed to create splintering notification:', notifErr);
+                }
+            }
+        } catch (splErr) {
+            console.warn('Splintering check failed:', splErr);
         }
 
         // Find department manager
