@@ -32,6 +32,7 @@ import { validate, createIdeaSchema, voteSchema, approveRejectIdeaSchema, promot
 import { errorHandler, notFoundHandler, asyncHandler, NotFoundError, BadRequestError } from './middleware/errorHandler';
 import statsRouter from './routes/stats';
 import combineRouter from './routes/combine';
+import * as SmartLoadBalancing from './services/smartLoadBalancingService';
 
 const app = express();
 const httpServer = http.createServer(app);
@@ -2771,24 +2772,23 @@ app.post('/requests/:id/action', async (req, res) => {
                     },
                 });
                 console.warn('Fallback applied: DB enum missing BUDGET_MANAGER_REVIEW; advanced to FINANCE_APPROVED');
-            }
 
-            // Notify the next assignee (procurement manager/officer) if present
-            try {
-                const assigneeId = updated.currentAssignee?.id || updated.currentAssigneeId || null;
-                if (assigneeId) {
-                    await prisma.notification.create({
-                        data: {
-                            userId: Number(assigneeId),
-                            type: 'STAGE_CHANGED',
-                            message: `Request ${updated.reference || updated.id} has advanced to ${updated.status} and is assigned to you`,
-                            data: { requestId: updated.id, status: updated.status },
-                        },
-                    });
+                // Notify the next assignee (procurement manager/officer) if present
+                try {
+                    const assigneeId = updated.currentAssignee?.id || updated.currentAssigneeId || null;
+                    if (assigneeId) {
+                        await prisma.notification.create({
+                            data: {
+                                userId: Number(assigneeId),
+                                type: 'STAGE_CHANGED',
+                                message: `Request ${updated.reference || updated.id} has advanced to ${updated.status} and is assigned to you`,
+                                data: { requestId: updated.id, status: updated.status },
+                            },
+                        });
+                    }
+                } catch (notifErr) {
+                    console.warn('Failed to create notification on approve action:', notifErr);
                 }
-            } catch (notifErr) {
-                console.warn('Failed to create notification on approve action:', notifErr);
-            }
             } else {
                 throw e;
             }
@@ -2954,7 +2954,7 @@ app.post('/requests/:id/assign', async (req, res) => {
     }
 });
 
-// GET /procurement/load-balancing-settings - Get load balancing configuration
+// GET /procurement/load-balancing-settings - Get AI-powered load balancing configuration
 app.get('/procurement/load-balancing-settings', async (req, res) => {
     try {
         const userId = req.headers['x-user-id'];
@@ -2977,26 +2977,15 @@ app.get('/procurement/load-balancing-settings', async (req, res) => {
             return res.status(403).json({ message: 'Only Procurement Managers can view settings' });
         }
 
-        // Check if settings table exists, if not return default settings
-        // For now, we'll store settings in a simple JSON format in the database
-        // You may want to create a dedicated Settings table in schema.prisma
-
-        // Return default settings for now
-        // TODO: Implement persistent storage in database
-        const defaultSettings = {
-            enabled: false,
-            strategy: 'LEAST_LOADED',
-            autoAssignOnApproval: true,
-        };
-
-        return res.json(defaultSettings);
+        const settings = await SmartLoadBalancing.getSettings();
+        return res.json(settings);
     } catch (e: any) {
         console.error('GET /procurement/load-balancing-settings error:', e);
         return res.status(500).json({ message: e?.message || 'Failed to fetch settings' });
     }
 });
 
-// POST /procurement/load-balancing-settings - Update load balancing configuration
+// POST /procurement/load-balancing-settings - Update AI-powered load balancing configuration
 app.post('/procurement/load-balancing-settings', async (req, res) => {
     try {
         const userId = req.headers['x-user-id'];
@@ -3019,28 +3008,123 @@ app.post('/procurement/load-balancing-settings', async (req, res) => {
             return res.status(403).json({ message: 'Only Procurement Managers can update settings' });
         }
 
-        const { enabled, strategy, autoAssignOnApproval } = req.body;
+        const { enabled, strategy, autoAssignOnApproval, aiEnabled, learningEnabled, priorityWeighting, performanceWeighting, workloadWeighting, specialtyWeighting, minConfidenceScore } = req.body;
 
         // Validate strategy
-        const validStrategies = ['LEAST_LOADED', 'ROUND_ROBIN', 'RANDOM'];
+        const validStrategies = ['AI_SMART', 'SKILL_BASED', 'PREDICTIVE', 'LEAST_LOADED', 'ROUND_ROBIN', 'RANDOM'];
         if (strategy && !validStrategies.includes(strategy)) {
-            return res.status(400).json({ message: 'Invalid strategy. Must be LEAST_LOADED, ROUND_ROBIN, or RANDOM' });
+            return res.status(400).json({
+                message: 'Invalid strategy. Must be: AI_SMART, SKILL_BASED, PREDICTIVE, LEAST_LOADED, ROUND_ROBIN, or RANDOM',
+            });
         }
 
-        // TODO: Implement persistent storage in database
-        // For now, just acknowledge the settings
-        const settings = {
+        const config = {
             enabled: enabled !== undefined ? enabled : false,
-            strategy: strategy || 'LEAST_LOADED',
+            strategy: strategy || 'AI_SMART',
             autoAssignOnApproval: autoAssignOnApproval !== undefined ? autoAssignOnApproval : true,
+            aiEnabled: aiEnabled !== undefined ? aiEnabled : true,
+            learningEnabled: learningEnabled !== undefined ? learningEnabled : true,
+            priorityWeighting: priorityWeighting || 1.0,
+            performanceWeighting: performanceWeighting || 1.5,
+            workloadWeighting: workloadWeighting || 1.2,
+            specialtyWeighting: specialtyWeighting || 1.3,
+            minConfidenceScore: minConfidenceScore || 0.6,
         };
 
-        console.log('Load balancing settings updated:', settings);
+        const settings = await SmartLoadBalancing.updateSettings(config);
+        console.log('🤖 AI Load balancing settings updated:', settings);
 
         return res.json(settings);
     } catch (e: any) {
         console.error('POST /procurement/load-balancing-settings error:', e);
         return res.status(500).json({ message: e?.message || 'Failed to update settings' });
+    }
+});
+
+// GET /api/procurement/ai-analytics - Get AI load balancing analytics and insights
+app.get('/api/procurement/ai-analytics', authMiddleware, async (req, res) => {
+    try {
+        const analytics = await SmartLoadBalancing.getAIAnalytics();
+        return res.json({
+            success: true,
+            data: analytics,
+            message: 'AI analytics retrieved successfully',
+        });
+    } catch (e: any) {
+        console.error('GET /api/procurement/ai-analytics error:', e);
+        return res.status(500).json({
+            success: false,
+            message: e?.message || 'Failed to fetch AI analytics',
+        });
+    }
+});
+
+// POST /api/procurement/auto-assign-pending - Manually trigger auto-assignment for pending requests
+app.post('/api/procurement/auto-assign-pending', authMiddleware, async (req, res) => {
+    try {
+        const user = (req as any).user as { sub?: number };
+        const userId = user.sub;
+
+        if (!userId) {
+            return res.status(401).json({ message: 'User ID required' });
+        }
+
+        // Verify the user is a procurement manager
+        const userRecord = await prisma.user.findUnique({
+            where: { id: userId },
+            include: { roles: { include: { role: true } } },
+        });
+
+        if (!userRecord) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        const isProcurementManager = userRecord.roles.some((ur) => ur.role.name === 'PROCUREMENT_MANAGER');
+        if (!isProcurementManager) {
+            return res.status(403).json({ message: 'Only Procurement Managers can trigger auto-assignment' });
+        }
+
+        const assignedCount = await SmartLoadBalancing.autoAssignPendingRequests(userId);
+
+        return res.json({
+            success: true,
+            assignedCount,
+            message: `Successfully auto-assigned ${assignedCount} pending requests`,
+        });
+    } catch (e: any) {
+        console.error('POST /api/procurement/auto-assign-pending error:', e);
+        return res.status(500).json({
+            success: false,
+            message: e?.message || 'Failed to auto-assign pending requests',
+        });
+    }
+});
+
+// POST /api/procurement/learn-from-completion - Report completion for AI learning
+app.post('/api/procurement/learn-from-completion', authMiddleware, async (req, res) => {
+    try {
+        const { requestId, wasSuccessful, feedbackScore } = req.body;
+
+        if (!requestId) {
+            return res.status(400).json({ message: 'Request ID is required' });
+        }
+
+        await SmartLoadBalancing.learnFromAssignment(
+            parseInt(requestId),
+            wasSuccessful !== false, // default true
+            feedbackScore ? parseFloat(feedbackScore) : undefined
+        );
+
+        return res.json({
+            success: true,
+            message: 'Learning data recorded successfully',
+        });
+    } catch (e: any) {
+        console.error('POST /api/procurement/learn-from-completion error:', e);
+        return res.status(500).json({
+            success: false,
+            message: e?.message || 'Failed to record learning data',
+        });
     }
 });
 
