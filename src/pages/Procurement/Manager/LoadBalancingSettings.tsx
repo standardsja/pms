@@ -38,45 +38,45 @@ const LoadBalancingSettings = () => {
         dispatch(setPageTitle('Load Balancing Settings'));
     }, [dispatch]);
 
-    useEffect(() => {
-        const fetchSettings = async () => {
-            setLoading(true);
-            setError(null);
+    const fetchSettings = async () => {
+        setLoading(true);
+        setError(null);
 
-            try {
-                const token = getToken();
-                const currentUser = getUser();
-                const currentUserId = currentUser?.id || null;
+        try {
+            const token = getToken();
+            const currentUser = getUser();
+            const currentUserId = currentUser?.id || null;
 
-                if (!token) {
-                    throw new Error('Authentication required');
-                }
-
-                const res = await fetch(`${apiUrl}/procurement/load-balancing-settings`, {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        'x-user-id': String(currentUserId || ''),
-                        'Content-Type': 'application/json',
-                    },
-                });
-                if (!res.ok) {
-                    if (res.status === 404) {
-                        // Settings don't exist yet, use defaults
-                        setLoading(false);
-                        return;
-                    }
-                    throw new Error('Failed to fetch settings');
-                }
-                const data = await res.json();
-                setSettings(data);
-            } catch (err: any) {
-                console.error('Error fetching settings:', err);
-                setError(err.message || 'Failed to load settings');
-            } finally {
-                setLoading(false);
+            if (!token) {
+                throw new Error('Authentication required');
             }
-        };
 
+            const res = await fetch(`${apiUrl}/procurement/load-balancing-settings`, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'x-user-id': String(currentUserId || ''),
+                    'Content-Type': 'application/json',
+                },
+            });
+            if (!res.ok) {
+                if (res.status === 404) {
+                    // Settings don't exist yet, use defaults
+                    setLoading(false);
+                    return;
+                }
+                throw new Error('Failed to fetch settings');
+            }
+            const data = await res.json();
+            setSettings(data);
+        } catch (err: any) {
+            console.error('Error fetching settings:', err);
+            setError(err.message || 'Failed to load settings');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
         fetchSettings();
     }, [apiUrl]);
 
@@ -91,6 +91,39 @@ const LoadBalancingSettings = () => {
     }
 
     const handleSave = async () => {
+        await saveSettings(settings);
+    };
+
+    const handleToggle = async () => {
+        if (settings.enabled) {
+            // Disabling - show confirmation
+            MySwal.fire({
+                title: 'Disable Load Balancing?',
+                text: 'Requests will no longer be automatically distributed to procurement officers. You will need to manually assign each request.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Yes, Disable',
+                confirmButtonColor: '#dc2626',
+                cancelButtonText: 'Cancel',
+            }).then(async (result) => {
+                if (result.isConfirmed) {
+                    const newSettings = { ...settings, enabled: false };
+                    setSettings(newSettings);
+
+                    // Auto-save after toggling
+                    await saveSettings(newSettings);
+                }
+            });
+        } else {
+            const newSettings = { ...settings, enabled: true };
+            setSettings(newSettings);
+
+            // Auto-save after toggling
+            await saveSettings(newSettings);
+        }
+    };
+
+    const saveSettings = async (settingsToSave: LoadBalancingSettings) => {
         setSaving(true);
 
         try {
@@ -109,13 +142,15 @@ const LoadBalancingSettings = () => {
                     Authorization: `Bearer ${token}`,
                     'x-user-id': String(currentUserId || ''),
                 },
-                body: JSON.stringify(settings),
+                body: JSON.stringify(settingsToSave),
             });
 
             if (!res.ok) {
                 const error = await res.json().catch(() => ({}));
                 throw new Error(error.message || 'Failed to save settings');
             }
+
+            const data = await res.json();
 
             MySwal.fire({
                 icon: 'success',
@@ -124,6 +159,11 @@ const LoadBalancingSettings = () => {
                 timer: 2000,
                 showConfirmButton: false,
             });
+
+            // Update local state with server response
+            if (data.settings) {
+                setSettings(data.settings);
+            }
         } catch (err: any) {
             console.error('Error saving settings:', err);
             MySwal.fire({
@@ -131,29 +171,10 @@ const LoadBalancingSettings = () => {
                 title: 'Save Failed',
                 text: err.message || 'Failed to save settings. Please try again.',
             });
+            // Revert state on error
+            fetchSettings();
         } finally {
             setSaving(false);
-        }
-    };
-
-    const handleToggle = () => {
-        if (settings.enabled) {
-            // Disabling - show confirmation
-            MySwal.fire({
-                title: 'Disable Load Balancing?',
-                text: 'Requests will no longer be automatically distributed to procurement officers. You will need to manually assign each request.',
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonText: 'Yes, Disable',
-                confirmButtonColor: '#dc2626',
-                cancelButtonText: 'Cancel',
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    setSettings({ ...settings, enabled: false });
-                }
-            });
-        } else {
-            setSettings({ ...settings, enabled: true });
         }
     };
 

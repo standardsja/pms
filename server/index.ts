@@ -2670,11 +2670,9 @@ app.post('/requests/:id/action', async (req, res) => {
                 nextAssigneeId = budgetManager?.id || null;
             } else if (request.status === 'BUDGET_MANAGER_REVIEW') {
                 // Budget Manager approved -> send to Procurement for final processing
-                const procurement = await prisma.user.findFirst({
-                    where: { roles: { some: { role: { name: 'PROCUREMENT' } } } },
-                });
+                // Leave nextAssigneeId as null - will be set by AI load balancing if enabled
                 nextStatus = 'PROCUREMENT_REVIEW';
-                nextAssigneeId = procurement?.id || null;
+                nextAssigneeId = null;
             } else if (request.status === 'PROCUREMENT_REVIEW') {
                 // Procurement approved -> final approval (ready to send to vendor)
                 nextStatus = 'FINANCE_APPROVED';
@@ -2726,6 +2724,74 @@ app.post('/requests/:id/action', async (req, res) => {
                 },
             });
 
+            // 🤖 AI LOAD BALANCING: Auto-assign to procurement officer when reaching PROCUREMENT_REVIEW
+            if (nextStatus === 'PROCUREMENT_REVIEW' && action === 'APPROVE') {
+                try {
+                    const loadBalancingSettings = await SmartLoadBalancing.getSettings();
+
+                    if (loadBalancingSettings.enabled && loadBalancingSettings.autoAssignOnApproval) {
+                        // Use AI to auto-assign
+                        const wasAssigned = await SmartLoadBalancing.autoAssignRequest(updated.id, parseInt(String(userId), 10));
+
+                        if (wasAssigned) {
+                            // Refresh the updated request to get the new assignee
+                            updated =
+                                (await prisma.request.findUnique({
+                                    where: { id: updated.id },
+                                    include: {
+                                        items: true,
+                                        requester: { select: { id: true, name: true, email: true } },
+                                        department: { select: { id: true, name: true, code: true } },
+                                        currentAssignee: { select: { id: true, name: true, email: true } },
+                                    },
+                                })) || updated;
+
+                            console.log(`✅ AI auto-assigned request ${updated.id} to officer ${updated.currentAssigneeId}`);
+                        } else {
+                            // Fallback to first available procurement officer
+                            const procurement = await prisma.user.findFirst({
+                                where: { roles: { some: { role: { name: 'PROCUREMENT' } } } },
+                            });
+
+                            if (procurement) {
+                                updated = await prisma.request.update({
+                                    where: { id: updated.id },
+                                    data: { currentAssigneeId: procurement.id },
+                                    include: {
+                                        items: true,
+                                        requester: { select: { id: true, name: true, email: true } },
+                                        department: { select: { id: true, name: true, code: true } },
+                                        currentAssignee: { select: { id: true, name: true, email: true } },
+                                    },
+                                });
+                                console.log(`⚠️ AI assignment failed, used fallback assignment to ${procurement.name}`);
+                            }
+                        }
+                    } else {
+                        // Load balancing disabled - use simple assignment
+                        const procurement = await prisma.user.findFirst({
+                            where: { roles: { some: { role: { name: 'PROCUREMENT' } } } },
+                        });
+
+                        if (procurement) {
+                            updated = await prisma.request.update({
+                                where: { id: updated.id },
+                                data: { currentAssigneeId: procurement.id },
+                                include: {
+                                    items: true,
+                                    requester: { select: { id: true, name: true, email: true } },
+                                    department: { select: { id: true, name: true, code: true } },
+                                    currentAssignee: { select: { id: true, name: true, email: true } },
+                                },
+                            });
+                        }
+                    }
+                } catch (loadBalancingErr) {
+                    console.error('Load balancing assignment error:', loadBalancingErr);
+                    // Continue with request update even if load balancing fails
+                }
+            }
+
             // Notify the next assignee (procurement manager/officer) if present (normal path)
             try {
                 const assigneeId = updated.currentAssignee?.id || updated.currentAssigneeId || null;
@@ -2747,15 +2813,12 @@ app.post('/requests/:id/action', async (req, res) => {
             const enumProblem = msg.includes('BUDGET_MANAGER_REVIEW') || msg.toLowerCase().includes('invalid enum');
             if (enumProblem && request.status === 'FINANCE_REVIEW') {
                 // Fallback: if DB enum lacks BUDGET_MANAGER_REVIEW, treat as FINANCE_APPROVED
-                const procurement = await prisma.user.findFirst({
-                    where: { roles: { some: { role: { name: 'PROCUREMENT' } } } },
-                });
                 const fallbackStatus = 'FINANCE_APPROVED' as const;
                 updated = await prisma.request.update({
                     where: { id: parseInt(id, 10) },
                     data: {
                         status: fallbackStatus,
-                        currentAssigneeId: procurement?.id || null,
+                        currentAssigneeId: null, // Will be set by load balancing
                         statusHistory: {
                             create: {
                                 status: fallbackStatus,
@@ -2772,6 +2835,47 @@ app.post('/requests/:id/action', async (req, res) => {
                     },
                 });
                 console.warn('Fallback applied: DB enum missing BUDGET_MANAGER_REVIEW; advanced to FINANCE_APPROVED');
+
+                // Try AI load balancing assignment
+                try {
+                    const loadBalancingSettings = await SmartLoadBalancing.getSettings();
+
+                    if (loadBalancingSettings.enabled && loadBalancingSettings.autoAssignOnApproval) {
+                        await SmartLoadBalancing.autoAssignRequest(updated.id, parseInt(String(userId), 10));
+
+                        // Refresh to get assigned officer
+                        updated =
+                            (await prisma.request.findUnique({
+                                where: { id: updated.id },
+                                include: {
+                                    items: true,
+                                    requester: { select: { id: true, name: true, email: true } },
+                                    department: { select: { id: true, name: true, code: true } },
+                                    currentAssignee: { select: { id: true, name: true, email: true } },
+                                },
+                            })) || updated;
+                    } else {
+                        // Fallback to first procurement officer
+                        const procurement = await prisma.user.findFirst({
+                            where: { roles: { some: { role: { name: 'PROCUREMENT' } } } },
+                        });
+
+                        if (procurement) {
+                            updated = await prisma.request.update({
+                                where: { id: updated.id },
+                                data: { currentAssigneeId: procurement.id },
+                                include: {
+                                    items: true,
+                                    requester: { select: { id: true, name: true, email: true } },
+                                    department: { select: { id: true, name: true, code: true } },
+                                    currentAssignee: { select: { id: true, name: true, email: true } },
+                                },
+                            });
+                        }
+                    }
+                } catch (lbErr) {
+                    console.error('Load balancing error in fallback:', lbErr);
+                }
 
                 // Notify the next assignee (procurement manager/officer) if present
                 try {
@@ -3018,17 +3122,30 @@ app.post('/procurement/load-balancing-settings', async (req, res) => {
             });
         }
 
+        // Convert and validate numeric values
+        const parseFloat = (val: any, defaultVal: number): number => {
+            const parsed = Number(val);
+            return isNaN(parsed) ? defaultVal : parsed;
+        };
+
+        const parseBoolean = (val: any, defaultVal: boolean): boolean => {
+            if (val === undefined || val === null) return defaultVal;
+            if (typeof val === 'boolean') return val;
+            if (typeof val === 'string') return val.toLowerCase() === 'true';
+            return Boolean(val);
+        };
+
         const config = {
-            enabled: enabled !== undefined ? enabled : false,
+            enabled: parseBoolean(enabled, false),
             strategy: strategy || 'AI_SMART',
-            autoAssignOnApproval: autoAssignOnApproval !== undefined ? autoAssignOnApproval : true,
-            aiEnabled: aiEnabled !== undefined ? aiEnabled : true,
-            learningEnabled: learningEnabled !== undefined ? learningEnabled : true,
-            priorityWeighting: priorityWeighting || 1.0,
-            performanceWeighting: performanceWeighting || 1.5,
-            workloadWeighting: workloadWeighting || 1.2,
-            specialtyWeighting: specialtyWeighting || 1.3,
-            minConfidenceScore: minConfidenceScore || 0.6,
+            autoAssignOnApproval: parseBoolean(autoAssignOnApproval, true),
+            aiEnabled: parseBoolean(aiEnabled, true),
+            learningEnabled: parseBoolean(learningEnabled, true),
+            priorityWeighting: parseFloat(priorityWeighting, 1.0),
+            performanceWeighting: parseFloat(performanceWeighting, 1.5),
+            workloadWeighting: parseFloat(workloadWeighting, 1.2),
+            specialtyWeighting: parseFloat(specialtyWeighting, 1.3),
+            minConfidenceScore: parseFloat(minConfidenceScore, 0.6),
         };
 
         const settings = await SmartLoadBalancing.updateSettings(config);
