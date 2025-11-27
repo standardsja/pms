@@ -103,7 +103,8 @@ export async function fetchIdeas(params?: {
     qs.set('t', Date.now().toString());
 
     try {
-        const res = await fetch(`http://localhost:4000/api/ideas${qs.toString() ? `?${qs.toString()}` : ''}`, {
+        const apiBase = import.meta.env.VITE_API_URL || '';
+        const res = await fetch(`${apiBase}/api/ideas${qs.toString() ? `?${qs.toString()}` : ''}`, {
             headers: {
                 ...authHeaders(),
                 'Cache-Control': 'no-store',
@@ -128,26 +129,14 @@ export async function fetchIdeas(params?: {
 
         const data = await res.json();
 
-        // Handle both paginated and legacy responses
-        if (data.ideas && data.pagination) {
-            // New paginated format
+        // Handle both paginated and legacy responses - return an array of ideas for callers
+        if (data && data.ideas && data.pagination) {
             const paginated = data as PaginatedIdeas;
-            return {
-                ...paginated,
-                ideas: paginated.ideas.map((i) => ({ ...i, firstAttachmentUrl: i.attachments?.[0]?.fileUrl || null })),
-            };
-        } else {
-            // Legacy format (array of ideas) - for backward compatibility
-            const list = data as Idea[];
-            return {
-                ideas: list.map((i) => ({ ...i, firstAttachmentUrl: i.attachments?.[0]?.fileUrl || null })),
-                pagination: {
-                    nextCursor: null,
-                    hasMore: false,
-                    limit: list.length,
-                },
-            };
+            return paginated.ideas.map((i) => ({ ...i, firstAttachmentUrl: i.attachments?.[0]?.fileUrl || null }));
         }
+
+        const list = Array.isArray(data) ? (data as Idea[]) : [];
+        return list.map((i) => ({ ...i, firstAttachmentUrl: i.attachments?.[0]?.fileUrl || null }));
     } catch (error) {
         // Network or other fetch errors
         if (error instanceof Error && error.message) {
@@ -164,7 +153,9 @@ export async function fetchIdeaById(id: string | number, opts?: { includeAttachm
     const url = `http://localhost:4000/api/ideas/${id}?${qs.toString()}`;
 
     try {
-        const res = await fetch(url, {
+        const apiBase = import.meta.env.VITE_API_URL || '';
+        const finalUrl = apiBase ? `${apiBase}/api/ideas/${id}?${qs.toString()}` : url.replace('http://localhost:4000', '');
+        const res = await fetch(finalUrl, {
             headers: {
                 ...authHeaders(),
                 'Cache-Control': 'no-store',
@@ -378,13 +369,15 @@ export async function submitIdea(
         if (user?.id) headers['x-user-id'] = user.id;
         if (token) headers['Authorization'] = `Bearer ${token}`;
 
-        const res = await fetch(`http://localhost:4000/api/ideas`, {
+        const apiBase = import.meta.env.VITE_API_URL || '';
+        const url = `${apiBase}/api/ideas`;
+        const res = await fetch(url, {
             method: 'POST',
             headers,
             body: form,
         });
         if (!res.ok) throw new Error(await res.text());
-        const ct = (res.headers.get('content-type') || '').toLowerCase();
+        const ct = (res && (res.headers && typeof res.headers.get === 'function') ? (res.headers.get('content-type') || '') : '').toLowerCase();
         if (!ct.includes('application/json')) {
             const text = await res.text();
             throw new Error(`Server returned non-JSON response when creating idea: ${text.substring(0, 300)}`);
