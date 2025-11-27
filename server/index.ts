@@ -37,13 +37,9 @@ import * as SmartLoadBalancing from './services/smartLoadBalancingService';
 const app = express();
 const httpServer = http.createServer(app);
 const PORT = process.env.PORT ? Number(process.env.PORT) : 4000;
-const APP_ENV = process.env.APP_ENV || 'production';
-// In production, bind to 0.0.0.0 unless overridden via API_HOST
-// Bind address for the HTTP server. In local development we bind to 0.0.0.0
-// so that other hostnames (e.g. Docker host aliases like `heron`) can reach the server.
-const API_HOST = process.env.API_HOST || (APP_ENV === 'local' ? '0.0.0.0' : '0.0.0.0');
-// Public host for logs (what users type in the browser)
-const PUBLIC_HOST = process.env.API_PUBLIC_HOST || (APP_ENV === 'local' ? 'localhost' : 'heron');
+// Always use heron configuration
+const API_HOST = '0.0.0.0';
+const PUBLIC_HOST = 'heron';
 const JWT_SECRET = process.env.JWT_SECRET || 'devsecret-change-me';
 
 let trendingJobInterval: NodeJS.Timeout | null = null;
@@ -4555,7 +4551,7 @@ async function start() {
         initWebSocket(httpServer); // Initialize WebSocket server
 
         httpServer.listen(PORT, API_HOST, () => {
-            console.log(`🚀 Environment: ${APP_ENV.toUpperCase()}`);
+            console.log(`🚀 Environment: PRODUCTION`);
             console.log(`API server listening on http://${PUBLIC_HOST}:${PORT} (bind ${API_HOST})`);
             console.log(`WebSocket server ready on ws://${PUBLIC_HOST}:${PORT}`);
             console.log(`Health check: http://${PUBLIC_HOST}:${PORT}/health`);
