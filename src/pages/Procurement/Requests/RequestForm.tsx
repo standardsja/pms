@@ -594,8 +594,17 @@ const RequestForm = () => {
                                     // Splintering detected — show details and allow override
                                     const body = await submitResp.json().catch(() => ({}));
                                     const details = body?.details || body;
-                                    const msg = `Suspicious split purchases detected within the last ${details?.windowDays || ''} days. Combined total: ${details?.combined || ''} (threshold ${details?.threshold || ''}). Do you want to proceed and record an audit notification?`;
-                                    const overrideConfirm = await Swal.fire({ icon: 'warning', title: 'Potential Splintering Detected', text: msg, showCancelButton: true, confirmButtonText: 'Proceed Anyway', cancelButtonText: 'Cancel' });
+                                    const msg = `Suspicious split purchases detected within the last ${details?.windowDays || ''} days. Combined total: ${details?.combined || ''} (threshold ${
+                                        details?.threshold || ''
+                                    }). Do you want to proceed and record an audit notification?`;
+                                    const overrideConfirm = await Swal.fire({
+                                        icon: 'warning',
+                                        title: 'Potential Splintering Detected',
+                                        text: msg,
+                                        showCancelButton: true,
+                                        confirmButtonText: 'Proceed Anyway',
+                                        cancelButtonText: 'Cancel',
+                                    });
                                     if (!overrideConfirm.isConfirmed) {
                                         setIsSubmitting(false);
                                         return;
@@ -815,8 +824,17 @@ const RequestForm = () => {
             if (resp.status === 409) {
                 const body = await resp.json().catch(() => ({}));
                 const details = body?.details || body;
-                const msg = `Suspicious split purchases detected within the last ${details?.windowDays || ''} days. Combined total: ${details?.combined || ''} (threshold ${details?.threshold || ''}). Do you want to proceed and record an audit notification?`;
-                const overrideConfirm = await Swal.fire({ icon: 'warning', title: 'Potential Splintering Detected', text: msg, showCancelButton: true, confirmButtonText: 'Proceed Anyway', cancelButtonText: 'Cancel' });
+                const msg = `Suspicious split purchases detected within the last ${details?.windowDays || ''} days. Combined total: ${details?.combined || ''} (threshold ${
+                    details?.threshold || ''
+                }). Do you want to proceed and record an audit notification?`;
+                const overrideConfirm = await Swal.fire({
+                    icon: 'warning',
+                    title: 'Potential Splintering Detected',
+                    text: msg,
+                    showCancelButton: true,
+                    confirmButtonText: 'Proceed Anyway',
+                    cancelButtonText: 'Cancel',
+                });
                 if (!overrideConfirm.isConfirmed) {
                     setIsSubmitting(false);
                     return;
