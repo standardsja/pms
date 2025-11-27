@@ -377,7 +377,7 @@ export async function submitIdea(
             body: form,
         });
         if (!res.ok) throw new Error(await res.text());
-        const ct = (res && (res.headers && typeof res.headers.get === 'function') ? (res.headers.get('content-type') || '') : '').toLowerCase();
+        const ct = (res && res.headers && typeof res.headers.get === 'function' ? res.headers.get('content-type') || '' : '').toLowerCase();
         if (!ct.includes('application/json')) {
             const text = await res.text();
             throw new Error(`Server returned non-JSON response when creating idea: ${text.substring(0, 300)}`);
