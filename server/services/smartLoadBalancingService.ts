@@ -559,8 +559,10 @@ export async function selectOfficer(
                 confidence = 0.5;
                 break;
             default:
-                officerId = await selectAISmart(requestId, config);
-                confidence = 0.7;
+                const aiSmartResult = await selectAISmart(requestId, config);
+                officerId = aiSmartResult ? aiSmartResult.officerId : null;
+                confidence = aiSmartResult ? aiSmartResult.confidenceScore : 0.7;
+                predictedTime = aiSmartResult ? aiSmartResult.predictedCompletionTime : undefined;
         }
 
         if (!officerId) return null;

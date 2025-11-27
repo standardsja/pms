@@ -2311,7 +2311,7 @@ app.patch('/requests/:id', async (req, res) => {
 
         // Create a notification for the new assignee (if any)
         try {
-            const assigneeId = updated.currentAssignee?.id || updated.currentAssigneeId || null;
+            const assigneeId = updated.currentAssigneeId || null;
             if (assigneeId) {
                 await prisma.notification.create({
                     data: {
@@ -2342,6 +2342,9 @@ app.put('/requests/:id', async (req, res) => {
         // Remove deprecated fields that no longer exist in schema
         const { budgetOfficerApproved, budgetManagerApproved, ...cleanUpdates } = updates;
 
+        // Get userId from header for notification assignment
+        const userId = req.headers['x-user-id'];
+
         const updated = await prisma.request.update({
             where: { id: parseInt(id, 10) },
             data: cleanUpdates,
@@ -2354,14 +2357,14 @@ app.put('/requests/:id', async (req, res) => {
 
         // Notify the assignee after explicit assignment
         try {
-            const assigneeId = updated.currentAssignee?.id || updated.currentAssigneeId || null;
+            const assigneeId = updated.currentAssigneeId || null;
             if (assigneeId) {
                 await prisma.notification.create({
                     data: {
                         userId: Number(assigneeId),
                         type: 'STAGE_CHANGED',
                         message: `Request ${updated.reference || updated.id} has been assigned to you for ${updated.status}`,
-                        data: { requestId: updated.id, status: updated.status, assignedBy: parseInt(String(userId), 10) },
+                        data: { requestId: updated.id, status: updated.status, assignedBy: userId ? parseInt(String(userId), 10) : undefined },
                     },
                 });
             }
@@ -2592,7 +2595,7 @@ app.post('/requests/:id/submit', async (req, res) => {
 
         // Notify the department manager (new assignee) that a request was submitted
         try {
-            const assigneeId = updated.currentAssignee?.id || updated.currentAssigneeId || null;
+            const assigneeId = updated.currentAssigneeId || null;
             if (assigneeId) {
                 await prisma.notification.create({
                     data: {
