@@ -1,56 +1,25 @@
-#!/usr/bin/env node
-import { PrismaClient } from '@prisma/client';
+import fetch from 'node-fetch';
 
-const prisma = new PrismaClient({
-    datasourceUrl: 'mysql://database_admin:03un5gZ1QBls@Stork:3306/db_spinx',
-});
-
-async function checkProcManager() {
+async function checkProcurementManagerRole() {
     try {
-        const email = process.argv[2] || 'proc.manager@bsj.gov.jm';
-
-        const user = await prisma.user.findUnique({
-            where: { email },
-            include: {
-                roles: {
-                    include: { role: true },
-                },
-            },
+        const loginResponse = await fetch('http://heron:4000/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                email: 'proc.manager@bsj.gov.jm',
+                password: 'Passw0rd!',
+            }),
         });
 
-        if (!user) {
-            console.log(`❌ User ${email} not found`);
-            console.log('\nLet me list all users with PROCUREMENT or MANAGER in their roles:');
-
-            const allUsers = await prisma.user.findMany({
-                include: {
-                    roles: {
-                        include: { role: true },
-                    },
-                },
-            });
-
-            const procUsers = allUsers.filter((u) => u.roles.some((ur) => ur.role.name.includes('PROCUREMENT') || ur.role.name.includes('MANAGER')));
-
-            procUsers.forEach((u) => {
-                console.log(`\n  ${u.email} (${u.name})`);
-                console.log(`  Roles: ${u.roles.map((r) => r.role.name).join(', ')}`);
-            });
+        if (loginResponse.ok) {
+            const loginData = await loginResponse.json();
+            console.log('Procurement Manager login data:', loginData);
         } else {
-            console.log(`\n✅ User: ${user.name} (${user.email})`);
-            console.log(`Roles: ${user.roles.map((r) => r.role.name).join(', ')}`);
-
-            const hasManager = user.roles.some((ur) => ur.role.name === 'PROCUREMENT_MANAGER');
-            const hasProcurement = user.roles.some((ur) => ur.role.name === 'PROCUREMENT');
-
-            console.log(`\nHas PROCUREMENT_MANAGER role: ${hasManager ? '✅ YES' : '❌ NO'}`);
-            console.log(`Has PROCUREMENT role: ${hasProcurement ? '✅ YES' : '❌ NO'}`);
+            console.log('Procurement manager login failed');
         }
     } catch (error) {
         console.error('Error:', error.message);
-    } finally {
-        await prisma.$disconnect();
     }
 }
 
-checkProcManager();
+checkProcurementManagerRole();
