@@ -3115,10 +3115,14 @@ app.get('/users/procurement-officers', async (req, res) => {
             return res.status(403).json({ message: 'Only Procurement Managers can view procurement officers' });
         }
 
-        // Get all users with PROCUREMENT role
+        // Get all procurement officers and managers
         const officers = await prisma.user.findMany({
             where: {
-                roles: { some: { role: { name: 'PROCUREMENT' } } },
+                OR: [
+                    { roles: { some: { role: { name: 'PROCUREMENT' } } } },
+                    { roles: { some: { role: { name: 'PROCUREMENT_MANAGER' } } } },
+                    { AND: [{ roles: { some: { role: { name: 'DEPT_MANAGER' } } } }, { department: { code: 'PROC' } }] },
+                ],
             },
             include: {
                 roles: { include: { role: true } },
@@ -3229,19 +3233,24 @@ app.post('/requests/:id/assign', async (req, res) => {
         // Verify the user is a procurement manager or self-assigning
         const user = await prisma.user.findUnique({
             where: { id: parseInt(String(userId), 10) },
-            include: { roles: { include: { role: true } } },
+            include: {
+                roles: { include: { role: true } },
+                department: true,
+            },
         });
 
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
         }
 
-        const isProcurementManager = user.roles.some((ur) => ur.role.name === 'PROCUREMENT_MANAGER');
-        const isProcurementOfficer = user.roles.some((ur) => ur.role.name === 'PROCUREMENT');
+        const roleNames = user.roles.map((ur) => ur.role.name.toUpperCase());
+        const isProcurementManager = roleNames.some((r) => r === 'PROCUREMENT_MANAGER' || (r.includes('PROCUREMENT') && r.includes('MANAGER')));
+        const isProcDeptManager = roleNames.includes('DEPT_MANAGER') && user.department?.code === 'PROC';
+        const isProcurementOfficer = roleNames.includes('PROCUREMENT') || roleNames.includes('PROCUREMENT_OFFICER');
         const isSelfAssigning = parseInt(String(userId), 10) === parseInt(String(assigneeId), 10);
 
-        // Allow if user is procurement manager OR if user is self-assigning as procurement officer
-        if (!isProcurementManager && !(isProcurementOfficer && isSelfAssigning)) {
+        // Allow if user is procurement manager (incl. PROC dept manager) OR if user is self-assigning as procurement officer
+        if (!(isProcurementManager || isProcDeptManager) && !(isProcurementOfficer && isSelfAssigning)) {
             return res.status(403).json({ message: 'Not authorized to assign requests' });
         }
 
@@ -3262,14 +3271,22 @@ app.post('/requests/:id/assign', async (req, res) => {
         // Verify assignee has PROCUREMENT or PROCUREMENT_MANAGER role
         const assignee = await prisma.user.findUnique({
             where: { id: parseInt(String(assigneeId), 10) },
-            include: { roles: { include: { role: true } } },
+            include: {
+                roles: { include: { role: true } },
+                department: true,
+            },
         });
 
         if (!assignee) {
             return res.status(404).json({ message: 'Assignee not found' });
         }
 
-        const hasValidRole = assignee.roles.some((ur) => ur.role.name === 'PROCUREMENT' || ur.role.name === 'PROCUREMENT_MANAGER');
+        const assigneeRoleNames = assignee.roles.map((ur) => ur.role.name.toUpperCase());
+        const hasValidRole =
+            assigneeRoleNames.includes('PROCUREMENT') ||
+            assigneeRoleNames.includes('PROCUREMENT_OFFICER') ||
+            assigneeRoleNames.includes('PROCUREMENT_MANAGER') ||
+            (assigneeRoleNames.includes('DEPT_MANAGER') && assignee.department?.code === 'PROC');
         if (!hasValidRole) {
             return res.status(400).json({ message: 'Assignee must have PROCUREMENT or PROCUREMENT_MANAGER role' });
         }
