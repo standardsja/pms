@@ -125,9 +125,7 @@ const RequestForm = () => {
     const isBudgetOfficer = userRoles.some((r: string) => r === 'FINANCE' || /finance/i.test(r));
 
     // Check if user has manager privileges (can override splintering warnings)
-    const hasManagerRole = userRoles.some(
-        (r: string) => r === 'PROCUREMENT_MANAGER' || r === 'DEPT_MANAGER' || r === 'MANAGER' || r === 'EXECUTIVE' || /manager/i.test(r)
-    );
+    const hasManagerRole = userRoles.some((r: string) => r === 'PROCUREMENT_MANAGER' || r === 'DEPT_MANAGER' || r === 'MANAGER' || r === 'EXECUTIVE' || /manager/i.test(r));
 
     // Track request metadata to gate editing by stage & assignee
     const [requestMeta, setRequestMeta] = useState<{ status?: string; currentAssigneeId?: number } | null>(null);

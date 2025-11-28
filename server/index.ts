@@ -2646,11 +2646,7 @@ app.post('/requests/:id/submit', async (req, res) => {
 
                 // Check if user has manager role (PROCUREMENT_MANAGER, DEPT_MANAGER, or MANAGER)
                 const hasManagerRole = actingUser.roles.some(
-                    (ur) =>
-                        ur.role.name === 'PROCUREMENT_MANAGER' ||
-                        ur.role.name === 'DEPT_MANAGER' ||
-                        ur.role.name === 'MANAGER' ||
-                        ur.role.name === 'EXECUTIVE'
+                    (ur) => ur.role.name === 'PROCUREMENT_MANAGER' || ur.role.name === 'DEPT_MANAGER' || ur.role.name === 'MANAGER' || ur.role.name === 'EXECUTIVE'
                 );
 
                 if (!hasManagerRole) {
