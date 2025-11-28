@@ -3316,8 +3316,9 @@ app.get('/procurement/load-balancing-settings', async (req, res) => {
         }
 
         const isProcurementManager = user.roles.some((ur) => ur.role.name === 'PROCUREMENT_MANAGER');
-        if (!isProcurementManager) {
-            return res.status(403).json({ message: 'Only Procurement Managers can view settings' });
+        const isDeptManager = user.roles.some((ur) => ur.role.name === 'DEPT_MANAGER');
+        if (!isProcurementManager && !isDeptManager) {
+            return res.status(403).json({ message: 'Only Procurement Managers or Department Managers can view settings' });
         }
 
         // Fetch settings from database using service
