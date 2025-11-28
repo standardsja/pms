@@ -106,14 +106,37 @@ if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 app.use('/uploads', express.static(UPLOAD_DIR));
 
 // Utility: attempt to repair invalid Request.status values that break Prisma enum queries
+// Covers NULL/empty and common legacy statuses not present in current enum
 async function fixInvalidRequestStatuses(): Promise<number | null> {
     try {
-        // Normalize NULL or empty string statuses to a safe default
-        const patched: any = await prisma.$executeRawUnsafe("UPDATE Request SET status = 'DRAFT' WHERE status IS NULL OR status = ''");
-        // $executeRaw returns number of affected rows in some drivers or a Result object; coerce to number when possible
-        if (typeof patched === 'number') return patched;
-        if (patched && typeof patched.rowCount === 'number') return patched.rowCount;
-        return 0;
+        let total = 0;
+
+        // 1) NULL or empty -> DRAFT
+        const r1: any = await prisma.$executeRawUnsafe("UPDATE Request SET status = 'DRAFT' WHERE status IS NULL OR status = ''");
+        total += typeof r1 === 'number' ? r1 : (r1?.rowCount ?? 0);
+
+        // 2) Legacy names -> current enum
+        const updates: Array<{ sql: string; desc: string }> = [
+            { sql: "UPDATE Request SET status = 'SUBMITTED' WHERE status IN ('PENDING','UNDER_REVIEW')", desc: 'PENDING/UNDER_REVIEW -> SUBMITTED' },
+            { sql: "UPDATE Request SET status = 'DEPARTMENT_REVIEW' WHERE status IN ('DEPT_REVIEW','DEPARTMENT_APPROVAL','DEPARTMENT_REVIEWING')", desc: 'Dept legacy -> DEPARTMENT_REVIEW' },
+            { sql: "UPDATE Request SET status = 'BUDGET_MANAGER_REVIEW' WHERE status IN ('BUDGET_REVIEW','BUDGET_OFFICER_REVIEW')", desc: 'Budget legacy -> BUDGET_MANAGER_REVIEW' },
+            { sql: "UPDATE Request SET status = 'EXECUTIVE_REVIEW' WHERE status IN ('EXECUTIVE_APPROVED','EXECUTIVE_APPROVAL')", desc: 'Executive legacy -> EXECUTIVE_REVIEW' },
+            { sql: "UPDATE Request SET status = 'FINANCE_APPROVED' WHERE status = 'APPROVED'", desc: 'APPROVED (generic) -> FINANCE_APPROVED' },
+            { sql: "UPDATE Request SET status = 'PROCUREMENT_REVIEW' WHERE status IN ('PROCUREMENT','PROCUREMENT_APPROVED','PROCUREMENT_APPROVAL')", desc: 'Procurement legacy -> PROCUREMENT_REVIEW' },
+        ];
+        for (const u of updates) {
+            const r: any = await prisma.$executeRawUnsafe(u.sql);
+            total += typeof r === 'number' ? r : (r?.rowCount ?? 0);
+        }
+
+        // 3) Anything still not in the enum -> DRAFT as a safe fallback
+        const allowed = [
+            'DRAFT','SUBMITTED','DEPARTMENT_REVIEW','DEPARTMENT_RETURNED','DEPARTMENT_APPROVED','EXECUTIVE_REVIEW','HOD_REVIEW','PROCUREMENT_REVIEW','FINANCE_REVIEW','FINANCE_RETURNED','BUDGET_MANAGER_REVIEW','FINANCE_APPROVED','SENT_TO_VENDOR','CLOSED','REJECTED'
+        ];
+        const rCatchAll: any = await prisma.$executeRawUnsafe(`UPDATE Request SET status = 'DRAFT' WHERE status IS NOT NULL AND status NOT IN (${allowed.map(s => `'${s}'`).join(',')})`);
+        total += typeof rCatchAll === 'number' ? rCatchAll : (rCatchAll?.rowCount ?? 0);
+
+        return total;
     } catch (err) {
         console.warn('fixInvalidRequestStatuses: failed to patch invalid statuses:', err);
         return null;
