@@ -6,6 +6,7 @@ import { setSelectedModule, setOnboardingComplete, ModuleKey as StoreModuleKey }
 import { getUser } from '../../../utils/auth';
 import { useTranslation } from 'react-i18next';
 import { logEvent } from '../../../utils/analytics';
+import { getApiUrl } from '../../../config/api';
 
 type ModuleKey = 'pms' | 'ih' | 'committee' | 'budgeting' | 'audit' | 'prime' | 'datapoint' | 'maintenance' | 'asset' | 'ppm' | 'kb';
 

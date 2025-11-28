@@ -66,8 +66,11 @@ const Requests = () => {
             setError(null);
             try {
                 const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
+                const userRaw = localStorage.getItem('auth_user') || sessionStorage.getItem('auth_user');
+                const user = userRaw ? JSON.parse(userRaw) : null;
                 const headers: Record<string, string> = {};
                 if (token) headers['Authorization'] = `Bearer ${token}`;
+                if (user?.id || currentUserId) headers['x-user-id'] = String(user?.id || currentUserId || '');
                 const res = await fetch(getApiUrl('/requests'), {
                     headers,
                     signal: controller.signal,
