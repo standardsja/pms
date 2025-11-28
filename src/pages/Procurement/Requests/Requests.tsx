@@ -114,15 +114,15 @@ const Requests = () => {
     const sorted = useMemo(() => sortRequestsByDateDesc(requests), [requests]);
     const searched = useMemo(() => searchRequests(sorted, query), [sorted, query]);
     const filteredByMeta = useMemo(() => filterRequests(searched, { status: statusFilter, department: departmentFilter }), [searched, statusFilter, departmentFilter]);
-    
+
     // Check if user is Executive Director
     const isExecutiveDirector = useMemo(() => {
-        return currentUserRoles.some(role => {
+        return currentUserRoles.some((role) => {
             const roleUpper = role.toUpperCase();
             return roleUpper === 'EXECUTIVE_DIRECTOR' || roleUpper === 'EXECUTIVE' || (roleUpper.includes('EXECUTIVE') && roleUpper.includes('DIRECTOR'));
         });
     }, [currentUserRoles]);
-    
+
     // Filter requests based on route and user role
     const filteredRequests = useMemo(() => {
         // On /mine route, show only user's requests and assigned requests
@@ -132,23 +132,23 @@ const Requests = () => {
                 return r.requester === currentUserName || (currentUserId && assigneeId === currentUserId);
             });
         }
-        
+
         // Executive Directors on main page see EXECUTIVE_REVIEW requests assigned to them
         if (isExecutiveDirector && !showMineOnly) {
             return filteredByMeta.filter((r) => {
                 const assigneeId = r.currentAssigneeId ? Number(r.currentAssigneeId) : null;
                 const isAssignedToMe = currentUserId && assigneeId === currentUserId;
-                
+
                 // Show EXECUTIVE_REVIEW requests assigned to this executive
                 if (r.status === 'EXECUTIVE_REVIEW' && isAssignedToMe) {
                     return true;
                 }
-                
+
                 // Also show requests they created
                 return r.requester === currentUserName;
             });
         }
-        
+
         // Everyone else sees all requests (filtered by status/department)
         return filteredByMeta;
     }, [showMineOnly, filteredByMeta, currentUserName, currentUserId, isExecutiveDirector]);

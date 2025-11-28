@@ -33,7 +33,7 @@ async function checkRequestStatuses() {
         `;
 
         console.log('\n📊 Status counts:');
-        statusCounts.forEach(row => {
+        statusCounts.forEach((row) => {
             console.log(`  ${row.status}: ${row.count.toString()}`);
         });
 
@@ -46,15 +46,14 @@ async function checkRequestStatuses() {
                     id: true,
                     reference: true,
                     status: true,
-                    title: true
-                }
+                    title: true,
+                },
             });
             console.log('✅ Prisma query successful! Found', requests.length, 'requests');
             console.log(JSON.stringify(requests, null, 2));
         } catch (prismaError) {
             console.error('❌ Prisma query failed:', prismaError.message);
         }
-
     } catch (error) {
         console.error('❌ Error:', error);
     } finally {

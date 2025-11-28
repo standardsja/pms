@@ -2958,7 +2958,7 @@ app.post('/requests/:id/forward-to-executive', authMiddleware, async (req, res) 
         if (!userRoleInfo.isProcurementManager && !userRoleInfo.isAdmin) {
             return res.status(403).json({
                 success: false,
-                error: 'Only procurement managers can forward requests to Executive Director'
+                error: 'Only procurement managers can forward requests to Executive Director',
             });
         }
 
@@ -2967,8 +2967,8 @@ app.post('/requests/:id/forward-to-executive', authMiddleware, async (req, res) 
             where: { id: parseInt(id, 10) },
             include: {
                 department: true,
-                requester: true
-            }
+                requester: true,
+            },
         });
 
         if (!request) {
@@ -2976,20 +2976,14 @@ app.post('/requests/:id/forward-to-executive', authMiddleware, async (req, res) 
         }
 
         // Validate request exceeds threshold
-        const procurementTypes = Array.isArray(request.procurementType) 
-            ? request.procurementType 
-            : (request.procurementType ? [request.procurementType] : []);
-        
-        const thresholdCheck = checkProcurementThresholds(
-            request.totalEstimated || 0,
-            procurementTypes,
-            request.currency || 'JMD'
-        );
+        const procurementTypes = Array.isArray(request.procurementType) ? request.procurementType : request.procurementType ? [request.procurementType] : [];
+
+        const thresholdCheck = checkProcurementThresholds(request.totalEstimated || 0, procurementTypes, request.currency || 'JMD');
 
         if (!thresholdCheck.requiresExecutiveApproval) {
             return res.status(400).json({
                 success: false,
-                error: 'Request does not exceed executive approval threshold'
+                error: 'Request does not exceed executive approval threshold',
             });
         }
 
@@ -2999,27 +2993,22 @@ app.post('/requests/:id/forward-to-executive', authMiddleware, async (req, res) 
                 roles: {
                     some: {
                         role: {
-                            OR: [
-                                { name: { contains: 'EXECUTIVE' } },
-                                { name: { contains: 'Executive' } },
-                                { name: { contains: 'DIRECTOR' } },
-                                { name: { contains: 'Director' } }
-                            ]
-                        }
-                    }
-                }
+                            OR: [{ name: { contains: 'EXECUTIVE' } }, { name: { contains: 'Executive' } }, { name: { contains: 'DIRECTOR' } }, { name: { contains: 'Director' } }],
+                        },
+                    },
+                },
             },
             include: {
                 roles: {
-                    include: { role: true }
-                }
-            }
+                    include: { role: true },
+                },
+            },
         });
 
         if (!executiveDirector) {
             return res.status(404).json({
                 success: false,
-                error: 'Executive Director not found in system'
+                error: 'Executive Director not found in system',
             });
         }
 
@@ -3029,9 +3018,9 @@ app.post('/requests/:id/forward-to-executive', authMiddleware, async (req, res) 
             data: {
                 status: 'EXECUTIVE_REVIEW',
                 currentAssignee: {
-                    connect: { id: executiveDirector.id }
-                }
-            }
+                    connect: { id: executiveDirector.id },
+                },
+            },
         });
 
         // Create audit log
@@ -3040,8 +3029,8 @@ app.post('/requests/:id/forward-to-executive', authMiddleware, async (req, res) 
                 requestId: updatedRequest.id,
                 performedById: user.sub,
                 action: 'ASSIGN',
-                comment: comment || `Forwarded to Executive Director for threshold approval (${request.currency} ${request.totalEstimated?.toLocaleString()})`
-            }
+                comment: comment || `Forwarded to Executive Director for threshold approval (${request.currency} ${request.totalEstimated?.toLocaleString()})`,
+            },
         });
 
         // Create notification for Executive Director
@@ -3054,9 +3043,9 @@ app.post('/requests/:id/forward-to-executive', authMiddleware, async (req, res) 
                     requestId: updatedRequest.id,
                     threshold: thresholdCheck.formattedThreshold,
                     category: thresholdCheck.category,
-                    forwardedBy: user.sub
-                }
-            }
+                    forwardedBy: user.sub,
+                },
+            },
         });
 
         console.log(`✅ [Forward] Request ${id} forwarded to Executive Director by user ${user.sub}`);
@@ -3064,14 +3053,14 @@ app.post('/requests/:id/forward-to-executive', authMiddleware, async (req, res) 
         return res.json({
             success: true,
             message: 'Request forwarded to Executive Director successfully',
-            request: updatedRequest
+            request: updatedRequest,
         });
     } catch (e: any) {
         console.error('POST /requests/:id/forward-to-executive error:', e);
         return res.status(500).json({
             success: false,
             error: e?.message || 'Failed to forward request',
-            details: process.env.NODE_ENV === 'development' ? e.stack : undefined
+            details: process.env.NODE_ENV === 'development' ? e.stack : undefined,
         });
     }
 });
