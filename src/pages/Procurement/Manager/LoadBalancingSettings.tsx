@@ -16,7 +16,7 @@ interface LoadBalancingSettings {
     enabled: boolean;
     strategy: 'ROUND_ROBIN' | 'LEAST_LOADED' | 'RANDOM';
     autoAssignOnApproval: boolean;
-        splinteringEnabled: boolean;
+    splinteringEnabled: boolean;
 }
 
 const LoadBalancingSettings = () => {
@@ -25,7 +25,7 @@ const LoadBalancingSettings = () => {
         enabled: false,
         strategy: 'LEAST_LOADED',
         autoAssignOnApproval: true,
-            splinteringEnabled: false,
+        splinteringEnabled: false,
     });
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -371,26 +371,25 @@ const LoadBalancingSettings = () => {
                             </div>
                         </label>
 
-                            <label className="flex items-start cursor-pointer p-4 bg-white dark:bg-slate-800 rounded-lg border-2 border-gray-200 dark:border-gray-700 hover:border-red-300 dark:hover:border-red-700 transition-all">
-                                <input
-                                    type="checkbox"
-                                    checked={settings.splinteringEnabled}
-                                    onChange={(e) => setSettings({ ...settings, splinteringEnabled: e.target.checked })}
-                                    className="mt-1 mr-4 w-5 h-5 text-red-600"
-                                />
-                                <div className="flex-1">
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <p className="font-bold text-lg">Splintering Detection</p>
-                                        {settings.splinteringEnabled && <span className="badge bg-danger text-xs">Active</span>}
-                                    </div>
-                                    <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
-                                        Detect potential purchase splitting attempts where multiple small requests circumvent approval thresholds. When enabled, similar requests within a time window are flagged for manager review.
-                                    </p>
-                                    <p className="text-xs text-red-600 dark:text-red-400 mt-2">
-                                        ⚠️ Currently experimental. Disable if causing false positives that block legitimate submissions.
-                                    </p>
+                        <label className="flex items-start cursor-pointer p-4 bg-white dark:bg-slate-800 rounded-lg border-2 border-gray-200 dark:border-gray-700 hover:border-red-300 dark:hover:border-red-700 transition-all">
+                            <input
+                                type="checkbox"
+                                checked={settings.splinteringEnabled}
+                                onChange={(e) => setSettings({ ...settings, splinteringEnabled: e.target.checked })}
+                                className="mt-1 mr-4 w-5 h-5 text-red-600"
+                            />
+                            <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <p className="font-bold text-lg">Splintering Detection</p>
+                                    {settings.splinteringEnabled && <span className="badge bg-danger text-xs">Active</span>}
                                 </div>
-                            </label>
+                                <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
+                                    Detect potential purchase splitting attempts where multiple small requests circumvent approval thresholds. When enabled, similar requests within a time window are
+                                    flagged for manager review.
+                                </p>
+                                <p className="text-xs text-red-600 dark:text-red-400 mt-2">⚠️ Currently experimental. Disable if causing false positives that block legitimate submissions.</p>
+                            </div>
+                        </label>
                     </div>
                 )}
 
