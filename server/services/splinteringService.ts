@@ -10,7 +10,9 @@ export type SplinterCheckParams = {
 
 export async function checkSplintering(prisma: PrismaClient, params: SplinterCheckParams) {
     const windowDays = params.windowDays ?? Number(process.env.SPLINTER_WINDOW_DAYS || 30);
-    const threshold = params.threshold ?? Number(process.env.SPLINTER_THRESHOLD_JMD || 250000);
+    // TEMPORARY: Disable splintering check by setting impossibly high threshold
+    // TODO: Implement proper splintering logic (similar vendors, descriptions, timing clusters)
+    const threshold = params.threshold ?? Number(process.env.SPLINTER_THRESHOLD_JMD || 999999999999);
 
     const now = new Date();
     const windowStart = new Date(now.getTime() - windowDays * 24 * 60 * 60 * 1000);
