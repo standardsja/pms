@@ -37,11 +37,10 @@ module.exports = {
         },
         {
             name: 'pms-frontend',
-            script: 'npm',
-            args: 'run dev',
+            script: './serve-frontend.mjs',
             env: {
-                NODE_ENV: 'development',
-                VITE_API_URL: 'http://heron:4000',
+                NODE_ENV: 'production',
+                PORT: 5173,
             },
             // Process management
             max_memory_restart: '500M',
