@@ -2615,6 +2615,11 @@ app.post('/requests/:id/submit', async (req, res) => {
 
         // Splintering check: detect possible split requests to avoid thresholds
         try {
+                // Check if splintering detection is enabled in load balancing settings
+                const lbSettings = await prisma.loadBalancingSettings.findFirst();
+                const splinteringEnabled = lbSettings?.splinteringEnabled ?? false;
+            
+                if (splinteringEnabled) {
             const windowDays = Number(process.env.SPLINTER_WINDOW_DAYS || 30);
             // TEMPORARY: Disable by using impossibly high threshold (matches splinteringService default)
             const threshold = Number(process.env.SPLINTER_THRESHOLD_JMD || 999999999999);
@@ -2708,6 +2713,9 @@ app.post('/requests/:id/submit', async (req, res) => {
                     // Don't fail the submission if audit logging fails, but log the error
                 }
             }
+                } else {
+                    console.log(`[Submit] Splintering check disabled for request ${id}`);
+                }
         } catch (splErr) {
             console.warn('Splintering check failed:', splErr);
         }

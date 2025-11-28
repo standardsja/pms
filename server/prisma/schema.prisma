@@ -667,6 +667,7 @@ model LoadBalancingSettings {
   enabled               Boolean                  @default(false)
   strategy              LoadBalancingStrategy    @default(LEAST_LOADED)
   autoAssignOnApproval  Boolean                  @default(true)
+  splinteringEnabled    Boolean                  @default(false) // Enable/disable splintering detection
   roundRobinCounter     Int                      @default(0) // Track position for round-robin
   updatedAt             DateTime                 @updatedAt
   updatedBy             Int?
