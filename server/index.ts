@@ -27,6 +27,7 @@ import { requestMonitoringMiddleware, trackCacheHit, trackCacheMiss, getMetrics,
 import { checkProcurementThresholds } from './services/thresholdService';
 import { checkSplintering } from './services/splinteringService';
 import { createThresholdNotifications } from './services/notificationService';
+import { getLoadBalancingSettings, updateLoadBalancingSettings, autoAssignRequest, shouldAutoAssign } from './services/loadBalancingService';
 import type { Prisma } from '@prisma/client';
 import { requireCommittee as requireCommitteeRole, requireEvaluationCommittee, requireAdmin, requireExecutive } from './middleware/rbac';
 import { validate, createIdeaSchema, voteSchema, approveRejectIdeaSchema, promoteIdeaSchema, sanitizeInput as sanitize } from './middleware/validation';
@@ -2845,11 +2846,9 @@ app.post('/requests/:id/action', async (req, res) => {
                 nextAssigneeId = budgetManager?.id || null;
             } else if (request.status === 'BUDGET_MANAGER_REVIEW') {
                 // Budget Manager approved -> send to Procurement for final processing
-                const procurement = await prisma.user.findFirst({
-                    where: { roles: { some: { role: { name: 'PROCUREMENT' } } } },
-                });
                 nextStatus = 'PROCUREMENT_REVIEW';
-                nextAssigneeId = procurement?.id || null;
+                // Don't assign here - let auto-assignment handle it
+                nextAssigneeId = null;
             } else if (request.status === 'PROCUREMENT_REVIEW') {
                 // Procurement approved -> final approval (ready to send to vendor)
                 nextStatus = 'FINANCE_APPROVED';
@@ -2950,8 +2949,42 @@ app.post('/requests/:id/action', async (req, res) => {
             } else {
                 throw e;
             }
+        }
 
-            // Notify the next assignee (procurement manager/officer) if present
+        // Check if auto-assignment should be triggered
+        const settings = await getLoadBalancingSettings(prisma);
+        if (shouldAutoAssign(nextStatus, settings)) {
+            console.log(`[Workflow] Triggering auto-assignment for request ${updated.id} at status ${nextStatus}`);
+            const assignedOfficerId = await autoAssignRequest(prisma, updated.id);
+            
+            if (assignedOfficerId) {
+                // Refresh the updated request to include the new assignee
+                updated = await prisma.request.findUnique({
+                    where: { id: parseInt(id, 10) },
+                    include: {
+                        items: true,
+                        requester: { select: { id: true, name: true, email: true } },
+                        department: { select: { id: true, name: true, code: true } },
+                        currentAssignee: { select: { id: true, name: true, email: true } },
+                    },
+                }) as any;
+
+                // Notify the auto-assigned officer
+                try {
+                    await prisma.notification.create({
+                        data: {
+                            userId: assignedOfficerId,
+                            type: 'STAGE_CHANGED',
+                            message: `Request ${updated.reference || updated.id} has been auto-assigned to you for ${updated.status}`,
+                            data: { requestId: updated.id, status: updated.status, autoAssigned: true },
+                        },
+                    });
+                } catch (notifErr) {
+                    console.warn('Failed to create auto-assignment notification:', notifErr);
+                }
+            }
+        } else if (!updated.currentAssigneeId && nextStatus !== 'DRAFT') {
+            // If no auto-assignment and no assignee, notify the next assignee if one was set manually
             try {
                 const assigneeId = updated.currentAssignee?.id || updated.currentAssigneeId || null;
                 if (assigneeId) {
@@ -3209,19 +3242,19 @@ app.get('/procurement/load-balancing-settings', async (req, res) => {
             return res.status(403).json({ message: 'Only Procurement Managers can view settings' });
         }
 
-        // Check if settings table exists, if not return default settings
-        // For now, we'll store settings in a simple JSON format in the database
-        // You may want to create a dedicated Settings table in schema.prisma
+        // Fetch settings from database using service
+        const settings = await getLoadBalancingSettings(prisma);
 
-        // Return default settings for now
-        // TODO: Implement persistent storage in database
-        const defaultSettings = {
-            enabled: false,
-            strategy: 'LEAST_LOADED',
-            autoAssignOnApproval: true,
-        };
+        // Return default if no settings exist yet
+        if (!settings) {
+            return res.json({
+                enabled: false,
+                strategy: 'LEAST_LOADED',
+                autoAssignOnApproval: true,
+            });
+        }
 
-        return res.json(defaultSettings);
+        return res.json(settings);
     } catch (e: any) {
         console.error('GET /procurement/load-balancing-settings error:', e);
         return res.status(500).json({ message: e?.message || 'Failed to fetch settings' });
@@ -3259,15 +3292,18 @@ app.post('/procurement/load-balancing-settings', async (req, res) => {
             return res.status(400).json({ message: 'Invalid strategy. Must be LEAST_LOADED, ROUND_ROBIN, or RANDOM' });
         }
 
-        // TODO: Implement persistent storage in database
-        // For now, just acknowledge the settings
-        const settings = {
-            enabled: enabled !== undefined ? enabled : false,
-            strategy: strategy || 'LEAST_LOADED',
-            autoAssignOnApproval: autoAssignOnApproval !== undefined ? autoAssignOnApproval : true,
-        };
+        // Update settings in database using service
+        const settings = await updateLoadBalancingSettings(
+            prisma,
+            {
+                enabled: enabled !== undefined ? enabled : undefined,
+                strategy: strategy,
+                autoAssignOnApproval: autoAssignOnApproval !== undefined ? autoAssignOnApproval : undefined,
+            },
+            parseInt(String(userId), 10)
+        );
 
-        console.log('Load balancing settings updated:', settings);
+        console.log('[LoadBalancing] Settings updated by user', userId, ':', settings);
 
         return res.json(settings);
     } catch (e: any) {

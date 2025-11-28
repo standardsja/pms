@@ -96,6 +96,12 @@ enum AuditAction {
   TAGS_UPDATED
 }
 
+enum LoadBalancingStrategy {
+  LEAST_LOADED
+  ROUND_ROBIN
+  RANDOM
+}
+
 /**
  * ===== Models =====
  */
@@ -117,6 +123,7 @@ model User {
   actions             RequestAction[]        @relation("actionPerformedBy")
   attachmentsUploaded RequestAttachment[]    @relation("attachmentUploadedBy")
   statusChanges       RequestStatusHistory[] @relation("statusChangedBy")
+  loadBalancingSettingsUpdated LoadBalancingSettings[] @relation("LoadBalancingUpdater")
   createdAt           DateTime               @default(now())
   updatedAt           DateTime               @updatedAt
 
@@ -646,4 +653,15 @@ model Evaluation {
   @@index([createdBy])
   @@index([evalNumber])
   @@index([rfqNumber])
+}
+
+model LoadBalancingSettings {
+  id                    Int                      @id @default(autoincrement())
+  enabled               Boolean                  @default(false)
+  strategy              LoadBalancingStrategy    @default(LEAST_LOADED)
+  autoAssignOnApproval  Boolean                  @default(true)
+  roundRobinCounter     Int                      @default(0) // Track position for round-robin
+  updatedAt             DateTime                 @updatedAt
+  updatedBy             Int?
+  user                  User?                    @relation("LoadBalancingUpdater", fields: [updatedBy], references: [id])
 }
