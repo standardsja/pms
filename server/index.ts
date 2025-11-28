@@ -2956,10 +2956,10 @@ app.post('/requests/:id/action', async (req, res) => {
         if (shouldAutoAssign(nextStatus, settings)) {
             console.log(`[Workflow] Triggering auto-assignment for request ${updated.id} at status ${nextStatus}`);
             const assignedOfficerId = await autoAssignRequest(prisma, updated.id);
-            
+
             if (assignedOfficerId) {
                 // Refresh the updated request to include the new assignee
-                updated = await prisma.request.findUnique({
+                updated = (await prisma.request.findUnique({
                     where: { id: parseInt(id, 10) },
                     include: {
                         items: true,
@@ -2967,7 +2967,7 @@ app.post('/requests/:id/action', async (req, res) => {
                         department: { select: { id: true, name: true, code: true } },
                         currentAssignee: { select: { id: true, name: true, email: true } },
                     },
-                }) as any;
+                })) as any;
 
                 // Notify the auto-assigned officer
                 try {

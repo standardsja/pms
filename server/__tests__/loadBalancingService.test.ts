@@ -3,7 +3,7 @@ import type { PrismaClient, LoadBalancingStrategy } from '@prisma/client';
 
 /**
  * Unit tests for Load Balancing Service
- * 
+ *
  * Tests automatic assignment strategies and workflow integration
  */
 
@@ -86,11 +86,7 @@ describe('Load Balancing Service', () => {
             });
 
             const { updateLoadBalancingSettings } = await import('../services/loadBalancingService');
-            const result = await updateLoadBalancingSettings(
-                mockPrisma,
-                { enabled: true, strategy: 'ROUND_ROBIN' as LoadBalancingStrategy },
-                42
-            );
+            const result = await updateLoadBalancingSettings(mockPrisma, { enabled: true, strategy: 'ROUND_ROBIN' as LoadBalancingStrategy }, 42);
 
             expect(result.enabled).toBe(true);
             expect(result.strategy).toBe('ROUND_ROBIN');
@@ -115,11 +111,7 @@ describe('Load Balancing Service', () => {
             });
 
             const { updateLoadBalancingSettings } = await import('../services/loadBalancingService');
-            const result = await updateLoadBalancingSettings(
-                mockPrisma,
-                { enabled: true },
-                42
-            );
+            const result = await updateLoadBalancingSettings(mockPrisma, { enabled: true }, 42);
 
             expect(result.enabled).toBe(true);
             expect(mockPrisma.loadBalancingSettings.create).toHaveBeenCalled();
@@ -143,11 +135,11 @@ describe('Load Balancing Service', () => {
 
             mockPrisma.loadBalancingSettings.findFirst.mockResolvedValue(mockSettings);
             mockPrisma.user.findMany.mockResolvedValue(officers);
-            
+
             // Officer 2 has 5 assignments, Officer 1 has 10, Officer 3 has 3
             mockPrisma.request.count
                 .mockResolvedValueOnce(10) // Officer 1
-                .mockResolvedValueOnce(5)  // Officer 2
+                .mockResolvedValueOnce(5) // Officer 2
                 .mockResolvedValueOnce(3); // Officer 3 (lowest)
 
             mockPrisma.request.update.mockResolvedValue({ id: 100 });

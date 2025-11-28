@@ -2,7 +2,7 @@ import { PrismaClient, LoadBalancingStrategy } from '@prisma/client';
 
 /**
  * Load Balancing Service
- * 
+ *
  * Provides intelligent automatic assignment of procurement requests to officers
  * based on configured strategies: LEAST_LOADED, ROUND_ROBIN, or RANDOM.
  */
@@ -42,11 +42,7 @@ export async function getLoadBalancingSettings(prisma: PrismaClient): Promise<Lo
 /**
  * Update load balancing settings in database
  */
-export async function updateLoadBalancingSettings(
-    prisma: PrismaClient,
-    config: Partial<LoadBalancingConfig>,
-    userId?: number
-): Promise<LoadBalancingConfig> {
+export async function updateLoadBalancingSettings(prisma: PrismaClient, config: Partial<LoadBalancingConfig>, userId?: number): Promise<LoadBalancingConfig> {
     const existing = await prisma.loadBalancingSettings.findFirst();
 
     if (existing) {
@@ -169,7 +165,7 @@ async function selectOfficerRoundRobin(prisma: PrismaClient): Promise<number | n
 
     // Sort officers by ID for consistent ordering
     const sorted = officers.sort((a, b) => a.id - b.id);
-    
+
     // Use modulo to cycle through officers
     const index = settings.roundRobinCounter % sorted.length;
     const selected = sorted[index];
@@ -206,7 +202,7 @@ async function selectOfficerRandom(prisma: PrismaClient): Promise<number | null>
 /**
  * Main auto-assignment function
  * Checks settings and assigns request to appropriate officer based on configured strategy
- * 
+ *
  * @param prisma - Prisma client instance
  * @param requestId - ID of the request to assign
  * @returns Officer ID if assignment succeeded, null otherwise
@@ -272,7 +268,7 @@ export async function autoAssignRequest(prisma: PrismaClient, requestId: number)
 
 /**
  * Check if auto-assignment should be triggered for a request status change
- * 
+ *
  * @param newStatus - The new status the request is moving to
  * @param settings - Current load balancing settings
  * @returns true if auto-assignment should be triggered
