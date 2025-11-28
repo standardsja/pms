@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 /**
  * Unit tests for fixInvalidRequestStatuses utility
- * 
+ *
  * Tests the database repair logic that normalizes legacy Request.status values
  * to current enum values, preventing Prisma query failures.
  */
@@ -23,9 +23,7 @@ describe('fixInvalidRequestStatuses', () => {
                 let total = 0;
 
                 // 1) NULL or empty -> DRAFT
-                const r1: any = await mockPrisma.$executeRawUnsafe(
-                    "UPDATE Request SET status = 'DRAFT' WHERE status IS NULL OR status = ''"
-                );
+                const r1: any = await mockPrisma.$executeRawUnsafe("UPDATE Request SET status = 'DRAFT' WHERE status IS NULL OR status = ''");
                 total += typeof r1 === 'number' ? r1 : r1?.rowCount ?? 0;
 
                 // 2) Legacy names -> current enum
@@ -78,9 +76,7 @@ describe('fixInvalidRequestStatuses', () => {
                     'CLOSED',
                     'REJECTED',
                 ];
-                const rCatchAll: any = await mockPrisma.$executeRawUnsafe(
-                    `UPDATE Request SET status = 'DRAFT' WHERE status IS NOT NULL AND status NOT IN (${allowed.map((s) => `'${s}'`).join(',')})`
-                );
+                const rCatchAll: any = await mockPrisma.$executeRawUnsafe(`UPDATE Request SET status = 'DRAFT' WHERE status IS NOT NULL AND status NOT IN (${allowed.map((s) => `'${s}'`).join(',')})`);
                 total += typeof rCatchAll === 'number' ? rCatchAll : rCatchAll?.rowCount ?? 0;
 
                 return total;
@@ -99,9 +95,7 @@ describe('fixInvalidRequestStatuses', () => {
         const result = await fixInvalidRequestStatuses();
 
         expect(result).toBe(3);
-        expect(mockPrisma.$executeRawUnsafe).toHaveBeenCalledWith(
-            "UPDATE Request SET status = 'DRAFT' WHERE status IS NULL OR status = ''"
-        );
+        expect(mockPrisma.$executeRawUnsafe).toHaveBeenCalledWith("UPDATE Request SET status = 'DRAFT' WHERE status IS NULL OR status = ''");
     });
 
     it('should normalize legacy status values', async () => {
@@ -119,12 +113,8 @@ describe('fixInvalidRequestStatuses', () => {
         const result = await fixInvalidRequestStatuses();
 
         expect(result).toBe(3); // 0 + 2 + 1 + 0...
-        expect(mockPrisma.$executeRawUnsafe).toHaveBeenCalledWith(
-            "UPDATE Request SET status = 'SUBMITTED' WHERE status IN ('PENDING','UNDER_REVIEW')"
-        );
-        expect(mockPrisma.$executeRawUnsafe).toHaveBeenCalledWith(
-            "UPDATE Request SET status = 'DEPARTMENT_REVIEW' WHERE status IN ('DEPT_REVIEW','DEPARTMENT_APPROVAL','DEPARTMENT_REVIEWING')"
-        );
+        expect(mockPrisma.$executeRawUnsafe).toHaveBeenCalledWith("UPDATE Request SET status = 'SUBMITTED' WHERE status IN ('PENDING','UNDER_REVIEW')");
+        expect(mockPrisma.$executeRawUnsafe).toHaveBeenCalledWith("UPDATE Request SET status = 'DEPARTMENT_REVIEW' WHERE status IN ('DEPT_REVIEW','DEPARTMENT_APPROVAL','DEPARTMENT_REVIEWING')");
     });
 
     it('should apply catch-all for unrecognized statuses', async () => {

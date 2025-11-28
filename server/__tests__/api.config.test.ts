@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 /**
  * Unit tests for centralized API configuration
- * 
+ *
  * Tests the environment-aware API URL resolution logic used throughout
  * the frontend to support both localhost and heron:4000 deployments.
  */
@@ -25,7 +25,7 @@ describe('API Configuration', () => {
     describe('getApiBaseUrl', () => {
         it('should return VITE_API_URL when set in environment', () => {
             const mockEnv = { VITE_API_URL: 'http://custom-server:8080' };
-            
+
             const getApiBaseUrl = () => {
                 return mockEnv.VITE_API_URL || 'http://heron:4000';
             };
@@ -35,7 +35,7 @@ describe('API Configuration', () => {
 
         it('should fallback to heron:4000 when VITE_API_URL is not set', () => {
             const mockEnv = {};
-            
+
             const getApiBaseUrl = () => {
                 return (mockEnv as any).VITE_API_URL || 'http://heron:4000';
             };
@@ -45,7 +45,7 @@ describe('API Configuration', () => {
 
         it('should fallback to heron:4000 when VITE_API_URL is empty string', () => {
             const mockEnv = { VITE_API_URL: '' };
-            
+
             const getApiBaseUrl = () => {
                 return mockEnv.VITE_API_URL || 'http://heron:4000';
             };
@@ -55,7 +55,7 @@ describe('API Configuration', () => {
 
         it('should preserve trailing slash in custom URL', () => {
             const mockEnv = { VITE_API_URL: 'http://localhost:4000/' };
-            
+
             const getApiBaseUrl = () => {
                 return mockEnv.VITE_API_URL || 'http://heron:4000';
             };
@@ -67,7 +67,7 @@ describe('API Configuration', () => {
     describe('getApiUrl', () => {
         it('should combine base URL with path correctly', () => {
             const mockEnv = { VITE_API_URL: 'http://heron:4000' };
-            
+
             const getApiUrl = (path: string) => {
                 const base = mockEnv.VITE_API_URL || 'http://heron:4000';
                 return `${base}${path}`;
@@ -79,20 +79,18 @@ describe('API Configuration', () => {
 
         it('should handle paths with query parameters', () => {
             const mockEnv = { VITE_API_URL: 'http://heron:4000' };
-            
+
             const getApiUrl = (path: string) => {
                 const base = mockEnv.VITE_API_URL || 'http://heron:4000';
                 return `${base}${path}`;
             };
 
-            expect(getApiUrl('/api/ideas?sort=recent&status=approved')).toBe(
-                'http://heron:4000/api/ideas?sort=recent&status=approved'
-            );
+            expect(getApiUrl('/api/ideas?sort=recent&status=approved')).toBe('http://heron:4000/api/ideas?sort=recent&status=approved');
         });
 
         it('should handle paths with anchors', () => {
             const mockEnv = { VITE_API_URL: 'http://heron:4000' };
-            
+
             const getApiUrl = (path: string) => {
                 const base = mockEnv.VITE_API_URL || 'http://heron:4000';
                 return `${base}${path}`;
@@ -103,7 +101,7 @@ describe('API Configuration', () => {
 
         it('should work with localhost environment', () => {
             const mockEnv = { VITE_API_URL: 'http://localhost:4000' };
-            
+
             const getApiUrl = (path: string) => {
                 const base = mockEnv.VITE_API_URL || 'http://heron:4000';
                 return `${base}${path}`;
@@ -114,7 +112,7 @@ describe('API Configuration', () => {
 
         it('should handle double slashes gracefully', () => {
             const mockEnv = { VITE_API_URL: 'http://heron:4000/' };
-            
+
             const getApiUrl = (path: string) => {
                 const base = mockEnv.VITE_API_URL || 'http://heron:4000';
                 // Simple concatenation - frontend should normalize if needed
@@ -123,15 +121,12 @@ describe('API Configuration', () => {
 
             const result = getApiUrl('/api/requests');
             // Accept either normalized or with double slash since frontend handles both
-            expect([
-                'http://heron:4000/api/requests',
-                'http://heron:4000//api/requests'
-            ]).toContain(result);
+            expect(['http://heron:4000/api/requests', 'http://heron:4000//api/requests']).toContain(result);
         });
 
         it('should handle root path', () => {
             const mockEnv = { VITE_API_URL: 'http://heron:4000' };
-            
+
             const getApiUrl = (path: string) => {
                 const base = mockEnv.VITE_API_URL || 'http://heron:4000';
                 return `${base}${path}`;
@@ -142,7 +137,7 @@ describe('API Configuration', () => {
 
         it('should handle paths without leading slash', () => {
             const mockEnv = { VITE_API_URL: 'http://heron:4000' };
-            
+
             const getApiUrl = (path: string) => {
                 const base = mockEnv.VITE_API_URL || 'http://heron:4000';
                 return `${base}${path}`;
@@ -156,7 +151,7 @@ describe('API Configuration', () => {
     describe('Environment scenarios', () => {
         it('should support development environment (localhost)', () => {
             const devEnv = { VITE_API_URL: 'http://localhost:4000' };
-            
+
             const getApiUrl = (path: string) => {
                 const base = devEnv.VITE_API_URL || 'http://heron:4000';
                 return `${base}${path}`;
@@ -167,7 +162,7 @@ describe('API Configuration', () => {
 
         it('should support production environment (heron)', () => {
             const prodEnv = {}; // VITE_API_URL not set, uses fallback
-            
+
             const getApiUrl = (path: string) => {
                 const base = (prodEnv as any).VITE_API_URL || 'http://heron:4000';
                 return `${base}${path}`;
@@ -178,7 +173,7 @@ describe('API Configuration', () => {
 
         it('should support explicit heron configuration', () => {
             const heronEnv = { VITE_API_URL: 'http://heron:4000' };
-            
+
             const getApiUrl = (path: string) => {
                 const base = heronEnv.VITE_API_URL || 'http://heron:4000';
                 return `${base}${path}`;
@@ -189,7 +184,7 @@ describe('API Configuration', () => {
 
         it('should support custom port configuration', () => {
             const customEnv = { VITE_API_URL: 'http://heron:8080' };
-            
+
             const getApiUrl = (path: string) => {
                 const base = customEnv.VITE_API_URL || 'http://heron:4000';
                 return `${base}${path}`;
@@ -200,7 +195,7 @@ describe('API Configuration', () => {
 
         it('should support HTTPS in production', () => {
             const secureEnv = { VITE_API_URL: 'https://api.example.com' };
-            
+
             const getApiUrl = (path: string) => {
                 const base = secureEnv.VITE_API_URL || 'http://heron:4000';
                 return `${base}${path}`;
@@ -212,7 +207,7 @@ describe('API Configuration', () => {
 
     describe('Common API endpoints', () => {
         const mockEnv = { VITE_API_URL: 'http://heron:4000' };
-        
+
         const getApiUrl = (path: string) => {
             const base = mockEnv.VITE_API_URL || 'http://heron:4000';
             return `${base}${path}`;

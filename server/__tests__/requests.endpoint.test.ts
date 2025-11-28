@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 
 /**
  * Integration tests for GET /requests endpoint
- * 
+ *
  * Tests the error handling and automatic repair logic for legacy
  * Request.status values that cause Prisma enum validation failures.
  */
@@ -14,9 +14,7 @@ describe('GET /requests endpoint', () => {
                 request: {
                     findMany: vi
                         .fn()
-                        .mockRejectedValueOnce(
-                            new Error("Value 'EXECUTIVE_REVIEW' not found in enum 'RequestStatus'")
-                        )
+                        .mockRejectedValueOnce(new Error("Value 'EXECUTIVE_REVIEW' not found in enum 'RequestStatus'"))
                         .mockResolvedValueOnce([
                             {
                                 id: 1,
@@ -86,10 +84,7 @@ describe('GET /requests endpoint', () => {
         it('should return 500 if retry also fails', async () => {
             const mockPrisma = {
                 request: {
-                    findMany: vi
-                        .fn()
-                        .mockRejectedValueOnce(new Error("Value 'EXECUTIVE_REVIEW' not found in enum"))
-                        .mockRejectedValueOnce(new Error("Value 'ANOTHER_BAD_STATUS' not found in enum")),
+                    findMany: vi.fn().mockRejectedValueOnce(new Error("Value 'EXECUTIVE_REVIEW' not found in enum")).mockRejectedValueOnce(new Error("Value 'ANOTHER_BAD_STATUS' not found in enum")),
                 },
                 $executeRawUnsafe: vi.fn().mockResolvedValue(5), // Repair succeeded
             };
@@ -101,7 +96,7 @@ describe('GET /requests endpoint', () => {
                 await mockPrisma.request.findMany();
             } catch (e: any) {
                 const message = String(e?.message || '');
-                if (message.includes("not found in enum")) {
+                if (message.includes('not found in enum')) {
                     const patched = await mockPrisma.$executeRawUnsafe("UPDATE Request SET status = 'DRAFT'");
                     if (patched !== null) {
                         try {
@@ -130,10 +125,7 @@ describe('GET /requests endpoint', () => {
 
             const mockPrisma = {
                 request: {
-                    findMany: vi
-                        .fn()
-                        .mockRejectedValueOnce(new Error("Value 'PENDING' not found in enum 'RequestStatus'"))
-                        .mockResolvedValueOnce(mockRequests),
+                    findMany: vi.fn().mockRejectedValueOnce(new Error("Value 'PENDING' not found in enum 'RequestStatus'")).mockResolvedValueOnce(mockRequests),
                 },
                 $executeRawUnsafe: vi.fn().mockResolvedValue(3), // 3 rows repaired
             };
