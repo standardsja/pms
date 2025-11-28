@@ -2616,7 +2616,8 @@ app.post('/requests/:id/submit', async (req, res) => {
         // Splintering check: detect possible split requests to avoid thresholds
         try {
             const windowDays = Number(process.env.SPLINTER_WINDOW_DAYS || 30);
-            const threshold = Number(process.env.SPLINTER_THRESHOLD_JMD || 250000);
+            // TEMPORARY: Disable by using impossibly high threshold (matches splinteringService default)
+            const threshold = Number(process.env.SPLINTER_THRESHOLD_JMD || 999999999999);
             const spl = await checkSplintering(prisma, {
                 requesterId: request.requesterId,
                 departmentId: request.departmentId,
