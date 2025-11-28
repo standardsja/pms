@@ -28,7 +28,7 @@ import { checkProcurementThresholds } from './services/thresholdService';
 import { checkSplintering } from './services/splinteringService';
 import { createThresholdNotifications } from './services/notificationService';
 import { checkUserRoles } from './utils/roleUtils';
-import type { Prisma } from '@prisma/client';
+import type { Prisma, RequestStatus } from '@prisma/client';
 import { requireCommittee as requireCommitteeRole, requireEvaluationCommittee, requireAdmin, requireExecutive } from './middleware/rbac';
 import { validate, createIdeaSchema, voteSchema, approveRejectIdeaSchema, promoteIdeaSchema, sanitizeInput as sanitize } from './middleware/validation';
 import { errorHandler, notFoundHandler, asyncHandler, NotFoundError, BadRequestError } from './middleware/errorHandler';
@@ -3115,12 +3115,12 @@ app.post('/requests/:id/executive-action', authMiddleware, async (req, res) => {
             });
         }
 
-        let nextStatus: string;
+        let nextStatus: RequestStatus;
         let nextAssigneeId: number | null = null;
         let actionMessage: string;
 
         if (action === 'APPROVE') {
-            // Executive approved -> send back to Procurement Manager
+            // Executive approved -> set to EXECUTIVE_APPROVED and assign to Procurement Manager
             const procurementManager = await prisma.user.findFirst({
                 where: {
                     roles: {
@@ -3140,7 +3140,7 @@ app.post('/requests/:id/executive-action', authMiddleware, async (req, res) => {
                 });
             }
 
-            nextStatus = 'PROCUREMENT_REVIEW';
+            nextStatus = 'EXECUTIVE_APPROVED';
             nextAssigneeId = procurementManager.id;
             actionMessage = 'approved by Executive Director';
         } else if (action === 'REJECT') {
@@ -3159,7 +3159,7 @@ app.post('/requests/:id/executive-action', authMiddleware, async (req, res) => {
         const updatedRequest = await prisma.request.update({
             where: { id: parseInt(id, 10) },
             data: {
-                status: nextStatus as any,
+                status: nextStatus,
                 currentAssigneeId: nextAssigneeId,
             },
             include: {
@@ -3184,7 +3184,7 @@ app.post('/requests/:id/executive-action', authMiddleware, async (req, res) => {
         await prisma.requestStatusHistory.create({
             data: {
                 requestId: updatedRequest.id,
-                status: nextStatus as any,
+                status: updatedRequest.status,
                 changedById: user.sub,
                 comment: comment || `Executive Director ${action === 'APPROVE' ? 'approved' : 'rejected'} request`,
             },
