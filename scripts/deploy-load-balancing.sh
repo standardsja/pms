@@ -23,18 +23,19 @@ echo ""
 
 # Step 1: Verify environment
 echo "[1/6] Verifying environment..."
-if [[ ! -f "$SERVER_DIR/.env" ]]; then
-    if [[ -f "$PROJECT_ROOT/.env" ]]; then
-        echo "⚠️  $SERVER_DIR/.env missing; copying root .env for Prisma (DATABASE_URL, JWT_SECRET)."
-        cp "$PROJECT_ROOT/.env" "$SERVER_DIR/.env"
-        echo "✅ Copied root .env to server/.env"
-        echo "   NOTE: For production hygiene keep secrets only in one place and rotate if exposed."
-    else
-        echo "❌ ERROR: $SERVER_DIR/.env not found and no root .env present"
-        echo "   Create $SERVER_DIR/.env with at least DATABASE_URL and JWT_SECRET"
-        exit 1
-    fi
+# Prefer root .env; remove server/.env if both exist to avoid Prisma conflict
+if [[ -f "$PROJECT_ROOT/.env" && -f "$SERVER_DIR/.env" ]]; then
+    echo "⚠️  Detected both root .env and server/.env; removing server/.env to prevent Prisma env var conflict."
+    rm -f "$SERVER_DIR/.env"
 fi
+
+if [[ ! -f "$PROJECT_ROOT/.env" ]]; then
+    echo "❌ ERROR: Root .env not found at $PROJECT_ROOT/.env"
+    echo "   Create it with DATABASE_URL and JWT_SECRET before deploying."
+    exit 1
+fi
+
+echo "✅ Using root .env for environment variables"
 
 if ! command -v npx &> /dev/null; then
     echo "❌ ERROR: npx not found - please install Node.js"
@@ -55,18 +56,24 @@ else
 fi
 echo ""
 
-# Step 3: Create database migration
-echo "[3/6] Creating database migration..."
+# Step 3: Apply migrations
+echo "[3/6] Applying database migrations..."
 cd "$SERVER_DIR"
 
-# Check if migration already exists
 if ls prisma/migrations/*add_load_balancing* 2>/dev/null; then
-    echo "⚠️  Migration already exists, skipping creation"
+    echo "🔄 Existing migration detected; running prisma migrate deploy"
+    if npx prisma migrate deploy; then
+        echo "✅ Migrations deployed"
+    else
+        echo "❌ ERROR: Migration deploy failed"
+        exit 1
+    fi
 else
+    echo "🆕 No load balancing migration found; creating with migrate dev"
     if npx prisma migrate dev --name add_load_balancing; then
         echo "✅ Migration created and applied"
     else
-        echo "❌ ERROR: Migration failed"
+        echo "❌ ERROR: Migration dev failed"
         exit 1
     fi
 fi
