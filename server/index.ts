@@ -3308,7 +3308,10 @@ app.get('/procurement/load-balancing-settings', async (req, res) => {
         // Verify the user is a procurement manager
         const user = await prisma.user.findUnique({
             where: { id: parseInt(String(userId), 10) },
-            include: { roles: { include: { role: true } } },
+            include: {
+                roles: { include: { role: true } },
+                department: true,
+            },
         });
 
         if (!user) {
@@ -3359,7 +3362,10 @@ app.post('/procurement/load-balancing-settings', async (req, res) => {
         // Verify the user is a procurement manager
         const user = await prisma.user.findUnique({
             where: { id: parseInt(String(userId), 10) },
-            include: { roles: { include: { role: true } } },
+            include: {
+                roles: { include: { role: true } },
+                department: true,
+            },
         });
 
         if (!user) {
