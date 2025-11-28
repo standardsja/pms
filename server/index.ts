@@ -3098,15 +3098,20 @@ app.get('/users/procurement-officers', async (req, res) => {
         // Verify the user is a procurement manager
         const user = await prisma.user.findUnique({
             where: { id: parseInt(String(userId), 10) },
-            include: { roles: { include: { role: true } } },
+            include: {
+                roles: { include: { role: true } },
+                department: true,
+            },
         });
 
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
         }
 
-        const isProcurementManager = user.roles.some((ur) => ur.role.name === 'PROCUREMENT_MANAGER');
-        if (!isProcurementManager) {
+        const roleNames = user.roles.map((ur) => ur.role.name.toUpperCase());
+        const isProcurementManager = roleNames.some((r) => r === 'PROCUREMENT_MANAGER' || (r.includes('PROCUREMENT') && r.includes('MANAGER')));
+        const isProcDeptManager = roleNames.includes('DEPT_MANAGER') && user.department?.code === 'PROC';
+        if (!isProcurementManager && !isProcDeptManager) {
             return res.status(403).json({ message: 'Only Procurement Managers can view procurement officers' });
         }
 
