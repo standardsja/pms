@@ -150,11 +150,11 @@ export async function fetchIdeaById(id: string | number, opts?: { includeAttachm
     const qs = new URLSearchParams();
     if (opts?.includeAttachments) qs.set('include', 'attachments');
     qs.set('t', Date.now().toString());
-    const url = `http://localhost:4000/api/ideas/${id}?${qs.toString()}`;
+    const url = `http://heron:4000/api/ideas/${id}?${qs.toString()}`;
 
     try {
         const apiBase = import.meta.env.VITE_API_URL || '';
-        const finalUrl = apiBase ? `${apiBase}/api/ideas/${id}?${qs.toString()}` : url.replace('http://localhost:4000', '');
+        const finalUrl = apiBase ? `${apiBase}/api/ideas/${id}?${qs.toString()}` : url.replace('http://heron:4000', '');
         const res = await fetch(finalUrl, {
             headers: {
                 ...authHeaders(),
@@ -196,7 +196,7 @@ export async function fetchIdeaById(id: string | number, opts?: { includeAttachm
 
 export async function fetchComments(ideaId: number | string): Promise<IdeaComment[]> {
     try {
-        const res = await fetch(`http://localhost:4000/api/ideas/${ideaId}/comments?t=${Date.now()}`, {
+        const res = await fetch(`http://heron:4000/api/ideas/${ideaId}/comments?t=${Date.now()}`, {
             headers: authHeaders(),
             cache: 'no-store',
         });
@@ -222,7 +222,7 @@ export async function fetchComments(ideaId: number | string): Promise<IdeaCommen
 }
 
 export async function postComment(ideaId: number | string, data: { text: string; parentId?: number | null }): Promise<IdeaComment> {
-    const res = await fetch(`http://localhost:4000/api/ideas/${ideaId}/comments`, {
+    const res = await fetch(`http://heron:4000/api/ideas/${ideaId}/comments`, {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify({ text: data.text, parentId: data.parentId ?? null }),
@@ -232,7 +232,7 @@ export async function postComment(ideaId: number | string, data: { text: string;
 }
 
 export async function deleteComment(commentId: number): Promise<{ ok: boolean }> {
-    const res = await fetch(`http://localhost:4000/api/ideas/comments/${commentId}`, {
+    const res = await fetch(`http://heron:4000/api/ideas/comments/${commentId}`, {
         method: 'DELETE',
         headers: authHeaders(),
     });
@@ -243,14 +243,14 @@ export async function deleteComment(commentId: number): Promise<{ ok: boolean }>
 export type MentionUser = { id: number; name: string; email: string };
 export async function searchUsers(term: string, take = 8): Promise<MentionUser[]> {
     const qs = new URLSearchParams({ search: term, take: String(take), t: Date.now().toString() });
-    const res = await fetch(`http://localhost:4000/api/users?${qs.toString()}`, { headers: authHeaders(), cache: 'no-store' });
+    const res = await fetch(`http://heron:4000/api/users?${qs.toString()}`, { headers: authHeaders(), cache: 'no-store' });
     if (!res.ok) throw new Error(await res.text());
     return (await res.json()) as MentionUser[];
 }
 
 export type RelatedIdea = { id: number; title: string; snippet: string; score: number; firstAttachmentUrl?: string | null };
 export async function fetchRelatedIdeas(id: number | string): Promise<RelatedIdea[]> {
-    const res = await fetch(`http://localhost:4000/api/ideas/${id}/related?t=${Date.now()}`, { headers: authHeaders(), cache: 'no-store' });
+    const res = await fetch(`http://heron:4000/api/ideas/${id}/related?t=${Date.now()}`, { headers: authHeaders(), cache: 'no-store' });
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
     return data.related as RelatedIdea[];
@@ -258,7 +258,7 @@ export async function fetchRelatedIdeas(id: number | string): Promise<RelatedIde
 
 export type LeaderboardRow = { userId: number; name: string; email: string; ideaCount: number; upvotes: number; comments: number; points: number; badge: string | null };
 export async function fetchLeaderboard(): Promise<LeaderboardRow[]> {
-    const res = await fetch(`http://localhost:4000/api/leaderboard?t=${Date.now()}`, { headers: authHeaders(), cache: 'no-store' });
+    const res = await fetch(`http://heron:4000/api/leaderboard?t=${Date.now()}`, { headers: authHeaders(), cache: 'no-store' });
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
     return data.leaderboard as LeaderboardRow[];
@@ -290,7 +290,7 @@ export type AnalyticsData = {
 
 export async function fetchAnalytics(): Promise<AnalyticsData> {
     try {
-        const res = await fetch(`http://localhost:4000/api/innovation/analytics?t=${Date.now()}`, {
+        const res = await fetch(`http://heron:4000/api/innovation/analytics?t=${Date.now()}`, {
             headers: {
                 ...authHeaders(),
                 'Cache-Control': 'no-store',
@@ -417,64 +417,64 @@ export type IdeaComment = {
 };
 
 export async function fetchTags(): Promise<Array<{ id: number; name: string }>> {
-    const res = await fetch(`http://localhost:4000/api/tags?t=${Date.now()}`, { headers: authHeaders(), cache: 'no-store' });
+    const res = await fetch(`http://heron:4000/api/tags?t=${Date.now()}`, { headers: authHeaders(), cache: 'no-store' });
     if (!res.ok) throw new Error(await res.text());
     return await res.json();
 }
 export async function createTag(name: string) {
-    const res = await fetch('http://localhost:4000/api/tags', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ name }) });
+    const res = await fetch('http://heron:4000/api/tags', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ name }) });
     if (!res.ok) throw new Error(await res.text());
     return await res.json();
 }
 
 export async function fetchChallenges(): Promise<Array<{ id: number; title: string; description?: string; isActive: boolean }>> {
-    const res = await fetch(`http://localhost:4000/api/challenges?t=${Date.now()}`, { headers: authHeaders(), cache: 'no-store' });
+    const res = await fetch(`http://heron:4000/api/challenges?t=${Date.now()}`, { headers: authHeaders(), cache: 'no-store' });
     if (!res.ok) throw new Error(await res.text());
     return await res.json();
 }
 export async function fetchChallenge(id: number | string) {
-    const res = await fetch(`http://localhost:4000/api/challenges/${id}?t=${Date.now()}`, { headers: authHeaders(), cache: 'no-store' });
+    const res = await fetch(`http://heron:4000/api/challenges/${id}?t=${Date.now()}`, { headers: authHeaders(), cache: 'no-store' });
     if (!res.ok) throw new Error(await res.text());
     return await res.json();
 }
 
 export async function transitionStage(ideaId: number | string, toStage: string, note?: string) {
-    const res = await fetch(`http://localhost:4000/api/ideas/${ideaId}/stage-transition`, { method: 'POST', headers: authHeaders(), body: JSON.stringify({ toStage, note }) });
+    const res = await fetch(`http://heron:4000/api/ideas/${ideaId}/stage-transition`, { method: 'POST', headers: authHeaders(), body: JSON.stringify({ toStage, note }) });
     if (!res.ok) throw new Error(await res.text());
     return await res.json();
 }
 export async function fetchStageHistory(ideaId: number | string) {
-    const res = await fetch(`http://localhost:4000/api/ideas/${ideaId}/stage-history?t=${Date.now()}`, { headers: authHeaders(), cache: 'no-store' });
+    const res = await fetch(`http://heron:4000/api/ideas/${ideaId}/stage-history?t=${Date.now()}`, { headers: authHeaders(), cache: 'no-store' });
     if (!res.ok) throw new Error(await res.text());
     return await res.json();
 }
 
 export async function fetchAuditLog(ideaId: number | string) {
-    const res = await fetch(`http://localhost:4000/api/ideas/${ideaId}/audit?t=${Date.now()}`, { headers: authHeaders(), cache: 'no-store' });
+    const res = await fetch(`http://heron:4000/api/ideas/${ideaId}/audit?t=${Date.now()}`, { headers: authHeaders(), cache: 'no-store' });
     if (!res.ok) throw new Error(await res.text());
     return await res.json();
 }
 
 export async function fetchNotifications() {
-    const res = await fetch(`http://localhost:4000/api/notifications?t=${Date.now()}`, { headers: authHeaders(), cache: 'no-store' });
+    const res = await fetch(`http://heron:4000/api/notifications?t=${Date.now()}`, { headers: authHeaders(), cache: 'no-store' });
     if (!res.ok) throw new Error(await res.text());
     return await res.json();
 }
 export async function markNotificationRead(id: number) {
-    const res = await fetch(`http://localhost:4000/api/notifications/${id}/read`, { method: 'POST', headers: authHeaders() });
+    const res = await fetch(`http://heron:4000/api/notifications/${id}/read`, { method: 'POST', headers: authHeaders() });
     if (!res.ok) throw new Error(await res.text());
     return await res.json();
 }
 
 export async function searchIdeas(q: string) {
     const qs = new URLSearchParams({ q, t: Date.now().toString() });
-    const res = await fetch(`http://localhost:4000/api/ideas/search?${qs.toString()}`, { headers: authHeaders(), cache: 'no-store' });
+    const res = await fetch(`http://heron:4000/api/ideas/search?${qs.toString()}`, { headers: authHeaders(), cache: 'no-store' });
     if (!res.ok) throw new Error(await res.text());
     return await res.json();
 }
 
 export async function fetchInnovationStats() {
-    const res = await fetch(`http://localhost:4000/api/innovation/stats?t=${Date.now()}`, { headers: authHeaders(), cache: 'no-store' });
+    const res = await fetch(`http://heron:4000/api/innovation/stats?t=${Date.now()}`, { headers: authHeaders(), cache: 'no-store' });
     if (!res.ok) throw new Error(await res.text());
     return await res.json();
 }
@@ -488,7 +488,7 @@ export async function fetchIdeaCounts(): Promise<{
     total: number;
 }> {
     try {
-        const res = await fetch(`http://localhost:4000/api/ideas/counts?t=${Date.now()}`, {
+        const res = await fetch(`http://heron:4000/api/ideas/counts?t=${Date.now()}`, {
             headers: {
                 ...authHeaders(),
                 'Cache-Control': 'no-store',
@@ -511,7 +511,7 @@ export async function fetchIdeaCounts(): Promise<{
 }
 
 export async function approveIdea(id: string, notes?: string) {
-    const res = await fetch(`http://localhost:4000/api/ideas/${id}/approve`, {
+    const res = await fetch(`http://heron:4000/api/ideas/${id}/approve`, {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify({ notes }),
@@ -521,7 +521,7 @@ export async function approveIdea(id: string, notes?: string) {
 }
 
 export async function rejectIdea(id: string, notes?: string) {
-    const res = await fetch(`http://localhost:4000/api/ideas/${id}/reject`, {
+    const res = await fetch(`http://heron:4000/api/ideas/${id}/reject`, {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify({ notes }),
@@ -531,7 +531,7 @@ export async function rejectIdea(id: string, notes?: string) {
 }
 
 export async function promoteIdea(id: string, projectCode?: string) {
-    const res = await fetch(`http://localhost:4000/api/ideas/${id}/promote`, {
+    const res = await fetch(`http://heron:4000/api/ideas/${id}/promote`, {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify({ projectCode }),
@@ -541,7 +541,7 @@ export async function promoteIdea(id: string, projectCode?: string) {
 }
 
 export async function voteForIdea(id: string | number, voteType: 'UPVOTE' | 'DOWNVOTE' = 'UPVOTE') {
-    const res = await fetch(`http://localhost:4000/api/ideas/${id}/vote`, {
+    const res = await fetch(`http://heron:4000/api/ideas/${id}/vote`, {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify({ voteType }),
@@ -569,7 +569,7 @@ export async function voteForIdea(id: string | number, voteType: 'UPVOTE' | 'DOW
 }
 
 export async function removeVote(id: string | number) {
-    const res = await fetch(`http://localhost:4000/api/ideas/${id}/vote`, {
+    const res = await fetch(`http://heron:4000/api/ideas/${id}/vote`, {
         method: 'DELETE',
         headers: authHeaders(),
     });
