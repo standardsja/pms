@@ -376,10 +376,13 @@ export async function submitIdea(
             headers,
             body: form,
         });
-        if (!res.ok) throw new Error(await res.text());
+        if (!res.ok) {
+            const errText = (res && typeof res.text === 'function') ? await res.text() : 'Request failed';
+            throw new Error(errText);
+        }
         const ct = (res && res.headers && typeof res.headers.get === 'function' ? res.headers.get('content-type') || '' : '').toLowerCase();
         if (!ct.includes('application/json')) {
-            const text = await res.text();
+            const text = (res && typeof res.text === 'function') ? await res.text() : 'Non-JSON response';
             throw new Error(`Server returned non-JSON response when creating idea: ${text.substring(0, 300)}`);
         }
         return (await res.json()) as Idea;
