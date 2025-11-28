@@ -665,3 +665,36 @@ model LoadBalancingSettings {
   updatedBy             Int?
   user                  User?                    @relation("LoadBalancingUpdater", fields: [updatedBy], references: [id])
 }
+
+/// Performance metrics for procurement officers (used by advanced load balancing / analytics)
+model OfficerPerformanceMetrics {
+  id                    Int      @id @default(autoincrement())
+  officer               User     @relation(fields: [officerId], references: [id])
+  officerId             Int
+  activeAssignments     Int      @default(0)
+  completedAssignments  Int      @default(0)
+  averageTurnaroundMinutes Int?  // Average time to complete an assignment in minutes
+  lastAssignmentAt      DateTime?
+  loadScore             Float?   // Composite score for AI smart distribution
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([officerId])
+}
+
+/// Log of request assignment events for auditing and future ML feature engineering
+model RequestAssignmentLog {
+  id              Int                   @id @default(autoincrement())
+  request         Request               @relation(fields: [requestId], references: [id])
+  requestId       Int
+  officer         User                  @relation(fields: [officerId], references: [id])
+  officerId       Int
+  strategy        LoadBalancingStrategy?
+  previousOfficerId Int?
+  notes           String?
+  assignedAt      DateTime              @default(now())
+  createdAt       DateTime              @default(now())
+
+  @@index([requestId])
+  @@index([officerId])
+}
