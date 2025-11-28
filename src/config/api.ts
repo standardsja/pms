@@ -6,12 +6,12 @@
 export function getApiBaseUrl(): string {
     // Check environment variable first
     const envUrl = import.meta.env.VITE_API_URL;
-    
+
     if (envUrl) {
         // Remove trailing slash if present
         return envUrl.replace(/\/$/, '');
     }
-    
+
     // Fallback to heron:4000 for production/development server
     return 'http://heron:4000';
 }
