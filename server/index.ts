@@ -27,6 +27,7 @@ import { requestMonitoringMiddleware, trackCacheHit, trackCacheMiss, getMetrics,
 import { checkProcurementThresholds } from './services/thresholdService';
 import { checkSplintering } from './services/splinteringService';
 import { createThresholdNotifications } from './services/notificationService';
+import { checkUserRoles } from './utils/roleUtils';
 import type { Prisma } from '@prisma/client';
 import { requireCommittee as requireCommitteeRole, requireEvaluationCommittee, requireAdmin, requireExecutive } from './middleware/rbac';
 import { validate, createIdeaSchema, voteSchema, approveRejectIdeaSchema, promoteIdeaSchema, sanitizeInput as sanitize } from './middleware/validation';
@@ -1936,7 +1937,9 @@ app.delete('/api/ideas/:id/vote', authMiddleware, voteLimiter, async (req, res) 
 
 // GET /requests - alias for direct backend access (frontend may call this without /api prefix)
 app.get('/requests', async (_req, res) => {
+    console.log('[DEBUG] GET /requests endpoint hit');
     try {
+        console.log('[DEBUG] Attempting to fetch requests from database...');
         const requests = await prisma.request.findMany({
             orderBy: { createdAt: 'desc' },
             select: {
@@ -2936,6 +2939,140 @@ app.post('/requests/:id/action', async (req, res) => {
     } catch (e: any) {
         console.error('POST /requests/:id/action error:', e);
         return res.status(500).json({ message: e?.message || 'Failed to process action' });
+    }
+});
+
+// POST /requests/:id/forward-to-executive - Forward threshold-exceeding request to Executive Director
+app.post('/requests/:id/forward-to-executive', authMiddleware, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { comment } = req.body;
+        const user = (req as any).user;
+
+        if (!user?.sub) {
+            return res.status(401).json({ success: false, error: 'Authentication required' });
+        }
+
+        // Check if user is procurement manager or admin
+        const userRoleInfo = checkUserRoles(user.roles || []);
+        if (!userRoleInfo.isProcurementManager && !userRoleInfo.isAdmin) {
+            return res.status(403).json({
+                success: false,
+                error: 'Only procurement managers can forward requests to Executive Director'
+            });
+        }
+
+        // Fetch the request
+        const request = await prisma.request.findUnique({
+            where: { id: parseInt(id, 10) },
+            include: {
+                department: true,
+                requester: true
+            }
+        });
+
+        if (!request) {
+            return res.status(404).json({ success: false, error: 'Request not found' });
+        }
+
+        // Validate request exceeds threshold
+        const procurementTypes = Array.isArray(request.procurementType) 
+            ? request.procurementType 
+            : (request.procurementType ? [request.procurementType] : []);
+        
+        const thresholdCheck = checkProcurementThresholds(
+            request.totalEstimated || 0,
+            procurementTypes,
+            request.currency || 'JMD'
+        );
+
+        if (!thresholdCheck.requiresExecutiveApproval) {
+            return res.status(400).json({
+                success: false,
+                error: 'Request does not exceed executive approval threshold'
+            });
+        }
+
+        // Find Executive Director
+        const executiveDirector = await prisma.user.findFirst({
+            where: {
+                roles: {
+                    some: {
+                        role: {
+                            OR: [
+                                { name: { contains: 'EXECUTIVE' } },
+                                { name: { contains: 'Executive' } },
+                                { name: { contains: 'DIRECTOR' } },
+                                { name: { contains: 'Director' } }
+                            ]
+                        }
+                    }
+                }
+            },
+            include: {
+                roles: {
+                    include: { role: true }
+                }
+            }
+        });
+
+        if (!executiveDirector) {
+            return res.status(404).json({
+                success: false,
+                error: 'Executive Director not found in system'
+            });
+        }
+
+        // Update request status and assign to Executive Director
+        const updatedRequest = await prisma.request.update({
+            where: { id: parseInt(id, 10) },
+            data: {
+                status: 'EXECUTIVE_REVIEW',
+                currentAssignee: {
+                    connect: { id: executiveDirector.id }
+                }
+            }
+        });
+
+        // Create audit log
+        await prisma.requestAction.create({
+            data: {
+                requestId: updatedRequest.id,
+                performedById: user.sub,
+                action: 'ASSIGN',
+                comment: comment || `Forwarded to Executive Director for threshold approval (${request.currency} ${request.totalEstimated?.toLocaleString()})`
+            }
+        });
+
+        // Create notification for Executive Director
+        await prisma.notification.create({
+            data: {
+                userId: executiveDirector.id,
+                type: 'THRESHOLD_EXCEEDED',
+                message: `High-Value Request Requires Approval: A ${thresholdCheck.category} request exceeding ${thresholdCheck.formattedThreshold} has been forwarded for your review - ${request.title}`,
+                data: {
+                    requestId: updatedRequest.id,
+                    threshold: thresholdCheck.formattedThreshold,
+                    category: thresholdCheck.category,
+                    forwardedBy: user.sub
+                }
+            }
+        });
+
+        console.log(`✅ [Forward] Request ${id} forwarded to Executive Director by user ${user.sub}`);
+
+        return res.json({
+            success: true,
+            message: 'Request forwarded to Executive Director successfully',
+            request: updatedRequest
+        });
+    } catch (e: any) {
+        console.error('POST /requests/:id/forward-to-executive error:', e);
+        return res.status(500).json({
+            success: false,
+            error: e?.message || 'Failed to forward request',
+            details: process.env.NODE_ENV === 'development' ? e.stack : undefined
+        });
     }
 });
 

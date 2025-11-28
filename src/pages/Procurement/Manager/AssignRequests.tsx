@@ -62,7 +62,7 @@ const AssignRequests = () => {
     const currentUserId = currentUser?.id || null;
     const token = getToken();
 
-    const apiUrl = 'http://heron:4000';
+    const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:4000' : `http://${window.location.hostname}:4000`;
 
     useEffect(() => {
         dispatch(setPageTitle('Assign Requests'));
