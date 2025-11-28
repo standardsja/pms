@@ -27,7 +27,7 @@ class AuthService {
     }
 
     // Use real backend API
-    console.log('[AuthService] Using real backend API at /auth/login');
+    console.log('[AuthService] Using real backend API at /api/auth/login');
     try {
       // Normalize email to lowercase before sending
       const normalizedCredentials = {
@@ -35,7 +35,7 @@ class AuthService {
         email: credentials.email.toLowerCase().trim()
       };
       
-      const response = await fetch('/auth/login', {
+      const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
