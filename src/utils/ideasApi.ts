@@ -377,12 +377,12 @@ export async function submitIdea(
             body: form,
         });
         if (!res.ok) {
-            const errText = (res && typeof res.text === 'function') ? await res.text() : 'Request failed';
+            const errText = res && typeof res.text === 'function' ? await res.text() : 'Request failed';
             throw new Error(errText);
         }
         const ct = (res && res.headers && typeof res.headers.get === 'function' ? res.headers.get('content-type') || '' : '').toLowerCase();
         if (!ct.includes('application/json')) {
-            const text = (res && typeof res.text === 'function') ? await res.text() : 'Non-JSON response';
+            const text = res && typeof res.text === 'function' ? await res.text() : 'Non-JSON response';
             throw new Error(`Server returned non-JSON response when creating idea: ${text.substring(0, 300)}`);
         }
         return (await res.json()) as Idea;
