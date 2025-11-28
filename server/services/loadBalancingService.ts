@@ -17,9 +17,13 @@ export interface LoadBalancingConfig {
 /**
  * Get current load balancing settings from database
  */
-export async function getLoadBalancingSettings(prisma: PrismaClient): Promise<LoadBalancingConfig | null> {
+export async function getLoadBalancingSettings(prisma: PrismaClient | undefined | null): Promise<LoadBalancingConfig | null> {
+    if (!prisma || !(prisma as any).loadBalancingSettings) {
+        console.warn('[LoadBalancing] Prisma client unavailable when fetching settings');
+        return null;
+    }
     try {
-        const settings = await prisma.loadBalancingSettings.findFirst({
+        const settings = await (prisma as PrismaClient).loadBalancingSettings.findFirst({
             orderBy: { updatedAt: 'desc' },
         });
 
@@ -247,6 +251,42 @@ export async function autoAssignRequest(prisma: PrismaClient, requestId: number)
             where: { id: requestId },
             data: { currentAssigneeId: officerId },
         });
+
+        // Record assignment log (if table exists)
+        try {
+            // @ts-expect-error dynamic model check
+            if ((prisma as any).requestAssignmentLog) {
+                // @ts-expect-error dynamic model usage
+                await (prisma as any).requestAssignmentLog.create({
+                    data: {
+                        requestId,
+                        officerId,
+                        strategy: settings.strategy,
+                        notes: `Auto-assigned via ${settings.strategy}`,
+                    },
+                });
+            }
+            // Update officer performance metrics
+            // @ts-expect-error dynamic model check
+            if ((prisma as any).officerPerformanceMetrics) {
+                // @ts-expect-error dynamic model usage
+                await (prisma as any).officerPerformanceMetrics.upsert({
+                    where: { officerId: officerId },
+                    update: {
+                        activeAssignments: { increment: 1 },
+                        lastAssignmentAt: new Date(),
+                    },
+                    create: {
+                        officerId: officerId,
+                        activeAssignments: 1,
+                        completedAssignments: 0,
+                        lastAssignmentAt: new Date(),
+                    },
+                });
+            }
+        } catch (logErr) {
+            console.warn('[LoadBalancing] Failed to persist assignment analytics/log:', logErr);
+        }
 
         // Log the assignment in status history
         await prisma.requestStatusHistory.create({

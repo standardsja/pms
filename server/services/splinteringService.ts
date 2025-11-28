@@ -16,9 +16,24 @@ export async function checkSplintering(prisma: PrismaClient, params: SplinterChe
     const windowStart = new Date(now.getTime() - windowDays * 24 * 60 * 60 * 1000);
 
     // Build query: previous requests within window for same requester OR same department
+    const validStatuses = [
+        'SUBMITTED',
+        'DEPARTMENT_REVIEW',
+        'DEPARTMENT_APPROVED', // include approved at department stage
+        'EXECUTIVE_REVIEW',
+        'HOD_REVIEW',
+        'FINANCE_REVIEW',
+        'BUDGET_MANAGER_REVIEW',
+        'PROCUREMENT_REVIEW',
+        'FINANCE_APPROVED',
+        'SENT_TO_VENDOR',
+        'CLOSED',
+        'REJECTED',
+    ];
+
     const where: any = {
         createdAt: { gte: windowStart },
-        status: { in: ['SUBMITTED', 'DEPARTMENT_REVIEW', 'HOD_REVIEW', 'FINANCE_REVIEW', 'BUDGET_MANAGER_REVIEW', 'PROCUREMENT_REVIEW', 'FINANCE_APPROVED', 'SENT_TO_VENDOR', 'APPROVED'] },
+        status: { in: validStatuses },
     };
 
     // If requesterId provided, prefer requester grouping; also include department grouping

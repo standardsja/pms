@@ -2392,6 +2392,8 @@ app.put('/requests/:id', async (req, res) => {
     try {
         const { id } = req.params;
         const updates = req.body || {};
+        const actorUserIdRaw = req.headers['x-user-id'];
+        const actingUserId = actorUserIdRaw ? parseInt(String(actorUserIdRaw), 10) : null;
 
         // Remove deprecated fields that no longer exist in schema
         const { budgetOfficerApproved, budgetManagerApproved, ...cleanUpdates } = updates;
@@ -2415,7 +2417,7 @@ app.put('/requests/:id', async (req, res) => {
                         userId: Number(assigneeId),
                         type: 'STAGE_CHANGED',
                         message: `Request ${updated.reference || updated.id} has been assigned to you for ${updated.status}`,
-                        data: { requestId: updated.id, status: updated.status, assignedBy: parseInt(String(userId), 10) },
+                        data: { requestId: updated.id, status: updated.status, assignedBy: actingUserId },
                     },
                 });
             }
