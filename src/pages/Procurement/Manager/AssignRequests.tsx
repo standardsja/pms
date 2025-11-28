@@ -10,7 +10,7 @@ import IconSearch from '../../../components/Icon/IconSearch';
 import IconRefresh from '../../../components/Icon/IconRefresh';
 import IconX from '../../../components/Icon/IconX';
 import { getStatusBadge } from '../../../utils/statusBadges';
-import { getToken, getUser } from '../../../utils/auth';
+import { getApiUrl } from '../../../config/api';
 
 const MySwal = withReactContent(Swal);
 
@@ -57,12 +57,8 @@ const AssignRequests = () => {
     const [sortBy, setSortBy] = useState<'workload' | 'name'>('workload');
     const [viewingOfficerRequests, setViewingOfficerRequests] = useState<number | null>(null);
     const [isProcurementManager, setIsProcurementManager] = useState<boolean>(false);
-
-    const currentUser = getUser();
-    const currentUserId = currentUser?.id || null;
-    const token = getToken();
-
-    const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:4000' : `http://${window.location.hostname}:4000`;
+    const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
+    const currentUserId = userProfile?.id || userProfile?.userId || null;
 
     useEffect(() => {
         dispatch(setPageTitle('Assign Requests'));
@@ -74,20 +70,13 @@ const AssignRequests = () => {
             setError(null);
 
             try {
-                const token = getToken();
-                const currentUser = getUser();
-                const currentUserId = currentUser?.id || null;
-
-                if (!token) {
-                    throw new Error('Authentication required');
-                }
+                const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
+                const currentUserId = userProfile?.id || userProfile?.userId || null;
 
                 // Fetch procurement officers
-                const officersRes = await fetch(`${apiUrl}/users/procurement-officers`, {
+                const officersRes = await fetch(getApiUrl('/users/procurement-officers'), {
                     headers: {
-                        Authorization: `Bearer ${token}`,
                         'x-user-id': String(currentUserId || ''),
-                        'Content-Type': 'application/json',
                     },
                 });
                 if (!officersRes.ok) throw new Error('Failed to fetch procurement officers');
@@ -95,15 +84,16 @@ const AssignRequests = () => {
                 setOfficers(officersData);
 
                 // detect if current user is a procurement manager
-                const roles = Array.isArray(currentUser?.roles) ? currentUser.roles : currentUser?.role ? [currentUser.role] : [];
+                const roles = (userProfile?.roles || []).map((r: any) => {
+                    if (typeof r === 'string') return r;
+                    return r?.role?.name || r?.name || '';
+                });
                 setIsProcurementManager(roles.includes('PROCUREMENT_MANAGER') || roles.includes('Procurement Manager') || roles.includes('PROCUREMENT'));
 
                 // Fetch requests at PROCUREMENT_REVIEW status
-                const requestsRes = await fetch(`${apiUrl}/requests`, {
+                const requestsRes = await fetch(getApiUrl('/requests'), {
                     headers: {
-                        Authorization: `Bearer ${token}`,
                         'x-user-id': String(currentUserId || ''),
-                        'Content-Type': 'application/json',
                     },
                 });
                 if (!requestsRes.ok) throw new Error('Failed to fetch requests');
@@ -112,7 +102,7 @@ const AssignRequests = () => {
                 // keep full list
                 setAllRequests(procurementRequests);
                 // For procurement managers, show ALL procurement requests (they should see everything and delegate)
-                if (currentUser && roles.some((r: string) => ['PROCUREMENT_MANAGER', 'Procurement Manager', 'PROCUREMENT'].includes(r))) {
+                if (userProfile && (roles.includes('PROCUREMENT_MANAGER') || roles.includes('Procurement Manager') || roles.includes('PROCUREMENT'))) {
                     setRequests(procurementRequests);
                 } else {
                     // normal view: show unassigned requests
@@ -127,7 +117,7 @@ const AssignRequests = () => {
         };
 
         fetchData();
-    }, [apiUrl]);
+    }, []);
 
     // Filter and sort requests
     useEffect(() => {
@@ -240,19 +230,13 @@ const AssignRequests = () => {
 
         if (result.isConfirmed) {
             try {
-                const token = getToken();
-                const currentUser = getUser();
-                const currentUserId = currentUser?.id || null;
+                const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
+                const currentUserId = userProfile?.id || userProfile?.userId || null;
 
-                if (!token) {
-                    throw new Error('Authentication required');
-                }
-
-                const res = await fetch(`${apiUrl}/requests/${reqId}/assign`, {
+                const res = await fetch(getApiUrl(`/requests/${reqId}/assign`), {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        Authorization: `Bearer ${token}`,
                         'x-user-id': String(currentUserId || ''),
                     },
                     body: JSON.stringify({

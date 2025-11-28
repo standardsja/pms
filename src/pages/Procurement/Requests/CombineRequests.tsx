@@ -8,9 +8,9 @@ import IconPlus from '../../../components/Icon/IconPlus';
 import IconEye from '../../../components/Icon/IconEye';
 import IconX from '../../../components/Icon/IconX';
 import IconCircleCheck from '../../../components/Icon/IconCircleCheck';
+import { getApiUrl } from '../../../config/api';
 import { Request } from '../../../types/request.types';
 import { getStatusBadge } from '../../../utils/statusBadges';
-import { getToken, getUser } from '../../../utils/auth';
 import {
     CombinableRequest,
     CombineRequestsConfig,
@@ -54,17 +54,10 @@ const CombineRequests = () => {
             setIsLoading(true);
             setError(null);
             try {
-                const token = getToken();
-                const currentUser = getUser();
-
-                if (!token || !currentUser) {
-                    throw new Error('Authentication required');
-                }
-
-                const response = await fetch(`http://heron:4000/api/requests/combine?combinable=true`, {
+                const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
+                const response = await fetch(getApiUrl('/api/requests/combine?combinable=true'), {
                     headers: {
                         Authorization: `Bearer ${token}`,
-                        'x-user-id': currentUser.id.toString(),
                         'Content-Type': 'application/json',
                     },
                 });
@@ -201,18 +194,11 @@ const CombineRequests = () => {
                 requiresApproval: permissions.requiresApproval,
             };
 
-            const token = getToken();
-            const currentUser = getUser();
-
-            if (!token || !currentUser) {
-                throw new Error('Authentication required');
-            }
-
-            const response = await fetch(`http://heron:4000/api/requests/combine`, {
+            const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
+            const response = await fetch(getApiUrl('/api/requests/combine'), {
                 method: 'POST',
                 headers: {
                     Authorization: `Bearer ${token}`,
-                    'x-user-id': currentUser.id.toString(),
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify(combinedRequestData),

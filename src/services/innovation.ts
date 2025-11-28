@@ -1,4 +1,5 @@
 import type { Idea, IdeaCounts } from '../types/idea';
+import { getApiBaseUrl } from '../config/api';
 
 // Helper to get auth token (adjust if your app stores it differently)
 function getAuthToken(): string | null {
@@ -13,7 +14,7 @@ function getAuthToken(): string | null {
 }
 
 function apiBase(): string {
-    return 'http://heron:4000';
+    return getApiBaseUrl();
 }
 
 function buildUrl(path: string, params?: Record<string, string | number | boolean | undefined | null>) {

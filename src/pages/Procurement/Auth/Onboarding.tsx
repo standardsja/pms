@@ -6,6 +6,7 @@ import { setSelectedModule, setOnboardingComplete, ModuleKey as StoreModuleKey }
 import { getUser } from '../../../utils/auth';
 import { useTranslation } from 'react-i18next';
 import { logEvent } from '../../../utils/analytics';
+import { getApiUrl } from '../../../config/api';
 
 type ModuleKey = 'pms' | 'ih' | 'committee' | 'budgeting' | 'audit' | 'prime' | 'datapoint' | 'maintenance' | 'asset' | 'ppm' | 'kb';
 
@@ -73,7 +74,7 @@ const Onboarding = () => {
         // Fetch real-time module statistics
         const fetchModuleStats = async () => {
             try {
-                const response = await fetch('http://heron:4000/api/stats/modules');
+                const response = await fetch(getApiUrl('/api/stats/modules'));
                 if (response.ok) {
                     const data = await response.json();
                     setModuleStats({

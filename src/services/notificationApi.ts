@@ -4,16 +4,11 @@
  */
 
 import { getToken, getUser } from '../utils/auth';
+import { getApiBaseUrl } from '../config/api';
 
-// API URL configuration - uses heron production server
+// Get API URL from centralized configuration
 const getApiUrl = () => {
-    // If VITE_API_URL is explicitly set, use it
-    if (import.meta.env.VITE_API_URL) {
-        return import.meta.env.VITE_API_URL;
-    }
-
-    // Use heron production server
-    return 'http://heron:4000';
+    return getApiBaseUrl();
 };
 
 const API_URL = getApiUrl();

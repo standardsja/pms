@@ -8,7 +8,7 @@ import IconChecks from '../../../components/Icon/IconChecks';
 import IconX from '../../../components/Icon/IconX';
 import IconRefresh from '../../../components/Icon/IconRefresh';
 import IconInfoCircle from '../../../components/Icon/IconInfoCircle';
-import { getToken, getUser } from '../../../utils/auth';
+import { getApiUrl } from '../../../config/api';
 
 const MySwal = withReactContent(Swal);
 
@@ -29,8 +29,6 @@ const LoadBalancingSettings = () => {
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const apiUrl = 'http://heron:4000';
-
     useEffect(() => {
         dispatch(setPageTitle('Load Balancing Settings'));
     }, [dispatch]);
@@ -41,19 +39,12 @@ const LoadBalancingSettings = () => {
             setError(null);
 
             try {
-                const token = getToken();
-                const currentUser = getUser();
-                const currentUserId = currentUser?.id || null;
+                const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
+                const currentUserId = userProfile?.id || userProfile?.userId || null;
 
-                if (!token) {
-                    throw new Error('Authentication required');
-                }
-
-                const res = await fetch(`${apiUrl}/procurement/load-balancing-settings`, {
+                const res = await fetch(getApiUrl('/procurement/load-balancing-settings'), {
                     headers: {
-                        Authorization: `Bearer ${token}`,
                         'x-user-id': String(currentUserId || ''),
-                        'Content-Type': 'application/json',
                     },
                 });
                 if (!res.ok) {
@@ -75,25 +66,19 @@ const LoadBalancingSettings = () => {
         };
 
         fetchSettings();
-    }, [apiUrl]);
+    }, []);
 
     const handleSave = async () => {
         setSaving(true);
 
         try {
-            const token = getToken();
-            const currentUser = getUser();
-            const currentUserId = currentUser?.id || null;
+            const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
+            const currentUserId = userProfile?.id || userProfile?.userId || null;
 
-            if (!token) {
-                throw new Error('Authentication required');
-            }
-
-            const res = await fetch(`${apiUrl}/procurement/load-balancing-settings`, {
+            const res = await fetch(getApiUrl('/procurement/load-balancing-settings'), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
                     'x-user-id': String(currentUserId || ''),
                 },
                 body: JSON.stringify(settings),

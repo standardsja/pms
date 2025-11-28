@@ -1,17 +1,11 @@
 import { getToken } from '../utils/auth';
+import { getApiBaseUrl } from '../config/api';
 
 /**
- * API URL configuration - uses heron production server
+ * Get API URL from centralized configuration
  */
 function getApiUrl(): string {
-    // 1. Explicit override via environment variable (ALWAYS takes priority)
-    if (import.meta.env.VITE_API_URL) {
-        console.log('Using VITE_API_URL:', import.meta.env.VITE_API_URL);
-        return import.meta.env.VITE_API_URL;
-    }
-
-    // 2. Use heron production server
-    return 'http://heron:4000';
+    return getApiBaseUrl();
 }
 
 const API_URL = getApiUrl();

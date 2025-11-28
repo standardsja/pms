@@ -1,276 +1,287 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, LoadBalancingStrategy } from '@prisma/client';
 
-const prisma = new PrismaClient();
+/**
+ * Load Balancing Service
+ *
+ * Provides intelligent automatic assignment of procurement requests to officers
+ * based on configured strategies: LEAST_LOADED, ROUND_ROBIN, or RANDOM.
+ */
 
 export interface LoadBalancingConfig {
     enabled: boolean;
-    strategy: 'LEAST_LOADED' | 'ROUND_ROBIN' | 'RANDOM';
+    strategy: LoadBalancingStrategy;
     autoAssignOnApproval: boolean;
+    roundRobinCounter: number;
 }
 
 /**
- * Get current load balancing settings
+ * Get current load balancing settings from database
  */
-export async function getSettings(): Promise<LoadBalancingConfig> {
-    const settings = await prisma.loadBalancingSettings.findFirst({
-        orderBy: { id: 'desc' },
-    });
+export async function getLoadBalancingSettings(prisma: PrismaClient): Promise<LoadBalancingConfig | null> {
+    try {
+        const settings = await prisma.loadBalancingSettings.findFirst({
+            orderBy: { updatedAt: 'desc' },
+        });
 
-    if (!settings) {
+        if (!settings) {
+            return null;
+        }
+
         return {
-            enabled: false,
-            strategy: 'LEAST_LOADED',
-            autoAssignOnApproval: true,
+            enabled: settings.enabled,
+            strategy: settings.strategy,
+            autoAssignOnApproval: settings.autoAssignOnApproval,
+            roundRobinCounter: settings.roundRobinCounter,
+        };
+    } catch (error) {
+        console.error('[LoadBalancing] Error fetching settings:', error);
+        return null;
+    }
+}
+
+/**
+ * Update load balancing settings in database
+ */
+export async function updateLoadBalancingSettings(prisma: PrismaClient, config: Partial<LoadBalancingConfig>, userId?: number): Promise<LoadBalancingConfig> {
+    const existing = await prisma.loadBalancingSettings.findFirst();
+
+    if (existing) {
+        const updated = await prisma.loadBalancingSettings.update({
+            where: { id: existing.id },
+            data: {
+                enabled: config.enabled ?? existing.enabled,
+                strategy: config.strategy ?? existing.strategy,
+                autoAssignOnApproval: config.autoAssignOnApproval ?? existing.autoAssignOnApproval,
+                roundRobinCounter: config.roundRobinCounter ?? existing.roundRobinCounter,
+                updatedBy: userId,
+            },
+        });
+
+        return {
+            enabled: updated.enabled,
+            strategy: updated.strategy,
+            autoAssignOnApproval: updated.autoAssignOnApproval,
+            roundRobinCounter: updated.roundRobinCounter,
+        };
+    } else {
+        const created = await prisma.loadBalancingSettings.create({
+            data: {
+                enabled: config.enabled ?? false,
+                strategy: config.strategy ?? 'LEAST_LOADED',
+                autoAssignOnApproval: config.autoAssignOnApproval ?? true,
+                roundRobinCounter: config.roundRobinCounter ?? 0,
+                updatedBy: userId,
+            },
+        });
+
+        return {
+            enabled: created.enabled,
+            strategy: created.strategy,
+            autoAssignOnApproval: created.autoAssignOnApproval,
+            roundRobinCounter: created.roundRobinCounter,
         };
     }
-
-    return {
-        enabled: settings.enabled,
-        strategy: settings.strategy as 'LEAST_LOADED' | 'ROUND_ROBIN' | 'RANDOM',
-        autoAssignOnApproval: settings.autoAssignOnApproval,
-    };
 }
 
 /**
- * Update load balancing settings
+ * Get all procurement officers with their current workload
  */
-export async function updateSettings(config: LoadBalancingConfig): Promise<LoadBalancingConfig> {
-    // Delete old settings and create new one (simple approach for single-row config)
-    await prisma.loadBalancingSettings.deleteMany({});
-
-    const settings = await prisma.loadBalancingSettings.create({
-        data: {
-            enabled: config.enabled,
-            strategy: config.strategy,
-            autoAssignOnApproval: config.autoAssignOnApproval,
-            lastRoundRobinIndex: 0,
+async function getProcurementOfficersWithWorkload(prisma: PrismaClient) {
+    const officers = await prisma.user.findMany({
+        where: {
+            roles: { some: { role: { name: 'PROCUREMENT' } } },
+        },
+        select: {
+            id: true,
+            name: true,
+            email: true,
         },
     });
 
-    return {
-        enabled: settings.enabled,
-        strategy: settings.strategy as 'LEAST_LOADED' | 'ROUND_ROBIN' | 'RANDOM',
-        autoAssignOnApproval: settings.autoAssignOnApproval,
-    };
-}
-
-/**
- * Get all procurement officers
- */
-async function getProcurementOfficers() {
-    const procurementRole = await prisma.role.findFirst({
-        where: { name: 'PROCUREMENT' },
-    });
-
-    if (!procurementRole) {
+    if (officers.length === 0) {
         return [];
     }
 
-    const userRoles = await prisma.userRole.findMany({
-        where: { roleId: procurementRole.id },
-        include: {
-            user: {
-                select: {
-                    id: true,
-                    name: true,
-                    email: true,
-                },
-            },
-        },
-    });
-
-    return userRoles.map((ur) => ur.user);
-}
-
-/**
- * Count active requests assigned to each officer
- */
-async function getOfficerWorkloads() {
-    const officers = await getProcurementOfficers();
-
-    const workloads = await Promise.all(
+    // Get workload for each officer (active assignments at PROCUREMENT_REVIEW stage)
+    const officersWithWorkload = await Promise.all(
         officers.map(async (officer) => {
-            const count = await prisma.request.count({
+            const assignedCount = await prisma.request.count({
                 where: {
                     currentAssigneeId: officer.id,
-                    status: {
-                        in: ['PROCUREMENT_REVIEW', 'SENT_TO_VENDOR'],
-                    },
+                    status: { in: ['PROCUREMENT_REVIEW'] },
                 },
             });
-            return { officer, count };
+
+            return {
+                id: officer.id,
+                name: officer.name,
+                email: officer.email,
+                assignedCount,
+            };
         })
     );
 
-    return workloads;
+    return officersWithWorkload;
 }
 
 /**
- * LEAST_LOADED strategy: Assign to officer with fewest active requests
+ * Select officer using LEAST_LOADED strategy
+ * Assigns to the officer with the fewest active requests
  */
-async function selectLeastLoaded(): Promise<number | null> {
-    const workloads = await getOfficerWorkloads();
+async function selectOfficerLeastLoaded(prisma: PrismaClient): Promise<number | null> {
+    const officers = await getProcurementOfficersWithWorkload(prisma);
 
-    if (workloads.length === 0) {
+    if (officers.length === 0) {
+        console.warn('[LoadBalancing] No procurement officers available');
         return null;
     }
 
-    // Sort by count ascending, then by id for deterministic tie-breaking
-    workloads.sort((a, b) => {
-        if (a.count !== b.count) {
-            return a.count - b.count;
-        }
-        return a.officer.id - b.officer.id;
-    });
+    // Sort by workload ascending and pick first (least loaded)
+    const sorted = officers.sort((a, b) => a.assignedCount - b.assignedCount);
+    const selected = sorted[0];
 
-    return workloads[0].officer.id;
+    console.log(`[LoadBalancing] LEAST_LOADED strategy selected officer ${selected.name} (ID: ${selected.id}, current load: ${selected.assignedCount})`);
+    return selected.id;
 }
 
 /**
- * ROUND_ROBIN strategy: Rotate through officers sequentially
+ * Select officer using ROUND_ROBIN strategy
+ * Cycles through officers in order, ensuring even distribution over time
  */
-async function selectRoundRobin(): Promise<number | null> {
-    const officers = await getProcurementOfficers();
+async function selectOfficerRoundRobin(prisma: PrismaClient): Promise<number | null> {
+    const officers = await getProcurementOfficersWithWorkload(prisma);
 
     if (officers.length === 0) {
+        console.warn('[LoadBalancing] No procurement officers available');
         return null;
     }
 
-    // Sort by ID for consistent ordering
-    officers.sort((a, b) => a.id - b.id);
-
-    // Get current round-robin index
-    const settings = await prisma.loadBalancingSettings.findFirst({
-        orderBy: { id: 'desc' },
-    });
-
-    const currentIndex = settings?.lastRoundRobinIndex || 0;
-    const nextIndex = (currentIndex + 1) % officers.length;
-
-    // Update the index for next time
-    if (settings) {
-        await prisma.loadBalancingSettings.update({
-            where: { id: settings.id },
-            data: { lastRoundRobinIndex: nextIndex },
-        });
+    // Get current settings to access counter
+    const settings = await prisma.loadBalancingSettings.findFirst();
+    if (!settings) {
+        console.warn('[LoadBalancing] No settings found for round-robin counter');
+        return null;
     }
 
-    return officers[nextIndex].id;
+    // Sort officers by ID for consistent ordering
+    const sorted = officers.sort((a, b) => a.id - b.id);
+
+    // Use modulo to cycle through officers
+    const index = settings.roundRobinCounter % sorted.length;
+    const selected = sorted[index];
+
+    // Increment counter for next assignment
+    await prisma.loadBalancingSettings.update({
+        where: { id: settings.id },
+        data: { roundRobinCounter: settings.roundRobinCounter + 1 },
+    });
+
+    console.log(`[LoadBalancing] ROUND_ROBIN strategy selected officer ${selected.name} (ID: ${selected.id}, position: ${index + 1}/${sorted.length})`);
+    return selected.id;
 }
 
 /**
- * RANDOM strategy: Randomly select an officer
+ * Select officer using RANDOM strategy
+ * Randomly picks an officer from the available pool
  */
-async function selectRandom(): Promise<number | null> {
-    const officers = await getProcurementOfficers();
+async function selectOfficerRandom(prisma: PrismaClient): Promise<number | null> {
+    const officers = await getProcurementOfficersWithWorkload(prisma);
 
     if (officers.length === 0) {
+        console.warn('[LoadBalancing] No procurement officers available');
         return null;
     }
 
     const randomIndex = Math.floor(Math.random() * officers.length);
-    return officers[randomIndex].id;
+    const selected = officers[randomIndex];
+
+    console.log(`[LoadBalancing] RANDOM strategy selected officer ${selected.name} (ID: ${selected.id})`);
+    return selected.id;
 }
 
 /**
- * Select officer based on current strategy
+ * Main auto-assignment function
+ * Checks settings and assigns request to appropriate officer based on configured strategy
+ *
+ * @param prisma - Prisma client instance
+ * @param requestId - ID of the request to assign
+ * @returns Officer ID if assignment succeeded, null otherwise
  */
-export async function selectOfficer(strategy: 'LEAST_LOADED' | 'ROUND_ROBIN' | 'RANDOM'): Promise<number | null> {
-    switch (strategy) {
-        case 'LEAST_LOADED':
-            return selectLeastLoaded();
-        case 'ROUND_ROBIN':
-            return selectRoundRobin();
-        case 'RANDOM':
-            return selectRandom();
-        default:
-            return selectLeastLoaded();
-    }
-}
-
-/**
- * Auto-assign request to officer using configured strategy
- */
-export async function autoAssignRequest(requestId: number, triggeredById: number): Promise<boolean> {
+export async function autoAssignRequest(prisma: PrismaClient, requestId: number): Promise<number | null> {
     try {
-        const settings = await getSettings();
+        const settings = await getLoadBalancingSettings(prisma);
 
-        // Check if auto-assignment is enabled
-        if (!settings.enabled) {
-            console.log(`Auto-assignment disabled for request ${requestId}`);
-            return false;
+        // If load balancing is disabled, don't assign
+        if (!settings || !settings.enabled) {
+            console.log(`[LoadBalancing] Load balancing disabled, skipping auto-assignment for request ${requestId}`);
+            return null;
         }
 
-        // Select officer using strategy
-        const officerId = await selectOfficer(settings.strategy);
+        console.log(`[LoadBalancing] Auto-assigning request ${requestId} using ${settings.strategy} strategy`);
+
+        // Select officer based on strategy
+        let officerId: number | null = null;
+
+        switch (settings.strategy) {
+            case 'LEAST_LOADED':
+                officerId = await selectOfficerLeastLoaded(prisma);
+                break;
+            case 'ROUND_ROBIN':
+                officerId = await selectOfficerRoundRobin(prisma);
+                break;
+            case 'RANDOM':
+                officerId = await selectOfficerRandom(prisma);
+                break;
+            default:
+                console.warn(`[LoadBalancing] Unknown strategy: ${settings.strategy}`);
+                return null;
+        }
 
         if (!officerId) {
-            console.error(`No procurement officers available for request ${requestId}`);
-            return false;
+            console.warn(`[LoadBalancing] No officer selected for request ${requestId}`);
+            return null;
         }
 
-        // Get officer details
-        const officer = await prisma.user.findUnique({
-            where: { id: officerId },
-            select: { name: true },
-        });
-
-        // Assign request
+        // Update request with assigned officer
         await prisma.request.update({
             where: { id: requestId },
+            data: { currentAssigneeId: officerId },
+        });
+
+        // Log the assignment in status history
+        await prisma.requestStatusHistory.create({
             data: {
-                currentAssigneeId: officerId,
-                statusHistory: {
-                    create: {
-                        status: 'PROCUREMENT_REVIEW',
-                        changedById: triggeredById,
-                        comment: `Auto-assigned to ${officer?.name || 'officer'} using ${settings.strategy} strategy`,
-                    },
-                },
+                requestId: requestId,
+                status: 'PROCUREMENT_REVIEW',
+                changedById: null, // System-initiated
+                comment: `Auto-assigned to officer (${settings.strategy} strategy)`,
             },
         });
 
-        console.log(`Request ${requestId} auto-assigned to officer ${officerId} using ${settings.strategy}`);
-        return true;
+        console.log(`[LoadBalancing] Successfully auto-assigned request ${requestId} to officer ${officerId}`);
+        return officerId;
     } catch (error) {
-        console.error(`Auto-assignment failed for request ${requestId}:`, error);
-        return false;
+        console.error(`[LoadBalancing] Error auto-assigning request ${requestId}:`, error);
+        return null;
     }
 }
 
 /**
- * Check and auto-assign pending requests at PROCUREMENT_REVIEW status
+ * Check if auto-assignment should be triggered for a request status change
+ *
+ * @param newStatus - The new status the request is moving to
+ * @param settings - Current load balancing settings
+ * @returns true if auto-assignment should be triggered
  */
-export async function autoAssignPendingRequests(triggeredById: number): Promise<number> {
-    try {
-        const settings = await getSettings();
-
-        if (!settings.enabled) {
-            return 0;
-        }
-
-        // Find unassigned requests at PROCUREMENT_REVIEW
-        const pendingRequests = await prisma.request.findMany({
-            where: {
-                status: 'PROCUREMENT_REVIEW',
-                currentAssigneeId: null,
-            },
-            select: { id: true },
-        });
-
-        let assignedCount = 0;
-
-        for (const request of pendingRequests) {
-            const success = await autoAssignRequest(request.id, triggeredById);
-            if (success) {
-                assignedCount++;
-            }
-        }
-
-        console.log(`Auto-assigned ${assignedCount} pending requests`);
-        return assignedCount;
-    } catch (error) {
-        console.error('Error auto-assigning pending requests:', error);
-        return 0;
+export function shouldAutoAssign(newStatus: string, settings: LoadBalancingConfig | null): boolean {
+    if (!settings || !settings.enabled) {
+        return false;
     }
+
+    // Only auto-assign when moving to PROCUREMENT_REVIEW if autoAssignOnApproval is enabled
+    if (newStatus === 'PROCUREMENT_REVIEW' && settings.autoAssignOnApproval) {
+        return true;
+    }
+
+    return false;
 }
