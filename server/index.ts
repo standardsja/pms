@@ -3065,6 +3065,167 @@ app.post('/requests/:id/forward-to-executive', authMiddleware, async (req, res) 
     }
 });
 
+// POST /requests/:id/executive-action - Executive Director approves or rejects threshold-exceeding requests
+app.post('/requests/:id/executive-action', authMiddleware, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { action, comment } = req.body; // 'APPROVE' or 'REJECT'
+        const user = (req as any).user;
+
+        if (!user?.sub) {
+            return res.status(401).json({ success: false, error: 'Authentication required' });
+        }
+
+        // Verify user is Executive Director
+        const userRoleInfo = checkUserRoles(user.roles || []);
+        if (!userRoleInfo.isExecutiveDirector && !userRoleInfo.isAdmin) {
+            return res.status(403).json({
+                success: false,
+                error: 'Only Executive Directors can approve/reject executive review requests',
+            });
+        }
+
+        // Fetch the request
+        const request = await prisma.request.findUnique({
+            where: { id: parseInt(id, 10) },
+            include: {
+                department: true,
+                requester: true,
+                currentAssignee: true,
+            },
+        });
+
+        if (!request) {
+            return res.status(404).json({ success: false, error: 'Request not found' });
+        }
+
+        // Verify request is in EXECUTIVE_REVIEW status
+        if (request.status !== 'EXECUTIVE_REVIEW') {
+            return res.status(400).json({
+                success: false,
+                error: `Request is not in executive review status (current: ${request.status})`,
+            });
+        }
+
+        // Verify request is assigned to this executive
+        if (request.currentAssigneeId !== user.sub) {
+            return res.status(403).json({
+                success: false,
+                error: 'This request is not assigned to you',
+            });
+        }
+
+        let nextStatus: string;
+        let nextAssigneeId: number | null = null;
+        let actionMessage: string;
+
+        if (action === 'APPROVE') {
+            // Executive approved -> send back to Procurement Manager
+            const procurementManager = await prisma.user.findFirst({
+                where: {
+                    roles: {
+                        some: {
+                            role: {
+                                name: 'PROCUREMENT_MANAGER',
+                            },
+                        },
+                    },
+                },
+            });
+
+            if (!procurementManager) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'No Procurement Manager found in system',
+                });
+            }
+
+            nextStatus = 'PROCUREMENT_REVIEW';
+            nextAssigneeId = procurementManager.id;
+            actionMessage = 'approved by Executive Director';
+        } else if (action === 'REJECT') {
+            // Executive rejected -> send back to requester as DRAFT
+            nextStatus = 'DRAFT';
+            nextAssigneeId = request.requesterId;
+            actionMessage = 'rejected by Executive Director';
+        } else {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid action. Must be APPROVE or REJECT',
+            });
+        }
+
+        // Update request status
+        const updatedRequest = await prisma.request.update({
+            where: { id: parseInt(id, 10) },
+            data: {
+                status: nextStatus as any,
+                currentAssigneeId: nextAssigneeId,
+            },
+            include: {
+                items: true,
+                requester: { select: { id: true, name: true, email: true } },
+                department: { select: { id: true, name: true, code: true } },
+                currentAssignee: { select: { id: true, name: true, email: true } },
+            },
+        });
+
+        // Create audit log
+        await prisma.requestAction.create({
+            data: {
+                requestId: updatedRequest.id,
+                performedById: user.sub,
+                action: action === 'APPROVE' ? 'APPROVE' : 'RETURN',
+                comment: comment || `Request ${actionMessage} - ${request.title}`,
+            },
+        });
+
+        // Create status history
+        await prisma.requestStatusHistory.create({
+            data: {
+                requestId: updatedRequest.id,
+                status: nextStatus as any,
+                changedById: user.sub,
+                comment: comment || `Executive Director ${action === 'APPROVE' ? 'approved' : 'rejected'} request`,
+            },
+        });
+
+        // Create notification for the next assignee
+        if (nextAssigneeId) {
+            await prisma.notification.create({
+                data: {
+                    userId: nextAssigneeId,
+                    type: action === 'APPROVE' ? 'STAGE_CHANGED' : 'REQUEST_RETURNED',
+                    message:
+                        action === 'APPROVE'
+                            ? `Executive Director approved high-value request: ${request.title}`
+                            : `Executive Director rejected request: ${request.title}`,
+                    data: {
+                        requestId: updatedRequest.id,
+                        action,
+                        executiveComment: comment,
+                    },
+                },
+            });
+        }
+
+        console.log(`✅ [Executive Action] Request ${id} ${actionMessage} by user ${user.sub}`);
+
+        return res.json({
+            success: true,
+            message: `Request ${actionMessage} successfully`,
+            request: updatedRequest,
+        });
+    } catch (e: any) {
+        console.error('POST /requests/:id/executive-action error:', e);
+        return res.status(500).json({
+            success: false,
+            error: e?.message || 'Failed to process executive action',
+            details: process.env.NODE_ENV === 'development' ? e.stack : undefined,
+        });
+    }
+});
+
 // GET /users/procurement-officers - List all procurement officers with workload
 app.get('/users/procurement-officers', async (req, res) => {
     try {

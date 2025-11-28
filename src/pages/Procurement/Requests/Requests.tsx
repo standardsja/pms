@@ -52,6 +52,8 @@ const Requests = () => {
                 roles = [typeof user.role === 'string' ? user.role : user.role?.name || ''];
             }
             console.log('🔍 [Requests] Current user roles:', roles);
+            console.log('🔍 [Requests] Current user ID:', user?.id);
+            console.log('🔍 [Requests] Current user name:', user?.name);
             console.log('🔍 [Requests] Raw user object:', user);
             console.log('🔍 [Requests] Raw roles array:', user?.roles);
             setCurrentUserRoles(roles);
@@ -71,7 +73,10 @@ const Requests = () => {
             setError(null);
             try {
                 const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
-                const headers: Record<string, string> = {};
+                const headers: Record<string, string> = {
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache',
+                };
                 if (token) headers['Authorization'] = `Bearer ${token}`;
                 // Use backend API URL based on current hostname
                 const apiUrl = 'http://heron:4000';
@@ -138,9 +143,10 @@ const Requests = () => {
             return filteredByMeta.filter((r) => {
                 const assigneeId = r.currentAssigneeId ? Number(r.currentAssigneeId) : null;
                 const isAssignedToMe = currentUserId && assigneeId === currentUserId;
+                const normalizedStatus = normalizeStatus(r.status || '');
 
                 // Show EXECUTIVE_REVIEW requests assigned to this executive
-                if (r.status === 'EXECUTIVE_REVIEW' && isAssignedToMe) {
+                if (normalizedStatus === 'Executive Review' && isAssignedToMe) {
                     return true;
                 }
 
@@ -185,7 +191,9 @@ const Requests = () => {
         const highValueRequests = filteredRequests.filter((r) => {
             const procurementTypes = Array.isArray(r.procurementType) ? r.procurementType : [];
             const alert = checkExecutiveThreshold(r.totalEstimated || 0, procurementTypes);
-            return alert.isRequired;
+            const normalizedStatus = normalizeStatus(r.status || '');
+            // Only count requests that need forwarding (exceed threshold AND not already in executive review)
+            return alert.isRequired && normalizedStatus !== 'Executive Review';
         });
 
         return {
@@ -299,6 +307,84 @@ const Requests = () => {
                 icon: 'error',
                 title: 'Forward Failed',
                 text: error instanceof Error ? error.message : 'Failed to forward request',
+            });
+        }
+    };
+
+    // Executive Director approve/reject action
+    const handleExecutiveAction = async (req: Request, action: 'APPROVE' | 'REJECT') => {
+        const result = await MySwal.fire({
+            title: action === 'APPROVE' ? 'Approve Request?' : 'Reject Request?',
+            html: `
+                <div class="text-left">
+                    <p class="mb-2">Request: <strong>${req.title}</strong></p>
+                    <p class="mb-2">Value: <strong>${req.currency} ${(req.totalEstimated || 0).toLocaleString()}</strong></p>
+                    <p class="mb-4">${
+                        action === 'APPROVE'
+                            ? 'This will approve the request and send it back to the Procurement Manager for processing.'
+                            : 'This will reject the request and send it back to the requester as a draft.'
+                    }</p>
+                    <label class="block mb-2 font-medium">Comment ${action === 'REJECT' ? '(Required)' : '(Optional)'}:</label>
+                    <textarea
+                        id="executive-comment"
+                        class="w-full p-2 border rounded"
+                        rows="3"
+                        placeholder="${action === 'APPROVE' ? 'Add any notes or conditions...' : 'Please explain why this request is being rejected...'}"
+                    ></textarea>
+                </div>
+            `,
+            icon: action === 'APPROVE' ? 'question' : 'warning',
+            showCancelButton: true,
+            confirmButtonText: action === 'APPROVE' ? 'Approve' : 'Reject',
+            cancelButtonText: 'Cancel',
+            confirmButtonColor: action === 'APPROVE' ? '#10b981' : '#ef4444',
+            preConfirm: () => {
+                const comment = (document.getElementById('executive-comment') as HTMLTextAreaElement)?.value || '';
+                if (action === 'REJECT' && !comment.trim()) {
+                    MySwal.showValidationMessage('Please provide a reason for rejection');
+                    return false;
+                }
+                return comment;
+            },
+        });
+
+        if (!result.isConfirmed) return;
+
+        try {
+            const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
+            const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:4000' : `http://${window.location.hostname}:4000`;
+
+            const response = await fetch(`${apiUrl}/requests/${req.id}/executive-action`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                    action,
+                    comment: result.value || '',
+                }),
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || data.message || 'Failed to process action');
+            }
+
+            MySwal.fire({
+                icon: 'success',
+                title: action === 'APPROVE' ? 'Request Approved' : 'Request Rejected',
+                text: data.message || `The request has been ${action === 'APPROVE' ? 'approved and sent to Procurement Manager' : 'rejected'}.`,
+            });
+
+            // Refresh the requests list
+            window.location.reload();
+        } catch (error) {
+            MySwal.fire({
+                icon: 'error',
+                title: 'Action Failed',
+                text: error instanceof Error ? error.message : 'Failed to process action',
             });
         }
     };
@@ -496,35 +582,57 @@ const Requests = () => {
                                                 </button>
                                             )}
                                             {(() => {
-                                                // Check if user is procurement manager
+                                                const normalizedStatus = normalizeStatus(r.status || '');
+                                                const isAssignedToMe = currentUserId && r.currentAssigneeId && Number(r.currentAssigneeId) === Number(currentUserId);
+
+                                                // Executive Director approve/reject buttons for EXECUTIVE_REVIEW requests
+                                                if (isExecutiveDirector && normalizedStatus === 'Executive Review' && isAssignedToMe) {
+                                                    return (
+                                                        <>
+                                                            <button
+                                                                className="px-3 py-1.5 rounded bg-green-600 hover:bg-green-700 text-white text-xs font-medium flex items-center gap-1"
+                                                                onClick={() => handleExecutiveAction(r, 'APPROVE')}
+                                                                title="Approve Request"
+                                                                aria-label={`Approve request ${r.id}`}
+                                                            >
+                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                                </svg>
+                                                                <span>Approve</span>
+                                                            </button>
+                                                            <button
+                                                                className="px-3 py-1.5 rounded bg-red-600 hover:bg-red-700 text-white text-xs font-medium flex items-center gap-1"
+                                                                onClick={() => handleExecutiveAction(r, 'REJECT')}
+                                                                title="Reject Request"
+                                                                aria-label={`Reject request ${r.id}`}
+                                                            >
+                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                                </svg>
+                                                                <span>Reject</span>
+                                                            </button>
+                                                        </>
+                                                    );
+                                                }
+
+                                                // Procurement Manager forward button
                                                 const isProcurementManager = currentUserRoles.some((role) => {
                                                     const roleUpper = role.toUpperCase();
                                                     return ['PROCUREMENT_MANAGER', 'PROCUREMENT MANAGER'].includes(roleUpper) || (roleUpper.includes('PROCUREMENT') && roleUpper.includes('MANAGER'));
                                                 });
-                                                // Check if request exceeds threshold
                                                 const procurementTypes = Array.isArray(r.procurementType) ? r.procurementType : [];
                                                 const thresholdAlert = checkExecutiveThreshold(r.totalEstimated || 0, procurementTypes, r.currency);
-                                                // Show button if: user is procurement manager, request exceeds threshold, not already in executive review
-                                                const normalizedStatus = normalizeStatus(r.status || '');
-                                                const showForwardButton = isProcurementManager && thresholdAlert.isRequired && normalizedStatus !== 'EXECUTIVE_REVIEW';
-
-                                                // Debug logging for first few requests
-                                                if (filteredRequests.indexOf(r) < 3) {
-                                                    console.log(`🔍 [Request ${r.id}] isProcurementManager:`, isProcurementManager);
-                                                    console.log(`🔍 [Request ${r.id}] thresholdAlert:`, thresholdAlert);
-                                                    console.log(`🔍 [Request ${r.id}] totalEstimated:`, r.totalEstimated, r.currency);
-                                                    console.log(`🔍 [Request ${r.id}] normalizedStatus:`, normalizedStatus);
-                                                    console.log(`🔍 [Request ${r.id}] showForwardButton:`, showForwardButton);
-                                                }
+                                                const showForwardButton = isProcurementManager && thresholdAlert.isRequired && normalizedStatus !== 'Executive Review';
 
                                                 return showForwardButton ? (
                                                     <button
-                                                        className="p-1.5 rounded hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600"
+                                                        className="px-3 py-1.5 rounded bg-green-600 hover:bg-green-700 text-white text-xs font-medium flex items-center gap-1"
                                                         onClick={() => forwardToExecutive(r)}
                                                         title="Forward to Executive Director"
                                                         aria-label={`Forward request ${r.id} to Executive Director`}
                                                     >
-                                                        <IconSend className="w-5 h-5" />
+                                                        <IconSend className="w-4 h-4" />
+                                                        <span>Forward</span>
                                                     </button>
                                                 ) : null;
                                             })()}
