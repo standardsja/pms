@@ -135,6 +135,10 @@ model User {
   stageHistory IdeaStageHistory[]
   auditLogs    AuditLog[]
   notifications Notification[]
+
+  // Load balancing analytics back-relations
+  performanceMetrics OfficerPerformanceMetrics[]
+  assignmentLogs     RequestAssignmentLog[]
   
   // Messages relations
   sentMessages     Message[] @relation("MessagesSent")
@@ -273,6 +277,9 @@ model Request {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   submittedAt DateTime?
+
+  // Load balancing assignment logs back-relations
+  assignmentLogs RequestAssignmentLog[]
 }
 
 model RequestItem {
