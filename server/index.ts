@@ -2628,19 +2628,72 @@ app.post('/requests/:id/submit', async (req, res) => {
                 return res.status(409).json({ message: 'Potential splintering detected', splinter: true, details: spl });
             }
 
-            // If flagged and override provided, create an audit Notification so procurement/audit can review
+            // If flagged and override provided, verify user has manager privileges
             if (spl.flagged && allowOverride) {
+                const actingUserId = req.headers['x-user-id'];
+                if (!actingUserId) {
+                    return res.status(400).json({ message: 'User ID required to override splintering' });
+                }
+
+                const actingUser = await prisma.user.findUnique({
+                    where: { id: parseInt(String(actingUserId), 10) },
+                    include: { roles: { include: { role: true } } },
+                });
+
+                if (!actingUser) {
+                    return res.status(404).json({ message: 'Acting user not found' });
+                }
+
+                // Check if user has manager role (PROCUREMENT_MANAGER, DEPT_MANAGER, or MANAGER)
+                const hasManagerRole = actingUser.roles.some(
+                    (ur) =>
+                        ur.role.name === 'PROCUREMENT_MANAGER' ||
+                        ur.role.name === 'DEPT_MANAGER' ||
+                        ur.role.name === 'MANAGER' ||
+                        ur.role.name === 'EXECUTIVE'
+                );
+
+                if (!hasManagerRole) {
+                    return res.status(403).json({ message: 'Only managers can override splintering warnings' });
+                }
+
+                // Create detailed audit notification for override
                 try {
                     await prisma.notification.create({
                         data: {
-                            userId: null,
+                            userId: null, // Broadcast to system/audit
                             type: 'THRESHOLD_EXCEEDED',
-                            message: `Potential splintering detected for request ${request.reference || request.id} (sum ${spl.combined} >= ${spl.threshold}) - override applied`,
-                            data: { requestId: request.id, splinter: spl },
+                            message: `⚠️ Splintering override: ${actingUser.name} (${actingUser.email}) bypassed splintering warning for request ${request.reference || request.id}`,
+                            data: {
+                                requestId: request.id,
+                                requestReference: request.reference,
+                                overriddenBy: {
+                                    id: actingUser.id,
+                                    name: actingUser.name,
+                                    email: actingUser.email,
+                                    roles: actingUser.roles.map((ur) => ur.role.name),
+                                },
+                                splinter: spl,
+                                timestamp: new Date().toISOString(),
+                                action: 'SPLINTERING_OVERRIDE',
+                            },
                         },
                     });
-                } catch (notifErr) {
-                    console.warn('Failed to create splintering notification:', notifErr);
+
+                    // Also log to status history for permanent audit trail
+                    await prisma.statusHistory.create({
+                        data: {
+                            requestId: request.id,
+                            status: 'DRAFT', // Still draft at this point
+                            changedById: actingUser.id,
+                            comment: `Manager override: Splintering warning bypassed. Combined value: ${spl.combined.toFixed(2)} JMD (threshold: ${spl.threshold} JMD, window: ${spl.windowDays} days)`,
+                        },
+                    });
+
+                    console.log(`[Audit] Splintering override by ${actingUser.name} (ID ${actingUser.id}) for request ${request.id}`);
+                } catch (auditErr) {
+                    console.error('Failed to create splintering override audit log:', auditErr);
+                    // Don't fail the submission if audit logging fails, but log the error
                 }
             }
         } catch (splErr) {
