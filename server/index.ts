@@ -3329,6 +3329,8 @@ app.get('/procurement/load-balancing-settings', async (req, res) => {
                 enabled: false,
                 strategy: 'LEAST_LOADED',
                 autoAssignOnApproval: true,
+                roundRobinCounter: 0,
+                splinteringEnabled: false,
             });
         }
 
@@ -3337,6 +3339,12 @@ app.get('/procurement/load-balancing-settings', async (req, res) => {
         console.error('GET /procurement/load-balancing-settings error:', e);
         return res.status(500).json({ message: e?.message || 'Failed to fetch settings' });
     }
+});
+
+// Backward-compat alias: underscore variant
+app.get('/procurement/load_balancing-settings', async (req, res) => {
+    // Delegate to the canonical handler
+    (app as any)._router.handle({ ...req, url: '/procurement/load-balancing-settings' }, res, () => {});
 });
 
 // POST /procurement/load-balancing-settings - Update load balancing configuration
@@ -3362,7 +3370,12 @@ app.post('/procurement/load-balancing-settings', async (req, res) => {
             return res.status(403).json({ message: 'Only Procurement Managers can update settings' });
         }
 
-        const { enabled, strategy, autoAssignOnApproval } = req.body;
+        const { enabled, strategy, autoAssignOnApproval, splinteringEnabled } = req.body as {
+            enabled?: boolean;
+            strategy?: string;
+            autoAssignOnApproval?: boolean;
+            splinteringEnabled?: boolean;
+        };
 
         // Validate strategy
         const validStrategies = ['LEAST_LOADED', 'ROUND_ROBIN', 'RANDOM'];
@@ -3377,6 +3390,7 @@ app.post('/procurement/load-balancing-settings', async (req, res) => {
                 enabled: enabled !== undefined ? enabled : undefined,
                 strategy: strategy,
                 autoAssignOnApproval: autoAssignOnApproval !== undefined ? autoAssignOnApproval : undefined,
+                splinteringEnabled: splinteringEnabled !== undefined ? splinteringEnabled : undefined,
             },
             parseInt(String(userId), 10)
         );
@@ -3388,6 +3402,12 @@ app.post('/procurement/load-balancing-settings', async (req, res) => {
         console.error('POST /procurement/load-balancing-settings error:', e);
         return res.status(500).json({ message: e?.message || 'Failed to update settings' });
     }
+});
+
+// Backward-compat alias: underscore variant
+app.post('/procurement/load_balancing-settings', async (req, res) => {
+    // Delegate to the canonical handler
+    (app as any)._router.handle({ ...req, url: '/procurement/load-balancing-settings' }, res, () => {});
 });
 
 // GET /api/tags - list all tags

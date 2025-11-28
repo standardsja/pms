@@ -12,6 +12,7 @@ export interface LoadBalancingConfig {
     strategy: LoadBalancingStrategy;
     autoAssignOnApproval: boolean;
     roundRobinCounter: number;
+    splinteringEnabled: boolean;
 }
 
 /**
@@ -36,6 +37,7 @@ export async function getLoadBalancingSettings(prisma: PrismaClient | undefined 
             strategy: settings.strategy,
             autoAssignOnApproval: settings.autoAssignOnApproval,
             roundRobinCounter: settings.roundRobinCounter,
+            splinteringEnabled: (settings as any).splinteringEnabled ?? false,
         };
     } catch (error) {
         console.error('[LoadBalancing] Error fetching settings:', error);
@@ -57,6 +59,7 @@ export async function updateLoadBalancingSettings(prisma: PrismaClient, config: 
                 strategy: config.strategy ?? existing.strategy,
                 autoAssignOnApproval: config.autoAssignOnApproval ?? existing.autoAssignOnApproval,
                 roundRobinCounter: config.roundRobinCounter ?? existing.roundRobinCounter,
+                splinteringEnabled: config.splinteringEnabled ?? (existing as any).splinteringEnabled ?? false,
                 updatedBy: userId,
             },
         });
@@ -66,6 +69,7 @@ export async function updateLoadBalancingSettings(prisma: PrismaClient, config: 
             strategy: updated.strategy,
             autoAssignOnApproval: updated.autoAssignOnApproval,
             roundRobinCounter: updated.roundRobinCounter,
+            splinteringEnabled: (updated as any).splinteringEnabled ?? false,
         };
     } else {
         const created = await prisma.loadBalancingSettings.create({
@@ -74,6 +78,7 @@ export async function updateLoadBalancingSettings(prisma: PrismaClient, config: 
                 strategy: config.strategy ?? 'LEAST_LOADED',
                 autoAssignOnApproval: config.autoAssignOnApproval ?? true,
                 roundRobinCounter: config.roundRobinCounter ?? 0,
+                splinteringEnabled: config.splinteringEnabled ?? false,
                 updatedBy: userId,
             },
         });
@@ -83,6 +88,7 @@ export async function updateLoadBalancingSettings(prisma: PrismaClient, config: 
             strategy: created.strategy,
             autoAssignOnApproval: created.autoAssignOnApproval,
             roundRobinCounter: created.roundRobinCounter,
+            splinteringEnabled: (created as any).splinteringEnabled ?? false,
         };
     }
 }
