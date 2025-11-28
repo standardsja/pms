@@ -8,6 +8,7 @@ import IconChecks from '../../../components/Icon/IconChecks';
 import IconX from '../../../components/Icon/IconX';
 import IconRefresh from '../../../components/Icon/IconRefresh';
 import IconInfoCircle from '../../../components/Icon/IconInfoCircle';
+import { getApiUrl } from '../../../config/api';
 
 const MySwal = withReactContent(Swal);
 
@@ -28,8 +29,6 @@ const LoadBalancingSettings = () => {
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:4000' : `http://${window.location.hostname}:4000`;
-
     useEffect(() => {
         dispatch(setPageTitle('Load Balancing Settings'));
     }, [dispatch]);
@@ -43,7 +42,7 @@ const LoadBalancingSettings = () => {
                 const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
                 const currentUserId = userProfile?.id || userProfile?.userId || null;
 
-                const res = await fetch(`${apiUrl}/procurement/load-balancing-settings`, {
+                const res = await fetch(getApiUrl('/procurement/load-balancing-settings'), {
                     headers: {
                         'x-user-id': String(currentUserId || ''),
                     },
@@ -67,7 +66,7 @@ const LoadBalancingSettings = () => {
         };
 
         fetchSettings();
-    }, [apiUrl]);
+    }, []);
 
     const handleSave = async () => {
         setSaving(true);
@@ -76,7 +75,7 @@ const LoadBalancingSettings = () => {
             const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
             const currentUserId = userProfile?.id || userProfile?.userId || null;
 
-            const res = await fetch(`${apiUrl}/procurement/load-balancing-settings`, {
+            const res = await fetch(getApiUrl('/procurement/load-balancing-settings'), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

@@ -8,6 +8,7 @@ import IconPlus from '../../../components/Icon/IconPlus';
 import IconEye from '../../../components/Icon/IconEye';
 import IconX from '../../../components/Icon/IconX';
 import IconCircleCheck from '../../../components/Icon/IconCircleCheck';
+import { getApiUrl } from '../../../config/api';
 import { Request } from '../../../types/request.types';
 import { getStatusBadge } from '../../../utils/statusBadges';
 import {
@@ -54,7 +55,7 @@ const CombineRequests = () => {
             setError(null);
             try {
                 const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
-                const response = await fetch(`http://localhost:4000/api/requests/combine?combinable=true`, {
+                const response = await fetch(getApiUrl('/api/requests/combine?combinable=true'), {
                     headers: {
                         Authorization: `Bearer ${token}`,
                         'Content-Type': 'application/json',
@@ -194,7 +195,7 @@ const CombineRequests = () => {
             };
 
             const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
-            const response = await fetch(`http://localhost:4000/api/requests/combine`, {
+            const response = await fetch(getApiUrl('/api/requests/combine'), {
                 method: 'POST',
                 headers: {
                     Authorization: `Bearer ${token}`,

@@ -1,29 +1,11 @@
 import { getToken } from '../utils/auth';
+import { getApiBaseUrl } from '../config/api';
 
 /**
- * Smart API URL detection - automatically switches between local and production
+ * Get API URL from centralized configuration
  */
 function getApiUrl(): string {
-    // 1. Explicit override via environment variable (ALWAYS takes priority)
-    if (import.meta.env.VITE_API_URL) {
-        console.log('Using VITE_API_URL:', import.meta.env.VITE_API_URL);
-        return import.meta.env.VITE_API_URL;
-    }
-
-    // 2. Detect environment based on current hostname
-    const hostname = window.location.hostname;
-    const protocol = window.location.protocol;
-
-    // If running on localhost or heron, use appropriate backend
-    if (hostname === 'localhost' || hostname === '127.0.0.1') {
-        return 'http://localhost:4000';
-    }
-    if (hostname === 'heron') {
-        return 'http://heron:4000';
-    }
-
-    // Otherwise, use the same hostname as the frontend (production)
-    return `${protocol}//${hostname}:4000`;
+    return getApiBaseUrl();
 }
 
 const API_URL = getApiUrl();

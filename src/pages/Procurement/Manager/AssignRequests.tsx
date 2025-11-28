@@ -10,6 +10,7 @@ import IconSearch from '../../../components/Icon/IconSearch';
 import IconRefresh from '../../../components/Icon/IconRefresh';
 import IconX from '../../../components/Icon/IconX';
 import { getStatusBadge } from '../../../utils/statusBadges';
+import { getApiUrl } from '../../../config/api';
 
 const MySwal = withReactContent(Swal);
 
@@ -59,8 +60,6 @@ const AssignRequests = () => {
     const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
     const currentUserId = userProfile?.id || userProfile?.userId || null;
 
-    const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:4000' : `http://${window.location.hostname}:4000`;
-
     useEffect(() => {
         dispatch(setPageTitle('Assign Requests'));
     }, [dispatch]);
@@ -75,7 +74,7 @@ const AssignRequests = () => {
                 const currentUserId = userProfile?.id || userProfile?.userId || null;
 
                 // Fetch procurement officers
-                const officersRes = await fetch(`${apiUrl}/users/procurement-officers`, {
+                const officersRes = await fetch(getApiUrl('/users/procurement-officers'), {
                     headers: {
                         'x-user-id': String(currentUserId || ''),
                     },
@@ -92,7 +91,7 @@ const AssignRequests = () => {
                 setIsProcurementManager(roles.includes('PROCUREMENT_MANAGER') || roles.includes('Procurement Manager') || roles.includes('PROCUREMENT'));
 
                 // Fetch requests at PROCUREMENT_REVIEW status
-                const requestsRes = await fetch(`${apiUrl}/requests`, {
+                const requestsRes = await fetch(getApiUrl('/requests'), {
                     headers: {
                         'x-user-id': String(currentUserId || ''),
                     },
@@ -118,7 +117,7 @@ const AssignRequests = () => {
         };
 
         fetchData();
-    }, [apiUrl]);
+    }, []);
 
     // Filter and sort requests
     useEffect(() => {
@@ -234,7 +233,7 @@ const AssignRequests = () => {
                 const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
                 const currentUserId = userProfile?.id || userProfile?.userId || null;
 
-                const res = await fetch(`${apiUrl}/requests/${reqId}/assign`, {
+                const res = await fetch(getApiUrl(`/requests/${reqId}/assign`), {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',

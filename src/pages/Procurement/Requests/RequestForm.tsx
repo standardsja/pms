@@ -5,6 +5,7 @@ import { setPageTitle } from '@/store/themeConfigSlice';
 import IconPlus from '@/components/Icon/IconPlus';
 import IconX from '@/components/Icon/IconX';
 import Swal from 'sweetalert2';
+import { getApiUrl } from '../../../config/api';
 
 interface RequestItem {
     itemNo: number;
@@ -200,7 +201,7 @@ const RequestForm = () => {
 
         const fetchRequest = async () => {
             try {
-                const resp = await fetch(`http://heron:4000/requests/${id}`);
+                const resp = await fetch(getApiUrl(`/requests/${id}`));
                 if (!resp.ok) throw new Error('Failed to fetch request');
 
                 const request = await resp.json();
@@ -354,7 +355,7 @@ const RequestForm = () => {
         if (!confirm.isConfirmed) return;
 
         try {
-            const resp = await fetch(`http://heron:4000/requests/${id}/attachments/${attachmentId}`, {
+            const resp = await fetch(getApiUrl(`/requests/${id}/attachments/${attachmentId}`), {
                 method: 'DELETE',
                 headers: { 'x-user-id': String(userId) },
             });
@@ -504,7 +505,7 @@ const RequestForm = () => {
                         try {
                             const fd = new FormData();
                             attachments.forEach((f) => fd.append('attachments', f));
-                            const uploadResp = await fetch(`http://heron:4000/requests/${id}/attachments`, {
+                            const uploadResp = await fetch(getApiUrl(`/requests/${id}/attachments`), {
                                 method: 'POST',
                                 headers: { 'x-user-id': String(userId) },
                                 body: fd,
@@ -529,7 +530,7 @@ const RequestForm = () => {
                     }
                 }
 
-                const resp = await fetch(`http://heron:4000/requests/${id}`, {
+                const resp = await fetch(getApiUrl(`/requests/${id}`), {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
@@ -546,7 +547,7 @@ const RequestForm = () => {
 
                 if (isApproving) {
                     try {
-                        const approveResp = await fetch(`http://heron:4000/requests/${id}/action`, {
+                        const approveResp = await fetch(getApiUrl(`/requests/${id}/action`), {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json', 'x-user-id': String(userId) },
                             body: JSON.stringify({ action: 'APPROVE' }),
@@ -581,7 +582,7 @@ const RequestForm = () => {
 
                         if (confirmResubmit.isConfirmed) {
                             try {
-                                const submitResp = await fetch(`http://heron:4000/requests/${id}/submit`, {
+                                const submitResp = await fetch(getApiUrl(`/requests/${id}/submit`), {
                                     method: 'POST',
                                     headers: {
                                         'Content-Type': 'application/json',
@@ -611,7 +612,7 @@ const RequestForm = () => {
                                     }
 
                                     // Resend with override flag
-                                    const overrideResp = await fetch(`http://heron:4000/requests/${id}/submit`, {
+                                    const overrideResp = await fetch(getApiUrl(`/requests/${id}/submit`), {
                                         method: 'POST',
                                         headers: {
                                             'Content-Type': 'application/json',
@@ -713,7 +714,7 @@ const RequestForm = () => {
                 if (headerYear) formData.append('headerYear', String(headerYear));
                 if (headerSequence !== null && headerSequence !== undefined) formData.append('headerSequence', String(headerSequence));
 
-                const resp = await fetch('http://heron:4000/requests', {
+                const resp = await fetch(getApiUrl('/requests'), {
                     method: 'POST',
                     headers: {
                         'x-user-id': String(userId),
@@ -729,7 +730,7 @@ const RequestForm = () => {
                 const data = await resp.json();
 
                 // Submit the request to department manager for review
-                const submitResp = await fetch(`http://heron:4000/requests/${data.id}/submit`, {
+                const submitResp = await fetch(getApiUrl(`/requests/${data.id}/submit`), {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -761,7 +762,7 @@ const RequestForm = () => {
 
     const handleDownloadPdf = () => {
         if (!id) return;
-        const url = `http://heron:4000/requests/${id}/pdf`;
+        const url = getApiUrl(`/requests/${id}/pdf`);
         // open in a new tab to trigger download
         window.open(url, '_blank');
     };
@@ -776,7 +777,7 @@ const RequestForm = () => {
             return;
         }
         try {
-            const resp = await fetch(`http://heron:4000/requests/${id}/action`, {
+            const resp = await fetch(getApiUrl(`/requests/${id}/action`), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'x-user-id': String(userId) },
                 body: JSON.stringify({ action: 'SEND_TO_VENDOR' }),
@@ -815,7 +816,7 @@ const RequestForm = () => {
 
         try {
             setIsSubmitting(true);
-            const resp = await fetch(`http://heron:4000/requests/${id}/submit`, {
+            const resp = await fetch(getApiUrl(`/requests/${id}/submit`), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'x-user-id': String(userId) },
                 body: JSON.stringify({}),
@@ -840,7 +841,7 @@ const RequestForm = () => {
                     return;
                 }
 
-                const overrideResp = await fetch(`http://heron:4000/requests/${id}/submit`, {
+                const overrideResp = await fetch(getApiUrl(`/requests/${id}/submit`), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'x-user-id': String(userId) },
                     body: JSON.stringify({ overrideSplinter: true }),

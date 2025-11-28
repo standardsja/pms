@@ -40,7 +40,9 @@ function getCurrentUserId(): number | null {
     return null;
 }
 
-const API_BASE = 'http://heron:4000';
+import { getApiBaseUrl } from '../config/api';
+
+const API_BASE = getApiBaseUrl();
 // Decide whether to prefix; if API_BASE provided and path is relative, join.
 function buildUrl(path: string) {
     if (path.startsWith('http://') || path.startsWith('https://')) return path;

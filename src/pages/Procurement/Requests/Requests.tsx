@@ -11,6 +11,7 @@ import { getStatusBadge } from '../../../utils/statusBadges';
 import { searchRequests, filterRequests, onlyMine, paginate, formatDate, sortRequestsByDateDesc, adaptRequestsResponse, normalizeStatus } from '../../../utils/requestUtils';
 import RequestDetailsContent from '../../../components/RequestDetailsContent';
 import { checkExecutiveThreshold, getThresholdBadge, shouldShowThresholdNotification } from '../../../utils/thresholdUtils';
+import { getApiUrl } from '../../../config/api';
 
 const MySwal = withReactContent(Swal);
 
@@ -67,9 +68,7 @@ const Requests = () => {
                 const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
                 const headers: Record<string, string> = {};
                 if (token) headers['Authorization'] = `Bearer ${token}`;
-                // Use backend API URL based on current hostname
-                const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:4000' : `http://${window.location.hostname}:4000`;
-                const res = await fetch(`${apiUrl}/requests`, {
+                const res = await fetch(getApiUrl('/requests'), {
                     headers,
                     signal: controller.signal,
                 });

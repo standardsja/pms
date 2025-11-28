@@ -9,6 +9,7 @@ import IconEdit from '../../../components/Icon/IconEdit';
 import IconPrinter from '../../../components/Icon/IconPrinter';
 import IconUsersGroup from '../../../components/Icon/IconUsersGroup';
 import { getStatusBadge } from '../../../utils/statusBadges';
+import { getApiUrl } from '../../../config/api';
 
 const MySwal = withReactContent(Swal);
 
@@ -65,8 +66,7 @@ const ProcurementManagerRequests = () => {
             setError(null);
 
             try {
-                const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:4000' : `http://${window.location.hostname}:4000`;
-                const res = await fetch(`${apiUrl}/requests`, {
+                const res = await fetch(getApiUrl('/requests'), {
                     headers: {
                         'x-user-id': String(currentUserId || ''),
                     },
@@ -112,8 +112,7 @@ const ProcurementManagerRequests = () => {
 
     // Print/Download PDF
     const downloadPdf = (req: Req) => {
-        const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:4000' : `http://${window.location.hostname}:4000`;
-        const url = `${apiUrl}/requests/${req.id}/pdf`;
+        const url = getApiUrl(`/requests/${req.id}/pdf`);
         window.open(url, '_blank');
     };
 
@@ -137,8 +136,7 @@ const ProcurementManagerRequests = () => {
 
         if (result.isConfirmed) {
             try {
-                const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:4000' : `http://${window.location.hostname}:4000`;
-                const res = await fetch(`${apiUrl}/requests/${req.id}/assign`, {
+                const res = await fetch(getApiUrl(`/requests/${req.id}/assign`), {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -210,8 +208,7 @@ const ProcurementManagerRequests = () => {
         const comment = (result.value as string) || '';
 
         try {
-            const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:4000' : `http://${window.location.hostname}:4000`;
-            const res = await fetch(`${apiUrl}/requests/${req.id}/action`, {
+            const res = await fetch(getApiUrl(`/requests/${req.id}/action`), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
