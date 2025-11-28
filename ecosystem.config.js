@@ -1,7 +1,7 @@
 module.exports = {
     apps: [
         {
-            name: 'pms-api',
+            name: 'pms-backend',
             script: './server/app.ts',
             interpreter: 'node',
             interpreter_args: '--loader tsx',
@@ -49,6 +49,23 @@ module.exports = {
                 PORT: 4001,
                 LOG_LEVEL: 'debug',
             },
+        },
+        {
+            name: 'pms-frontend',
+            script: 'npm',
+            args: 'run dev',
+            env: {
+                NODE_ENV: 'development',
+                VITE_API_URL: 'http://heron:4000',
+            },
+            // Process management
+            max_memory_restart: '500M',
+            autorestart: true,
+            // Logging
+            log_file: './logs/frontend-combined.log',
+            out_file: './logs/frontend-out.log',
+            error_file: './logs/frontend-error.log',
+            log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
         },
     ],
 
