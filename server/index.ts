@@ -113,7 +113,7 @@ async function fixInvalidRequestStatuses(): Promise<number | null> {
 
         // 1) NULL or empty -> DRAFT
         const r1: any = await prisma.$executeRawUnsafe("UPDATE Request SET status = 'DRAFT' WHERE status IS NULL OR status = ''");
-        total += typeof r1 === 'number' ? r1 : (r1?.rowCount ?? 0);
+        total += typeof r1 === 'number' ? r1 : r1?.rowCount ?? 0;
 
         // 2) Legacy names -> current enum
         const updates: Array<{ sql: string; desc: string }> = [
@@ -126,15 +126,29 @@ async function fixInvalidRequestStatuses(): Promise<number | null> {
         ];
         for (const u of updates) {
             const r: any = await prisma.$executeRawUnsafe(u.sql);
-            total += typeof r === 'number' ? r : (r?.rowCount ?? 0);
+            total += typeof r === 'number' ? r : r?.rowCount ?? 0;
         }
 
         // 3) Anything still not in the enum -> DRAFT as a safe fallback
         const allowed = [
-            'DRAFT','SUBMITTED','DEPARTMENT_REVIEW','DEPARTMENT_RETURNED','DEPARTMENT_APPROVED','EXECUTIVE_REVIEW','HOD_REVIEW','PROCUREMENT_REVIEW','FINANCE_REVIEW','FINANCE_RETURNED','BUDGET_MANAGER_REVIEW','FINANCE_APPROVED','SENT_TO_VENDOR','CLOSED','REJECTED'
+            'DRAFT',
+            'SUBMITTED',
+            'DEPARTMENT_REVIEW',
+            'DEPARTMENT_RETURNED',
+            'DEPARTMENT_APPROVED',
+            'EXECUTIVE_REVIEW',
+            'HOD_REVIEW',
+            'PROCUREMENT_REVIEW',
+            'FINANCE_REVIEW',
+            'FINANCE_RETURNED',
+            'BUDGET_MANAGER_REVIEW',
+            'FINANCE_APPROVED',
+            'SENT_TO_VENDOR',
+            'CLOSED',
+            'REJECTED',
         ];
-        const rCatchAll: any = await prisma.$executeRawUnsafe(`UPDATE Request SET status = 'DRAFT' WHERE status IS NOT NULL AND status NOT IN (${allowed.map(s => `'${s}'`).join(',')})`);
-        total += typeof rCatchAll === 'number' ? rCatchAll : (rCatchAll?.rowCount ?? 0);
+        const rCatchAll: any = await prisma.$executeRawUnsafe(`UPDATE Request SET status = 'DRAFT' WHERE status IS NOT NULL AND status NOT IN (${allowed.map((s) => `'${s}'`).join(',')})`);
+        total += typeof rCatchAll === 'number' ? rCatchAll : rCatchAll?.rowCount ?? 0;
 
         return total;
     } catch (err) {
