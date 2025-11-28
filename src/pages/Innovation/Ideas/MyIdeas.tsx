@@ -256,7 +256,7 @@ const MyIdeas = () => {
 
     const fetchCommentsForIdea = async (ideaId: string) => {
         try {
-            const response = await fetch(`http://heron:4000/api/ideas/${ideaId}/comments`, {
+            const response = await fetch(`/api/ideas/${ideaId}/comments`, {
                 headers: {
                     'x-user-id': String(currentUser?.id || ''),
                 },
@@ -311,7 +311,7 @@ const MyIdeas = () => {
         }
 
         try {
-            const response = await fetch(`http://heron:4000/api/ideas/${ideaId}/comments`, {
+            const response = await fetch(`/api/ideas/${ideaId}/comments`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
