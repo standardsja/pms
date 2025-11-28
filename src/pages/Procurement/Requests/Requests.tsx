@@ -533,7 +533,10 @@ const Requests = () => {
                             const procurementTypes = Array.isArray(r.procurementType) ? r.procurementType : [];
                             const thresholdAlert = checkExecutiveThreshold(r.totalEstimated || 0, procurementTypes);
                             const thresholdBadge = getThresholdBadge(thresholdAlert);
-                            const showThresholdAlert = shouldShowThresholdNotification(currentUserRoles) && thresholdAlert.isRequired;
+                            const normalizedStatus = normalizeStatus(r.status || '');
+                            // Only show threshold alert if it needs executive approval AND is not already in executive review/approved
+                            const showThresholdAlert =
+                                shouldShowThresholdNotification(currentUserRoles) && thresholdAlert.isRequired && normalizedStatus !== 'Executive Review' && normalizedStatus !== 'Executive Approved';
 
                             return (
                                 <tr key={r.id} className="border-t last:border-b hover:bg-slate-50 dark:hover:bg-slate-700">
