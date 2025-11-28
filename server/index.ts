@@ -2597,16 +2597,19 @@ app.get('/requests/:id/pdf', async (req, res) => {
 app.post('/requests/:id/submit', async (req, res) => {
     try {
         const { id } = req.params;
+        console.log(`[Submit] Incoming submit for request ${id}`);
         const request = await prisma.request.findUnique({
             where: { id: parseInt(id, 10) },
             include: { department: true },
         });
 
         if (!request) {
+            console.warn(`[Submit] Request ${id} not found`);
             return res.status(404).json({ message: 'Request not found' });
         }
 
         if (request.status !== 'DRAFT') {
+            console.warn(`[Submit] Request ${id} not in DRAFT (status=${request.status})`);
             return res.status(400).json({ message: 'Only draft requests can be submitted' });
         }
 
@@ -2621,9 +2624,20 @@ app.post('/requests/:id/submit', async (req, res) => {
                 windowDays,
                 threshold,
             });
+            console.log(`[Submit] Splintering result for ${id}:`, {
+                flagged: spl.flagged,
+                combined: spl.combined,
+                sumPrior: spl.sumPrior,
+                threshold: spl.threshold,
+                windowDays: spl.windowDays,
+                matches: Array.isArray(spl.matches) ? spl.matches.length : 0,
+            });
 
             // If flagged and caller did not include an override, return 409 with details so the client can prompt the user
             const allowOverride = Boolean(req.body && req.body.overrideSplinter === true);
+            if (spl.flagged && !allowOverride) {
+                console.warn(`[Submit] Blocking submit for ${id} due to splintering without override`);
+            }
             if (spl.flagged && !allowOverride) {
                 return res.status(409).json({ message: 'Potential splintering detected', splinter: true, details: spl });
             }
@@ -2631,6 +2645,7 @@ app.post('/requests/:id/submit', async (req, res) => {
             // If flagged and override provided, verify user has manager privileges
             if (spl.flagged && allowOverride) {
                 const actingUserId = req.headers['x-user-id'];
+                console.log(`[Submit] Override attempt by x-user-id=${actingUserId}`);
                 if (!actingUserId) {
                     return res.status(400).json({ message: 'User ID required to override splintering' });
                 }
@@ -2731,6 +2746,7 @@ app.post('/requests/:id/submit', async (req, res) => {
                 currentAssignee: { select: { id: true, name: true, email: true } },
             },
         });
+        console.log(`[Submit] Request ${id} updated to ${updated.status}, assignee=${updated.currentAssigneeId || 'none'}`);
 
         // Notify the department manager (new assignee) that a request was submitted
         try {
