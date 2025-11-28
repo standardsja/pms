@@ -25,15 +25,15 @@ async function checkExecutiveRequests() {
                         name: true,
                         email: true,
                         roles: {
-                            include: { role: true }
-                        }
-                    }
-                }
-            }
+                            include: { role: true },
+                        },
+                    },
+                },
+            },
         });
 
         console.log(`Found ${executiveRequests.length} requests in EXECUTIVE_REVIEW status:\n`);
-        
+
         for (const req of executiveRequests) {
             console.log(`📋 Request ${req.id} (${req.reference})`);
             console.log(`   Title: ${req.title}`);
@@ -43,7 +43,7 @@ async function checkExecutiveRequests() {
             if (req.currentAssignee) {
                 console.log(`   Assignee Name: ${req.currentAssignee.name}`);
                 console.log(`   Assignee Email: ${req.currentAssignee.email}`);
-                console.log(`   Assignee Roles: ${req.currentAssignee.roles.map(ur => ur.role.name).join(', ')}`);
+                console.log(`   Assignee Roles: ${req.currentAssignee.roles.map((ur) => ur.role.name).join(', ')}`);
             } else {
                 console.log(`   ⚠️ NO ASSIGNEE SET`);
             }
@@ -52,38 +52,37 @@ async function checkExecutiveRequests() {
 
         // Also check for Executive Director users
         console.log('\n👔 Checking for Executive Director users...\n');
-        
+
         const executives = await prisma.user.findMany({
             where: {
                 roles: {
                     some: {
                         role: {
                             name: {
-                                contains: 'EXECUTIVE'
-                            }
-                        }
-                    }
-                }
+                                contains: 'EXECUTIVE',
+                            },
+                        },
+                    },
+                },
             },
             select: {
                 id: true,
                 name: true,
                 email: true,
                 roles: {
-                    include: { role: true }
-                }
-            }
+                    include: { role: true },
+                },
+            },
         });
 
         console.log(`Found ${executives.length} Executive users:\n`);
-        
+
         for (const exec of executives) {
             console.log(`👤 ${exec.name} (ID: ${exec.id})`);
             console.log(`   Email: ${exec.email}`);
-            console.log(`   Roles: ${exec.roles.map(ur => ur.role.name).join(', ')}`);
+            console.log(`   Roles: ${exec.roles.map((ur) => ur.role.name).join(', ')}`);
             console.log('');
         }
-
     } catch (error) {
         console.error('❌ Error:', error);
     } finally {

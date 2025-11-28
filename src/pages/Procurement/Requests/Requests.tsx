@@ -75,7 +75,7 @@ const Requests = () => {
                 const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
                 const headers: Record<string, string> = {
                     'Cache-Control': 'no-cache, no-store, must-revalidate',
-                    'Pragma': 'no-cache',
+                    Pragma: 'no-cache',
                 };
                 if (token) headers['Authorization'] = `Bearer ${token}`;
                 // Use backend API URL based on current hostname

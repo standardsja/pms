@@ -3196,10 +3196,7 @@ app.post('/requests/:id/executive-action', authMiddleware, async (req, res) => {
                 data: {
                     userId: nextAssigneeId,
                     type: action === 'APPROVE' ? 'STAGE_CHANGED' : 'REQUEST_RETURNED',
-                    message:
-                        action === 'APPROVE'
-                            ? `Executive Director approved high-value request: ${request.title}`
-                            : `Executive Director rejected request: ${request.title}`,
+                    message: action === 'APPROVE' ? `Executive Director approved high-value request: ${request.title}` : `Executive Director rejected request: ${request.title}`,
                     data: {
                         requestId: updatedRequest.id,
                         action,

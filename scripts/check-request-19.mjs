@@ -16,7 +16,7 @@ async function checkRequest19() {
             currentAssigneeId: true,
             totalEstimated: true,
             currency: true,
-        }
+        },
     });
 
     console.log('Request 19:', JSON.stringify(request, null, 2));
