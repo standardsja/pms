@@ -74,7 +74,7 @@ const AssignRequests = () => {
                 const currentUserId = userProfile?.id || userProfile?.userId || null;
 
                 // Fetch procurement officers
-                const officersRes = await fetch(getApiUrl('/users/procurement-officers'), {
+                const officersRes = await fetch(getApiUrl('/api/users/procurement-officers'), {
                     headers: {
                         'x-user-id': String(currentUserId || ''),
                     },

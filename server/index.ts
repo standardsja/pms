@@ -3223,8 +3223,8 @@ app.post('/requests/:id/executive-action', authMiddleware, async (req, res) => {
     }
 });
 
-// GET /users/procurement-officers - List all procurement officers with workload
-app.get('/users/procurement-officers', async (req, res) => {
+// GET /api/users/procurement-officers - List all procurement officers with workload
+app.get('/api/users/procurement-officers', async (req, res) => {
     try {
         const userId = req.headers['x-user-id'];
         if (!userId) {
@@ -3280,7 +3280,7 @@ app.get('/users/procurement-officers', async (req, res) => {
 
         return res.json(officersWithWorkload);
     } catch (e: any) {
-        console.error('GET /users/procurement-officers error:', e);
+        console.error('GET /api/users/procurement-officers error:', e);
         return res.status(500).json({ message: e?.message || 'Failed to fetch procurement officers' });
     }
 });

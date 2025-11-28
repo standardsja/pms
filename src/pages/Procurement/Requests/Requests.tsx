@@ -51,14 +51,9 @@ const Requests = () => {
             } else if (user?.role) {
                 roles = [typeof user.role === 'string' ? user.role : user.role?.name || ''];
             }
-            console.log('🔍 [Requests] Current user roles:', roles);
-            console.log('🔍 [Requests] Current user ID:', user?.id);
-            console.log('🔍 [Requests] Current user name:', user?.name);
-            console.log('🔍 [Requests] Raw user object:', user);
-            console.log('🔍 [Requests] Raw roles array:', user?.roles);
             setCurrentUserRoles(roles);
         } catch (err) {
-            console.error('🔍 [Requests] Error loading user:', err);
+            console.error('Error loading user:', err);
             setCurrentUserName('');
             setCurrentUserId(null);
             setCurrentUserRoles([]);
