@@ -6,6 +6,7 @@ import Swal from 'sweetalert2';
 import { setPageTitle } from '../../../store/themeConfigSlice';
 import { fetchIdeas, Idea } from '../../../utils/ideasApi';
 import { getUser } from '../../../utils/auth';
+import { getApiUrl } from '../../../config/api';
 
 interface MyIdea {
     id: string;
@@ -256,7 +257,7 @@ const MyIdeas = () => {
 
     const fetchCommentsForIdea = async (ideaId: string) => {
         try {
-            const response = await fetch(`http://heron:4000/api/ideas/${ideaId}/comments`, {
+            const response = await fetch(getApiUrl(`/api/ideas/${ideaId}/comments`), {
                 headers: {
                     'x-user-id': String(currentUser?.id || ''),
                 },
@@ -311,7 +312,7 @@ const MyIdeas = () => {
         }
 
         try {
-            const response = await fetch(`http://heron:4000/api/ideas/${ideaId}/comments`, {
+            const response = await fetch(getApiUrl(`/api/ideas/${ideaId}/comments`), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
