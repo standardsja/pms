@@ -3366,9 +3366,12 @@ app.post('/procurement/load-balancing-settings', async (req, res) => {
             return res.status(404).json({ message: 'User not found' });
         }
 
-        const isProcurementManager = user.roles.some((ur) => ur.role.name === 'PROCUREMENT_MANAGER');
-        if (!isProcurementManager) {
-            return res.status(403).json({ message: 'Only Procurement Managers can update settings' });
+        const roleNames = user.roles.map((ur) => ur.role.name.toUpperCase());
+        const isProcurementManager = roleNames.some((r) => r === 'PROCUREMENT_MANAGER' || (r.includes('PROCUREMENT') && r.includes('MANAGER')));
+        // Allow a department manager of the Procurement & Supply Chain department to update if they manage that department
+        const isProcDeptManager = roleNames.includes('DEPT_MANAGER') && user.department?.code === 'PROC';
+        if (!isProcurementManager && !isProcDeptManager) {
+            return res.status(403).json({ message: 'Only Procurement Managers can update settings', roles: roleNames });
         }
 
         const { enabled, strategy, autoAssignOnApproval, splinteringEnabled } = req.body as {
@@ -3396,7 +3399,7 @@ app.post('/procurement/load-balancing-settings', async (req, res) => {
             parseInt(String(userId), 10)
         );
 
-        console.log('[LoadBalancing] Settings updated by user', userId, ':', settings);
+        console.log('[LoadBalancing] Settings updated by user', userId, 'roles=', roleNames, 'dept=', user.department?.code, ':', settings);
 
         return res.json(settings);
     } catch (e: any) {
