@@ -16,10 +16,12 @@ export async function checkSplintering(prisma: PrismaClient, params: SplinterChe
     const windowStart = new Date(now.getTime() - windowDays * 24 * 60 * 60 * 1000);
 
     // Build query: previous requests within window for same requester OR same department
+    // Consider only active or approved pipeline states that represent legitimate spend activity.
+    // Exclude terminal negatives like REJECTED and CLOSED to reduce false positives.
     const validStatuses = [
         'SUBMITTED',
         'DEPARTMENT_REVIEW',
-        'DEPARTMENT_APPROVED', // include approved at department stage
+        'DEPARTMENT_APPROVED',
         'EXECUTIVE_REVIEW',
         'HOD_REVIEW',
         'FINANCE_REVIEW',
@@ -27,8 +29,6 @@ export async function checkSplintering(prisma: PrismaClient, params: SplinterChe
         'PROCUREMENT_REVIEW',
         'FINANCE_APPROVED',
         'SENT_TO_VENDOR',
-        'CLOSED',
-        'REJECTED',
     ];
 
     const where: any = {
