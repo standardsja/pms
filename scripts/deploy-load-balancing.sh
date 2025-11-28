@@ -24,9 +24,16 @@ echo ""
 # Step 1: Verify environment
 echo "[1/6] Verifying environment..."
 if [[ ! -f "$SERVER_DIR/.env" ]]; then
-    echo "❌ ERROR: $SERVER_DIR/.env not found"
-    echo "   Please create .env file with DATABASE_URL"
-    exit 1
+    if [[ -f "$PROJECT_ROOT/.env" ]]; then
+        echo "⚠️  $SERVER_DIR/.env missing; copying root .env for Prisma (DATABASE_URL, JWT_SECRET)."
+        cp "$PROJECT_ROOT/.env" "$SERVER_DIR/.env"
+        echo "✅ Copied root .env to server/.env"
+        echo "   NOTE: For production hygiene keep secrets only in one place and rotate if exposed."
+    else
+        echo "❌ ERROR: $SERVER_DIR/.env not found and no root .env present"
+        echo "   Create $SERVER_DIR/.env with at least DATABASE_URL and JWT_SECRET"
+        exit 1
+    fi
 fi
 
 if ! command -v npx &> /dev/null; then
