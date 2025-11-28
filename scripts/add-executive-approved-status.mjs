@@ -32,7 +32,6 @@ async function addExecutiveApprovedStatus() {
         `);
 
         console.log('✅ Successfully added EXECUTIVE_APPROVED status!\n');
-
     } catch (error) {
         console.error('❌ Error:', error);
     } finally {
