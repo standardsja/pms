@@ -940,7 +940,12 @@ const NewEvaluation = () => {
                                                         />
                                                     </td>
                                                     <td className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-right">
-                                                        <button type="button" onClick={() => removeEligibilityRow(idx)} className="btn btn-outline-danger btn-sm" disabled={eligibilityRows.length <= 1}>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => removeEligibilityRow(idx)}
+                                                            className="btn btn-outline-danger btn-sm"
+                                                            disabled={eligibilityRows.length <= 1}
+                                                        >
                                                             Remove
                                                         </button>
                                                     </td>
