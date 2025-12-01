@@ -84,22 +84,72 @@ const NewEvaluation = () => {
         notes: '',
     });
 
+    const [currentStep, setCurrentStep] = useState(1);
     const [showSuccessAlert, setShowSuccessAlert] = useState(false);
     const [showErrorAlert, setShowErrorAlert] = useState(false);
     const [alertMessage, setAlertMessage] = useState('');
     const [errorFields, setErrorFields] = useState<string[]>([]);
     const [loading, setLoading] = useState(false);
 
+    const totalSteps = 5; // Background, Section A, Section B, Section C, Sections D & E
+
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
         setFormData({ ...formData, [name]: value });
     };
 
+    const validateStep = (step: number): boolean => {
+        const missingFields: string[] = [];
+
+        switch (step) {
+            case 1: // Background
+                // Background section has no required fields
+                break;
+            case 2: // Section A
+                if (!formData.comparableEstimate) missingFields.push('Comparable Estimate');
+                if (!formData.tenderClosingDate) missingFields.push('Tender Closing Date');
+                if (!formData.tenderOpeningDate) missingFields.push('Tender Opening Date');
+                if (!formData.numberOfBidsRequested) missingFields.push('Number of Bids Requested');
+                if (formData.retender === 'Yes' && formData.retenderReasons.length === 0) {
+                    missingFields.push('At least one Re-tender Reason');
+                }
+                if (formData.retender === 'Yes' && formData.retenderReasons.includes('k') && !formData.retenderOtherReason) {
+                    missingFields.push('Other Re-tender Reason Description');
+                }
+                break;
+            // Sections B, C, D, E are optional during creation
+        }
+
+        if (missingFields.length > 0) {
+            setErrorFields(missingFields);
+            setShowErrorAlert(true);
+            setTimeout(() => setShowErrorAlert(false), 5000);
+            return false;
+        }
+
+        return true;
+    };
+
+    const handleNext = () => {
+        if (validateStep(currentStep)) {
+            setCurrentStep((prev) => Math.min(prev + 1, totalSteps));
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    };
+
+    const handlePrevious = () => {
+        setCurrentStep((prev) => Math.max(prev - 1, 1));
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    const goToStep = (step: number) => {
+        setCurrentStep(step);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
     const handleCreateEvaluation = async () => {
         const missingFields: string[] = [];
 
-        if (!formData.rfqNumber) missingFields.push('RFQ Number');
-        if (!formData.rfqTitle) missingFields.push('RFQ Title');
         if (!formData.comparableEstimate) missingFields.push('Comparable Estimate');
         if (!formData.tenderClosingDate) missingFields.push('Tender Closing Date');
         if (!formData.tenderOpeningDate) missingFields.push('Tender Opening Date');
@@ -264,688 +314,818 @@ const NewEvaluation = () => {
                 </div>
             )}
 
-            <div className="space-y-6">
-                {/* BACKGROUND Section */}
-                <div className="panel">
-                    <div className="mb-5">
-                        <label htmlFor="background" className="mb-2 block font-semibold text-lg">
-                            BACKGROUND:
-                        </label>
-                        <textarea
-                            id="background"
-                            name="background"
-                            rows={4}
-                            className="form-textarea"
-                            placeholder="To arrange for the procurement and provision of..."
-                            value={formData.background}
-                            onChange={handleInputChange}
-                        />
+            {/* Progress Steps */}
+            <div className="panel mb-5">
+                <div className="mb-5">
+                    <div className="flex justify-between items-center">
+                        <div className="text-sm font-semibold">
+                            Step {currentStep} of {totalSteps}
+                        </div>
+                        <div className="text-sm text-white-dark">
+                            {currentStep === 1 && 'Background Information'}
+                            {currentStep === 2 && 'Section A: Procurement Details'}
+                            {currentStep === 3 && 'Section B: Eligibility & Compliance'}
+                            {currentStep === 4 && 'Section C: Evaluator Assessment'}
+                            {currentStep === 5 && 'Sections D & E: Officer Recommendation'}
+                        </div>
                     </div>
-                    <div className="grid gap-5 md:grid-cols-2">
-                        <div>
-                            <label htmlFor="dateSubmissionConsidered" className="mb-2 block font-semibold">
-                                DATE SUBMISSION WAS CONSIDERED:
-                            </label>
-                            <input
-                                id="dateSubmissionConsidered"
-                                name="dateSubmissionConsidered"
-                                type="date"
-                                className="form-input"
-                                value={formData.dateSubmissionConsidered}
-                                onChange={handleInputChange}
+                    <div className="mt-3 flex gap-2">
+                        {[1, 2, 3, 4, 5].map((step) => (
+                            <button
+                                key={step}
+                                type="button"
+                                onClick={() => goToStep(step)}
+                                className={`flex-1 h-2 rounded-full transition-all ${step < currentStep ? 'bg-success' : step === currentStep ? 'bg-primary' : 'bg-gray-200 dark:bg-gray-700'}`}
+                                title={`Go to step ${step}`}
                             />
-                        </div>
-                        <div>
-                            <label htmlFor="reportCompletionDate" className="mb-2 block font-semibold">
-                                REPORT COMPLETION DATE:
-                            </label>
-                            <input id="reportCompletionDate" name="reportCompletionDate" type="date" className="form-input" value={formData.reportCompletionDate} onChange={handleInputChange} />
-                        </div>
+                        ))}
                     </div>
                 </div>
+            </div>
 
-                {/* Section A - To be completed by Assigned Procurement Officer */}
-                <div className="panel">
-                    <div className="mb-5 -m-5 p-5 bg-primary/10 border-l-4 border-primary">
-                        <h5 className="text-lg font-bold text-primary">Section A</h5>
-                        <p className="text-sm mt-1">
-                            to be completed by the Assigned Procurement Officer. <span className="font-semibold">Must be verified by the Evaluation Committee</span>
-                        </p>
+            <div className="space-y-6">
+                {/* Step 1: BACKGROUND Section */}
+                {currentStep === 1 && (
+                    <div className="panel">
+                        <div className="mb-5">
+                            <label htmlFor="background" className="mb-2 block font-semibold text-lg">
+                                BACKGROUND:
+                            </label>
+                            <textarea
+                                id="background"
+                                name="background"
+                                rows={4}
+                                className="form-textarea"
+                                placeholder="To arrange for the procurement and provision of..."
+                                value={formData.background}
+                                onChange={handleInputChange}
+                            />
+                        </div>
+                        <div className="grid gap-5 md:grid-cols-2">
+                            <div>
+                                <label htmlFor="dateSubmissionConsidered" className="mb-2 block font-semibold">
+                                    DATE SUBMISSION WAS CONSIDERED:
+                                </label>
+                                <input
+                                    id="dateSubmissionConsidered"
+                                    name="dateSubmissionConsidered"
+                                    type="date"
+                                    className="form-input"
+                                    value={formData.dateSubmissionConsidered}
+                                    onChange={handleInputChange}
+                                />
+                            </div>
+                            <div>
+                                <label htmlFor="reportCompletionDate" className="mb-2 block font-semibold">
+                                    REPORT COMPLETION DATE:
+                                </label>
+                                <input id="reportCompletionDate" name="reportCompletionDate" type="date" className="form-input" value={formData.reportCompletionDate} onChange={handleInputChange} />
+                            </div>
+                        </div>
+
+                        {/* Navigation Buttons */}
+                        <div className="mt-6 flex justify-end gap-3">
+                            <button type="button" onClick={handleNext} className="btn btn-primary gap-2">
+                                Next: Section A
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                </svg>
+                            </button>
+                        </div>
                     </div>
+                )}
 
-                    <div className="space-y-4 p-5">
-                        {/* Field 1 */}
-                        <div>
-                            <label htmlFor="comparableEstimate" className="mb-2 block font-semibold">
-                                1. COMPARABLE ESTIMATE: <span className="text-danger">*</span>
-                            </label>
-                            <input
-                                id="comparableEstimate"
-                                name="comparableEstimate"
-                                type="number"
-                                step="0.01"
-                                className="form-input w-full"
-                                placeholder="$49,680.00"
-                                value={formData.comparableEstimate}
-                                onChange={handleInputChange}
-                                required
-                            />
+                {/* Step 2: Section A - To be completed by Assigned Procurement Officer */}
+                {currentStep === 2 && (
+                    <div className="panel">
+                        <div className="mb-5 -m-5 p-5 bg-primary/10 border-l-4 border-primary">
+                            <h5 className="text-lg font-bold text-primary">Section A</h5>
+                            <p className="text-sm mt-1">
+                                to be completed by the Assigned Procurement Officer. <span className="font-semibold">Must be verified by the Evaluation Committee</span>
+                            </p>
                         </div>
 
-                        {/* Field 2 */}
-                        <div>
-                            <label htmlFor="fundedBy" className="mb-2 block font-semibold">
-                                2. FUNDED BY:
-                            </label>
-                            <input id="fundedBy" name="fundedBy" type="text" className="form-input w-full" placeholder="BSJ" value={formData.fundedBy} onChange={handleInputChange} />
-                        </div>
-
-                        {/* Field 3 */}
-                        <div>
-                            <label className="mb-2 block font-semibold">
-                                3. TENDER CLOSING DATE & TIME: <span className="text-danger">*</span>
-                            </label>
-                            <div className="flex gap-2">
+                        <div className="space-y-4 p-5">
+                            {/* Field 1 */}
+                            <div>
+                                <label htmlFor="comparableEstimate" className="mb-2 block font-semibold">
+                                    1. COMPARABLE ESTIMATE: <span className="text-danger">*</span>
+                                </label>
                                 <input
-                                    id="tenderClosingDate"
-                                    name="tenderClosingDate"
-                                    type="date"
-                                    className="form-input flex-1"
-                                    value={formData.tenderClosingDate}
-                                    onChange={handleInputChange}
-                                    required
-                                />
-                                <input
-                                    id="tenderClosingTime"
-                                    name="tenderClosingTime"
-                                    type="time"
-                                    className="form-input w-32"
-                                    value={formData.tenderClosingTime}
-                                    onChange={handleInputChange}
-                                    required
-                                />
-                            </div>
-                        </div>
-
-                        {/* Field 4 */}
-                        <div>
-                            <label className="mb-2 block font-semibold">
-                                4. TENDER OPENING DATE & TIME: <span className="text-danger">*</span>
-                            </label>
-                            <div className="flex gap-2">
-                                <input
-                                    id="tenderOpeningDate"
-                                    name="tenderOpeningDate"
-                                    type="date"
-                                    className="form-input flex-1"
-                                    value={formData.tenderOpeningDate}
-                                    onChange={handleInputChange}
-                                    required
-                                />
-                                <input
-                                    id="tenderOpeningTime"
-                                    name="tenderOpeningTime"
-                                    type="time"
-                                    className="form-input w-32"
-                                    value={formData.tenderOpeningTime}
-                                    onChange={handleInputChange}
-                                    required
-                                />
-                            </div>
-                        </div>
-
-                        {/* Field 4a */}
-                        <div className="ml-8">
-                            <label className="mb-2 block font-semibold">a. ACTUAL OPENING DATE & TIME:</label>
-                            <div className="flex gap-2">
-                                <input id="actualOpeningDate" name="actualOpeningDate" type="date" className="form-input flex-1" value={formData.actualOpeningDate} onChange={handleInputChange} />
-                                <input id="actualOpeningTime" name="actualOpeningTime" type="time" className="form-input w-32" value={formData.actualOpeningTime} onChange={handleInputChange} />
-                            </div>
-                        </div>
-
-                        {/* Field 5 */}
-                        <div>
-                            <label className="mb-2 block font-semibold">5. Procurement Method:</label>
-                            <div className="space-y-2">
-                                {['International Competitive Bidding', 'National Competitive Bidding', 'Restricted Bidding', 'Single Source', 'Emergency Single Source'].map((method) => (
-                                    <label key={method} className="flex items-center gap-2">
-                                        <input
-                                            type="checkbox"
-                                            className="form-checkbox"
-                                            checked={formData.procurementMethod === method}
-                                            onChange={(e) => {
-                                                if (e.target.checked) {
-                                                    setFormData({ ...formData, procurementMethod: method });
-                                                }
-                                            }}
-                                        />
-                                        <span>{method}</span>
-                                    </label>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Field 6 */}
-                        <div>
-                            <label className="mb-2 block font-semibold">6. Method of Advertisement:</label>
-                            <div className="space-y-2">
-                                {['International Advertisement', 'National Advertisement', 'GOJEP', 'Email'].map((method) => (
-                                    <label key={method} className="flex items-center gap-2">
-                                        <input
-                                            type="checkbox"
-                                            className="form-checkbox"
-                                            checked={formData.advertisementMethods.includes(method)}
-                                            onChange={(e) => {
-                                                setFormData({
-                                                    ...formData,
-                                                    advertisementMethods: e.target.checked ? [...formData.advertisementMethods, method] : formData.advertisementMethods.filter((x) => x !== method),
-                                                });
-                                            }}
-                                        />
-                                        <span>{method}</span>
-                                    </label>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Field 7 */}
-                        <div>
-                            <label className="mb-2 block font-semibold">7. Contract Type:</label>
-                            <div className="space-y-2">
-                                {['Goods', 'Consulting Services', 'Non-Consulting Services', 'Works'].map((type) => (
-                                    <label key={type} className="flex items-center gap-2">
-                                        <input
-                                            type="checkbox"
-                                            className="form-checkbox"
-                                            checked={formData.contractType === type}
-                                            onChange={(e) => {
-                                                if (e.target.checked) {
-                                                    setFormData({ ...formData, contractType: type });
-                                                }
-                                            }}
-                                        />
-                                        <span>{type}</span>
-                                    </label>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Field 8 */}
-                        <div>
-                            <label className="mb-2 block font-semibold">8. Bid Security:</label>
-                            <div className="flex gap-4">
-                                {['Yes', 'No', 'N/A'].map((opt) => (
-                                    <label key={opt} className="flex items-center gap-2">
-                                        <input
-                                            type="radio"
-                                            name="bidSecurity"
-                                            value={opt}
-                                            checked={formData.bidSecurity === opt}
-                                            onChange={(e) => setFormData({ ...formData, bidSecurity: e.target.value as 'Yes' | 'No' | 'N/A' })}
-                                        />
-                                        <span>{opt}</span>
-                                    </label>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Field 9 */}
-                        <div>
-                            <label className="mb-2 block font-semibold">9. Tender Period:</label>
-                            <div className="flex gap-2 items-center mb-3">
-                                <input
-                                    id="tenderPeriodStartDate"
-                                    name="tenderPeriodStartDate"
-                                    type="date"
-                                    className="form-input flex-1"
-                                    value={formData.tenderPeriodStartDate}
-                                    onChange={handleInputChange}
-                                />
-                                <span>to</span>
-                                <input
-                                    id="tenderPeriodEndDate"
-                                    name="tenderPeriodEndDate"
-                                    type="date"
-                                    className="form-input flex-1"
-                                    value={formData.tenderPeriodEndDate}
-                                    onChange={handleInputChange}
-                                />
-                            </div>
-                            <div className="ml-8">
-                                <label className="mb-1 block font-semibold">a. Number of Days:</label>
-                                <input
-                                    id="tenderPeriodDays"
-                                    name="tenderPeriodDays"
+                                    id="comparableEstimate"
+                                    name="comparableEstimate"
                                     type="number"
-                                    className="form-input w-32"
-                                    placeholder="1"
-                                    value={formData.tenderPeriodDays}
+                                    step="0.01"
+                                    className="form-input w-full"
+                                    placeholder="$49,680.00"
+                                    value={formData.comparableEstimate}
                                     onChange={handleInputChange}
+                                    required
                                 />
                             </div>
-                        </div>
 
-                        {/* Field 10 */}
-                        <div>
-                            <label className="mb-2 block font-semibold">10. Bid Validity Period:</label>
-                            <input
-                                id="bidValidityDays"
-                                name="bidValidityDays"
-                                type="text"
-                                className="form-input w-full"
-                                placeholder="30 Days"
-                                value={formData.bidValidityDays}
-                                onChange={handleInputChange}
-                            />
-                            <div className="ml-8 mt-3">
-                                <label className="mb-1 block font-semibold">a. Bid Validity Expiration Date:</label>
-                                <input id="bidValidityExpiration" name="bidValidityExpiration" type="date" className="form-input" value={formData.bidValidityExpiration} onChange={handleInputChange} />
+                            {/* Field 2 */}
+                            <div>
+                                <label htmlFor="fundedBy" className="mb-2 block font-semibold">
+                                    2. FUNDED BY:
+                                </label>
+                                <input id="fundedBy" name="fundedBy" type="text" className="form-input w-full" placeholder="BSJ" value={formData.fundedBy} onChange={handleInputChange} />
                             </div>
-                        </div>
 
-                        {/* Field 11 */}
-                        <div>
-                            <label className="mb-2 block font-semibold">
-                                11. Number of Bids Requested: <span className="text-danger">*</span>
-                            </label>
-                            <input
-                                id="numberOfBidsRequested"
-                                name="numberOfBidsRequested"
-                                type="number"
-                                className="form-input w-32"
-                                placeholder="1"
-                                value={formData.numberOfBidsRequested}
-                                onChange={handleInputChange}
-                                required
-                            />
-                            <div className="ml-8 mt-3">
-                                <label className="mb-1 block font-semibold">a. Number of Bids Received:</label>
-                                <input
-                                    id="numberOfBidsReceived"
-                                    name="numberOfBidsReceived"
-                                    type="number"
-                                    className="form-input w-32"
-                                    placeholder="1"
-                                    value={formData.numberOfBidsReceived || ''}
-                                    onChange={handleInputChange}
-                                />
+                            {/* Field 3 */}
+                            <div>
+                                <label className="mb-2 block font-semibold">
+                                    3. TENDER CLOSING DATE & TIME: <span className="text-danger">*</span>
+                                </label>
+                                <div className="flex gap-2">
+                                    <input
+                                        id="tenderClosingDate"
+                                        name="tenderClosingDate"
+                                        type="date"
+                                        className="form-input flex-1"
+                                        value={formData.tenderClosingDate}
+                                        onChange={handleInputChange}
+                                        required
+                                    />
+                                    <input
+                                        id="tenderClosingTime"
+                                        name="tenderClosingTime"
+                                        type="time"
+                                        className="form-input w-32"
+                                        value={formData.tenderClosingTime}
+                                        onChange={handleInputChange}
+                                        required
+                                    />
+                                </div>
                             </div>
-                        </div>
 
-                        {/* Field 12 */}
-                        <div>
-                            <label className="mb-2 block font-semibold">12. Arithmetic Error Identified:</label>
-                            <div className="flex gap-4">
-                                {['Yes', 'No'].map((opt) => (
-                                    <label key={opt} className="flex items-center gap-2">
-                                        <input
-                                            type="radio"
-                                            name="arithmeticErrorIdentified"
-                                            value={opt}
-                                            checked={formData.arithmeticErrorIdentified === opt}
-                                            onChange={(e) => setFormData({ ...formData, arithmeticErrorIdentified: e.target.value as 'Yes' | 'No' })}
-                                        />
-                                        <span>{opt}</span>
-                                    </label>
-                                ))}
+                            {/* Field 4 */}
+                            <div>
+                                <label className="mb-2 block font-semibold">
+                                    4. TENDER OPENING DATE & TIME: <span className="text-danger">*</span>
+                                </label>
+                                <div className="flex gap-2">
+                                    <input
+                                        id="tenderOpeningDate"
+                                        name="tenderOpeningDate"
+                                        type="date"
+                                        className="form-input flex-1"
+                                        value={formData.tenderOpeningDate}
+                                        onChange={handleInputChange}
+                                        required
+                                    />
+                                    <input
+                                        id="tenderOpeningTime"
+                                        name="tenderOpeningTime"
+                                        type="time"
+                                        className="form-input w-32"
+                                        value={formData.tenderOpeningTime}
+                                        onChange={handleInputChange}
+                                        required
+                                    />
+                                </div>
                             </div>
-                        </div>
 
-                        {/* Field 13 */}
-                        <div>
-                            <label className="mb-2 block font-semibold">13. Re-tendered:</label>
-                            <div className="flex gap-4">
-                                {['Yes', 'No'].map((opt) => (
-                                    <label key={opt} className="flex items-center gap-2">
-                                        <input
-                                            type="radio"
-                                            name="retender"
-                                            value={opt}
-                                            checked={formData.retender === opt}
-                                            onChange={(e) => {
-                                                const val = e.target.value as 'Yes' | 'No';
-                                                setFormData({ ...formData, retender: val, retenderReasons: val === 'No' ? [] : formData.retenderReasons });
-                                            }}
-                                        />
-                                        <span>{opt}</span>
-                                    </label>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Field 14 */}
-                        {formData.retender === 'Yes' && (
+                            {/* Field 4a */}
                             <div className="ml-8">
-                                <label className="mb-2 block font-semibold">14. Reason for re-tender:</label>
+                                <label className="mb-2 block font-semibold">a. ACTUAL OPENING DATE & TIME:</label>
+                                <div className="flex gap-2">
+                                    <input id="actualOpeningDate" name="actualOpeningDate" type="date" className="form-input flex-1" value={formData.actualOpeningDate} onChange={handleInputChange} />
+                                    <input id="actualOpeningTime" name="actualOpeningTime" type="time" className="form-input w-32" value={formData.actualOpeningTime} onChange={handleInputChange} />
+                                </div>
+                            </div>
+
+                            {/* Field 5 */}
+                            <div>
+                                <label className="mb-2 block font-semibold">5. Procurement Method:</label>
                                 <div className="space-y-2">
-                                    {RETENDER_REASON_OPTIONS.map((option) => (
-                                        <label key={option.code} className="flex items-center gap-2">
+                                    {['International Competitive Bidding', 'National Competitive Bidding', 'Restricted Bidding', 'Single Source', 'Emergency Single Source'].map((method) => (
+                                        <label key={method} className="flex items-center gap-2">
                                             <input
                                                 type="checkbox"
                                                 className="form-checkbox"
-                                                checked={formData.retenderReasons.includes(option.code)}
+                                                checked={formData.procurementMethod === method}
                                                 onChange={(e) => {
-                                                    setFormData({
-                                                        ...formData,
-                                                        retenderReasons: e.target.checked ? [...formData.retenderReasons, option.code] : formData.retenderReasons.filter((x) => x !== option.code),
-                                                    });
+                                                    if (e.target.checked) {
+                                                        setFormData({ ...formData, procurementMethod: method });
+                                                    }
                                                 }}
                                             />
-                                            <span>
-                                                {option.code}. {option.label}
-                                            </span>
+                                            <span>{method}</span>
                                         </label>
                                     ))}
                                 </div>
-                                {formData.retenderReasons.includes('k') && (
-                                    <div className="mt-3">
-                                        <label htmlFor="retenderOtherReason" className="mb-2 block font-semibold">
-                                            Other (please specify):
+                            </div>
+
+                            {/* Field 6 */}
+                            <div>
+                                <label className="mb-2 block font-semibold">6. Method of Advertisement:</label>
+                                <div className="space-y-2">
+                                    {['International Advertisement', 'National Advertisement', 'GOJEP', 'Email'].map((method) => (
+                                        <label key={method} className="flex items-center gap-2">
+                                            <input
+                                                type="checkbox"
+                                                className="form-checkbox"
+                                                checked={formData.advertisementMethods.includes(method)}
+                                                onChange={(e) => {
+                                                    setFormData({
+                                                        ...formData,
+                                                        advertisementMethods: e.target.checked ? [...formData.advertisementMethods, method] : formData.advertisementMethods.filter((x) => x !== method),
+                                                    });
+                                                }}
+                                            />
+                                            <span>{method}</span>
                                         </label>
-                                        <textarea
-                                            id="retenderOtherReason"
-                                            name="retenderOtherReason"
-                                            rows={2}
-                                            className="form-textarea"
-                                            placeholder="Please describe the other reason for re-tender..."
-                                            value={formData.retenderOtherReason}
-                                            onChange={handleInputChange}
-                                        />
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Field 7 */}
+                            <div>
+                                <label className="mb-2 block font-semibold">7. Contract Type:</label>
+                                <div className="space-y-2">
+                                    {['Goods', 'Consulting Services', 'Non-Consulting Services', 'Works'].map((type) => (
+                                        <label key={type} className="flex items-center gap-2">
+                                            <input
+                                                type="checkbox"
+                                                className="form-checkbox"
+                                                checked={formData.contractType === type}
+                                                onChange={(e) => {
+                                                    if (e.target.checked) {
+                                                        setFormData({ ...formData, contractType: type });
+                                                    }
+                                                }}
+                                            />
+                                            <span>{type}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Field 8 */}
+                            <div>
+                                <label className="mb-2 block font-semibold">8. Bid Security:</label>
+                                <div className="flex gap-4">
+                                    {['Yes', 'No', 'N/A'].map((opt) => (
+                                        <label key={opt} className="flex items-center gap-2">
+                                            <input
+                                                type="radio"
+                                                name="bidSecurity"
+                                                value={opt}
+                                                checked={formData.bidSecurity === opt}
+                                                onChange={(e) => setFormData({ ...formData, bidSecurity: e.target.value as 'Yes' | 'No' | 'N/A' })}
+                                            />
+                                            <span>{opt}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Field 9 */}
+                            <div>
+                                <label className="mb-2 block font-semibold">9. Tender Period:</label>
+                                <div className="flex gap-2 items-center mb-3">
+                                    <input
+                                        id="tenderPeriodStartDate"
+                                        name="tenderPeriodStartDate"
+                                        type="date"
+                                        className="form-input flex-1"
+                                        value={formData.tenderPeriodStartDate}
+                                        onChange={handleInputChange}
+                                    />
+                                    <span>to</span>
+                                    <input
+                                        id="tenderPeriodEndDate"
+                                        name="tenderPeriodEndDate"
+                                        type="date"
+                                        className="form-input flex-1"
+                                        value={formData.tenderPeriodEndDate}
+                                        onChange={handleInputChange}
+                                    />
+                                </div>
+                                <div className="ml-8">
+                                    <label className="mb-1 block font-semibold">a. Number of Days:</label>
+                                    <input
+                                        id="tenderPeriodDays"
+                                        name="tenderPeriodDays"
+                                        type="number"
+                                        className="form-input w-32"
+                                        placeholder="1"
+                                        value={formData.tenderPeriodDays}
+                                        onChange={handleInputChange}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Field 10 */}
+                            <div>
+                                <label className="mb-2 block font-semibold">10. Bid Validity Period:</label>
+                                <input
+                                    id="bidValidityDays"
+                                    name="bidValidityDays"
+                                    type="text"
+                                    className="form-input w-full"
+                                    placeholder="30 Days"
+                                    value={formData.bidValidityDays}
+                                    onChange={handleInputChange}
+                                />
+                                <div className="ml-8 mt-3">
+                                    <label className="mb-1 block font-semibold">a. Bid Validity Expiration Date:</label>
+                                    <input
+                                        id="bidValidityExpiration"
+                                        name="bidValidityExpiration"
+                                        type="date"
+                                        className="form-input"
+                                        value={formData.bidValidityExpiration}
+                                        onChange={handleInputChange}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Field 11 */}
+                            <div>
+                                <label className="mb-2 block font-semibold">
+                                    11. Number of Bids Requested: <span className="text-danger">*</span>
+                                </label>
+                                <input
+                                    id="numberOfBidsRequested"
+                                    name="numberOfBidsRequested"
+                                    type="number"
+                                    className="form-input w-32"
+                                    placeholder="1"
+                                    value={formData.numberOfBidsRequested}
+                                    onChange={handleInputChange}
+                                    required
+                                />
+                                <div className="ml-8 mt-3">
+                                    <label className="mb-1 block font-semibold">a. Number of Bids Received:</label>
+                                    <input
+                                        id="numberOfBidsReceived"
+                                        name="numberOfBidsReceived"
+                                        type="number"
+                                        className="form-input w-32"
+                                        placeholder="1"
+                                        value={formData.numberOfBidsReceived || ''}
+                                        onChange={handleInputChange}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Field 12 */}
+                            <div>
+                                <label className="mb-2 block font-semibold">12. Arithmetic Error Identified:</label>
+                                <div className="flex gap-4">
+                                    {['Yes', 'No'].map((opt) => (
+                                        <label key={opt} className="flex items-center gap-2">
+                                            <input
+                                                type="radio"
+                                                name="arithmeticErrorIdentified"
+                                                value={opt}
+                                                checked={formData.arithmeticErrorIdentified === opt}
+                                                onChange={(e) => setFormData({ ...formData, arithmeticErrorIdentified: e.target.value as 'Yes' | 'No' })}
+                                            />
+                                            <span>{opt}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Field 13 */}
+                            <div>
+                                <label className="mb-2 block font-semibold">13. Re-tendered:</label>
+                                <div className="flex gap-4">
+                                    {['Yes', 'No'].map((opt) => (
+                                        <label key={opt} className="flex items-center gap-2">
+                                            <input
+                                                type="radio"
+                                                name="retender"
+                                                value={opt}
+                                                checked={formData.retender === opt}
+                                                onChange={(e) => {
+                                                    const val = e.target.value as 'Yes' | 'No';
+                                                    setFormData({ ...formData, retender: val, retenderReasons: val === 'No' ? [] : formData.retenderReasons });
+                                                }}
+                                            />
+                                            <span>{opt}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Field 14 */}
+                            {formData.retender === 'Yes' && (
+                                <div className="ml-8">
+                                    <label className="mb-2 block font-semibold">14. Reason for re-tender:</label>
+                                    <div className="space-y-2">
+                                        {RETENDER_REASON_OPTIONS.map((option) => (
+                                            <label key={option.code} className="flex items-center gap-2">
+                                                <input
+                                                    type="checkbox"
+                                                    className="form-checkbox"
+                                                    checked={formData.retenderReasons.includes(option.code)}
+                                                    onChange={(e) => {
+                                                        setFormData({
+                                                            ...formData,
+                                                            retenderReasons: e.target.checked ? [...formData.retenderReasons, option.code] : formData.retenderReasons.filter((x) => x !== option.code),
+                                                        });
+                                                    }}
+                                                />
+                                                <span>
+                                                    {option.code}. {option.label}
+                                                </span>
+                                            </label>
+                                        ))}
                                     </div>
-                                )}
-                            </div>
-                        )}
+                                    {formData.retenderReasons.includes('k') && (
+                                        <div className="mt-3">
+                                            <label htmlFor="retenderOtherReason" className="mb-2 block font-semibold">
+                                                Other (please specify):
+                                            </label>
+                                            <textarea
+                                                id="retenderOtherReason"
+                                                name="retenderOtherReason"
+                                                rows={2}
+                                                className="form-textarea"
+                                                placeholder="Please describe the other reason for re-tender..."
+                                                value={formData.retenderOtherReason}
+                                                onChange={handleInputChange}
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+                            )}
 
-                        {/* Field 15 */}
-                        <div>
-                            <label className="mb-2 block font-semibold">15. Contract Award Criteria:</label>
-                            <div className="flex gap-4">
-                                {['Lowest Cost', 'Most Advantageous Bid'].map((criteria) => (
-                                    <label key={criteria} className="flex items-center gap-2">
-                                        <input
-                                            type="radio"
-                                            name="awardCriteria"
-                                            value={criteria}
-                                            checked={formData.awardCriteria === criteria}
-                                            onChange={(e) => setFormData({ ...formData, awardCriteria: e.target.value })}
-                                        />
-                                        <span>{criteria === 'Lowest Cost' ? 'a. Lowest Cost' : 'b. Most Advantageous Bid'}</span>
+                            {/* Field 15 */}
+                            <div>
+                                <label className="mb-2 block font-semibold">15. Contract Award Criteria:</label>
+                                <div className="flex gap-4">
+                                    {['Lowest Cost', 'Most Advantageous Bid'].map((criteria) => (
+                                        <label key={criteria} className="flex items-center gap-2">
+                                            <input
+                                                type="radio"
+                                                name="awardCriteria"
+                                                value={criteria}
+                                                checked={formData.awardCriteria === criteria}
+                                                onChange={(e) => setFormData({ ...formData, awardCriteria: e.target.value })}
+                                            />
+                                            <span>{criteria === 'Lowest Cost' ? 'a. Lowest Cost' : 'b. Most Advantageous Bid'}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Navigation Buttons */}
+                        <div className="mt-6 flex justify-between gap-3">
+                            <button type="button" onClick={handlePrevious} className="btn btn-outline-secondary gap-2">
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                                </svg>
+                                Previous: Background
+                            </button>
+                            <button type="button" onClick={handleNext} className="btn btn-primary gap-2">
+                                Next: Section B
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* Step 3: Section B - Eligibility Requirements & Compliance Matrix */}
+                {currentStep === 3 && (
+                    <div className="panel">
+                        <div className="mb-5 -m-5 p-5 bg-info/10 border-l-4 border-info">
+                            <h5 className="text-lg font-bold text-info">Section B</h5>
+                            <p className="text-sm mt-1">
+                                to be drafted by the Assigned Procurement Officer. <span className="font-semibold">Must be verified by the Evaluation Committee</span>
+                            </p>
+                        </div>
+
+                        <div className="space-y-6 p-5">
+                            {/* A. Eligibility Requirements */}
+                            <div>
+                                <h6 className="text-md font-bold mb-4">A. Eligibility Requirements</h6>
+                                <div className="overflow-x-auto">
+                                    <table className="table-auto w-full border-collapse border border-gray-300 dark:border-gray-600">
+                                        <thead>
+                                            <tr className="bg-gray-100 dark:bg-gray-800">
+                                                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">ELIGIBILITY REQUIREMENTS</th>
+                                                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Bidder Name/Details</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">PPC Reg in the category of:</td>
+                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
+                                                    <input type="text" className="form-input w-full" placeholder="N/A" />
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">TCI/TRN</td>
+                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
+                                                    <input type="text" className="form-input w-full" placeholder="000-002-852" />
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">Bid Amount (Inclusive of GCT)</td>
+                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
+                                                    <input type="number" step="0.01" className="form-input w-full" placeholder="$49,680.00" />
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            {/* B. Compliance Matrix */}
+                            <div>
+                                <h6 className="text-md font-bold mb-4">B. Compliance Matrix</h6>
+                                <div className="overflow-x-auto">
+                                    <table className="table-auto w-full border-collapse border border-gray-300 dark:border-gray-600">
+                                        <thead>
+                                            <tr className="bg-gray-100 dark:bg-gray-800">
+                                                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Clause</th>
+                                                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">COMPLIANCE MATRIX</th>
+                                                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Bidder Response</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2 font-semibold">ITB 14.1</td>
+                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">Signed Letter of Quotation</td>
+                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
+                                                    <input type="text" className="form-input w-full" placeholder="N/A" />
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2"></td>
+                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">Signed price and delivery schedules</td>
+                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
+                                                    <input type="text" className="form-input w-full" placeholder="N/A" />
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2"></td>
+                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">Signed and Statement of Compliance</td>
+                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
+                                                    <input type="text" className="form-input w-full" placeholder="N/A" />
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2"></td>
+                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">Bid Validity of 30 day</td>
+                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
+                                                    <input type="text" className="form-input w-full" placeholder="YES" />
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2"></td>
+                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">Quotation</td>
+                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
+                                                    <input type="text" className="form-input w-full" placeholder="YES" />
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2"></td>
+                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">Bid Amount (Inclusive of GCT)</td>
+                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
+                                                    <input type="number" step="0.01" className="form-input w-full" placeholder="$49,680.00" />
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            {/* Technical Evaluation */}
+                            <div>
+                                <h6 className="text-md font-bold mb-4">Technical Evaluation</h6>
+                                <div className="overflow-x-auto">
+                                    <table className="table-auto w-full border-collapse border border-gray-300 dark:border-gray-600">
+                                        <thead>
+                                            <tr className="bg-gray-100 dark:bg-gray-800">
+                                                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Specifications</th>
+                                                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Quantity</th>
+                                                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Bidder Name/Details</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
+                                                    <textarea className="form-textarea w-full" rows={2} placeholder="AA-532BK Image 3 Lever H/Duty Task Chair w/Arms - Black"></textarea>
+                                                </td>
+                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
+                                                    <input type="number" className="form-input w-full" placeholder="1" />
+                                                </td>
+                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
+                                                    <input type="text" className="form-input w-full" placeholder="Stationery & Office Supplies" />
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2"></td>
+                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2 font-semibold">Bid Amount (Inclusive of GCT)</td>
+                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
+                                                    <input type="number" step="0.01" className="form-input w-full" placeholder="$49,680.00" />
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Navigation Buttons */}
+                        <div className="mt-6 flex justify-between gap-3">
+                            <button type="button" onClick={handlePrevious} className="btn btn-outline-secondary gap-2">
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                                </svg>
+                                Previous: Section A
+                            </button>
+                            <button type="button" onClick={handleNext} className="btn btn-primary gap-2">
+                                Next: Section C
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* Step 4: Section C - To be completed by the Evaluator */}
+                {currentStep === 4 && (
+                    <div className="panel">
+                        <div className="mb-5 -m-5 p-5 bg-warning/10 border-l-4 border-warning">
+                            <h5 className="text-lg font-bold text-warning">Section C</h5>
+                            <p className="text-sm mt-1">to be completed by the Evaluator</p>
+                        </div>
+
+                        <div className="space-y-5 p-5">
+                            {/* Comments/Critical Issues Examined */}
+                            <div>
+                                <label className="mb-2 block font-semibold">Comments/Critical Issues Examined:</label>
+                                <textarea className="form-textarea w-full" rows={8} placeholder="Enter detailed comments and critical issues examined..." />
+                            </div>
+
+                            {/* Action Taken */}
+                            <div>
+                                <label className="mb-2 block font-semibold">Action Taken:</label>
+                                <div className="flex gap-6">
+                                    <label className="flex items-center gap-2">
+                                        <input type="checkbox" className="form-checkbox" />
+                                        <span>(a) Recommended</span>
                                     </label>
-                                ))}
+                                    <label className="flex items-center gap-2">
+                                        <input type="checkbox" className="form-checkbox" />
+                                        <span>(b) Rejected</span>
+                                    </label>
+                                    <label className="flex items-center gap-2">
+                                        <input type="checkbox" className="form-checkbox" />
+                                        <span>(c) Deferred</span>
+                                    </label>
+                                </div>
                             </div>
-                        </div>
-                    </div>
-                </div>
 
-                {/* Section B - Eligibility Requirements & Compliance Matrix */}
-                <div className="panel">
-                    <div className="mb-5 -m-5 p-5 bg-info/10 border-l-4 border-info">
-                        <h5 className="text-lg font-bold text-info">Section B</h5>
-                        <p className="text-sm mt-1">
-                            to be drafted by the Assigned Procurement Officer. <span className="font-semibold">Must be verified by the Evaluation Committee</span>
-                        </p>
-                    </div>
-
-                    <div className="space-y-6 p-5">
-                        {/* A. Eligibility Requirements */}
-                        <div>
-                            <h6 className="text-md font-bold mb-4">A. Eligibility Requirements</h6>
-                            <div className="overflow-x-auto">
-                                <table className="table-auto w-full border-collapse border border-gray-300 dark:border-gray-600">
-                                    <thead>
-                                        <tr className="bg-gray-100 dark:bg-gray-800">
-                                            <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">ELIGIBILITY REQUIREMENTS</th>
-                                            <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Bidder Name/Details</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <tr>
-                                            <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">PPC Reg in the category of:</td>
-                                            <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
-                                                <input type="text" className="form-input w-full" placeholder="N/A" />
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">TCI/TRN</td>
-                                            <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
-                                                <input type="text" className="form-input w-full" placeholder="000-002-852" />
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">Bid Amount (Inclusive of GCT)</td>
-                                            <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
-                                                <input type="number" step="0.01" className="form-input w-full" placeholder="$49,680.00" />
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-
-                        {/* B. Compliance Matrix */}
-                        <div>
-                            <h6 className="text-md font-bold mb-4">B. Compliance Matrix</h6>
-                            <div className="overflow-x-auto">
-                                <table className="table-auto w-full border-collapse border border-gray-300 dark:border-gray-600">
-                                    <thead>
-                                        <tr className="bg-gray-100 dark:bg-gray-800">
-                                            <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Clause</th>
-                                            <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">COMPLIANCE MATRIX</th>
-                                            <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Bidder Response</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <tr>
-                                            <td className="border border-gray-300 dark:border-gray-600 px-4 py-2 font-semibold">ITB 14.1</td>
-                                            <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">Signed Letter of Quotation</td>
-                                            <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
-                                                <input type="text" className="form-input w-full" placeholder="N/A" />
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <td className="border border-gray-300 dark:border-gray-600 px-4 py-2"></td>
-                                            <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">Signed price and delivery schedules</td>
-                                            <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
-                                                <input type="text" className="form-input w-full" placeholder="N/A" />
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <td className="border border-gray-300 dark:border-gray-600 px-4 py-2"></td>
-                                            <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">Signed and Statement of Compliance</td>
-                                            <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
-                                                <input type="text" className="form-input w-full" placeholder="N/A" />
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <td className="border border-gray-300 dark:border-gray-600 px-4 py-2"></td>
-                                            <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">Bid Validity of 30 day</td>
-                                            <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
-                                                <input type="text" className="form-input w-full" placeholder="YES" />
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <td className="border border-gray-300 dark:border-gray-600 px-4 py-2"></td>
-                                            <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">Quotation</td>
-                                            <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
-                                                <input type="text" className="form-input w-full" placeholder="YES" />
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <td className="border border-gray-300 dark:border-gray-600 px-4 py-2"></td>
-                                            <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">Bid Amount (Inclusive of GCT)</td>
-                                            <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
-                                                <input type="number" step="0.01" className="form-input w-full" placeholder="$49,680.00" />
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-
-                        {/* Technical Evaluation */}
-                        <div>
-                            <h6 className="text-md font-bold mb-4">Technical Evaluation</h6>
-                            <div className="overflow-x-auto">
-                                <table className="table-auto w-full border-collapse border border-gray-300 dark:border-gray-600">
-                                    <thead>
-                                        <tr className="bg-gray-100 dark:bg-gray-800">
-                                            <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Specifications</th>
-                                            <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Quantity</th>
-                                            <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Bidder Name/Details</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <tr>
-                                            <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
-                                                <textarea className="form-textarea w-full" rows={2} placeholder="AA-532BK Image 3 Lever H/Duty Task Chair w/Arms - Black"></textarea>
-                                            </td>
-                                            <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
-                                                <input type="number" className="form-input w-full" placeholder="1" />
-                                            </td>
-                                            <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
-                                                <input type="text" className="form-input w-full" placeholder="Stationery & Office Supplies" />
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <td className="border border-gray-300 dark:border-gray-600 px-4 py-2"></td>
-                                            <td className="border border-gray-300 dark:border-gray-600 px-4 py-2 font-semibold">Bid Amount (Inclusive of GCT)</td>
-                                            <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
-                                                <input type="number" step="0.01" className="form-input w-full" placeholder="$49,680.00" />
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Section C - To be completed by the Evaluator */}
-                <div className="panel">
-                    <div className="mb-5 -m-5 p-5 bg-warning/10 border-l-4 border-warning">
-                        <h5 className="text-lg font-bold text-warning">Section C</h5>
-                        <p className="text-sm mt-1">to be completed by the Evaluator</p>
-                    </div>
-
-                    <div className="space-y-5 p-5">
-                        {/* Comments/Critical Issues Examined */}
-                        <div>
-                            <label className="mb-2 block font-semibold">Comments/Critical Issues Examined:</label>
-                            <textarea className="form-textarea w-full" rows={8} placeholder="Enter detailed comments and critical issues examined..." />
-                        </div>
-
-                        {/* Action Taken */}
-                        <div>
-                            <label className="mb-2 block font-semibold">Action Taken:</label>
-                            <div className="flex gap-6">
-                                <label className="flex items-center gap-2">
-                                    <input type="checkbox" className="form-checkbox" />
-                                    <span>(a) Recommended</span>
-                                </label>
-                                <label className="flex items-center gap-2">
-                                    <input type="checkbox" className="form-checkbox" />
-                                    <span>(b) Rejected</span>
-                                </label>
-                                <label className="flex items-center gap-2">
-                                    <input type="checkbox" className="form-checkbox" />
-                                    <span>(c) Deferred</span>
-                                </label>
-                            </div>
-                        </div>
-
-                        {/* If rejected or deferred */}
-                        <div>
-                            <label className="mb-2 block font-semibold">If rejected or deferred, please give details below:</label>
-                            <textarea className="form-textarea w-full" rows={4} placeholder="Provide details if rejected or deferred..." />
-                        </div>
-
-                        {/* Recommended Contractor/Supplier */}
-                        <div>
-                            <label className="mb-2 block font-semibold">Recommended Contractor/Supplier:</label>
-                            <input type="text" className="form-input w-full" placeholder="Enter recommended contractor/supplier name" />
-                        </div>
-
-                        {/* Recommended Contract Amount */}
-                        <div>
-                            <label className="mb-2 block font-semibold">Recommended Contract Amount (inclusive of GCT):</label>
-                            <input type="number" step="0.01" className="form-input w-full" placeholder="$0.00" />
-                        </div>
-
-                        {/* Evaluator's Information */}
-                        <div className="grid gap-5 md:grid-cols-2">
+                            {/* If rejected or deferred */}
                             <div>
-                                <label className="mb-2 block font-semibold">Evaluator's Name:</label>
-                                <input type="text" className="form-input w-full" placeholder="Enter evaluator's name" />
+                                <label className="mb-2 block font-semibold">If rejected or deferred, please give details below:</label>
+                                <textarea className="form-textarea w-full" rows={4} placeholder="Provide details if rejected or deferred..." />
                             </div>
+
+                            {/* Recommended Contractor/Supplier */}
                             <div>
-                                <label className="mb-2 block font-semibold">Job Title:</label>
-                                <input type="text" className="form-input w-full" placeholder="Enter job title" />
+                                <label className="mb-2 block font-semibold">Recommended Contractor/Supplier:</label>
+                                <input type="text" className="form-input w-full" placeholder="Enter recommended contractor/supplier name" />
+                            </div>
+
+                            {/* Recommended Contract Amount */}
+                            <div>
+                                <label className="mb-2 block font-semibold">Recommended Contract Amount (inclusive of GCT):</label>
+                                <input type="number" step="0.01" className="form-input w-full" placeholder="$0.00" />
+                            </div>
+
+                            {/* Evaluator's Information */}
+                            <div className="grid gap-5 md:grid-cols-2">
+                                <div>
+                                    <label className="mb-2 block font-semibold">Evaluator's Name:</label>
+                                    <input type="text" className="form-input w-full" placeholder="Enter evaluator's name" />
+                                </div>
+                                <div>
+                                    <label className="mb-2 block font-semibold">Job Title:</label>
+                                    <input type="text" className="form-input w-full" placeholder="Enter job title" />
+                                </div>
+                            </div>
+
+                            <div className="grid gap-5 md:grid-cols-2">
+                                <div>
+                                    <label className="mb-2 block font-semibold">Signature:</label>
+                                    <input type="text" className="form-input w-full" placeholder="Signature" />
+                                </div>
+                                <div>
+                                    <label className="mb-2 block font-semibold">Date:</label>
+                                    <input type="date" className="form-input w-full" />
+                                </div>
                             </div>
                         </div>
 
-                        <div className="grid gap-5 md:grid-cols-2">
-                            <div>
-                                <label className="mb-2 block font-semibold">Signature:</label>
-                                <input type="text" className="form-input w-full" placeholder="Signature" />
-                            </div>
-                            <div>
-                                <label className="mb-2 block font-semibold">Date:</label>
-                                <input type="date" className="form-input w-full" />
-                            </div>
+                        {/* Navigation Buttons */}
+                        <div className="mt-6 flex justify-between gap-3">
+                            <button type="button" onClick={handlePrevious} className="btn btn-outline-secondary gap-2">
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                                </svg>
+                                Previous: Section B
+                            </button>
+                            <button type="button" onClick={handleNext} className="btn btn-primary gap-2">
+                                Next: Sections D & E
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                </svg>
+                            </button>
                         </div>
                     </div>
-                </div>
+                )}
 
-                {/* Section D - To be completed by the Assigned Procurement Officer */}
-                <div className="panel">
-                    <div className="mb-5 -m-5 p-5 bg-success/10 border-l-4 border-success">
-                        <h5 className="text-lg font-bold text-success">Section D</h5>
-                        <p className="text-sm mt-1">to be completed by the Assigned Procurement Officer</p>
-                    </div>
-
-                    <div className="space-y-5 p-5">
-                        {/* Summary of Evaluation */}
-                        <div>
-                            <label className="mb-2 block font-semibold">Summary of Evaluation</label>
-                            <textarea rows={8} className="form-textarea w-full" placeholder="Provide a comprehensive summary of the evaluation process, findings, and conclusions..." />
-                        </div>
-                    </div>
-                </div>
-
-                {/* Section E - To be completed by the Assigned Procurement Officer */}
-                <div className="panel">
-                    <div className="mb-5 -m-5 p-5 bg-primary/10 border-l-4 border-primary">
-                        <h5 className="text-lg font-bold text-primary">Section E</h5>
-                        <p className="text-sm mt-1">to be completed by the Assigned Procurement Officer</p>
-                    </div>
-
-                    <div className="space-y-5 p-5">
-                        {/* Recommendation */}
-                        <div>
-                            <label className="mb-2 block font-semibold">Recommendation:</label>
-                            <textarea rows={3} className="form-textarea w-full" placeholder="Based on the foregoing, a recommendation is being made for the award of contract to..." />
-                        </div>
-
-                        {/* Prepared By */}
-                        <div className="grid gap-5 md:grid-cols-2">
-                            <div>
-                                <label className="mb-2 block font-semibold">Prepared By:</label>
-                                <input type="text" className="form-input w-full" placeholder="Kristina Brown" />
+                {/* Step 5: Sections D & E - To be completed by the Assigned Procurement Officer */}
+                {currentStep === 5 && (
+                    <>
+                        {/* Section D */}
+                        <div className="panel">
+                            <div className="mb-5 -m-5 p-5 bg-success/10 border-l-4 border-success">
+                                <h5 className="text-lg font-bold text-success">Section D</h5>
+                                <p className="text-sm mt-1">to be completed by the Assigned Procurement Officer</p>
                             </div>
-                            <div>
-                                <label className="mb-2 block font-semibold">Signature:</label>
-                                <input type="text" className="form-input w-full" placeholder="Signature" />
+
+                            <div className="space-y-5 p-5">
+                                {/* Summary of Evaluation */}
+                                <div>
+                                    <label className="mb-2 block font-semibold">Summary of Evaluation</label>
+                                    <textarea rows={8} className="form-textarea w-full" placeholder="Provide a comprehensive summary of the evaluation process, findings, and conclusions..." />
+                                </div>
                             </div>
                         </div>
 
-                        <div>
-                            <label className="mb-2 block font-semibold">Date:</label>
-                            <input type="date" className="form-input w-full md:w-1/2" />
-                        </div>
-                    </div>
-                </div>
+                        {/* Section E - To be completed by the Assigned Procurement Officer */}
+                        <div className="panel">
+                            <div className="mb-5 -m-5 p-5 bg-primary/10 border-l-4 border-primary">
+                                <h5 className="text-lg font-bold text-primary">Section E</h5>
+                                <p className="text-sm mt-1">to be completed by the Assigned Procurement Officer</p>
+                            </div>
 
-                {/* Note: Sections B, C, D, E */}
+                            <div className="space-y-5 p-5">
+                                {/* Recommendation */}
+                                <div>
+                                    <label className="mb-2 block font-semibold">Recommendation:</label>
+                                    <textarea rows={3} className="form-textarea w-full" placeholder="Based on the foregoing, a recommendation is being made for the award of contract to..." />
+                                </div>
+
+                                {/* Prepared By */}
+                                <div className="grid gap-5 md:grid-cols-2">
+                                    <div>
+                                        <label className="mb-2 block font-semibold">Prepared By:</label>
+                                        <input type="text" className="form-input w-full" placeholder="Kristina Brown" />
+                                    </div>
+                                    <div>
+                                        <label className="mb-2 block font-semibold">Signature:</label>
+                                        <input type="text" className="form-input w-full" placeholder="Signature" />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="mb-2 block font-semibold">Date:</label>
+                                    <input type="date" className="form-input w-full md:w-1/2" />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Navigation Buttons */}
+                        <div className="mt-6 flex justify-between gap-3">
+                            <button type="button" onClick={handlePrevious} className="btn btn-outline-secondary gap-2">
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                                </svg>
+                                Previous: Section C
+                            </button>
+                            <button type="button" onClick={handleCreateEvaluation} className="btn btn-success gap-2" disabled={loading}>
+                                {loading ? (
+                                    <>
+                                        <span className="animate-spin border-2 border-white border-l-transparent rounded-full w-4 h-4 inline-block align-middle"></span>
+                                        <span>Creating...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <IconChecks />
+                                        <span>Create Evaluation</span>
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </>
+                )}
+
+                {/* Info Panel - Visible on all steps */}
                 <div className="panel bg-info/5 border-2 border-info">
                     <div className="flex items-start gap-3">
                         <div className="mt-1">
@@ -973,36 +1153,18 @@ const NewEvaluation = () => {
                                     <strong>Section E:</strong> Final recommendation (to be completed by Procurement Officer)
                                 </li>
                             </ul>
-                            <p className="mt-3 text-sm text-info font-semibold">Complete all sections and submit to create the evaluation report.</p>
+                            <p className="mt-3 text-sm text-info font-semibold">Use the navigation buttons to move between sections and complete all required fields.</p>
                         </div>
                     </div>
                 </div>
 
-                {/* Action Buttons */}
-                <div className="flex flex-wrap items-center justify-between gap-4">
+                {/* Status Info */}
+                <div className="panel bg-gray-50 dark:bg-gray-800">
                     <div className="flex items-center gap-2 text-sm">
                         <span className="badge bg-info/10 text-info border border-info/20 px-3 py-1.5">
                             Creates as: <strong className="ml-1">Pending (Draft)</strong>
                         </span>
                         <span className="text-white-dark">→ In Progress → Committee Review → Completed → Validated</span>
-                    </div>
-                    <div className="flex gap-3">
-                        <Link to="/procurement/evaluation" className="btn btn-outline-secondary">
-                            {t('common.cancel', 'Cancel')}
-                        </Link>
-                        <button onClick={handleCreateEvaluation} className="btn btn-success gap-2" disabled={loading}>
-                            {loading ? (
-                                <>
-                                    <span className="animate-spin border-2 border-white border-l-transparent rounded-full w-4 h-4 inline-block align-middle"></span>
-                                    Creating...
-                                </>
-                            ) : (
-                                <>
-                                    <IconChecks className="h-4 w-4" />
-                                    {t('evaluation.new.create', 'Create Evaluation')}
-                                </>
-                            )}
-                        </button>
                     </div>
                 </div>
             </div>
