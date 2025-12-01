@@ -903,33 +903,49 @@ const NewEvaluation = () => {
                             {/* A. Eligibility Requirements */}
                             <div>
                                 <h6 className="text-md font-bold mb-4">A. Eligibility Requirements</h6>
+                                <div className="flex items-center justify-between mb-2">
+                                    <p className="text-xs text-gray-500">Add or remove eligibility details as needed.</p>
+                                    <button type="button" onClick={addEligibilityRow} className="btn btn-outline-primary btn-sm">
+                                        Add Row
+                                    </button>
+                                </div>
                                 <div className="overflow-x-auto">
                                     <table className="table-auto w-full border-collapse border border-gray-300 dark:border-gray-600">
                                         <thead>
                                             <tr className="bg-gray-100 dark:bg-gray-800">
-                                                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">ELIGIBILITY REQUIREMENTS</th>
-                                                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Bidder Name/Details</th>
+                                                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">ELIGIBILITY REQUIREMENT</th>
+                                                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Bidder Detail</th>
+                                                <th className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-left font-semibold w-24">Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            <tr>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">PPC Reg in the category of:</td>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
-                                                    <input type="text" className="form-input w-full" placeholder="N/A" />
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">TCI/TRN</td>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
-                                                    <input type="text" className="form-input w-full" placeholder="000-002-852" />
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">Bid Amount (Inclusive of GCT)</td>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
-                                                    <input type="number" step="0.01" className="form-input w-full" placeholder="$49,680.00" />
-                                                </td>
-                                            </tr>
+                                            {eligibilityRows.map((row, idx) => (
+                                                <tr key={idx}>
+                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2">
+                                                        <input
+                                                            type="text"
+                                                            className="form-input w-full"
+                                                            value={row.label}
+                                                            onChange={(e) => updateEligibilityRow(idx, 'label', e.target.value)}
+                                                            placeholder={idx === 0 ? 'PPC Reg in the category of:' : 'Requirement label'}
+                                                        />
+                                                    </td>
+                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2">
+                                                        <input
+                                                            type="text"
+                                                            className="form-input w-full"
+                                                            value={row.value}
+                                                            onChange={(e) => updateEligibilityRow(idx, 'value', e.target.value)}
+                                                            placeholder="Value"
+                                                        />
+                                                    </td>
+                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-right">
+                                                        <button type="button" onClick={() => removeEligibilityRow(idx)} className="btn btn-outline-danger btn-sm" disabled={eligibilityRows.length <= 1}>
+                                                            Remove
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))}
                                         </tbody>
                                     </table>
                                 </div>
@@ -999,6 +1015,12 @@ const NewEvaluation = () => {
                             {/* Technical Evaluation */}
                             <div>
                                 <h6 className="text-md font-bold mb-4">Technical Evaluation</h6>
+                                <div className="flex items-center justify-between mb-2">
+                                    <p className="text-xs text-gray-500">Add or remove technical items as needed.</p>
+                                    <button type="button" onClick={addTechnicalRow} className="btn btn-outline-primary btn-sm">
+                                        Add Row
+                                    </button>
+                                </div>
                                 <div className="overflow-x-auto">
                                     <table className="table-auto w-full border-collapse border border-gray-300 dark:border-gray-600">
                                         <thead>
@@ -1006,27 +1028,57 @@ const NewEvaluation = () => {
                                                 <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Specifications</th>
                                                 <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Quantity</th>
                                                 <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Bidder Name/Details</th>
+                                                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Bid Amount (Inclusive of GCT)</th>
+                                                <th className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-left font-semibold w-24">Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            <tr>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
-                                                    <textarea className="form-textarea w-full" rows={2} placeholder="AA-532BK Image 3 Lever H/Duty Task Chair w/Arms - Black"></textarea>
-                                                </td>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
-                                                    <input type="number" className="form-input w-full" placeholder="1" />
-                                                </td>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
-                                                    <input type="text" className="form-input w-full" placeholder="Stationery & Office Supplies" />
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2"></td>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2 font-semibold">Bid Amount (Inclusive of GCT)</td>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
-                                                    <input type="number" step="0.01" className="form-input w-full" placeholder="$49,680.00" />
-                                                </td>
-                                            </tr>
+                                            {technicalRows.map((row, idx) => (
+                                                <tr key={idx}>
+                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2 align-top">
+                                                        <textarea
+                                                            className="form-textarea w-full"
+                                                            rows={2}
+                                                            placeholder="Enter specifications"
+                                                            value={row.specifications}
+                                                            onChange={(e) => updateTechnicalRow(idx, 'specifications', e.target.value)}
+                                                        ></textarea>
+                                                    </td>
+                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2">
+                                                        <input
+                                                            type="number"
+                                                            className="form-input w-full"
+                                                            placeholder="1"
+                                                            value={row.quantity}
+                                                            onChange={(e) => updateTechnicalRow(idx, 'quantity', e.target.value)}
+                                                        />
+                                                    </td>
+                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2">
+                                                        <input
+                                                            type="text"
+                                                            className="form-input w-full"
+                                                            placeholder="Bidder name/details"
+                                                            value={row.bidderName}
+                                                            onChange={(e) => updateTechnicalRow(idx, 'bidderName', e.target.value)}
+                                                        />
+                                                    </td>
+                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2">
+                                                        <input
+                                                            type="number"
+                                                            step="0.01"
+                                                            className="form-input w-full"
+                                                            placeholder="$0.00"
+                                                            value={row.bidAmount}
+                                                            onChange={(e) => updateTechnicalRow(idx, 'bidAmount', e.target.value)}
+                                                        />
+                                                    </td>
+                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-right">
+                                                        <button type="button" onClick={() => removeTechnicalRow(idx)} className="btn btn-outline-danger btn-sm" disabled={technicalRows.length <= 1}>
+                                                            Remove
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))}
                                         </tbody>
                                     </table>
                                 </div>
