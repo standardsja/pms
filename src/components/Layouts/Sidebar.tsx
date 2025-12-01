@@ -52,19 +52,21 @@ const Sidebar = () => {
     const isAdmin = userRoles.includes('ADMIN');
     const isCommitteeMember = userRoles.includes('INNOVATION_COMMITTEE');
     const isEvaluationCommittee = userRoles.includes('EVALUATION_COMMITTEE');
-    
+
     // Specific procurement manager role (must have PROCUREMENT in the name)
     const isProcurementManager = userRoles.some((r: string) => {
         const upper = r?.toUpperCase() || '';
         return upper === 'PROCUREMENT_MANAGER' || (upper.includes('PROCUREMENT') && upper.includes('MANAGER'));
     });
-    
+
     // Department managers (not procurement-specific)
-    const isDepartmentManager = !isProcurementManager && userRoles.some((r: string) => {
-        const upper = r?.toUpperCase() || '';
-        return upper === 'DEPT_MANAGER' || upper === 'DEPARTMENT_MANAGER' || upper === 'MANAGER';
-    });
-    
+    const isDepartmentManager =
+        !isProcurementManager &&
+        userRoles.some((r: string) => {
+            const upper = r?.toUpperCase() || '';
+            return upper === 'DEPT_MANAGER' || upper === 'DEPARTMENT_MANAGER' || upper === 'MANAGER';
+        });
+
     // Only check for Officer if not a Manager
     const isProcurementOfficer = !isProcurementManager && (userRoles.includes('PROCUREMENT_OFFICER') || userRoles.includes('PROCUREMENT'));
     // Supplier role
