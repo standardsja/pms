@@ -104,6 +104,49 @@ const NewEvaluation = () => {
         { clause: '', requirement: 'Bid Amount (Inclusive of GCT)', bidderResponse: '$49,680.00' },
     ]);
 
+    // Section B.A - Eligibility Requirements (dynamic rows)
+    type EligibilityRow = { label: string; value: string };
+    const [eligibilityRows, setEligibilityRows] = useState<EligibilityRow[]>([
+        { label: 'PPC Reg in the category of:', value: '' },
+        { label: 'TCI/TRN', value: '' },
+        { label: 'Bid Amount (Inclusive of GCT)', value: '' },
+    ]);
+
+    const updateEligibilityRow = (index: number, key: keyof EligibilityRow, value: string) => {
+        setEligibilityRows((rows) => rows.map((r, i) => (i === index ? { ...r, [key]: value } : r)));
+    };
+
+    const addEligibilityRow = () => {
+        setEligibilityRows((rows) => [...rows, { label: '', value: '' }]);
+    };
+
+    const removeEligibilityRow = (index: number) => {
+        setEligibilityRows((rows) => rows.filter((_, i) => i !== index));
+    };
+
+    // Section B.C - Technical Evaluation (dynamic rows)
+    type TechnicalRow = { specifications: string; quantity: string; bidderName: string; bidAmount: string };
+    const [technicalRows, setTechnicalRows] = useState<TechnicalRow[]>([
+        {
+            specifications: 'AA-532BK Image 3 Lever H/Duty Task Chair w/Arms - Black',
+            quantity: '1',
+            bidderName: 'Stationery & Office Supplies',
+            bidAmount: '49680.00',
+        },
+    ]);
+
+    const updateTechnicalRow = (index: number, key: keyof TechnicalRow, value: string) => {
+        setTechnicalRows((rows) => rows.map((r, i) => (i === index ? { ...r, [key]: value } : r)));
+    };
+
+    const addTechnicalRow = () => {
+        setTechnicalRows((rows) => [...rows, { specifications: '', quantity: '1', bidderName: '', bidAmount: '' }]);
+    };
+
+    const removeTechnicalRow = (index: number) => {
+        setTechnicalRows((rows) => rows.filter((_, i) => i !== index));
+    };
+
     const updateComplianceRow = (index: number, key: keyof ComplianceRow, value: string) => {
         setComplianceRows((rows) => rows.map((r, i) => (i === index ? { ...r, [key]: value } : r)));
     };
@@ -262,10 +305,16 @@ const NewEvaluation = () => {
                 sectionB: {
                     bidders: [
                         {
-                            bidderName: '',
-                            ppcCategory: '',
-                            tciTrn: '',
-                            bidAmountInclusiveGCT: 0,
+                            bidderName: (technicalRows[0]?.bidderName || '').trim(),
+                            ppcCategory:
+                                eligibilityRows.find((r) => r.label.toLowerCase().includes('ppc'))?.value?.trim() || '',
+                            tciTrn: eligibilityRows.find((r) => r.label.toLowerCase().includes('tci') || r.label.toLowerCase().includes('trn'))?.value?.trim() || '',
+                            bidAmountInclusiveGCT: (() => {
+                                const fromEligibility = eligibilityRows.find((r) => r.label.toLowerCase().includes('amount'))?.value;
+                                const fromTech = technicalRows[0]?.bidAmount;
+                                const val = fromEligibility && fromEligibility.trim() !== '' ? fromEligibility : fromTech;
+                                return safeParseFloat(val);
+                            })(),
                             complianceMatrix: {
                                 signedLetterOfQuotation: complianceRows.some((r) => r.requirement.toLowerCase().includes('letter of quotation')),
                                 signedPriceSchedules: complianceRows.some((r) => r.requirement.toLowerCase().includes('price')),
@@ -274,7 +323,13 @@ const NewEvaluation = () => {
                                 quotationProvided: complianceRows.some((r) => r.requirement.toLowerCase().includes('quotation')),
                                 bidAmountMatches: complianceRows.some((r) => r.requirement.toLowerCase().includes('amount')),
                             },
-                            technicalEvaluation: [],
+                            technicalEvaluation: technicalRows
+                                .filter((r) => r.specifications.trim() !== '' || r.quantity.trim() !== '' || r.bidAmount.trim() !== '')
+                                .map((r) => ({
+                                    specifications: r.specifications.trim(),
+                                    quantity: safeParseInt(r.quantity),
+                                    bidAmount: safeParseFloat(r.bidAmount),
+                                })),
                         },
                     ],
                 },
