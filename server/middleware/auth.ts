@@ -22,7 +22,7 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
     try {
         const authHeader = req.headers.authorization;
         const userIdHeader = req.headers['x-user-id'];
-        
+
         console.log(`[AUTH] 🔐 Request to ${req.method} ${req.path}`);
         console.log(`[AUTH] Authorization header:`, authHeader ? `Bearer ${authHeader.substring(7, 27)}...` : 'MISSING');
         console.log(`[AUTH] x-user-id header:`, userIdHeader || 'MISSING');

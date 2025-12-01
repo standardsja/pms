@@ -57,31 +57,31 @@ const CombineRequests = () => {
                 const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
                 const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
                 const userId = userProfile?.id || userProfile?.userId;
-                
+
                 console.log('🔐 [COMBINE] Auth Debug:', {
                     hasToken: !!token,
                     tokenPreview: token ? `${token.substring(0, 20)}...` : 'NONE',
                     userId,
                     userProfile: userProfile.name,
                 });
-                
+
                 const headers: Record<string, string> = {
                     'Content-Type': 'application/json',
                 };
-                
+
                 if (token) {
                     headers['Authorization'] = `Bearer ${token}`;
                 }
                 if (userId) {
                     headers['x-user-id'] = String(userId);
                 }
-                
+
                 console.log('🔐 [COMBINE] Request headers:', Object.keys(headers));
-                
+
                 const response = await fetch(getApiUrl('/api/requests/combine?combinable=true'), {
                     headers,
                 });
-                
+
                 console.log('🔐 [COMBINE] Response status:', response.status);
 
                 if (!response.ok) {
@@ -221,18 +221,18 @@ const CombineRequests = () => {
             const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
             const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
             const userId = userProfile?.id || userProfile?.userId;
-            
+
             const headers: Record<string, string> = {
                 'Content-Type': 'application/json',
             };
-            
+
             if (token) {
                 headers['Authorization'] = `Bearer ${token}`;
             }
             if (userId) {
                 headers['x-user-id'] = String(userId);
             }
-            
+
             const response = await fetch(getApiUrl('/api/requests/combine'), {
                 method: 'POST',
                 headers,
