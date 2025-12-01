@@ -272,7 +272,7 @@ const NewEvaluation = () => {
                                 signedStatementOfCompliance: complianceRows.some((r) => r.requirement.toLowerCase().includes('compliance')),
                                 bidValidity30Days: complianceRows.some((r) => r.requirement.toLowerCase().includes('validity')),
                                 quotationProvided: complianceRows.some((r) => r.requirement.toLowerCase().includes('quotation')),
-                                bidAmountMatches: complianceRows.some((r) => r.requirement.toLowerCase().includes('amount')), 
+                                bidAmountMatches: complianceRows.some((r) => r.requirement.toLowerCase().includes('amount')),
                             },
                             technicalEvaluation: [],
                         },
@@ -931,12 +931,7 @@ const NewEvaluation = () => {
                                                         />
                                                     </td>
                                                     <td className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-right">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => removeComplianceRow(idx)}
-                                                            className="btn btn-outline-danger btn-sm"
-                                                            disabled={complianceRows.length <= 1}
-                                                        >
+                                                        <button type="button" onClick={() => removeComplianceRow(idx)} className="btn btn-outline-danger btn-sm" disabled={complianceRows.length <= 1}>
                                                             Remove
                                                         </button>
                                                     </td>
