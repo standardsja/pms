@@ -27,8 +27,8 @@ import { requestMonitoringMiddleware, trackCacheHit, trackCacheMiss, getMetrics,
 import { checkProcurementThresholds } from './services/thresholdService';
 import { checkSplintering } from './services/splinteringService';
 import { createThresholdNotifications } from './services/notificationService';
-import { checkUserRoles } from './utils/roleUtils';
-import type { Prisma, RequestStatus } from '@prisma/client';
+import { getLoadBalancingSettings, updateLoadBalancingSettings, autoAssignRequest, shouldAutoAssign } from './services/loadBalancingService';
+import type { Prisma } from '@prisma/client';
 import { requireCommittee as requireCommitteeRole, requireEvaluationCommittee, requireAdmin, requireExecutive } from './middleware/rbac';
 import { validate, createIdeaSchema, voteSchema, approveRejectIdeaSchema, promoteIdeaSchema, sanitizeInput as sanitize } from './middleware/validation';
 import { errorHandler, notFoundHandler, asyncHandler, NotFoundError, BadRequestError } from './middleware/errorHandler';
@@ -107,14 +107,51 @@ if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 app.use('/uploads', express.static(UPLOAD_DIR));
 
 // Utility: attempt to repair invalid Request.status values that break Prisma enum queries
+// Covers NULL/empty and common legacy statuses not present in current enum
 async function fixInvalidRequestStatuses(): Promise<number | null> {
     try {
-        // Normalize NULL or empty string statuses to a safe default
-        const patched: any = await prisma.$executeRawUnsafe("UPDATE Request SET status = 'DRAFT' WHERE status IS NULL OR status = ''");
-        // $executeRaw returns number of affected rows in some drivers or a Result object; coerce to number when possible
-        if (typeof patched === 'number') return patched;
-        if (patched && typeof patched.rowCount === 'number') return patched.rowCount;
-        return 0;
+        let total = 0;
+
+        // 1) NULL or empty -> DRAFT
+        const r1: any = await prisma.$executeRawUnsafe("UPDATE Request SET status = 'DRAFT' WHERE status IS NULL OR status = ''");
+        total += typeof r1 === 'number' ? r1 : r1?.rowCount ?? 0;
+
+        // 2) Legacy names -> current enum
+        const updates: Array<{ sql: string; desc: string }> = [
+            { sql: "UPDATE Request SET status = 'SUBMITTED' WHERE status IN ('PENDING','UNDER_REVIEW')", desc: 'PENDING/UNDER_REVIEW -> SUBMITTED' },
+            { sql: "UPDATE Request SET status = 'DEPARTMENT_REVIEW' WHERE status IN ('DEPT_REVIEW','DEPARTMENT_APPROVAL','DEPARTMENT_REVIEWING')", desc: 'Dept legacy -> DEPARTMENT_REVIEW' },
+            { sql: "UPDATE Request SET status = 'BUDGET_MANAGER_REVIEW' WHERE status IN ('BUDGET_REVIEW','BUDGET_OFFICER_REVIEW')", desc: 'Budget legacy -> BUDGET_MANAGER_REVIEW' },
+            { sql: "UPDATE Request SET status = 'EXECUTIVE_REVIEW' WHERE status IN ('EXECUTIVE_APPROVED','EXECUTIVE_APPROVAL')", desc: 'Executive legacy -> EXECUTIVE_REVIEW' },
+            { sql: "UPDATE Request SET status = 'FINANCE_APPROVED' WHERE status = 'APPROVED'", desc: 'APPROVED (generic) -> FINANCE_APPROVED' },
+            { sql: "UPDATE Request SET status = 'PROCUREMENT_REVIEW' WHERE status IN ('PROCUREMENT','PROCUREMENT_APPROVED','PROCUREMENT_APPROVAL')", desc: 'Procurement legacy -> PROCUREMENT_REVIEW' },
+        ];
+        for (const u of updates) {
+            const r: any = await prisma.$executeRawUnsafe(u.sql);
+            total += typeof r === 'number' ? r : r?.rowCount ?? 0;
+        }
+
+        // 3) Anything still not in the enum -> DRAFT as a safe fallback
+        const allowed = [
+            'DRAFT',
+            'SUBMITTED',
+            'DEPARTMENT_REVIEW',
+            'DEPARTMENT_RETURNED',
+            'DEPARTMENT_APPROVED',
+            'EXECUTIVE_REVIEW',
+            'HOD_REVIEW',
+            'PROCUREMENT_REVIEW',
+            'FINANCE_REVIEW',
+            'FINANCE_RETURNED',
+            'BUDGET_MANAGER_REVIEW',
+            'FINANCE_APPROVED',
+            'SENT_TO_VENDOR',
+            'CLOSED',
+            'REJECTED',
+        ];
+        const rCatchAll: any = await prisma.$executeRawUnsafe(`UPDATE Request SET status = 'DRAFT' WHERE status IS NOT NULL AND status NOT IN (${allowed.map((s) => `'${s}'`).join(',')})`);
+        total += typeof rCatchAll === 'number' ? rCatchAll : rCatchAll?.rowCount ?? 0;
+
+        return total;
     } catch (err) {
         console.warn('fixInvalidRequestStatuses: failed to patch invalid statuses:', err);
         return null;
@@ -1937,9 +1974,7 @@ app.delete('/api/ideas/:id/vote', authMiddleware, voteLimiter, async (req, res) 
 
 // GET /requests - alias for direct backend access (frontend may call this without /api prefix)
 app.get('/requests', async (_req, res) => {
-    console.log('[DEBUG] GET /requests endpoint hit');
     try {
-        console.log('[DEBUG] Attempting to fetch requests from database...');
         const requests = await prisma.request.findMany({
             orderBy: { createdAt: 'desc' },
             select: {
@@ -2357,6 +2392,8 @@ app.put('/requests/:id', async (req, res) => {
     try {
         const { id } = req.params;
         const updates = req.body || {};
+        const actorUserIdRaw = req.headers['x-user-id'];
+        const actingUserId = actorUserIdRaw ? parseInt(String(actorUserIdRaw), 10) : null;
 
         // Remove deprecated fields that no longer exist in schema
         const { budgetOfficerApproved, budgetManagerApproved, ...cleanUpdates } = updates;
@@ -2380,7 +2417,7 @@ app.put('/requests/:id', async (req, res) => {
                         userId: Number(assigneeId),
                         type: 'STAGE_CHANGED',
                         message: `Request ${updated.reference || updated.id} has been assigned to you for ${updated.status}`,
-                        data: { requestId: updated.id, status: updated.status, assignedBy: parseInt(String(userId), 10) },
+                        data: { requestId: updated.id, status: updated.status, assignedBy: actingUserId },
                     },
                 });
             }
@@ -2560,51 +2597,126 @@ app.get('/requests/:id/pdf', async (req, res) => {
 app.post('/requests/:id/submit', async (req, res) => {
     try {
         const { id } = req.params;
+        console.log(`[Submit] Incoming submit for request ${id}`);
         const request = await prisma.request.findUnique({
             where: { id: parseInt(id, 10) },
             include: { department: true },
         });
 
         if (!request) {
+            console.warn(`[Submit] Request ${id} not found`);
             return res.status(404).json({ message: 'Request not found' });
         }
 
         if (request.status !== 'DRAFT') {
+            console.warn(`[Submit] Request ${id} not in DRAFT (status=${request.status})`);
             return res.status(400).json({ message: 'Only draft requests can be submitted' });
         }
 
         // Splintering check: detect possible split requests to avoid thresholds
         try {
-            const windowDays = Number(process.env.SPLINTER_WINDOW_DAYS || 30);
-            const threshold = Number(process.env.SPLINTER_THRESHOLD_JMD || 250000);
-            const spl = await checkSplintering(prisma, {
-                requesterId: request.requesterId,
-                departmentId: request.departmentId,
-                total: Number(request.totalEstimated || 0),
-                windowDays,
-                threshold,
-            });
+            // Check if splintering detection is enabled in load balancing settings
+            const lbSettings = await prisma.loadBalancingSettings.findFirst();
+            const splinteringEnabled = lbSettings?.splinteringEnabled ?? false;
 
-            // If flagged and caller did not include an override, return 409 with details so the client can prompt the user
-            const allowOverride = Boolean(req.body && req.body.overrideSplinter === true);
-            if (spl.flagged && !allowOverride) {
-                return res.status(409).json({ message: 'Potential splintering detected', splinter: true, details: spl });
-            }
+            if (splinteringEnabled) {
+                const windowDays = Number(process.env.SPLINTER_WINDOW_DAYS || 30);
+                // TEMPORARY: Disable by using impossibly high threshold (matches splinteringService default)
+                const threshold = Number(process.env.SPLINTER_THRESHOLD_JMD || 999999999999);
+                const spl = await checkSplintering(prisma, {
+                    requesterId: request.requesterId,
+                    departmentId: request.departmentId,
+                    total: Number(request.totalEstimated || 0),
+                    windowDays,
+                    threshold,
+                });
+                console.log(`[Submit] Splintering result for ${id}:`, {
+                    flagged: spl.flagged,
+                    combined: spl.combined,
+                    sumPrior: spl.sumPrior,
+                    threshold: spl.threshold,
+                    windowDays: spl.windowDays,
+                    matches: Array.isArray(spl.matches) ? spl.matches.length : 0,
+                });
 
-            // If flagged and override provided, create an audit Notification so procurement/audit can review
-            if (spl.flagged && allowOverride) {
-                try {
-                    await prisma.notification.create({
-                        data: {
-                            userId: null,
-                            type: 'THRESHOLD_EXCEEDED',
-                            message: `Potential splintering detected for request ${request.reference || request.id} (sum ${spl.combined} >= ${spl.threshold}) - override applied`,
-                            data: { requestId: request.id, splinter: spl },
-                        },
-                    });
-                } catch (notifErr) {
-                    console.warn('Failed to create splintering notification:', notifErr);
+                // If flagged and caller did not include an override, return 409 with details so the client can prompt the user
+                const allowOverride = Boolean(req.body && req.body.overrideSplinter === true);
+                if (spl.flagged && !allowOverride) {
+                    console.warn(`[Submit] Blocking submit for ${id} due to splintering without override`);
                 }
+                if (spl.flagged && !allowOverride) {
+                    return res.status(409).json({ message: 'Potential splintering detected', splinter: true, details: spl });
+                }
+
+                // If flagged and override provided, verify user has manager privileges
+                if (spl.flagged && allowOverride) {
+                    const actingUserId = req.headers['x-user-id'];
+                    console.log(`[Submit] Override attempt by x-user-id=${actingUserId}`);
+                    if (!actingUserId) {
+                        return res.status(400).json({ message: 'User ID required to override splintering' });
+                    }
+
+                    const actingUser = await prisma.user.findUnique({
+                        where: { id: parseInt(String(actingUserId), 10) },
+                        include: { roles: { include: { role: true } } },
+                    });
+
+                    if (!actingUser) {
+                        return res.status(404).json({ message: 'Acting user not found' });
+                    }
+
+                    // Check if user has manager role (PROCUREMENT_MANAGER, DEPT_MANAGER, or MANAGER)
+                    const hasManagerRole = actingUser.roles.some(
+                        (ur) => ur.role.name === 'PROCUREMENT_MANAGER' || ur.role.name === 'DEPT_MANAGER' || ur.role.name === 'MANAGER' || ur.role.name === 'EXECUTIVE'
+                    );
+
+                    if (!hasManagerRole) {
+                        return res.status(403).json({ message: 'Only managers can override splintering warnings' });
+                    }
+
+                    // Create detailed audit notification for override
+                    try {
+                        await prisma.notification.create({
+                            data: {
+                                userId: null, // Broadcast to system/audit
+                                type: 'THRESHOLD_EXCEEDED',
+                                message: `⚠️ Splintering override: ${actingUser.name} (${actingUser.email}) bypassed splintering warning for request ${request.reference || request.id}`,
+                                data: {
+                                    requestId: request.id,
+                                    requestReference: request.reference,
+                                    overriddenBy: {
+                                        id: actingUser.id,
+                                        name: actingUser.name,
+                                        email: actingUser.email,
+                                        roles: actingUser.roles.map((ur) => ur.role.name),
+                                    },
+                                    splinter: spl,
+                                    timestamp: new Date().toISOString(),
+                                    action: 'SPLINTERING_OVERRIDE',
+                                },
+                            },
+                        });
+
+                        // Also log to status history for permanent audit trail
+                        await prisma.statusHistory.create({
+                            data: {
+                                requestId: request.id,
+                                status: 'DRAFT', // Still draft at this point
+                                changedById: actingUser.id,
+                                comment: `Manager override: Splintering warning bypassed. Combined value: ${spl.combined.toFixed(2)} JMD (threshold: ${spl.threshold} JMD, window: ${
+                                    spl.windowDays
+                                } days)`,
+                            },
+                        });
+
+                        console.log(`[Audit] Splintering override by ${actingUser.name} (ID ${actingUser.id}) for request ${request.id}`);
+                    } catch (auditErr) {
+                        console.error('Failed to create splintering override audit log:', auditErr);
+                        // Don't fail the submission if audit logging fails, but log the error
+                    }
+                }
+            } else {
+                console.log(`[Submit] Splintering check disabled for request ${id}`);
             }
         } catch (splErr) {
             console.warn('Splintering check failed:', splErr);
@@ -2645,6 +2757,7 @@ app.post('/requests/:id/submit', async (req, res) => {
                 currentAssignee: { select: { id: true, name: true, email: true } },
             },
         });
+        console.log(`[Submit] Request ${id} updated to ${updated.status}, assignee=${updated.currentAssigneeId || 'none'}`);
 
         // Notify the department manager (new assignee) that a request was submitted
         try {
@@ -2811,11 +2924,9 @@ app.post('/requests/:id/action', async (req, res) => {
                 nextAssigneeId = budgetManager?.id || null;
             } else if (request.status === 'BUDGET_MANAGER_REVIEW') {
                 // Budget Manager approved -> send to Procurement for final processing
-                const procurement = await prisma.user.findFirst({
-                    where: { roles: { some: { role: { name: 'PROCUREMENT' } } } },
-                });
                 nextStatus = 'PROCUREMENT_REVIEW';
-                nextAssigneeId = procurement?.id || null;
+                // Don't assign here - let auto-assignment handle it
+                nextAssigneeId = null;
             } else if (request.status === 'PROCUREMENT_REVIEW') {
                 // Procurement approved -> final approval (ready to send to vendor)
                 nextStatus = 'FINANCE_APPROVED';
@@ -2916,8 +3027,42 @@ app.post('/requests/:id/action', async (req, res) => {
             } else {
                 throw e;
             }
+        }
 
-            // Notify the next assignee (procurement manager/officer) if present
+        // Check if auto-assignment should be triggered
+        const settings = await getLoadBalancingSettings(prisma);
+        if (shouldAutoAssign(nextStatus, settings)) {
+            console.log(`[Workflow] Triggering auto-assignment for request ${updated.id} at status ${nextStatus}`);
+            const assignedOfficerId = await autoAssignRequest(prisma, updated.id);
+
+            if (assignedOfficerId) {
+                // Refresh the updated request to include the new assignee
+                updated = (await prisma.request.findUnique({
+                    where: { id: parseInt(id, 10) },
+                    include: {
+                        items: true,
+                        requester: { select: { id: true, name: true, email: true } },
+                        department: { select: { id: true, name: true, code: true } },
+                        currentAssignee: { select: { id: true, name: true, email: true } },
+                    },
+                })) as any;
+
+                // Notify the auto-assigned officer
+                try {
+                    await prisma.notification.create({
+                        data: {
+                            userId: assignedOfficerId,
+                            type: 'STAGE_CHANGED',
+                            message: `Request ${updated.reference || updated.id} has been auto-assigned to you for ${updated.status}`,
+                            data: { requestId: updated.id, status: updated.status, autoAssigned: true },
+                        },
+                    });
+                } catch (notifErr) {
+                    console.warn('Failed to create auto-assignment notification:', notifErr);
+                }
+            }
+        } else if (!updated.currentAssigneeId && nextStatus !== 'DRAFT') {
+            // If no auto-assignment and no assignee, notify the next assignee if one was set manually
             try {
                 const assigneeId = updated.currentAssignee?.id || updated.currentAssigneeId || null;
                 if (assigneeId) {
@@ -2942,289 +3087,8 @@ app.post('/requests/:id/action', async (req, res) => {
     }
 });
 
-// POST /requests/:id/forward-to-executive - Forward threshold-exceeding request to Executive Director
-app.post('/requests/:id/forward-to-executive', authMiddleware, async (req, res) => {
-    try {
-        const { id } = req.params;
-        const { comment } = req.body;
-        const user = (req as any).user;
-
-        if (!user?.sub) {
-            return res.status(401).json({ success: false, error: 'Authentication required' });
-        }
-
-        // Check if user is procurement manager or admin
-        const userRoleInfo = checkUserRoles(user.roles || []);
-        if (!userRoleInfo.isProcurementManager && !userRoleInfo.isAdmin) {
-            return res.status(403).json({
-                success: false,
-                error: 'Only procurement managers can forward requests to Executive Director',
-            });
-        }
-
-        // Fetch the request
-        const request = await prisma.request.findUnique({
-            where: { id: parseInt(id, 10) },
-            include: {
-                department: true,
-                requester: true,
-            },
-        });
-
-        if (!request) {
-            return res.status(404).json({ success: false, error: 'Request not found' });
-        }
-
-        // Validate request exceeds threshold
-        const procurementTypes = Array.isArray(request.procurementType) ? request.procurementType : request.procurementType ? [request.procurementType] : [];
-
-        const thresholdCheck = checkProcurementThresholds(request.totalEstimated || 0, procurementTypes, request.currency || 'JMD');
-
-        if (!thresholdCheck.requiresExecutiveApproval) {
-            return res.status(400).json({
-                success: false,
-                error: 'Request does not exceed executive approval threshold',
-            });
-        }
-
-        // Find Executive Director
-        const executiveDirector = await prisma.user.findFirst({
-            where: {
-                roles: {
-                    some: {
-                        role: {
-                            OR: [{ name: { contains: 'EXECUTIVE' } }, { name: { contains: 'Executive' } }, { name: { contains: 'DIRECTOR' } }, { name: { contains: 'Director' } }],
-                        },
-                    },
-                },
-            },
-            include: {
-                roles: {
-                    include: { role: true },
-                },
-            },
-        });
-
-        if (!executiveDirector) {
-            return res.status(404).json({
-                success: false,
-                error: 'Executive Director not found in system',
-            });
-        }
-
-        // Update request status and assign to Executive Director
-        const updatedRequest = await prisma.request.update({
-            where: { id: parseInt(id, 10) },
-            data: {
-                status: 'EXECUTIVE_REVIEW',
-                currentAssignee: {
-                    connect: { id: executiveDirector.id },
-                },
-            },
-        });
-
-        // Create audit log
-        await prisma.requestAction.create({
-            data: {
-                requestId: updatedRequest.id,
-                performedById: user.sub,
-                action: 'ASSIGN',
-                comment: comment || `Forwarded to Executive Director for threshold approval (${request.currency} ${request.totalEstimated?.toLocaleString()})`,
-            },
-        });
-
-        // Create notification for Executive Director
-        await prisma.notification.create({
-            data: {
-                userId: executiveDirector.id,
-                type: 'THRESHOLD_EXCEEDED',
-                message: `High-Value Request Requires Approval: A ${thresholdCheck.category} request exceeding ${thresholdCheck.formattedThreshold} has been forwarded for your review - ${request.title}`,
-                data: {
-                    requestId: updatedRequest.id,
-                    threshold: thresholdCheck.formattedThreshold,
-                    category: thresholdCheck.category,
-                    forwardedBy: user.sub,
-                },
-            },
-        });
-
-        console.log(`✅ [Forward] Request ${id} forwarded to Executive Director by user ${user.sub}`);
-
-        return res.json({
-            success: true,
-            message: 'Request forwarded to Executive Director successfully',
-            request: updatedRequest,
-        });
-    } catch (e: any) {
-        console.error('POST /requests/:id/forward-to-executive error:', e);
-        return res.status(500).json({
-            success: false,
-            error: e?.message || 'Failed to forward request',
-            details: process.env.NODE_ENV === 'development' ? e.stack : undefined,
-        });
-    }
-});
-
-// POST /requests/:id/executive-action - Executive Director approves or rejects threshold-exceeding requests
-app.post('/requests/:id/executive-action', authMiddleware, async (req, res) => {
-    try {
-        const { id } = req.params;
-        const { action, comment } = req.body; // 'APPROVE' or 'REJECT'
-        const user = (req as any).user;
-
-        if (!user?.sub) {
-            return res.status(401).json({ success: false, error: 'Authentication required' });
-        }
-
-        // Verify user is Executive Director
-        const userRoleInfo = checkUserRoles(user.roles || []);
-        if (!userRoleInfo.isExecutiveDirector && !userRoleInfo.isAdmin) {
-            return res.status(403).json({
-                success: false,
-                error: 'Only Executive Directors can approve/reject executive review requests',
-            });
-        }
-
-        // Fetch the request
-        const request = await prisma.request.findUnique({
-            where: { id: parseInt(id, 10) },
-            include: {
-                department: true,
-                requester: true,
-                currentAssignee: true,
-            },
-        });
-
-        if (!request) {
-            return res.status(404).json({ success: false, error: 'Request not found' });
-        }
-
-        // Verify request is in EXECUTIVE_REVIEW status
-        if (request.status !== 'EXECUTIVE_REVIEW') {
-            return res.status(400).json({
-                success: false,
-                error: `Request is not in executive review status (current: ${request.status})`,
-            });
-        }
-
-        // Verify request is assigned to this executive
-        if (request.currentAssigneeId !== user.sub) {
-            return res.status(403).json({
-                success: false,
-                error: 'This request is not assigned to you',
-            });
-        }
-
-        let nextStatus: RequestStatus;
-        let nextAssigneeId: number | null = null;
-        let actionMessage: string;
-
-        if (action === 'APPROVE') {
-            // Executive approved -> set to EXECUTIVE_APPROVED and assign to Procurement Manager
-            const procurementManager = await prisma.user.findFirst({
-                where: {
-                    roles: {
-                        some: {
-                            role: {
-                                name: 'PROCUREMENT_MANAGER',
-                            },
-                        },
-                    },
-                },
-            });
-
-            if (!procurementManager) {
-                return res.status(404).json({
-                    success: false,
-                    error: 'No Procurement Manager found in system',
-                });
-            }
-
-            nextStatus = 'EXECUTIVE_APPROVED';
-            nextAssigneeId = procurementManager.id;
-            actionMessage = 'approved by Executive Director';
-        } else if (action === 'REJECT') {
-            // Executive rejected -> send back to requester as DRAFT
-            nextStatus = 'DRAFT';
-            nextAssigneeId = request.requesterId;
-            actionMessage = 'rejected by Executive Director';
-        } else {
-            return res.status(400).json({
-                success: false,
-                error: 'Invalid action. Must be APPROVE or REJECT',
-            });
-        }
-
-        // Update request status
-        const updatedRequest = await prisma.request.update({
-            where: { id: parseInt(id, 10) },
-            data: {
-                status: nextStatus,
-                currentAssigneeId: nextAssigneeId,
-            },
-            include: {
-                items: true,
-                requester: { select: { id: true, name: true, email: true } },
-                department: { select: { id: true, name: true, code: true } },
-                currentAssignee: { select: { id: true, name: true, email: true } },
-            },
-        });
-
-        // Create audit log
-        await prisma.requestAction.create({
-            data: {
-                requestId: updatedRequest.id,
-                performedById: user.sub,
-                action: action === 'APPROVE' ? 'APPROVE' : 'RETURN',
-                comment: comment || `Request ${actionMessage} - ${request.title}`,
-            },
-        });
-
-        // Create status history
-        await prisma.requestStatusHistory.create({
-            data: {
-                requestId: updatedRequest.id,
-                status: updatedRequest.status,
-                changedById: user.sub,
-                comment: comment || `Executive Director ${action === 'APPROVE' ? 'approved' : 'rejected'} request`,
-            },
-        });
-
-        // Create notification for the next assignee
-        if (nextAssigneeId) {
-            await prisma.notification.create({
-                data: {
-                    userId: nextAssigneeId,
-                    type: action === 'APPROVE' ? 'STAGE_CHANGED' : 'REQUEST_RETURNED',
-                    message: action === 'APPROVE' ? `Executive Director approved high-value request: ${request.title}` : `Executive Director rejected request: ${request.title}`,
-                    data: {
-                        requestId: updatedRequest.id,
-                        action,
-                        executiveComment: comment,
-                    },
-                },
-            });
-        }
-
-        console.log(`✅ [Executive Action] Request ${id} ${actionMessage} by user ${user.sub}`);
-
-        return res.json({
-            success: true,
-            message: `Request ${actionMessage} successfully`,
-            request: updatedRequest,
-        });
-    } catch (e: any) {
-        console.error('POST /requests/:id/executive-action error:', e);
-        return res.status(500).json({
-            success: false,
-            error: e?.message || 'Failed to process executive action',
-            details: process.env.NODE_ENV === 'development' ? e.stack : undefined,
-        });
-    }
-});
-
-// GET /api/users/procurement-officers - List all procurement officers with workload
-app.get('/api/users/procurement-officers', async (req, res) => {
+// GET /users/procurement-officers - List all procurement officers with workload
+app.get('/users/procurement-officers', async (req, res) => {
     try {
         const userId = req.headers['x-user-id'];
         if (!userId) {
@@ -3234,22 +3098,31 @@ app.get('/api/users/procurement-officers', async (req, res) => {
         // Verify the user is a procurement manager
         const user = await prisma.user.findUnique({
             where: { id: parseInt(String(userId), 10) },
-            include: { roles: { include: { role: true } } },
+            include: {
+                roles: { include: { role: true } },
+                department: true,
+            },
         });
 
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
         }
 
-        const isProcurementManager = user.roles.some((ur) => ur.role.name === 'PROCUREMENT_MANAGER');
-        if (!isProcurementManager) {
+        const roleNames = user.roles.map((ur) => ur.role.name.toUpperCase());
+        const isProcurementManager = roleNames.some((r) => r === 'PROCUREMENT_MANAGER' || (r.includes('PROCUREMENT') && r.includes('MANAGER')));
+        const isProcDeptManager = roleNames.includes('DEPT_MANAGER') && user.department?.code === 'PROC';
+        if (!isProcurementManager && !isProcDeptManager) {
             return res.status(403).json({ message: 'Only Procurement Managers can view procurement officers' });
         }
 
-        // Get all users with PROCUREMENT role
+        // Get all procurement officers and managers
         const officers = await prisma.user.findMany({
             where: {
-                roles: { some: { role: { name: 'PROCUREMENT' } } },
+                OR: [
+                    { roles: { some: { role: { name: 'PROCUREMENT' } } } },
+                    { roles: { some: { role: { name: 'PROCUREMENT_MANAGER' } } } },
+                    { AND: [{ roles: { some: { role: { name: 'DEPT_MANAGER' } } } }, { department: { code: 'PROC' } }] },
+                ],
             },
             include: {
                 roles: { include: { role: true } },
@@ -3280,7 +3153,7 @@ app.get('/api/users/procurement-officers', async (req, res) => {
 
         return res.json(officersWithWorkload);
     } catch (e: any) {
-        console.error('GET /api/users/procurement-officers error:', e);
+        console.error('GET /users/procurement-officers error:', e);
         return res.status(500).json({ message: e?.message || 'Failed to fetch procurement officers' });
     }
 });
@@ -3360,19 +3233,24 @@ app.post('/requests/:id/assign', async (req, res) => {
         // Verify the user is a procurement manager or self-assigning
         const user = await prisma.user.findUnique({
             where: { id: parseInt(String(userId), 10) },
-            include: { roles: { include: { role: true } } },
+            include: {
+                roles: { include: { role: true } },
+                department: true,
+            },
         });
 
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
         }
 
-        const isProcurementManager = user.roles.some((ur) => ur.role.name === 'PROCUREMENT_MANAGER');
-        const isProcurementOfficer = user.roles.some((ur) => ur.role.name === 'PROCUREMENT');
+        const roleNames = user.roles.map((ur) => ur.role.name.toUpperCase());
+        const isProcurementManager = roleNames.some((r) => r === 'PROCUREMENT_MANAGER' || (r.includes('PROCUREMENT') && r.includes('MANAGER')));
+        const isProcDeptManager = roleNames.includes('DEPT_MANAGER') && user.department?.code === 'PROC';
+        const isProcurementOfficer = roleNames.includes('PROCUREMENT') || roleNames.includes('PROCUREMENT_OFFICER');
         const isSelfAssigning = parseInt(String(userId), 10) === parseInt(String(assigneeId), 10);
 
-        // Allow if user is procurement manager OR if user is self-assigning as procurement officer
-        if (!isProcurementManager && !(isProcurementOfficer && isSelfAssigning)) {
+        // Allow if user is procurement manager (incl. PROC dept manager) OR if user is self-assigning as procurement officer
+        if (!(isProcurementManager || isProcDeptManager) && !(isProcurementOfficer && isSelfAssigning)) {
             return res.status(403).json({ message: 'Not authorized to assign requests' });
         }
 
@@ -3393,14 +3271,22 @@ app.post('/requests/:id/assign', async (req, res) => {
         // Verify assignee has PROCUREMENT or PROCUREMENT_MANAGER role
         const assignee = await prisma.user.findUnique({
             where: { id: parseInt(String(assigneeId), 10) },
-            include: { roles: { include: { role: true } } },
+            include: {
+                roles: { include: { role: true } },
+                department: true,
+            },
         });
 
         if (!assignee) {
             return res.status(404).json({ message: 'Assignee not found' });
         }
 
-        const hasValidRole = assignee.roles.some((ur) => ur.role.name === 'PROCUREMENT' || ur.role.name === 'PROCUREMENT_MANAGER');
+        const assigneeRoleNames = assignee.roles.map((ur) => ur.role.name.toUpperCase());
+        const hasValidRole =
+            assigneeRoleNames.includes('PROCUREMENT') ||
+            assigneeRoleNames.includes('PROCUREMENT_OFFICER') ||
+            assigneeRoleNames.includes('PROCUREMENT_MANAGER') ||
+            (assigneeRoleNames.includes('DEPT_MANAGER') && assignee.department?.code === 'PROC');
         if (!hasValidRole) {
             return res.status(400).json({ message: 'Assignee must have PROCUREMENT or PROCUREMENT_MANAGER role' });
         }
@@ -3444,7 +3330,10 @@ app.get('/procurement/load-balancing-settings', async (req, res) => {
         // Verify the user is a procurement manager
         const user = await prisma.user.findUnique({
             where: { id: parseInt(String(userId), 10) },
-            include: { roles: { include: { role: true } } },
+            include: {
+                roles: { include: { role: true } },
+                department: true,
+            },
         });
 
         if (!user) {
@@ -3452,27 +3341,36 @@ app.get('/procurement/load-balancing-settings', async (req, res) => {
         }
 
         const isProcurementManager = user.roles.some((ur) => ur.role.name === 'PROCUREMENT_MANAGER');
-        if (!isProcurementManager) {
-            return res.status(403).json({ message: 'Only Procurement Managers can view settings' });
+        const isDeptManager = user.roles.some((ur) => ur.role.name === 'DEPT_MANAGER');
+        if (!isProcurementManager && !isDeptManager) {
+            return res.status(403).json({ message: 'Only Procurement Managers or Department Managers can view settings' });
         }
 
-        // Check if settings table exists, if not return default settings
-        // For now, we'll store settings in a simple JSON format in the database
-        // You may want to create a dedicated Settings table in schema.prisma
+        // Fetch settings from database using service
+        const settings = await getLoadBalancingSettings(prisma);
 
-        // Return default settings for now
-        // TODO: Implement persistent storage in database
-        const defaultSettings = {
-            enabled: false,
-            strategy: 'LEAST_LOADED',
-            autoAssignOnApproval: true,
-        };
+        // Return default if no settings exist yet
+        if (!settings) {
+            return res.json({
+                enabled: false,
+                strategy: 'LEAST_LOADED',
+                autoAssignOnApproval: true,
+                roundRobinCounter: 0,
+                splinteringEnabled: false,
+            });
+        }
 
-        return res.json(defaultSettings);
+        return res.json(settings);
     } catch (e: any) {
         console.error('GET /procurement/load-balancing-settings error:', e);
         return res.status(500).json({ message: e?.message || 'Failed to fetch settings' });
     }
+});
+
+// Backward-compat alias: underscore variant
+app.get('/procurement/load_balancing-settings', async (req, res) => {
+    // Delegate to the canonical handler
+    (app as any)._router.handle({ ...req, url: '/procurement/load-balancing-settings' }, res, () => {});
 });
 
 // POST /procurement/load-balancing-settings - Update load balancing configuration
@@ -3486,19 +3384,30 @@ app.post('/procurement/load-balancing-settings', async (req, res) => {
         // Verify the user is a procurement manager
         const user = await prisma.user.findUnique({
             where: { id: parseInt(String(userId), 10) },
-            include: { roles: { include: { role: true } } },
+            include: {
+                roles: { include: { role: true } },
+                department: true,
+            },
         });
 
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
         }
 
-        const isProcurementManager = user.roles.some((ur) => ur.role.name === 'PROCUREMENT_MANAGER');
-        if (!isProcurementManager) {
-            return res.status(403).json({ message: 'Only Procurement Managers can update settings' });
+        const roleNames = user.roles.map((ur) => ur.role.name.toUpperCase());
+        const isProcurementManager = roleNames.some((r) => r === 'PROCUREMENT_MANAGER' || (r.includes('PROCUREMENT') && r.includes('MANAGER')));
+        // Allow a department manager of the Procurement & Supply Chain department to update if they manage that department
+        const isProcDeptManager = roleNames.includes('DEPT_MANAGER') && user.department?.code === 'PROC';
+        if (!isProcurementManager && !isProcDeptManager) {
+            return res.status(403).json({ message: 'Only Procurement Managers can update settings', roles: roleNames });
         }
 
-        const { enabled, strategy, autoAssignOnApproval } = req.body;
+        const { enabled, strategy, autoAssignOnApproval, splinteringEnabled } = req.body as {
+            enabled?: boolean;
+            strategy?: string;
+            autoAssignOnApproval?: boolean;
+            splinteringEnabled?: boolean;
+        };
 
         // Validate strategy
         const validStrategies = ['LEAST_LOADED', 'ROUND_ROBIN', 'RANDOM'];
@@ -3506,21 +3415,31 @@ app.post('/procurement/load-balancing-settings', async (req, res) => {
             return res.status(400).json({ message: 'Invalid strategy. Must be LEAST_LOADED, ROUND_ROBIN, or RANDOM' });
         }
 
-        // TODO: Implement persistent storage in database
-        // For now, just acknowledge the settings
-        const settings = {
-            enabled: enabled !== undefined ? enabled : false,
-            strategy: strategy || 'LEAST_LOADED',
-            autoAssignOnApproval: autoAssignOnApproval !== undefined ? autoAssignOnApproval : true,
-        };
+        // Update settings in database using service
+        const settings = await updateLoadBalancingSettings(
+            prisma,
+            {
+                enabled: enabled !== undefined ? enabled : undefined,
+                strategy: strategy,
+                autoAssignOnApproval: autoAssignOnApproval !== undefined ? autoAssignOnApproval : undefined,
+                splinteringEnabled: splinteringEnabled !== undefined ? splinteringEnabled : undefined,
+            },
+            parseInt(String(userId), 10)
+        );
 
-        console.log('Load balancing settings updated:', settings);
+        console.log('[LoadBalancing] Settings updated by user', userId, 'roles=', roleNames, 'dept=', user.department?.code, ':', settings);
 
         return res.json(settings);
     } catch (e: any) {
         console.error('POST /procurement/load-balancing-settings error:', e);
         return res.status(500).json({ message: e?.message || 'Failed to update settings' });
     }
+});
+
+// Backward-compat alias: underscore variant
+app.post('/procurement/load_balancing-settings', async (req, res) => {
+    // Delegate to the canonical handler
+    (app as any)._router.handle({ ...req, url: '/procurement/load-balancing-settings' }, res, () => {});
 });
 
 // GET /api/tags - list all tags

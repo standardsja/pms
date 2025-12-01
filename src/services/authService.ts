@@ -27,7 +27,7 @@ class AuthService {
         }
 
         // Use real backend API
-        console.log('[AuthService] Using real backend API at /auth/login');
+        console.log('[AuthService] Using real backend API at /api/auth/login');
         try {
             // Normalize email to lowercase before sending
             const normalizedCredentials = {

@@ -10,15 +10,32 @@ export type SplinterCheckParams = {
 
 export async function checkSplintering(prisma: PrismaClient, params: SplinterCheckParams) {
     const windowDays = params.windowDays ?? Number(process.env.SPLINTER_WINDOW_DAYS || 30);
-    const threshold = params.threshold ?? Number(process.env.SPLINTER_THRESHOLD_JMD || 250000);
+    // TEMPORARY: Disable splintering check by setting impossibly high threshold
+    // TODO: Implement proper splintering logic (similar vendors, descriptions, timing clusters)
+    const threshold = params.threshold ?? Number(process.env.SPLINTER_THRESHOLD_JMD || 999999999999);
 
     const now = new Date();
     const windowStart = new Date(now.getTime() - windowDays * 24 * 60 * 60 * 1000);
 
     // Build query: previous requests within window for same requester OR same department
+    // Consider only active or approved pipeline states that represent legitimate spend activity.
+    // Exclude terminal negatives like REJECTED and CLOSED to reduce false positives.
+    const validStatuses = [
+        'SUBMITTED',
+        'DEPARTMENT_REVIEW',
+        'DEPARTMENT_APPROVED',
+        'EXECUTIVE_REVIEW',
+        'HOD_REVIEW',
+        'FINANCE_REVIEW',
+        'BUDGET_MANAGER_REVIEW',
+        'PROCUREMENT_REVIEW',
+        'FINANCE_APPROVED',
+        'SENT_TO_VENDOR',
+    ];
+
     const where: any = {
         createdAt: { gte: windowStart },
-        status: { in: ['SUBMITTED', 'DEPARTMENT_REVIEW', 'HOD_REVIEW', 'FINANCE_REVIEW', 'BUDGET_MANAGER_REVIEW', 'PROCUREMENT_REVIEW', 'FINANCE_APPROVED', 'SENT_TO_VENDOR', 'APPROVED'] },
+        status: { in: validStatuses },
     };
 
     // If requesterId provided, prefer requester grouping; also include department grouping

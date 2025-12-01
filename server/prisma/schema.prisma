@@ -18,7 +18,6 @@ enum RequestStatus {
   DEPARTMENT_RETURNED
   DEPARTMENT_APPROVED
   EXECUTIVE_REVIEW
-  EXECUTIVE_APPROVED
   HOD_REVIEW
   PROCUREMENT_REVIEW
   FINANCE_REVIEW
@@ -97,6 +96,12 @@ enum AuditAction {
   TAGS_UPDATED
 }
 
+enum LoadBalancingStrategy {
+  LEAST_LOADED
+  ROUND_ROBIN
+  RANDOM
+}
+
 /**
  * ===== Models =====
  */
@@ -118,6 +123,7 @@ model User {
   actions             RequestAction[]        @relation("actionPerformedBy")
   attachmentsUploaded RequestAttachment[]    @relation("attachmentUploadedBy")
   statusChanges       RequestStatusHistory[] @relation("statusChangedBy")
+  loadBalancingSettingsUpdated LoadBalancingSettings[] @relation("LoadBalancingUpdater")
   createdAt           DateTime               @default(now())
   updatedAt           DateTime               @updatedAt
 
@@ -129,6 +135,10 @@ model User {
   stageHistory IdeaStageHistory[]
   auditLogs    AuditLog[]
   notifications Notification[]
+
+  // Load balancing analytics back-relations
+  performanceMetrics OfficerPerformanceMetrics[]
+  assignmentLogs     RequestAssignmentLog[]
   
   // Messages relations
   sentMessages     Message[] @relation("MessagesSent")
@@ -267,6 +277,9 @@ model Request {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   submittedAt DateTime?
+
+  // Load balancing assignment logs back-relations
+  assignmentLogs RequestAssignmentLog[]
 }
 
 model RequestItem {
@@ -650,11 +663,46 @@ model Evaluation {
 }
 
 model LoadBalancingSettings {
+  id                    Int                      @id @default(autoincrement())
+  enabled               Boolean                  @default(false)
+  strategy              LoadBalancingStrategy    @default(LEAST_LOADED)
+  autoAssignOnApproval  Boolean                  @default(true)
+  splinteringEnabled    Boolean                  @default(false) // Enable/disable splintering detection
+  roundRobinCounter     Int                      @default(0) // Track position for round-robin
+  updatedAt             DateTime                 @updatedAt
+  updatedBy             Int?
+  user                  User?                    @relation("LoadBalancingUpdater", fields: [updatedBy], references: [id])
+}
+
+/// Performance metrics for procurement officers (used by advanced load balancing / analytics)
+model OfficerPerformanceMetrics {
   id                    Int      @id @default(autoincrement())
-  enabled               Boolean  @default(false)
-  strategy              String   @default("LEAST_LOADED") // LEAST_LOADED, ROUND_ROBIN, RANDOM
-  autoAssignOnApproval  Boolean  @default(true)
-  lastRoundRobinIndex   Int      @default(0)
+  officer               User     @relation(fields: [officerId], references: [id])
+  officerId             Int
+  activeAssignments     Int      @default(0)
+  completedAssignments  Int      @default(0)
+  averageTurnaroundMinutes Int?  // Average time to complete an assignment in minutes
+  lastAssignmentAt      DateTime?
+  loadScore             Float?   // Composite score for AI smart distribution
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
+
+  @@index([officerId])
+}
+
+/// Log of request assignment events for auditing and future ML feature engineering
+model RequestAssignmentLog {
+  id              Int                   @id @default(autoincrement())
+  request         Request               @relation(fields: [requestId], references: [id])
+  requestId       Int
+  officer         User                  @relation(fields: [officerId], references: [id])
+  officerId       Int
+  strategy        LoadBalancingStrategy?
+  previousOfficerId Int?
+  notes           String?
+  assignedAt      DateTime              @default(now())
+  createdAt       DateTime              @default(now())
+
+  @@index([requestId])
+  @@index([officerId])
 }

@@ -12,14 +12,19 @@ export interface LoadBalancingConfig {
     strategy: LoadBalancingStrategy;
     autoAssignOnApproval: boolean;
     roundRobinCounter: number;
+    splinteringEnabled: boolean;
 }
 
 /**
  * Get current load balancing settings from database
  */
-export async function getLoadBalancingSettings(prisma: PrismaClient): Promise<LoadBalancingConfig | null> {
+export async function getLoadBalancingSettings(prisma: PrismaClient | undefined | null): Promise<LoadBalancingConfig | null> {
+    if (!prisma || !(prisma as any).loadBalancingSettings) {
+        console.warn('[LoadBalancing] Prisma client unavailable when fetching settings');
+        return null;
+    }
     try {
-        const settings = await prisma.loadBalancingSettings.findFirst({
+        const settings = await (prisma as PrismaClient).loadBalancingSettings.findFirst({
             orderBy: { updatedAt: 'desc' },
         });
 
@@ -32,6 +37,7 @@ export async function getLoadBalancingSettings(prisma: PrismaClient): Promise<Lo
             strategy: settings.strategy,
             autoAssignOnApproval: settings.autoAssignOnApproval,
             roundRobinCounter: settings.roundRobinCounter,
+            splinteringEnabled: (settings as any).splinteringEnabled ?? false,
         };
     } catch (error) {
         console.error('[LoadBalancing] Error fetching settings:', error);
@@ -53,6 +59,7 @@ export async function updateLoadBalancingSettings(prisma: PrismaClient, config: 
                 strategy: config.strategy ?? existing.strategy,
                 autoAssignOnApproval: config.autoAssignOnApproval ?? existing.autoAssignOnApproval,
                 roundRobinCounter: config.roundRobinCounter ?? existing.roundRobinCounter,
+                splinteringEnabled: config.splinteringEnabled ?? (existing as any).splinteringEnabled ?? false,
                 updatedBy: userId,
             },
         });
@@ -62,6 +69,7 @@ export async function updateLoadBalancingSettings(prisma: PrismaClient, config: 
             strategy: updated.strategy,
             autoAssignOnApproval: updated.autoAssignOnApproval,
             roundRobinCounter: updated.roundRobinCounter,
+            splinteringEnabled: (updated as any).splinteringEnabled ?? false,
         };
     } else {
         const created = await prisma.loadBalancingSettings.create({
@@ -70,6 +78,7 @@ export async function updateLoadBalancingSettings(prisma: PrismaClient, config: 
                 strategy: config.strategy ?? 'LEAST_LOADED',
                 autoAssignOnApproval: config.autoAssignOnApproval ?? true,
                 roundRobinCounter: config.roundRobinCounter ?? 0,
+                splinteringEnabled: config.splinteringEnabled ?? false,
                 updatedBy: userId,
             },
         });
@@ -79,6 +88,7 @@ export async function updateLoadBalancingSettings(prisma: PrismaClient, config: 
             strategy: created.strategy,
             autoAssignOnApproval: created.autoAssignOnApproval,
             roundRobinCounter: created.roundRobinCounter,
+            splinteringEnabled: (created as any).splinteringEnabled ?? false,
         };
     }
 }
@@ -247,6 +257,42 @@ export async function autoAssignRequest(prisma: PrismaClient, requestId: number)
             where: { id: requestId },
             data: { currentAssigneeId: officerId },
         });
+
+        // Record assignment log (if table exists)
+        try {
+            // @ts-expect-error dynamic model check
+            if ((prisma as any).requestAssignmentLog) {
+                // @ts-expect-error dynamic model usage
+                await (prisma as any).requestAssignmentLog.create({
+                    data: {
+                        requestId,
+                        officerId,
+                        strategy: settings.strategy,
+                        notes: `Auto-assigned via ${settings.strategy}`,
+                    },
+                });
+            }
+            // Update officer performance metrics
+            // @ts-expect-error dynamic model check
+            if ((prisma as any).officerPerformanceMetrics) {
+                // @ts-expect-error dynamic model usage
+                await (prisma as any).officerPerformanceMetrics.upsert({
+                    where: { officerId: officerId },
+                    update: {
+                        activeAssignments: { increment: 1 },
+                        lastAssignmentAt: new Date(),
+                    },
+                    create: {
+                        officerId: officerId,
+                        activeAssignments: 1,
+                        completedAssignments: 0,
+                        lastAssignmentAt: new Date(),
+                    },
+                });
+            }
+        } catch (logErr) {
+            console.warn('[LoadBalancing] Failed to persist assignment analytics/log:', logErr);
+        }
 
         // Log the assignment in status history
         await prisma.requestStatusHistory.create({

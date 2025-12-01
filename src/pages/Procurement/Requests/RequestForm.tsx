@@ -124,6 +124,9 @@ const RequestForm = () => {
     // Budget managers would need a separate role or identification method
     const isBudgetOfficer = userRoles.some((r: string) => r === 'FINANCE' || /finance/i.test(r));
 
+    // Check if user has manager privileges (can override splintering warnings)
+    const hasManagerRole = userRoles.some((r: string) => r === 'PROCUREMENT_MANAGER' || r === 'DEPT_MANAGER' || r === 'MANAGER' || r === 'EXECUTIVE' || /manager/i.test(r));
+
     // Track request metadata to gate editing by stage & assignee
     const [requestMeta, setRequestMeta] = useState<{ status?: string; currentAssigneeId?: number } | null>(null);
     // Track the original requester id so returned drafts can be resubmitted by the requester
@@ -592,19 +595,38 @@ const RequestForm = () => {
                                 });
 
                                 if (submitResp.status === 409) {
-                                    // Splintering detected — show details and allow override
+                                    // Splintering detected — show details and allow override (manager only)
                                     const body = await submitResp.json().catch(() => ({}));
                                     const details = body?.details || body;
                                     const msg = `Suspicious split purchases detected within the last ${details?.windowDays || ''} days. Combined total: ${details?.combined || ''} (threshold ${
                                         details?.threshold || ''
-                                    }). Do you want to proceed and record an audit notification?`;
+                                    }).`;
+
+                                    if (!hasManagerRole) {
+                                        // Non-managers cannot override
+                                        await Swal.fire({
+                                            icon: 'warning',
+                                            title: 'Potential Splintering Detected',
+                                            text: `${msg} This request cannot be submitted and requires manager review. Please contact your department manager or procurement manager.`,
+                                            confirmButtonText: 'OK',
+                                        });
+                                        setIsSubmitting(false);
+                                        return;
+                                    }
+
                                     const overrideConfirm = await Swal.fire({
                                         icon: 'warning',
                                         title: 'Potential Splintering Detected',
-                                        text: msg,
+                                        html: `
+                                            <p>${msg}</p>
+                                            <p class="mt-3 text-sm text-gray-600">
+                                                <strong>Manager Override:</strong> You have permission to proceed, but this action will be logged for audit purposes.
+                                            </p>
+                                        `,
                                         showCancelButton: true,
-                                        confirmButtonText: 'Proceed Anyway',
+                                        confirmButtonText: 'Proceed & Log Override',
                                         cancelButtonText: 'Cancel',
+                                        confirmButtonColor: '#d33',
                                     });
                                     if (!overrideConfirm.isConfirmed) {
                                         setIsSubmitting(false);
@@ -622,7 +644,7 @@ const RequestForm = () => {
                                     });
                                     if (!overrideResp.ok) {
                                         const err = await overrideResp.json().catch(() => ({}));
-                                        throw new Error(err.error || overrideResp.statusText || 'Resubmit failed after override');
+                                        throw new Error(err.message || err.error || overrideResp.statusText || 'Resubmit failed after override');
                                     }
                                 } else {
                                     if (!submitResp.ok) {
@@ -827,14 +849,33 @@ const RequestForm = () => {
                 const details = body?.details || body;
                 const msg = `Suspicious split purchases detected within the last ${details?.windowDays || ''} days. Combined total: ${details?.combined || ''} (threshold ${
                     details?.threshold || ''
-                }). Do you want to proceed and record an audit notification?`;
+                }).`;
+
+                if (!hasManagerRole) {
+                    // Non-managers cannot override
+                    await Swal.fire({
+                        icon: 'warning',
+                        title: 'Potential Splintering Detected',
+                        text: `${msg} This request cannot be submitted and requires manager review. Please contact your department manager or procurement manager.`,
+                        confirmButtonText: 'OK',
+                    });
+                    setIsSubmitting(false);
+                    return;
+                }
+
                 const overrideConfirm = await Swal.fire({
                     icon: 'warning',
                     title: 'Potential Splintering Detected',
-                    text: msg,
+                    html: `
+                        <p>${msg}</p>
+                        <p class="mt-3 text-sm text-gray-600">
+                            <strong>Manager Override:</strong> You have permission to proceed, but this action will be logged for audit purposes.
+                        </p>
+                    `,
                     showCancelButton: true,
-                    confirmButtonText: 'Proceed Anyway',
+                    confirmButtonText: 'Proceed & Log Override',
                     cancelButtonText: 'Cancel',
+                    confirmButtonColor: '#d33',
                 });
                 if (!overrideConfirm.isConfirmed) {
                     setIsSubmitting(false);
