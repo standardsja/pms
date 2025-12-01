@@ -914,7 +914,7 @@ const NewEvaluation = () => {
                                         <thead>
                                             <tr className="bg-gray-100 dark:bg-gray-800">
                                                 <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">ELIGIBILITY REQUIREMENT</th>
-                                                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Bidder Detail</th>
+                                                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Stationery & Office Supplies</th>
                                                 <th className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-left font-semibold w-24">Actions</th>
                                             </tr>
                                         </thead>
@@ -971,7 +971,7 @@ const NewEvaluation = () => {
                                             <tr className="bg-gray-100 dark:bg-gray-800">
                                                 <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Clause</th>
                                                 <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">COMPLIANCE MATRIX</th>
-                                                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Bidder Response</th>
+                                                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Stationery & Office Supplies</th>
                                                 <th className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-left font-semibold w-24">Actions</th>
                                             </tr>
                                         </thead>
@@ -1032,7 +1032,7 @@ const NewEvaluation = () => {
                                             <tr className="bg-gray-100 dark:bg-gray-800">
                                                 <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Specifications</th>
                                                 <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Quantity</th>
-                                                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Bidder Name/Details</th>
+                                                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Stationery & Office Supplies</th>
                                                 <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Bid Amount (Inclusive of GCT)</th>
                                                 <th className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-left font-semibold w-24">Actions</th>
                                             </tr>
@@ -1062,7 +1062,7 @@ const NewEvaluation = () => {
                                                         <input
                                                             type="text"
                                                             className="form-input w-full"
-                                                            placeholder="Bidder name/details"
+                                                            placeholder="Stationery & Office Supplies"
                                                             value={row.bidderName}
                                                             onChange={(e) => updateTechnicalRow(idx, 'bidderName', e.target.value)}
                                                         />
