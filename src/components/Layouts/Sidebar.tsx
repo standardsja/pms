@@ -52,14 +52,25 @@ const Sidebar = () => {
     const isAdmin = userRoles.includes('ADMIN');
     const isCommitteeMember = userRoles.includes('INNOVATION_COMMITTEE');
     const isEvaluationCommittee = userRoles.includes('EVALUATION_COMMITTEE');
-    // Check for Manager first (more specific role)
-    const isProcurementManager = userRoles.includes('PROCUREMENT_MANAGER') || userRoles.includes('MANAGER') || userRoles.some((r: string) => r && r.toUpperCase().includes('MANAGER'));
+    
+    // Specific procurement manager role (must have PROCUREMENT in the name)
+    const isProcurementManager = userRoles.some((r: string) => {
+        const upper = r?.toUpperCase() || '';
+        return upper === 'PROCUREMENT_MANAGER' || (upper.includes('PROCUREMENT') && upper.includes('MANAGER'));
+    });
+    
+    // Department managers (not procurement-specific)
+    const isDepartmentManager = !isProcurementManager && userRoles.some((r: string) => {
+        const upper = r?.toUpperCase() || '';
+        return upper === 'DEPT_MANAGER' || upper === 'DEPARTMENT_MANAGER' || upper === 'MANAGER';
+    });
+    
     // Only check for Officer if not a Manager
     const isProcurementOfficer = !isProcurementManager && (userRoles.includes('PROCUREMENT_OFFICER') || userRoles.includes('PROCUREMENT'));
     // Supplier role
     const isSupplier = userRoles.includes('SUPPLIER') || userRoles.some((r) => r && r.toUpperCase().includes('SUPPLIER'));
     // Requester role (minimal access: Requests only)
-    const isRequester = !isProcurementManager && !isProcurementOfficer && !isCommitteeMember && !isSupplier && userRoles.some((r) => r.toUpperCase().includes('REQUEST')); // matches REQUESTER / REQUEST_USER etc.
+    const isRequester = !isProcurementManager && !isDepartmentManager && !isProcurementOfficer && !isCommitteeMember && !isSupplier && userRoles.some((r) => r.toUpperCase().includes('REQUEST')); // matches REQUESTER / REQUEST_USER etc.
 
     // Determine if we're in Innovation Hub
     const isInnovationHub = location.pathname.startsWith('/innovation');
@@ -72,6 +83,8 @@ const Sidebar = () => {
         ? '/innovation/dashboard'
         : isProcurementManager
         ? '/procurement/manager'
+        : isDepartmentManager
+        ? '/apps/requests/pending-approval'
         : isSupplier
         ? '/supplier'
         : isRequester
@@ -333,6 +346,41 @@ const Sidebar = () => {
                                             <div className="flex items-center">
                                                 <IconFile className="group-hover:!text-primary shrink-0" />
                                                 <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Requests</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+                                </>
+                            ) : isDepartmentManager ? (
+                                // Department Manager Menu
+                                <>
+                                    <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
+                                        <IconMinus className="w-4 h-5 flex-none hidden" />
+                                        <span>Department Manager</span>
+                                    </h2>
+
+                                    <li className="nav-item">
+                                        <NavLink to="/apps/requests" className="group">
+                                            <div className="flex items-center">
+                                                <IconFile className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">My Requests</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+
+                                    <li className="nav-item">
+                                        <NavLink to="/apps/requests/pending-approval" className="group">
+                                            <div className="flex items-center">
+                                                <IconInbox className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Pending Approval</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+
+                                    <li className="nav-item">
+                                        <NavLink to="/innovation/dashboard" className="group">
+                                            <div className="flex items-center">
+                                                <IconThumbUp className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Innovation Hub</span>
                                             </div>
                                         </NavLink>
                                     </li>
