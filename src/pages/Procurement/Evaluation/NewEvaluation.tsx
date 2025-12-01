@@ -93,6 +93,29 @@ const NewEvaluation = () => {
 
     const totalSteps = 5; // Background, Section A, Section B, Section C, Sections D & E
 
+    // Section B - Compliance Matrix (dynamic rows)
+    type ComplianceRow = { clause: string; requirement: string; bidderResponse: string };
+    const [complianceRows, setComplianceRows] = useState<ComplianceRow[]>([
+        { clause: 'ITB 14.1', requirement: 'Signed Letter of Quotation', bidderResponse: 'N/A' },
+        { clause: '', requirement: 'Signed price and delivery schedules', bidderResponse: 'N/A' },
+        { clause: '', requirement: 'Signed and Statement of Compliance', bidderResponse: 'N/A' },
+        { clause: '', requirement: 'Bid Validity of 30 day', bidderResponse: 'YES' },
+        { clause: '', requirement: 'Quotation', bidderResponse: 'YES' },
+        { clause: '', requirement: 'Bid Amount (Inclusive of GCT)', bidderResponse: '$49,680.00' },
+    ]);
+
+    const updateComplianceRow = (index: number, key: keyof ComplianceRow, value: string) => {
+        setComplianceRows((rows) => rows.map((r, i) => (i === index ? { ...r, [key]: value } : r)));
+    };
+
+    const addComplianceRow = () => {
+        setComplianceRows((rows) => [...rows, { clause: '', requirement: '', bidderResponse: '' }]);
+    };
+
+    const removeComplianceRow = (index: number) => {
+        setComplianceRows((rows) => rows.filter((_, i) => i !== index));
+    };
+
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
         setFormData({ ...formData, [name]: value });
@@ -235,6 +258,25 @@ const NewEvaluation = () => {
                     retenderReasons: formData.retender === 'Yes' ? formData.retenderReasons : undefined,
                     retenderOtherReason: formData.retenderOtherReason || undefined,
                     awardCriteria: formData.awardCriteria === 'Lowest Cost' ? 'LOWEST_COST' : 'MOST_ADVANTAGEOUS_BID',
+                },
+                sectionB: {
+                    bidders: [
+                        {
+                            bidderName: '',
+                            ppcCategory: '',
+                            tciTrn: '',
+                            bidAmountInclusiveGCT: 0,
+                            complianceMatrix: {
+                                signedLetterOfQuotation: complianceRows.some((r) => r.requirement.toLowerCase().includes('letter of quotation')),
+                                signedPriceSchedules: complianceRows.some((r) => r.requirement.toLowerCase().includes('price')),
+                                signedStatementOfCompliance: complianceRows.some((r) => r.requirement.toLowerCase().includes('compliance')),
+                                bidValidity30Days: complianceRows.some((r) => r.requirement.toLowerCase().includes('validity')),
+                                quotationProvided: complianceRows.some((r) => r.requirement.toLowerCase().includes('quotation')),
+                                bidAmountMatches: complianceRows.some((r) => r.requirement.toLowerCase().includes('amount')), 
+                            },
+                            technicalEvaluation: [],
+                        },
+                    ],
                 },
             };
 
@@ -842,6 +884,12 @@ const NewEvaluation = () => {
                             {/* B. Compliance Matrix */}
                             <div>
                                 <h6 className="text-md font-bold mb-4">B. Compliance Matrix</h6>
+                                <div className="flex items-center justify-between mb-2">
+                                    <p className="text-xs text-gray-500">Add or remove rows as needed.</p>
+                                    <button type="button" onClick={addComplianceRow} className="btn btn-outline-primary btn-sm">
+                                        Add Row
+                                    </button>
+                                </div>
                                 <div className="overflow-x-auto">
                                     <table className="table-auto w-full border-collapse border border-gray-300 dark:border-gray-600">
                                         <thead>
@@ -849,51 +897,51 @@ const NewEvaluation = () => {
                                                 <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Clause</th>
                                                 <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">COMPLIANCE MATRIX</th>
                                                 <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Bidder Response</th>
+                                                <th className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-left font-semibold w-24">Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            <tr>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2 font-semibold">ITB 14.1</td>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">Signed Letter of Quotation</td>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
-                                                    <input type="text" className="form-input w-full" placeholder="N/A" />
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2"></td>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">Signed price and delivery schedules</td>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
-                                                    <input type="text" className="form-input w-full" placeholder="N/A" />
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2"></td>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">Signed and Statement of Compliance</td>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
-                                                    <input type="text" className="form-input w-full" placeholder="N/A" />
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2"></td>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">Bid Validity of 30 day</td>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
-                                                    <input type="text" className="form-input w-full" placeholder="YES" />
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2"></td>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">Quotation</td>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
-                                                    <input type="text" className="form-input w-full" placeholder="YES" />
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2"></td>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">Bid Amount (Inclusive of GCT)</td>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
-                                                    <input type="number" step="0.01" className="form-input w-full" placeholder="$49,680.00" />
-                                                </td>
-                                            </tr>
+                                            {complianceRows.map((row, idx) => (
+                                                <tr key={idx}>
+                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2">
+                                                        <input
+                                                            type="text"
+                                                            className="form-input w-full"
+                                                            value={row.clause}
+                                                            onChange={(e) => updateComplianceRow(idx, 'clause', e.target.value)}
+                                                            placeholder={idx === 0 ? 'ITB 14.1' : ''}
+                                                        />
+                                                    </td>
+                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2">
+                                                        <input
+                                                            type="text"
+                                                            className="form-input w-full"
+                                                            value={row.requirement}
+                                                            onChange={(e) => updateComplianceRow(idx, 'requirement', e.target.value)}
+                                                            placeholder="Requirement"
+                                                        />
+                                                    </td>
+                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2">
+                                                        <input
+                                                            type="text"
+                                                            className="form-input w-full"
+                                                            value={row.bidderResponse}
+                                                            onChange={(e) => updateComplianceRow(idx, 'bidderResponse', e.target.value)}
+                                                            placeholder="N/A / YES / $..."
+                                                        />
+                                                    </td>
+                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-right">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => removeComplianceRow(idx)}
+                                                            className="btn btn-outline-danger btn-sm"
+                                                            disabled={complianceRows.length <= 1}
+                                                        >
+                                                            Remove
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))}
                                         </tbody>
                                     </table>
                                 </div>
