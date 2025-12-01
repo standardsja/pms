@@ -10,6 +10,7 @@ import { useAutoSave, restoreAutoSave, clearAutoSave } from '../../../utils/useA
 import { submitIdea, fetchTags, createTag, fetchChallenges } from '../../../utils/ideasApi';
 import { useDebounce } from '../../../utils/useDebounce';
 import { getUser, getToken } from '../../../utils/auth';
+import { getApiUrl } from '../../../config/api';
 
 const SubmitIdea = () => {
     const dispatch = useDispatch();
@@ -162,9 +163,6 @@ const SubmitIdea = () => {
             try {
                 const user = getUser();
                 const token = getToken();
-                // Use the configured API host when available (Vite builds set VITE_API_URL).
-                // Fall back to relative paths when not set so the dev proxy still works.
-                const apiBase = 'http://heron:4000';
                 const headers: Record<string, string> = {
                     'Content-Type': 'application/json',
                 };
@@ -173,7 +171,7 @@ const SubmitIdea = () => {
                 if (user?.id) headers['x-user-id'] = user.id;
                 if (token) headers['Authorization'] = `Bearer ${token}`;
 
-                const res = await fetch(`${apiBase}/api/ideas/check-duplicates`, {
+                const res = await fetch(getApiUrl('/api/ideas/check-duplicates'), {
                     method: 'POST',
                     headers,
                     body: JSON.stringify({ title: debouncedTitle, description: debouncedDesc }),

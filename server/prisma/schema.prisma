@@ -96,6 +96,12 @@ enum AuditAction {
   TAGS_UPDATED
 }
 
+enum LoadBalancingStrategy {
+  LEAST_LOADED
+  ROUND_ROBIN
+  RANDOM
+}
+
 /**
  * ===== Models =====
  */
@@ -117,6 +123,7 @@ model User {
   actions             RequestAction[]        @relation("actionPerformedBy")
   attachmentsUploaded RequestAttachment[]    @relation("attachmentUploadedBy")
   statusChanges       RequestStatusHistory[] @relation("statusChangedBy")
+  loadBalancingSettingsUpdated LoadBalancingSettings[] @relation("LoadBalancingUpdater")
   createdAt           DateTime               @default(now())
   updatedAt           DateTime               @updatedAt
 
@@ -128,6 +135,10 @@ model User {
   stageHistory IdeaStageHistory[]
   auditLogs    AuditLog[]
   notifications Notification[]
+
+  // Load balancing analytics back-relations
+  performanceMetrics OfficerPerformanceMetrics[]
+  assignmentLogs     RequestAssignmentLog[]
   
   // Messages relations
   sentMessages     Message[] @relation("MessagesSent")
@@ -141,10 +152,6 @@ model User {
   sectionCVerifications Evaluation[] @relation("SectionCVerifier")
   sectionDVerifications Evaluation[] @relation("SectionDVerifier")
   sectionEVerifications Evaluation[] @relation("SectionEVerifier")
-  
-  // AI Load Balancing relations
-  performanceMetrics    OfficerPerformanceMetrics?
-  assignmentLogs        RequestAssignmentLog[]
 }
 
 model Department {
@@ -270,8 +277,8 @@ model Request {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   submittedAt DateTime?
-  
-  // AI Load Balancing relations
+
+  // Load balancing assignment logs back-relations
   assignmentLogs RequestAssignmentLog[]
 }
 
@@ -656,64 +663,46 @@ model Evaluation {
 }
 
 model LoadBalancingSettings {
-  id                    Int      @id @default(autoincrement())
-  enabled               Boolean  @default(false)
-  strategy              String   @default("AI_SMART") // AI_SMART, LEAST_LOADED, ROUND_ROBIN, RANDOM, SKILL_BASED, PREDICTIVE
-  autoAssignOnApproval  Boolean  @default(true)
-  lastRoundRobinIndex   Int      @default(0)
-  aiEnabled             Boolean  @default(true)
-  learningEnabled       Boolean  @default(true)
-  priorityWeighting     Float    @default(1.0)
-  performanceWeighting  Float    @default(1.5)
-  workloadWeighting     Float    @default(1.2)
-  specialtyWeighting    Float    @default(1.3)
-  minConfidenceScore    Float    @default(0.6)
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  id                    Int                      @id @default(autoincrement())
+  enabled               Boolean                  @default(false)
+  strategy              LoadBalancingStrategy    @default(LEAST_LOADED)
+  autoAssignOnApproval  Boolean                  @default(true)
+  splinteringEnabled    Boolean                  @default(false) // Enable/disable splintering detection
+  roundRobinCounter     Int                      @default(0) // Track position for round-robin
+  updatedAt             DateTime                 @updatedAt
+  updatedBy             Int?
+  user                  User?                    @relation("LoadBalancingUpdater", fields: [updatedBy], references: [id])
 }
 
+/// Performance metrics for procurement officers (used by advanced load balancing / analytics)
 model OfficerPerformanceMetrics {
-  id                      Int      @id @default(autoincrement())
-  officerId               Int
-  officer                 User     @relation(fields: [officerId], references: [id], onDelete: Cascade)
-  totalAssignments        Int      @default(0)
-  completedAssignments    Int      @default(0)
-  averageCompletionTime   Float    @default(0) // in hours
-  successRate             Float    @default(1.0) // 0-1
-  currentWorkload         Int      @default(0)
-  categoryExpertise       Json     @default("{}") // {"IT": 0.9, "Office Supplies": 0.8}
-  averageResponseTime     Float    @default(0) // in hours
-  qualityScore            Float    @default(0.8) // 0-1
-  efficiencyScore         Float    @default(0.8) // 0-1
-  complexityHandling      Float    @default(0.5) // 0-1, ability to handle complex requests
-  peakPerformanceHours    Json     @default("[]") // [9, 10, 11, 14, 15]
-  lastAssignedAt          DateTime?
-  lastPerformanceUpdate   DateTime @default(now())
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
+  id                    Int      @id @default(autoincrement())
+  officer               User     @relation(fields: [officerId], references: [id])
+  officerId             Int
+  activeAssignments     Int      @default(0)
+  completedAssignments  Int      @default(0)
+  averageTurnaroundMinutes Int?  // Average time to complete an assignment in minutes
+  lastAssignmentAt      DateTime?
+  loadScore             Float?   // Composite score for AI smart distribution
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
-  @@unique([officerId])
   @@index([officerId])
 }
 
+/// Log of request assignment events for auditing and future ML feature engineering
 model RequestAssignmentLog {
-  id                    Int      @id @default(autoincrement())
-  requestId             Int
-  request               Request  @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  officerId             Int
-  officer               User     @relation(fields: [officerId], references: [id], onDelete: Cascade)
-  strategy              String   // Strategy used for assignment
-  confidenceScore       Float    @default(0.7) // AI confidence in this assignment
-  predictedCompletionTime Float? // in hours
-  actualCompletionTime  Float?   // in hours
-  assignedAt            DateTime @default(now())
-  completedAt           DateTime?
-  wasSuccessful         Boolean? // null = pending, true/false after completion
-  feedbackScore         Float?   // 0-1
-  reassignmentCount     Int      @default(0)
-  notes                 String?  @db.Text
+  id              Int                   @id @default(autoincrement())
+  request         Request               @relation(fields: [requestId], references: [id])
+  requestId       Int
+  officer         User                  @relation(fields: [officerId], references: [id])
+  officerId       Int
+  strategy        LoadBalancingStrategy?
+  previousOfficerId Int?
+  notes           String?
+  assignedAt      DateTime              @default(now())
+  createdAt       DateTime              @default(now())
 
   @@index([requestId])
   @@index([officerId])
-  @@index([assignedAt])
 }

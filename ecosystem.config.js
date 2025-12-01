@@ -1,12 +1,9 @@
 module.exports = {
     apps: [
         {
-            name: 'pms-api',
-            script: './server/app.ts',
-            interpreter: 'node',
-            interpreter_args: '--loader tsx',
-            instances: 'max',
-            exec_mode: 'cluster',
+            name: 'pms-backend',
+            script: 'npm',
+            args: 'run server:dev',
             env: {
                 NODE_ENV: 'production',
                 PORT: 4000,
@@ -17,25 +14,13 @@ module.exports = {
             },
             // Process management
             max_memory_restart: '1G',
-            min_uptime: '10s',
-            max_restarts: 10,
             autorestart: true,
 
             // Logging
             log_file: './logs/combined.log',
             out_file: './logs/out.log',
             error_file: './logs/error.log',
-            log_type: 'json',
             log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
-
-            // Monitoring
-            pmx: false,
-
-            // Source maps for better error tracking
-            source_map_support: true,
-
-            // Health check
-            health_check_grace_period: 3000,
 
             // Environment-specific settings
             env_production: {
@@ -49,6 +34,22 @@ module.exports = {
                 PORT: 4001,
                 LOG_LEVEL: 'debug',
             },
+        },
+        {
+            name: 'pms-frontend',
+            script: './serve-frontend.mjs',
+            env: {
+                NODE_ENV: 'production',
+                PORT: 5173,
+            },
+            // Process management
+            max_memory_restart: '500M',
+            autorestart: true,
+            // Logging
+            log_file: './logs/frontend-combined.log',
+            out_file: './logs/frontend-out.log',
+            error_file: './logs/frontend-error.log',
+            log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
         },
     ],
 

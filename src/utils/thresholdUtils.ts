@@ -104,14 +104,16 @@ export function getThresholdBadge(alert: ThresholdAlert): {
  * Check if user should see threshold notifications (procurement officers/managers)
  */
 export function shouldShowThresholdNotification(userRoles: string[] = []): boolean {
-    const roles = userRoles.filter(Boolean).map((role) => role.toUpperCase());
+    const roles = (userRoles || []).filter(Boolean).map((role) => String(role).toUpperCase());
 
-    // Check for specific procurement roles
-    const isProcurementOfficer = roles.some((role) => ['PROCUREMENT_OFFICER', 'PROCUREMENT OFFICER', 'PROCUREMENT'].includes(role) || (role.includes('PROCUREMENT') && role.includes('OFFICER')));
+    // If any role mentions PROCUREMENT, show notification
+    if (roles.some((r) => r.includes('PROCUREMENT'))) return true;
 
-    const isProcurementManager = roles.some((role) => ['PROCUREMENT_MANAGER', 'PROCUREMENT MANAGER'].includes(role) || (role.includes('PROCUREMENT') && role.includes('MANAGER')));
+    // Administrators and generic managers should also see threshold notifications
+    if (roles.some((r) => r === 'ADMIN' || r === 'ADMINISTRATOR' || r === 'SUPER_ADMIN')) return true;
 
-    const isAdmin = roles.some((role) => ['ADMIN', 'ADMINISTRATOR', 'SUPER_ADMIN'].includes(role));
+    // Any role containing MANAGER (e.g., MANAGER, PROCUREMENT_MANAGER) should be included
+    if (roles.some((r) => r.includes('MANAGER'))) return true;
 
-    return isProcurementOfficer || isProcurementManager || isAdmin;
+    return false;
 }

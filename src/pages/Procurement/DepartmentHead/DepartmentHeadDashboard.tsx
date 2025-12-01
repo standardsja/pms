@@ -7,6 +7,7 @@ import IconChecks from '../../../components/Icon/IconChecks';
 import IconClock from '../../../components/Icon/IconClock';
 import IconEye from '../../../components/Icon/IconEye';
 import IconDollarSignCircle from '../../../components/Icon/IconDollarSignCircle';
+import { getApiUrl } from '../../../config/api';
 
 const DepartmentHeadDashboard = () => {
     const dispatch = useDispatch();
@@ -23,10 +24,8 @@ const DepartmentHeadDashboard = () => {
         const controller = new AbortController();
         async function loadRequests() {
             try {
-                const apiBase = 'http://heron:4000';
-                const endpoint = apiBase ? `${apiBase.replace(/\/$/, '')}/requisitions` : '/api/requisitions';
                 const token = localStorage.getItem('auth_token') || '';
-                const res = await fetch(endpoint, {
+                const res = await fetch(getApiUrl('/requisitions'), {
                     headers: { Authorization: token ? `Bearer ${token}` : '' },
                     signal: controller.signal,
                 });

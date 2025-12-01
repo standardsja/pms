@@ -25,21 +25,26 @@ import { initWebSocket, emitIdeaCreated, emitIdeaStatusChanged, emitVoteUpdated,
 import { initAnalyticsJob, stopAnalyticsJob, getAnalytics, getCategoryAnalytics, getTimeBasedAnalytics } from './services/analyticsService';
 import { requestMonitoringMiddleware, trackCacheHit, trackCacheMiss, getMetrics, getHealthStatus, getSlowEndpoints, getErrorProneEndpoints } from './services/monitoringService';
 import { checkProcurementThresholds } from './services/thresholdService';
+import { checkSplintering } from './services/splinteringService';
 import { createThresholdNotifications } from './services/notificationService';
+import { getLoadBalancingSettings, updateLoadBalancingSettings, autoAssignRequest, shouldAutoAssign } from './services/loadBalancingService';
 import type { Prisma } from '@prisma/client';
 import { requireCommittee as requireCommitteeRole, requireEvaluationCommittee, requireAdmin, requireExecutive } from './middleware/rbac';
 import { validate, createIdeaSchema, voteSchema, approveRejectIdeaSchema, promoteIdeaSchema, sanitizeInput as sanitize } from './middleware/validation';
 import { errorHandler, notFoundHandler, asyncHandler, NotFoundError, BadRequestError } from './middleware/errorHandler';
 import statsRouter from './routes/stats';
 import combineRouter from './routes/combine';
-import * as SmartLoadBalancing from './services/smartLoadBalancingService';
 
 const app = express();
 const httpServer = http.createServer(app);
 const PORT = process.env.PORT ? Number(process.env.PORT) : 4000;
-// Always use heron configuration
-const API_HOST = '0.0.0.0';
-const PUBLIC_HOST = 'heron';
+const APP_ENV = process.env.APP_ENV || 'production';
+// In production, bind to 0.0.0.0 unless overridden via API_HOST
+// Bind address for the HTTP server. In local development we bind to 0.0.0.0
+// so that other hostnames (e.g. Docker host aliases like `heron`) can reach the server.
+const API_HOST = process.env.API_HOST || (APP_ENV === 'local' ? '0.0.0.0' : '0.0.0.0');
+// Public host for logs (what users type in the browser)
+const PUBLIC_HOST = process.env.API_PUBLIC_HOST || (APP_ENV === 'local' ? 'localhost' : 'heron');
 const JWT_SECRET = process.env.JWT_SECRET || 'devsecret-change-me';
 
 let trendingJobInterval: NodeJS.Timeout | null = null;
@@ -102,14 +107,51 @@ if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 app.use('/uploads', express.static(UPLOAD_DIR));
 
 // Utility: attempt to repair invalid Request.status values that break Prisma enum queries
+// Covers NULL/empty and common legacy statuses not present in current enum
 async function fixInvalidRequestStatuses(): Promise<number | null> {
     try {
-        // Normalize NULL or empty string statuses to a safe default
-        const patched: any = await prisma.$executeRawUnsafe("UPDATE Request SET status = 'DRAFT' WHERE status IS NULL OR status = ''");
-        // $executeRaw returns number of affected rows in some drivers or a Result object; coerce to number when possible
-        if (typeof patched === 'number') return patched;
-        if (patched && typeof patched.rowCount === 'number') return patched.rowCount;
-        return 0;
+        let total = 0;
+
+        // 1) NULL or empty -> DRAFT
+        const r1: any = await prisma.$executeRawUnsafe("UPDATE Request SET status = 'DRAFT' WHERE status IS NULL OR status = ''");
+        total += typeof r1 === 'number' ? r1 : r1?.rowCount ?? 0;
+
+        // 2) Legacy names -> current enum
+        const updates: Array<{ sql: string; desc: string }> = [
+            { sql: "UPDATE Request SET status = 'SUBMITTED' WHERE status IN ('PENDING','UNDER_REVIEW')", desc: 'PENDING/UNDER_REVIEW -> SUBMITTED' },
+            { sql: "UPDATE Request SET status = 'DEPARTMENT_REVIEW' WHERE status IN ('DEPT_REVIEW','DEPARTMENT_APPROVAL','DEPARTMENT_REVIEWING')", desc: 'Dept legacy -> DEPARTMENT_REVIEW' },
+            { sql: "UPDATE Request SET status = 'BUDGET_MANAGER_REVIEW' WHERE status IN ('BUDGET_REVIEW','BUDGET_OFFICER_REVIEW')", desc: 'Budget legacy -> BUDGET_MANAGER_REVIEW' },
+            { sql: "UPDATE Request SET status = 'EXECUTIVE_REVIEW' WHERE status IN ('EXECUTIVE_APPROVED','EXECUTIVE_APPROVAL')", desc: 'Executive legacy -> EXECUTIVE_REVIEW' },
+            { sql: "UPDATE Request SET status = 'FINANCE_APPROVED' WHERE status = 'APPROVED'", desc: 'APPROVED (generic) -> FINANCE_APPROVED' },
+            { sql: "UPDATE Request SET status = 'PROCUREMENT_REVIEW' WHERE status IN ('PROCUREMENT','PROCUREMENT_APPROVED','PROCUREMENT_APPROVAL')", desc: 'Procurement legacy -> PROCUREMENT_REVIEW' },
+        ];
+        for (const u of updates) {
+            const r: any = await prisma.$executeRawUnsafe(u.sql);
+            total += typeof r === 'number' ? r : r?.rowCount ?? 0;
+        }
+
+        // 3) Anything still not in the enum -> DRAFT as a safe fallback
+        const allowed = [
+            'DRAFT',
+            'SUBMITTED',
+            'DEPARTMENT_REVIEW',
+            'DEPARTMENT_RETURNED',
+            'DEPARTMENT_APPROVED',
+            'EXECUTIVE_REVIEW',
+            'HOD_REVIEW',
+            'PROCUREMENT_REVIEW',
+            'FINANCE_REVIEW',
+            'FINANCE_RETURNED',
+            'BUDGET_MANAGER_REVIEW',
+            'FINANCE_APPROVED',
+            'SENT_TO_VENDOR',
+            'CLOSED',
+            'REJECTED',
+        ];
+        const rCatchAll: any = await prisma.$executeRawUnsafe(`UPDATE Request SET status = 'DRAFT' WHERE status IS NOT NULL AND status NOT IN (${allowed.map((s) => `'${s}'`).join(',')})`);
+        total += typeof rCatchAll === 'number' ? rCatchAll : rCatchAll?.rowCount ?? 0;
+
+        return total;
     } catch (err) {
         console.warn('fixInvalidRequestStatuses: failed to patch invalid statuses:', err);
         return null;
@@ -551,25 +593,41 @@ app.get('/api/notifications', authMiddleware, async (req, res) => {
         }
 
         // Fetch notifications for the user, ordered by most recent first
-        const notifications = await prisma.notification.findMany({
-            where: { userId },
-            orderBy: { createdAt: 'desc' },
-            take: 50, // Limit to last 50 notifications
-            include: {
-                user: {
-                    select: {
-                        id: true,
-                        name: true,
-                        email: true,
+        let notifications;
+        try {
+            notifications = await prisma.notification.findMany({
+                where: { userId },
+                orderBy: { createdAt: 'desc' },
+                take: 50, // Limit to last 50 notifications
+                include: {
+                    user: {
+                        select: {
+                            id: true,
+                            name: true,
+                            email: true,
+                        },
                     },
                 },
-            },
-        });
+            });
+        } catch (err: any) {
+            // Handle cases where DB contains enum values not present in the Prisma schema
+            const msg = String(err?.message || '');
+            if (msg.toLowerCase().includes('not found in enum') || msg.toLowerCase().includes('invalid enum')) {
+                console.warn('Prisma enum mismatch when fetching notifications, falling back to raw query:', msg);
+                try {
+                    // Use a raw SQL query to avoid Prisma enum coercion errors. Results will be raw rows.
+                    const rows: any = await prisma.$queryRawUnsafe(`SELECT * FROM "Notification" WHERE "userId" = $1 ORDER BY "createdAt" DESC LIMIT 50`, userId);
+                    notifications = rows || [];
+                } catch (rawErr) {
+                    console.error('Raw fallback for notifications failed:', rawErr);
+                    throw rawErr;
+                }
+            } else {
+                throw err;
+            }
+        }
 
-        res.json({
-            success: true,
-            data: notifications,
-        });
+        res.json({ success: true, data: notifications });
     } catch (error) {
         console.error('GET /api/notifications error:', error);
         res.status(500).json({
@@ -2307,7 +2365,7 @@ app.patch('/requests/:id', async (req, res) => {
 
         // Create a notification for the new assignee (if any)
         try {
-            const assigneeId = updated.currentAssigneeId || null;
+            const assigneeId = updated.currentAssignee?.id || updated.currentAssigneeId || null;
             if (assigneeId) {
                 await prisma.notification.create({
                     data: {
@@ -2334,12 +2392,11 @@ app.put('/requests/:id', async (req, res) => {
     try {
         const { id } = req.params;
         const updates = req.body || {};
+        const actorUserIdRaw = req.headers['x-user-id'];
+        const actingUserId = actorUserIdRaw ? parseInt(String(actorUserIdRaw), 10) : null;
 
         // Remove deprecated fields that no longer exist in schema
         const { budgetOfficerApproved, budgetManagerApproved, ...cleanUpdates } = updates;
-
-        // Get userId from header for notification assignment
-        const userId = req.headers['x-user-id'];
 
         const updated = await prisma.request.update({
             where: { id: parseInt(id, 10) },
@@ -2353,14 +2410,14 @@ app.put('/requests/:id', async (req, res) => {
 
         // Notify the assignee after explicit assignment
         try {
-            const assigneeId = updated.currentAssigneeId || null;
+            const assigneeId = updated.currentAssignee?.id || updated.currentAssigneeId || null;
             if (assigneeId) {
                 await prisma.notification.create({
                     data: {
                         userId: Number(assigneeId),
                         type: 'STAGE_CHANGED',
                         message: `Request ${updated.reference || updated.id} has been assigned to you for ${updated.status}`,
-                        data: { requestId: updated.id, status: updated.status, assignedBy: userId ? parseInt(String(userId), 10) : undefined },
+                        data: { requestId: updated.id, status: updated.status, assignedBy: actingUserId },
                     },
                 });
             }
@@ -2540,17 +2597,129 @@ app.get('/requests/:id/pdf', async (req, res) => {
 app.post('/requests/:id/submit', async (req, res) => {
     try {
         const { id } = req.params;
+        console.log(`[Submit] Incoming submit for request ${id}`);
         const request = await prisma.request.findUnique({
             where: { id: parseInt(id, 10) },
             include: { department: true },
         });
 
         if (!request) {
+            console.warn(`[Submit] Request ${id} not found`);
             return res.status(404).json({ message: 'Request not found' });
         }
 
         if (request.status !== 'DRAFT') {
+            console.warn(`[Submit] Request ${id} not in DRAFT (status=${request.status})`);
             return res.status(400).json({ message: 'Only draft requests can be submitted' });
+        }
+
+        // Splintering check: detect possible split requests to avoid thresholds
+        try {
+            // Check if splintering detection is enabled in load balancing settings
+            const lbSettings = await prisma.loadBalancingSettings.findFirst();
+            const splinteringEnabled = lbSettings?.splinteringEnabled ?? false;
+
+            if (splinteringEnabled) {
+                const windowDays = Number(process.env.SPLINTER_WINDOW_DAYS || 30);
+                // TEMPORARY: Disable by using impossibly high threshold (matches splinteringService default)
+                const threshold = Number(process.env.SPLINTER_THRESHOLD_JMD || 999999999999);
+                const spl = await checkSplintering(prisma, {
+                    requesterId: request.requesterId,
+                    departmentId: request.departmentId,
+                    total: Number(request.totalEstimated || 0),
+                    windowDays,
+                    threshold,
+                });
+                console.log(`[Submit] Splintering result for ${id}:`, {
+                    flagged: spl.flagged,
+                    combined: spl.combined,
+                    sumPrior: spl.sumPrior,
+                    threshold: spl.threshold,
+                    windowDays: spl.windowDays,
+                    matches: Array.isArray(spl.matches) ? spl.matches.length : 0,
+                });
+
+                // If flagged and caller did not include an override, return 409 with details so the client can prompt the user
+                const allowOverride = Boolean(req.body && req.body.overrideSplinter === true);
+                if (spl.flagged && !allowOverride) {
+                    console.warn(`[Submit] Blocking submit for ${id} due to splintering without override`);
+                }
+                if (spl.flagged && !allowOverride) {
+                    return res.status(409).json({ message: 'Potential splintering detected', splinter: true, details: spl });
+                }
+
+                // If flagged and override provided, verify user has manager privileges
+                if (spl.flagged && allowOverride) {
+                    const actingUserId = req.headers['x-user-id'];
+                    console.log(`[Submit] Override attempt by x-user-id=${actingUserId}`);
+                    if (!actingUserId) {
+                        return res.status(400).json({ message: 'User ID required to override splintering' });
+                    }
+
+                    const actingUser = await prisma.user.findUnique({
+                        where: { id: parseInt(String(actingUserId), 10) },
+                        include: { roles: { include: { role: true } } },
+                    });
+
+                    if (!actingUser) {
+                        return res.status(404).json({ message: 'Acting user not found' });
+                    }
+
+                    // Check if user has manager role (PROCUREMENT_MANAGER, DEPT_MANAGER, or MANAGER)
+                    const hasManagerRole = actingUser.roles.some(
+                        (ur) => ur.role.name === 'PROCUREMENT_MANAGER' || ur.role.name === 'DEPT_MANAGER' || ur.role.name === 'MANAGER' || ur.role.name === 'EXECUTIVE'
+                    );
+
+                    if (!hasManagerRole) {
+                        return res.status(403).json({ message: 'Only managers can override splintering warnings' });
+                    }
+
+                    // Create detailed audit notification for override
+                    try {
+                        await prisma.notification.create({
+                            data: {
+                                userId: null, // Broadcast to system/audit
+                                type: 'THRESHOLD_EXCEEDED',
+                                message: `⚠️ Splintering override: ${actingUser.name} (${actingUser.email}) bypassed splintering warning for request ${request.reference || request.id}`,
+                                data: {
+                                    requestId: request.id,
+                                    requestReference: request.reference,
+                                    overriddenBy: {
+                                        id: actingUser.id,
+                                        name: actingUser.name,
+                                        email: actingUser.email,
+                                        roles: actingUser.roles.map((ur) => ur.role.name),
+                                    },
+                                    splinter: spl,
+                                    timestamp: new Date().toISOString(),
+                                    action: 'SPLINTERING_OVERRIDE',
+                                },
+                            },
+                        });
+
+                        // Also log to status history for permanent audit trail
+                        await prisma.statusHistory.create({
+                            data: {
+                                requestId: request.id,
+                                status: 'DRAFT', // Still draft at this point
+                                changedById: actingUser.id,
+                                comment: `Manager override: Splintering warning bypassed. Combined value: ${spl.combined.toFixed(2)} JMD (threshold: ${spl.threshold} JMD, window: ${
+                                    spl.windowDays
+                                } days)`,
+                            },
+                        });
+
+                        console.log(`[Audit] Splintering override by ${actingUser.name} (ID ${actingUser.id}) for request ${request.id}`);
+                    } catch (auditErr) {
+                        console.error('Failed to create splintering override audit log:', auditErr);
+                        // Don't fail the submission if audit logging fails, but log the error
+                    }
+                }
+            } else {
+                console.log(`[Submit] Splintering check disabled for request ${id}`);
+            }
+        } catch (splErr) {
+            console.warn('Splintering check failed:', splErr);
         }
 
         // Find department manager
@@ -2588,10 +2757,11 @@ app.post('/requests/:id/submit', async (req, res) => {
                 currentAssignee: { select: { id: true, name: true, email: true } },
             },
         });
+        console.log(`[Submit] Request ${id} updated to ${updated.status}, assignee=${updated.currentAssigneeId || 'none'}`);
 
         // Notify the department manager (new assignee) that a request was submitted
         try {
-            const assigneeId = updated.currentAssigneeId || null;
+            const assigneeId = updated.currentAssignee?.id || updated.currentAssigneeId || null;
             if (assigneeId) {
                 await prisma.notification.create({
                     data: {
@@ -2610,6 +2780,67 @@ app.post('/requests/:id/submit', async (req, res) => {
     } catch (e: any) {
         console.error('POST /requests/:id/submit error:', e);
         return res.status(500).json({ message: e?.message || 'Failed to submit request' });
+    }
+});
+
+// POST /requests/:id/attachments - upload attachments for an existing request
+app.post('/requests/:id/attachments', uploadAttachments.array('attachments'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const userId = req.headers['x-user-id'];
+
+        if (!userId) return res.status(401).json({ message: 'User ID required' });
+
+        const files = (req.files || []) as Express.Multer.File[];
+        if (!files.length) return res.status(400).json({ message: 'No files uploaded' });
+
+        const created: any[] = [];
+        for (const file of files) {
+            const url = `http://${PUBLIC_HOST}:${PORT}/uploads/${file.filename}`;
+            const att = await prisma.requestAttachment.create({
+                data: {
+                    requestId: parseInt(id, 10),
+                    filename: file.originalname,
+                    url,
+                    mimeType: file.mimetype || null,
+                    uploadedById: parseInt(String(userId), 10),
+                },
+            });
+            created.push(att);
+        }
+
+        res.status(201).json({ success: true, data: created });
+    } catch (e: any) {
+        console.error('POST /requests/:id/attachments error:', e);
+        res.status(500).json({ message: e?.message || 'Failed to upload attachments' });
+    }
+});
+
+// DELETE /requests/:id/attachments/:attachmentId - delete an attachment
+app.delete('/requests/:id/attachments/:attachmentId', async (req, res) => {
+    try {
+        const { id, attachmentId } = req.params;
+        const userId = req.headers['x-user-id'];
+        if (!userId) return res.status(401).json({ message: 'User ID required' });
+
+        const att = await prisma.requestAttachment.findUnique({ where: { id: parseInt(attachmentId, 10) } });
+        if (!att) return res.status(404).json({ message: 'Attachment not found' });
+        if (att.requestId !== parseInt(id, 10)) return res.status(400).json({ message: 'Attachment does not belong to this request' });
+
+        // Attempt to unlink file from disk (best-effort)
+        try {
+            const filename = path.basename(att.url || '');
+            const filepath = path.resolve(process.cwd(), 'uploads', filename);
+            if (fs.existsSync(filepath)) fs.unlinkSync(filepath);
+        } catch (fsErr) {
+            console.warn('Failed to remove attachment file from disk:', fsErr);
+        }
+
+        await prisma.requestAttachment.delete({ where: { id: parseInt(attachmentId, 10) } });
+        res.json({ success: true });
+    } catch (e: any) {
+        console.error('DELETE /requests/:id/attachments/:attachmentId error:', e);
+        res.status(500).json({ message: e?.message || 'Failed to delete attachment' });
     }
 });
 
@@ -2633,8 +2864,32 @@ app.post('/requests/:id/action', async (req, res) => {
             return res.status(404).json({ message: 'Request not found' });
         }
 
-        // Verify user is the current assignee
-        if (request.currentAssigneeId !== parseInt(String(userId), 10)) {
+        // Verify user is the current assignee, but allow a limited override for Procurement Managers
+        const actingUserId = parseInt(String(userId), 10);
+        let isAuthorized = request.currentAssigneeId === actingUserId;
+
+        if (!isAuthorized) {
+            try {
+                const actingUser = await prisma.user.findUnique({
+                    where: { id: actingUserId },
+                    include: { roles: { include: { role: true } } },
+                });
+                const roleNames = (actingUser?.roles || []).map((r: any) => String(r.role?.name || '').toUpperCase());
+
+                const isProcurementManager = roleNames.includes('PROCUREMENT_MANAGER') || roleNames.includes('MANAGER') || roleNames.includes('PROCUREMENT');
+
+                // Allow procurement managers to act as an override when the request is at the PROCUREMENT_REVIEW stage.
+                // This is a narrow exception to support managerial reviews; keep it conservative to avoid bypassing workflow.
+                if (isProcurementManager && request.status === 'PROCUREMENT_REVIEW') {
+                    isAuthorized = true;
+                    console.log(`Authorization override: user ${actingUserId} (procurement manager) acting on request ${id}`);
+                }
+            } catch (roleErr) {
+                console.warn('Failed to evaluate acting user roles for authorization override:', roleErr);
+            }
+        }
+
+        if (!isAuthorized) {
             return res.status(403).json({ message: 'Not authorized to approve this request' });
         }
 
@@ -2669,8 +2924,8 @@ app.post('/requests/:id/action', async (req, res) => {
                 nextAssigneeId = budgetManager?.id || null;
             } else if (request.status === 'BUDGET_MANAGER_REVIEW') {
                 // Budget Manager approved -> send to Procurement for final processing
-                // Leave nextAssigneeId as null - will be set by AI load balancing if enabled
                 nextStatus = 'PROCUREMENT_REVIEW';
+                // Don't assign here - let auto-assignment handle it
                 nextAssigneeId = null;
             } else if (request.status === 'PROCUREMENT_REVIEW') {
                 // Procurement approved -> final approval (ready to send to vendor)
@@ -2723,74 +2978,6 @@ app.post('/requests/:id/action', async (req, res) => {
                 },
             });
 
-            // 🤖 AI LOAD BALANCING: Auto-assign to procurement officer when reaching PROCUREMENT_REVIEW
-            if (nextStatus === 'PROCUREMENT_REVIEW' && action === 'APPROVE') {
-                try {
-                    const loadBalancingSettings = await SmartLoadBalancing.getSettings();
-
-                    if (loadBalancingSettings.enabled && loadBalancingSettings.autoAssignOnApproval) {
-                        // Use AI to auto-assign
-                        const wasAssigned = await SmartLoadBalancing.autoAssignRequest(updated.id, parseInt(String(userId), 10));
-
-                        if (wasAssigned) {
-                            // Refresh the updated request to get the new assignee
-                            updated =
-                                (await prisma.request.findUnique({
-                                    where: { id: updated.id },
-                                    include: {
-                                        items: true,
-                                        requester: { select: { id: true, name: true, email: true } },
-                                        department: { select: { id: true, name: true, code: true } },
-                                        currentAssignee: { select: { id: true, name: true, email: true } },
-                                    },
-                                })) || updated;
-
-                            console.log(`✅ AI auto-assigned request ${updated.id} to officer ${updated.currentAssigneeId}`);
-                        } else {
-                            // Fallback to first available procurement officer
-                            const procurement = await prisma.user.findFirst({
-                                where: { roles: { some: { role: { name: 'PROCUREMENT' } } } },
-                            });
-
-                            if (procurement) {
-                                updated = await prisma.request.update({
-                                    where: { id: updated.id },
-                                    data: { currentAssigneeId: procurement.id },
-                                    include: {
-                                        items: true,
-                                        requester: { select: { id: true, name: true, email: true } },
-                                        department: { select: { id: true, name: true, code: true } },
-                                        currentAssignee: { select: { id: true, name: true, email: true } },
-                                    },
-                                });
-                                console.log(`⚠️ AI assignment failed, used fallback assignment to ${procurement.name}`);
-                            }
-                        }
-                    } else {
-                        // Load balancing disabled - use simple assignment
-                        const procurement = await prisma.user.findFirst({
-                            where: { roles: { some: { role: { name: 'PROCUREMENT' } } } },
-                        });
-
-                        if (procurement) {
-                            updated = await prisma.request.update({
-                                where: { id: updated.id },
-                                data: { currentAssigneeId: procurement.id },
-                                include: {
-                                    items: true,
-                                    requester: { select: { id: true, name: true, email: true } },
-                                    department: { select: { id: true, name: true, code: true } },
-                                    currentAssignee: { select: { id: true, name: true, email: true } },
-                                },
-                            });
-                        }
-                    }
-                } catch (loadBalancingErr) {
-                    console.error('Load balancing assignment error:', loadBalancingErr);
-                    // Continue with request update even if load balancing fails
-                }
-            }
-
             // Notify the next assignee (procurement manager/officer) if present (normal path)
             try {
                 const assigneeId = updated.currentAssignee?.id || updated.currentAssigneeId || null;
@@ -2812,12 +2999,15 @@ app.post('/requests/:id/action', async (req, res) => {
             const enumProblem = msg.includes('BUDGET_MANAGER_REVIEW') || msg.toLowerCase().includes('invalid enum');
             if (enumProblem && request.status === 'FINANCE_REVIEW') {
                 // Fallback: if DB enum lacks BUDGET_MANAGER_REVIEW, treat as FINANCE_APPROVED
+                const procurement = await prisma.user.findFirst({
+                    where: { roles: { some: { role: { name: 'PROCUREMENT' } } } },
+                });
                 const fallbackStatus = 'FINANCE_APPROVED' as const;
                 updated = await prisma.request.update({
                     where: { id: parseInt(id, 10) },
                     data: {
                         status: fallbackStatus,
-                        currentAssigneeId: null, // Will be set by load balancing
+                        currentAssigneeId: procurement?.id || null,
                         statusHistory: {
                             create: {
                                 status: fallbackStatus,
@@ -2834,66 +3024,59 @@ app.post('/requests/:id/action', async (req, res) => {
                     },
                 });
                 console.warn('Fallback applied: DB enum missing BUDGET_MANAGER_REVIEW; advanced to FINANCE_APPROVED');
-
-                // Try AI load balancing assignment
-                try {
-                    const loadBalancingSettings = await SmartLoadBalancing.getSettings();
-
-                    if (loadBalancingSettings.enabled && loadBalancingSettings.autoAssignOnApproval) {
-                        await SmartLoadBalancing.autoAssignRequest(updated.id, parseInt(String(userId), 10));
-
-                        // Refresh to get assigned officer
-                        updated =
-                            (await prisma.request.findUnique({
-                                where: { id: updated.id },
-                                include: {
-                                    items: true,
-                                    requester: { select: { id: true, name: true, email: true } },
-                                    department: { select: { id: true, name: true, code: true } },
-                                    currentAssignee: { select: { id: true, name: true, email: true } },
-                                },
-                            })) || updated;
-                    } else {
-                        // Fallback to first procurement officer
-                        const procurement = await prisma.user.findFirst({
-                            where: { roles: { some: { role: { name: 'PROCUREMENT' } } } },
-                        });
-
-                        if (procurement) {
-                            updated = await prisma.request.update({
-                                where: { id: updated.id },
-                                data: { currentAssigneeId: procurement.id },
-                                include: {
-                                    items: true,
-                                    requester: { select: { id: true, name: true, email: true } },
-                                    department: { select: { id: true, name: true, code: true } },
-                                    currentAssignee: { select: { id: true, name: true, email: true } },
-                                },
-                            });
-                        }
-                    }
-                } catch (lbErr) {
-                    console.error('Load balancing error in fallback:', lbErr);
-                }
-
-                // Notify the next assignee (procurement manager/officer) if present
-                try {
-                    const assigneeId = updated.currentAssignee?.id || updated.currentAssigneeId || null;
-                    if (assigneeId) {
-                        await prisma.notification.create({
-                            data: {
-                                userId: Number(assigneeId),
-                                type: 'STAGE_CHANGED',
-                                message: `Request ${updated.reference || updated.id} has advanced to ${updated.status} and is assigned to you`,
-                                data: { requestId: updated.id, status: updated.status },
-                            },
-                        });
-                    }
-                } catch (notifErr) {
-                    console.warn('Failed to create notification on approve action:', notifErr);
-                }
             } else {
                 throw e;
+            }
+        }
+
+        // Check if auto-assignment should be triggered
+        const settings = await getLoadBalancingSettings(prisma);
+        if (shouldAutoAssign(nextStatus, settings)) {
+            console.log(`[Workflow] Triggering auto-assignment for request ${updated.id} at status ${nextStatus}`);
+            const assignedOfficerId = await autoAssignRequest(prisma, updated.id);
+
+            if (assignedOfficerId) {
+                // Refresh the updated request to include the new assignee
+                updated = (await prisma.request.findUnique({
+                    where: { id: parseInt(id, 10) },
+                    include: {
+                        items: true,
+                        requester: { select: { id: true, name: true, email: true } },
+                        department: { select: { id: true, name: true, code: true } },
+                        currentAssignee: { select: { id: true, name: true, email: true } },
+                    },
+                })) as any;
+
+                // Notify the auto-assigned officer
+                try {
+                    await prisma.notification.create({
+                        data: {
+                            userId: assignedOfficerId,
+                            type: 'STAGE_CHANGED',
+                            message: `Request ${updated.reference || updated.id} has been auto-assigned to you for ${updated.status}`,
+                            data: { requestId: updated.id, status: updated.status, autoAssigned: true },
+                        },
+                    });
+                } catch (notifErr) {
+                    console.warn('Failed to create auto-assignment notification:', notifErr);
+                }
+            }
+        } else if (!updated.currentAssigneeId && nextStatus !== 'DRAFT') {
+            // If no auto-assignment and no assignee, notify the next assignee if one was set manually
+            try {
+                const assigneeId = updated.currentAssignee?.id || updated.currentAssigneeId || null;
+                if (assigneeId) {
+                    await prisma.notification.create({
+                        data: {
+                            userId: Number(assigneeId),
+                            type: 'STAGE_CHANGED',
+                            message: `Request ${updated.reference || updated.id} has advanced to ${updated.status} and is assigned to you`,
+                            data: { requestId: updated.id, status: updated.status },
+                        },
+                    });
+                }
+            } catch (notifErr) {
+                console.warn('Failed to create notification on approve action:', notifErr);
             }
         }
 
@@ -2915,22 +3098,31 @@ app.get('/users/procurement-officers', async (req, res) => {
         // Verify the user is a procurement manager
         const user = await prisma.user.findUnique({
             where: { id: parseInt(String(userId), 10) },
-            include: { roles: { include: { role: true } } },
+            include: {
+                roles: { include: { role: true } },
+                department: true,
+            },
         });
 
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
         }
 
-        const isProcurementManager = user.roles.some((ur) => ur.role.name === 'PROCUREMENT_MANAGER');
-        if (!isProcurementManager) {
+        const roleNames = user.roles.map((ur) => ur.role.name.toUpperCase());
+        const isProcurementManager = roleNames.some((r) => r === 'PROCUREMENT_MANAGER' || (r.includes('PROCUREMENT') && r.includes('MANAGER')));
+        const isProcDeptManager = roleNames.includes('DEPT_MANAGER') && user.department?.code === 'PROC';
+        if (!isProcurementManager && !isProcDeptManager) {
             return res.status(403).json({ message: 'Only Procurement Managers can view procurement officers' });
         }
 
-        // Get all users with PROCUREMENT role
+        // Get all procurement officers and managers
         const officers = await prisma.user.findMany({
             where: {
-                roles: { some: { role: { name: 'PROCUREMENT' } } },
+                OR: [
+                    { roles: { some: { role: { name: 'PROCUREMENT' } } } },
+                    { roles: { some: { role: { name: 'PROCUREMENT_MANAGER' } } } },
+                    { AND: [{ roles: { some: { role: { name: 'DEPT_MANAGER' } } } }, { department: { code: 'PROC' } }] },
+                ],
             },
             include: {
                 roles: { include: { role: true } },
@@ -2966,6 +3158,63 @@ app.get('/users/procurement-officers', async (req, res) => {
     }
 });
 
+// Admin override endpoint: explicitly approve a splintering-blocked submission
+app.post('/admin/requests/:id/override-splinter', requireAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const adminUserId = req.headers['x-user-id'];
+        if (!adminUserId) return res.status(401).json({ message: 'User ID required' });
+
+        const reqRecord = await prisma.request.findUnique({ where: { id: parseInt(id, 10) }, include: { department: true } });
+        if (!reqRecord) return res.status(404).json({ message: 'Request not found' });
+
+        if (reqRecord.status !== 'DRAFT') return res.status(400).json({ message: 'Only DRAFT requests can be overridden' });
+
+        // Promote to department review and assign to department manager
+        const deptManager = await prisma.user.findFirst({
+            where: {
+                departmentId: reqRecord.departmentId,
+                roles: { some: { role: { name: 'DEPT_MANAGER' } } },
+            },
+        });
+
+        const updated = await prisma.request.update({
+            where: { id: parseInt(id, 10) },
+            data: {
+                status: 'DEPARTMENT_REVIEW',
+                currentAssigneeId: deptManager?.id || null,
+                statusHistory: {
+                    create: {
+                        status: 'DEPARTMENT_REVIEW',
+                        changedById: adminUserId ? parseInt(String(adminUserId), 10) : null,
+                        comment: 'Admin override: splintering decision approved by admin',
+                    },
+                },
+            },
+            include: { items: true, requester: true, department: true, currentAssignee: true },
+        });
+
+        // Create audit notification for procurement/audit team
+        try {
+            await prisma.notification.create({
+                data: {
+                    userId: null,
+                    type: 'THRESHOLD_EXCEEDED',
+                    message: `Admin override applied to request ${updated.reference || updated.id} by user ${adminUserId}`,
+                    data: { requestId: updated.id, overriddenBy: adminUserId },
+                },
+            });
+        } catch (notifErr) {
+            console.warn('Failed to create admin override notification:', notifErr);
+        }
+
+        return res.json({ success: true, data: updated });
+    } catch (e: any) {
+        console.error('POST /admin/requests/:id/override-splinter error:', e);
+        return res.status(500).json({ message: e?.message || 'Failed to apply admin override' });
+    }
+});
+
 // POST /requests/:id/assign - Assign request to specific procurement officer
 app.post('/requests/:id/assign', async (req, res) => {
     try {
@@ -2984,19 +3233,24 @@ app.post('/requests/:id/assign', async (req, res) => {
         // Verify the user is a procurement manager or self-assigning
         const user = await prisma.user.findUnique({
             where: { id: parseInt(String(userId), 10) },
-            include: { roles: { include: { role: true } } },
+            include: {
+                roles: { include: { role: true } },
+                department: true,
+            },
         });
 
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
         }
 
-        const isProcurementManager = user.roles.some((ur) => ur.role.name === 'PROCUREMENT_MANAGER');
-        const isProcurementOfficer = user.roles.some((ur) => ur.role.name === 'PROCUREMENT');
+        const roleNames = user.roles.map((ur) => ur.role.name.toUpperCase());
+        const isProcurementManager = roleNames.some((r) => r === 'PROCUREMENT_MANAGER' || (r.includes('PROCUREMENT') && r.includes('MANAGER')));
+        const isProcDeptManager = roleNames.includes('DEPT_MANAGER') && user.department?.code === 'PROC';
+        const isProcurementOfficer = roleNames.includes('PROCUREMENT') || roleNames.includes('PROCUREMENT_OFFICER');
         const isSelfAssigning = parseInt(String(userId), 10) === parseInt(String(assigneeId), 10);
 
-        // Allow if user is procurement manager OR if user is self-assigning as procurement officer
-        if (!isProcurementManager && !(isProcurementOfficer && isSelfAssigning)) {
+        // Allow if user is procurement manager (incl. PROC dept manager) OR if user is self-assigning as procurement officer
+        if (!(isProcurementManager || isProcDeptManager) && !(isProcurementOfficer && isSelfAssigning)) {
             return res.status(403).json({ message: 'Not authorized to assign requests' });
         }
 
@@ -3017,14 +3271,22 @@ app.post('/requests/:id/assign', async (req, res) => {
         // Verify assignee has PROCUREMENT or PROCUREMENT_MANAGER role
         const assignee = await prisma.user.findUnique({
             where: { id: parseInt(String(assigneeId), 10) },
-            include: { roles: { include: { role: true } } },
+            include: {
+                roles: { include: { role: true } },
+                department: true,
+            },
         });
 
         if (!assignee) {
             return res.status(404).json({ message: 'Assignee not found' });
         }
 
-        const hasValidRole = assignee.roles.some((ur) => ur.role.name === 'PROCUREMENT' || ur.role.name === 'PROCUREMENT_MANAGER');
+        const assigneeRoleNames = assignee.roles.map((ur) => ur.role.name.toUpperCase());
+        const hasValidRole =
+            assigneeRoleNames.includes('PROCUREMENT') ||
+            assigneeRoleNames.includes('PROCUREMENT_OFFICER') ||
+            assigneeRoleNames.includes('PROCUREMENT_MANAGER') ||
+            (assigneeRoleNames.includes('DEPT_MANAGER') && assignee.department?.code === 'PROC');
         if (!hasValidRole) {
             return res.status(400).json({ message: 'Assignee must have PROCUREMENT or PROCUREMENT_MANAGER role' });
         }
@@ -3057,7 +3319,7 @@ app.post('/requests/:id/assign', async (req, res) => {
     }
 });
 
-// GET /procurement/load-balancing-settings - Get AI-powered load balancing configuration
+// GET /procurement/load-balancing-settings - Get load balancing configuration
 app.get('/procurement/load-balancing-settings', async (req, res) => {
     try {
         const userId = req.headers['x-user-id'];
@@ -3068,7 +3330,10 @@ app.get('/procurement/load-balancing-settings', async (req, res) => {
         // Verify the user is a procurement manager
         const user = await prisma.user.findUnique({
             where: { id: parseInt(String(userId), 10) },
-            include: { roles: { include: { role: true } } },
+            include: {
+                roles: { include: { role: true } },
+                department: true,
+            },
         });
 
         if (!user) {
@@ -3076,11 +3341,25 @@ app.get('/procurement/load-balancing-settings', async (req, res) => {
         }
 
         const isProcurementManager = user.roles.some((ur) => ur.role.name === 'PROCUREMENT_MANAGER');
-        if (!isProcurementManager) {
-            return res.status(403).json({ message: 'Only Procurement Managers can view settings' });
+        const isDeptManager = user.roles.some((ur) => ur.role.name === 'DEPT_MANAGER');
+        if (!isProcurementManager && !isDeptManager) {
+            return res.status(403).json({ message: 'Only Procurement Managers or Department Managers can view settings' });
         }
 
-        const settings = await SmartLoadBalancing.getSettings();
+        // Fetch settings from database using service
+        const settings = await getLoadBalancingSettings(prisma);
+
+        // Return default if no settings exist yet
+        if (!settings) {
+            return res.json({
+                enabled: false,
+                strategy: 'LEAST_LOADED',
+                autoAssignOnApproval: true,
+                roundRobinCounter: 0,
+                splinteringEnabled: false,
+            });
+        }
+
         return res.json(settings);
     } catch (e: any) {
         console.error('GET /procurement/load-balancing-settings error:', e);
@@ -3088,7 +3367,13 @@ app.get('/procurement/load-balancing-settings', async (req, res) => {
     }
 });
 
-// POST /procurement/load-balancing-settings - Update AI-powered load balancing configuration
+// Backward-compat alias: underscore variant
+app.get('/procurement/load_balancing-settings', async (req, res) => {
+    // Delegate to the canonical handler
+    (app as any)._router.handle({ ...req, url: '/procurement/load-balancing-settings' }, res, () => {});
+});
+
+// POST /procurement/load-balancing-settings - Update load balancing configuration
 app.post('/procurement/load-balancing-settings', async (req, res) => {
     try {
         const userId = req.headers['x-user-id'];
@@ -3099,56 +3384,50 @@ app.post('/procurement/load-balancing-settings', async (req, res) => {
         // Verify the user is a procurement manager
         const user = await prisma.user.findUnique({
             where: { id: parseInt(String(userId), 10) },
-            include: { roles: { include: { role: true } } },
+            include: {
+                roles: { include: { role: true } },
+                department: true,
+            },
         });
 
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
         }
 
-        const isProcurementManager = user.roles.some((ur) => ur.role.name === 'PROCUREMENT_MANAGER');
-        if (!isProcurementManager) {
-            return res.status(403).json({ message: 'Only Procurement Managers can update settings' });
+        const roleNames = user.roles.map((ur) => ur.role.name.toUpperCase());
+        const isProcurementManager = roleNames.some((r) => r === 'PROCUREMENT_MANAGER' || (r.includes('PROCUREMENT') && r.includes('MANAGER')));
+        // Allow a department manager of the Procurement & Supply Chain department to update if they manage that department
+        const isProcDeptManager = roleNames.includes('DEPT_MANAGER') && user.department?.code === 'PROC';
+        if (!isProcurementManager && !isProcDeptManager) {
+            return res.status(403).json({ message: 'Only Procurement Managers can update settings', roles: roleNames });
         }
 
-        const { enabled, strategy, autoAssignOnApproval, aiEnabled, learningEnabled, priorityWeighting, performanceWeighting, workloadWeighting, specialtyWeighting, minConfidenceScore } = req.body;
+        const { enabled, strategy, autoAssignOnApproval, splinteringEnabled } = req.body as {
+            enabled?: boolean;
+            strategy?: string;
+            autoAssignOnApproval?: boolean;
+            splinteringEnabled?: boolean;
+        };
 
         // Validate strategy
-        const validStrategies = ['AI_SMART', 'SKILL_BASED', 'PREDICTIVE', 'LEAST_LOADED', 'ROUND_ROBIN', 'RANDOM'];
+        const validStrategies = ['LEAST_LOADED', 'ROUND_ROBIN', 'RANDOM'];
         if (strategy && !validStrategies.includes(strategy)) {
-            return res.status(400).json({
-                message: 'Invalid strategy. Must be: AI_SMART, SKILL_BASED, PREDICTIVE, LEAST_LOADED, ROUND_ROBIN, or RANDOM',
-            });
+            return res.status(400).json({ message: 'Invalid strategy. Must be LEAST_LOADED, ROUND_ROBIN, or RANDOM' });
         }
 
-        // Convert and validate numeric values
-        const parseFloat = (val: any, defaultVal: number): number => {
-            const parsed = Number(val);
-            return isNaN(parsed) ? defaultVal : parsed;
-        };
+        // Update settings in database using service
+        const settings = await updateLoadBalancingSettings(
+            prisma,
+            {
+                enabled: enabled !== undefined ? enabled : undefined,
+                strategy: strategy,
+                autoAssignOnApproval: autoAssignOnApproval !== undefined ? autoAssignOnApproval : undefined,
+                splinteringEnabled: splinteringEnabled !== undefined ? splinteringEnabled : undefined,
+            },
+            parseInt(String(userId), 10)
+        );
 
-        const parseBoolean = (val: any, defaultVal: boolean): boolean => {
-            if (val === undefined || val === null) return defaultVal;
-            if (typeof val === 'boolean') return val;
-            if (typeof val === 'string') return val.toLowerCase() === 'true';
-            return Boolean(val);
-        };
-
-        const config = {
-            enabled: parseBoolean(enabled, false),
-            strategy: strategy || 'AI_SMART',
-            autoAssignOnApproval: parseBoolean(autoAssignOnApproval, true),
-            aiEnabled: parseBoolean(aiEnabled, true),
-            learningEnabled: parseBoolean(learningEnabled, true),
-            priorityWeighting: parseFloat(priorityWeighting, 1.0),
-            performanceWeighting: parseFloat(performanceWeighting, 1.5),
-            workloadWeighting: parseFloat(workloadWeighting, 1.2),
-            specialtyWeighting: parseFloat(specialtyWeighting, 1.3),
-            minConfidenceScore: parseFloat(minConfidenceScore, 0.6),
-        };
-
-        const settings = await SmartLoadBalancing.updateSettings(config);
-        console.log('🤖 AI Load balancing settings updated:', settings);
+        console.log('[LoadBalancing] Settings updated by user', userId, 'roles=', roleNames, 'dept=', user.department?.code, ':', settings);
 
         return res.json(settings);
     } catch (e: any) {
@@ -3157,91 +3436,10 @@ app.post('/procurement/load-balancing-settings', async (req, res) => {
     }
 });
 
-// GET /api/procurement/ai-analytics - Get AI load balancing analytics and insights
-app.get('/api/procurement/ai-analytics', authMiddleware, async (req, res) => {
-    try {
-        const analytics = await SmartLoadBalancing.getAIAnalytics();
-        return res.json({
-            success: true,
-            data: analytics,
-            message: 'AI analytics retrieved successfully',
-        });
-    } catch (e: any) {
-        console.error('GET /api/procurement/ai-analytics error:', e);
-        return res.status(500).json({
-            success: false,
-            message: e?.message || 'Failed to fetch AI analytics',
-        });
-    }
-});
-
-// POST /api/procurement/auto-assign-pending - Manually trigger auto-assignment for pending requests
-app.post('/api/procurement/auto-assign-pending', authMiddleware, async (req, res) => {
-    try {
-        const user = (req as any).user as { sub?: number };
-        const userId = user.sub;
-
-        if (!userId) {
-            return res.status(401).json({ message: 'User ID required' });
-        }
-
-        // Verify the user is a procurement manager
-        const userRecord = await prisma.user.findUnique({
-            where: { id: userId },
-            include: { roles: { include: { role: true } } },
-        });
-
-        if (!userRecord) {
-            return res.status(404).json({ message: 'User not found' });
-        }
-
-        const isProcurementManager = userRecord.roles.some((ur) => ur.role.name === 'PROCUREMENT_MANAGER');
-        if (!isProcurementManager) {
-            return res.status(403).json({ message: 'Only Procurement Managers can trigger auto-assignment' });
-        }
-
-        const assignedCount = await SmartLoadBalancing.autoAssignPendingRequests(userId);
-
-        return res.json({
-            success: true,
-            assignedCount,
-            message: `Successfully auto-assigned ${assignedCount} pending requests`,
-        });
-    } catch (e: any) {
-        console.error('POST /api/procurement/auto-assign-pending error:', e);
-        return res.status(500).json({
-            success: false,
-            message: e?.message || 'Failed to auto-assign pending requests',
-        });
-    }
-});
-
-// POST /api/procurement/learn-from-completion - Report completion for AI learning
-app.post('/api/procurement/learn-from-completion', authMiddleware, async (req, res) => {
-    try {
-        const { requestId, wasSuccessful, feedbackScore } = req.body;
-
-        if (!requestId) {
-            return res.status(400).json({ message: 'Request ID is required' });
-        }
-
-        await SmartLoadBalancing.learnFromAssignment(
-            parseInt(requestId),
-            wasSuccessful !== false, // default true
-            feedbackScore ? parseFloat(feedbackScore) : undefined
-        );
-
-        return res.json({
-            success: true,
-            message: 'Learning data recorded successfully',
-        });
-    } catch (e: any) {
-        console.error('POST /api/procurement/learn-from-completion error:', e);
-        return res.status(500).json({
-            success: false,
-            message: e?.message || 'Failed to record learning data',
-        });
-    }
+// Backward-compat alias: underscore variant
+app.post('/procurement/load_balancing-settings', async (req, res) => {
+    // Delegate to the canonical handler
+    (app as any)._router.handle({ ...req, url: '/procurement/load-balancing-settings' }, res, () => {});
 });
 
 // GET /api/tags - list all tags
@@ -4551,7 +4749,7 @@ async function start() {
         initWebSocket(httpServer); // Initialize WebSocket server
 
         httpServer.listen(PORT, API_HOST, () => {
-            console.log(`🚀 Environment: PRODUCTION`);
+            console.log(`🚀 Environment: ${APP_ENV.toUpperCase()}`);
             console.log(`API server listening on http://${PUBLIC_HOST}:${PORT} (bind ${API_HOST})`);
             console.log(`WebSocket server ready on ws://${PUBLIC_HOST}:${PORT}`);
             console.log(`Health check: http://${PUBLIC_HOST}:${PORT}/health`);

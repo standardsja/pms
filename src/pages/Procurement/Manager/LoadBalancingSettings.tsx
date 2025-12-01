@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
+import { useDispatch } from 'react-redux';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import { setPageTitle } from '../../../store/themeConfigSlice';
@@ -8,8 +8,7 @@ import IconChecks from '../../../components/Icon/IconChecks';
 import IconX from '../../../components/Icon/IconX';
 import IconRefresh from '../../../components/Icon/IconRefresh';
 import IconInfoCircle from '../../../components/Icon/IconInfoCircle';
-import { getToken, getUser } from '../../../utils/auth';
-import { selectAuthLoading, selectUser } from '../../../store/authSlice';
+import { getApiUrl } from '../../../config/api';
 
 const MySwal = withReactContent(Swal);
 
@@ -17,6 +16,7 @@ interface LoadBalancingSettings {
     enabled: boolean;
     strategy: 'ROUND_ROBIN' | 'LEAST_LOADED' | 'RANDOM';
     autoAssignOnApproval: boolean;
+    splinteringEnabled: boolean;
 }
 
 const LoadBalancingSettings = () => {
@@ -25,76 +25,92 @@ const LoadBalancingSettings = () => {
         enabled: false,
         strategy: 'LEAST_LOADED',
         autoAssignOnApproval: true,
+        splinteringEnabled: false,
     });
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const authLoading = useSelector(selectAuthLoading);
-    const authUser = useSelector(selectUser);
-
-    const apiUrl = 'http://heron:4000';
 
     useEffect(() => {
         dispatch(setPageTitle('Load Balancing Settings'));
     }, [dispatch]);
 
-    const fetchSettings = async () => {
-        setLoading(true);
-        setError(null);
+    useEffect(() => {
+        const fetchSettings = async () => {
+            setLoading(true);
+            setError(null);
+
+            try {
+                const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
+                const currentUserId = userProfile?.id || userProfile?.userId || null;
+
+                const res = await fetch(getApiUrl('/procurement/load-balancing-settings'), {
+                    headers: {
+                        'x-user-id': String(currentUserId || ''),
+                    },
+                });
+                if (!res.ok) {
+                    if (res.status === 404) {
+                        // Settings don't exist yet, use defaults
+                        setLoading(false);
+                        return;
+                    }
+                    throw new Error('Failed to fetch settings');
+                }
+                const data = await res.json();
+                setSettings(data);
+            } catch (err: any) {
+                console.error('Error fetching settings:', err);
+                setError(err.message || 'Failed to load settings');
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchSettings();
+    }, []);
+
+    const handleSave = async () => {
+        setSaving(true);
 
         try {
-            const token = getToken();
-            const currentUser = getUser();
-            const currentUserId = currentUser?.id || null;
+            const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
+            const currentUserId = userProfile?.id || userProfile?.userId || null;
 
-            if (!token) {
-                throw new Error('Authentication required');
-            }
-
-            const res = await fetch(`${apiUrl}/procurement/load-balancing-settings`, {
+            const res = await fetch(getApiUrl('/procurement/load-balancing-settings'), {
+                method: 'POST',
                 headers: {
-                    Authorization: `Bearer ${token}`,
-                    'x-user-id': String(currentUserId || ''),
                     'Content-Type': 'application/json',
+                    'x-user-id': String(currentUserId || ''),
                 },
+                body: JSON.stringify(settings),
             });
+
             if (!res.ok) {
-                if (res.status === 404) {
-                    // Settings don't exist yet, use defaults
-                    setLoading(false);
-                    return;
-                }
-                throw new Error('Failed to fetch settings');
+                const error = await res.json().catch(() => ({}));
+                throw new Error(error.message || 'Failed to save settings');
             }
-            const data = await res.json();
-            setSettings(data);
+
+            MySwal.fire({
+                icon: 'success',
+                title: 'Settings Saved',
+                text: 'Load balancing settings have been updated successfully.',
+                timer: 2000,
+                showConfirmButton: false,
+            });
         } catch (err: any) {
-            console.error('Error fetching settings:', err);
-            setError(err.message || 'Failed to load settings');
+            console.error('Error saving settings:', err);
+            MySwal.fire({
+                icon: 'error',
+                title: 'Save Failed',
+                text: err.message || 'Failed to save settings. Please try again.',
+            });
         } finally {
-            setLoading(false);
+            setSaving(false);
         }
     };
 
-    useEffect(() => {
-        fetchSettings();
-    }, [apiUrl]);
-
-    if (authLoading || !authUser) {
-        return (
-            <div className="p-6">
-                <div className="flex items-center justify-center h-64">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-                </div>
-            </div>
-        );
-    }
-
-    const handleSave = async () => {
-        await saveSettings(settings);
-    };
-
-    const handleToggle = async () => {
+    const handleToggle = () => {
         if (settings.enabled) {
             // Disabling - show confirmation
             MySwal.fire({
@@ -105,76 +121,13 @@ const LoadBalancingSettings = () => {
                 confirmButtonText: 'Yes, Disable',
                 confirmButtonColor: '#dc2626',
                 cancelButtonText: 'Cancel',
-            }).then(async (result) => {
+            }).then((result) => {
                 if (result.isConfirmed) {
-                    const newSettings = { ...settings, enabled: false };
-                    setSettings(newSettings);
-
-                    // Auto-save after toggling
-                    await saveSettings(newSettings);
+                    setSettings({ ...settings, enabled: false });
                 }
             });
         } else {
-            const newSettings = { ...settings, enabled: true };
-            setSettings(newSettings);
-
-            // Auto-save after toggling
-            await saveSettings(newSettings);
-        }
-    };
-
-    const saveSettings = async (settingsToSave: LoadBalancingSettings) => {
-        setSaving(true);
-
-        try {
-            const token = getToken();
-            const currentUser = getUser();
-            const currentUserId = currentUser?.id || null;
-
-            if (!token) {
-                throw new Error('Authentication required');
-            }
-
-            const res = await fetch(`${apiUrl}/procurement/load-balancing-settings`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
-                    'x-user-id': String(currentUserId || ''),
-                },
-                body: JSON.stringify(settingsToSave),
-            });
-
-            if (!res.ok) {
-                const error = await res.json().catch(() => ({}));
-                throw new Error(error.message || 'Failed to save settings');
-            }
-
-            const data = await res.json();
-
-            MySwal.fire({
-                icon: 'success',
-                title: 'Settings Saved',
-                text: 'Load balancing settings have been updated successfully.',
-                timer: 2000,
-                showConfirmButton: false,
-            });
-
-            // Update local state with server response
-            if (data.settings) {
-                setSettings(data.settings);
-            }
-        } catch (err: any) {
-            console.error('Error saving settings:', err);
-            MySwal.fire({
-                icon: 'error',
-                title: 'Save Failed',
-                text: err.message || 'Failed to save settings. Please try again.',
-            });
-            // Revert state on error
-            fetchSettings();
-        } finally {
-            setSaving(false);
+            setSettings({ ...settings, enabled: true });
         }
     };
 
@@ -415,6 +368,26 @@ const LoadBalancingSettings = () => {
                                 <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
                                     Automatically assign requests to officers immediately when approved by finance. If disabled, requests will remain in the manager queue for manual assignment.
                                 </p>
+                            </div>
+                        </label>
+
+                        <label className="flex items-start cursor-pointer p-4 bg-white dark:bg-slate-800 rounded-lg border-2 border-gray-200 dark:border-gray-700 hover:border-red-300 dark:hover:border-red-700 transition-all">
+                            <input
+                                type="checkbox"
+                                checked={settings.splinteringEnabled}
+                                onChange={(e) => setSettings({ ...settings, splinteringEnabled: e.target.checked })}
+                                className="mt-1 mr-4 w-5 h-5 text-red-600"
+                            />
+                            <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <p className="font-bold text-lg">Splintering Detection</p>
+                                    {settings.splinteringEnabled && <span className="badge bg-danger text-xs">Active</span>}
+                                </div>
+                                <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
+                                    Detect potential purchase splitting attempts where multiple small requests circumvent approval thresholds. When enabled, similar requests within a time window are
+                                    flagged for manager review.
+                                </p>
+                                <p className="text-xs text-red-600 dark:text-red-400 mt-2">⚠️ Currently experimental. Disable if causing false positives that block legitimate submissions.</p>
                             </div>
                         </label>
                     </div>

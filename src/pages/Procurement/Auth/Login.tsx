@@ -38,15 +38,9 @@ const Login = () => {
         setIsLoading(true);
 
         try {
-            // Get API URL from environment or use heron
-            const getApiUrl = () => {
-                if (import.meta.env.VITE_API_URL) {
-                    return import.meta.env.VITE_API_URL;
-                }
-                return 'http://heron:4000';
-            };
-
-            const apiUrl = getApiUrl();
+            // Get API URL from environment. In dev, prefer an empty base so requests
+            // use relative URLs (e.g. `/api/...`) and are handled by Vite's proxy.
+            const apiUrl = import.meta.env.VITE_API_URL || '';
 
             // Primary: real password login
             let res = await fetch(`${apiUrl}/api/auth/login`, {
@@ -60,6 +54,7 @@ const Login = () => {
             // try the non-password helper endpoint to unblock UX. This will NOT run in production builds.
             if (!res.ok && import.meta.env.DEV) {
                 try {
+                    // Use relative path so Vite proxy can route to backend in dev
                     const fallbackRes = await fetch(`${apiUrl}/auth/test-login`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },

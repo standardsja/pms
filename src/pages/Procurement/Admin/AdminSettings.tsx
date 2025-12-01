@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { setPageTitle } from '../../../store/themeConfigSlice';
+import { getApiUrl } from '../../../config/api';
 // Icons grouped by usage context (workflows/templates/roles) - remove unused as needed
 import IconSettings from '../../../components/Icon/IconSettings';
 import IconFile from '../../../components/Icon/IconFile';
@@ -746,7 +747,7 @@ function ReassignRequestsTab() {
     async function loadData() {
         setLoading(true);
         try {
-            const [reqsRes, usersRes] = await Promise.all([fetch('http://heron:4000/requests'), fetch('http://heron:4000/admin/users')]);
+            const [reqsRes, usersRes] = await Promise.all([fetch(getApiUrl('/requests')), fetch(getApiUrl('/admin/users'))]);
             const reqs = await reqsRes.json();
             const usrs = await usersRes.json();
             setRequests(reqs);
@@ -763,7 +764,7 @@ function ReassignRequestsTab() {
             const userProfile = localStorage.getItem('auth_user') || sessionStorage.getItem('auth_user');
             const user = userProfile ? JSON.parse(userProfile) : null;
 
-            const res = await fetch(`http://heron:4000/admin/requests/${requestId}/reassign`, {
+            const res = await fetch(getApiUrl(`/admin/requests/${requestId}/reassign`), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

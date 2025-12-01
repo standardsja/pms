@@ -23,6 +23,8 @@
         "express"
     ],
     "scripts": {
+        "test:server": "vitest run server",
+        "test": "vitest --run",
         "dev": "vite --host",
         "build": "vite build",
         "build:check": "vite build && tsc",
@@ -137,6 +139,7 @@
         "i18next": "^23.13.0",
         "i18next-browser-languagedetector": "^8.0.0",
         "i18next-http-backend": "^2.5.2",
+        "jsdom": "^27.2.0",
         "node-fetch": "^3.3.2",
         "postcss": "^8.4.35",
         "prisma": "^6.19.0",

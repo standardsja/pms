@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
+import { useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
@@ -9,7 +9,7 @@ import IconEdit from '../../../components/Icon/IconEdit';
 import IconPrinter from '../../../components/Icon/IconPrinter';
 import IconUsersGroup from '../../../components/Icon/IconUsersGroup';
 import { getStatusBadge } from '../../../utils/statusBadges';
-import { selectAuthLoading, selectUser } from '../../../store/authSlice';
+import { getApiUrl } from '../../../config/api';
 
 const MySwal = withReactContent(Swal);
 
@@ -38,8 +38,6 @@ interface Req {
 const ProcurementManagerRequests = () => {
     const dispatch = useDispatch();
     const navigate = useNavigate();
-    const authLoading = useSelector(selectAuthLoading);
-    const authUser = useSelector(selectUser);
     const [requests, setRequests] = useState<Req[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -68,8 +66,7 @@ const ProcurementManagerRequests = () => {
             setError(null);
 
             try {
-                const apiUrl = 'http://heron:4000';
-                const res = await fetch(`${apiUrl}/requests`, {
+                const res = await fetch(getApiUrl('/requests'), {
                     headers: {
                         'x-user-id': String(currentUserId || ''),
                     },
@@ -100,15 +97,6 @@ const ProcurementManagerRequests = () => {
         fetchRequests();
     }, []);
 
-    // Auth gate spinner
-    if (authLoading || !authUser) {
-        return (
-            <div className="flex justify-center items-center min-h-[400px]">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
-        );
-    }
-
     // Filter requests at PROCUREMENT_REVIEW status
     const pending = useMemo(() => requests.filter((r) => r.status === 'PROCUREMENT_REVIEW'), [requests]);
 
@@ -124,8 +112,7 @@ const ProcurementManagerRequests = () => {
 
     // Print/Download PDF
     const downloadPdf = (req: Req) => {
-        const apiUrl = 'http://heron:4000';
-        const url = `${apiUrl}/requests/${req.id}/pdf`;
+        const url = getApiUrl(`/requests/${req.id}/pdf`);
         window.open(url, '_blank');
     };
 
@@ -149,8 +136,7 @@ const ProcurementManagerRequests = () => {
 
         if (result.isConfirmed) {
             try {
-                const apiUrl = 'http://heron:4000';
-                const res = await fetch(`${apiUrl}/requests/${req.id}/assign`, {
+                const res = await fetch(getApiUrl(`/requests/${req.id}/assign`), {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -222,8 +208,7 @@ const ProcurementManagerRequests = () => {
         const comment = (result.value as string) || '';
 
         try {
-            const apiUrl = 'http://heron:4000';
-            const res = await fetch(`${apiUrl}/requests/${req.id}/action`, {
+            const res = await fetch(getApiUrl(`/requests/${req.id}/action`), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
