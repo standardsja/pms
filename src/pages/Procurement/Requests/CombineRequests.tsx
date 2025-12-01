@@ -8,7 +8,7 @@ import IconPlus from '../../../components/Icon/IconPlus';
 import IconEye from '../../../components/Icon/IconEye';
 import IconX from '../../../components/Icon/IconX';
 import IconCircleCheck from '../../../components/Icon/IconCircleCheck';
-import { getApiUrl } from '../../../config/api';
+import { getApiUrl } from '../../../utils/api';
 import { Request } from '../../../types/request.types';
 import { getStatusBadge } from '../../../utils/statusBadges';
 import {
@@ -55,15 +55,39 @@ const CombineRequests = () => {
             setError(null);
             try {
                 const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
-                const response = await fetch(getApiUrl('/api/requests/combine?combinable=true'), {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        'Content-Type': 'application/json',
-                    },
+                const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
+                const userId = userProfile?.id || userProfile?.userId;
+                
+                console.log('🔐 [COMBINE] Auth Debug:', {
+                    hasToken: !!token,
+                    tokenPreview: token ? `${token.substring(0, 20)}...` : 'NONE',
+                    userId,
+                    userProfile: userProfile.name,
                 });
+                
+                const headers: Record<string, string> = {
+                    'Content-Type': 'application/json',
+                };
+                
+                if (token) {
+                    headers['Authorization'] = `Bearer ${token}`;
+                }
+                if (userId) {
+                    headers['x-user-id'] = String(userId);
+                }
+                
+                console.log('🔐 [COMBINE] Request headers:', Object.keys(headers));
+                
+                const response = await fetch(getApiUrl('/api/requests/combine?combinable=true'), {
+                    headers,
+                });
+                
+                console.log('🔐 [COMBINE] Response status:', response.status);
 
                 if (!response.ok) {
-                    throw new Error('Failed to fetch combinable requests');
+                    const errorText = await response.text();
+                    console.error('Failed to fetch combinable requests:', response.status, errorText);
+                    throw new Error(`Failed to fetch combinable requests: ${response.status}`);
                 }
 
                 const data = await response.json();
@@ -195,17 +219,30 @@ const CombineRequests = () => {
             };
 
             const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
+            const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
+            const userId = userProfile?.id || userProfile?.userId;
+            
+            const headers: Record<string, string> = {
+                'Content-Type': 'application/json',
+            };
+            
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
+            if (userId) {
+                headers['x-user-id'] = String(userId);
+            }
+            
             const response = await fetch(getApiUrl('/api/requests/combine'), {
                 method: 'POST',
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
+                headers,
                 body: JSON.stringify(combinedRequestData),
             });
 
             if (!response.ok) {
-                throw new Error('Failed to combine requests');
+                const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+                console.error('Failed to combine requests:', response.status, errorData);
+                throw new Error(errorData.error || errorData.message || 'Failed to combine requests');
             }
 
             const result = await response.json();

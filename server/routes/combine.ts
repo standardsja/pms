@@ -13,35 +13,66 @@ router.get('/', authMiddleware, async (req, res) => {
     try {
         const { combinable } = req.query;
         const authReq = req as AuthenticatedRequest;
-        const userId = authReq.user.sub;
-        const userRoles = authReq.user.roles || [];
+        
+        console.log(`[COMBINE] 🔍 GET request received`);
+        console.log(`[COMBINE] Auth header:`, req.headers.authorization ? 'Present' : 'MISSING');
+        console.log(`[COMBINE] x-user-id header:`, req.headers['x-user-id'] || 'MISSING');
+        
+        const userId = authReq.user?.sub;
+        const userRoles = authReq.user?.roles || [];
+        
+        console.log(`[COMBINE] User ID from auth:`, userId);
+        console.log(`[COMBINE] User roles from auth:`, userRoles);
+        
+        if (!userId) {
+            console.log(`[COMBINE] ❌ No user ID - authentication failed`);
+            return res.status(401).json({
+                error: 'Authentication required',
+                message: 'User ID not found in request',
+            });
+        }
+        
+        console.log(`[COMBINE] GET request from user ${userId} with roles:`, userRoles);
 
         let whereClause: any = {};
 
         // Only include requests that can be combined
         if (combinable === 'true') {
             whereClause.status = {
-                in: ['DRAFT', 'SUBMITTED', 'DEPARTMENT_REVIEW', 'PROCUREMENT_REVIEW'],
+                in: [RequestStatus.DRAFT, RequestStatus.SUBMITTED, RequestStatus.DEPARTMENT_REVIEW, RequestStatus.PROCUREMENT_REVIEW],
             };
         }
 
         // Role-based filtering using improved role checking
         const userRoleInfo = checkUserRoles(userRoles);
+        
+        console.log(`[COMBINE] User role check result:`, {
+            canCombineRequests: userRoleInfo.canCombineRequests,
+            isProcurementOfficer: userRoleInfo.isProcurementOfficer,
+            isProcurementManager: userRoleInfo.isProcurementManager,
+            isAdmin: userRoleInfo.isAdmin,
+        });
 
         // Only procurement officers, procurement managers, and admins can combine requests
         if (!userRoleInfo.canCombineRequests) {
+            console.log(`[COMBINE] Access denied for user ${userId} - insufficient permissions`);
             return res.status(403).json({
-                message: 'Access denied. Only procurement officers and procurement managers can combine requests.',
+                error: 'Access denied',
+                message: 'Only procurement officers and procurement managers can combine requests.',
                 code: 'INSUFFICIENT_PERMISSIONS',
+                userRoles,
             });
         }
 
         if (userRoleInfo.isProcurementOfficer || userRoleInfo.isProcurementManager || userRoleInfo.isAdmin) {
             // Procurement users can see all combinable requests
+            console.log(`[COMBINE] User ${userId} authorized to view combinable requests`);
         } else {
             // This should not happen due to the canCombineRequests check above, but as a fallback
+            console.log(`[COMBINE] Unexpected role state for user ${userId}`);
             return res.status(403).json({
-                message: 'Access denied. Invalid role for combining requests.',
+                error: 'Access denied',
+                message: 'Invalid role for combining requests.',
                 code: 'INVALID_ROLE',
             });
         }
@@ -83,8 +114,10 @@ router.get('/', authMiddleware, async (req, res) => {
                 quantity: item.quantity,
                 unitCost: Number(item.unitPrice),
                 totalCost: Number(item.totalPrice),
-            })),
+            }),
         }));
+        
+        console.log(`[COMBINE] Returning ${transformedRequests.length} combinable requests to user ${userId}`);
 
         res.json(transformedRequests);
     } catch (error) {
@@ -104,15 +137,45 @@ router.post('/', authMiddleware, async (req, res) => {
         const authReq = req as AuthenticatedRequest;
         const userId = authReq.user.sub;
         const userRoles = authReq.user.roles || [];
+        
+        console.log(`[COMBINE] POST request from user ${userId} to combine ${originalRequestIds?.length || 0} requests`);
+        
+        // Validate required fields
+        if (!title || !items || !Array.isArray(items) || items.length === 0) {
+            console.log(`[COMBINE] Validation failed - missing required fields`);
+            return res.status(400).json({
+                error: 'Validation failed',
+                message: 'Title and items are required',
+                details: { title: !!title, items: items?.length || 0 },
+            });
+        }
+        
+        if (!originalRequestIds || !Array.isArray(originalRequestIds) || originalRequestIds.length < 2) {
+            console.log(`[COMBINE] Validation failed - insufficient original requests`);
+            return res.status(400).json({
+                error: 'Validation failed',
+                message: 'At least 2 original requests are required for combining',
+                details: { originalRequestIds: originalRequestIds?.length || 0 },
+            });
+        }
 
         // Get user role information for permission checking
         const userRoleInfo = checkUserRoles(userRoles);
+        
+        console.log(`[COMBINE] User role check:`, {
+            canCombineRequests: userRoleInfo.canCombineRequests,
+            isProcurementOfficer: userRoleInfo.isProcurementOfficer,
+            isProcurementManager: userRoleInfo.isProcurementManager,
+        });
 
         // Only procurement officers, procurement managers, and admins can combine requests
         if (!userRoleInfo.canCombineRequests) {
+            console.log(`[COMBINE] Access denied for user ${userId}`);
             return res.status(403).json({
-                error: 'Access denied. Only procurement officers and procurement managers can combine requests.',
+                error: 'Access denied',
+                message: 'Only procurement officers and procurement managers can combine requests.',
                 code: 'INSUFFICIENT_PERMISSIONS',
+                userRoles,
             });
         }
 
@@ -120,17 +183,28 @@ router.post('/', authMiddleware, async (req, res) => {
         const originalRequests = await prisma.request.findMany({
             where: {
                 id: { in: originalRequestIds },
-                status: { in: ['DRAFT', 'SUBMITTED', 'DEPARTMENT_REVIEW', 'PROCUREMENT_REVIEW'] },
+                status: { in: [RequestStatus.DRAFT, RequestStatus.SUBMITTED, RequestStatus.DEPARTMENT_REVIEW, RequestStatus.PROCUREMENT_REVIEW] },
             },
             include: {
                 department: { select: { name: true, id: true } },
                 requester: { select: { name: true } },
             },
         });
+        
+        console.log(`[COMBINE] Found ${originalRequests.length} valid requests out of ${originalRequestIds.length}`);
 
         if (originalRequests.length !== originalRequestIds.length) {
+            const foundIds = originalRequests.map(r => r.id);
+            const missingIds = originalRequestIds.filter((id: number) => !foundIds.includes(id));
+            console.log(`[COMBINE] Missing or invalid request IDs:`, missingIds);
             return res.status(400).json({
-                error: 'Some requests cannot be combined or do not exist',
+                error: 'Invalid requests',
+                message: 'Some requests cannot be combined or do not exist',
+                details: {
+                    requested: originalRequestIds.length,
+                    found: originalRequests.length,
+                    missingIds,
+                },
             });
         }
 
@@ -160,7 +234,7 @@ router.post('/', authMiddleware, async (req, res) => {
                     totalEstimated: totalEstimated,
                     currency: currency || 'USD',
                     priority: priority || 'MEDIUM',
-                    status: requiresApproval ? 'SUBMITTED' : 'DRAFT',
+                    status: requiresApproval ? RequestStatus.SUBMITTED : RequestStatus.DRAFT,
                 },
             });
 
@@ -183,10 +257,11 @@ router.post('/', authMiddleware, async (req, res) => {
                 await tx.request.update({
                     where: { id: originalRequest.id },
                     data: {
-                        status: 'CLOSED',
+                        status: RequestStatus.CLOSED,
                         description: `${originalRequest.description}\n\n[COMBINED INTO ${reference}]`,
                     },
                 });
+                console.log(`[COMBINE] Marked request ${originalRequest.reference} as CLOSED`);
             }
 
             // Create audit log for combination

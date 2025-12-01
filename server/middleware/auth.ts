@@ -22,15 +22,22 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
     try {
         const authHeader = req.headers.authorization;
         const userIdHeader = req.headers['x-user-id'];
+        
+        console.log(`[AUTH] 🔐 Request to ${req.method} ${req.path}`);
+        console.log(`[AUTH] Authorization header:`, authHeader ? `Bearer ${authHeader.substring(7, 27)}...` : 'MISSING');
+        console.log(`[AUTH] x-user-id header:`, userIdHeader || 'MISSING');
+        console.log(`[AUTH] NODE_ENV:`, config.NODE_ENV);
 
         // Try Bearer token first
         if (authHeader?.startsWith('Bearer ')) {
             const token = authHeader.substring(7);
             try {
                 const payload = jwt.verify(token, config.JWT_SECRET) as any;
+                console.log(`[AUTH] ✅ JWT token valid for user ${payload.sub}`);
                 (req as AuthenticatedRequest).user = payload;
                 return next();
             } catch (error) {
+                console.log(`[AUTH] ⚠️ JWT verification failed:`, (error as Error).message);
                 // Token invalid, fall through to x-user-id if available
                 if (!userIdHeader) {
                     throw new UnauthorizedError('Invalid token');
@@ -42,11 +49,13 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
         if (userIdHeader) {
             const userIdNum = parseInt(String(userIdHeader), 10);
             if (!Number.isFinite(userIdNum)) {
+                console.log(`[AUTH] ❌ Invalid user ID format:`, userIdHeader);
                 throw new UnauthorizedError('Invalid user ID');
             }
 
             // In development, hydrate roles from database
             if (config.NODE_ENV !== 'production') {
+                console.log(`[AUTH] 🔄 Development mode: hydrating user ${userIdNum} from database`);
                 try {
                     const user = await prisma.user.findUnique({
                         where: { id: userIdNum },
@@ -54,10 +63,12 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
                     });
 
                     if (!user) {
+                        console.log(`[AUTH] ❌ User ${userIdNum} not found in database`);
                         throw new UnauthorizedError('User not found');
                     }
 
                     const roles = user.roles.map((r) => r.role.name);
+                    console.log(`[AUTH] ✅ User ${userIdNum} authenticated with roles:`, roles);
                     (req as AuthenticatedRequest).user = {
                         sub: userIdNum,
                         email: user.email,
@@ -66,15 +77,18 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
                     };
                     return next();
                 } catch (error) {
+                    console.log(`[AUTH] ❌ Database error:`, (error as Error).message);
                     logger.error('Failed to hydrate user from database', { userId: userIdNum, error });
                     throw new UnauthorizedError('Authentication failed');
                 }
             } else {
                 // Production: require proper JWT tokens
+                console.log(`[AUTH] ❌ Production mode requires JWT token`);
                 throw new UnauthorizedError('Bearer token required in production');
             }
         }
 
+        console.log(`[AUTH] ❌ No authentication provided`);
         throw new UnauthorizedError('No valid authentication provided');
     } catch (error) {
         next(error);
