@@ -30,7 +30,7 @@ const QuotesList = lazy(() => import('../pages/Procurement/Quotes/QuotesList'));
 const NewQuote = lazy(() => import('../pages/Procurement/Quotes/NewQuote'));
 const QuoteDetail = lazy(() => import('../pages/Procurement/Quotes/QuoteDetail'));
 const EvaluationList = lazy(() => import('../pages/Procurement/Evaluation/EvaluationList'));
-const NewEvaluation = lazy(() => import('../pages/Procurement/Evaluation/NewEvaluationComplete'));
+const NewEvaluation = lazy(() => import('../pages/Procurement/Evaluation/NewEvaluation'));
 const EvaluationEdit = lazy(() => import('../pages/Procurement/Evaluation/EvaluationEdit'));
 const EvaluationDetail = lazy(() => import('../pages/Procurement/Evaluation/EvaluationDetail'));
 const EvaluationCommittee = lazy(() => import('../pages/Procurement/Evaluation/EvaluationCommittee'));
