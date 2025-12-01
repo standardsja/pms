@@ -306,8 +306,7 @@ const NewEvaluation = () => {
                     bidders: [
                         {
                             bidderName: (technicalRows[0]?.bidderName || '').trim(),
-                            ppcCategory:
-                                eligibilityRows.find((r) => r.label.toLowerCase().includes('ppc'))?.value?.trim() || '',
+                            ppcCategory: eligibilityRows.find((r) => r.label.toLowerCase().includes('ppc'))?.value?.trim() || '',
                             tciTrn: eligibilityRows.find((r) => r.label.toLowerCase().includes('tci') || r.label.toLowerCase().includes('trn'))?.value?.trim() || '',
                             bidAmountInclusiveGCT: (() => {
                                 const fromEligibility = eligibilityRows.find((r) => r.label.toLowerCase().includes('amount'))?.value;
