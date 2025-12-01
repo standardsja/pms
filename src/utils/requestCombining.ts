@@ -132,7 +132,12 @@ export function validateRequestCombination(requests: CombinableRequest[]): Combi
  * Generate a preview of the combined request
  */
 export function generateCombinePreview(requests: CombinableRequest[], config: CombineRequestsConfig): CombinePreview {
-    const totalValue = requests.reduce((sum, req) => sum + (req.totalEstimated || 0), 0);
+    // Ensure all values are numbers, not strings
+    const totalValue = requests.reduce((sum, req) => {
+        const requestTotal = Number(req.totalEstimated) || 0;
+        return sum + requestTotal;
+    }, 0);
+
     const allItems = requests.flatMap((req) => {
         if (!req.items || !Array.isArray(req.items)) {
             return [];
@@ -194,19 +199,24 @@ export function consolidateItems(requests: CombinableRequest[]): Array<{
 
             const key = item.description.toLowerCase().trim();
 
+            // Ensure numbers are properly parsed
+            const quantity = Number(item.quantity) || 0;
+            const unitCost = Number(item.unitCost) || 0;
+            const totalCost = Number(item.totalCost) || quantity * unitCost;
+
             if (itemMap.has(key)) {
                 const existing = itemMap.get(key);
-                existing.quantity += item.quantity;
-                existing.totalCost += item.totalCost || item.quantity * item.unitCost;
+                existing.quantity = Number(existing.quantity) + quantity;
+                existing.totalCost = Number(existing.totalCost) + totalCost;
                 existing.originalRequests.push(request.reference);
                 // Use weighted average for unit cost
                 existing.unitCost = existing.totalCost / existing.quantity;
             } else {
                 itemMap.set(key, {
                     description: item.description,
-                    quantity: item.quantity,
-                    unitCost: item.unitCost,
-                    totalCost: item.totalCost || item.quantity * item.unitCost,
+                    quantity: quantity,
+                    unitCost: unitCost,
+                    totalCost: totalCost,
                     originalRequests: [request.reference],
                 });
             }

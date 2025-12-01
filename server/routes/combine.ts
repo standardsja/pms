@@ -13,17 +13,17 @@ router.get('/', authMiddleware, async (req, res) => {
     try {
         const { combinable } = req.query;
         const authReq = req as AuthenticatedRequest;
-        
+
         console.log(`[COMBINE] 🔍 GET request received`);
         console.log(`[COMBINE] Auth header:`, req.headers.authorization ? 'Present' : 'MISSING');
         console.log(`[COMBINE] x-user-id header:`, req.headers['x-user-id'] || 'MISSING');
-        
+
         const userId = authReq.user?.sub;
         const userRoles = authReq.user?.roles || [];
-        
+
         console.log(`[COMBINE] User ID from auth:`, userId);
         console.log(`[COMBINE] User roles from auth:`, userRoles);
-        
+
         if (!userId) {
             console.log(`[COMBINE] ❌ No user ID - authentication failed`);
             return res.status(401).json({
@@ -31,7 +31,7 @@ router.get('/', authMiddleware, async (req, res) => {
                 message: 'User ID not found in request',
             });
         }
-        
+
         console.log(`[COMBINE] GET request from user ${userId} with roles:`, userRoles);
 
         let whereClause: any = {};
@@ -45,7 +45,7 @@ router.get('/', authMiddleware, async (req, res) => {
 
         // Role-based filtering using improved role checking
         const userRoleInfo = checkUserRoles(userRoles);
-        
+
         console.log(`[COMBINE] User role check result:`, {
             canCombineRequests: userRoleInfo.canCombineRequests,
             isProcurementOfficer: userRoleInfo.isProcurementOfficer,
@@ -103,7 +103,7 @@ router.get('/', authMiddleware, async (req, res) => {
             title: request.title,
             status: request.status,
             priority: request.priority || 'MEDIUM',
-            totalEstimated: request.totalEstimated || 0,
+            totalEstimated: Number(request.totalEstimated) || 0,
             currency: request.currency || 'USD',
             department: request.department?.name || 'Unknown',
             requestedBy: request.requester.name,
@@ -111,12 +111,12 @@ router.get('/', authMiddleware, async (req, res) => {
             items: request.items.map((item) => ({
                 id: item.id,
                 description: item.description,
-                quantity: item.quantity,
-                unitCost: Number(item.unitPrice),
-                totalCost: Number(item.totalPrice),
-            }),
+                quantity: Number(item.quantity) || 0,
+                unitCost: Number(item.unitPrice) || 0,
+                totalCost: Number(item.totalPrice) || 0,
+            })),
         }));
-        
+
         console.log(`[COMBINE] Returning ${transformedRequests.length} combinable requests to user ${userId}`);
 
         res.json(transformedRequests);
@@ -137,9 +137,9 @@ router.post('/', authMiddleware, async (req, res) => {
         const authReq = req as AuthenticatedRequest;
         const userId = authReq.user.sub;
         const userRoles = authReq.user.roles || [];
-        
+
         console.log(`[COMBINE] POST request from user ${userId} to combine ${originalRequestIds?.length || 0} requests`);
-        
+
         // Validate required fields
         if (!title || !items || !Array.isArray(items) || items.length === 0) {
             console.log(`[COMBINE] Validation failed - missing required fields`);
@@ -149,7 +149,7 @@ router.post('/', authMiddleware, async (req, res) => {
                 details: { title: !!title, items: items?.length || 0 },
             });
         }
-        
+
         if (!originalRequestIds || !Array.isArray(originalRequestIds) || originalRequestIds.length < 2) {
             console.log(`[COMBINE] Validation failed - insufficient original requests`);
             return res.status(400).json({
@@ -161,7 +161,7 @@ router.post('/', authMiddleware, async (req, res) => {
 
         // Get user role information for permission checking
         const userRoleInfo = checkUserRoles(userRoles);
-        
+
         console.log(`[COMBINE] User role check:`, {
             canCombineRequests: userRoleInfo.canCombineRequests,
             isProcurementOfficer: userRoleInfo.isProcurementOfficer,
@@ -190,11 +190,11 @@ router.post('/', authMiddleware, async (req, res) => {
                 requester: { select: { name: true } },
             },
         });
-        
+
         console.log(`[COMBINE] Found ${originalRequests.length} valid requests out of ${originalRequestIds.length}`);
 
         if (originalRequests.length !== originalRequestIds.length) {
-            const foundIds = originalRequests.map(r => r.id);
+            const foundIds = originalRequests.map((r) => r.id);
             const missingIds = originalRequestIds.filter((id: number) => !foundIds.includes(id));
             console.log(`[COMBINE] Missing or invalid request IDs:`, missingIds);
             return res.status(400).json({
@@ -223,6 +223,23 @@ router.post('/', authMiddleware, async (req, res) => {
             const timestamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
             const reference = `CMB-${timestamp}`;
 
+            // Calculate total from items to ensure accuracy
+            let calculatedTotal = 0;
+            if (items && Array.isArray(items)) {
+                calculatedTotal = items.reduce((sum: number, item: any) => {
+                    const quantity = Number(item.quantity) || 0;
+                    const unitCost = Number(item.unitCost) || 0;
+                    const itemTotal = Number(item.totalCost) || quantity * unitCost;
+                    return sum + itemTotal;
+                }, 0);
+            }
+
+            // Use calculated total if provided total doesn't match or is missing
+            const providedTotal = Number(totalEstimated) || 0;
+            const finalTotal = calculatedTotal > 0 ? calculatedTotal : providedTotal;
+
+            console.log(`[COMBINE] Calculated total: ${calculatedTotal} (type: ${typeof calculatedTotal}), Provided total: ${providedTotal} (type: ${typeof totalEstimated}), Using: ${finalTotal}`);
+
             // Create the combined request
             const combinedRequest = await tx.request.create({
                 data: {
@@ -231,7 +248,7 @@ router.post('/', authMiddleware, async (req, res) => {
                     description,
                     requesterId: userId,
                     departmentId: originalRequests[0].departmentId, // Use first request's department
-                    totalEstimated: totalEstimated,
+                    totalEstimated: finalTotal,
                     currency: currency || 'USD',
                     priority: priority || 'MEDIUM',
                     status: requiresApproval ? RequestStatus.SUBMITTED : RequestStatus.DRAFT,
@@ -239,18 +256,30 @@ router.post('/', authMiddleware, async (req, res) => {
             });
 
             // Add items to the combined request
+            let itemsTotal = 0;
             for (const item of items) {
+                const quantity = Number(item.quantity) || 0;
+                const unitCost = Number(item.unitCost) || 0;
+                const itemTotalPrice = Number(item.totalCost) || quantity * unitCost;
+                itemsTotal += itemTotalPrice;
+
                 await tx.requestItem.create({
                     data: {
                         requestId: combinedRequest.id,
                         description: item.description,
-                        quantity: item.quantity,
-                        unitPrice: item.unitCost,
-                        totalPrice: item.totalCost || item.quantity * item.unitCost,
+                        quantity: quantity,
+                        unitPrice: unitCost,
+                        totalPrice: itemTotalPrice,
                         partNumber: item.originalRequests ? `From: ${item.originalRequests.join(', ')}` : undefined,
                     },
                 });
+
+                console.log(
+                    `[COMBINE] Added item: ${item.description} x${quantity} @ ${unitCost} = ${itemTotalPrice} (types: qty=${typeof quantity}, unit=${typeof unitCost}, total=${typeof itemTotalPrice})`
+                );
             }
+
+            console.log(`[COMBINE] Items total: ${itemsTotal}, Request total: ${finalTotal}`);
 
             // Mark original requests as combined (set status to a combined status or add note)
             for (const originalRequest of originalRequests) {

@@ -3215,6 +3215,128 @@ app.post('/admin/requests/:id/override-splinter', requireAdmin, async (req, res)
     }
 });
 
+// POST /requests/:id/forward-to-executive - Forward high-value request to Executive Director
+app.post('/requests/:id/forward-to-executive', async (req, res) => {
+    try {
+        const requestId = parseInt(req.params.id, 10);
+        const { comment } = req.body;
+        const userId = req.headers['x-user-id'];
+
+        if (!userId) {
+            return res.status(401).json({ error: 'User ID required' });
+        }
+
+        const userIdNum = parseInt(String(userId), 10);
+
+        // Verify user is procurement manager
+        const user = await prisma.user.findUnique({
+            where: { id: userIdNum },
+            include: { roles: { include: { role: true } } },
+        });
+
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        const userRoleInfo = checkUserRoles(user.roles.map((ur) => ur.role.name));
+
+        if (!userRoleInfo.isProcurementManager && !userRoleInfo.isAdmin) {
+            return res.status(403).json({ error: 'Only procurement managers can forward requests to Executive Director' });
+        }
+
+        // Get the request
+        const request = await prisma.request.findUnique({
+            where: { id: requestId },
+            include: {
+                requester: true,
+                department: true,
+            },
+        });
+
+        if (!request) {
+            return res.status(404).json({ error: 'Request not found' });
+        }
+
+        // Find Executive Director
+        const executiveDirector = await prisma.user.findFirst({
+            where: {
+                roles: {
+                    some: {
+                        role: {
+                            name: 'EXECUTIVE_DIRECTOR',
+                        },
+                    },
+                },
+            },
+        });
+
+        if (!executiveDirector) {
+            return res.status(404).json({ error: 'Executive Director not found in system' });
+        }
+
+        // Update request status and assign to Executive Director
+        const updatedRequest = await prisma.request.update({
+            where: { id: requestId },
+            data: {
+                status: RequestStatus.EXECUTIVE_REVIEW,
+                currentAssigneeId: executiveDirector.id,
+            },
+        });
+
+        // Create status history
+        await prisma.requestStatusHistory.create({
+            data: {
+                requestId: requestId,
+                status: RequestStatus.EXECUTIVE_REVIEW,
+                changedById: userIdNum,
+                comment: comment || 'Request forwarded to Executive Director for threshold approval',
+            },
+        });
+
+        // Create audit log
+        await prisma.requestAction.create({
+            data: {
+                requestId: requestId,
+                performedById: userIdNum,
+                action: 'COMMENT',
+                comment: `Forwarded to Executive Director: ${executiveDirector.name}${comment ? ` - ${comment}` : ''}`,
+            },
+        });
+
+        // Create notification for Executive Director
+        await prisma.notification.create({
+            data: {
+                userId: executiveDirector.id,
+                type: 'THRESHOLD_ALERT',
+                title: 'High-Value Request Requires Your Approval',
+                message: `Request ${request.reference} (${request.currency} ${request.totalEstimated?.toLocaleString()}) has been forwarded to you for approval as it exceeds procurement thresholds.`,
+                metadata: JSON.stringify({
+                    requestId: request.id,
+                    reference: request.reference,
+                    amount: request.totalEstimated,
+                    currency: request.currency,
+                    forwardedBy: user.name,
+                }),
+            },
+        });
+
+        console.log(`[FORWARD] Request ${request.reference} forwarded to Executive Director ${executiveDirector.name} by ${user.name}`);
+
+        return res.json({
+            success: true,
+            message: 'Request forwarded to Executive Director',
+            data: {
+                requestId: updatedRequest.id,
+                status: updatedRequest.status,
+                assignedTo: executiveDirector.name,
+            },
+        });
+    } catch (e: any) {
+        console.error('POST /requests/:id/forward-to-executive error:', e);
+        return res.status(500).json({ error: 'Failed to forward request', message: e?.message });
+    }
+});
+
 // POST /requests/:id/assign - Assign request to specific procurement officer
 app.post('/requests/:id/assign', async (req, res) => {
     try {

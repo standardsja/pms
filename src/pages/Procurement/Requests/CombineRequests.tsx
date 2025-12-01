@@ -11,6 +11,8 @@ import IconCircleCheck from '../../../components/Icon/IconCircleCheck';
 import { getApiUrl } from '../../../utils/api';
 import { Request } from '../../../types/request.types';
 import { getStatusBadge } from '../../../utils/statusBadges';
+import RequestDetailsContent from '../../../components/RequestDetailsContent';
+import withReactContent from 'sweetalert2-react-content';
 import {
     CombinableRequest,
     CombineRequestsConfig,
@@ -21,6 +23,8 @@ import {
     formatCombineSummary,
     DEFAULT_COMBINE_CONFIG,
 } from '../../../utils/requestCombining';
+
+const MySwal = withReactContent(Swal);
 
 const CombineRequests = () => {
     const dispatch = useDispatch();
@@ -98,9 +102,20 @@ const CombineRequests = () => {
                 // Ensure all fields are properly formatted for React rendering
                 const formattedRequests = filteredRequests.map((req: any) => ({
                     ...req,
+                    totalEstimated: Number(req.totalEstimated) || 0,
                     department: typeof req.department === 'object' ? req.department?.name || 'Unknown' : req.department || 'Unknown',
                     requestedBy: typeof req.requestedBy === 'object' ? req.requestedBy?.full_name || 'Unknown' : req.requestedBy || 'Unknown',
+                    items: Array.isArray(req.items)
+                        ? req.items.map((item: any) => ({
+                              ...item,
+                              quantity: Number(item.quantity) || 0,
+                              unitCost: Number(item.unitCost) || 0,
+                              totalCost: Number(item.totalCost) || 0,
+                          }))
+                        : [],
                 }));
+
+                console.log('📊 [COMBINE] Formatted requests sample:', formattedRequests[0]);
 
                 setRequests(formattedRequests);
             } catch (err) {
@@ -242,13 +257,38 @@ const CombineRequests = () => {
             // Prepare combined request data
             const combinedItems = config.consolidateItems ? consolidateItems(selectedRequests) : selectedRequests.flatMap((req) => req.items);
 
+            // Calculate total from items - ensure all values are numbers
+            const itemsTotal = combinedItems.reduce((sum, item) => {
+                const itemTotal = Number(item.totalCost) || Number(item.quantity) * Number(item.unitCost) || 0;
+                return sum + itemTotal;
+            }, 0);
+
+            console.log('🔢 [COMBINE] Calculating totals:', {
+                selectedRequests: selectedRequests.length,
+                selectedRequestsTotals: selectedRequests.map((r) => ({ ref: r.reference, total: r.totalEstimated, type: typeof r.totalEstimated })),
+                selectedRequestsSum: selectedRequests.reduce((sum, r) => sum + (Number(r.totalEstimated) || 0), 0),
+                items: combinedItems.length,
+                itemsTotal,
+                previewTotal: preview?.totalValue,
+                previewCombinedRequestTotal: preview?.combinedRequest?.totalEstimated,
+            });
+
             const combinedRequestData = {
                 ...preview!.combinedRequest,
                 items: combinedItems,
                 originalRequestIds: selectedRequests.map((r) => r.id),
                 combinationConfig: config,
                 requiresApproval: permissions.requiresApproval,
+                totalEstimated: Number(itemsTotal), // Ensure it's a number
             };
+
+            console.log('📦 [COMBINE] Sending data:', {
+                title: combinedRequestData.title,
+                totalEstimated: combinedRequestData.totalEstimated,
+                totalEstimatedType: typeof combinedRequestData.totalEstimated,
+                itemCount: combinedItems.length,
+                originalRequestCount: selectedRequests.length,
+            });
 
             const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
             const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
@@ -296,6 +336,25 @@ const CombineRequests = () => {
         } finally {
             setIsLoading(false);
             setShowCombineModal(false);
+        }
+    };
+
+    // View request details modal
+    const viewDetails = (req: CombinableRequest) => {
+        console.log('👁️ [COMBINE] View details clicked for request:', req.reference);
+        console.log('👁️ [COMBINE] Request data:', req);
+
+        try {
+            MySwal.fire({
+                html: <RequestDetailsContent request={req as any} />,
+                width: '800px',
+                showCloseButton: true,
+                showConfirmButton: false,
+                customClass: { popup: 'text-left' },
+            });
+            console.log('👁️ [COMBINE] Modal opened successfully');
+        } catch (error) {
+            console.error('👁️ [COMBINE] Error opening modal:', error);
         }
     };
 
@@ -436,7 +495,7 @@ const CombineRequests = () => {
                                         </td>
                                         <td>{new Date(request.createdAt).toLocaleDateString()}</td>
                                         <td>
-                                            <button type="button" className="btn btn-sm btn-outline-primary" onClick={() => navigate('/apps/requests')}>
+                                            <button type="button" className="btn btn-sm btn-outline-primary" onClick={() => viewDetails(request)} title="View Details">
                                                 <IconEye className="w-4 h-4" />
                                             </button>
                                         </td>
