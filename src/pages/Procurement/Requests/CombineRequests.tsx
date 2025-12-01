@@ -115,20 +115,40 @@ const CombineRequests = () => {
 
     // Check permissions for current user
     const permissions = useMemo(() => {
-        if (!user) return { canCombine: false, requiresApproval: false, reasons: ['Not authenticated'] };
+        if (!user) {
+            console.log('🔒 [COMBINE] No user - not authenticated');
+            return { canCombine: false, requiresApproval: false, reasons: ['Not authenticated'] };
+        }
 
         // Get user roles - handle different possible role structures
         const userRoles = user.roles || [];
         const userDepartment = user.department_name || '';
 
-        // Debug log to see what we're working with
-        console.log('User roles:', userRoles, 'Department:', userDepartment, 'Selected requests:', selectedRequests.length);
+        console.log('🔒 [COMBINE] Permission check:', {
+            userRoles,
+            userDepartment,
+            selectedCount: selectedRequests.length,
+            user: user.name,
+        });
 
-        return checkCombinePermissions(userRoles, userDepartment, selectedRequests);
+        const perms = checkCombinePermissions(userRoles, userDepartment, selectedRequests);
+
+        console.log('🔒 [COMBINE] Permission result:', perms);
+
+        return perms;
     }, [user, selectedRequests]);
 
     // Validation and preview
-    const validation = useMemo(() => validateRequestCombination(selectedRequests), [selectedRequests]);
+    const validation = useMemo(() => {
+        const result = validateRequestCombination(selectedRequests);
+        console.log('✅ [COMBINE] Validation result:', {
+            isValid: result.isValid,
+            errors: result.errors,
+            warnings: result.warnings,
+            selectedCount: selectedRequests.length,
+        });
+        return result;
+    }, [selectedRequests]);
 
     const preview = useMemo(() => (selectedRequests.length >= 2 ? generateCombinePreview(selectedRequests, config) : null), [selectedRequests, config]);
 
@@ -152,7 +172,16 @@ const CombineRequests = () => {
     };
 
     const handleCombineClick = () => {
+        console.log('🔘 [COMBINE] Combine button clicked:', {
+            selectedCount: selectedRequests.length,
+            validationValid: validation.isValid,
+            canCombine: permissions.canCombine,
+            validationErrors: validation.errors,
+            permissionReasons: permissions.reasons,
+        });
+
         if (!validation.isValid) {
+            console.log('❌ [COMBINE] Validation failed');
             Swal.fire({
                 title: 'Cannot Combine Requests',
                 html: `<ul style="text-align: left;">${validation.errors.map((e) => `<li>${e}</li>`).join('')}</ul>`,
@@ -162,6 +191,7 @@ const CombineRequests = () => {
         }
 
         if (!permissions.canCombine) {
+            console.log('❌ [COMBINE] Permission denied');
             Swal.fire({
                 title: 'Permission Denied',
                 html: `<ul style="text-align: left;">${permissions.reasons.map((r) => `<li>${r}</li>`).join('')}</ul>`,
@@ -169,6 +199,8 @@ const CombineRequests = () => {
             });
             return;
         }
+
+        console.log('✅ [COMBINE] Showing combine modal');
 
         // Auto-generate title and description if empty
         if (!config.combinedTitle) {
