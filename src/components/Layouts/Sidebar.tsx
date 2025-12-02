@@ -78,6 +78,11 @@ const Sidebar = () => {
         ? '/apps/requests'
         : '/procurement/dashboard';
 
+    // Debug logging for dashboard path
+    console.log('[SIDEBAR] User roles:', userRoles);
+    console.log('[SIDEBAR] isProcurementManager:', isProcurementManager);
+    console.log('[SIDEBAR] Calculated dashboardPath:', dashboardPath);
+
     const toggleMenu = (value: string) => {
         setCurrentMenu((oldValue) => {
             return oldValue === value ? '' : value;
@@ -115,7 +120,7 @@ const Sidebar = () => {
             >
                 <div className="bg-white dark:bg-black h-full">
                     <div className="flex justify-between items-center px-4 py-3">
-                        <NavLink to={dashboardPath} className="main-logo flex items-center shrink-0">
+                        <NavLink to={dashboardPath} className="main-logo flex items-center shrink-0" replace>
                             <span className="text-3xl">🌀</span>
                             <span className="text-xl ltr:ml-2 rtl:mr-2 font-bold align-middle lg:inline dark:text-white-light tracking-wider">SPINX</span>
                         </NavLink>
