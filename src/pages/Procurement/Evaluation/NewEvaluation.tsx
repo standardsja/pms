@@ -49,6 +49,7 @@ const NewEvaluation = () => {
                 // Pre-fill form data from combined request
                 setFormData((prev) => ({
                     ...prev,
+                    rfqNumber: data.reference || '',
                     rfqTitle: data.title,
                     description: data.description || '',
                 }));
