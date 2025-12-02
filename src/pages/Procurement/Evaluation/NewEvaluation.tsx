@@ -138,35 +138,102 @@ const NewEvaluation = () => {
 
     const totalSteps = 5; // Background, Section A, Section B, Section C, Sections D & E
 
-    // Section B - Compliance Matrix (dynamic rows)
-    type ComplianceRow = { clause: string; requirement: string; bidderResponse: string };
+    // Section B - Compliance Matrix (fully customizable table)
+    type ComplianceColumn = { id: string; name: string; width?: string };
+    type ComplianceRow = { id: string; data: Record<string, string> };
+    
+    const [complianceColumns, setComplianceColumns] = useState<ComplianceColumn[]>([
+        { id: 'col-1', name: 'Clause', width: '120px' },
+        { id: 'col-2', name: 'COMPLIANCE MATRIX', width: 'auto' },
+        { id: 'col-3', name: 'Stationery & Office Supplies', width: 'auto' },
+    ]);
+    
     const [complianceRows, setComplianceRows] = useState<ComplianceRow[]>([
-        { clause: 'ITB 14.1', requirement: 'Signed Letter of Quotation', bidderResponse: 'N/A' },
-        { clause: '', requirement: 'Signed price and delivery schedules', bidderResponse: 'N/A' },
-        { clause: '', requirement: 'Signed and Statement of Compliance', bidderResponse: 'N/A' },
-        { clause: '', requirement: 'Bid Validity of 30 day', bidderResponse: 'YES' },
-        { clause: '', requirement: 'Quotation', bidderResponse: 'YES' },
-        { clause: '', requirement: 'Bid Amount (Inclusive of GCT)', bidderResponse: '$49,680.00' },
+        { id: 'row-1', data: { 'col-1': 'ITB 14.1', 'col-2': 'Signed Letter of Quotation', 'col-3': 'N/A' } },
+        { id: 'row-2', data: { 'col-1': '', 'col-2': 'Signed price and delivery schedules', 'col-3': 'N/A' } },
+        { id: 'row-3', data: { 'col-1': '', 'col-2': 'Signed and Statement of Compliance', 'col-3': 'N/A' } },
+        { id: 'row-4', data: { 'col-1': '', 'col-2': 'Bid Validity of 30 day', 'col-3': 'YES' } },
+        { id: 'row-5', data: { 'col-1': '', 'col-2': 'Quotation', 'col-3': 'YES' } },
+        { id: 'row-6', data: { 'col-1': '', 'col-2': 'Bid Amount (Inclusive of GCT)', 'col-3': '$49,680.00' } },
     ]);
 
-    // Section B.A - Eligibility Requirements (dynamic rows)
-    type EligibilityRow = { label: string; value: string };
+    const updateComplianceCell = (rowId: string, colId: string, value: string) => {
+        setComplianceRows((rows) => rows.map((r) => (r.id === rowId ? { ...r, data: { ...r.data, [colId]: value } } : r)));
+    };
+
+    const addComplianceRow = () => {
+        const newRow: ComplianceRow = {
+            id: `row-${Date.now()}`,
+            data: complianceColumns.reduce((acc, col) => ({ ...acc, [col.id]: '' }), {}),
+        };
+        setComplianceRows((rows) => [...rows, newRow]);
+    };
+
+    const removeComplianceRow = (rowId: string) => {
+        setComplianceRows((rows) => rows.filter((r) => r.id !== rowId));
+    };
+
+    const addComplianceColumn = () => {
+        const colId = `col-${Date.now()}`;
+        const newCol: ComplianceColumn = { id: colId, name: 'New Column', width: 'auto' };
+        setComplianceColumns((cols) => [...cols, newCol]);
+        setComplianceRows((rows) => rows.map((r) => ({ ...r, data: { ...r.data, [colId]: '' } })));
+    };
+
+    const removeComplianceColumn = (colId: string) => {
+        setComplianceColumns((cols) => cols.filter((c) => c.id !== colId));
+        setComplianceRows((rows) => rows.map((r) => ({ ...r, data: Object.fromEntries(Object.entries(r.data).filter(([k]) => k !== colId)) })));
+    };
+
+    const updateComplianceColumnName = (colId: string, newName: string) => {
+        setComplianceColumns((cols) => cols.map((c) => (c.id === colId ? { ...c, name: newName } : c)));
+    };
+
+    // Section B.A - Eligibility Requirements (fully customizable table)
+    type EligibilityColumn = { id: string; name: string; width?: string };
+    type EligibilityRow = { id: string; data: Record<string, string> };
+    
+    const [eligibilityColumns, setEligibilityColumns] = useState<EligibilityColumn[]>([
+        { id: 'col-1', name: 'ELIGIBILITY REQUIREMENT', width: 'auto' },
+        { id: 'col-2', name: 'Stationery & Office Supplies', width: 'auto' },
+    ]);
+    
     const [eligibilityRows, setEligibilityRows] = useState<EligibilityRow[]>([
-        { label: 'PPC Reg in the category of:', value: '' },
-        { label: 'TCI/TRN', value: '' },
-        { label: 'Bid Amount (Inclusive of GCT)', value: '' },
+        { id: 'row-1', data: { 'col-1': 'PPC Reg in the category of:', 'col-2': '' } },
+        { id: 'row-2', data: { 'col-1': 'TCI/TRN', 'col-2': '' } },
+        { id: 'row-3', data: { 'col-1': 'Bid Amount (Inclusive of GCT)', 'col-2': '' } },
     ]);
 
-    const updateEligibilityRow = (index: number, key: keyof EligibilityRow, value: string) => {
-        setEligibilityRows((rows) => rows.map((r, i) => (i === index ? { ...r, [key]: value } : r)));
+    const updateEligibilityCell = (rowId: string, colId: string, value: string) => {
+        setEligibilityRows((rows) => rows.map((r) => (r.id === rowId ? { ...r, data: { ...r.data, [colId]: value } } : r)));
     };
 
     const addEligibilityRow = () => {
-        setEligibilityRows((rows) => [...rows, { label: '', value: '' }]);
+        const newRow: EligibilityRow = {
+            id: `row-${Date.now()}`,
+            data: eligibilityColumns.reduce((acc, col) => ({ ...acc, [col.id]: '' }), {}),
+        };
+        setEligibilityRows((rows) => [...rows, newRow]);
     };
 
-    const removeEligibilityRow = (index: number) => {
-        setEligibilityRows((rows) => rows.filter((_, i) => i !== index));
+    const removeEligibilityRow = (rowId: string) => {
+        setEligibilityRows((rows) => rows.filter((r) => r.id !== rowId));
+    };
+
+    const addEligibilityColumn = () => {
+        const colId = `col-${Date.now()}`;
+        const newCol: EligibilityColumn = { id: colId, name: 'New Column', width: 'auto' };
+        setEligibilityColumns((cols) => [...cols, newCol]);
+        setEligibilityRows((rows) => rows.map((r) => ({ ...r, data: { ...r.data, [colId]: '' } })));
+    };
+
+    const removeEligibilityColumn = (colId: string) => {
+        setEligibilityColumns((cols) => cols.filter((c) => c.id !== colId));
+        setEligibilityRows((rows) => rows.map((r) => ({ ...r, data: Object.fromEntries(Object.entries(r.data).filter(([k]) => k !== colId)) })));
+    };
+
+    const updateEligibilityColumnName = (colId: string, newName: string) => {
+        setEligibilityColumns((cols) => cols.map((c) => (c.id === colId ? { ...c, name: newName } : c)));
     };
 
     // Section B.C - Technical Evaluation (fully customizable table)
@@ -224,18 +291,6 @@ const NewEvaluation = () => {
 
     const updateColumnName = (colId: string, newName: string) => {
         setTechnicalColumns((cols) => cols.map((c) => (c.id === colId ? { ...c, name: newName } : c)));
-    };
-
-    const updateComplianceRow = (index: number, key: keyof ComplianceRow, value: string) => {
-        setComplianceRows((rows) => rows.map((r, i) => (i === index ? { ...r, [key]: value } : r)));
-    };
-
-    const addComplianceRow = () => {
-        setComplianceRows((rows) => [...rows, { clause: '', requirement: '', bidderResponse: '' }]);
-    };
-
-    const removeComplianceRow = (index: number) => {
-        setComplianceRows((rows) => rows.filter((_, i) => i !== index));
     };
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -385,22 +440,24 @@ const NewEvaluation = () => {
                 sectionB: {
                     bidders: [
                         {
-                            bidderName: (technicalRows[0]?.bidderName || '').trim(),
-                            ppcCategory: eligibilityRows.find((r) => r.label.toLowerCase().includes('ppc'))?.value?.trim() || '',
-                            tciTrn: eligibilityRows.find((r) => r.label.toLowerCase().includes('tci') || r.label.toLowerCase().includes('trn'))?.value?.trim() || '',
-                            bidAmountInclusiveGCT: (() => {
-                                const fromEligibility = eligibilityRows.find((r) => r.label.toLowerCase().includes('amount'))?.value;
-                                const fromTech = technicalRows[0]?.bidAmount;
-                                const val = fromEligibility && fromEligibility.trim() !== '' ? fromEligibility : fromTech;
-                                return safeParseFloat(val);
-                            })(),
+                            bidderName: '', // Can be extracted from table if needed
+                            eligibilityRequirements: {
+                                columns: eligibilityColumns,
+                                rows: eligibilityRows
+                                    .filter((row) => Object.values(row.data).some((val) => val.trim() !== ''))
+                                    .map((row) => ({
+                                        id: row.id,
+                                        data: row.data,
+                                    })),
+                            },
                             complianceMatrix: {
-                                signedLetterOfQuotation: complianceRows.some((r) => r.requirement.toLowerCase().includes('letter of quotation')),
-                                signedPriceSchedules: complianceRows.some((r) => r.requirement.toLowerCase().includes('price')),
-                                signedStatementOfCompliance: complianceRows.some((r) => r.requirement.toLowerCase().includes('compliance')),
-                                bidValidity30Days: complianceRows.some((r) => r.requirement.toLowerCase().includes('validity')),
-                                quotationProvided: complianceRows.some((r) => r.requirement.toLowerCase().includes('quotation')),
-                                bidAmountMatches: complianceRows.some((r) => r.requirement.toLowerCase().includes('amount')),
+                                columns: complianceColumns,
+                                rows: complianceRows
+                                    .filter((row) => Object.values(row.data).some((val) => val.trim() !== ''))
+                                    .map((row) => ({
+                                        id: row.id,
+                                        data: row.data,
+                                    })),
                             },
                             technicalEvaluation: {
                                 columns: technicalColumns,
@@ -1023,51 +1080,73 @@ const NewEvaluation = () => {
                         </div>
 
                         <div className="space-y-6 p-5">
-                            {/* A. Eligibility Requirements */}
+                            {/* A. Eligibility Requirements - Fully Customizable Table */}
                             <div>
                                 <h6 className="text-md font-bold mb-4">A. Eligibility Requirements</h6>
                                 <div className="flex items-center justify-between mb-2">
-                                    <p className="text-xs text-gray-500">Add or remove eligibility details as needed.</p>
-                                    <button type="button" onClick={addEligibilityRow} className="btn btn-outline-primary btn-sm">
-                                        Add Row
-                                    </button>
+                                    <p className="text-xs text-gray-500">Customize columns and rows for eligibility details.</p>
+                                    <div className="flex gap-2">
+                                        <button type="button" onClick={addEligibilityColumn} className="btn btn-outline-info btn-sm">
+                                            + Add Column
+                                        </button>
+                                        <button type="button" onClick={addEligibilityRow} className="btn btn-outline-primary btn-sm">
+                                            + Add Row
+                                        </button>
+                                    </div>
                                 </div>
                                 <div className="overflow-x-auto">
                                     <table className="table-auto w-full border-collapse border border-gray-300 dark:border-gray-600">
                                         <thead>
                                             <tr className="bg-gray-100 dark:bg-gray-800">
-                                                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">ELIGIBILITY REQUIREMENT</th>
-                                                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Stationery & Office Supplies</th>
+                                                {eligibilityColumns.map((col) => (
+                                                    <th key={col.id} className="border border-gray-300 dark:border-gray-600 px-2 py-2" style={{ width: col.width }}>
+                                                        <div className="flex items-center gap-2">
+                                                            <input
+                                                                type="text"
+                                                                className="form-input text-sm font-semibold bg-transparent border-0 p-1"
+                                                                value={col.name}
+                                                                onChange={(e) => updateEligibilityColumnName(col.id, e.target.value)}
+                                                                placeholder="Column name"
+                                                            />
+                                                            {eligibilityColumns.length > 1 && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => removeEligibilityColumn(col.id)}
+                                                                    className="text-danger hover:bg-danger hover:text-white p-1 rounded transition-colors"
+                                                                    title="Remove column"
+                                                                >
+                                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                                    </svg>
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </th>
+                                                ))}
                                                 <th className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-left font-semibold w-24">Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {eligibilityRows.map((row, idx) => (
-                                                <tr key={idx}>
-                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2">
-                                                        <input
-                                                            type="text"
-                                                            className="form-input w-full"
-                                                            value={row.label}
-                                                            onChange={(e) => updateEligibilityRow(idx, 'label', e.target.value)}
-                                                            placeholder={idx === 0 ? 'PPC Reg in the category of:' : 'Requirement label'}
-                                                        />
-                                                    </td>
-                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2">
-                                                        <input
-                                                            type="text"
-                                                            className="form-input w-full"
-                                                            value={row.value}
-                                                            onChange={(e) => updateEligibilityRow(idx, 'value', e.target.value)}
-                                                            placeholder="Value"
-                                                        />
-                                                    </td>
-                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-right">
+                                            {eligibilityRows.map((row) => (
+                                                <tr key={row.id}>
+                                                    {eligibilityColumns.map((col) => (
+                                                        <td key={col.id} className="border border-gray-300 dark:border-gray-600 px-2 py-2">
+                                                            <input
+                                                                type="text"
+                                                                className="form-input w-full text-sm"
+                                                                value={row.data[col.id] || ''}
+                                                                onChange={(e) => updateEligibilityCell(row.id, col.id, e.target.value)}
+                                                                placeholder="Enter value"
+                                                            />
+                                                        </td>
+                                                    ))}
+                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-center">
                                                         <button
                                                             type="button"
-                                                            onClick={() => removeEligibilityRow(idx)}
+                                                            onClick={() => removeEligibilityRow(row.id)}
                                                             className="btn btn-outline-danger btn-sm"
                                                             disabled={eligibilityRows.length <= 1}
+                                                            title="Remove row"
                                                         >
                                                             Remove
                                                         </button>
@@ -1079,57 +1158,74 @@ const NewEvaluation = () => {
                                 </div>
                             </div>
 
-                            {/* B. Compliance Matrix */}
+                            {/* B. Compliance Matrix - Fully Customizable Table */}
                             <div>
                                 <h6 className="text-md font-bold mb-4">B. Compliance Matrix</h6>
                                 <div className="flex items-center justify-between mb-2">
-                                    <p className="text-xs text-gray-500">Add or remove rows as needed.</p>
-                                    <button type="button" onClick={addComplianceRow} className="btn btn-outline-primary btn-sm">
-                                        Add Row
-                                    </button>
+                                    <p className="text-xs text-gray-500">Customize columns and rows for compliance tracking.</p>
+                                    <div className="flex gap-2">
+                                        <button type="button" onClick={addComplianceColumn} className="btn btn-outline-info btn-sm">
+                                            + Add Column
+                                        </button>
+                                        <button type="button" onClick={addComplianceRow} className="btn btn-outline-primary btn-sm">
+                                            + Add Row
+                                        </button>
+                                    </div>
                                 </div>
                                 <div className="overflow-x-auto">
                                     <table className="table-auto w-full border-collapse border border-gray-300 dark:border-gray-600">
                                         <thead>
                                             <tr className="bg-gray-100 dark:bg-gray-800">
-                                                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Clause</th>
-                                                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">COMPLIANCE MATRIX</th>
-                                                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Stationery & Office Supplies</th>
+                                                {complianceColumns.map((col) => (
+                                                    <th key={col.id} className="border border-gray-300 dark:border-gray-600 px-2 py-2" style={{ width: col.width }}>
+                                                        <div className="flex items-center gap-2">
+                                                            <input
+                                                                type="text"
+                                                                className="form-input text-sm font-semibold bg-transparent border-0 p-1"
+                                                                value={col.name}
+                                                                onChange={(e) => updateComplianceColumnName(col.id, e.target.value)}
+                                                                placeholder="Column name"
+                                                            />
+                                                            {complianceColumns.length > 1 && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => removeComplianceColumn(col.id)}
+                                                                    className="text-danger hover:bg-danger hover:text-white p-1 rounded transition-colors"
+                                                                    title="Remove column"
+                                                                >
+                                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                                    </svg>
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </th>
+                                                ))}
                                                 <th className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-left font-semibold w-24">Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {complianceRows.map((row, idx) => (
-                                                <tr key={idx}>
-                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2">
-                                                        <input
-                                                            type="text"
-                                                            className="form-input w-full"
-                                                            value={row.clause}
-                                                            onChange={(e) => updateComplianceRow(idx, 'clause', e.target.value)}
-                                                            placeholder={idx === 0 ? 'ITB 14.1' : ''}
-                                                        />
-                                                    </td>
-                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2">
-                                                        <input
-                                                            type="text"
-                                                            className="form-input w-full"
-                                                            value={row.requirement}
-                                                            onChange={(e) => updateComplianceRow(idx, 'requirement', e.target.value)}
-                                                            placeholder="Requirement"
-                                                        />
-                                                    </td>
-                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2">
-                                                        <input
-                                                            type="text"
-                                                            className="form-input w-full"
-                                                            value={row.bidderResponse}
-                                                            onChange={(e) => updateComplianceRow(idx, 'bidderResponse', e.target.value)}
-                                                            placeholder="N/A / YES / $..."
-                                                        />
-                                                    </td>
-                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-right">
-                                                        <button type="button" onClick={() => removeComplianceRow(idx)} className="btn btn-outline-danger btn-sm" disabled={complianceRows.length <= 1}>
+                                            {complianceRows.map((row) => (
+                                                <tr key={row.id}>
+                                                    {complianceColumns.map((col) => (
+                                                        <td key={col.id} className="border border-gray-300 dark:border-gray-600 px-2 py-2">
+                                                            <input
+                                                                type="text"
+                                                                className="form-input w-full text-sm"
+                                                                value={row.data[col.id] || ''}
+                                                                onChange={(e) => updateComplianceCell(row.id, col.id, e.target.value)}
+                                                                placeholder="Enter value"
+                                                            />
+                                                        </td>
+                                                    ))}
+                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-center">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => removeComplianceRow(row.id)}
+                                                            className="btn btn-outline-danger btn-sm"
+                                                            disabled={complianceRows.length <= 1}
+                                                            title="Remove row"
+                                                        >
                                                             Remove
                                                         </button>
                                                     </td>
