@@ -28,6 +28,15 @@ export const EvaluationForm: React.FC<Props> = ({ mode, evaluation, canEditSecti
 
     const canEdit = (sec: 'A' | 'B' | 'C' | 'D' | 'E') => canEditSections.includes(sec);
 
+    // Keep local section state in sync when evaluation prop updates
+    React.useEffect(() => {
+        setSectionA(evaluation?.sectionA);
+        setSectionB(evaluation?.sectionB);
+        setSectionC(evaluation?.sectionC);
+        setSectionD(evaluation?.sectionD);
+        setSectionE(evaluation?.sectionE);
+    }, [evaluation?.sectionA, evaluation?.sectionB, evaluation?.sectionC, evaluation?.sectionD, evaluation?.sectionE]);
+
     const saveSec = async (sec: 'A' | 'B' | 'C' | 'D' | 'E') => {
         if (!onSaveSection) return;
         setSaving(true);
