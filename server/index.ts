@@ -4015,7 +4015,7 @@ app.post(
     authMiddleware,
     asyncHandler(async (req, res) => {
         const user = (req as any).user;
-        const { evalNumber, rfqNumber, rfqTitle, description, sectionA, sectionB, sectionC, sectionD, sectionE, dueDate, evaluator, submitToCommittee: submitToCommitteeRaw } = req.body;
+        const { evalNumber, rfqNumber, rfqTitle, description, sectionA, sectionB, sectionC, sectionD, sectionE, dueDate, evaluator, submitToCommittee: submitToCommitteeRaw, combinedRequestId } = req.body;
         const submitToCommittee = Boolean(submitToCommitteeRaw);
 
         // JWT payload uses 'sub' for user ID, fallback to 'id' for compatibility
@@ -4028,6 +4028,7 @@ app.post(
             description,
             dueDate,
             evaluator,
+            combinedRequestId,
             sectionA: JSON.stringify(sectionA),
             userId,
         });
@@ -4054,6 +4055,7 @@ app.post(
                         rfqNumber,
                         rfqTitle,
                         description: description || null,
+                        combinedRequestId: combinedRequestId ? parseInt(combinedRequestId) : null,
                         sectionA: sectionA || null,
                         sectionAStatus: sectionA && submitToCommittee ? 'SUBMITTED' : 'NOT_STARTED',
                         sectionB: sectionB || null,
