@@ -53,9 +53,6 @@ const NewEvaluation = () => {
         background: '',
         dateSubmissionConsidered: '',
         reportCompletionDate: '',
-        rfqNumber: '',
-        rfqTitle: '',
-        description: '',
         comparableEstimate: '',
         fundedBy: 'BSJ',
         tenderClosingDate: '',
@@ -255,9 +252,9 @@ const NewEvaluation = () => {
             // Prepare the evaluation data matching the backend API structure
             const evaluationData: CreateEvaluationDTO = {
                 evalNumber,
-                rfqNumber: formData.rfqNumber,
-                rfqTitle: formData.rfqTitle,
-                description: formData.description || formData.notes || undefined,
+                rfqNumber: evalNumber,
+                rfqTitle: 'BSJ Evaluation Report',
+                description: formData.background || undefined,
                 evaluator: formData.evaluator || undefined,
                 dueDate: formData.bidValidityExpiration || undefined,
                 sectionA: {
@@ -510,12 +507,21 @@ const NewEvaluation = () => {
                                 <input
                                     id="comparableEstimate"
                                     name="comparableEstimate"
-                                    type="number"
-                                    step="0.01"
+                                    type="text"
                                     className="form-input w-full"
                                     placeholder="$49,680.00"
-                                    value={formData.comparableEstimate}
-                                    onChange={handleInputChange}
+                                    value={
+                                        formData.comparableEstimate
+                                            ? new Intl.NumberFormat('en-US', {
+                                                  style: 'currency',
+                                                  currency: 'USD',
+                                              }).format(parseFloat(formData.comparableEstimate.replace(/[^0-9.-]+/g, '')) || 0)
+                                            : ''
+                                    }
+                                    onChange={(e) => {
+                                        const value = e.target.value.replace(/[^0-9.-]+/g, '');
+                                        setFormData({ ...formData, comparableEstimate: value });
+                                    }}
                                     required
                                 />
                             </div>
