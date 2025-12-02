@@ -236,15 +236,15 @@ const NewEvaluation = () => {
         setEligibilityColumns((cols) => cols.map((c) => (c.id === colId ? { ...c, name: newName } : c)));
     };
 
-    // Section B.C - Technical Evaluation (fully customizable table)
-    type TechnicalColumn = { id: string; name: string; width?: string };
+    // Section B.C - Technical Evaluation (fully customizable table with cell types)
+    type TechnicalColumn = { id: string; name: string; width?: string; cellType?: 'text' | 'radio' };
     type TechnicalRow = { id: string; data: Record<string, string> };
 
     const [technicalColumns, setTechnicalColumns] = useState<TechnicalColumn[]>([
-        { id: 'col-1', name: 'Specifications', width: 'auto' },
-        { id: 'col-2', name: 'Quantity', width: '120px' },
-        { id: 'col-3', name: 'Stationery & Office Supplies', width: 'auto' },
-        { id: 'col-4', name: 'Bid Amount (Inclusive of GCT)', width: '200px' },
+        { id: 'col-1', name: 'Specifications', width: 'auto', cellType: 'text' },
+        { id: 'col-2', name: 'Quantity', width: '120px', cellType: 'text' },
+        { id: 'col-3', name: 'Stationery & Office Supplies', width: 'auto', cellType: 'text' },
+        { id: 'col-4', name: 'Bid Amount (Inclusive of GCT)', width: '200px', cellType: 'text' },
     ]);
 
     const [technicalRows, setTechnicalRows] = useState<TechnicalRow[]>([
@@ -277,7 +277,7 @@ const NewEvaluation = () => {
 
     const addTechnicalColumn = () => {
         const colId = `col-${Date.now()}`;
-        const newCol: TechnicalColumn = { id: colId, name: 'New Column', width: 'auto' };
+        const newCol: TechnicalColumn = { id: colId, name: 'New Column', width: 'auto', cellType: 'text' };
         setTechnicalColumns((cols) => [...cols, newCol]);
         // Add empty data for this column in all existing rows
         setTechnicalRows((rows) => rows.map((r) => ({ ...r, data: { ...r.data, [colId]: '' } })));
@@ -291,6 +291,20 @@ const NewEvaluation = () => {
 
     const updateColumnName = (colId: string, newName: string) => {
         setTechnicalColumns((cols) => cols.map((c) => (c.id === colId ? { ...c, name: newName } : c)));
+    };
+
+    const updateColumnType = (colId: string, cellType: 'text' | 'radio') => {
+        setTechnicalColumns((cols) => cols.map((c) => (c.id === colId ? { ...c, cellType } : c)));
+        // If switching to radio, clear values that aren't Yes/No
+        if (cellType === 'radio') {
+            setTechnicalRows((rows) =>
+                rows.map((r) => {
+                    const currentValue = r.data[colId]?.toLowerCase();
+                    const newValue = currentValue === 'yes' || currentValue === 'no' ? currentValue.charAt(0).toUpperCase() + currentValue.slice(1) : '';
+                    return { ...r, data: { ...r.data, [colId]: newValue } };
+                })
+            );
+        }
     };
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -1256,26 +1270,39 @@ const NewEvaluation = () => {
                                             <tr className="bg-gray-100 dark:bg-gray-800">
                                                 {technicalColumns.map((col) => (
                                                     <th key={col.id} className="border border-gray-300 dark:border-gray-600 px-2 py-2" style={{ width: col.width }}>
-                                                        <div className="flex items-center gap-2">
-                                                            <input
-                                                                type="text"
-                                                                className="form-input text-sm font-semibold bg-transparent border-0 p-1"
-                                                                value={col.name}
-                                                                onChange={(e) => updateColumnName(col.id, e.target.value)}
-                                                                placeholder="Column name"
-                                                            />
-                                                            {technicalColumns.length > 1 && (
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => removeTechnicalColumn(col.id)}
-                                                                    className="text-danger hover:bg-danger hover:text-white p-1 rounded transition-colors"
-                                                                    title="Remove column"
+                                                        <div className="flex flex-col gap-2">
+                                                            <div className="flex items-center gap-2">
+                                                                <input
+                                                                    type="text"
+                                                                    className="form-input text-sm font-semibold bg-transparent border-0 p-1 flex-1"
+                                                                    value={col.name}
+                                                                    onChange={(e) => updateColumnName(col.id, e.target.value)}
+                                                                    placeholder="Column name"
+                                                                />
+                                                                {technicalColumns.length > 1 && (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => removeTechnicalColumn(col.id)}
+                                                                        className="text-danger hover:bg-danger hover:text-white p-1 rounded transition-colors"
+                                                                        title="Remove column"
+                                                                    >
+                                                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                                        </svg>
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                <select
+                                                                    className="form-select text-xs py-1 px-2"
+                                                                    value={col.cellType || 'text'}
+                                                                    onChange={(e) => updateColumnType(col.id, e.target.value as 'text' | 'radio')}
+                                                                    title="Cell type"
                                                                 >
-                                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                                                    </svg>
-                                                                </button>
-                                                            )}
+                                                                    <option value="text">Text</option>
+                                                                    <option value="radio">Yes/No</option>
+                                                                </select>
+                                                            </div>
                                                         </div>
                                                     </th>
                                                 ))}
@@ -1287,13 +1314,38 @@ const NewEvaluation = () => {
                                                 <tr key={row.id}>
                                                     {technicalColumns.map((col) => (
                                                         <td key={col.id} className="border border-gray-300 dark:border-gray-600 px-2 py-2 align-top">
-                                                            <textarea
-                                                                className="form-textarea w-full text-sm"
-                                                                rows={2}
-                                                                placeholder="Enter value"
-                                                                value={row.data[col.id] || ''}
-                                                                onChange={(e) => updateTechnicalCell(row.id, col.id, e.target.value)}
-                                                            />
+                                                            {col.cellType === 'radio' ? (
+                                                                <div className="flex items-center gap-4 justify-center">
+                                                                    <label className="flex items-center gap-1 cursor-pointer">
+                                                                        <input
+                                                                            type="radio"
+                                                                            name={`${row.id}-${col.id}`}
+                                                                            className="form-radio"
+                                                                            checked={row.data[col.id] === 'Yes'}
+                                                                            onChange={() => updateTechnicalCell(row.id, col.id, 'Yes')}
+                                                                        />
+                                                                        <span className="text-sm">Yes</span>
+                                                                    </label>
+                                                                    <label className="flex items-center gap-1 cursor-pointer">
+                                                                        <input
+                                                                            type="radio"
+                                                                            name={`${row.id}-${col.id}`}
+                                                                            className="form-radio"
+                                                                            checked={row.data[col.id] === 'No'}
+                                                                            onChange={() => updateTechnicalCell(row.id, col.id, 'No')}
+                                                                        />
+                                                                        <span className="text-sm">No</span>
+                                                                    </label>
+                                                                </div>
+                                                            ) : (
+                                                                <textarea
+                                                                    className="form-textarea w-full text-sm"
+                                                                    rows={2}
+                                                                    placeholder="Enter value"
+                                                                    value={row.data[col.id] || ''}
+                                                                    onChange={(e) => updateTechnicalCell(row.id, col.id, e.target.value)}
+                                                                />
+                                                            )}
                                                         </td>
                                                     ))}
                                                     <td className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-center">
