@@ -637,6 +637,12 @@ model Evaluation {
   rfqTitle       String
   description    String?           @db.Text
   status         EvaluationStatus  @default(PENDING)
+  // Assigned Procurement Officer responsible for drafting Section B
+  assignedProcurementOfficerId Int?
+  assignedProcurementOfficer   User?    @relation("AssignedProcurementOfficer", fields: [assignedProcurementOfficerId], references: [id])
+
+  // Section B drafting/verification status gate
+  sectionBStatus SectionBStatus @default(DRAFT)
   
   // Link to combined request (if evaluating multiple lots)
   combinedRequest   CombinedRequest? @relation("CombinedRequestEvaluations", fields: [combinedRequestId], references: [id])
@@ -703,6 +709,7 @@ model Evaluation {
   @@index([createdBy])
   @@index([evalNumber])
   @@index([rfqNumber])
+
 }
 
 /// Per-user assignment to contribute to an Evaluation
