@@ -91,8 +91,8 @@ const Requests = () => {
                 const adapted = adaptRequestsResponse(payload);
                 setRequests(adapted);
 
-                // Fetch combined requests if user has procurement access
-                if (currentUserRoles.some((role) => role.toUpperCase().includes('PROCUREMENT') || role.toUpperCase().includes('MANAGER'))) {
+                // Fetch combined requests if user has procurement access (only after roles are loaded)
+                if (currentUserRoles.length > 0 && currentUserRoles.some((role) => role.toUpperCase().includes('PROCUREMENT') || role.toUpperCase().includes('MANAGER'))) {
                     try {
                         const combinedRes = await fetch(getApiUrl('/api/requests/combine'), {
                             headers,
@@ -102,9 +102,14 @@ const Requests = () => {
                             const combinedData = await combinedRes.json();
                             // The endpoint returns array of combined request objects when no query param
                             setCombinedRequests(combinedData);
+                        } else if (combinedRes.status === 403) {
+                            // User doesn't have permission, silently ignore
+                            setCombinedRequests([]);
                         }
                     } catch (e) {
-                        console.error('Failed to fetch combined requests:', e);
+                        // Silently fail - combined requests are optional
+                        console.debug('Combined requests not available:', e);
+                        setCombinedRequests([]);
                     }
                 }
             } catch (e: unknown) {
@@ -119,7 +124,7 @@ const Requests = () => {
 
         fetchRequests();
         return () => controller.abort();
-    }, []);
+    }, [currentUserRoles, currentUserId]);
 
     // URL-synced filters/search/page
     const initParams = new URLSearchParams(location.search);
