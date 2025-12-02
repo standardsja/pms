@@ -30,7 +30,7 @@ const NewEvaluation = () => {
     useEffect(() => {
         const fetchCombinedRequest = async () => {
             if (!combinedRequestId) return;
-            
+
             try {
                 setLoadingCombinedRequest(true);
                 const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
@@ -40,12 +40,12 @@ const NewEvaluation = () => {
                         'Content-Type': 'application/json',
                     },
                 });
-                
+
                 if (!response.ok) throw new Error('Failed to fetch combined request');
-                
+
                 const data = await response.json();
                 setCombinedRequest(data);
-                
+
                 // Pre-fill form data from combined request
                 setFormData((prev) => ({
                     ...prev,
@@ -60,7 +60,7 @@ const NewEvaluation = () => {
                 setLoadingCombinedRequest(false);
             }
         };
-        
+
         fetchCombinedRequest();
     }, [combinedRequestId]);
 

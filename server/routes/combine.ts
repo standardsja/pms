@@ -163,7 +163,7 @@ router.post('/', authMiddleware, async (req, res) => {
             // Convert original requests into numbered lots
             let lotNumber = 1;
             const lots = [];
-            
+
             for (const originalRequest of originalRequests) {
                 // Update the original request to be a lot in the combined request
                 const lot = await tx.request.update({
@@ -177,7 +177,7 @@ router.post('/', authMiddleware, async (req, res) => {
                         title: `LOT-${lotNumber}: ${originalRequest.title}`,
                     },
                 });
-                
+
                 lots.push(lot);
                 lotNumber++;
             }
@@ -281,16 +281,16 @@ router.get('/:id', authMiddleware, async (req, res) => {
         const { id } = req.params;
         const authReq = req as AuthenticatedRequest;
         const userRoles = authReq.user.roles || [];
-        
+
         const userRoleInfo = checkUserRoles(userRoles);
-        
+
         if (!userRoleInfo.canCombineRequests && !userRoleInfo.canViewRequests) {
             return res.status(403).json({
                 error: 'Access denied',
                 code: 'INSUFFICIENT_PERMISSIONS',
             });
         }
-        
+
         const combinedRequest = await prisma.combinedRequest.findUnique({
             where: { id: parseInt(id) },
             include: {
@@ -322,22 +322,22 @@ router.get('/:id', authMiddleware, async (req, res) => {
                 },
             },
         });
-        
+
         if (!combinedRequest) {
             return res.status(404).json({
                 error: 'Combined request not found',
             });
         }
-        
+
         // Calculate totals
         const totalValue = combinedRequest.lots.reduce((sum, lot) => {
             return sum + Number(lot.totalEstimated || 0);
         }, 0);
-        
+
         const totalItems = combinedRequest.lots.reduce((sum, lot) => {
             return sum + lot.items.length;
         }, 0);
-        
+
         res.json({
             ...combinedRequest,
             totalValue,
