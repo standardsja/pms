@@ -93,6 +93,72 @@ const NewEvaluation = () => {
 
     const totalSteps = 5; // Background, Section A, Section B, Section C, Sections D & E
 
+    // Section B - Compliance Matrix (dynamic rows)
+    type ComplianceRow = { clause: string; requirement: string; bidderResponse: string };
+    const [complianceRows, setComplianceRows] = useState<ComplianceRow[]>([
+        { clause: 'ITB 14.1', requirement: 'Signed Letter of Quotation', bidderResponse: 'N/A' },
+        { clause: '', requirement: 'Signed price and delivery schedules', bidderResponse: 'N/A' },
+        { clause: '', requirement: 'Signed and Statement of Compliance', bidderResponse: 'N/A' },
+        { clause: '', requirement: 'Bid Validity of 30 day', bidderResponse: 'YES' },
+        { clause: '', requirement: 'Quotation', bidderResponse: 'YES' },
+        { clause: '', requirement: 'Bid Amount (Inclusive of GCT)', bidderResponse: '$49,680.00' },
+    ]);
+
+    // Section B.A - Eligibility Requirements (dynamic rows)
+    type EligibilityRow = { label: string; value: string };
+    const [eligibilityRows, setEligibilityRows] = useState<EligibilityRow[]>([
+        { label: 'PPC Reg in the category of:', value: '' },
+        { label: 'TCI/TRN', value: '' },
+        { label: 'Bid Amount (Inclusive of GCT)', value: '' },
+    ]);
+
+    const updateEligibilityRow = (index: number, key: keyof EligibilityRow, value: string) => {
+        setEligibilityRows((rows) => rows.map((r, i) => (i === index ? { ...r, [key]: value } : r)));
+    };
+
+    const addEligibilityRow = () => {
+        setEligibilityRows((rows) => [...rows, { label: '', value: '' }]);
+    };
+
+    const removeEligibilityRow = (index: number) => {
+        setEligibilityRows((rows) => rows.filter((_, i) => i !== index));
+    };
+
+    // Section B.C - Technical Evaluation (dynamic rows)
+    type TechnicalRow = { specifications: string; quantity: string; bidderName: string; bidAmount: string };
+    const [technicalRows, setTechnicalRows] = useState<TechnicalRow[]>([
+        {
+            specifications: 'AA-532BK Image 3 Lever H/Duty Task Chair w/Arms - Black',
+            quantity: '1',
+            bidderName: 'Stationery & Office Supplies',
+            bidAmount: '49680.00',
+        },
+    ]);
+
+    const updateTechnicalRow = (index: number, key: keyof TechnicalRow, value: string) => {
+        setTechnicalRows((rows) => rows.map((r, i) => (i === index ? { ...r, [key]: value } : r)));
+    };
+
+    const addTechnicalRow = () => {
+        setTechnicalRows((rows) => [...rows, { specifications: '', quantity: '1', bidderName: '', bidAmount: '' }]);
+    };
+
+    const removeTechnicalRow = (index: number) => {
+        setTechnicalRows((rows) => rows.filter((_, i) => i !== index));
+    };
+
+    const updateComplianceRow = (index: number, key: keyof ComplianceRow, value: string) => {
+        setComplianceRows((rows) => rows.map((r, i) => (i === index ? { ...r, [key]: value } : r)));
+    };
+
+    const addComplianceRow = () => {
+        setComplianceRows((rows) => [...rows, { clause: '', requirement: '', bidderResponse: '' }]);
+    };
+
+    const removeComplianceRow = (index: number) => {
+        setComplianceRows((rows) => rows.filter((_, i) => i !== index));
+    };
+
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
         setFormData({ ...formData, [name]: value });
@@ -235,6 +301,36 @@ const NewEvaluation = () => {
                     retenderReasons: formData.retender === 'Yes' ? formData.retenderReasons : undefined,
                     retenderOtherReason: formData.retenderOtherReason || undefined,
                     awardCriteria: formData.awardCriteria === 'Lowest Cost' ? 'LOWEST_COST' : 'MOST_ADVANTAGEOUS_BID',
+                },
+                sectionB: {
+                    bidders: [
+                        {
+                            bidderName: (technicalRows[0]?.bidderName || '').trim(),
+                            ppcCategory: eligibilityRows.find((r) => r.label.toLowerCase().includes('ppc'))?.value?.trim() || '',
+                            tciTrn: eligibilityRows.find((r) => r.label.toLowerCase().includes('tci') || r.label.toLowerCase().includes('trn'))?.value?.trim() || '',
+                            bidAmountInclusiveGCT: (() => {
+                                const fromEligibility = eligibilityRows.find((r) => r.label.toLowerCase().includes('amount'))?.value;
+                                const fromTech = technicalRows[0]?.bidAmount;
+                                const val = fromEligibility && fromEligibility.trim() !== '' ? fromEligibility : fromTech;
+                                return safeParseFloat(val);
+                            })(),
+                            complianceMatrix: {
+                                signedLetterOfQuotation: complianceRows.some((r) => r.requirement.toLowerCase().includes('letter of quotation')),
+                                signedPriceSchedules: complianceRows.some((r) => r.requirement.toLowerCase().includes('price')),
+                                signedStatementOfCompliance: complianceRows.some((r) => r.requirement.toLowerCase().includes('compliance')),
+                                bidValidity30Days: complianceRows.some((r) => r.requirement.toLowerCase().includes('validity')),
+                                quotationProvided: complianceRows.some((r) => r.requirement.toLowerCase().includes('quotation')),
+                                bidAmountMatches: complianceRows.some((r) => r.requirement.toLowerCase().includes('amount')),
+                            },
+                            technicalEvaluation: technicalRows
+                                .filter((r) => r.specifications.trim() !== '' || r.quantity.trim() !== '' || r.bidAmount.trim() !== '')
+                                .map((r) => ({
+                                    specifications: r.specifications.trim(),
+                                    quantity: safeParseInt(r.quantity),
+                                    bidAmount: safeParseFloat(r.bidAmount),
+                                })),
+                        },
+                    ],
                 },
             };
 
@@ -807,33 +903,54 @@ const NewEvaluation = () => {
                             {/* A. Eligibility Requirements */}
                             <div>
                                 <h6 className="text-md font-bold mb-4">A. Eligibility Requirements</h6>
+                                <div className="flex items-center justify-between mb-2">
+                                    <p className="text-xs text-gray-500">Add or remove eligibility details as needed.</p>
+                                    <button type="button" onClick={addEligibilityRow} className="btn btn-outline-primary btn-sm">
+                                        Add Row
+                                    </button>
+                                </div>
                                 <div className="overflow-x-auto">
                                     <table className="table-auto w-full border-collapse border border-gray-300 dark:border-gray-600">
                                         <thead>
                                             <tr className="bg-gray-100 dark:bg-gray-800">
-                                                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">ELIGIBILITY REQUIREMENTS</th>
-                                                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Bidder Name/Details</th>
+                                                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">ELIGIBILITY REQUIREMENT</th>
+                                                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Stationery & Office Supplies</th>
+                                                <th className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-left font-semibold w-24">Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            <tr>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">PPC Reg in the category of:</td>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
-                                                    <input type="text" className="form-input w-full" placeholder="N/A" />
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">TCI/TRN</td>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
-                                                    <input type="text" className="form-input w-full" placeholder="000-002-852" />
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">Bid Amount (Inclusive of GCT)</td>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
-                                                    <input type="number" step="0.01" className="form-input w-full" placeholder="$49,680.00" />
-                                                </td>
-                                            </tr>
+                                            {eligibilityRows.map((row, idx) => (
+                                                <tr key={idx}>
+                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2">
+                                                        <input
+                                                            type="text"
+                                                            className="form-input w-full"
+                                                            value={row.label}
+                                                            onChange={(e) => updateEligibilityRow(idx, 'label', e.target.value)}
+                                                            placeholder={idx === 0 ? 'PPC Reg in the category of:' : 'Requirement label'}
+                                                        />
+                                                    </td>
+                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2">
+                                                        <input
+                                                            type="text"
+                                                            className="form-input w-full"
+                                                            value={row.value}
+                                                            onChange={(e) => updateEligibilityRow(idx, 'value', e.target.value)}
+                                                            placeholder="Value"
+                                                        />
+                                                    </td>
+                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-right">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => removeEligibilityRow(idx)}
+                                                            className="btn btn-outline-danger btn-sm"
+                                                            disabled={eligibilityRows.length <= 1}
+                                                        >
+                                                            Remove
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))}
                                         </tbody>
                                     </table>
                                 </div>
@@ -842,58 +959,59 @@ const NewEvaluation = () => {
                             {/* B. Compliance Matrix */}
                             <div>
                                 <h6 className="text-md font-bold mb-4">B. Compliance Matrix</h6>
+                                <div className="flex items-center justify-between mb-2">
+                                    <p className="text-xs text-gray-500">Add or remove rows as needed.</p>
+                                    <button type="button" onClick={addComplianceRow} className="btn btn-outline-primary btn-sm">
+                                        Add Row
+                                    </button>
+                                </div>
                                 <div className="overflow-x-auto">
                                     <table className="table-auto w-full border-collapse border border-gray-300 dark:border-gray-600">
                                         <thead>
                                             <tr className="bg-gray-100 dark:bg-gray-800">
                                                 <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Clause</th>
                                                 <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">COMPLIANCE MATRIX</th>
-                                                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Bidder Response</th>
+                                                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Stationery & Office Supplies</th>
+                                                <th className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-left font-semibold w-24">Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            <tr>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2 font-semibold">ITB 14.1</td>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">Signed Letter of Quotation</td>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
-                                                    <input type="text" className="form-input w-full" placeholder="N/A" />
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2"></td>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">Signed price and delivery schedules</td>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
-                                                    <input type="text" className="form-input w-full" placeholder="N/A" />
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2"></td>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">Signed and Statement of Compliance</td>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
-                                                    <input type="text" className="form-input w-full" placeholder="N/A" />
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2"></td>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">Bid Validity of 30 day</td>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
-                                                    <input type="text" className="form-input w-full" placeholder="YES" />
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2"></td>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">Quotation</td>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
-                                                    <input type="text" className="form-input w-full" placeholder="YES" />
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2"></td>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">Bid Amount (Inclusive of GCT)</td>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
-                                                    <input type="number" step="0.01" className="form-input w-full" placeholder="$49,680.00" />
-                                                </td>
-                                            </tr>
+                                            {complianceRows.map((row, idx) => (
+                                                <tr key={idx}>
+                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2">
+                                                        <input
+                                                            type="text"
+                                                            className="form-input w-full"
+                                                            value={row.clause}
+                                                            onChange={(e) => updateComplianceRow(idx, 'clause', e.target.value)}
+                                                            placeholder={idx === 0 ? 'ITB 14.1' : ''}
+                                                        />
+                                                    </td>
+                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2">
+                                                        <input
+                                                            type="text"
+                                                            className="form-input w-full"
+                                                            value={row.requirement}
+                                                            onChange={(e) => updateComplianceRow(idx, 'requirement', e.target.value)}
+                                                            placeholder="Requirement"
+                                                        />
+                                                    </td>
+                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2">
+                                                        <input
+                                                            type="text"
+                                                            className="form-input w-full"
+                                                            value={row.bidderResponse}
+                                                            onChange={(e) => updateComplianceRow(idx, 'bidderResponse', e.target.value)}
+                                                            placeholder="N/A / YES / $..."
+                                                        />
+                                                    </td>
+                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-right">
+                                                        <button type="button" onClick={() => removeComplianceRow(idx)} className="btn btn-outline-danger btn-sm" disabled={complianceRows.length <= 1}>
+                                                            Remove
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))}
                                         </tbody>
                                     </table>
                                 </div>
@@ -902,34 +1020,70 @@ const NewEvaluation = () => {
                             {/* Technical Evaluation */}
                             <div>
                                 <h6 className="text-md font-bold mb-4">Technical Evaluation</h6>
+                                <div className="flex items-center justify-between mb-2">
+                                    <p className="text-xs text-gray-500">Add or remove technical items as needed.</p>
+                                    <button type="button" onClick={addTechnicalRow} className="btn btn-outline-primary btn-sm">
+                                        Add Row
+                                    </button>
+                                </div>
                                 <div className="overflow-x-auto">
                                     <table className="table-auto w-full border-collapse border border-gray-300 dark:border-gray-600">
                                         <thead>
                                             <tr className="bg-gray-100 dark:bg-gray-800">
                                                 <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Specifications</th>
                                                 <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Quantity</th>
-                                                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Bidder Name/Details</th>
+                                                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Stationery & Office Supplies</th>
+                                                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Bid Amount (Inclusive of GCT)</th>
+                                                <th className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-left font-semibold w-24">Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            <tr>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
-                                                    <textarea className="form-textarea w-full" rows={2} placeholder="AA-532BK Image 3 Lever H/Duty Task Chair w/Arms - Black"></textarea>
-                                                </td>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
-                                                    <input type="number" className="form-input w-full" placeholder="1" />
-                                                </td>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
-                                                    <input type="text" className="form-input w-full" placeholder="Stationery & Office Supplies" />
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2"></td>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2 font-semibold">Bid Amount (Inclusive of GCT)</td>
-                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
-                                                    <input type="number" step="0.01" className="form-input w-full" placeholder="$49,680.00" />
-                                                </td>
-                                            </tr>
+                                            {technicalRows.map((row, idx) => (
+                                                <tr key={idx}>
+                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2 align-top">
+                                                        <textarea
+                                                            className="form-textarea w-full"
+                                                            rows={2}
+                                                            placeholder="Enter specifications"
+                                                            value={row.specifications}
+                                                            onChange={(e) => updateTechnicalRow(idx, 'specifications', e.target.value)}
+                                                        ></textarea>
+                                                    </td>
+                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2">
+                                                        <input
+                                                            type="number"
+                                                            className="form-input w-full"
+                                                            placeholder="1"
+                                                            value={row.quantity}
+                                                            onChange={(e) => updateTechnicalRow(idx, 'quantity', e.target.value)}
+                                                        />
+                                                    </td>
+                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2">
+                                                        <input
+                                                            type="text"
+                                                            className="form-input w-full"
+                                                            placeholder="Stationery & Office Supplies"
+                                                            value={row.bidderName}
+                                                            onChange={(e) => updateTechnicalRow(idx, 'bidderName', e.target.value)}
+                                                        />
+                                                    </td>
+                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2">
+                                                        <input
+                                                            type="number"
+                                                            step="0.01"
+                                                            className="form-input w-full"
+                                                            placeholder="$0.00"
+                                                            value={row.bidAmount}
+                                                            onChange={(e) => updateTechnicalRow(idx, 'bidAmount', e.target.value)}
+                                                        />
+                                                    </td>
+                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-right">
+                                                        <button type="button" onClick={() => removeTechnicalRow(idx)} className="btn btn-outline-danger btn-sm" disabled={technicalRows.length <= 1}>
+                                                            Remove
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))}
                                         </tbody>
                                     </table>
                                 </div>
