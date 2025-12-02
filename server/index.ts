@@ -4190,11 +4190,6 @@ app.post(
         });
         if (!evalRecord) throw new NotFoundError('Evaluation not found');
 
-        // Block assignment until Section B has been submitted
-        if (String(evalRecord.sectionBStatus).toUpperCase() !== 'SUBMITTED') {
-            return res.status(400).json({ success: false, message: 'Section B must be submitted before assigning evaluators' });
-        }
-
         // Determine requester(s) from combined lots; auto-include as assignees
         const requesterIds: number[] = Array.isArray(evalRecord?.combinedRequest?.lots) ? Array.from(new Set(evalRecord.combinedRequest.lots.map((l: any) => l.requesterId).filter(Boolean))) : [];
 
@@ -4457,18 +4452,12 @@ app.patch(
         }
         if (!existing) throw new NotFoundError('Evaluation not found');
 
-        // Authorization: Creator, procurement, assigned user, and for Section B specifically the Assigned Procurement Officer
+        // Authorization: Creator, procurement, or assigned user for this section
         let authorized = existing.createdBy === userId;
         if (!authorized) {
             const rolesArr = userObj?.roles || [];
             const isProc = rolesArr.some((r: string) => r.toUpperCase().includes('PROCUREMENT_OFFICER') || r.toUpperCase().includes('PROCUREMENT_MANAGER') || r.toUpperCase().includes('PROCUREMENT'));
             if (isProc) authorized = true;
-        }
-        // Gate Section B to assigned procurement officer when present
-        if (sectionUpper === 'B' && existing.assignedProcurementOfficerId) {
-            const isAssignedOfficer = Number(existing.assignedProcurementOfficerId) === Number(userId);
-            const hasProcurementOverride = (userObj?.roles || []).some((r: string) => r.toUpperCase().includes('PROCUREMENT'));
-            authorized = isAssignedOfficer || hasProcurementOverride;
         }
         if (!authorized && hasEvaluationDelegate()) {
             const assn = await (prisma as any).evaluationAssignment.findUnique({
@@ -4544,17 +4533,6 @@ app.post(
             existing = checkRow[0];
         }
         if (!existing) throw new NotFoundError('Evaluation not found');
-
-        // Enforce Section B submit only by assigned procurement officer (or procurement override)
-        if (sectionUpper === 'B' && existing.assignedProcurementOfficerId) {
-            const userObj: any = (req as any).user;
-            const userId = userObj?.sub || userObj?.id;
-            const isAssignedOfficer = Number(existing.assignedProcurementOfficerId) === Number(userId);
-            const hasProcurementOverride = (userObj?.roles || []).some((r: string) => r.toUpperCase().includes('PROCUREMENT'));
-            if (!isAssignedOfficer && !hasProcurementOverride) {
-                throw new BadRequestError('Only the assigned procurement officer can submit Section B');
-            }
-        }
 
         // Check if section data exists
         const sectionDataKey = `section${sectionUpper}`;

@@ -500,7 +500,7 @@ const NewEvaluation = () => {
             const result = await evaluationService.createEvaluation(evaluationData);
 
             setCreatedEvaluationId(result.id);
-            setAlertMessage(`BSJ Evaluation ${evalNumber} created successfully! Select evaluators to send the form to.`);
+            setAlertMessage(`BSJ Evaluation ${evalNumber} created successfully! Now assign technical evaluators for Section B.`);
             setShowSuccessAlert(true);
 
             // Load users for selection
@@ -654,14 +654,17 @@ const NewEvaluation = () => {
                     <div className="panel w-full max-w-3xl overflow-hidden rounded-lg p-0">
                         <div className="flex items-center p-3.5 rounded-t text-primary bg-primary-light dark:bg-primary-dark-light">
                             <span className="ltr:pr-2 rtl:pl-2 flex-1">
-                                <strong className="ltr:mr-1 rtl:ml-1 text-lg">Send for Completion</strong>
+                                <strong className="ltr:mr-1 rtl:ml-1 text-lg">Assign Technical Evaluators</strong>
                             </span>
                             <button type="button" className="ltr:ml-auto rtl:mr-auto hover:opacity-80" onClick={() => setShowAssignModal(false)}>
                                 <IconX className="h-5 w-5" />
                             </button>
                         </div>
                         <div className="p-5 space-y-4">
-                            <p className="text-sm text-white-dark">Requester(s) are automatically included based on the combined lots.</p>
+                            <div className="bg-info-light p-3 rounded">
+                                <p className="text-sm font-semibold text-info">Section B: Technical Evaluation</p>
+                                <p className="text-xs text-white-dark mt-1">Select evaluators who will complete the technical evaluation tables (eligibility, compliance, and technical criteria). Requester(s) are automatically included.</p>
+                            </div>
                             <div className="flex flex-col md:flex-row gap-4">
                                 <div className="flex-1">
                                     <div className="mb-2">
@@ -693,22 +696,36 @@ const NewEvaluation = () => {
                                     </div>
                                 </div>
                                 <div className="w-full md:w-60">
-                                    <div className="font-semibold mb-2">Sections</div>
-                                    {(['A', 'B', 'C', 'D', 'E'] as const).map((sec) => (
-                                        <label key={sec} className="flex items-center gap-2 mb-2">
-                                            <input type="checkbox" className="form-checkbox" checked={selectedSections.includes(sec)} onChange={() => toggleSection(sec)} />
-                                            <span>Section {sec}</span>
-                                        </label>
-                                    ))}
-                                    <div className="text-xs text-info mt-2">Default: Sections B & C</div>
+                                    <div className="font-semibold mb-2">Assign Sections</div>
+                                    <label className="flex items-center gap-2 mb-2 opacity-50 cursor-not-allowed">
+                                        <input type="checkbox" className="form-checkbox" disabled />
+                                        <span className="text-sm">Section A (Procurement)</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 mb-2">
+                                        <input type="checkbox" className="form-checkbox" checked={selectedSections.includes('B')} onChange={() => toggleSection('B')} />
+                                        <span className="text-sm font-semibold">Section B (Technical)</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 mb-2">
+                                        <input type="checkbox" className="form-checkbox" checked={selectedSections.includes('C')} onChange={() => toggleSection('C')} />
+                                        <span className="text-sm">Section C (Comments)</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 mb-2 opacity-50 cursor-not-allowed">
+                                        <input type="checkbox" className="form-checkbox" disabled />
+                                        <span className="text-sm">Section D (Summary)</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 mb-2 opacity-50 cursor-not-allowed">
+                                        <input type="checkbox" className="form-checkbox" disabled />
+                                        <span className="text-sm">Section E (Recommendation)</span>
+                                    </label>
+                                    <div className="text-xs text-info mt-2">Assigned users can edit their sections</div>
                                 </div>
                             </div>
                             <div className="flex justify-end gap-2 mt-4">
                                 <button className="btn btn-outline-danger" onClick={() => setShowAssignModal(false)}>
                                     Cancel
                                 </button>
-                                <button className="btn btn-primary" onClick={handleSendAssignments} disabled={loading}>
-                                    {loading ? 'Sending...' : 'Send'}
+                                <button className="btn btn-primary" onClick={handleSendAssignments} disabled={loading || selectedUserIds.length === 0}>
+                                    {loading ? 'Assigning...' : `Assign to ${selectedUserIds.length} User${selectedUserIds.length !== 1 ? 's' : ''}`}
                                 </button>
                             </div>
                         </div>
