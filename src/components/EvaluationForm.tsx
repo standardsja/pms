@@ -339,6 +339,7 @@ export const EvaluationForm: React.FC<Props> = ({ mode, evaluation, canEditSecti
                                                         {canEdit('B') ? (
                                                             <input
                                                                 className="form-input w-full"
+                            {canEditStructure('B') && (
                             <div className="mt-2 flex gap-2">
                                 <button
                                     type="button"
@@ -368,6 +369,7 @@ export const EvaluationForm: React.FC<Props> = ({ mode, evaluation, canEditSecti
                                     Remove Last Row
                                 </button>
                             </div>
+                            )}
             <div className="panel">
                 <div className="mb-5 -m-5 p-5 bg-warning/10 border-l-4 border-warning">
                     <h5 className="text-lg font-bold text-warning">Section C</h5>
