@@ -9,6 +9,7 @@ type Props = {
     onSubmitSection?: (section: 'A' | 'B' | 'C' | 'D' | 'E') => Promise<void> | void;
     onVerifySection?: (section: 'A' | 'B' | 'C' | 'D' | 'E', notes?: string) => Promise<void> | void;
     onReturnSection?: (section: 'A' | 'B' | 'C' | 'D' | 'E', notes: string) => Promise<void> | void;
+    structureEditableSections?: Array<'A' | 'B' | 'C' | 'D' | 'E'>;
 };
 
 // Full evaluation form matching NewEvaluation structure with conditional editability
@@ -27,6 +28,7 @@ export const EvaluationForm: React.FC<Props> = ({ mode, evaluation, canEditSecti
     console.log('EvaluationForm - canEditSections:', canEditSections);
 
     const canEdit = (sec: 'A' | 'B' | 'C' | 'D' | 'E') => canEditSections.includes(sec);
+    const canEditStructure = (sec: 'A' | 'B' | 'C' | 'D' | 'E') => structureEditableSections.includes(sec);
 
     // Keep local section state in sync when evaluation prop updates
     React.useEffect(() => {
@@ -126,6 +128,37 @@ export const EvaluationForm: React.FC<Props> = ({ mode, evaluation, canEditSecti
                 <div className="mb-5 -m-5 p-5 bg-info/10 border-l-4 border-info">
                     <h5 className="text-lg font-bold text-info">Section B</h5>
                     <p className="text-sm mt-1">Eligibility & Compliance, Technical Evaluation</p>
+                                        {canEditStructure('B') && (
+                                            <div className="mt-2 flex gap-2">
+                                                <button
+                                                    type="button"
+                                                    className="btn btn-outline-primary btn-sm"
+                                                    onClick={() => {
+                                                        const copy = { ...(sectionB as any) };
+                                                        const cols = copy.bidders[0].eligibilityRequirements.columns;
+                                                        const newRow = {
+                                                            id: `row-${Date.now()}`,
+                                                            data: Object.fromEntries(cols.map((c: any) => [c.id, ''])),
+                                                        };
+                                                        copy.bidders[0].eligibilityRequirements.rows = [...copy.bidders[0].eligibilityRequirements.rows, newRow];
+                                                        setSectionB(copy);
+                                                    }}
+                                                >
+                                                    Add Row
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    className="btn btn-outline-danger btn-sm"
+                                                    onClick={() => {
+                                                        const copy = { ...(sectionB as any) };
+                                                        copy.bidders[0].eligibilityRequirements.rows = copy.bidders[0].eligibilityRequirements.rows.slice(0, -1);
+                                                        setSectionB(copy);
+                                                    }}
+                                                >
+                                                    Remove Last Row
+                                                </button>
+                                            </div>
+                                        )}
                 </div>
                 <div className="p-5 space-y-6">
                     {/* Show message if no tables exist */}
@@ -170,6 +203,37 @@ export const EvaluationForm: React.FC<Props> = ({ mode, evaluation, canEditSecti
                                                             />
                                                         ) : (
                                                             <span>{row.data[col.id] || '-'}</span>
+                                        {canEditStructure('B') && (
+                                            <div className="mt-2 flex gap-2">
+                                                <button
+                                                    type="button"
+                                                    className="btn btn-outline-primary btn-sm"
+                                                    onClick={() => {
+                                                        const copy = { ...(sectionB as any) };
+                                                        const cols = copy.bidders[0].complianceMatrix.columns;
+                                                        const newRow = {
+                                                            id: `row-${Date.now()}`,
+                                                            data: Object.fromEntries(cols.map((c: any) => [c.id, ''])),
+                                                        };
+                                                        copy.bidders[0].complianceMatrix.rows = [...copy.bidders[0].complianceMatrix.rows, newRow];
+                                                        setSectionB(copy);
+                                                    }}
+                                                >
+                                                    Add Row
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    className="btn btn-outline-danger btn-sm"
+                                                    onClick={() => {
+                                                        const copy = { ...(sectionB as any) };
+                                                        copy.bidders[0].complianceMatrix.rows = copy.bidders[0].complianceMatrix.rows.slice(0, -1);
+                                                        setSectionB(copy);
+                                                    }}
+                                                >
+                                                    Remove Last Row
+                                                </button>
+                                            </div>
+                                        )}
                                                         )}
                                                     </td>
                                                 ))}
@@ -214,6 +278,37 @@ export const EvaluationForm: React.FC<Props> = ({ mode, evaluation, canEditSecti
                                                             />
                                                         ) : (
                                                             <span>{row.data[col.id] || '-'}</span>
+                                        {canEditStructure('B') && (
+                                            <div className="mt-2 flex gap-2">
+                                                <button
+                                                    type="button"
+                                                    className="btn btn-outline-primary btn-sm"
+                                                    onClick={() => {
+                                                        const copy = { ...(sectionB as any) };
+                                                        const cols = copy.bidders[0].technicalEvaluation.columns;
+                                                        const newRow = {
+                                                            id: `row-${Date.now()}`,
+                                                            data: Object.fromEntries(cols.map((c: any) => [c.id, ''])),
+                                                        };
+                                                        copy.bidders[0].technicalEvaluation.rows = [...copy.bidders[0].technicalEvaluation.rows, newRow];
+                                                        setSectionB(copy);
+                                                    }}
+                                                >
+                                                    Add Row
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    className="btn btn-outline-danger btn-sm"
+                                                    onClick={() => {
+                                                        const copy = { ...(sectionB as any) };
+                                                        copy.bidders[0].technicalEvaluation.rows = copy.bidders[0].technicalEvaluation.rows.slice(0, -1);
+                                                        setSectionB(copy);
+                                                    }}
+                                                >
+                                                    Remove Last Row
+                                                </button>
+                                            </div>
+                                        )}
                                                         )}
                                                     </td>
                                                 ))}

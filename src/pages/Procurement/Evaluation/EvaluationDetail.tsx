@@ -25,6 +25,8 @@ const EvaluationDetail = () => {
     const [sectionData, setSectionData] = useState<any>(null);
     const [saving, setSaving] = useState(false);
     const [canEditSections, setCanEditSections] = useState<string[]>([]);
+    const [structureEditEnabled, setStructureEditEnabled] = useState<boolean>(false);
+    const [returnNotes, setReturnNotes] = useState<string>('');
 
     useEffect(() => {
         dispatch(setPageTitle('Evaluation Details'));
@@ -121,11 +123,48 @@ const EvaluationDetail = () => {
 
     return (
         <div>
+            {/* Procurement actions */}
+            {isProcurement && (
+                <div className="panel mb-4 p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <label className="flex items-center gap-2">
+                            <input
+                                type="checkbox"
+                                className="form-checkbox"
+                                checked={structureEditEnabled}
+                                onChange={() => setStructureEditEnabled((v) => !v)}
+                            />
+                            <span className="text-sm">Enable structure editing for Section B</span>
+                        </label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <input
+                            type="text"
+                            className="form-input w-64"
+                            placeholder="Return notes for evaluators"
+                            value={returnNotes}
+                            onChange={(e) => setReturnNotes(e.target.value)}
+                        />
+                        <button
+                            className="btn btn-outline-danger"
+                            onClick={async () => {
+                                if (!evaluation) return;
+                                const updated = await evaluationService.returnSection(evaluation.id, 'B', returnNotes || 'Please update table rows.');
+                                setEvaluation(updated);
+                                setReturnNotes('');
+                            }}
+                        >
+                            Return Section B
+                        </button>
+                    </div>
+                </div>
+            )}
             {/* Full Form UI with gated editability */}
             <EvaluationForm
                 mode="edit"
                 evaluation={evaluation}
                 canEditSections={canEditSections as Array<'A' | 'B' | 'C' | 'D' | 'E'>}
+                structureEditableSections={structureEditEnabled ? (['B'] as Array<'A' | 'B' | 'C' | 'D' | 'E'>) : ([] as Array<'A' | 'B' | 'C' | 'D' | 'E'>)}
                 onSaveSection={async (sec, data) => {
                     if (!evaluation) return;
                     const updated = await evaluationService.updateSection(evaluation.id, sec, data);
