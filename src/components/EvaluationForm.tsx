@@ -1,6 +1,76 @@
 import React, { useMemo, useState } from 'react';
 import type { Evaluation, SectionA, SectionB, SectionC, SectionD, SectionE } from '../services/evaluationService';
 
+// TableEditor for Section B tables
+type TableEditorProps = {
+  columns: Array<{ id: string; name: string; width?: string; cellType?: string }>;
+  rows: Array<{ id: string; data: Record<string, string> }>;
+  editable: boolean;
+  structureEditable: boolean;
+  onCellChange: (rowId: string, colId: string, value: string) => void;
+  onAddRow?: () => void;
+  onRemoveRow?: (rowId: string) => void;
+  onAddColumn?: () => void;
+  onRemoveColumn?: (colId: string) => void;
+  onColumnNameChange?: (colId: string, newName: string) => void;
+  title: string;
+};
+
+const TableEditor: React.FC<TableEditorProps> = ({ columns, rows, editable, structureEditable, onCellChange, onAddRow, onRemoveRow, onAddColumn, onRemoveColumn, onColumnNameChange, title }) => (
+  <div className="mb-6">
+    <h6 className="font-semibold mb-2">{title}</h6>
+    <div className="overflow-x-auto">
+      <table className="min-w-full border">
+        <thead>
+          <tr>
+            {columns.map((col) => (
+              <th key={col.id} className="border px-2 py-1">
+                {structureEditable && onColumnNameChange ? (
+                  <input className="form-input w-32" value={col.name} onChange={e => onColumnNameChange(col.id, e.target.value)} />
+                ) : (
+                  col.name
+                )}
+                {structureEditable && onRemoveColumn && (
+                  <button type="button" className="ml-2 text-red-500" onClick={() => onRemoveColumn(col.id)} title="Remove column">×</button>
+                )}
+              </th>
+            ))}
+            {structureEditable && onAddColumn && (
+              <th><button type="button" className="btn btn-xs" onClick={onAddColumn}>+ Col</button></th>
+            )}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.id}>
+              {columns.map((col) => (
+                <td key={col.id} className="border px-2 py-1">
+                  {editable ? (
+                    <input
+                      className="form-input w-full"
+                      value={row.data[col.id] || ''}
+                      onChange={e => onCellChange(row.id, col.id, e.target.value)}
+                      disabled={!editable}
+                    />
+                  ) : (
+                    row.data[col.id] || ''
+                  )}
+                </td>
+              ))}
+              {structureEditable && onRemoveRow && (
+                <td><button type="button" className="btn btn-xs text-red-500" onClick={() => onRemoveRow(row.id)}>× Row</button></td>
+              )}
+            </tr>
+          ))}
+          {structureEditable && onAddRow && (
+            <tr><td colSpan={columns.length + 1}><button type="button" className="btn btn-xs" onClick={onAddRow}>+ Row</button></td></tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  </div>
+);
+
 type Props = {
   mode: 'create' | 'edit';
   evaluation?: Evaluation | null;
@@ -90,32 +160,63 @@ export const EvaluationForm: React.FC<Props> = ({
           <p className="text-sm mt-1">Eligibility & Compliance, Technical Evaluation</p>
         </div>
         <div className="p-5">
-          {Array.isArray(sectionB?.bidders) && sectionB!.bidders.length > 0 ? (
-            sectionB!.bidders.map((b, idx) => (
-              <div key={idx} className="mb-4 p-4 border rounded">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs mb-1">Bidder Name</label>
-                    <input className="form-input w-full" disabled={!canEdit('B')} value={b.bidderName || ''} onChange={(e) => {
-                      const copy = { ...(sectionB as any) };
-                      copy.bidders[idx] = { ...copy.bidders[idx], bidderName: e.target.value };
-                      setSectionB(copy);
-                    }} />
-                  </div>
-                  <div>
-                    <label className="block text-xs mb-1">PPC Category</label>
-                    <input className="form-input w-full" disabled={!canEdit('B')} value={b.ppcCategory || ''} onChange={(e) => {
-                      const copy = { ...(sectionB as any) };
-                      copy.bidders[idx] = { ...copy.bidders[idx], ppcCategory: e.target.value };
-                      setSectionB(copy);
-                    }} />
-                  </div>
-                </div>
-              </div>
-            ))
-          ) : (
-            <div className="text-sm text-white-dark">No bidders loaded.</div>
-          )}
+          {/* Eligibility Table */}
+          <TableEditor
+            columns={sectionB?.bidders?.[0]?.eligibilityRequirements?.columns || []}
+            rows={sectionB?.bidders?.[0]?.eligibilityRequirements?.rows || []}
+            editable={canEdit('B')}
+            structureEditable={canEditSections.includes('B') && mode === 'create'}
+            onCellChange={(rowId, colId, value) => {
+              const copy = { ...(sectionB as any) };
+              const table = copy.bidders[0].eligibilityRequirements;
+              table.rows = table.rows.map((r: any) => r.id === rowId ? { ...r, data: { ...r.data, [colId]: value } } : r);
+              setSectionB(copy);
+            }}
+            onAddRow={canEditSections.includes('B') && mode === 'create' ? () => {/* implement add row logic */} : undefined}
+            onRemoveRow={canEditSections.includes('B') && mode === 'create' ? (rowId) => {/* implement remove row logic */} : undefined}
+            onAddColumn={canEditSections.includes('B') && mode === 'create' ? () => {/* implement add column logic */} : undefined}
+            onRemoveColumn={canEditSections.includes('B') && mode === 'create' ? (colId) => {/* implement remove column logic */} : undefined}
+            onColumnNameChange={canEditSections.includes('B') && mode === 'create' ? (colId, newName) => {/* implement column name change logic */} : undefined}
+            title="Eligibility Table"
+          />
+          {/* Compliance Table */}
+          <TableEditor
+            columns={sectionB?.bidders?.[0]?.complianceMatrix?.columns || []}
+            rows={sectionB?.bidders?.[0]?.complianceMatrix?.rows || []}
+            editable={canEdit('B')}
+            structureEditable={canEditSections.includes('B') && mode === 'create'}
+            onCellChange={(rowId, colId, value) => {
+              const copy = { ...(sectionB as any) };
+              const table = copy.bidders[0].complianceMatrix;
+              table.rows = table.rows.map((r: any) => r.id === rowId ? { ...r, data: { ...r.data, [colId]: value } } : r);
+              setSectionB(copy);
+            }}
+            onAddRow={canEditSections.includes('B') && mode === 'create' ? () => {/* implement add row logic */} : undefined}
+            onRemoveRow={canEditSections.includes('B') && mode === 'create' ? (rowId) => {/* implement remove row logic */} : undefined}
+            onAddColumn={canEditSections.includes('B') && mode === 'create' ? () => {/* implement add column logic */} : undefined}
+            onRemoveColumn={canEditSections.includes('B') && mode === 'create' ? (colId) => {/* implement remove column logic */} : undefined}
+            onColumnNameChange={canEditSections.includes('B') && mode === 'create' ? (colId, newName) => {/* implement column name change logic */} : undefined}
+            title="Compliance Table"
+          />
+          {/* Technical Table */}
+          <TableEditor
+            columns={sectionB?.bidders?.[0]?.technicalEvaluation?.columns || []}
+            rows={sectionB?.bidders?.[0]?.technicalEvaluation?.rows || []}
+            editable={canEdit('B')}
+            structureEditable={canEditSections.includes('B') && mode === 'create'}
+            onCellChange={(rowId, colId, value) => {
+              const copy = { ...(sectionB as any) };
+              const table = copy.bidders[0].technicalEvaluation;
+              table.rows = table.rows.map((r: any) => r.id === rowId ? { ...r, data: { ...r.data, [colId]: value } } : r);
+              setSectionB(copy);
+            }}
+            onAddRow={canEditSections.includes('B') && mode === 'create' ? () => {/* implement add row logic */} : undefined}
+            onRemoveRow={canEditSections.includes('B') && mode === 'create' ? (rowId) => {/* implement remove row logic */} : undefined}
+            onAddColumn={canEditSections.includes('B') && mode === 'create' ? () => {/* implement add column logic */} : undefined}
+            onRemoveColumn={canEditSections.includes('B') && mode === 'create' ? (colId) => {/* implement remove column logic */} : undefined}
+            onColumnNameChange={canEditSections.includes('B') && mode === 'create' ? (colId, newName) => {/* implement column name change logic */} : undefined}
+            title="Technical Table"
+          />
         </div>
         {canEdit('B') && (
           <div className="p-5 flex justify-end">
