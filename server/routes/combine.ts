@@ -8,7 +8,7 @@ import { createThresholdNotifications } from '../services/notificationService';
 const router = Router();
 const prisma = new PrismaClient();
 
-// Get combinable requests
+// Get combinable requests or existing combined requests
 router.get('/', authMiddleware, async (req, res) => {
     try {
         const { combinable } = req.query;
@@ -16,25 +16,64 @@ router.get('/', authMiddleware, async (req, res) => {
         const userId = authReq.user.sub;
         const userRoles = authReq.user.roles || [];
 
-        let whereClause: any = {};
-
-        // Only include requests that can be combined
-        if (combinable === 'true') {
-            whereClause.status = {
-                in: ['DRAFT', 'SUBMITTED', 'DEPARTMENT_REVIEW', 'PROCUREMENT_REVIEW'],
-            };
-        }
-
         // Role-based filtering using improved role checking
         const userRoleInfo = checkUserRoles(userRoles);
 
-        // Only procurement officers, procurement managers, and admins can combine requests
+        // Only procurement officers, procurement managers, and admins can view combined requests
         if (!userRoleInfo.canCombineRequests) {
             return res.status(403).json({
-                message: 'Access denied. Only procurement officers and procurement managers can combine requests.',
+                message: 'Access denied. Only procurement officers and procurement managers can view combined requests.',
                 code: 'INSUFFICIENT_PERMISSIONS',
             });
         }
+
+        // If no combinable query param, return existing combined requests
+        if (combinable !== 'true') {
+            const combinedRequests = await prisma.combinedRequest.findMany({
+                include: {
+                    createdBy: {
+                        select: {
+                            id: true,
+                            name: true,
+                            email: true,
+                        },
+                    },
+                    lots: {
+                        select: {
+                            id: true,
+                            reference: true,
+                            title: true,
+                            lotNumber: true,
+                        },
+                    },
+                },
+                orderBy: { createdAt: 'desc' },
+            });
+
+            const transformedCombined = combinedRequests.map((combined) => ({
+                id: combined.id,
+                reference: combined.reference,
+                title: combined.title,
+                description: combined.description,
+                lotsCount: combined.lots.length,
+                createdAt: combined.createdAt,
+                updatedAt: combined.updatedAt,
+                createdBy: {
+                    id: combined.createdBy.id,
+                    full_name: combined.createdBy.name,
+                    email: combined.createdBy.email,
+                },
+            }));
+
+            return res.json(transformedCombined);
+        }
+
+        // Otherwise, return requests that can be combined
+        let whereClause: any = {};
+
+        whereClause.status = {
+            in: ['DRAFT', 'SUBMITTED', 'DEPARTMENT_REVIEW', 'PROCUREMENT_REVIEW'],
+        };
 
         if (userRoleInfo.isProcurementOfficer || userRoleInfo.isProcurementManager || userRoleInfo.isAdmin) {
             // Procurement users can see all combinable requests
@@ -88,7 +127,7 @@ router.get('/', authMiddleware, async (req, res) => {
 
         res.json(transformedRequests);
     } catch (error) {
-        console.error('Error fetching combinable requests:', error);
+        console.error('Error fetching requests:', error);
         res.status(500).json({
             error: 'Failed to fetch requests',
             message: error instanceof Error ? error.message : 'Unknown error',

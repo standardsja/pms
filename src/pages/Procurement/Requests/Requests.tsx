@@ -25,6 +25,7 @@ const Requests = () => {
     }, [dispatch]);
 
     const [requests, setRequests] = useState<Request[]>([]);
+    const [combinedRequests, setCombinedRequests] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -71,6 +72,8 @@ const Requests = () => {
                 const headers: Record<string, string> = {};
                 if (token) headers['Authorization'] = `Bearer ${token}`;
                 if (user?.id || currentUserId) headers['x-user-id'] = String(user?.id || currentUserId || '');
+                
+                // Fetch regular requests
                 const res = await fetch(getApiUrl('/requests'), {
                     headers,
                     signal: controller.signal,
@@ -87,6 +90,32 @@ const Requests = () => {
                 }
                 const adapted = adaptRequestsResponse(payload);
                 setRequests(adapted);
+                
+                // Fetch combined requests if user has procurement access
+                if (currentUserRoles.some(role => role.toUpperCase().includes('PROCUREMENT') || role.toUpperCase().includes('MANAGER'))) {
+                    try {
+                        const combinedRes = await fetch(getApiUrl('/api/requests/combine'), {
+                            headers,
+                            signal: controller.signal,
+                        });
+                        if (combinedRes.ok) {
+                            const combinedData = await combinedRes.json();
+                            // Group requests by combinedRequestId to identify which are combined
+                            const combined = combinedData.filter((r: any) => r.isCombined);
+                            // Get unique combined request parents
+                            const combinedMap = new Map();
+                            for (const req of combined) {
+                                if (req.combinedRequestId && !combinedMap.has(req.combinedRequestId)) {
+                                    // This is a lot - we'll need to fetch the parent details
+                                    combinedMap.set(req.combinedRequestId, true);
+                                }
+                            }
+                            setCombinedRequests(Array.from(combinedMap.keys()));
+                        }
+                    } catch (e) {
+                        console.error('Failed to fetch combined requests:', e);
+                    }
+                }
             } catch (e: unknown) {
                 // Ignore abort errors
                 if (e instanceof DOMException && e.name === 'AbortError') return;
@@ -203,91 +232,107 @@ const Requests = () => {
             )}
 
             {/* Filter & Search controls */}
-            <div className="mb-4 flex flex-wrap items-center gap-2">
-                <button
-                    className={`px-3 py-1.5 rounded border text-sm ${!showMineOnly ? 'bg-primary text-white border-primary' : 'border-gray-300 dark:border-gray-600'}`}
-                    onClick={() => {
-                        if (location.pathname.endsWith('/mine')) {
-                            navigate({ pathname: '/apps/requests', search: location.search });
-                        }
-                    }}
-                    type="button"
-                    aria-pressed={!showMineOnly}
-                    aria-label="Show all requests"
-                >
-                    All Requests
-                </button>
-                <button
-                    className={`px-3 py-1.5 rounded border text-sm ${showMineOnly ? 'bg-primary text-white border-primary' : 'border-gray-300 dark:border-gray-600'}`}
-                    onClick={() => {
-                        if (!location.pathname.endsWith('/mine')) {
-                            navigate({ pathname: '/apps/requests/mine', search: location.search });
-                        }
-                    }}
-                    type="button"
-                    aria-pressed={showMineOnly}
-                    aria-label="Show my requests"
-                >
-                    My Requests
-                </button>
+            <div className="mb-4 flex flex-wrap items-center gap-2 justify-between">
+                <div className="flex flex-wrap items-center gap-2">
+                    <button
+                        className={`px-3 py-1.5 rounded border text-sm ${!showMineOnly ? 'bg-primary text-white border-primary' : 'border-gray-300 dark:border-gray-600'}`}
+                        onClick={() => {
+                            if (location.pathname.endsWith('/mine')) {
+                                navigate({ pathname: '/apps/requests', search: location.search });
+                            }
+                        }}
+                        type="button"
+                        aria-pressed={!showMineOnly}
+                        aria-label="Show all requests"
+                    >
+                        All Requests
+                    </button>
+                    <button
+                        className={`px-3 py-1.5 rounded border text-sm ${showMineOnly ? 'bg-primary text-white border-primary' : 'border-gray-300 dark:border-gray-600'}`}
+                        onClick={() => {
+                            if (!location.pathname.endsWith('/mine')) {
+                                navigate({ pathname: '/apps/requests/mine', search: location.search });
+                            }
+                        }}
+                        type="button"
+                        aria-pressed={showMineOnly}
+                        aria-label="Show my requests"
+                    >
+                        My Requests
+                    </button>
 
-                <input
-                    type="text"
-                    value={query}
-                    onChange={(e) => {
-                        setQuery(e.target.value);
-                        setPage(1);
-                    }}
-                    placeholder="Search by ID, Title, Requester, Dept"
-                    className="form-input w-64"
-                    aria-label="Search requests"
-                />
+                    <input
+                        type="text"
+                        value={query}
+                        onChange={(e) => {
+                            setQuery(e.target.value);
+                            setPage(1);
+                        }}
+                        placeholder="Search by ID, Title, Requester, Dept"
+                        className="form-input w-64"
+                        aria-label="Search requests"
+                    />
 
-                <select
-                    value={statusFilter}
-                    onChange={(e) => {
-                        setStatusFilter(e.target.value);
-                        setPage(1);
-                    }}
-                    className="form-select"
-                    aria-label="Filter by status"
-                >
-                    <option value="">All Statuses</option>
-                    {[
-                        ...new Set(
-                            requests
-                                .map((r) => r.status)
-                                .map((s) => s && s.trim())
-                                .filter(Boolean)
-                        ),
-                    ]
-                        .map((s) => ({ raw: s as string, norm: normalizeStatus(s as string) }))
-                        .sort((a, b) => a.norm.localeCompare(b.norm))
-                        .map(({ raw, norm }) => (
-                            <option key={raw} value={norm}>
-                                {norm}
-                            </option>
-                        ))}
-                </select>
+                    <select
+                        value={statusFilter}
+                        onChange={(e) => {
+                            setStatusFilter(e.target.value);
+                            setPage(1);
+                        }}
+                        className="form-select"
+                        aria-label="Filter by status"
+                    >
+                        <option value="">All Statuses</option>
+                        {[
+                            ...new Set(
+                                requests
+                                    .map((r) => r.status)
+                                    .map((s) => s && s.trim())
+                                    .filter(Boolean)
+                            ),
+                        ]
+                            .map((s) => ({ raw: s as string, norm: normalizeStatus(s as string) }))
+                            .sort((a, b) => a.norm.localeCompare(b.norm))
+                            .map(({ raw, norm }) => (
+                                <option key={raw} value={norm}>
+                                    {norm}
+                                </option>
+                            ))}
+                    </select>
 
-                <select
-                    value={departmentFilter}
-                    onChange={(e) => {
-                        setDepartmentFilter(e.target.value);
-                        setPage(1);
-                    }}
-                    className="form-select"
-                    aria-label="Filter by department"
-                >
-                    <option value="">All Departments</option>
-                    {[...new Set(requests.map((f) => f.department).filter(Boolean) as string[])]
-                        .sort((a, b) => a.localeCompare(b))
-                        .map((dep) => (
-                            <option key={dep} value={dep}>
-                                {dep}
-                            </option>
-                        ))}
-                </select>
+                    <select
+                        value={departmentFilter}
+                        onChange={(e) => {
+                            setDepartmentFilter(e.target.value);
+                            setPage(1);
+                        }}
+                        className="form-select"
+                        aria-label="Filter by department"
+                    >
+                        <option value="">All Departments</option>
+                        {[...new Set(requests.map((f) => f.department).filter(Boolean) as string[])]
+                            .sort((a, b) => a.localeCompare(b))
+                            .map((dep) => (
+                                <option key={dep} value={dep}>
+                                    {dep}
+                                </option>
+                            ))}
+                    </select>
+                </div>
+                
+                {/* Combined Requests Button */}
+                {currentUserRoles.some(role => role.toUpperCase().includes('PROCUREMENT') || role.toUpperCase().includes('MANAGER')) && combinedRequests.length > 0 && (
+                    <button
+                        onClick={() => navigate('/apps/requests/combine')}
+                        className="btn btn-outline-primary gap-2"
+                        type="button"
+                    >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                        </svg>
+                        View Combined Requests ({combinedRequests.length})
+                    </button>
+                )}
             </div>
 
             <div className="bg-white dark:bg-slate-800 shadow rounded overflow-hidden" aria-busy={isLoading}>
@@ -328,6 +373,29 @@ const Requests = () => {
                                                     <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium border ${thresholdBadge.className}`}>
                                                         <span>{thresholdBadge.icon}</span>
                                                         {thresholdBadge.text}
+                                                    </span>
+                                                </div>
+                                            )}
+                                            {r.isCombined && r.lotNumber && (
+                                                <div className="flex items-center gap-1">
+                                                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-purple-100 text-purple-800 border border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-700">
+                                                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                                                        </svg>
+                                                        LOT-{r.lotNumber}
+                                                        {r.combinedRequestId && (
+                                                            <button
+                                                                type="button"
+                                                                className="ml-1 hover:underline"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    navigate(`/apps/requests/combined/${r.combinedRequestId}`);
+                                                                }}
+                                                                title="View combined request"
+                                                            >
+                                                                →
+                                                            </button>
+                                                        )}
                                                     </span>
                                                 </div>
                                             )}

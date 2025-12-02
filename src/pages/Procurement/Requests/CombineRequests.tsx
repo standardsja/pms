@@ -36,6 +36,8 @@ const CombineRequests = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [showCombineModal, setShowCombineModal] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [combinedRequests, setCombinedRequests] = useState<any[]>([]);
+    const [showExisting, setShowExisting] = useState(false);
 
     // Combine configuration state
     const [config, setConfig] = useState<CombineRequestsConfig>({
@@ -55,6 +57,8 @@ const CombineRequests = () => {
             setError(null);
             try {
                 const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
+                
+                // Fetch combinable requests
                 const response = await fetch(getApiUrl('/api/requests/combine?combinable=true'), {
                     headers: {
                         Authorization: `Bearer ${token}`,
@@ -79,6 +83,19 @@ const CombineRequests = () => {
                 }));
 
                 setRequests(formattedRequests);
+                
+                // Also fetch existing combined requests
+                const combinedResponse = await fetch(getApiUrl('/api/requests/combine'), {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                });
+                
+                if (combinedResponse.ok) {
+                    const combinedData = await combinedResponse.json();
+                    setCombinedRequests(combinedData);
+                }
             } catch (err) {
                 setError(err instanceof Error ? err.message : 'Failed to load requests');
             } finally {
@@ -243,6 +260,16 @@ const CombineRequests = () => {
             <div className="flex flex-wrap items-center justify-between gap-4 mb-5">
                 <h2 className="text-xl">Combine Requests</h2>
                 <div className="flex gap-2">
+                    {combinedRequests.length > 0 && (
+                        <button 
+                            type="button" 
+                            className="btn btn-outline-info gap-2" 
+                            onClick={() => setShowExisting(!showExisting)}
+                        >
+                            <IconEye className="w-5 h-5" />
+                            {showExisting ? 'Hide' : 'Show'} Existing Combined ({combinedRequests.length})
+                        </button>
+                    )}
                     <button type="button" className="btn btn-secondary gap-2" onClick={handleSelectAll}>
                         {selectedRequests.length === requests.length ? 'Deselect All' : 'Select All'}
                     </button>
@@ -262,6 +289,54 @@ const CombineRequests = () => {
             {!permissions.canCombine && user && (
                 <div className="alert alert-warning mb-5">
                     <strong>Limited Access:</strong> {permissions.reasons.join(', ')}
+                </div>
+            )}
+            
+            {/* Existing Combined Requests */}
+            {showExisting && combinedRequests.length > 0 && (
+                <div className="panel mb-5">
+                    <div className="panel-header">
+                        <h5 className="font-semibold text-lg">Existing Combined Requests</h5>
+                    </div>
+                    <div className="table-responsive">
+                        <table className="table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Reference</th>
+                                    <th>Title</th>
+                                    <th>Lots</th>
+                                    <th>Created</th>
+                                    <th>Created By</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {combinedRequests.map((combined: any) => (
+                                    <tr key={combined.id}>
+                                        <td>
+                                            <span className="font-semibold text-primary">{combined.reference}</span>
+                                        </td>
+                                        <td>{combined.title}</td>
+                                        <td>
+                                            <span className="badge bg-info">{combined.lotsCount || 0} Lots</span>
+                                        </td>
+                                        <td>{new Date(combined.createdAt).toLocaleDateString()}</td>
+                                        <td>{combined.createdBy?.full_name || 'Unknown'}</td>
+                                        <td>
+                                            <button
+                                                type="button"
+                                                className="btn btn-sm btn-primary gap-1"
+                                                onClick={() => navigate(`/apps/requests/combined/${combined.id}`)}
+                                            >
+                                                <IconEye className="w-4 h-4" />
+                                                View Details
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             )}
 
