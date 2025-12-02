@@ -144,7 +144,6 @@ const EvaluationDetail = () => {
                     setEvaluation(updated);
                 }}
             />
-                            )}
                         </div>
                     )}
 
