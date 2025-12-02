@@ -63,6 +63,7 @@ const AdminSettings = lazy(() => import('../pages/Procurement/Admin/AdminSetting
 const Requests = lazy(() => import('../pages/Procurement/Requests/Requests'));
 const RequestForm = lazy(() => import('../pages/Procurement/Requests/RequestForm'));
 const CombineRequests = lazy(() => import('../pages/Procurement/Requests/CombineRequests'));
+const CombinedRequestDetail = lazy(() => import('../pages/Procurement/Requests/CombinedRequestDetail'));
 const FinanceRequests = lazy(() => import('../pages/Procurement/Finance/Requests'));
 
 // Department Head Pages
@@ -464,6 +465,14 @@ const routes = [
         element: (
             <ProcurementRoute>
                 <CombineRequests />
+            </ProcurementRoute>
+        ),
+    },
+    {
+        path: '/apps/requests/combined/:id',
+        element: (
+            <ProcurementRoute>
+                <CombinedRequestDetail />
             </ProcurementRoute>
         ),
     },

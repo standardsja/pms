@@ -212,12 +212,12 @@ const CombineRequests = () => {
 
             await Swal.fire({
                 title: 'Success!',
-                text: permissions.requiresApproval ? 'Combined request submitted for approval' : 'Requests successfully combined',
+                text: `${result.combinedRequest.lotsCount} requests combined into ${result.combinedRequest.lotsCount} numbered lots`,
                 icon: 'success',
             });
 
-            // Navigate back to requests list
-            navigate('/apps/requests');
+            // Navigate to combined request detail view
+            navigate(`/apps/requests/combined/${result.combinedRequest.id}`);
         } catch (err) {
             await Swal.fire({
                 title: 'Error',

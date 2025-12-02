@@ -168,6 +168,7 @@ export interface CreateEvaluationDTO {
     rfqNumber: string;
     rfqTitle: string;
     description?: string;
+    combinedRequestId?: number; // Link to combined request with lots
     sectionA?: SectionA;
     sectionB?: SectionB;
     sectionC?: SectionC;
