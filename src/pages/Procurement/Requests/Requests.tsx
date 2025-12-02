@@ -100,17 +100,8 @@ const Requests = () => {
                         });
                         if (combinedRes.ok) {
                             const combinedData = await combinedRes.json();
-                            // Group requests by combinedRequestId to identify which are combined
-                            const combined = combinedData.filter((r: any) => r.isCombined);
-                            // Get unique combined request parents
-                            const combinedMap = new Map();
-                            for (const req of combined) {
-                                if (req.combinedRequestId && !combinedMap.has(req.combinedRequestId)) {
-                                    // This is a lot - we'll need to fetch the parent details
-                                    combinedMap.set(req.combinedRequestId, true);
-                                }
-                            }
-                            setCombinedRequests(Array.from(combinedMap.keys()));
+                            // The endpoint returns array of combined request objects when no query param
+                            setCombinedRequests(combinedData);
                         }
                     } catch (e) {
                         console.error('Failed to fetch combined requests:', e);
