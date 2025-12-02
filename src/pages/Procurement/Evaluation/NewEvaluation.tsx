@@ -141,13 +141,13 @@ const NewEvaluation = () => {
     // Section B - Compliance Matrix (fully customizable table)
     type ComplianceColumn = { id: string; name: string; width?: string };
     type ComplianceRow = { id: string; data: Record<string, string> };
-    
+
     const [complianceColumns, setComplianceColumns] = useState<ComplianceColumn[]>([
         { id: 'col-1', name: 'Clause', width: '120px' },
         { id: 'col-2', name: 'COMPLIANCE MATRIX', width: 'auto' },
         { id: 'col-3', name: 'Stationery & Office Supplies', width: 'auto' },
     ]);
-    
+
     const [complianceRows, setComplianceRows] = useState<ComplianceRow[]>([
         { id: 'row-1', data: { 'col-1': 'ITB 14.1', 'col-2': 'Signed Letter of Quotation', 'col-3': 'N/A' } },
         { id: 'row-2', data: { 'col-1': '', 'col-2': 'Signed price and delivery schedules', 'col-3': 'N/A' } },
@@ -192,12 +192,12 @@ const NewEvaluation = () => {
     // Section B.A - Eligibility Requirements (fully customizable table)
     type EligibilityColumn = { id: string; name: string; width?: string };
     type EligibilityRow = { id: string; data: Record<string, string> };
-    
+
     const [eligibilityColumns, setEligibilityColumns] = useState<EligibilityColumn[]>([
         { id: 'col-1', name: 'ELIGIBILITY REQUIREMENT', width: 'auto' },
         { id: 'col-2', name: 'Stationery & Office Supplies', width: 'auto' },
     ]);
-    
+
     const [eligibilityRows, setEligibilityRows] = useState<EligibilityRow[]>([
         { id: 'row-1', data: { 'col-1': 'PPC Reg in the category of:', 'col-2': '' } },
         { id: 'row-2', data: { 'col-1': 'TCI/TRN', 'col-2': '' } },
