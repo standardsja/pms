@@ -20,6 +20,12 @@ export const EvaluationForm: React.FC<Props> = ({ mode, evaluation, canEditSecti
     const [sectionE, setSectionE] = useState<SectionE | undefined>(evaluation?.sectionE);
     const [saving, setSaving] = useState(false);
 
+    // Debug logging
+    console.log('EvaluationForm - evaluation:', evaluation);
+    console.log('EvaluationForm - sectionB:', sectionB);
+    console.log('EvaluationForm - sectionB.bidders:', sectionB?.bidders);
+    console.log('EvaluationForm - canEditSections:', canEditSections);
+
     const canEdit = (sec: 'A' | 'B' | 'C' | 'D' | 'E') => canEditSections.includes(sec);
 
     const saveSec = async (sec: 'A' | 'B' | 'C' | 'D' | 'E') => {
@@ -113,6 +119,15 @@ export const EvaluationForm: React.FC<Props> = ({ mode, evaluation, canEditSecti
                     <p className="text-sm mt-1">Eligibility & Compliance, Technical Evaluation</p>
                 </div>
                 <div className="p-5 space-y-6">
+                    {/* Show message if no tables exist */}
+                    {!sectionB?.bidders?.[0] && (
+                        <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded">
+                            <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                                <strong>No tables created yet.</strong> The procurement officer needs to create the eligibility, compliance, and technical tables first.
+                            </p>
+                        </div>
+                    )}
+
                     {/* Eligibility Table */}
                     {sectionB?.bidders?.[0]?.eligibilityRequirements && (
                         <div>
