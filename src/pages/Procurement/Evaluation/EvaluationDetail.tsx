@@ -144,7 +144,6 @@ const EvaluationDetail = () => {
                     setEvaluation(updated);
                 }}
             />
-                        </div>
                     )}
 
                     <div className="md:col-span-2">
