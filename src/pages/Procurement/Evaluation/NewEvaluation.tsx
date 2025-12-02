@@ -172,14 +172,14 @@ const NewEvaluation = () => {
     // Section B.C - Technical Evaluation (fully customizable table)
     type TechnicalColumn = { id: string; name: string; width?: string };
     type TechnicalRow = { id: string; data: Record<string, string> };
-    
+
     const [technicalColumns, setTechnicalColumns] = useState<TechnicalColumn[]>([
         { id: 'col-1', name: 'Specifications', width: 'auto' },
         { id: 'col-2', name: 'Quantity', width: '120px' },
         { id: 'col-3', name: 'Stationery & Office Supplies', width: 'auto' },
         { id: 'col-4', name: 'Bid Amount (Inclusive of GCT)', width: '200px' },
     ]);
-    
+
     const [technicalRows, setTechnicalRows] = useState<TechnicalRow[]>([
         {
             id: 'row-1',
