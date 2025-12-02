@@ -144,10 +144,6 @@ const EvaluationDetail = () => {
                     setEvaluation(updated);
                 }}
             />
-                                    }}
-                                >
-                                    <IconEdit /> Edit Section B
-                                </button>
                             )}
                         </div>
                     )}
