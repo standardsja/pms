@@ -3542,7 +3542,9 @@ app.get('/api/requests', async (_req, res) => {
         }
         if (e?.code === 'P2022') {
             try {
-                const rows = await prisma.$queryRawUnsafe('SELECT id, reference, title, requesterId, departmentId, status, createdAt, updatedAt, isCombined, combinedRequestId, lotNumber FROM Request ORDER BY createdAt DESC');
+                const rows = await prisma.$queryRawUnsafe(
+                    'SELECT id, reference, title, requesterId, departmentId, status, createdAt, updatedAt, isCombined, combinedRequestId, lotNumber FROM Request ORDER BY createdAt DESC'
+                );
                 // rows will not include requester/department objects; return as-is
                 return res.json(rows);
             } catch (rawErr: any) {

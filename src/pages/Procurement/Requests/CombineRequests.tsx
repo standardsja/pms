@@ -57,7 +57,7 @@ const CombineRequests = () => {
             setError(null);
             try {
                 const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
-                
+
                 // Fetch combinable requests
                 const response = await fetch(getApiUrl('/api/requests/combine?combinable=true'), {
                     headers: {
@@ -83,7 +83,7 @@ const CombineRequests = () => {
                 }));
 
                 setRequests(formattedRequests);
-                
+
                 // Also fetch existing combined requests
                 const combinedResponse = await fetch(getApiUrl('/api/requests/combine'), {
                     headers: {
@@ -91,7 +91,7 @@ const CombineRequests = () => {
                         'Content-Type': 'application/json',
                     },
                 });
-                
+
                 if (combinedResponse.ok) {
                     const combinedData = await combinedResponse.json();
                     setCombinedRequests(combinedData);
@@ -261,11 +261,7 @@ const CombineRequests = () => {
                 <h2 className="text-xl">Combine Requests</h2>
                 <div className="flex gap-2">
                     {combinedRequests.length > 0 && (
-                        <button 
-                            type="button" 
-                            className="btn btn-outline-info gap-2" 
-                            onClick={() => setShowExisting(!showExisting)}
-                        >
+                        <button type="button" className="btn btn-outline-info gap-2" onClick={() => setShowExisting(!showExisting)}>
                             <IconEye className="w-5 h-5" />
                             {showExisting ? 'Hide' : 'Show'} Existing Combined ({combinedRequests.length})
                         </button>
@@ -291,7 +287,7 @@ const CombineRequests = () => {
                     <strong>Limited Access:</strong> {permissions.reasons.join(', ')}
                 </div>
             )}
-            
+
             {/* Existing Combined Requests */}
             {showExisting && combinedRequests.length > 0 && (
                 <div className="panel mb-5">
@@ -323,11 +319,7 @@ const CombineRequests = () => {
                                         <td>{new Date(combined.createdAt).toLocaleDateString()}</td>
                                         <td>{combined.createdBy?.full_name || 'Unknown'}</td>
                                         <td>
-                                            <button
-                                                type="button"
-                                                className="btn btn-sm btn-primary gap-1"
-                                                onClick={() => navigate(`/apps/requests/combined/${combined.id}`)}
-                                            >
+                                            <button type="button" className="btn btn-sm btn-primary gap-1" onClick={() => navigate(`/apps/requests/combined/${combined.id}`)}>
                                                 <IconEye className="w-4 h-4" />
                                                 View Details
                                             </button>
