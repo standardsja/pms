@@ -135,7 +135,7 @@ export const EvaluationForm: React.FC<Props> = ({
             <input
               className="form-input w-full"
               disabled={!canEdit('A')}
-              value(sectionA?.comparableEstimate ?? '')
+              value={sectionA?.comparableEstimate ?? ''}
               onChange={(e) => setSectionA({ ...(sectionA as any), comparableEstimate: Number(e.target.value) })}
             />
           </div>
