@@ -76,47 +76,16 @@ export const EvaluationForm: React.FC<Props> = ({ mode, evaluation, canEditSecti
                         <div>
                             <label className="block mb-1 text-sm font-semibold">Comparable Estimate</label>
                             <input
-                                type="number"
-                                className="form-input w-full"
-                                disabled={!canEdit('A')}
-                                value={sectionA?.comparableEstimate ?? ''}
-                                onChange={(e) => setSectionA({ ...(sectionA as any), comparableEstimate: Number(e.target.value) })}
-                            />
-                        </div>
-                        <div>
-                            <label className="block mb-1 text-sm font-semibold">Funded By</label>
-                            <input
-                                className="form-input w-full"
-                                disabled={!canEdit('A')}
-                                value={sectionA?.fundedBy || ''}
-                                onChange={(e) => setSectionA({ ...(sectionA as any), fundedBy: e.target.value })}
-                            />
-                        </div>
-                        <div>
-                            <label className="block mb-1 text-sm font-semibold">Tender Closing Date</label>
-                            <input
-                                type="date"
-                                className="form-input w-full"
-                                disabled={!canEdit('A')}
-                                value={sectionA?.tenderClosingDate || ''}
-                                onChange={(e) => setSectionA({ ...(sectionA as any), tenderClosingDate: e.target.value })}
-                            />
-                        </div>
-                        <div>
-                            <label className="block mb-1 text-sm font-semibold">Tender Opening Date</label>
-                            <input
-                                type="date"
-                                className="form-input w-full"
-                                disabled={!canEdit('A')}
-                                value={sectionA?.tenderOpeningDate || ''}
-                                onChange={(e) => setSectionA({ ...(sectionA as any), tenderOpeningDate: e.target.value })}
-                            />
-                        </div>
-                    </div>
-                </div>
-                {canEdit('A') && (
-                    <div className="p-5 flex justify-end border-t">
-                        <button className="btn btn-primary" disabled={saving} onClick={() => saveSec('A')}>
+                                                        ) : (
+                                                            <span>{row.data[col.id] || '-'}</span>
+                                                        )}
+                                                    </td>
+                                                ))}
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
                             {saving ? 'Saving…' : 'Save Section A'}
                         </button>
                     </div>
