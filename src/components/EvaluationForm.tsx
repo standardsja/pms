@@ -321,59 +321,53 @@ export const EvaluationForm: React.FC<Props> = ({ mode, evaluation, canEditSecti
                     )}
 
                     {/* Technical Table */}
-                    {sectionB?.bidders?.[0]?.technicalEvaluation && (
-                        <div>
-                            <h6 className="font-semibold mb-2">Technical Table</h6>
-                            <div className="overflow-x-auto">
-                                <table className="min-w-full border">
-                                    <thead>
-                                        <tr>
-                                            {sectionB.bidders[0].technicalEvaluation.columns.map((col) => (
-                                                <th key={col.id} className="border px-2 py-1 bg-gray-50 dark:bg-gray-800">
-                                                    {col.name}
-                                                </th>
-                                            ))}
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {sectionB.bidders[0].technicalEvaluation.rows.map((row) => (
+                                                    <td key={col.id} className="border px-2 py-1">
+                                                        <input
+                                                            className="form-input w-full"
+                                                            value={row.data[col.id] || ''}
+                                                            onChange={(e) => {
+                                                                const copy = { ...(sectionB as any) };
+                                                                const table = copy.bidders[0].eligibilityRequirements;
+                                                                table.rows = table.rows.map((r: any) => (r.id === row.id ? { ...r, data: { ...r.data, [col.id]: e.target.value } } : r));
+                                                                setSectionB(copy);
+                                                            }}
+                                                        />
+                                                    </td>
                                             <tr key={row.id}>
                                                 {sectionB.bidders[0].technicalEvaluation!.columns.map((col) => (
                                                     <td key={col.id} className="border px-2 py-1">
                                                         {canEdit('B') ? (
                                                             <input
                                                                 className="form-input w-full"
-                                                                value={row.data[col.id] || ''}
-                                                                onChange={(e) => {
-                                                                    const copy = { ...(sectionB as any) };
-                                                                    const table = copy.bidders[0].technicalEvaluation;
-                                                                    table.rows = table.rows.map((r: any) => (r.id === row.id ? { ...r, data: { ...r.data, [col.id]: e.target.value } } : r));
-                                                                    setSectionB(copy);
-                                                                }}
-                                                            />
-                                                        ) : (
-                                                            <span>{row.data[col.id] || '-'}</span>
-                                                        )}
-                                                    </td>
-                                                ))}
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                            <div className="mt-2 flex gap-2">
+                                <button
+                                    type="button"
+                                    className="btn btn-outline-primary btn-sm"
+                                    onClick={() => {
+                                        const copy = { ...(sectionB as any) };
+                                        const cols = copy.bidders[0].eligibilityRequirements.columns;
+                                        const newRow = {
+                                            id: `row-${Date.now()}`,
+                                            data: Object.fromEntries(cols.map((c: any) => [c.id, ''])),
+                                        };
+                                        copy.bidders[0].eligibilityRequirements.rows = [...copy.bidders[0].eligibilityRequirements.rows, newRow];
+                                        setSectionB(copy);
+                                    }}
+                                >
+                                    Add Row
+                                </button>
+                                <button
+                                    type="button"
+                                    className="btn btn-outline-danger btn-sm"
+                                    onClick={() => {
+                                        const copy = { ...(sectionB as any) };
+                                        copy.bidders[0].eligibilityRequirements.rows = copy.bidders[0].eligibilityRequirements.rows.slice(0, -1);
+                                        setSectionB(copy);
+                                    }}
+                                >
+                                    Remove Last Row
+                                </button>
                             </div>
-                        </div>
-                    )}
-                </div>
-                {canEdit('B') && (
-                    <div className="p-5 flex justify-end border-t">
-                        <button className="btn btn-primary" disabled={saving} onClick={() => saveSec('B')}>
-                            {saving ? 'Saving…' : 'Save Section B'}
-                        </button>
-                    </div>
-                )}
-            </div>
-
-            {/* Section C: Evaluator Comments */}
             <div className="panel">
                 <div className="mb-5 -m-5 p-5 bg-warning/10 border-l-4 border-warning">
                     <h5 className="text-lg font-bold text-warning">Section C</h5>
