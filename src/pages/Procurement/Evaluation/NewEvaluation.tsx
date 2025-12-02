@@ -169,27 +169,61 @@ const NewEvaluation = () => {
         setEligibilityRows((rows) => rows.filter((_, i) => i !== index));
     };
 
-    // Section B.C - Technical Evaluation (dynamic rows)
-    type TechnicalRow = { specifications: string; quantity: string; bidderName: string; bidAmount: string };
+    // Section B.C - Technical Evaluation (fully customizable table)
+    type TechnicalColumn = { id: string; name: string; width?: string };
+    type TechnicalRow = { id: string; data: Record<string, string> };
+    
+    const [technicalColumns, setTechnicalColumns] = useState<TechnicalColumn[]>([
+        { id: 'col-1', name: 'Specifications', width: 'auto' },
+        { id: 'col-2', name: 'Quantity', width: '120px' },
+        { id: 'col-3', name: 'Stationery & Office Supplies', width: 'auto' },
+        { id: 'col-4', name: 'Bid Amount (Inclusive of GCT)', width: '200px' },
+    ]);
+    
     const [technicalRows, setTechnicalRows] = useState<TechnicalRow[]>([
         {
-            specifications: 'AA-532BK Image 3 Lever H/Duty Task Chair w/Arms - Black',
-            quantity: '1',
-            bidderName: 'Stationery & Office Supplies',
-            bidAmount: '49680.00',
+            id: 'row-1',
+            data: {
+                'col-1': 'AA-532BK Image 3 Lever H/Duty Task Chair w/Arms - Black',
+                'col-2': '1',
+                'col-3': 'Stationery & Office Supplies',
+                'col-4': '49680.00',
+            },
         },
     ]);
 
-    const updateTechnicalRow = (index: number, key: keyof TechnicalRow, value: string) => {
-        setTechnicalRows((rows) => rows.map((r, i) => (i === index ? { ...r, [key]: value } : r)));
+    const updateTechnicalCell = (rowId: string, colId: string, value: string) => {
+        setTechnicalRows((rows) => rows.map((r) => (r.id === rowId ? { ...r, data: { ...r.data, [colId]: value } } : r)));
     };
 
     const addTechnicalRow = () => {
-        setTechnicalRows((rows) => [...rows, { specifications: '', quantity: '1', bidderName: '', bidAmount: '' }]);
+        const newRow: TechnicalRow = {
+            id: `row-${Date.now()}`,
+            data: technicalColumns.reduce((acc, col) => ({ ...acc, [col.id]: '' }), {}),
+        };
+        setTechnicalRows((rows) => [...rows, newRow]);
     };
 
-    const removeTechnicalRow = (index: number) => {
-        setTechnicalRows((rows) => rows.filter((_, i) => i !== index));
+    const removeTechnicalRow = (rowId: string) => {
+        setTechnicalRows((rows) => rows.filter((r) => r.id !== rowId));
+    };
+
+    const addTechnicalColumn = () => {
+        const colId = `col-${Date.now()}`;
+        const newCol: TechnicalColumn = { id: colId, name: 'New Column', width: 'auto' };
+        setTechnicalColumns((cols) => [...cols, newCol]);
+        // Add empty data for this column in all existing rows
+        setTechnicalRows((rows) => rows.map((r) => ({ ...r, data: { ...r.data, [colId]: '' } })));
+    };
+
+    const removeTechnicalColumn = (colId: string) => {
+        setTechnicalColumns((cols) => cols.filter((c) => c.id !== colId));
+        // Remove data for this column from all rows
+        setTechnicalRows((rows) => rows.map((r) => ({ ...r, data: Object.fromEntries(Object.entries(r.data).filter(([k]) => k !== colId)) })));
+    };
+
+    const updateColumnName = (colId: string, newName: string) => {
+        setTechnicalColumns((cols) => cols.map((c) => (c.id === colId ? { ...c, name: newName } : c)));
     };
 
     const updateComplianceRow = (index: number, key: keyof ComplianceRow, value: string) => {
@@ -368,13 +402,15 @@ const NewEvaluation = () => {
                                 quotationProvided: complianceRows.some((r) => r.requirement.toLowerCase().includes('quotation')),
                                 bidAmountMatches: complianceRows.some((r) => r.requirement.toLowerCase().includes('amount')),
                             },
-                            technicalEvaluation: technicalRows
-                                .filter((r) => r.specifications.trim() !== '' || r.quantity.trim() !== '' || r.bidAmount.trim() !== '')
-                                .map((r) => ({
-                                    specifications: r.specifications.trim(),
-                                    quantity: safeParseInt(r.quantity),
-                                    bidAmount: safeParseFloat(r.bidAmount),
-                                })),
+                            technicalEvaluation: {
+                                columns: technicalColumns,
+                                rows: technicalRows
+                                    .filter((row) => Object.values(row.data).some((val) => val.trim() !== ''))
+                                    .map((row) => ({
+                                        id: row.id,
+                                        data: row.data,
+                                    })),
+                            },
                         },
                     ],
                 },
@@ -1104,68 +1140,74 @@ const NewEvaluation = () => {
                                 </div>
                             </div>
 
-                            {/* Technical Evaluation */}
+                            {/* Technical Evaluation - Fully Customizable Table */}
                             <div>
                                 <h6 className="text-md font-bold mb-4">Technical Evaluation</h6>
                                 <div className="flex items-center justify-between mb-2">
-                                    <p className="text-xs text-gray-500">Add or remove technical items as needed.</p>
-                                    <button type="button" onClick={addTechnicalRow} className="btn btn-outline-primary btn-sm">
-                                        Add Row
-                                    </button>
+                                    <p className="text-xs text-gray-500">Customize columns and rows to match your evaluation needs.</p>
+                                    <div className="flex gap-2">
+                                        <button type="button" onClick={addTechnicalColumn} className="btn btn-outline-info btn-sm">
+                                            + Add Column
+                                        </button>
+                                        <button type="button" onClick={addTechnicalRow} className="btn btn-outline-primary btn-sm">
+                                            + Add Row
+                                        </button>
+                                    </div>
                                 </div>
                                 <div className="overflow-x-auto">
                                     <table className="table-auto w-full border-collapse border border-gray-300 dark:border-gray-600">
                                         <thead>
                                             <tr className="bg-gray-100 dark:bg-gray-800">
-                                                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Specifications</th>
-                                                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Quantity</th>
-                                                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Stationery & Office Supplies</th>
-                                                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Bid Amount (Inclusive of GCT)</th>
+                                                {technicalColumns.map((col) => (
+                                                    <th key={col.id} className="border border-gray-300 dark:border-gray-600 px-2 py-2" style={{ width: col.width }}>
+                                                        <div className="flex items-center gap-2">
+                                                            <input
+                                                                type="text"
+                                                                className="form-input text-sm font-semibold bg-transparent border-0 p-1"
+                                                                value={col.name}
+                                                                onChange={(e) => updateColumnName(col.id, e.target.value)}
+                                                                placeholder="Column name"
+                                                            />
+                                                            {technicalColumns.length > 1 && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => removeTechnicalColumn(col.id)}
+                                                                    className="text-danger hover:bg-danger hover:text-white p-1 rounded transition-colors"
+                                                                    title="Remove column"
+                                                                >
+                                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                                    </svg>
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </th>
+                                                ))}
                                                 <th className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-left font-semibold w-24">Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {technicalRows.map((row, idx) => (
-                                                <tr key={idx}>
-                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2 align-top">
-                                                        <textarea
-                                                            className="form-textarea w-full"
-                                                            rows={2}
-                                                            placeholder="Enter specifications"
-                                                            value={row.specifications}
-                                                            onChange={(e) => updateTechnicalRow(idx, 'specifications', e.target.value)}
-                                                        ></textarea>
-                                                    </td>
-                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2">
-                                                        <input
-                                                            type="number"
-                                                            className="form-input w-full"
-                                                            placeholder="1"
-                                                            value={row.quantity}
-                                                            onChange={(e) => updateTechnicalRow(idx, 'quantity', e.target.value)}
-                                                        />
-                                                    </td>
-                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2">
-                                                        <input
-                                                            type="text"
-                                                            className="form-input w-full"
-                                                            placeholder="Stationery & Office Supplies"
-                                                            value={row.bidderName}
-                                                            onChange={(e) => updateTechnicalRow(idx, 'bidderName', e.target.value)}
-                                                        />
-                                                    </td>
-                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2">
-                                                        <input
-                                                            type="number"
-                                                            step="0.01"
-                                                            className="form-input w-full"
-                                                            placeholder="$0.00"
-                                                            value={row.bidAmount}
-                                                            onChange={(e) => updateTechnicalRow(idx, 'bidAmount', e.target.value)}
-                                                        />
-                                                    </td>
-                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-right">
-                                                        <button type="button" onClick={() => removeTechnicalRow(idx)} className="btn btn-outline-danger btn-sm" disabled={technicalRows.length <= 1}>
+                                            {technicalRows.map((row) => (
+                                                <tr key={row.id}>
+                                                    {technicalColumns.map((col) => (
+                                                        <td key={col.id} className="border border-gray-300 dark:border-gray-600 px-2 py-2 align-top">
+                                                            <textarea
+                                                                className="form-textarea w-full text-sm"
+                                                                rows={2}
+                                                                placeholder="Enter value"
+                                                                value={row.data[col.id] || ''}
+                                                                onChange={(e) => updateTechnicalCell(row.id, col.id, e.target.value)}
+                                                            />
+                                                        </td>
+                                                    ))}
+                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-center">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => removeTechnicalRow(row.id)}
+                                                            className="btn btn-outline-danger btn-sm"
+                                                            disabled={technicalRows.length <= 1}
+                                                            title="Remove row"
+                                                        >
                                                             Remove
                                                         </button>
                                                     </td>
