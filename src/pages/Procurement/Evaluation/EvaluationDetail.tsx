@@ -144,9 +144,8 @@ const EvaluationDetail = () => {
                     setEvaluation(updated);
                 }}
             />
-                    )}
 
-                    <div className="md:col-span-2">
+            <div className="md:col-span-2">
                         {(editingSection === 'B' ? (sectionData?.bidders || []) : (sectionB.bidders || [])).map((bidder: any, idx: number) => (
                             <div key={idx} className="mb-4 p-4 border rounded bg-white-light dark:bg-[#1b2e4b]">
                                 <h6 className="font-semibold mb-2">Bidder {idx + 1}</h6>
