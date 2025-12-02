@@ -148,59 +148,63 @@ const EvaluationDetail = () => {
     const sectionE = evaluation.sectionE;
 
     return (
-        <div className="space-y-6">
+        <div>
             {/* Header */}
-            <div className="panel">
-                <div className="flex items-center justify-between mb-5">
-                    <div className="flex items-center gap-3">
-                        <Link to="/procurement/evaluation" className="btn btn-outline-primary">
-                            <IconArrowLeft className="h-4 w-4" />
+            <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+                <div>
+                    <h2 className="text-2xl font-bold">{evaluation.evalNumber}</h2>
+                    <p className="text-white-dark">Bureau of Standards Jamaica - Official Evaluation Report Form (PRO_70_F_14/00)</p>
+                </div>
+                <div className="flex gap-3">
+                    <Link to="/procurement/evaluation" className="btn btn-outline-danger gap-2">
+                        <IconArrowLeft />
+                        Back to List
+                    </Link>
+                    {isProcurement && evaluation.status === 'IN_PROGRESS' && (
+                        <Link to={`/procurement/evaluation/${evaluation.id}/edit`} className="btn btn-warning gap-2">
+                            <IconEdit />
+                            Edit
                         </Link>
-                        <div>
-                            <h5 className="text-xl font-bold">{evaluation.evalNumber}</h5>
-                            <p className="text-sm text-white-dark mt-1">{evaluation.rfqTitle}</p>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                        <span className={`badge ${evaluation.status === 'COMPLETED' ? 'bg-success' : evaluation.status === 'IN_PROGRESS' ? 'bg-warning' : 'bg-info'} text-base px-4 py-2`}>
+                    )}
+                    {isCommittee && (
+                        <Link to={`/evaluation/${evaluation.id}/committee`} className="btn btn-info">
+                            Committee Review
+                        </Link>
+                    )}
+                </div>
+            </div>
+
+            {/* Status Badge */}
+            <div className="panel mb-5">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <span className={`badge text-base px-4 py-2 ${evaluation.status === 'COMPLETED' ? 'bg-success' : evaluation.status === 'IN_PROGRESS' ? 'bg-warning' : 'bg-info'}`}>
                             {evaluation.status === 'COMPLETED' ? '✓ Completed' : evaluation.status}
                         </span>
-                        {isProcurement && evaluation.status === 'IN_PROGRESS' && (
-                            <Link to={`/procurement/evaluation/${evaluation.id}/edit`} className="btn btn-warning">
-                                <IconEdit className="h-4 w-4 mr-2" />
-                                Edit
-                            </Link>
+                    </div>
+                    <div className="flex gap-4">
+                        <div>
+                            <p className="text-sm text-white-dark">Created By</p>
+                            <p className="font-semibold">{evaluation.creator.name || evaluation.creator.email}</p>
+                        </div>
+                        {evaluation.evaluator && (
+                            <div>
+                                <p className="text-sm text-white-dark">Evaluator</p>
+                                <p className="font-semibold">{evaluation.evaluator}</p>
+                            </div>
                         )}
-                        {isCommittee && (
-                            <Link to={`/evaluation/${evaluation.id}/committee`} className="btn btn-info">
-                                Committee Review
-                            </Link>
+                        {evaluation.dueDate && (
+                            <div>
+                                <p className="text-sm text-white-dark">Due Date</p>
+                                <p className="font-semibold">{new Date(evaluation.dueDate).toLocaleDateString()}</p>
+                            </div>
                         )}
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div>
-                        <p className="text-sm text-white-dark">RFQ Number</p>
-                        <p className="font-semibold text-info">{evaluation.rfqNumber}</p>
-                    </div>
-                    <div>
-                        <p className="text-sm text-white-dark">Created By</p>
-                        <p className="font-semibold">{evaluation.creator.name || evaluation.creator.email}</p>
-                    </div>
-                    <div>
-                        <p className="text-sm text-white-dark">Evaluator</p>
-                        <p className="font-semibold">{evaluation.evaluator || '-'}</p>
-                    </div>
-                    <div>
-                        <p className="text-sm text-white-dark">Due Date</p>
-                        <p className="font-semibold">{evaluation.dueDate ? new Date(evaluation.dueDate).toLocaleDateString() : '-'}</p>
                     </div>
                 </div>
             </div>
 
-            {/* Section Status Overview */}
-            <div className="panel">
+            {/* Section Verification Status */}
+            <div className="panel mb-5">
                 <h5 className="text-lg font-semibold mb-4">Section Verification Status</h5>
                 <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                     {(['A', 'B', 'C', 'D', 'E'] as const).map((section) => {
@@ -210,8 +214,22 @@ const EvaluationDetail = () => {
 
                         return (
                             <div key={section} className="border rounded-lg p-4 text-center">
-                                <div className="text-2xl font-bold text-primary mb-2">Section {section}</div>
-                                <span className={getStatusBadge(status)}>{getStatusText(status)}</span>
+                                <div className="text-lg font-bold mb-2">Section {section}</div>
+                                <span
+                                    className={`badge ${
+                                        status === 'NOT_STARTED'
+                                            ? 'bg-secondary'
+                                            : status === 'VERIFIED'
+                                            ? 'bg-success'
+                                            : status === 'SUBMITTED'
+                                            ? 'bg-info'
+                                            : status === 'IN_PROGRESS'
+                                            ? 'bg-warning'
+                                            : 'bg-danger'
+                                    }`}
+                                >
+                                    {getStatusText(status)}
+                                </span>
                                 {status === 'VERIFIED' && verifier && (
                                     <div className="mt-2 text-xs text-white-dark">
                                         <IconChecks className="inline h-3 w-3 text-success mr-1" />
@@ -225,78 +243,185 @@ const EvaluationDetail = () => {
                 </div>
             </div>
 
-            {/* Section A: Procurement Details */}
-            {sectionA && (
-                <FieldGroup title="Section A: Procurement Details" color="primary">
-                    <Field label="RFQ Number" value={evaluation.rfqNumber} />
-                    <Field label="RFQ Title" value={evaluation.rfqTitle} fullWidth />
-                    <Field label="Comparable Estimate" value={`$${sectionA.comparableEstimate?.toLocaleString()}`} />
-                    <Field label="Funded By" value={sectionA.fundedBy} />
-                    <Field label="Tender Closing Date" value={sectionA.tenderClosingDate} />
-                    <Field label="Tender Opening Date" value={sectionA.tenderOpeningDate} />
-                    <Field label="Procurement Method" value={sectionA.procurementMethod?.replace(/_/g, ' ')} />
-                    <Field label="Contract Type" value={sectionA.contractType?.replace(/_/g, ' ')} />
-                    <Field label="Bid Security Required" value={sectionA.bidSecurity} />
-                    <Field label="Bids Requested" value={sectionA.numberOfBidsRequested} />
-                    <Field label="Bids Received" value={sectionA.numberOfBidsReceived} />
-                    <Field label="Award Criteria" value={sectionA.awardCriteria?.replace(/_/g, ' ')} />
-                </FieldGroup>
-            )}
-
-            {/* Section B: Bidders */}
-            {sectionB && (
-                <FieldGroup title="Section B: Bidders & Compliance" color="info">
-                    <div className="md:col-span-2">
-                        {sectionB.bidders?.map((bidder: any, idx: number) => (
-                            <div key={idx} className="mb-4 p-4 border rounded bg-white-light dark:bg-[#1b2e4b]">
-                                <h6 className="font-semibold mb-2">
-                                    Bidder {idx + 1}: {bidder.bidderName}
-                                </h6>
-                                <div className="grid grid-cols-2 gap-3 text-sm">
-                                    <div>
-                                        <strong>PPC Category:</strong> {bidder.ppcCategory}
-                                    </div>
-                                    <div>
-                                        <strong>TCI/TRN:</strong> {bidder.tciTrn}
-                                    </div>
-                                    <div className="col-span-2">
-                                        <strong>Bid Amount:</strong> ${bidder.bidAmountInclusiveGCT?.toLocaleString()}
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
+            <div className="space-y-6">
+                {/* BACKGROUND Section */}
+                <div className="panel">
+                    <div className="space-y-5">
+                        <div>
+                            <label className="mb-2 block font-semibold text-lg">BACKGROUND:</label>
+                            <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700">{evaluation.description || '-'}</div>
+                        </div>
+                        <div className="grid gap-5 md:grid-cols-2">
+                            <Field label="DATE SUBMISSION WAS CONSIDERED" value={evaluation.dateSubmissionConsidered || '-'} />
+                            <Field label="REPORT COMPLETION DATE" value={evaluation.reportCompletionDate || '-'} />
+                        </div>
                     </div>
-                </FieldGroup>
-            )}
+                </div>
 
-            {/* Section C: Evaluator Comments */}
-            {sectionC && (
-                <FieldGroup title="Section C: Evaluator Comments (Committee)" color="warning">
-                    <TextAreaField label="Comments" value={sectionC.comments} />
-                    <TextAreaField label="Critical Issues" value={sectionC.criticalIssues} />
-                    <Field label="Action Taken" value={sectionC.actionTaken} />
-                    <Field label="Recommended Supplier" value={sectionC.recommendedSupplier} />
-                    <Field label="Recommended Amount" value={`$${sectionC.recommendedAmountInclusiveGCT?.toLocaleString()}`} />
-                    <Field label="Evaluator Name" value={sectionC.evaluatorName} />
-                    <Field label="Evaluation Date" value={sectionC.evaluationDate} />
-                </FieldGroup>
-            )}
+                {/* Section A - Procurement Details */}
+                {sectionA && (
+                    <div className="panel">
+                        <div className="mb-5 -m-5 p-5 bg-primary/10 border-l-4 border-primary">
+                            <h5 className="text-lg font-bold text-primary">Section A</h5>
+                            <p className="text-sm mt-1">Procurement Details</p>
+                        </div>
 
-            {/* Section D: Summary */}
-            {sectionD && (
-                <FieldGroup title="Section D: Summary" color="warning">
-                    <TextAreaField label="Evaluation Summary" value={sectionD.summary} />
-                </FieldGroup>
-            )}
+                        <div className="space-y-4 p-5">
+                            <div className="grid gap-5 md:grid-cols-2">
+                                <Field label="1. COMPARABLE ESTIMATE" value={`$${sectionA.comparableEstimate?.toLocaleString()}`} />
+                                <Field label="2. FUNDED BY" value={sectionA.fundedBy} />
+                            </div>
 
-            {/* Section E: Final Recommendation */}
-            {sectionE && (
-                <FieldGroup title="Section E: Final Recommendation" color="success">
-                    <TextAreaField label="Recommendation" value={sectionE.finalRecommendation} />
-                    <Field label="% Difference" value={sectionE.percentageDifference ? `${sectionE.percentageDifference}%` : '-'} />
-                    <Field label="Prepared By" value={sectionE.preparedBy} />
-                </FieldGroup>
-            )}
+                            <div className="grid gap-5 md:grid-cols-2">
+                                <Field label="3. TENDER CLOSING DATE & TIME" value={`${sectionA.tenderClosingDate} ${sectionA.tenderClosingTime || ''}`} />
+                                <Field label="4. TENDER OPENING DATE & TIME" value={`${sectionA.tenderOpeningDate} ${sectionA.tenderOpeningTime || ''}`} />
+                            </div>
+
+                            {sectionA.actualOpeningDate && (
+                                <div className="ml-8">
+                                    <Field label="4a. ACTUAL OPENING DATE & TIME" value={`${sectionA.actualOpeningDate} ${sectionA.actualOpeningTime || ''}`} />
+                                </div>
+                            )}
+
+                            <Field label="5. Procurement Method" value={sectionA.procurementMethod?.replace(/_/g, ' ')} fullWidth />
+                            <Field label="7. Contract Type" value={sectionA.contractType?.replace(/_/g, ' ')} fullWidth />
+                            <Field label="8. Bid Security" value={sectionA.bidSecurity} fullWidth />
+
+                            <div className="grid gap-5 md:grid-cols-2">
+                                <Field label="11. Number of Bids Requested" value={sectionA.numberOfBidsRequested} />
+                                <Field label="11a. Number of Bids Received" value={sectionA.numberOfBidsReceived} />
+                            </div>
+
+                            <Field label="12. Arithmetic Error Identified" value={sectionA.arithmeticErrorIdentified ? 'Yes' : 'No'} fullWidth />
+                            <Field label="13. Re-tendered" value={sectionA.retender ? 'Yes' : 'No'} fullWidth />
+                            <Field label="15. Contract Award Criteria" value={sectionA.awardCriteria?.replace(/_/g, ' ')} fullWidth />
+                        </div>
+                    </div>
+                )}
+
+                {/* Section B - Bidders & Compliance */}
+                {sectionB && sectionB.bidders && sectionB.bidders.length > 0 && (
+                    <div className="panel">
+                        <div className="mb-5 -m-5 p-5 bg-info/10 border-l-4 border-info">
+                            <h5 className="text-lg font-bold text-info">Section B</h5>
+                            <p className="text-sm mt-1">Bidders & Compliance Matrix</p>
+                        </div>
+
+                        <div className="space-y-6 p-5">
+                            {sectionB.bidders.map((bidder: any, idx: number) => (
+                                <div key={idx}>
+                                    <h6 className="text-md font-bold mb-4">
+                                        Bidder {idx + 1}: {bidder.bidderName}
+                                    </h6>
+
+                                    {/* A. Eligibility Requirements */}
+                                    <div className="mb-4">
+                                        <p className="font-semibold mb-2">A. Eligibility Requirements</p>
+                                        <div className="overflow-x-auto">
+                                            <table className="table-auto w-full border-collapse border border-gray-300 dark:border-gray-600">
+                                                <thead>
+                                                    <tr className="bg-gray-100 dark:bg-gray-800">
+                                                        <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left">ELIGIBILITY REQUIREMENT</th>
+                                                        <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left">{bidder.bidderName}</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <tr>
+                                                        <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">PPC Reg in the category of:</td>
+                                                        <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">{bidder.ppcCategory || '-'}</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">TCI/TRN</td>
+                                                        <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">{bidder.tciTrn || '-'}</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">Bid Amount (Inclusive of GCT)</td>
+                                                        <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">${bidder.bidAmountInclusiveGCT?.toLocaleString() || '0'}</td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+
+                                    {/* Technical Evaluation */}
+                                    {bidder.technicalEvaluation && bidder.technicalEvaluation.length > 0 && (
+                                        <div>
+                                            <p className="font-semibold mb-2">Technical Evaluation</p>
+                                            <div className="overflow-x-auto">
+                                                <table className="table-auto w-full border-collapse border border-gray-300 dark:border-gray-600">
+                                                    <thead>
+                                                        <tr className="bg-gray-100 dark:bg-gray-800">
+                                                            <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left">SPECIFICATIONS</th>
+                                                            <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left">QUANTITY</th>
+                                                            <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left">BID AMOUNT</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {bidder.technicalEvaluation.map((item: any, techIdx: number) => (
+                                                            <tr key={techIdx}>
+                                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">{item.specifications}</td>
+                                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">{item.quantity}</td>
+                                                                <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">${item.bidAmount?.toLocaleString()}</td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* Section C - Evaluator Comments */}
+                <div className="panel">
+                    <div className="mb-5 -m-5 p-5 bg-warning/10 border-l-4 border-warning">
+                        <h5 className="text-lg font-bold text-warning">Section C</h5>
+                        <p className="text-sm mt-1">Evaluator Assessment</p>
+                    </div>
+
+                    <div className="space-y-5 p-5">
+                        <TextAreaField label="Comments/Critical Issues Examined" value={sectionC?.comments || sectionC?.criticalIssues} />
+                        <Field label="Action Taken" value={sectionC?.actionTaken} fullWidth />
+                        <Field label="Recommended Contractor/Supplier" value={sectionC?.recommendedSupplier} fullWidth />
+                        <Field label="Recommended Contract Amount" value={sectionC?.recommendedAmountInclusiveGCT ? `$${sectionC.recommendedAmountInclusiveGCT.toLocaleString()}` : '-'} fullWidth />
+                        <div className="grid gap-5 md:grid-cols-2">
+                            <Field label="Evaluator's Name" value={sectionC?.evaluatorName} />
+                            <Field label="Date" value={sectionC?.evaluationDate} />
+                        </div>
+                    </div>
+                </div>
+
+                {/* Section D - Summary */}
+                <div className="panel">
+                    <div className="mb-5 -m-5 p-5 bg-success/10 border-l-4 border-success">
+                        <h5 className="text-lg font-bold text-success">Section D</h5>
+                        <p className="text-sm mt-1">to be completed by the Assigned Procurement Officer</p>
+                    </div>
+
+                    <div className="space-y-5 p-5">
+                        <TextAreaField label="Summary of Evaluation" value={sectionD?.summary} />
+                    </div>
+                </div>
+
+                {/* Section E - Final Recommendation */}
+                <div className="panel">
+                    <div className="mb-5 -m-5 p-5 bg-primary/10 border-l-4 border-primary">
+                        <h5 className="text-lg font-bold text-primary">Section E</h5>
+                        <p className="text-sm mt-1">to be completed by the Assigned Procurement Officer</p>
+                    </div>
+
+                    <div className="space-y-5 p-5">
+                        <TextAreaField label="Recommendation" value={sectionE?.finalRecommendation} />
+                        <div className="grid gap-5 md:grid-cols-2">
+                            <Field label="Prepared By" value={sectionE?.preparedBy} />
+                            <Field label="Signature" value={sectionE?.signature} />
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 };
