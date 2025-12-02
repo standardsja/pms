@@ -1990,6 +1990,9 @@ app.get('/requests', async (_req, res) => {
                 procurementType: true,
                 createdAt: true,
                 updatedAt: true,
+                isCombined: true,
+                combinedRequestId: true,
+                lotNumber: true,
                 requester: { select: { id: true, name: true, email: true } },
                 department: { select: { id: true, name: true, code: true } },
                 currentAssignee: { select: { id: true, name: true, email: true } },
@@ -2023,6 +2026,9 @@ app.get('/requests', async (_req, res) => {
                             procurementType: true,
                             createdAt: true,
                             updatedAt: true,
+                            isCombined: true,
+                            combinedRequestId: true,
+                            lotNumber: true,
                             requester: { select: { id: true, name: true, email: true } },
                             department: { select: { id: true, name: true, code: true } },
                             currentAssignee: { select: { id: true, name: true, email: true } },
@@ -3500,6 +3506,9 @@ app.get('/api/requests', async (_req, res) => {
                 status: true,
                 createdAt: true,
                 updatedAt: true,
+                isCombined: true,
+                combinedRequestId: true,
+                lotNumber: true,
                 requester: { select: { id: true, name: true, email: true } },
                 department: { select: { id: true, name: true, code: true } },
             },
@@ -3524,6 +3533,9 @@ app.get('/api/requests', async (_req, res) => {
                             status: true,
                             createdAt: true,
                             updatedAt: true,
+                            isCombined: true,
+                            combinedRequestId: true,
+                            lotNumber: true,
                             requester: { select: { id: true, name: true, email: true } },
                             department: { select: { id: true, name: true, code: true } },
                         },
@@ -3536,7 +3548,9 @@ app.get('/api/requests', async (_req, res) => {
         }
         if (e?.code === 'P2022') {
             try {
-                const rows = await prisma.$queryRawUnsafe('SELECT id, reference, title, requesterId, departmentId, status, createdAt, updatedAt FROM Request ORDER BY createdAt DESC');
+                const rows = await prisma.$queryRawUnsafe(
+                    'SELECT id, reference, title, requesterId, departmentId, status, createdAt, updatedAt, isCombined, combinedRequestId, lotNumber FROM Request ORDER BY createdAt DESC'
+                );
                 // rows will not include requester/department objects; return as-is
                 return res.json(rows);
             } catch (rawErr: any) {
@@ -4015,7 +4029,21 @@ app.post(
     authMiddleware,
     asyncHandler(async (req, res) => {
         const user = (req as any).user;
-        const { evalNumber, rfqNumber, rfqTitle, description, sectionA, sectionB, sectionC, sectionD, sectionE, dueDate, evaluator, submitToCommittee: submitToCommitteeRaw } = req.body;
+        const {
+            evalNumber,
+            rfqNumber,
+            rfqTitle,
+            description,
+            sectionA,
+            sectionB,
+            sectionC,
+            sectionD,
+            sectionE,
+            dueDate,
+            evaluator,
+            submitToCommittee: submitToCommitteeRaw,
+            combinedRequestId,
+        } = req.body;
         const submitToCommittee = Boolean(submitToCommitteeRaw);
 
         // JWT payload uses 'sub' for user ID, fallback to 'id' for compatibility
@@ -4028,6 +4056,7 @@ app.post(
             description,
             dueDate,
             evaluator,
+            combinedRequestId,
             sectionA: JSON.stringify(sectionA),
             userId,
         });
@@ -4054,6 +4083,7 @@ app.post(
                         rfqNumber,
                         rfqTitle,
                         description: description || null,
+                        combinedRequestId: combinedRequestId ? parseInt(combinedRequestId) : null,
                         sectionA: sectionA || null,
                         sectionAStatus: sectionA && submitToCommittee ? 'SUBMITTED' : 'NOT_STARTED',
                         sectionB: sectionB || null,

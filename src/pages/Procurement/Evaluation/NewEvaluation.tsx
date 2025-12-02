@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { setPageTitle } from '../../../store/themeConfigSlice';
 import IconX from '../../../components/Icon/IconX';
@@ -9,15 +9,60 @@ import IconChecks from '../../../components/Icon/IconChecks';
 import { getUser } from '../../../utils/auth';
 import { useTranslation } from 'react-i18next';
 import { evaluationService, type CreateEvaluationDTO } from '../../../services/evaluationService';
+import { getApiUrl } from '../../../config/api';
 
 const NewEvaluation = () => {
     const dispatch = useDispatch();
     const navigate = useNavigate();
     const { t } = useTranslation();
+    const [searchParams] = useSearchParams();
+    const combinedRequestId = searchParams.get('combinedRequestId');
+
+    // Combined request data
+    const [combinedRequest, setCombinedRequest] = useState<any>(null);
+    const [loadingCombinedRequest, setLoadingCombinedRequest] = useState(false);
 
     useEffect(() => {
         dispatch(setPageTitle(t('evaluation.new.pageTitle', 'Create BSJ Evaluation Report')));
     }, [dispatch, t]);
+
+    // Fetch combined request if ID provided
+    useEffect(() => {
+        const fetchCombinedRequest = async () => {
+            if (!combinedRequestId) return;
+
+            try {
+                setLoadingCombinedRequest(true);
+                const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
+                const response = await fetch(getApiUrl(`/api/requests/combine/${combinedRequestId}`), {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                });
+
+                if (!response.ok) throw new Error('Failed to fetch combined request');
+
+                const data = await response.json();
+                setCombinedRequest(data);
+
+                // Pre-fill form data from combined request
+                setFormData((prev) => ({
+                    ...prev,
+                    rfqTitle: data.title,
+                    description: data.description || '',
+                }));
+            } catch (error) {
+                console.error('Error fetching combined request:', error);
+                setAlertMessage('Failed to load combined request data');
+                setShowErrorAlert(true);
+            } finally {
+                setLoadingCombinedRequest(false);
+            }
+        };
+
+        fetchCombinedRequest();
+    }, [combinedRequestId]);
 
     // Role guard (Officer / Manager only)
     useEffect(() => {
@@ -257,6 +302,7 @@ const NewEvaluation = () => {
                 description: formData.background || undefined,
                 evaluator: formData.evaluator || undefined,
                 dueDate: formData.bidValidityExpiration || undefined,
+                combinedRequestId: combinedRequestId ? parseInt(combinedRequestId) : undefined, // Link to combined request
                 sectionA: {
                     comparableEstimate: safeParseFloat(formData.comparableEstimate),
                     fundedBy: formData.fundedBy || '',
@@ -367,6 +413,47 @@ const NewEvaluation = () => {
                     {t('evaluation.detail.back', 'Back to List')}
                 </Link>
             </div>
+
+            {/* Combined Request Banner */}
+            {combinedRequest && (
+                <div className="panel bg-primary/5 border-2 border-primary mb-6">
+                    <div className="flex items-start gap-3">
+                        <div className="mt-1">
+                            <IconChecks className="h-6 w-6 text-primary" />
+                        </div>
+                        <div className="flex-1">
+                            <h6 className="mb-2 font-semibold text-primary">Evaluating Combined Request: {combinedRequest.reference}</h6>
+                            <p className="text-sm text-white-dark mb-3">{combinedRequest.description}</p>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                <div className="bg-white dark:bg-gray-800 rounded p-3">
+                                    <div className="text-2xl font-bold text-primary">{combinedRequest.lotsCount}</div>
+                                    <div className="text-xs text-gray-600">Numbered Lots</div>
+                                </div>
+                                <div className="bg-white dark:bg-gray-800 rounded p-3">
+                                    <div className="text-2xl font-bold text-success">{combinedRequest.totalItems}</div>
+                                    <div className="text-xs text-gray-600">Total Items</div>
+                                </div>
+                                <div className="bg-white dark:bg-gray-800 rounded p-3">
+                                    <div className="text-2xl font-bold text-warning">
+                                        {combinedRequest.lots[0]?.currency || 'JMD'} {combinedRequest.totalValue.toLocaleString()}
+                                    </div>
+                                    <div className="text-xs text-gray-600">Total Value</div>
+                                </div>
+                            </div>
+                            <div className="mt-3">
+                                <p className="text-sm font-semibold text-primary">Lots to Evaluate:</p>
+                                <ul className="mt-2 space-y-1">
+                                    {combinedRequest.lots.map((lot: any) => (
+                                        <li key={lot.id} className="text-sm text-white-dark">
+                                            <span className="font-semibold text-primary">LOT-{lot.lotNumber}:</span> {lot.title} ({lot.items.length} items)
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Success Alert Modal */}
             {showSuccessAlert && (
