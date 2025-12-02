@@ -136,6 +136,14 @@ const NewEvaluation = () => {
     const [errorFields, setErrorFields] = useState<string[]>([]);
     const [loading, setLoading] = useState(false);
 
+    // Send-to-evaluators modal state
+    const [showAssignModal, setShowAssignModal] = useState(false);
+    const [createdEvaluationId, setCreatedEvaluationId] = useState<number | null>(null);
+    const [availableUsers, setAvailableUsers] = useState<Array<{ id: number; email: string; name?: string | null; roles?: string[] }>>([]);
+    const [userSearch, setUserSearch] = useState('');
+    const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
+    const [selectedSections, setSelectedSections] = useState<Array<'A' | 'B' | 'C' | 'D' | 'E'>>(['B', 'C']);
+
     const totalSteps = 5; // Background, Section A, Section B, Section C, Sections D & E
 
     // Section B - Compliance Matrix (fully customizable table)
@@ -491,13 +499,25 @@ const NewEvaluation = () => {
 
             const result = await evaluationService.createEvaluation(evaluationData);
 
-            setAlertMessage(`BSJ Evaluation ${evalNumber} created successfully!`);
+            setCreatedEvaluationId(result.id);
+            setAlertMessage(`BSJ Evaluation ${evalNumber} created successfully! Select evaluators to send the form to.`);
             setShowSuccessAlert(true);
 
-            setTimeout(() => {
-                setShowSuccessAlert(false);
-                navigate('/procurement/evaluation');
-            }, 2000);
+            // Load users for selection
+            try {
+                const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
+                const resp = await fetch(getApiUrl('/admin/users'), {
+                    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                });
+                if (resp.ok) {
+                    const users = await resp.json();
+                    setAvailableUsers(users);
+                }
+            } catch {
+                // ignore
+            }
+
+            setShowAssignModal(true);
         } catch (error: any) {
             console.error('Failed to create evaluation:', error);
             setErrorFields([error.message || 'Failed to create evaluation. Please try again.']);
@@ -506,6 +526,30 @@ const NewEvaluation = () => {
             setTimeout(() => {
                 setShowErrorAlert(false);
             }, 5000);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const toggleSelectedUser = (id: number) => {
+        setSelectedUserIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+    };
+
+    const toggleSection = (sec: 'A' | 'B' | 'C' | 'D' | 'E') => {
+        setSelectedSections((prev) => (prev.includes(sec) ? prev.filter((s) => s !== sec) : [...prev, sec]));
+    };
+
+    const handleSendAssignments = async () => {
+        if (!createdEvaluationId) return;
+        try {
+            setLoading(true);
+            await evaluationService.assignEvaluators(createdEvaluationId, { userIds: selectedUserIds, sections: selectedSections });
+            setShowAssignModal(false);
+            navigate('/procurement/evaluation');
+        } catch (err: any) {
+            setAlertMessage(err.message || 'Failed to send assignments');
+            setShowErrorAlert(true);
+            setTimeout(() => setShowErrorAlert(false), 4000);
         } finally {
             setLoading(false);
         }
@@ -599,6 +643,74 @@ const NewEvaluation = () => {
                             <button type="button" className="ltr:ml-auto rtl:mr-auto hover:opacity-80" onClick={() => setShowErrorAlert(false)}>
                                 <IconX className="h-5 w-5" />
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Assign to Evaluators Modal */}
+            {showAssignModal && (
+                <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60">
+                    <div className="panel w-full max-w-3xl overflow-hidden rounded-lg p-0">
+                        <div className="flex items-center p-3.5 rounded-t text-primary bg-primary-light dark:bg-primary-dark-light">
+                            <span className="ltr:pr-2 rtl:pl-2 flex-1">
+                                <strong className="ltr:mr-1 rtl:ml-1 text-lg">Send for Completion</strong>
+                            </span>
+                            <button type="button" className="ltr:ml-auto rtl:mr-auto hover:opacity-80" onClick={() => setShowAssignModal(false)}>
+                                <IconX className="h-5 w-5" />
+                            </button>
+                        </div>
+                        <div className="p-5 space-y-4">
+                            <p className="text-sm text-white-dark">Requester(s) are automatically included based on the combined lots.</p>
+                            <div className="flex flex-col md:flex-row gap-4">
+                                <div className="flex-1">
+                                    <div className="mb-2">
+                                        <input
+                                            type="text"
+                                            placeholder="Search users by name or email"
+                                            className="form-input w-full"
+                                            value={userSearch}
+                                            onChange={(e) => setUserSearch(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="max-h-72 overflow-auto border rounded">
+                                        {availableUsers
+                                            .filter((u) => {
+                                                const q = userSearch.toLowerCase();
+                                                const hay = `${u.name || ''} ${u.email}`.toLowerCase();
+                                                return !q || hay.includes(q);
+                                            })
+                                            .map((u) => (
+                                                <label key={u.id} className="flex items-center gap-3 p-2 border-b last:border-b-0">
+                                                    <input type="checkbox" className="form-checkbox" checked={selectedUserIds.includes(u.id)} onChange={() => toggleSelectedUser(u.id)} />
+                                                    <div className="flex-1">
+                                                        <div className="font-semibold">{u.name || u.email}</div>
+                                                        <div className="text-xs text-white-dark">{u.email}</div>
+                                                    </div>
+                                                </label>
+                                            ))}
+                                        {availableUsers.length === 0 && <div className="p-3 text-sm text-white-dark">No users found.</div>}
+                                    </div>
+                                </div>
+                                <div className="w-full md:w-60">
+                                    <div className="font-semibold mb-2">Sections</div>
+                                    {(['A', 'B', 'C', 'D', 'E'] as const).map((sec) => (
+                                        <label key={sec} className="flex items-center gap-2 mb-2">
+                                            <input type="checkbox" className="form-checkbox" checked={selectedSections.includes(sec)} onChange={() => toggleSection(sec)} />
+                                            <span>Section {sec}</span>
+                                        </label>
+                                    ))}
+                                    <div className="text-xs text-info mt-2">Default: Sections B & C</div>
+                                </div>
+                            </div>
+                            <div className="flex justify-end gap-2 mt-4">
+                                <button className="btn btn-outline-danger" onClick={() => setShowAssignModal(false)}>
+                                    Cancel
+                                </button>
+                                <button className="btn btn-primary" onClick={handleSendAssignments} disabled={loading}>
+                                    {loading ? 'Sending...' : 'Send'}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

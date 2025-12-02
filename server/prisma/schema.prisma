@@ -595,6 +595,12 @@ enum SectionVerificationStatus {
   VERIFIED
 }
 
+// Tracks assignment workflow for multi-evaluator completion
+enum AssignmentStatus {
+  PENDING
+  SUBMITTED
+}
+
 enum ProcurementMethod {
   INTERNATIONAL_COMPETITIVE_BIDDING
   NATIONAL_COMPETITIVE_BIDDING
@@ -687,10 +693,31 @@ model Evaluation {
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
   
+  // Assignments (who can fill which sections)
+  assignments    EvaluationAssignment[]
+
   @@index([status])
   @@index([createdBy])
   @@index([evalNumber])
   @@index([rfqNumber])
+}
+
+/// Per-user assignment to contribute to an Evaluation
+model EvaluationAssignment {
+  id           Int              @id @default(autoincrement())
+  evaluation   Evaluation       @relation(fields: [evaluationId], references: [id])
+  evaluationId Int
+  user         User             @relation(fields: [userId], references: [id])
+  userId       Int
+  // Sections this user can complete, e.g. ["B", "C"]
+  sections     Json
+  status       AssignmentStatus @default(PENDING)
+  submittedAt  DateTime?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@unique([evaluationId, userId])
+  @@index([userId])
 }
 
 model LoadBalancingSettings {

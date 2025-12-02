@@ -58,22 +58,14 @@ export interface SectionA {
 export interface SectionB {
     bidders: Array<{
         bidderName: string;
-        ppcCategory: string;
-        tciTrn: string;
-        bidAmountInclusiveGCT: number;
-        complianceMatrix: {
-            signedLetterOfQuotation: boolean;
-            signedPriceSchedules: boolean;
-            signedStatementOfCompliance: boolean;
-            bidValidity30Days: boolean;
-            quotationProvided: boolean;
-            bidAmountMatches: boolean;
-        };
-        technicalEvaluation?: Array<{
-            specifications: string;
-            quantity: number;
-            bidAmount: number;
-        }>;
+        // Legacy fields (may be omitted when using dynamic tables)
+        ppcCategory?: string;
+        tciTrn?: string;
+        bidAmountInclusiveGCT?: number;
+        // New flexible table structures
+        eligibilityRequirements?: { columns: Array<{ id: string; name: string }>; rows: Array<{ id: string; data: Record<string, string> }> };
+        complianceMatrix?: { columns: Array<{ id: string; name: string }>; rows: Array<{ id: string; data: Record<string, string> }> };
+        technicalEvaluation?: { columns: Array<{ id: string; name: string; cellType?: 'text' | 'radio' }>; rows: Array<{ id: string; data: Record<string, string> }> };
     }>;
 }
 
@@ -343,6 +335,19 @@ class EvaluationService {
         await this.fetchWithAuth(`/api/evaluations/${id}`, {
             method: 'DELETE',
         });
+    }
+
+    async assignEvaluators(id: number, payload: { userIds: number[]; sections?: Array<'A' | 'B' | 'C' | 'D' | 'E'> }) {
+        const result = await this.fetchWithAuth(`/api/evaluations/${id}/assign`, {
+            method: 'POST',
+            body: JSON.stringify(payload),
+        });
+        return result.data;
+    }
+
+    async getMyAssignments(): Promise<Array<{ id: number; evaluationId: number; userId: number; sections: string[]; status: string; createdAt: string }>> {
+        const result = await this.fetchWithAuth('/api/evaluations/assignments/me');
+        return result.data;
     }
 }
 
