@@ -7,6 +7,7 @@ import IconChecks from '../../../components/Icon/IconChecks';
 import IconEdit from '../../../components/Icon/IconEdit';
 import { getUser } from '../../../utils/auth';
 import { evaluationService, type Evaluation, type SectionVerificationStatus } from '../../../services/evaluationService';
+import EvaluationForm from '../../../components/EvaluationForm';
 
 const EvaluationDetail = () => {
     const dispatch = useDispatch();
@@ -117,191 +118,32 @@ const EvaluationDetail = () => {
                 return 'Not Started';
         }
     };
-
-    // Reusable Field Components
-    const FieldGroup = ({ title, color = 'primary', children }: { title: string; color?: string; children: React.ReactNode }) => (
-        <div className={`panel border-l-4 border-${color}`}>
-            <div className="mb-5">
-                <h5 className={`text-lg font-bold text-${color}`}>{title}</h5>
-            </div>
-            <div className="grid gap-5 md:grid-cols-2">{children}</div>
-        </div>
-    );
-
-    const Field = ({ label, value, fullWidth = false }: { label: string; value: any; fullWidth?: boolean }) => (
-        <div className={fullWidth ? 'md:col-span-2' : ''}>
-            <label className="mb-2 block text-sm font-semibold text-white-dark">{label}</label>
-            <div className="rounded border border-white-light dark:border-dark bg-white-light dark:bg-[#1b2e4b] px-4 py-3 text-sm">{value ?? '-'}</div>
-        </div>
-    );
-
-    const TextAreaField = ({ label, value, fullWidth = true }: { label: string; value: any; fullWidth?: boolean }) => (
-        <div className={fullWidth ? 'md:col-span-2' : ''}>
-            <label className="mb-2 block text-sm font-semibold text-white-dark">{label}</label>
-            <div className="rounded border border-white-light dark:border-dark bg-white-light dark:bg-[#1b2e4b] px-4 py-3 text-sm min-h-[100px]">{value ?? '-'}</div>
-        </div>
-    );
-
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center h-64">
-                <div className="text-lg">Loading evaluation...</div>
-            </div>
-        );
-    }
-
-    if (error || !evaluation) {
-        return (
-            <div className="panel">
-                <div className="text-center py-8">
-                    <div className="text-danger mb-4">⚠️ {error || 'Evaluation not found'}</div>
-                    <Link to="/procurement/evaluation" className="btn btn-primary">
-                        Back to Evaluations
-                    </Link>
-                </div>
-            </div>
-        );
-    }
-
-    const sectionA = evaluation.sectionA;
-    const sectionB = evaluation.sectionB;
-    const sectionC = evaluation.sectionC;
-    const sectionD = evaluation.sectionD;
-    const sectionE = evaluation.sectionE;
-
-    return (
-        <div className="space-y-6">
-            {/* Header */}
-            <div className="panel">
-                <div className="flex items-center justify-between mb-5">
-                    <div className="flex items-center gap-3">
-                        <Link to="/procurement/evaluation" className="btn btn-outline-primary">
-                            <IconArrowLeft className="h-4 w-4" />
-                        </Link>
-                        <div>
-                            <h5 className="text-xl font-bold">{evaluation.evalNumber}</h5>
-                            <p className="text-sm text-white-dark mt-1">{evaluation.rfqTitle}</p>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                        <span className={`badge ${evaluation.status === 'COMPLETED' ? 'bg-success' : evaluation.status === 'IN_PROGRESS' ? 'bg-warning' : 'bg-info'} text-base px-4 py-2`}>
-                            {evaluation.status === 'COMPLETED' ? '✓ Completed' : evaluation.status}
-                        </span>
-                        {isProcurement && evaluation.status === 'IN_PROGRESS' && (
-                            <Link to={`/procurement/evaluation/${evaluation.id}/edit`} className="btn btn-warning">
-                                <IconEdit className="h-4 w-4 mr-2" />
-                                Edit
-                            </Link>
-                        )}
-                        {isCommittee && (
-                            <Link to={`/evaluation/${evaluation.id}/committee`} className="btn btn-info">
-                                Committee Review
-                            </Link>
-                        )}
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div>
-                        <p className="text-sm text-white-dark">RFQ Number</p>
-                        <p className="font-semibold text-info">{evaluation.rfqNumber}</p>
-                    </div>
-                    <div>
-                        <p className="text-sm text-white-dark">Created By</p>
-                        <p className="font-semibold">{evaluation.creator.name || evaluation.creator.email}</p>
-                    </div>
-                    <div>
-                        <p className="text-sm text-white-dark">Evaluator</p>
-                        <p className="font-semibold">{evaluation.evaluator || '-'}</p>
-                    </div>
-                    <div>
-                        <p className="text-sm text-white-dark">Due Date</p>
-                        <p className="font-semibold">{evaluation.dueDate ? new Date(evaluation.dueDate).toLocaleDateString() : '-'}</p>
-                    </div>
-                </div>
-            </div>
-
-            {/* Section Status Overview */}
-            <div className="panel">
-                <h5 className="text-lg font-semibold mb-4">Section Verification Status</h5>
-                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                    {(['A', 'B', 'C', 'D', 'E'] as const).map((section) => {
-                        const status = evaluation[`section${section}Status` as keyof Evaluation] as SectionVerificationStatus;
-                        const verifier = evaluation[`section${section}Verifier` as keyof Evaluation] as { name: string | null } | undefined;
-                        const verifiedAt = evaluation[`section${section}VerifiedAt` as keyof Evaluation] as string | undefined;
-
-                        return (
-                            <div key={section} className="border rounded-lg p-4 text-center">
-                                <div className="text-2xl font-bold text-primary mb-2">Section {section}</div>
-                                <span className={getStatusBadge(status)}>{getStatusText(status)}</span>
-                                {status === 'VERIFIED' && verifier && (
-                                    <div className="mt-2 text-xs text-white-dark">
-                                        <IconChecks className="inline h-3 w-3 text-success mr-1" />
-                                        {verifier.name}
-                                        {verifiedAt && <div>{new Date(verifiedAt).toLocaleDateString()}</div>}
-                                    </div>
-                                )}
-                            </div>
-                        );
-                    })}
-                </div>
-            </div>
-
-            {/* Section A: Procurement Details */}
-            {sectionA && (
-                <FieldGroup title="Section A: Procurement Details" color="primary">
-                    <Field label="RFQ Number" value={evaluation.rfqNumber} />
-                    <Field label="RFQ Title" value={evaluation.rfqTitle} fullWidth />
-                    <Field label="Comparable Estimate" value={`$${sectionA.comparableEstimate?.toLocaleString()}`} />
-                    <Field label="Funded By" value={sectionA.fundedBy} />
-                    <Field label="Tender Closing Date" value={sectionA.tenderClosingDate} />
-                    <Field label="Tender Opening Date" value={sectionA.tenderOpeningDate} />
-                    <Field label="Procurement Method" value={sectionA.procurementMethod?.replace(/_/g, ' ')} />
-                    <Field label="Contract Type" value={sectionA.contractType?.replace(/_/g, ' ')} />
-                    <Field label="Bid Security Required" value={sectionA.bidSecurity} />
-                    <Field label="Bids Requested" value={sectionA.numberOfBidsRequested} />
-                    <Field label="Bids Received" value={sectionA.numberOfBidsReceived} />
-                    <Field label="Award Criteria" value={sectionA.awardCriteria?.replace(/_/g, ' ')} />
-                </FieldGroup>
-            )}
-
-            {/* Section B: Bidders (Editable for assigned users) */}
-            {sectionB && (
-                <FieldGroup title="Section B: Bidders & Compliance" color="info">
-                    {/* Edit controls for assigned users */}
-                    {canEditSections.includes('B') && (
-                        <div className="md:col-span-2 flex justify-end mb-3">
-                            {editingSection === 'B' ? (
-                                <div className="flex gap-2">
-                                    <button
-                                        className="btn btn-success btn-sm"
-                                        disabled={saving}
-                                        onClick={async () => {
-                                            if (!evaluation) return;
-                                            try {
-                                                setSaving(true);
-                                                const updated = await evaluationService.updateSection(evaluation.id, 'B', sectionData ?? sectionB);
-                                                setEvaluation(updated);
-                                                setEditingSection(null);
-                                            } catch (e) {
-                                                console.error('Save Section B failed:', e);
-                                            } finally {
-                                                setSaving(false);
-                                            }
-                                        }}
-                                    >
-                                        Save Section B
-                                    </button>
-                                    <button className="btn btn-outline-secondary btn-sm" onClick={() => setEditingSection(null)}>
-                                        Cancel
-                                    </button>
-                                </div>
-                            ) : (
-                                <button
-                                    className="btn btn-primary btn-sm flex items-center gap-2"
-                                    onClick={() => {
-                                        setEditingSection('B');
-                                        setSectionData(sectionB);
+            {/* Full Form UI with gated editability */}
+            <EvaluationForm
+                mode="edit"
+                evaluation={evaluation}
+                canEditSections={canEditSections as Array<'A' | 'B' | 'C' | 'D' | 'E'>}
+                onSaveSection={async (sec, data) => {
+                    if (!evaluation) return;
+                    const updated = await evaluationService.updateSection(evaluation.id, sec, data);
+                    setEvaluation(updated);
+                }}
+                onSubmitSection={async (sec) => {
+                    if (!evaluation) return;
+                    const updated = await evaluationService.submitSection(evaluation.id, sec);
+                    setEvaluation(updated);
+                }}
+                onVerifySection={async (sec, notes) => {
+                    if (!evaluation) return;
+                    const updated = await evaluationService.verifySection(evaluation.id, sec, notes);
+                    setEvaluation(updated);
+                }}
+                onReturnSection={async (sec, notes) => {
+                    if (!evaluation) return;
+                    const updated = await evaluationService.returnSection(evaluation.id, sec, notes);
+                    setEvaluation(updated);
+                }}
+            />
                                     }}
                                 >
                                     <IconEdit /> Edit Section B
