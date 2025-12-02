@@ -1,11 +1,17 @@
 import { getToken } from '../utils/auth';
-import { getApiBaseUrl } from '../config/api';
 
 /**
- * Get API URL from centralized configuration
+ * API URL configuration - uses heron production server
  */
 function getApiUrl(): string {
-    return getApiBaseUrl();
+    // 1. Explicit override via environment variable (ALWAYS takes priority)
+    if (import.meta.env.VITE_API_URL) {
+        console.log('Using VITE_API_URL:', import.meta.env.VITE_API_URL);
+        return import.meta.env.VITE_API_URL;
+    }
+
+    // 2. Use heron production server
+    return 'http://heron:4000';
 }
 
 const API_URL = getApiUrl();
@@ -162,6 +168,7 @@ export interface CreateEvaluationDTO {
     rfqNumber: string;
     rfqTitle: string;
     description?: string;
+    combinedRequestId?: number; // Link to combined request with lots
     sectionA?: SectionA;
     sectionB?: SectionB;
     sectionC?: SectionC;

@@ -528,13 +528,18 @@ const Header = () => {
                                         <>
                                             {notifications.map((notification) => {
                                                 const isUnread = !notification.readAt;
-                                                const notificationTypeIcons = {
+                                                const notificationTypeIcons: Record<
+                                                    'MENTION' | 'STAGE_CHANGED' | 'IDEA_APPROVED' | 'THRESHOLD_EXCEEDED' | 'EVALUATION_VERIFIED' | 'EVALUATION_RETURNED',
+                                                    string
+                                                > = {
                                                     MENTION: '👤',
                                                     STAGE_CHANGED: '🔄',
                                                     IDEA_APPROVED: '✅',
                                                     THRESHOLD_EXCEEDED: '⚠️',
+                                                    EVALUATION_VERIFIED: '📝',
+                                                    EVALUATION_RETURNED: '↩️',
                                                 };
-                                                const icon = notificationTypeIcons[notification.type] || '🔔';
+                                                const icon = notificationTypeIcons[notification.type] ?? '🔔';
 
                                                 return (
                                                     <li key={notification.id} className={`dark:text-white-light/90 ${isUnread ? 'bg-primary/5' : ''}`} onClick={(e) => e.stopPropagation()}>

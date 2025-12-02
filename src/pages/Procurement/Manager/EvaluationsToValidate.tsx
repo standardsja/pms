@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { setPageTitle } from '../../../store/themeConfigSlice';
 import { Link } from 'react-router-dom';
 import IconEye from '../../../components/Icon/IconEye';
-
+import { selectAuthLoading, selectUser } from '../../../store/authSlice';
 
 type Evaluation = {
     id: string;
@@ -17,6 +17,8 @@ type Evaluation = {
 
 const EvaluationsToValidate = () => {
     const dispatch = useDispatch();
+    const authLoading = useSelector(selectAuthLoading);
+    const authUser = useSelector(selectUser);
 
     useEffect(() => {
         dispatch(setPageTitle('Evaluation Reports to Validate'));
@@ -47,11 +49,21 @@ const EvaluationsToValidate = () => {
         setNotes('');
     };
 
+    if (authLoading || !authUser) {
+        return (
+            <div className="flex justify-center items-center min-h-[300px]">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+        );
+    }
+
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <h1 className="text-2xl font-bold">Evaluation reports to validate</h1>
-                <Link to="/procurement/manager" className="text-primary hover:text-primary-dark">Back to Manager Dashboard</Link>
+                <Link to="/procurement/manager" className="text-primary hover:text-primary-dark">
+                    Back to Manager Dashboard
+                </Link>
             </div>
 
             <div className="panel">
@@ -90,7 +102,14 @@ const EvaluationsToValidate = () => {
                                                 <Link to={`/procurement/evaluation/${encodeURIComponent(e.id)}`} className="btn btn-outline-primary btn-sm flex items-center gap-1">
                                                     <IconEye className="w-4 h-4" /> View
                                                 </Link>
-                                                <button className="btn btn-primary btn-sm" onClick={() => { setValidateTarget(e); setDecision('Validated'); setNotes(''); }}>
+                                                <button
+                                                    className="btn btn-primary btn-sm"
+                                                    onClick={() => {
+                                                        setValidateTarget(e);
+                                                        setDecision('Validated');
+                                                        setNotes('');
+                                                    }}
+                                                >
                                                     Validate
                                                 </button>
                                             </div>
@@ -109,9 +128,15 @@ const EvaluationsToValidate = () => {
                     <div className="relative bg-white dark:bg-black rounded-xl shadow-xl w-full max-w-lg p-6 border border-gray-200 dark:border-gray-700">
                         <h3 className="text-lg font-bold mb-2">Validate Evaluation</h3>
                         <div className="text-sm text-gray-600 dark:text-gray-300 mb-4">
-                            <div><span className="font-semibold">Evaluation:</span> {validateTarget.title} ({validateTarget.id})</div>
-                            <div><span className="font-semibold">RFQ:</span> {validateTarget.rfqId}</div>
-                            <div><span className="font-semibold">Evaluator:</span> {validateTarget.evaluator}</div>
+                            <div>
+                                <span className="font-semibold">Evaluation:</span> {validateTarget.title} ({validateTarget.id})
+                            </div>
+                            <div>
+                                <span className="font-semibold">RFQ:</span> {validateTarget.rfqId}
+                            </div>
+                            <div>
+                                <span className="font-semibold">Evaluator:</span> {validateTarget.evaluator}
+                            </div>
                         </div>
 
                         <div className="space-y-4">
@@ -129,7 +154,13 @@ const EvaluationsToValidate = () => {
                             {decision === 'Changes Requested' && (
                                 <div>
                                     <label className="block text-sm font-semibold mb-2">Notes to evaluation team</label>
-                                    <textarea className="form-textarea w-full" rows={4} placeholder="Provide brief details on what needs to be corrected or clarified" value={notes} onChange={(e) => setNotes(e.target.value)} />
+                                    <textarea
+                                        className="form-textarea w-full"
+                                        rows={4}
+                                        placeholder="Provide brief details on what needs to be corrected or clarified"
+                                        value={notes}
+                                        onChange={(e) => setNotes(e.target.value)}
+                                    />
                                 </div>
                             )}
 

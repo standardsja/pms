@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { setPageTitle } from '../../../store/themeConfigSlice';
 import IconArrowLeft from '../../../components/Icon/IconArrowLeft';
 import IconX from '../../../components/Icon/IconX';
@@ -9,6 +9,8 @@ import { evaluationService, type Evaluation } from '../../../services/evaluation
 
 const EvaluationEdit = () => {
     const dispatch = useDispatch();
+    const authLoading = useSelector((state: any) => state.auth.isLoading);
+    const authUser = useSelector((state: any) => state.auth.user);
     const navigate = useNavigate();
     const { id } = useParams();
 
@@ -51,6 +53,14 @@ const EvaluationEdit = () => {
         }
         loadEvaluation();
     }, [id]);
+
+    if (authLoading || !authUser) {
+        return (
+            <div className="flex justify-center items-center min-h-[400px]">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+        );
+    }
 
     const loadEvaluation = async () => {
         if (!id) return;

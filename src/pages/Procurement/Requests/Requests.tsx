@@ -4,7 +4,6 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { setPageTitle } from '../../../store/themeConfigSlice';
 import IconPlus from '../../../components/Icon/IconPlus';
 import IconEye from '../../../components/Icon/IconEye';
-import IconSend from '../../../components/Icon/IconSend';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import { Request, ApiResponse } from '../../../types/request.types';
@@ -12,6 +11,7 @@ import { getStatusBadge } from '../../../utils/statusBadges';
 import { searchRequests, filterRequests, onlyMine, paginate, formatDate, sortRequestsByDateDesc, adaptRequestsResponse, normalizeStatus } from '../../../utils/requestUtils';
 import RequestDetailsContent from '../../../components/RequestDetailsContent';
 import { checkExecutiveThreshold, getThresholdBadge, shouldShowThresholdNotification } from '../../../utils/thresholdUtils';
+import { getApiUrl } from '../../../config/api';
 
 const MySwal = withReactContent(Swal);
 
@@ -25,6 +25,7 @@ const Requests = () => {
     }, [dispatch]);
 
     const [requests, setRequests] = useState<Request[]>([]);
+    const [combinedRequests, setCombinedRequests] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -46,14 +47,12 @@ const Requests = () => {
             // Safely extract roles, ensuring we have a clean array of strings
             let roles: string[] = [];
             if (user?.roles && Array.isArray(user.roles)) {
-                // Roles might be strings or objects with a 'name' property
-                roles = user.roles.map((r: any) => (typeof r === 'string' ? r : r?.name || r?.role?.name)).filter(Boolean); // Remove any falsy values
+                roles = user.roles.filter(Boolean); // Remove any falsy values
             } else if (user?.role) {
-                roles = [typeof user.role === 'string' ? user.role : user.role?.name || ''];
+                roles = [user.role];
             }
             setCurrentUserRoles(roles);
-        } catch (err) {
-            console.error('Error loading user:', err);
+        } catch {
             setCurrentUserName('');
             setCurrentUserId(null);
             setCurrentUserRoles([]);
@@ -68,14 +67,14 @@ const Requests = () => {
             setError(null);
             try {
                 const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
-                const headers: Record<string, string> = {
-                    'Cache-Control': 'no-cache, no-store, must-revalidate',
-                    Pragma: 'no-cache',
-                };
+                const userRaw = localStorage.getItem('auth_user') || sessionStorage.getItem('auth_user');
+                const user = userRaw ? JSON.parse(userRaw) : null;
+                const headers: Record<string, string> = {};
                 if (token) headers['Authorization'] = `Bearer ${token}`;
-                // Use backend API URL based on current hostname
-                const apiUrl = 'http://heron:4000';
-                const res = await fetch(`${apiUrl}/requests`, {
+                if (user?.id || currentUserId) headers['x-user-id'] = String(user?.id || currentUserId || '');
+
+                // Fetch regular requests
+                const res = await fetch(getApiUrl('/requests'), {
                     headers,
                     signal: controller.signal,
                 });
@@ -91,6 +90,28 @@ const Requests = () => {
                 }
                 const adapted = adaptRequestsResponse(payload);
                 setRequests(adapted);
+
+                // Fetch combined requests if user has procurement access (only after roles are loaded)
+                if (currentUserRoles.length > 0 && currentUserRoles.some((role) => role.toUpperCase().includes('PROCUREMENT') || role.toUpperCase().includes('MANAGER'))) {
+                    try {
+                        const combinedRes = await fetch(getApiUrl('/api/requests/combine'), {
+                            headers,
+                            signal: controller.signal,
+                        });
+                        if (combinedRes.ok) {
+                            const combinedData = await combinedRes.json();
+                            // The endpoint returns array of combined request objects when no query param
+                            setCombinedRequests(combinedData);
+                        } else if (combinedRes.status === 403) {
+                            // User doesn't have permission, silently ignore
+                            setCombinedRequests([]);
+                        }
+                    } catch (e) {
+                        // Silently fail - combined requests are optional
+                        console.debug('Combined requests not available:', e);
+                        setCombinedRequests([]);
+                    }
+                }
             } catch (e: unknown) {
                 // Ignore abort errors
                 if (e instanceof DOMException && e.name === 'AbortError') return;
@@ -103,7 +124,7 @@ const Requests = () => {
 
         fetchRequests();
         return () => controller.abort();
-    }, []);
+    }, [currentUserRoles, currentUserId]);
 
     // URL-synced filters/search/page
     const initParams = new URLSearchParams(location.search);
@@ -114,45 +135,15 @@ const Requests = () => {
     const sorted = useMemo(() => sortRequestsByDateDesc(requests), [requests]);
     const searched = useMemo(() => searchRequests(sorted, query), [sorted, query]);
     const filteredByMeta = useMemo(() => filterRequests(searched, { status: statusFilter, department: departmentFilter }), [searched, statusFilter, departmentFilter]);
-
-    // Check if user is Executive Director
-    const isExecutiveDirector = useMemo(() => {
-        return currentUserRoles.some((role) => {
-            const roleUpper = role.toUpperCase();
-            return roleUpper === 'EXECUTIVE_DIRECTOR' || roleUpper === 'EXECUTIVE' || (roleUpper.includes('EXECUTIVE') && roleUpper.includes('DIRECTOR'));
-        });
-    }, [currentUserRoles]);
-
-    // Filter requests based on route and user role
+    // Show requests where user is requester or current assignee
     const filteredRequests = useMemo(() => {
-        // On /mine route, show only user's requests and assigned requests
-        if (showMineOnly) {
-            return filteredByMeta.filter((r) => {
-                const assigneeId = r.currentAssigneeId ? Number(r.currentAssigneeId) : null;
-                return r.requester === currentUserName || (currentUserId && assigneeId === currentUserId);
-            });
-        }
-
-        // Executive Directors on main page see EXECUTIVE_REVIEW requests assigned to them
-        if (isExecutiveDirector && !showMineOnly) {
-            return filteredByMeta.filter((r) => {
-                const assigneeId = r.currentAssigneeId ? Number(r.currentAssigneeId) : null;
-                const isAssignedToMe = currentUserId && assigneeId === currentUserId;
-                const normalizedStatus = normalizeStatus(r.status || '');
-
-                // Show EXECUTIVE_REVIEW requests assigned to this executive
-                if (normalizedStatus === 'Executive Review' && isAssignedToMe) {
-                    return true;
-                }
-
-                // Also show requests they created
-                return r.requester === currentUserName;
-            });
-        }
-
-        // Everyone else sees all requests (filtered by status/department)
-        return filteredByMeta;
-    }, [showMineOnly, filteredByMeta, currentUserName, currentUserId, isExecutiveDirector]);
+        if (!showMineOnly) return filteredByMeta;
+        return filteredByMeta.filter((r) => {
+            // @ts-ignore: backend may return string or number for id
+            const assigneeId = r.currentAssigneeId ? Number(r.currentAssigneeId) : null;
+            return r.requester === currentUserName || (currentUserId && assigneeId === currentUserId);
+        });
+    }, [showMineOnly, filteredByMeta, currentUserName, currentUserId]);
 
     // Pagination
     const [page, setPage] = useState<number>(() => {
@@ -186,9 +177,7 @@ const Requests = () => {
         const highValueRequests = filteredRequests.filter((r) => {
             const procurementTypes = Array.isArray(r.procurementType) ? r.procurementType : [];
             const alert = checkExecutiveThreshold(r.totalEstimated || 0, procurementTypes);
-            const normalizedStatus = normalizeStatus(r.status || '');
-            // Only count requests that need forwarding (exceed threshold AND not already in executive review)
-            return alert.isRequired && normalizedStatus !== 'Executive Review';
+            return alert.isRequired;
         });
 
         return {
@@ -207,183 +196,6 @@ const Requests = () => {
             customClass: { popup: 'text-left' },
         });
     };
-
-    // Forward request to executive director (for procurement managers)
-    const forwardToExecutive = async (req: Request) => {
-        // Check if user is procurement manager
-        const isProcurementManager = currentUserRoles.some((role) => {
-            const roleUpper = role.toUpperCase();
-            return ['PROCUREMENT_MANAGER', 'PROCUREMENT MANAGER'].includes(roleUpper) || (roleUpper.includes('PROCUREMENT') && roleUpper.includes('MANAGER'));
-        });
-
-        if (!isProcurementManager) {
-            MySwal.fire({
-                icon: 'error',
-                title: 'Access Denied',
-                text: 'Only procurement managers can forward requests to Executive Director',
-            });
-            return;
-        }
-
-        // Check if request exceeds threshold
-        const procurementTypes = Array.isArray(req.procurementType) ? req.procurementType : [];
-        const thresholdAlert = checkExecutiveThreshold(req.totalEstimated || 0, procurementTypes, req.currency);
-
-        if (!thresholdAlert.isRequired) {
-            MySwal.fire({
-                icon: 'info',
-                title: 'No Executive Approval Needed',
-                text: `This request (${req.currency} ${(req.totalEstimated || 0).toLocaleString()}) does not exceed the threshold for executive approval.`,
-            });
-            return;
-        }
-
-        // Confirm forward action
-        const result = await MySwal.fire({
-            title: 'Forward to Executive Director?',
-            html: `
-                <div class="text-left">
-                    <p class="mb-2">Request: <strong>${req.title}</strong></p>
-                    <p class="mb-2">Value: <strong>${req.currency} ${(req.totalEstimated || 0).toLocaleString()}</strong></p>
-                    <p class="mb-4">This request exceeds the ${thresholdAlert.category} threshold and requires Executive Director approval.</p>
-                    <label class="block mb-2 font-medium">Optional Comment:</label>
-                    <textarea
-                        id="forward-comment"
-                        class="w-full p-2 border rounded"
-                        rows="3"
-                        placeholder="Add a note for the Executive Director..."
-                    ></textarea>
-                </div>
-            `,
-            icon: 'question',
-            showCancelButton: true,
-            confirmButtonText: 'Forward to Executive',
-            cancelButtonText: 'Cancel',
-            confirmButtonColor: '#3085d6',
-            preConfirm: () => {
-                const comment = (document.getElementById('forward-comment') as HTMLTextAreaElement)?.value || '';
-                return comment;
-            },
-        });
-
-        if (!result.isConfirmed) return;
-
-        try {
-            const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
-            const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:4000' : `http://${window.location.hostname}:4000`;
-
-            const response = await fetch(`${apiUrl}/requests/${req.id}/forward-to-executive`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
-                },
-                body: JSON.stringify({
-                    comment: result.value || '',
-                }),
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.error || data.message || 'Failed to forward request');
-            }
-
-            MySwal.fire({
-                icon: 'success',
-                title: 'Request Forwarded',
-                text: 'The request has been forwarded to the Executive Director for approval.',
-            });
-
-            // Refresh the requests list
-            window.location.reload();
-        } catch (error) {
-            MySwal.fire({
-                icon: 'error',
-                title: 'Forward Failed',
-                text: error instanceof Error ? error.message : 'Failed to forward request',
-            });
-        }
-    };
-
-    // Executive Director approve/reject action
-    const handleExecutiveAction = async (req: Request, action: 'APPROVE' | 'REJECT') => {
-        const result = await MySwal.fire({
-            title: action === 'APPROVE' ? 'Approve Request?' : 'Reject Request?',
-            html: `
-                <div class="text-left">
-                    <p class="mb-2">Request: <strong>${req.title}</strong></p>
-                    <p class="mb-2">Value: <strong>${req.currency} ${(req.totalEstimated || 0).toLocaleString()}</strong></p>
-                    <p class="mb-4">${
-                        action === 'APPROVE'
-                            ? 'This will approve the request and send it back to the Procurement Manager for processing.'
-                            : 'This will reject the request and send it back to the requester as a draft.'
-                    }</p>
-                    <label class="block mb-2 font-medium">Comment ${action === 'REJECT' ? '(Required)' : '(Optional)'}:</label>
-                    <textarea
-                        id="executive-comment"
-                        class="w-full p-2 border rounded"
-                        rows="3"
-                        placeholder="${action === 'APPROVE' ? 'Add any notes or conditions...' : 'Please explain why this request is being rejected...'}"
-                    ></textarea>
-                </div>
-            `,
-            icon: action === 'APPROVE' ? 'question' : 'warning',
-            showCancelButton: true,
-            confirmButtonText: action === 'APPROVE' ? 'Approve' : 'Reject',
-            cancelButtonText: 'Cancel',
-            confirmButtonColor: action === 'APPROVE' ? '#10b981' : '#ef4444',
-            preConfirm: () => {
-                const comment = (document.getElementById('executive-comment') as HTMLTextAreaElement)?.value || '';
-                if (action === 'REJECT' && !comment.trim()) {
-                    MySwal.showValidationMessage('Please provide a reason for rejection');
-                    return false;
-                }
-                return comment;
-            },
-        });
-
-        if (!result.isConfirmed) return;
-
-        try {
-            const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
-            const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:4000' : `http://${window.location.hostname}:4000`;
-
-            const response = await fetch(`${apiUrl}/requests/${req.id}/executive-action`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
-                },
-                body: JSON.stringify({
-                    action,
-                    comment: result.value || '',
-                }),
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.error || data.message || 'Failed to process action');
-            }
-
-            MySwal.fire({
-                icon: 'success',
-                title: action === 'APPROVE' ? 'Request Approved' : 'Request Rejected',
-                text: data.message || `The request has been ${action === 'APPROVE' ? 'approved and sent to Procurement Manager' : 'rejected'}.`,
-            });
-
-            // Refresh the requests list
-            window.location.reload();
-        } catch (error) {
-            MySwal.fire({
-                icon: 'error',
-                title: 'Action Failed',
-                text: error instanceof Error ? error.message : 'Failed to process action',
-            });
-        }
-    };
-
     return (
         <div className="p-6">
             <div className="flex items-center justify-between mb-6">
@@ -416,91 +228,108 @@ const Requests = () => {
             )}
 
             {/* Filter & Search controls */}
-            <div className="mb-4 flex flex-wrap items-center gap-2">
-                <button
-                    className={`px-3 py-1.5 rounded border text-sm ${!showMineOnly ? 'bg-primary text-white border-primary' : 'border-gray-300 dark:border-gray-600'}`}
-                    onClick={() => {
-                        if (location.pathname.endsWith('/mine')) {
-                            navigate({ pathname: '/apps/requests', search: location.search });
-                        }
-                    }}
-                    type="button"
-                    aria-pressed={!showMineOnly}
-                    aria-label="Show all requests"
-                >
-                    All Requests
-                </button>
-                <button
-                    className={`px-3 py-1.5 rounded border text-sm ${showMineOnly ? 'bg-primary text-white border-primary' : 'border-gray-300 dark:border-gray-600'}`}
-                    onClick={() => {
-                        if (!location.pathname.endsWith('/mine')) {
-                            navigate({ pathname: '/apps/requests/mine', search: location.search });
-                        }
-                    }}
-                    type="button"
-                    aria-pressed={showMineOnly}
-                    aria-label="Show my requests"
-                >
-                    My Requests
-                </button>
+            <div className="mb-4 flex flex-wrap items-center gap-2 justify-between">
+                <div className="flex flex-wrap items-center gap-2">
+                    <button
+                        className={`px-3 py-1.5 rounded border text-sm ${!showMineOnly ? 'bg-primary text-white border-primary' : 'border-gray-300 dark:border-gray-600'}`}
+                        onClick={() => {
+                            if (location.pathname.endsWith('/mine')) {
+                                navigate({ pathname: '/apps/requests', search: location.search });
+                            }
+                        }}
+                        type="button"
+                        aria-pressed={!showMineOnly}
+                        aria-label="Show all requests"
+                    >
+                        All Requests
+                    </button>
+                    <button
+                        className={`px-3 py-1.5 rounded border text-sm ${showMineOnly ? 'bg-primary text-white border-primary' : 'border-gray-300 dark:border-gray-600'}`}
+                        onClick={() => {
+                            if (!location.pathname.endsWith('/mine')) {
+                                navigate({ pathname: '/apps/requests/mine', search: location.search });
+                            }
+                        }}
+                        type="button"
+                        aria-pressed={showMineOnly}
+                        aria-label="Show my requests"
+                    >
+                        My Requests
+                    </button>
 
-                <input
-                    type="text"
-                    value={query}
-                    onChange={(e) => {
-                        setQuery(e.target.value);
-                        setPage(1);
-                    }}
-                    placeholder="Search by ID, Title, Requester, Dept"
-                    className="form-input w-64"
-                    aria-label="Search requests"
-                />
+                    <input
+                        type="text"
+                        value={query}
+                        onChange={(e) => {
+                            setQuery(e.target.value);
+                            setPage(1);
+                        }}
+                        placeholder="Search by ID, Title, Requester, Dept"
+                        className="form-input w-64"
+                        aria-label="Search requests"
+                    />
 
-                <select
-                    value={statusFilter}
-                    onChange={(e) => {
-                        setStatusFilter(e.target.value);
-                        setPage(1);
-                    }}
-                    className="form-select"
-                    aria-label="Filter by status"
-                >
-                    <option value="">All Statuses</option>
-                    {[
-                        ...new Set(
-                            requests
-                                .map((r) => r.status)
-                                .map((s) => s && s.trim())
-                                .filter(Boolean)
-                        ),
-                    ]
-                        .map((s) => ({ raw: s as string, norm: normalizeStatus(s as string) }))
-                        .sort((a, b) => a.norm.localeCompare(b.norm))
-                        .map(({ raw, norm }) => (
-                            <option key={raw} value={norm}>
-                                {norm}
-                            </option>
-                        ))}
-                </select>
+                    <select
+                        value={statusFilter}
+                        onChange={(e) => {
+                            setStatusFilter(e.target.value);
+                            setPage(1);
+                        }}
+                        className="form-select"
+                        aria-label="Filter by status"
+                    >
+                        <option value="">All Statuses</option>
+                        {[
+                            ...new Set(
+                                requests
+                                    .map((r) => r.status)
+                                    .map((s) => s && s.trim())
+                                    .filter(Boolean)
+                            ),
+                        ]
+                            .map((s) => ({ raw: s as string, norm: normalizeStatus(s as string) }))
+                            .sort((a, b) => a.norm.localeCompare(b.norm))
+                            .map(({ raw, norm }) => (
+                                <option key={raw} value={norm}>
+                                    {norm}
+                                </option>
+                            ))}
+                    </select>
 
-                <select
-                    value={departmentFilter}
-                    onChange={(e) => {
-                        setDepartmentFilter(e.target.value);
-                        setPage(1);
-                    }}
-                    className="form-select"
-                    aria-label="Filter by department"
-                >
-                    <option value="">All Departments</option>
-                    {[...new Set(requests.map((f) => f.department).filter(Boolean) as string[])]
-                        .sort((a, b) => a.localeCompare(b))
-                        .map((dep) => (
-                            <option key={dep} value={dep}>
-                                {dep}
-                            </option>
-                        ))}
-                </select>
+                    <select
+                        value={departmentFilter}
+                        onChange={(e) => {
+                            setDepartmentFilter(e.target.value);
+                            setPage(1);
+                        }}
+                        className="form-select"
+                        aria-label="Filter by department"
+                    >
+                        <option value="">All Departments</option>
+                        {[...new Set(requests.map((f) => f.department).filter(Boolean) as string[])]
+                            .sort((a, b) => a.localeCompare(b))
+                            .map((dep) => (
+                                <option key={dep} value={dep}>
+                                    {dep}
+                                </option>
+                            ))}
+                    </select>
+                </div>
+
+                {/* Combined Requests Button */}
+                {currentUserRoles.some((role) => role.toUpperCase().includes('PROCUREMENT') || role.toUpperCase().includes('MANAGER')) && combinedRequests.length > 0 && (
+                    <button onClick={() => navigate('/apps/requests/combine')} className="btn btn-outline-primary gap-2" type="button">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                            />
+                        </svg>
+                        View Combined Requests ({combinedRequests.length})
+                    </button>
+                )}
             </div>
 
             <div className="bg-white dark:bg-slate-800 shadow rounded overflow-hidden" aria-busy={isLoading}>
@@ -528,10 +357,7 @@ const Requests = () => {
                             const procurementTypes = Array.isArray(r.procurementType) ? r.procurementType : [];
                             const thresholdAlert = checkExecutiveThreshold(r.totalEstimated || 0, procurementTypes);
                             const thresholdBadge = getThresholdBadge(thresholdAlert);
-                            const normalizedStatus = normalizeStatus(r.status || '');
-                            // Only show threshold alert if it needs executive approval AND is not already in executive review/approved
-                            const showThresholdAlert =
-                                shouldShowThresholdNotification(currentUserRoles) && thresholdAlert.isRequired && normalizedStatus !== 'Executive Review' && normalizedStatus !== 'Executive Approved';
+                            const showThresholdAlert = shouldShowThresholdNotification(currentUserRoles) && thresholdAlert.isRequired;
 
                             return (
                                 <tr key={r.id} className="border-t last:border-b hover:bg-slate-50 dark:hover:bg-slate-700">
@@ -544,6 +370,34 @@ const Requests = () => {
                                                     <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium border ${thresholdBadge.className}`}>
                                                         <span>{thresholdBadge.icon}</span>
                                                         {thresholdBadge.text}
+                                                    </span>
+                                                </div>
+                                            )}
+                                            {r.isCombined && r.lotNumber && (
+                                                <div className="flex items-center gap-1">
+                                                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-purple-100 text-purple-800 border border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-700">
+                                                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path
+                                                                strokeLinecap="round"
+                                                                strokeLinejoin="round"
+                                                                strokeWidth={2}
+                                                                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                                                            />
+                                                        </svg>
+                                                        LOT-{r.lotNumber}
+                                                        {r.combinedRequestId && (
+                                                            <button
+                                                                type="button"
+                                                                className="ml-1 hover:underline"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    navigate(`/apps/requests/combined/${r.combinedRequestId}`);
+                                                                }}
+                                                                title="View combined request"
+                                                            >
+                                                                →
+                                                            </button>
+                                                        )}
                                                     </span>
                                                 </div>
                                             )}
@@ -579,61 +433,6 @@ const Requests = () => {
                                                     Review
                                                 </button>
                                             )}
-                                            {(() => {
-                                                const normalizedStatus = normalizeStatus(r.status || '');
-                                                const isAssignedToMe = currentUserId && r.currentAssigneeId && Number(r.currentAssigneeId) === Number(currentUserId);
-
-                                                // Executive Director approve/reject buttons for EXECUTIVE_REVIEW requests
-                                                if (isExecutiveDirector && normalizedStatus === 'Executive Review' && isAssignedToMe) {
-                                                    return (
-                                                        <>
-                                                            <button
-                                                                className="px-3 py-1.5 rounded bg-green-600 hover:bg-green-700 text-white text-xs font-medium flex items-center gap-1"
-                                                                onClick={() => handleExecutiveAction(r, 'APPROVE')}
-                                                                title="Approve Request"
-                                                                aria-label={`Approve request ${r.id}`}
-                                                            >
-                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                                                </svg>
-                                                                <span>Approve</span>
-                                                            </button>
-                                                            <button
-                                                                className="px-3 py-1.5 rounded bg-red-600 hover:bg-red-700 text-white text-xs font-medium flex items-center gap-1"
-                                                                onClick={() => handleExecutiveAction(r, 'REJECT')}
-                                                                title="Reject Request"
-                                                                aria-label={`Reject request ${r.id}`}
-                                                            >
-                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                                                </svg>
-                                                                <span>Reject</span>
-                                                            </button>
-                                                        </>
-                                                    );
-                                                }
-
-                                                // Procurement Manager forward button
-                                                const isProcurementManager = currentUserRoles.some((role) => {
-                                                    const roleUpper = role.toUpperCase();
-                                                    return ['PROCUREMENT_MANAGER', 'PROCUREMENT MANAGER'].includes(roleUpper) || (roleUpper.includes('PROCUREMENT') && roleUpper.includes('MANAGER'));
-                                                });
-                                                const procurementTypes = Array.isArray(r.procurementType) ? r.procurementType : [];
-                                                const thresholdAlert = checkExecutiveThreshold(r.totalEstimated || 0, procurementTypes, r.currency);
-                                                const showForwardButton = isProcurementManager && thresholdAlert.isRequired && normalizedStatus !== 'Executive Review';
-
-                                                return showForwardButton ? (
-                                                    <button
-                                                        className="px-3 py-1.5 rounded bg-green-600 hover:bg-green-700 text-white text-xs font-medium flex items-center gap-1"
-                                                        onClick={() => forwardToExecutive(r)}
-                                                        title="Forward to Executive Director"
-                                                        aria-label={`Forward request ${r.id} to Executive Director`}
-                                                    >
-                                                        <IconSend className="w-4 h-4" />
-                                                        <span>Forward</span>
-                                                    </button>
-                                                ) : null;
-                                            })()}
                                         </div>
                                     </td>
                                 </tr>

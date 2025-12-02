@@ -50,8 +50,11 @@ export default function OnboardingGuard({ children }: PropsWithChildren) {
                 audit: '/audit/dashboard',
             };
 
-            const redirectPath = modulePaths[redirectModule] || '/';
-            return <Navigate to={redirectPath} replace />;
+            if (redirectModule) {
+                const redirectPath = modulePaths[redirectModule] || '/';
+                return <Navigate to={redirectPath} replace />;
+            }
+            // If we somehow have no redirect module, fall through and allow onboarding
         }
     } catch (err) {
         // If localStorage is unavailable or error occurs, allow access

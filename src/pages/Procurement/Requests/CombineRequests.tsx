@@ -8,11 +8,9 @@ import IconPlus from '../../../components/Icon/IconPlus';
 import IconEye from '../../../components/Icon/IconEye';
 import IconX from '../../../components/Icon/IconX';
 import IconCircleCheck from '../../../components/Icon/IconCircleCheck';
-import { getApiUrl } from '../../../utils/api';
+import { getApiUrl } from '../../../config/api';
 import { Request } from '../../../types/request.types';
 import { getStatusBadge } from '../../../utils/statusBadges';
-import RequestDetailsContent from '../../../components/RequestDetailsContent';
-import withReactContent from 'sweetalert2-react-content';
 import {
     CombinableRequest,
     CombineRequestsConfig,
@@ -23,8 +21,6 @@ import {
     formatCombineSummary,
     DEFAULT_COMBINE_CONFIG,
 } from '../../../utils/requestCombining';
-
-const MySwal = withReactContent(Swal);
 
 const CombineRequests = () => {
     const dispatch = useDispatch();
@@ -40,6 +36,8 @@ const CombineRequests = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [showCombineModal, setShowCombineModal] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [combinedRequests, setCombinedRequests] = useState<any[]>([]);
+    const [showExisting, setShowExisting] = useState(false);
 
     // Combine configuration state
     const [config, setConfig] = useState<CombineRequestsConfig>({
@@ -59,39 +57,17 @@ const CombineRequests = () => {
             setError(null);
             try {
                 const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
-                const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
-                const userId = userProfile?.id || userProfile?.userId;
 
-                console.log('🔐 [COMBINE] Auth Debug:', {
-                    hasToken: !!token,
-                    tokenPreview: token ? `${token.substring(0, 20)}...` : 'NONE',
-                    userId,
-                    userProfile: userProfile.name,
-                });
-
-                const headers: Record<string, string> = {
-                    'Content-Type': 'application/json',
-                };
-
-                if (token) {
-                    headers['Authorization'] = `Bearer ${token}`;
-                }
-                if (userId) {
-                    headers['x-user-id'] = String(userId);
-                }
-
-                console.log('🔐 [COMBINE] Request headers:', Object.keys(headers));
-
+                // Fetch combinable requests
                 const response = await fetch(getApiUrl('/api/requests/combine?combinable=true'), {
-                    headers,
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
                 });
-
-                console.log('🔐 [COMBINE] Response status:', response.status);
 
                 if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error('Failed to fetch combinable requests:', response.status, errorText);
-                    throw new Error(`Failed to fetch combinable requests: ${response.status}`);
+                    throw new Error('Failed to fetch combinable requests');
                 }
 
                 const data = await response.json();
@@ -102,22 +78,24 @@ const CombineRequests = () => {
                 // Ensure all fields are properly formatted for React rendering
                 const formattedRequests = filteredRequests.map((req: any) => ({
                     ...req,
-                    totalEstimated: Number(req.totalEstimated) || 0,
                     department: typeof req.department === 'object' ? req.department?.name || 'Unknown' : req.department || 'Unknown',
                     requestedBy: typeof req.requestedBy === 'object' ? req.requestedBy?.full_name || 'Unknown' : req.requestedBy || 'Unknown',
-                    items: Array.isArray(req.items)
-                        ? req.items.map((item: any) => ({
-                              ...item,
-                              quantity: Number(item.quantity) || 0,
-                              unitCost: Number(item.unitCost) || 0,
-                              totalCost: Number(item.totalCost) || 0,
-                          }))
-                        : [],
                 }));
 
-                console.log('📊 [COMBINE] Formatted requests sample:', formattedRequests[0]);
-
                 setRequests(formattedRequests);
+
+                // Also fetch existing combined requests
+                const combinedResponse = await fetch(getApiUrl('/api/requests/combine'), {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                });
+
+                if (combinedResponse.ok) {
+                    const combinedData = await combinedResponse.json();
+                    setCombinedRequests(combinedData);
+                }
             } catch (err) {
                 setError(err instanceof Error ? err.message : 'Failed to load requests');
             } finally {
@@ -130,40 +108,20 @@ const CombineRequests = () => {
 
     // Check permissions for current user
     const permissions = useMemo(() => {
-        if (!user) {
-            console.log('🔒 [COMBINE] No user - not authenticated');
-            return { canCombine: false, requiresApproval: false, reasons: ['Not authenticated'] };
-        }
+        if (!user) return { canCombine: false, requiresApproval: false, reasons: ['Not authenticated'] };
 
         // Get user roles - handle different possible role structures
         const userRoles = user.roles || [];
         const userDepartment = user.department_name || '';
 
-        console.log('🔒 [COMBINE] Permission check:', {
-            userRoles,
-            userDepartment,
-            selectedCount: selectedRequests.length,
-            user: user.name,
-        });
+        // Debug log to see what we're working with
+        console.log('User roles:', userRoles, 'Department:', userDepartment, 'Selected requests:', selectedRequests.length);
 
-        const perms = checkCombinePermissions(userRoles, userDepartment, selectedRequests);
-
-        console.log('🔒 [COMBINE] Permission result:', perms);
-
-        return perms;
+        return checkCombinePermissions(userRoles, userDepartment, selectedRequests);
     }, [user, selectedRequests]);
 
     // Validation and preview
-    const validation = useMemo(() => {
-        const result = validateRequestCombination(selectedRequests);
-        console.log('✅ [COMBINE] Validation result:', {
-            isValid: result.isValid,
-            errors: result.errors,
-            warnings: result.warnings,
-            selectedCount: selectedRequests.length,
-        });
-        return result;
-    }, [selectedRequests]);
+    const validation = useMemo(() => validateRequestCombination(selectedRequests), [selectedRequests]);
 
     const preview = useMemo(() => (selectedRequests.length >= 2 ? generateCombinePreview(selectedRequests, config) : null), [selectedRequests, config]);
 
@@ -187,16 +145,7 @@ const CombineRequests = () => {
     };
 
     const handleCombineClick = () => {
-        console.log('🔘 [COMBINE] Combine button clicked:', {
-            selectedCount: selectedRequests.length,
-            validationValid: validation.isValid,
-            canCombine: permissions.canCombine,
-            validationErrors: validation.errors,
-            permissionReasons: permissions.reasons,
-        });
-
         if (!validation.isValid) {
-            console.log('❌ [COMBINE] Validation failed');
             Swal.fire({
                 title: 'Cannot Combine Requests',
                 html: `<ul style="text-align: left;">${validation.errors.map((e) => `<li>${e}</li>`).join('')}</ul>`,
@@ -206,7 +155,6 @@ const CombineRequests = () => {
         }
 
         if (!permissions.canCombine) {
-            console.log('❌ [COMBINE] Permission denied');
             Swal.fire({
                 title: 'Permission Denied',
                 html: `<ul style="text-align: left;">${permissions.reasons.map((r) => `<li>${r}</li>`).join('')}</ul>`,
@@ -214,8 +162,6 @@ const CombineRequests = () => {
             });
             return;
         }
-
-        console.log('✅ [COMBINE] Showing combine modal');
 
         // Auto-generate title and description if empty
         if (!config.combinedTitle) {
@@ -257,76 +203,38 @@ const CombineRequests = () => {
             // Prepare combined request data
             const combinedItems = config.consolidateItems ? consolidateItems(selectedRequests) : selectedRequests.flatMap((req) => req.items);
 
-            // Calculate total from items - ensure all values are numbers
-            const itemsTotal = combinedItems.reduce((sum, item) => {
-                const itemTotal = Number(item.totalCost) || Number(item.quantity) * Number(item.unitCost) || 0;
-                return sum + itemTotal;
-            }, 0);
-
-            console.log('🔢 [COMBINE] Calculating totals:', {
-                selectedRequests: selectedRequests.length,
-                selectedRequestsTotals: selectedRequests.map((r) => ({ ref: r.reference, total: r.totalEstimated, type: typeof r.totalEstimated })),
-                selectedRequestsSum: selectedRequests.reduce((sum, r) => sum + (Number(r.totalEstimated) || 0), 0),
-                items: combinedItems.length,
-                itemsTotal,
-                previewTotal: preview?.totalValue,
-                previewCombinedRequestTotal: preview?.combinedRequest?.totalEstimated,
-            });
-
             const combinedRequestData = {
                 ...preview!.combinedRequest,
                 items: combinedItems,
                 originalRequestIds: selectedRequests.map((r) => r.id),
                 combinationConfig: config,
                 requiresApproval: permissions.requiresApproval,
-                totalEstimated: Number(itemsTotal), // Ensure it's a number
             };
-
-            console.log('📦 [COMBINE] Sending data:', {
-                title: combinedRequestData.title,
-                totalEstimated: combinedRequestData.totalEstimated,
-                totalEstimatedType: typeof combinedRequestData.totalEstimated,
-                itemCount: combinedItems.length,
-                originalRequestCount: selectedRequests.length,
-            });
 
             const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
-            const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
-            const userId = userProfile?.id || userProfile?.userId;
-
-            const headers: Record<string, string> = {
-                'Content-Type': 'application/json',
-            };
-
-            if (token) {
-                headers['Authorization'] = `Bearer ${token}`;
-            }
-            if (userId) {
-                headers['x-user-id'] = String(userId);
-            }
-
             const response = await fetch(getApiUrl('/api/requests/combine'), {
                 method: 'POST',
-                headers,
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
                 body: JSON.stringify(combinedRequestData),
             });
 
             if (!response.ok) {
-                const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-                console.error('Failed to combine requests:', response.status, errorData);
-                throw new Error(errorData.error || errorData.message || 'Failed to combine requests');
+                throw new Error('Failed to combine requests');
             }
 
             const result = await response.json();
 
             await Swal.fire({
                 title: 'Success!',
-                text: permissions.requiresApproval ? 'Combined request submitted for approval' : 'Requests successfully combined',
+                text: `${result.combinedRequest.lotsCount} requests combined into ${result.combinedRequest.lotsCount} numbered lots`,
                 icon: 'success',
             });
 
-            // Navigate back to requests list
-            navigate('/apps/requests');
+            // Navigate to combined request detail view
+            navigate(`/apps/requests/combined/${result.combinedRequest.id}`);
         } catch (err) {
             await Swal.fire({
                 title: 'Error',
@@ -336,25 +244,6 @@ const CombineRequests = () => {
         } finally {
             setIsLoading(false);
             setShowCombineModal(false);
-        }
-    };
-
-    // View request details modal
-    const viewDetails = (req: CombinableRequest) => {
-        console.log('👁️ [COMBINE] View details clicked for request:', req.reference);
-        console.log('👁️ [COMBINE] Request data:', req);
-
-        try {
-            MySwal.fire({
-                html: <RequestDetailsContent request={req as any} />,
-                width: '800px',
-                showCloseButton: true,
-                showConfirmButton: false,
-                customClass: { popup: 'text-left' },
-            });
-            console.log('👁️ [COMBINE] Modal opened successfully');
-        } catch (error) {
-            console.error('👁️ [COMBINE] Error opening modal:', error);
         }
     };
 
@@ -371,6 +260,12 @@ const CombineRequests = () => {
             <div className="flex flex-wrap items-center justify-between gap-4 mb-5">
                 <h2 className="text-xl">Combine Requests</h2>
                 <div className="flex gap-2">
+                    {combinedRequests.length > 0 && (
+                        <button type="button" className="btn btn-outline-info gap-2" onClick={() => setShowExisting(!showExisting)}>
+                            <IconEye className="w-5 h-5" />
+                            {showExisting ? 'Hide' : 'Show'} Existing Combined ({combinedRequests.length})
+                        </button>
+                    )}
                     <button type="button" className="btn btn-secondary gap-2" onClick={handleSelectAll}>
                         {selectedRequests.length === requests.length ? 'Deselect All' : 'Select All'}
                     </button>
@@ -390,6 +285,50 @@ const CombineRequests = () => {
             {!permissions.canCombine && user && (
                 <div className="alert alert-warning mb-5">
                     <strong>Limited Access:</strong> {permissions.reasons.join(', ')}
+                </div>
+            )}
+
+            {/* Existing Combined Requests */}
+            {showExisting && combinedRequests.length > 0 && (
+                <div className="panel mb-5">
+                    <div className="panel-header">
+                        <h5 className="font-semibold text-lg">Existing Combined Requests</h5>
+                    </div>
+                    <div className="table-responsive">
+                        <table className="table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Reference</th>
+                                    <th>Title</th>
+                                    <th>Lots</th>
+                                    <th>Created</th>
+                                    <th>Created By</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {combinedRequests.map((combined: any) => (
+                                    <tr key={combined.id}>
+                                        <td>
+                                            <span className="font-semibold text-primary">{combined.reference}</span>
+                                        </td>
+                                        <td>{combined.title}</td>
+                                        <td>
+                                            <span className="badge bg-info">{combined.lotsCount || 0} Lots</span>
+                                        </td>
+                                        <td>{new Date(combined.createdAt).toLocaleDateString()}</td>
+                                        <td>{combined.createdBy?.full_name || 'Unknown'}</td>
+                                        <td>
+                                            <button type="button" className="btn btn-sm btn-primary gap-1" onClick={() => navigate(`/apps/requests/combined/${combined.id}`)}>
+                                                <IconEye className="w-4 h-4" />
+                                                View Details
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             )}
 
@@ -495,7 +434,7 @@ const CombineRequests = () => {
                                         </td>
                                         <td>{new Date(request.createdAt).toLocaleDateString()}</td>
                                         <td>
-                                            <button type="button" className="btn btn-sm btn-outline-primary" onClick={() => viewDetails(request)} title="View Details">
+                                            <button type="button" className="btn btn-sm btn-outline-primary" onClick={() => navigate('/apps/requests')}>
                                                 <IconEye className="w-4 h-4" />
                                             </button>
                                         </td>

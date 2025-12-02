@@ -280,6 +280,33 @@ model Request {
 
   // Load balancing assignment logs back-relations
   assignmentLogs RequestAssignmentLog[]
+  
+  // Combined Request tracking
+  isCombined              Boolean? @default(false)
+  combinedRequest         CombinedRequest? @relation("CombinedRequestLots", fields: [combinedRequestId], references: [id])
+  combinedRequestId       Int?
+  lotNumber               Int? // LOT-1, LOT-2, etc.
+}
+
+// CombinedRequest - represents merged requests with numbered lots
+model CombinedRequest {
+  id          Int      @id @default(autoincrement())
+  reference   String   @unique // CMB-timestamp format
+  title       String
+  description String?  @db.Text
+  
+  // Configuration
+  config      Json?    // Store the combination configuration
+  
+  // Relations
+  lots        Request[] @relation("CombinedRequestLots") // Individual requests as numbered lots
+  evaluations Evaluation[] @relation("CombinedRequestEvaluations")
+  
+  createdBy   Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([reference])
 }
 
 model RequestItem {
@@ -601,6 +628,10 @@ model Evaluation {
   rfqTitle       String
   description    String?           @db.Text
   status         EvaluationStatus  @default(PENDING)
+  
+  // Link to combined request (if evaluating multiple lots)
+  combinedRequest   CombinedRequest? @relation("CombinedRequestEvaluations", fields: [combinedRequestId], references: [id])
+  combinedRequestId Int?
   
   // Section A: Procurement Details (stored as JSON for flexibility)
   sectionA       Json?

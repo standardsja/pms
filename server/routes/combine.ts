@@ -8,71 +8,84 @@ import { createThresholdNotifications } from '../services/notificationService';
 const router = Router();
 const prisma = new PrismaClient();
 
-// Get combinable requests
+// Get combinable requests or existing combined requests
 router.get('/', authMiddleware, async (req, res) => {
     try {
         const { combinable } = req.query;
         const authReq = req as AuthenticatedRequest;
-
-        console.log(`[COMBINE] 🔍 GET request received`);
-        console.log(`[COMBINE] Auth header:`, req.headers.authorization ? 'Present' : 'MISSING');
-        console.log(`[COMBINE] x-user-id header:`, req.headers['x-user-id'] || 'MISSING');
-
-        const userId = authReq.user?.sub;
-        const userRoles = authReq.user?.roles || [];
-
-        console.log(`[COMBINE] User ID from auth:`, userId);
-        console.log(`[COMBINE] User roles from auth:`, userRoles);
-
-        if (!userId) {
-            console.log(`[COMBINE] ❌ No user ID - authentication failed`);
-            return res.status(401).json({
-                error: 'Authentication required',
-                message: 'User ID not found in request',
-            });
-        }
-
-        console.log(`[COMBINE] GET request from user ${userId} with roles:`, userRoles);
-
-        let whereClause: any = {};
-
-        // Only include requests that can be combined
-        if (combinable === 'true') {
-            whereClause.status = {
-                in: [RequestStatus.DRAFT, RequestStatus.SUBMITTED, RequestStatus.DEPARTMENT_REVIEW, RequestStatus.PROCUREMENT_REVIEW],
-            };
-        }
+        const userId = authReq.user.sub;
+        const userRoles = authReq.user.roles || [];
 
         // Role-based filtering using improved role checking
         const userRoleInfo = checkUserRoles(userRoles);
 
-        console.log(`[COMBINE] User role check result:`, {
-            canCombineRequests: userRoleInfo.canCombineRequests,
-            isProcurementOfficer: userRoleInfo.isProcurementOfficer,
-            isProcurementManager: userRoleInfo.isProcurementManager,
-            isAdmin: userRoleInfo.isAdmin,
-        });
-
-        // Only procurement officers, procurement managers, and admins can combine requests
+        // Only procurement officers, procurement managers, and admins can view combined requests
         if (!userRoleInfo.canCombineRequests) {
-            console.log(`[COMBINE] Access denied for user ${userId} - insufficient permissions`);
             return res.status(403).json({
-                error: 'Access denied',
-                message: 'Only procurement officers and procurement managers can combine requests.',
+                message: 'Access denied. Only procurement officers and procurement managers can view combined requests.',
                 code: 'INSUFFICIENT_PERMISSIONS',
-                userRoles,
             });
         }
 
+        // If no combinable query param, return existing combined requests
+        if (combinable !== 'true') {
+            const combinedRequests = await prisma.combinedRequest.findMany({
+                include: {
+                    lots: {
+                        select: {
+                            id: true,
+                            reference: true,
+                            title: true,
+                            lotNumber: true,
+                        },
+                    },
+                },
+                orderBy: { createdAt: 'desc' },
+            });
+
+            // Fetch user details separately for each combined request
+            const transformedCombined = await Promise.all(
+                combinedRequests.map(async (combined) => {
+                    const user = await prisma.user.findUnique({
+                        where: { id: combined.createdBy },
+                        select: { id: true, name: true, email: true },
+                    });
+
+                    return {
+                        id: combined.id,
+                        reference: combined.reference,
+                        title: combined.title,
+                        description: combined.description,
+                        lotsCount: combined.lots.length,
+                        createdAt: combined.createdAt,
+                        updatedAt: combined.updatedAt,
+                        createdBy: user
+                            ? {
+                                  id: user.id,
+                                  full_name: user.name || 'Unknown',
+                                  email: user.email,
+                              }
+                            : null,
+                    };
+                })
+            );
+
+            return res.json(transformedCombined);
+        }
+
+        // Otherwise, return requests that can be combined
+        let whereClause: any = {};
+
+        whereClause.status = {
+            in: ['DRAFT', 'SUBMITTED', 'DEPARTMENT_REVIEW', 'PROCUREMENT_REVIEW'],
+        };
+
         if (userRoleInfo.isProcurementOfficer || userRoleInfo.isProcurementManager || userRoleInfo.isAdmin) {
             // Procurement users can see all combinable requests
-            console.log(`[COMBINE] User ${userId} authorized to view combinable requests`);
         } else {
             // This should not happen due to the canCombineRequests check above, but as a fallback
-            console.log(`[COMBINE] Unexpected role state for user ${userId}`);
             return res.status(403).json({
-                error: 'Access denied',
-                message: 'Invalid role for combining requests.',
+                message: 'Access denied. Invalid role for combining requests.',
                 code: 'INVALID_ROLE',
             });
         }
@@ -103,7 +116,7 @@ router.get('/', authMiddleware, async (req, res) => {
             title: request.title,
             status: request.status,
             priority: request.priority || 'MEDIUM',
-            totalEstimated: Number(request.totalEstimated) || 0,
+            totalEstimated: request.totalEstimated || 0,
             currency: request.currency || 'USD',
             department: request.department?.name || 'Unknown',
             requestedBy: request.requester.name,
@@ -111,17 +124,15 @@ router.get('/', authMiddleware, async (req, res) => {
             items: request.items.map((item) => ({
                 id: item.id,
                 description: item.description,
-                quantity: Number(item.quantity) || 0,
-                unitCost: Number(item.unitPrice) || 0,
-                totalCost: Number(item.totalPrice) || 0,
+                quantity: item.quantity,
+                unitCost: Number(item.unitPrice),
+                totalCost: Number(item.totalPrice),
             })),
         }));
 
-        console.log(`[COMBINE] Returning ${transformedRequests.length} combinable requests to user ${userId}`);
-
         res.json(transformedRequests);
     } catch (error) {
-        console.error('Error fetching combinable requests:', error);
+        console.error('Error fetching requests:', error);
         res.status(500).json({
             error: 'Failed to fetch requests',
             message: error instanceof Error ? error.message : 'Unknown error',
@@ -138,44 +149,14 @@ router.post('/', authMiddleware, async (req, res) => {
         const userId = authReq.user.sub;
         const userRoles = authReq.user.roles || [];
 
-        console.log(`[COMBINE] POST request from user ${userId} to combine ${originalRequestIds?.length || 0} requests`);
-
-        // Validate required fields
-        if (!title || !items || !Array.isArray(items) || items.length === 0) {
-            console.log(`[COMBINE] Validation failed - missing required fields`);
-            return res.status(400).json({
-                error: 'Validation failed',
-                message: 'Title and items are required',
-                details: { title: !!title, items: items?.length || 0 },
-            });
-        }
-
-        if (!originalRequestIds || !Array.isArray(originalRequestIds) || originalRequestIds.length < 2) {
-            console.log(`[COMBINE] Validation failed - insufficient original requests`);
-            return res.status(400).json({
-                error: 'Validation failed',
-                message: 'At least 2 original requests are required for combining',
-                details: { originalRequestIds: originalRequestIds?.length || 0 },
-            });
-        }
-
         // Get user role information for permission checking
         const userRoleInfo = checkUserRoles(userRoles);
 
-        console.log(`[COMBINE] User role check:`, {
-            canCombineRequests: userRoleInfo.canCombineRequests,
-            isProcurementOfficer: userRoleInfo.isProcurementOfficer,
-            isProcurementManager: userRoleInfo.isProcurementManager,
-        });
-
         // Only procurement officers, procurement managers, and admins can combine requests
         if (!userRoleInfo.canCombineRequests) {
-            console.log(`[COMBINE] Access denied for user ${userId}`);
             return res.status(403).json({
-                error: 'Access denied',
-                message: 'Only procurement officers and procurement managers can combine requests.',
+                error: 'Access denied. Only procurement officers and procurement managers can combine requests.',
                 code: 'INSUFFICIENT_PERMISSIONS',
-                userRoles,
             });
         }
 
@@ -183,7 +164,7 @@ router.post('/', authMiddleware, async (req, res) => {
         const originalRequests = await prisma.request.findMany({
             where: {
                 id: { in: originalRequestIds },
-                status: { in: [RequestStatus.DRAFT, RequestStatus.SUBMITTED, RequestStatus.DEPARTMENT_REVIEW, RequestStatus.PROCUREMENT_REVIEW] },
+                status: { in: ['DRAFT', 'SUBMITTED', 'DEPARTMENT_REVIEW', 'PROCUREMENT_REVIEW'] },
             },
             include: {
                 department: { select: { name: true, id: true } },
@@ -191,20 +172,9 @@ router.post('/', authMiddleware, async (req, res) => {
             },
         });
 
-        console.log(`[COMBINE] Found ${originalRequests.length} valid requests out of ${originalRequestIds.length}`);
-
         if (originalRequests.length !== originalRequestIds.length) {
-            const foundIds = originalRequests.map((r) => r.id);
-            const missingIds = originalRequestIds.filter((id: number) => !foundIds.includes(id));
-            console.log(`[COMBINE] Missing or invalid request IDs:`, missingIds);
             return res.status(400).json({
-                error: 'Invalid requests',
-                message: 'Some requests cannot be combined or do not exist',
-                details: {
-                    requested: originalRequestIds.length,
-                    found: originalRequests.length,
-                    missingIds,
-                },
+                error: 'Some requests cannot be combined or do not exist',
             });
         }
 
@@ -223,141 +193,100 @@ router.post('/', authMiddleware, async (req, res) => {
             const timestamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
             const reference = `CMB-${timestamp}`;
 
-            // Calculate total from items to ensure accuracy
-            let calculatedTotal = 0;
-            if (items && Array.isArray(items)) {
-                calculatedTotal = items.reduce((sum: number, item: any) => {
-                    const quantity = Number(item.quantity) || 0;
-                    const unitCost = Number(item.unitCost) || 0;
-                    const itemTotal = Number(item.totalCost) || quantity * unitCost;
-                    return sum + itemTotal;
-                }, 0);
-            }
-
-            // Use calculated total if provided total doesn't match or is missing
-            const providedTotal = Number(totalEstimated) || 0;
-            const finalTotal = calculatedTotal > 0 ? calculatedTotal : providedTotal;
-
-            console.log(`[COMBINE] Calculated total: ${calculatedTotal} (type: ${typeof calculatedTotal}), Provided total: ${providedTotal} (type: ${typeof totalEstimated}), Using: ${finalTotal}`);
-
-            // Create the combined request
-            const combinedRequest = await tx.request.create({
+            // Create the CombinedRequest parent record
+            const combinedRequestParent = await tx.combinedRequest.create({
                 data: {
                     reference,
                     title,
                     description,
-                    requesterId: userId,
-                    departmentId: originalRequests[0].departmentId, // Use first request's department
-                    totalEstimated: finalTotal,
-                    currency: currency || 'USD',
-                    priority: priority || 'MEDIUM',
-                    status: requiresApproval ? RequestStatus.SUBMITTED : RequestStatus.DRAFT,
+                    config: combinationConfig || {},
+                    createdBy: userId,
                 },
             });
 
-            // Add items to the combined request
-            let itemsTotal = 0;
-            for (const item of items) {
-                const quantity = Number(item.quantity) || 0;
-                const unitCost = Number(item.unitCost) || 0;
-                const itemTotalPrice = Number(item.totalCost) || quantity * unitCost;
-                itemsTotal += itemTotalPrice;
+            // Convert original requests into numbered lots
+            let lotNumber = 1;
+            const lots = [];
 
-                await tx.requestItem.create({
-                    data: {
-                        requestId: combinedRequest.id,
-                        description: item.description,
-                        quantity: quantity,
-                        unitPrice: unitCost,
-                        totalPrice: itemTotalPrice,
-                        partNumber: item.originalRequests ? `From: ${item.originalRequests.join(', ')}` : undefined,
-                    },
-                });
-
-                console.log(
-                    `[COMBINE] Added item: ${item.description} x${quantity} @ ${unitCost} = ${itemTotalPrice} (types: qty=${typeof quantity}, unit=${typeof unitCost}, total=${typeof itemTotalPrice})`
-                );
-            }
-
-            console.log(`[COMBINE] Items total: ${itemsTotal}, Request total: ${finalTotal}`);
-
-            // Mark original requests as combined (set status to a combined status or add note)
             for (const originalRequest of originalRequests) {
-                await tx.request.update({
+                // Update the original request to be a lot in the combined request
+                const lot = await tx.request.update({
                     where: { id: originalRequest.id },
                     data: {
-                        status: RequestStatus.CLOSED,
-                        description: `${originalRequest.description}\n\n[COMBINED INTO ${reference}]`,
+                        isCombined: true,
+                        combinedRequestId: combinedRequestParent.id,
+                        lotNumber: lotNumber,
+                        status: 'PROCUREMENT_REVIEW', // Keep them active for evaluation
+                        // Update title to include LOT designation
+                        title: `LOT-${lotNumber}: ${originalRequest.title}`,
                     },
                 });
-                console.log(`[COMBINE] Marked request ${originalRequest.reference} as CLOSED`);
+
+                lots.push(lot);
+                lotNumber++;
             }
 
             // Create audit log for combination
             await tx.requestAction.create({
                 data: {
-                    requestId: combinedRequest.id,
+                    requestId: lots[0].id, // Log on first lot
                     performedById: userId,
                     action: 'COMMENT',
-                    comment: `Combined ${originalRequestIds.length} requests: ${originalRequests.map((r) => r.reference).join(', ')}`,
+                    comment: `Created combined request ${reference} with ${lots.length} lots: ${originalRequests.map((r, idx) => `LOT-${idx + 1} (${r.reference})`).join(', ')}`,
                 },
             });
 
-            // Add individual audit logs for each original request
-            for (const originalRequest of originalRequests) {
+            // Add individual audit logs for each lot
+            for (let i = 0; i < lots.length; i++) {
                 await tx.requestAction.create({
                     data: {
-                        requestId: originalRequest.id,
+                        requestId: lots[i].id,
                         performedById: userId,
                         action: 'COMMENT',
-                        comment: `Request combined into ${reference}`,
+                        comment: `Converted to LOT-${i + 1} in combined request ${reference}`,
                     },
                 });
             }
 
-            return combinedRequest;
+            return { combinedRequestParent, lots };
         });
 
         // Log the combination for analytics
-        console.log(`User ${userId} combined ${originalRequestIds.length} requests into ${result.reference}`, {
+        console.log(`User ${userId} combined ${originalRequestIds.length} requests into ${result.combinedRequestParent.reference}`, {
             originalRequestIds,
-            combinedRequestId: result.id,
-            totalValue: totalEstimated,
+            combinedRequestId: result.combinedRequestParent.id,
+            lotsCreated: result.lots.length,
         });
+
+        // Calculate total value across all lots
+        const totalValue = result.lots.reduce((sum, lot) => {
+            const lotValue = Number(lot.totalEstimated || 0);
+            return sum + lotValue;
+        }, 0);
 
         // Check if combined request exceeds thresholds and notify procurement officers
         try {
-            const totalValue = totalEstimated || 0;
             const procurementTypes = items.map((item: any) => item.procurementType).filter(Boolean);
             const requestCurrency = currency || 'JMD';
             const thresholdResult = checkProcurementThresholds(totalValue, procurementTypes, requestCurrency);
 
             if (thresholdResult.requiresExecutiveApproval) {
-                console.log(`[COMBINE] Combined request ${result.reference} exceeds threshold, notifying procurement officers`);
-
-                // Fetch the full combined request details for notifications
-                const combinedRequestFull = await prisma.request.findUnique({
-                    where: { id: result.id },
-                    include: {
-                        requester: { select: { name: true } },
-                        department: { select: { name: true } },
-                    },
-                });
+                console.log(`[COMBINE] Combined request ${result.combinedRequestParent.reference} exceeds threshold, notifying procurement officers`);
 
                 // Send notifications to procurement officers
                 await createThresholdNotifications({
-                    requestId: result.id,
-                    requestReference: result.reference,
+                    requestId: result.lots[0].id, // Use first lot ID for notification
+                    requestReference: result.combinedRequestParent.reference,
                     requestTitle: title,
-                    requesterName: combinedRequestFull?.requester?.name || 'Unknown',
-                    departmentName: combinedRequestFull?.department?.name || 'Unknown',
+                    requesterName: originalRequests[0]?.requester?.name || 'Unknown',
+                    departmentName: originalRequests[0]?.department?.name || 'Multiple Departments',
                     totalValue,
                     currency: requestCurrency,
                     thresholdAmount: thresholdResult.thresholdAmount,
                     category: thresholdResult.category,
                 });
 
-                console.log(`[COMBINE] Threshold notifications sent for combined request ${result.reference}`);
+                console.log(`[COMBINE] Threshold notifications sent for combined request ${result.combinedRequestParent.reference}`);
             }
         } catch (notificationError) {
             // Don't fail the combination if notifications fail
@@ -366,11 +295,18 @@ router.post('/', authMiddleware, async (req, res) => {
 
         res.json({
             success: true,
-            message: 'Requests combined successfully',
+            message: 'Requests combined successfully into numbered lots',
             combinedRequest: {
-                id: result.id,
-                reference: result.reference,
-                title: result.title,
+                id: result.combinedRequestParent.id,
+                reference: result.combinedRequestParent.reference,
+                title: result.combinedRequestParent.title,
+                lotsCount: result.lots.length,
+                lots: result.lots.map((lot, idx) => ({
+                    id: lot.id,
+                    reference: lot.reference,
+                    lotNumber: idx + 1,
+                    title: lot.title,
+                })),
             },
             originalRequestIds,
         });
@@ -378,6 +314,84 @@ router.post('/', authMiddleware, async (req, res) => {
         console.error('Error combining requests:', error);
         res.status(500).json({
             error: 'Failed to combine requests',
+            message: error instanceof Error ? error.message : 'Unknown error',
+        });
+    }
+});
+
+// Get combined request details with all lots
+router.get('/:id', authMiddleware, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const authReq = req as AuthenticatedRequest;
+        const userRoles = authReq.user.roles || [];
+
+        const userRoleInfo = checkUserRoles(userRoles);
+
+        if (!userRoleInfo.canCombineRequests && !userRoleInfo.canViewRequests) {
+            return res.status(403).json({
+                error: 'Access denied',
+                code: 'INSUFFICIENT_PERMISSIONS',
+            });
+        }
+
+        const combinedRequest = await prisma.combinedRequest.findUnique({
+            where: { id: parseInt(id) },
+            include: {
+                lots: {
+                    include: {
+                        department: { select: { name: true, id: true } },
+                        requester: { select: { name: true, email: true } },
+                        items: {
+                            select: {
+                                id: true,
+                                description: true,
+                                quantity: true,
+                                unitPrice: true,
+                                totalPrice: true,
+                                accountCode: true,
+                                unitOfMeasure: true,
+                            },
+                        },
+                    },
+                    orderBy: { lotNumber: 'asc' },
+                },
+                evaluations: {
+                    select: {
+                        id: true,
+                        evalNumber: true,
+                        status: true,
+                        createdAt: true,
+                    },
+                },
+            },
+        });
+
+        if (!combinedRequest) {
+            return res.status(404).json({
+                error: 'Combined request not found',
+            });
+        }
+
+        // Calculate totals
+        const totalValue = combinedRequest.lots.reduce((sum, lot) => {
+            return sum + Number(lot.totalEstimated || 0);
+        }, 0);
+
+        const totalItems = combinedRequest.lots.reduce((sum, lot) => {
+            return sum + lot.items.length;
+        }, 0);
+
+        res.json({
+            ...combinedRequest,
+            totalValue,
+            totalItems,
+            lotsCount: combinedRequest.lots.length,
+        });
+    } catch (error) {
+        console.error('Error fetching combined request:', error);
+        res.status(500).json({
+            error: 'Failed to fetch combined request',
             message: error instanceof Error ? error.message : 'Unknown error',
         });
     }

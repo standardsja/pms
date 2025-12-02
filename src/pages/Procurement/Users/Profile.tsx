@@ -18,6 +18,9 @@ import IconFile from '../../../components/Icon/IconFile';
 import IconClipboardText from '../../../components/Icon/IconClipboardText';
 import IconChecks from '../../../components/Icon/IconChecks';
 import IconPlus from '../../../components/Icon/IconPlus';
+import IconUsers from '../../../components/Icon/IconUsers';
+import IconSettings from '../../../components/Icon/IconSettings';
+import IconLayoutGrid from '../../../components/Icon/IconLayoutGrid';
 
 const Profile = () => {
     const dispatch = useDispatch();
@@ -118,6 +121,9 @@ const Profile = () => {
     };
 
     const isRtl = useSelector((state: IRootState) => state.themeConfig.rtlClass) === 'rtl';
+
+    // Normalize user roles to CODE format (e.g., 'Procurement Manager' -> 'PROCUREMENT_MANAGER') for reliable checks
+    const roleCodes: string[] = Array.isArray(user?.roles) ? (user!.roles as Array<string>).map((r) => (typeof r === 'string' ? r : String(r))).map((s) => s.toUpperCase().replace(/\s+/g, '_')) : [];
 
     if (isLoading) {
         return (
@@ -289,7 +295,7 @@ const Profile = () => {
                         </div>
                         <div className="group">
                             <ul className="list-inside list-disc text-white-dark font-semibold mb-7 space-y-2">
-                                {user?.roles?.includes('PROCUREMENT_MANAGER') && (
+                                {roleCodes.includes('PROCUREMENT_MANAGER') && (
                                     <>
                                         <li>Full Procurement Access</li>
                                         <li>Request Creation & Management</li>
@@ -299,7 +305,7 @@ const Profile = () => {
                                         <li>Reporting & Analytics</li>
                                     </>
                                 )}
-                                {user?.roles?.includes('PROCUREMENT_OFFICER') && (
+                                {roleCodes.includes('PROCUREMENT_OFFICER') && (
                                     <>
                                         <li>Request Processing</li>
                                         <li>Quote Processing</li>
@@ -307,14 +313,14 @@ const Profile = () => {
                                         <li>Request Fulfillment</li>
                                     </>
                                 )}
-                                {user?.roles?.includes('DEPT_MANAGER') && (
+                                {roleCodes.some((c) => c === 'DEPT_MANAGER' || c === 'DEPARTMENT_HEAD') && (
                                     <>
                                         <li>Department Request Approval</li>
                                         <li>Budget Review</li>
                                         <li>Team Request Management</li>
                                     </>
                                 )}
-                                {user?.roles?.includes('EVALUATION_COMMITTEE') && (
+                                {roleCodes.some((c) => c === 'EVALUATION_COMMITTEE' || c === 'INNOVATION_COMMITTEE') && (
                                     <>
                                         <li>Quote Evaluation</li>
                                         <li>Vendor Assessment</li>
@@ -333,85 +339,8 @@ const Profile = () => {
                         </div>
                     </div>
                     <div className="panel">
-                        <div className="flex items-center justify-between mb-5">
-                            <h5 className="font-semibold text-lg dark:text-white-light">Recent Transactions</h5>
-                        </div>
-                        <div>
-                            <div className="border-b border-[#ebedf2] dark:border-[#1b2e4b]">
-                                <div className="flex items-center justify-between py-2">
-                                    <h6 className="text-[#515365] font-semibold dark:text-white-dark">
-                                        November 2024
-                                        <span className="block text-white-dark dark:text-white-light">15 Purchase Orders</span>
-                                    </h6>
-                                    <div className="flex items-start justify-between ltr:ml-auto rtl:mr-auto">
-                                        <p className="font-semibold text-success">$125,450</p>
-                                        <div className="dropdown ltr:ml-4 rtl:mr-4">
-                                            <Dropdown
-                                                offset={[0, 5]}
-                                                placement={`${isRtl ? 'bottom-start' : 'bottom-end'}`}
-                                                btnClassName="hover:text-primary"
-                                                button={<IconHorizontalDots className="opacity-80 hover:opacity-100" />}
-                                            >
-                                                <ul className="!min-w-[150px]">
-                                                    <li>
-                                                        <button type="button">View Details</button>
-                                                    </li>
-                                                    <li>
-                                                        <button type="button">Download Report</button>
-                                                    </li>
-                                                </ul>
-                                            </Dropdown>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="border-b border-[#ebedf2] dark:border-[#1b2e4b]">
-                                <div className="flex items-center justify-between py-2">
-                                    <h6 className="text-[#515365] font-semibold dark:text-white-dark">
-                                        October 2024
-                                        <span className="block text-white-dark dark:text-white-light">22 Purchase Orders</span>
-                                    </h6>
-                                    <div className="flex items-start justify-between ltr:ml-auto rtl:mr-auto">
-                                        <p className="font-semibold text-success">$98,720</p>
-                                        <div className="dropdown ltr:ml-4 rtl:mr-4">
-                                            <Dropdown offset={[0, 5]} placement={`${isRtl ? 'bottom-start' : 'bottom-end'}`} button={<IconHorizontalDots className="opacity-80 hover:opacity-100" />}>
-                                                <ul className="!min-w-[150px]">
-                                                    <li>
-                                                        <button type="button">View Details</button>
-                                                    </li>
-                                                    <li>
-                                                        <button type="button">Download Report</button>
-                                                    </li>
-                                                </ul>
-                                            </Dropdown>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div>
-                                <div className="flex items-center justify-between py-2">
-                                    <h6 className="text-[#515365] font-semibold dark:text-white-dark">
-                                        September 2024
-                                        <span className="block text-white-dark dark:text-white-light">18 Purchase Orders</span>
-                                    </h6>
-                                    <div className="flex items-start justify-between ltr:ml-auto rtl:mr-auto">
-                                        <p className="font-semibold text-success">$87,340</p>
-                                        <div className="dropdown ltr:ml-4 rtl:mr-4">
-                                            <Dropdown offset={[0, 5]} placement={`${isRtl ? 'bottom-start' : 'bottom-end'}`} button={<IconHorizontalDots className="opacity-80 hover:opacity-100" />}>
-                                                <ul className="!min-w-[150px]">
-                                                    <li>
-                                                        <button type="button">View Details</button>
-                                                    </li>
-                                                    <li>
-                                                        <button type="button">Download Report</button>
-                                                    </li>
-                                                </ul>
-                                            </Dropdown>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                        {/* Recent Transactions panel removed as per request */}
+                        <div className="p-4 text-sm text-white-dark italic">Recent Transactions removed. (Can add real-time financial metrics here later.)</div>
                     </div>
                     <div className="panel">
                         <div className="flex items-center justify-between mb-5">
@@ -422,21 +351,21 @@ const Profile = () => {
                                 <IconPlus className="w-5 h-5 ltr:mr-2 rtl:ml-2" />
                                 Create New Request
                             </Link>
-                            <Link to="/apps/requests" className="btn btn-info w-full">
+                            <Link to="/apps/procurement-manager/all-requests" className="btn btn-info w-full">
                                 <IconFile className="w-5 h-5 ltr:mr-2 rtl:ml-2" />
-                                Review Quotes
+                                All Requests
                             </Link>
-                            <Link to="/apps/evaluation" className="btn btn-success w-full">
+                            <Link to="/apps/procurement-manager/assign-requests" className="btn btn-success w-full">
+                                <IconUsers className="w-5 h-5 ltr:mr-2 rtl:ml-2" />
+                                Assign Requests
+                            </Link>
+                            <Link to="/apps/procurement-manager/load-balancing" className="btn btn-warning w-full">
+                                <IconSettings className="w-5 h-5 ltr:mr-2 rtl:ml-2" />
+                                Load Balancing
+                            </Link>
+                            <Link to="/apps/procurement-manager/evaluations" className="btn btn-secondary w-full">
                                 <IconClipboardText className="w-5 h-5 ltr:mr-2 rtl:ml-2" />
-                                Start Evaluation
-                            </Link>
-                            <Link to="/apps/suppliers" className="btn btn-secondary w-full">
-                                <IconShoppingBag className="w-5 h-5 ltr:mr-2 rtl:ml-2" />
-                                Manage Suppliers
-                            </Link>
-                            <Link to="/apps/reports" className="btn btn-dark w-full">
-                                <IconCreditCard className="w-5 h-5 ltr:mr-2 rtl:ml-2" />
-                                View Reports
+                                Evaluations to Validate
                             </Link>
                         </div>
                     </div>
