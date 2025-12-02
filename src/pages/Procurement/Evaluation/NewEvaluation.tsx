@@ -1498,6 +1498,30 @@ const NewEvaluation = () => {
                             </div>
                         </div>
 
+                        {/* Send for Evaluation Notice */}
+                        {createdEvaluationId && (
+                            <div className="mt-6 p-4 bg-primary/10 border-2 border-primary rounded-lg">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex-1">
+                                        <h6 className="font-semibold text-primary mb-1">Section B: Technical Evaluation</h6>
+                                        <p className="text-sm text-white-dark">
+                                            Assign evaluators to complete the eligibility, compliance, and technical evaluation tables above.
+                                        </p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowAssignModal(true)}
+                                        className="btn btn-primary gap-2 whitespace-nowrap"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                        </svg>
+                                        Assign Evaluators
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
                         {/* Navigation Buttons */}
                         <div className="mt-6 flex justify-between gap-3">
                             <button type="button" onClick={handlePrevious} className="btn btn-outline-secondary gap-2">
