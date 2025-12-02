@@ -663,7 +663,9 @@ const NewEvaluation = () => {
                         <div className="p-5 space-y-4">
                             <div className="bg-info-light p-3 rounded">
                                 <p className="text-sm font-semibold text-info">Section B: Technical Evaluation</p>
-                                <p className="text-xs text-white-dark mt-1">Select evaluators who will complete the technical evaluation tables (eligibility, compliance, and technical criteria). Requester(s) are automatically included.</p>
+                                <p className="text-xs text-white-dark mt-1">
+                                    Select evaluators who will complete the technical evaluation tables (eligibility, compliance, and technical criteria). Requester(s) are automatically included.
+                                </p>
                             </div>
                             <div className="flex flex-col md:flex-row gap-4">
                                 <div className="flex-1">
