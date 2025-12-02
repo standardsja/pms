@@ -47,6 +47,24 @@ const EvaluationDetail = () => {
         loadEvaluation();
     }, [id]);
 
+    // Load editable sections for current user (assigned sections)
+    useEffect(() => {
+        const loadAssignments = async () => {
+            try {
+                const assignments = await evaluationService.getMyAssignments();
+                const forThisEval = assignments.filter((a: any) => String(a.evaluationId) === String(id));
+                const sections = new Set<string>();
+                forThisEval.forEach((a: any) => {
+                    (a.sections || []).forEach((s: string) => sections.add(String(s).toUpperCase()));
+                });
+                setCanEditSections(Array.from(sections));
+            } catch {
+                setCanEditSections([]);
+            }
+        };
+        if (id) loadAssignments();
+    }, [id]);
+
     if (authLoading || !authUser) {
         return (
             <div className="flex justify-center items-center min-h-[400px]">
@@ -247,26 +265,139 @@ const EvaluationDetail = () => {
                 </FieldGroup>
             )}
 
-            {/* Section B: Bidders */}
+            {/* Section B: Bidders (Editable for assigned users) */}
             {sectionB && (
                 <FieldGroup title="Section B: Bidders & Compliance" color="info">
-                    <div className="md:col-span-2">
-                        {sectionB.bidders?.map((bidder: any, idx: number) => (
-                            <div key={idx} className="mb-4 p-4 border rounded bg-white-light dark:bg-[#1b2e4b]">
-                                <h6 className="font-semibold mb-2">
-                                    Bidder {idx + 1}: {bidder.bidderName}
-                                </h6>
-                                <div className="grid grid-cols-2 gap-3 text-sm">
-                                    <div>
-                                        <strong>PPC Category:</strong> {bidder.ppcCategory}
-                                    </div>
-                                    <div>
-                                        <strong>TCI/TRN:</strong> {bidder.tciTrn}
-                                    </div>
-                                    <div className="col-span-2">
-                                        <strong>Bid Amount:</strong> ${bidder.bidAmountInclusiveGCT?.toLocaleString()}
-                                    </div>
+                    {/* Edit controls for assigned users */}
+                    {canEditSections.includes('B') && (
+                        <div className="md:col-span-2 flex justify-end mb-3">
+                            {editingSection === 'B' ? (
+                                <div className="flex gap-2">
+                                    <button
+                                        className="btn btn-success btn-sm"
+                                        disabled={saving}
+                                        onClick={async () => {
+                                            if (!evaluation) return;
+                                            try {
+                                                setSaving(true);
+                                                const updated = await evaluationService.updateSection(evaluation.id, 'B', sectionData ?? sectionB);
+                                                setEvaluation(updated);
+                                                setEditingSection(null);
+                                            } catch (e) {
+                                                console.error('Save Section B failed:', e);
+                                            } finally {
+                                                setSaving(false);
+                                            }
+                                        }}
+                                    >
+                                        Save Section B
+                                    </button>
+                                    <button className="btn btn-outline-secondary btn-sm" onClick={() => setEditingSection(null)}>
+                                        Cancel
+                                    </button>
                                 </div>
+                            ) : (
+                                <button
+                                    className="btn btn-primary btn-sm flex items-center gap-2"
+                                    onClick={() => {
+                                        setEditingSection('B');
+                                        setSectionData(sectionB);
+                                    }}
+                                >
+                                    <IconEdit /> Edit Section B
+                                </button>
+                            )}
+                        </div>
+                    )}
+
+                    <div className="md:col-span-2">
+                        {(editingSection === 'B' ? (sectionData?.bidders || []) : (sectionB.bidders || [])).map((bidder: any, idx: number) => (
+                            <div key={idx} className="mb-4 p-4 border rounded bg-white-light dark:bg-[#1b2e4b]">
+                                <h6 className="font-semibold mb-2">Bidder {idx + 1}</h6>
+                                {editingSection === 'B' ? (
+                                    <div className="grid grid-cols-2 gap-3 text-sm">
+                                        <div>
+                                            <label className="block text-xs mb-1">Bidder Name</label>
+                                            <input
+                                                type="text"
+                                                className="form-input w-full"
+                                                value={bidder.bidderName || ''}
+                                                onChange={(e) => {
+                                                    const value = e.target.value;
+                                                    setSectionData((prev: any) => {
+                                                        const next = { ...(prev || {}), bidders: [...(prev?.bidders || [])] };
+                                                        next.bidders[idx] = { ...(next.bidders[idx] || {}), bidderName: value };
+                                                        return next;
+                                                    });
+                                                }}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs mb-1">PPC Category</label>
+                                            <input
+                                                type="text"
+                                                className="form-input w-full"
+                                                value={bidder.ppcCategory || ''}
+                                                onChange={(e) => {
+                                                    const value = e.target.value;
+                                                    setSectionData((prev: any) => {
+                                                        const next = { ...(prev || {}), bidders: [...(prev?.bidders || [])] };
+                                                        next.bidders[idx] = { ...(next.bidders[idx] || {}), ppcCategory: value };
+                                                        return next;
+                                                    });
+                                                }}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs mb-1">TCI/TRN</label>
+                                            <input
+                                                type="text"
+                                                className="form-input w-full"
+                                                value={bidder.tciTrn || ''}
+                                                onChange={(e) => {
+                                                    const value = e.target.value;
+                                                    setSectionData((prev: any) => {
+                                                        const next = { ...(prev || {}), bidders: [...(prev?.bidders || [])] };
+                                                        next.bidders[idx] = { ...(next.bidders[idx] || {}), tciTrn: value };
+                                                        return next;
+                                                    });
+                                                }}
+                                            />
+                                        </div>
+                                        <div className="col-span-2">
+                                            <label className="block text-xs mb-1">Bid Amount (Inclusive of GCT)</label>
+                                            <input
+                                                type="number"
+                                                className="form-input w-full"
+                                                value={bidder.bidAmountInclusiveGCT || ''}
+                                                onChange={(e) => {
+                                                    const value = e.target.value;
+                                                    const num = value === '' ? null : Number(value);
+                                                    setSectionData((prev: any) => {
+                                                        const next = { ...(prev || {}), bidders: [...(prev?.bidders || [])] };
+                                                        next.bidders[idx] = { ...(next.bidders[idx] || {}), bidAmountInclusiveGCT: num };
+                                                        return next;
+                                                    });
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-2 gap-3 text-sm">
+                                        <div>
+                                            <strong>Bidder Name:</strong> {bidder.bidderName}
+                                        </div>
+                                        <div>
+                                            <strong>PPC Category:</strong> {bidder.ppcCategory}
+                                        </div>
+                                        <div>
+                                            <strong>TCI/TRN:</strong> {bidder.tciTrn}
+                                        </div>
+                                        <div className="col-span-2">
+                                            <strong>Bid Amount:</strong> ${bidder.bidAmountInclusiveGCT?.toLocaleString()}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         ))}
                     </div>
