@@ -4191,9 +4191,7 @@ app.post(
         if (!evalRecord) throw new NotFoundError('Evaluation not found');
 
         // Determine requester(s) from combined lots; auto-include as assignees
-        const requesterIds: number[] = Array.isArray(evalRecord?.combinedRequest?.lots)
-            ? Array.from(new Set(evalRecord.combinedRequest.lots.map((l: any) => l.requesterId).filter(Boolean)))
-            : [];
+        const requesterIds: number[] = Array.isArray(evalRecord?.combinedRequest?.lots) ? Array.from(new Set(evalRecord.combinedRequest.lots.map((l: any) => l.requesterId).filter(Boolean))) : [];
 
         const uniqueUserIds = Array.from(new Set([...(userIds || []), ...requesterIds])).filter((n) => Number.isFinite(n));
         if (uniqueUserIds.length === 0) {
