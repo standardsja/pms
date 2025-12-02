@@ -20,6 +20,10 @@ const EvaluationDetail = () => {
     const [error, setError] = useState<string | null>(null);
     const [isProcurement, setIsProcurement] = useState(false);
     const [isCommittee, setIsCommittee] = useState(false);
+    const [editingSection, setEditingSection] = useState<string | null>(null);
+    const [sectionData, setSectionData] = useState<any>(null);
+    const [saving, setSaving] = useState(false);
+    const [canEditSections, setCanEditSections] = useState<string[]>([]);
 
     useEffect(() => {
         dispatch(setPageTitle('Evaluation Details'));
