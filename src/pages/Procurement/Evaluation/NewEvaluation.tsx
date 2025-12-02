@@ -1498,36 +1498,6 @@ const NewEvaluation = () => {
                             </div>
                         </div>
 
-                        {/* Assign Evaluators Notice */}
-                        <div className="mt-6 p-4 bg-primary/10 border-2 border-primary rounded-lg">
-                            <div className="flex items-center justify-between gap-4">
-                                <div className="flex-1">
-                                    <h6 className="font-semibold text-primary mb-1">Section B: Technical Evaluation</h6>
-                                    <p className="text-sm text-white-dark">
-                                        {createdEvaluationId
-                                            ? 'Assign evaluators to complete the eligibility, compliance, and technical evaluation tables above.'
-                                            : 'After saving this evaluation, you can assign evaluators to complete the technical evaluation tables.'}
-                                    </p>
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        if (createdEvaluationId) {
-                                            setShowAssignModal(true);
-                                        } else {
-                                            alert('Please save the evaluation first by completing all steps and clicking "Create Evaluation"');
-                                        }
-                                    }}
-                                    className={`btn gap-2 whitespace-nowrap ${createdEvaluationId ? 'btn-primary' : 'btn-outline-primary'}`}
-                                >
-                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                                    </svg>
-                                    {createdEvaluationId ? 'Assign Evaluators' : 'Save & Assign Evaluators'}
-                                </button>
-                            </div>
-                        </div>
-
                         {/* Navigation Buttons */}
                         <div className="mt-6 flex justify-between gap-3">
                             <button type="button" onClick={handlePrevious} className="btn btn-outline-secondary gap-2">
@@ -1700,19 +1670,34 @@ const NewEvaluation = () => {
                                 </svg>
                                 Previous: Section C
                             </button>
-                            <button type="button" onClick={handleCreateEvaluation} className="btn btn-success gap-2" disabled={loading}>
-                                {loading ? (
-                                    <>
-                                        <span className="animate-spin border-2 border-white border-l-transparent rounded-full w-4 h-4 inline-block align-middle"></span>
-                                        <span>Creating...</span>
-                                    </>
-                                ) : (
-                                    <>
-                                        <IconChecks />
-                                        <span>Create Evaluation</span>
-                                    </>
+                            <div className="flex gap-3">
+                                {createdEvaluationId && (
+                                    <button type="button" onClick={() => setShowAssignModal(true)} className="btn btn-primary gap-2">
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                        </svg>
+                                        Assign Evaluators
+                                    </button>
                                 )}
-                            </button>
+                                <button type="button" onClick={handleCreateEvaluation} className="btn btn-success gap-2" disabled={loading || createdEvaluationId}>
+                                    {loading ? (
+                                        <>
+                                            <span className="animate-spin border-2 border-white border-l-transparent rounded-full w-4 h-4 inline-block align-middle"></span>
+                                            <span>Creating...</span>
+                                        </>
+                                    ) : createdEvaluationId ? (
+                                        <>
+                                            <IconChecks />
+                                            <span>Evaluation Created</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <IconChecks />
+                                            <span>Create Evaluation</span>
+                                        </>
+                                    )}
+                                </button>
+                            </div>
                         </div>
                     </>
                 )}
