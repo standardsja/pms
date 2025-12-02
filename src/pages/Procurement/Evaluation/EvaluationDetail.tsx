@@ -118,6 +118,9 @@ const EvaluationDetail = () => {
                 return 'Not Started';
         }
     };
+
+    return (
+        <div>
             {/* Full Form UI with gated editability */}
             <EvaluationForm
                 mode="edit"
