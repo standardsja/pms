@@ -140,9 +140,7 @@ export const EvaluationForm: React.FC<Props> = ({ mode, evaluation, canEditSecti
                                                                 onChange={(e) => {
                                                                     const copy = { ...(sectionB as any) };
                                                                     const table = copy.bidders[0].eligibilityRequirements;
-                                                                    table.rows = table.rows.map((r: any) =>
-                                                                        r.id === row.id ? { ...r, data: { ...r.data, [col.id]: e.target.value } } : r
-                                                                    );
+                                                                    table.rows = table.rows.map((r: any) => (r.id === row.id ? { ...r, data: { ...r.data, [col.id]: e.target.value } } : r));
                                                                     setSectionB(copy);
                                                                 }}
                                                             />
@@ -186,9 +184,7 @@ export const EvaluationForm: React.FC<Props> = ({ mode, evaluation, canEditSecti
                                                                 onChange={(e) => {
                                                                     const copy = { ...(sectionB as any) };
                                                                     const table = copy.bidders[0].complianceMatrix;
-                                                                    table.rows = table.rows.map((r: any) =>
-                                                                        r.id === row.id ? { ...r, data: { ...r.data, [col.id]: e.target.value } } : r
-                                                                    );
+                                                                    table.rows = table.rows.map((r: any) => (r.id === row.id ? { ...r, data: { ...r.data, [col.id]: e.target.value } } : r));
                                                                     setSectionB(copy);
                                                                 }}
                                                             />
@@ -232,9 +228,7 @@ export const EvaluationForm: React.FC<Props> = ({ mode, evaluation, canEditSecti
                                                                 onChange={(e) => {
                                                                     const copy = { ...(sectionB as any) };
                                                                     const table = copy.bidders[0].technicalEvaluation;
-                                                                    table.rows = table.rows.map((r: any) =>
-                                                                        r.id === row.id ? { ...r, data: { ...r.data, [col.id]: e.target.value } } : r
-                                                                    );
+                                                                    table.rows = table.rows.map((r: any) => (r.id === row.id ? { ...r, data: { ...r.data, [col.id]: e.target.value } } : r));
                                                                     setSectionB(copy);
                                                                 }}
                                                             />
@@ -360,250 +354,6 @@ export const EvaluationForm: React.FC<Props> = ({ mode, evaluation, canEditSecti
                 </div>
                 {canEdit('E') && (
                     <div className="p-5 flex justify-end border-t">
-                        <button className="btn btn-primary" disabled={saving} onClick={() => saveSec('E')}>
-                            {saving ? 'Saving…' : 'Save Section E'}
-                        </button>
-                    </div>
-                )}
-            </div>
-        </div>
-    );
-};
-
-export default EvaluationForm;
-                                  }
-                                : undefined
-                        }
-                        onAddColumn={
-                            canEditSections.includes('B') && mode === 'create'
-                                ? () => {
-                                      /* implement add column logic */
-                                  }
-                                : undefined
-                        }
-                        onRemoveColumn={
-                            canEditSections.includes('B') && mode === 'create'
-                                ? (colId) => {
-                                      /* implement remove column logic */
-                                  }
-                                : undefined
-                        }
-                        onColumnNameChange={
-                            canEditSections.includes('B') && mode === 'create'
-                                ? (colId, newName) => {
-                                      /* implement column name change logic */
-                                  }
-                                : undefined
-                        }
-                        title="Eligibility Table"
-                    />
-                    {/* Compliance Table */}
-                    <TableEditor
-                        columns={sectionB?.bidders?.[0]?.complianceMatrix?.columns || []}
-                        rows={sectionB?.bidders?.[0]?.complianceMatrix?.rows || []}
-                        editable={canEdit('B')}
-                        structureEditable={canEditSections.includes('B') && mode === 'create'}
-                        onCellChange={(rowId, colId, value) => {
-                            const copy = { ...(sectionB as any) };
-                            const table = copy.bidders[0].complianceMatrix;
-                            table.rows = table.rows.map((r: any) => (r.id === rowId ? { ...r, data: { ...r.data, [colId]: value } } : r));
-                            setSectionB(copy);
-                        }}
-                        onAddRow={
-                            canEditSections.includes('B') && mode === 'create'
-                                ? () => {
-                                      /* implement add row logic */
-                                  }
-                                : undefined
-                        }
-                        onRemoveRow={
-                            canEditSections.includes('B') && mode === 'create'
-                                ? (rowId) => {
-                                      /* implement remove row logic */
-                                  }
-                                : undefined
-                        }
-                        onAddColumn={
-                            canEditSections.includes('B') && mode === 'create'
-                                ? () => {
-                                      /* implement add column logic */
-                                  }
-                                : undefined
-                        }
-                        onRemoveColumn={
-                            canEditSections.includes('B') && mode === 'create'
-                                ? (colId) => {
-                                      /* implement remove column logic */
-                                  }
-                                : undefined
-                        }
-                        onColumnNameChange={
-                            canEditSections.includes('B') && mode === 'create'
-                                ? (colId, newName) => {
-                                      /* implement column name change logic */
-                                  }
-                                : undefined
-                        }
-                        title="Compliance Table"
-                    />
-                    {/* Technical Table */}
-                    <TableEditor
-                        columns={sectionB?.bidders?.[0]?.technicalEvaluation?.columns || []}
-                        rows={sectionB?.bidders?.[0]?.technicalEvaluation?.rows || []}
-                        editable={canEdit('B')}
-                        structureEditable={canEditSections.includes('B') && mode === 'create'}
-                        onCellChange={(rowId, colId, value) => {
-                            const copy = { ...(sectionB as any) };
-                            const table = copy.bidders[0].technicalEvaluation;
-                            table.rows = table.rows.map((r: any) => (r.id === rowId ? { ...r, data: { ...r.data, [colId]: value } } : r));
-                            setSectionB(copy);
-                        }}
-                        onAddRow={
-                            canEditSections.includes('B') && mode === 'create'
-                                ? () => {
-                                      /* implement add row logic */
-                                  }
-                                : undefined
-                        }
-                        onRemoveRow={
-                            canEditSections.includes('B') && mode === 'create'
-                                ? (rowId) => {
-                                      /* implement remove row logic */
-                                  }
-                                : undefined
-                        }
-                        onAddColumn={
-                            canEditSections.includes('B') && mode === 'create'
-                                ? () => {
-                                      /* implement add column logic */
-                                  }
-                                : undefined
-                        }
-                        onRemoveColumn={
-                            canEditSections.includes('B') && mode === 'create'
-                                ? (colId) => {
-                                      /* implement remove column logic */
-                                  }
-                                : undefined
-                        }
-                        onColumnNameChange={
-                            canEditSections.includes('B') && mode === 'create'
-                                ? (colId, newName) => {
-                                      /* implement column name change logic */
-                                  }
-                                : undefined
-                        }
-                        title="Technical Table"
-                    />
-                </div>
-                {canEdit('B') && (
-                    <div className="p-5 flex justify-end">
-                        <button className="btn btn-primary" disabled={saving} onClick={() => saveSec('B')}>
-                            {saving ? 'Saving…' : 'Save Section B'}
-                        </button>
-                    </div>
-                )}
-            </div>
-
-            {/* Section C */}
-            <div className="panel">
-                <div className="mb-5 -m-5 p-5 bg-warning/10 border-l-4 border-warning">
-                    <h5 className="text-lg font-bold text-warning">Section C</h5>
-                    <p className="text-sm mt-1">Evaluator Comments</p>
-                </div>
-                <div className="p-5 grid grid-cols-1 gap-4">
-                    <div>
-                        <label className="block mb-1 text-sm font-semibold">Comments</label>
-                        <textarea
-                            className="form-textarea w-full"
-                            rows={4}
-                            disabled={!canEdit('C')}
-                            value={sectionC?.comments || ''}
-                            onChange={(e) => setSectionC({ ...(sectionC as any), comments: e.target.value })}
-                        />
-                    </div>
-                    <div>
-                        <label className="block mb-1 text-sm font-semibold">Recommended Supplier</label>
-                        <input
-                            className="form-input w-full"
-                            disabled={!canEdit('C')}
-                            value={sectionC?.recommendedSupplier || ''}
-                            onChange={(e) => setSectionC({ ...(sectionC as any), recommendedSupplier: e.target.value })}
-                        />
-                    </div>
-                </div>
-                {canEdit('C') && (
-                    <div className="p-5 flex justify-end">
-                        <button className="btn btn-primary" disabled={saving} onClick={() => saveSec('C')}>
-                            {saving ? 'Saving…' : 'Save Section C'}
-                        </button>
-                    </div>
-                )}
-            </div>
-
-            {/* Section D */}
-            <div className="panel">
-                <div className="mb-5 -m-5 p-5 bg-warning/10 border-l-4 border-warning">
-                    <h5 className="text-lg font-bold text-warning">Section D</h5>
-                    <p className="text-sm mt-1">Summary</p>
-                </div>
-                <div className="p-5">
-                    <label className="block mb-1 text-sm font-semibold">Evaluation Summary</label>
-                    <textarea
-                        className="form-textarea w-full"
-                        rows={4}
-                        disabled={!canEdit('D')}
-                        value={sectionD?.summary || ''}
-                        onChange={(e) => setSectionD({ ...(sectionD as any), summary: e.target.value })}
-                    />
-                </div>
-                {canEdit('D') && (
-                    <div className="p-5 flex justify-end">
-                        <button className="btn btn-primary" disabled={saving} onClick={() => saveSec('D')}>
-                            {saving ? 'Saving…' : 'Save Section D'}
-                        </button>
-                    </div>
-                )}
-            </div>
-
-            {/* Section E */}
-            <div className="panel">
-                <div className="mb-5 -m-5 p-5 bg-success/10 border-l-4 border-success">
-                    <h5 className="text-lg font-bold text-success">Section E</h5>
-                    <p className="text-sm mt-1">Final Recommendation</p>
-                </div>
-                <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="md:col-span-2">
-                        <label className="block mb-1 text-sm font-semibold">Recommendation</label>
-                        <textarea
-                            className="form-textarea w-full"
-                            rows={4}
-                            disabled={!canEdit('E')}
-                            value={sectionE?.finalRecommendation || ''}
-                            onChange={(e) => setSectionE({ ...(sectionE as any), finalRecommendation: e.target.value })}
-                        />
-                    </div>
-                    <div>
-                        <label className="block mb-1 text-sm font-semibold">Prepared By</label>
-                        <input
-                            className="form-input w-full"
-                            disabled={!canEdit('E')}
-                            value={sectionE?.preparedBy || ''}
-                            onChange={(e) => setSectionE({ ...(sectionE as any), preparedBy: e.target.value })}
-                        />
-                    </div>
-                    <div>
-                        <label className="block mb-1 text-sm font-semibold">% Difference</label>
-                        <input
-                            className="form-input w-full"
-                            disabled={!canEdit('E')}
-                            value={sectionE?.percentageDifference ?? ''}
-                            onChange={(e) => setSectionE({ ...(sectionE as any), percentageDifference: Number(e.target.value) })}
-                        />
-                    </div>
-                </div>
-                {canEdit('E') && (
-                    <div className="p-5 flex justify-end">
                         <button className="btn btn-primary" disabled={saving} onClick={() => saveSec('E')}>
                             {saving ? 'Saving…' : 'Save Section E'}
                         </button>
