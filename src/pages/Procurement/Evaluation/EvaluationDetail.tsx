@@ -128,23 +128,12 @@ const EvaluationDetail = () => {
                 <div className="panel mb-4 p-4 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <label className="flex items-center gap-2">
-                            <input
-                                type="checkbox"
-                                className="form-checkbox"
-                                checked={structureEditEnabled}
-                                onChange={() => setStructureEditEnabled((v) => !v)}
-                            />
+                            <input type="checkbox" className="form-checkbox" checked={structureEditEnabled} onChange={() => setStructureEditEnabled((v) => !v)} />
                             <span className="text-sm">Enable structure editing for Section B</span>
                         </label>
                     </div>
                     <div className="flex items-center gap-2">
-                        <input
-                            type="text"
-                            className="form-input w-64"
-                            placeholder="Return notes for evaluators"
-                            value={returnNotes}
-                            onChange={(e) => setReturnNotes(e.target.value)}
-                        />
+                        <input type="text" className="form-input w-64" placeholder="Return notes for evaluators" value={returnNotes} onChange={(e) => setReturnNotes(e.target.value)} />
                         <button
                             className="btn btn-outline-danger"
                             onClick={async () => {
