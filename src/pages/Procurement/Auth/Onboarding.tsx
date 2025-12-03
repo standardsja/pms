@@ -7,6 +7,7 @@ import { getUser } from '../../../utils/auth';
 import { useTranslation } from 'react-i18next';
 import { logEvent } from '../../../utils/analytics';
 import { getApiUrl } from '../../../config/api';
+import { statsService, SystemStats } from '../../../services/statsService';
 
 type ModuleKey = 'pms' | 'ih' | 'committee' | 'budgeting' | 'audit' | 'prime' | 'datapoint' | 'maintenance' | 'asset' | 'ppm' | 'kb';
 
@@ -62,6 +63,15 @@ const Onboarding = () => {
     const [canScrollLeft, setCanScrollLeft] = useState(false);
     const [canScrollRight, setCanScrollRight] = useState(true);
     const [showStats, setShowStats] = useState(true);
+    const [systemStats, setSystemStats] = useState<SystemStats>({
+        activeUsers: 0,
+        requestsThisMonth: 0,
+        innovationIdeas: 0,
+        pendingApprovals: 0,
+        systemUptime: 99.9,
+        totalProcessedRequests: 0,
+        timestamp: new Date().toISOString(),
+    });
     const [moduleStats, setModuleStats] = useState<{
         pms: { activeNow: number; today: number };
         ih: { activeNow: number; today: number };
@@ -71,6 +81,16 @@ const Onboarding = () => {
     });
 
     useEffect(() => {
+        // Fetch real-time system statistics
+        const fetchSystemStats = async () => {
+            try {
+                const data = await statsService.getSystemStats();
+                setSystemStats(data);
+            } catch (error) {
+                console.error('Failed to fetch system stats:', error);
+            }
+        };
+
         // Fetch real-time module statistics
         const fetchModuleStats = async () => {
             try {
@@ -93,9 +113,13 @@ const Onboarding = () => {
             }
         };
 
+        fetchSystemStats();
         fetchModuleStats();
         // Refresh stats every 30 seconds
-        const interval = setInterval(fetchModuleStats, 30000);
+        const interval = setInterval(() => {
+            fetchSystemStats();
+            fetchModuleStats();
+        }, 30000);
         return () => clearInterval(interval);
     }, []);
 
@@ -498,7 +522,7 @@ const Onboarding = () => {
                                     <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
                                 </svg>
                             </div>
-                            <div className="text-3xl font-black mb-1">247</div>
+                            <div className="text-3xl font-black mb-1">{systemStats.activeUsers.toLocaleString()}</div>
                             <div className="text-blue-100 text-sm font-medium">Active Users</div>
                         </div>
                         <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-shadow">
@@ -511,7 +535,7 @@ const Onboarding = () => {
                                     />
                                 </svg>
                             </div>
-                            <div className="text-3xl font-black mb-1">1,429</div>
+                            <div className="text-3xl font-black mb-1">{systemStats.requestsThisMonth.toLocaleString()}</div>
                             <div className="text-purple-100 text-sm font-medium">Requests This Month</div>
                         </div>
                         <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-shadow">
@@ -520,7 +544,7 @@ const Onboarding = () => {
                                     <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                                 </svg>
                             </div>
-                            <div className="text-3xl font-black mb-1">89</div>
+                            <div className="text-3xl font-black mb-1">{systemStats.innovationIdeas.toLocaleString()}</div>
                             <div className="text-green-100 text-sm font-medium">Innovation Ideas</div>
                         </div>
                         <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-shadow">
@@ -533,7 +557,7 @@ const Onboarding = () => {
                                     />
                                 </svg>
                             </div>
-                            <div className="text-3xl font-black mb-1">12</div>
+                            <div className="text-3xl font-black mb-1">{systemStats.pendingApprovals.toLocaleString()}</div>
                             <div className="text-orange-100 text-sm font-medium">Pending Approvals</div>
                         </div>
                     </div>

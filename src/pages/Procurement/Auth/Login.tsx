@@ -10,6 +10,7 @@ import IconEye from '../../../components/Icon/IconEye';
 import packageInfo from '../../../../package.json';
 import { setAuth } from '../../../utils/auth';
 import { loginWithMicrosoft, initializeMsal, isMsalConfigured } from '../../../auth/msal';
+import { statsService, SystemStats } from '../../../services/statsService';
 
 const Login = () => {
     const dispatch = useDispatch();
@@ -23,6 +24,23 @@ const Login = () => {
         }
     });
 
+    useEffect(() => {
+        // Fetch real-time system statistics
+        const fetchSystemStats = async () => {
+            try {
+                const data = await statsService.getSystemStats();
+                setSystemStats(data);
+            } catch (error) {
+                console.error('Failed to fetch system stats:', error);
+            }
+        };
+
+        fetchSystemStats();
+        // Refresh stats every 30 seconds
+        const interval = setInterval(fetchSystemStats, 30000);
+        return () => clearInterval(interval);
+    }, []);
+
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [rememberMe, setRememberMe] = useState(false);
@@ -31,6 +49,15 @@ const Login = () => {
     const [mfaCode, setMfaCode] = useState(['', '', '', '', '', '']);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
+    const [systemStats, setSystemStats] = useState<SystemStats>({
+        activeUsers: 0,
+        requestsThisMonth: 0,
+        innovationIdeas: 0,
+        pendingApprovals: 0,
+        systemUptime: 99.9,
+        totalProcessedRequests: 0,
+        timestamp: new Date().toISOString(),
+    });
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -253,7 +280,7 @@ const Login = () => {
                         <div className="flex items-center gap-3">
                             <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
                             <div>
-                                <div className="text-white font-bold text-lg">247</div>
+                                <div className="text-white font-bold text-lg">{systemStats.activeUsers.toLocaleString()}</div>
                                 <div className="text-white/80 text-xs">Active Users</div>
                             </div>
                         </div>
@@ -264,7 +291,7 @@ const Login = () => {
                                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
                             </svg>
                             <div>
-                                <div className="text-white font-bold text-lg">99.9%</div>
+                                <div className="text-white font-bold text-lg">{systemStats.systemUptime.toFixed(1)}%</div>
                                 <div className="text-white/80 text-xs">Uptime</div>
                             </div>
                         </div>
@@ -361,7 +388,7 @@ const Login = () => {
                                         <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                                             <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
                                         </svg>
-                                        <span>247 active users today</span>
+                                        <span>{systemStats.activeUsers.toLocaleString()} active users</span>
                                     </div>
                                 </div>
                             </div>
