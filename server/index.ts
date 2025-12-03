@@ -2936,7 +2936,13 @@ app.post('/requests/:id/action', async (req, res) => {
             } else if (request.status === 'PROCUREMENT_REVIEW') {
                 // Procurement approved -> final approval (ready to send to vendor)
                 nextStatus = 'FINANCE_APPROVED';
-                nextAssigneeId = null;
+                // Assign back to procurement manager so they can print/process
+                const procurementManager = await prisma.user.findFirst({
+                    where: {
+                        roles: { some: { role: { name: 'PROCUREMENT_MANAGER' } } },
+                    },
+                });
+                nextAssigneeId = procurementManager?.id || null;
             }
         } else if (action === 'SEND_TO_VENDOR') {
             if (request.status !== 'FINANCE_APPROVED') {
