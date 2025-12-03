@@ -3974,9 +3974,7 @@ app.get(
                 isAssigned = !!assignment;
             } catch (e) {
                 // Fallback to raw SQL if Prisma enum validation fails
-                const assignmentRows = await prisma.$queryRawUnsafe<any>(
-                    `SELECT 1 FROM EvaluationAssignment WHERE evaluationId=${parseInt(id)} AND userId=${userId} LIMIT 1`
-                );
+                const assignmentRows = await prisma.$queryRawUnsafe<any>(`SELECT 1 FROM EvaluationAssignment WHERE evaluationId=${parseInt(id)} AND userId=${userId} LIMIT 1`);
                 isAssigned = assignmentRows.length > 0;
             }
 
