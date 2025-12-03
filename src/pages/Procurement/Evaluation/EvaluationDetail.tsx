@@ -181,7 +181,7 @@ const EvaluationDetail = () => {
     return (
         <div>
             {/* Evaluator Complete Assignment Button */}
-            {!isProcurement && !isCommittee && myAssignment && myAssignment.status !== 'COMPLETED' && evaluation && (
+            {!isProcurement && !isCommittee && myAssignment && myAssignment.status !== 'SUBMITTED' && evaluation && (
                 <div className="panel mb-4 bg-success-light border-2 border-success">
                     <div className="flex items-center justify-between">
                         <div>
