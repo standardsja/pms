@@ -4318,7 +4318,7 @@ app.post(
         await (prisma as any).evaluationAssignment.update({
             where: { id: assignment.id },
             data: {
-                status: 'COMPLETED',
+                status: 'SUBMITTED',
                 submittedAt: new Date(),
             },
         });
