@@ -29,7 +29,7 @@ router.get('/', authMiddleware, async (req, res) => {
 
         // If no combinable query param, return existing combined requests
         if (combinable !== 'true') {
-            const combinedRequests = await prisma.combinedRequest.findMany({
+            const combinedRequests = await (prisma as any).combinedRequest.findMany({
                 include: {
                     lots: {
                         select: {
@@ -45,7 +45,7 @@ router.get('/', authMiddleware, async (req, res) => {
 
             // Fetch user details separately for each combined request
             const transformedCombined = await Promise.all(
-                combinedRequests.map(async (combined) => {
+                combinedRequests.map(async (combined: any) => {
                     const user = await prisma.user.findUnique({
                         where: { id: combined.createdBy },
                         select: { id: true, name: true, email: true },
@@ -194,7 +194,7 @@ router.post('/', authMiddleware, async (req, res) => {
             const reference = `CMB-${timestamp}`;
 
             // Create the CombinedRequest parent record
-            const combinedRequestParent = await tx.combinedRequest.create({
+            const combinedRequestParent = await (tx as any).combinedRequest.create({
                 data: {
                     reference,
                     title,
@@ -219,7 +219,7 @@ router.post('/', authMiddleware, async (req, res) => {
                         status: 'PROCUREMENT_REVIEW', // Keep them active for evaluation
                         // Update title to include LOT designation
                         title: `LOT-${lotNumber}: ${originalRequest.title}`,
-                    },
+                    } as any, // Type assertion needed until Prisma client is regenerated
                 });
 
                 lots.push(lot);
@@ -328,14 +328,14 @@ router.get('/:id', authMiddleware, async (req, res) => {
 
         const userRoleInfo = checkUserRoles(userRoles);
 
-        if (!userRoleInfo.canCombineRequests && !userRoleInfo.canViewRequests) {
+        if (!userRoleInfo.canCombineRequests) {
             return res.status(403).json({
                 error: 'Access denied',
                 code: 'INSUFFICIENT_PERMISSIONS',
             });
         }
 
-        const combinedRequest = await prisma.combinedRequest.findUnique({
+        const combinedRequest = await (prisma as any).combinedRequest.findUnique({
             where: { id: parseInt(id) },
             include: {
                 lots: {
@@ -374,11 +374,11 @@ router.get('/:id', authMiddleware, async (req, res) => {
         }
 
         // Calculate totals
-        const totalValue = combinedRequest.lots.reduce((sum, lot) => {
+        const totalValue = combinedRequest.lots.reduce((sum: number, lot: any) => {
             return sum + Number(lot.totalEstimated || 0);
         }, 0);
 
-        const totalItems = combinedRequest.lots.reduce((sum, lot) => {
+        const totalItems = combinedRequest.lots.reduce((sum: number, lot: any) => {
             return sum + lot.items.length;
         }, 0);
 
