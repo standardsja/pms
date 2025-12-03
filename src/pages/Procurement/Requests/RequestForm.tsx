@@ -1684,11 +1684,7 @@ const RequestForm = () => {
                         </button>
                         {/* Procurement-only: Start Evaluation for this request */}
                         {isEditMode && isProcurementRole && (
-                            <button
-                                type="button"
-                                onClick={() => navigate(`/procurement/evaluation/new?requestId=${id}`)}
-                                className="px-6 py-2 rounded bg-indigo-600 text-white hover:bg-indigo-700"
-                            >
+                            <button type="button" onClick={() => navigate(`/procurement/evaluation/new?requestId=${id}`)} className="px-6 py-2 rounded bg-indigo-600 text-white hover:bg-indigo-700">
                                 Start Evaluation
                             </button>
                         )}
