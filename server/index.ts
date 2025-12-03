@@ -4274,19 +4274,49 @@ app.get(
         const userId = parseInt(userObj?.sub || userObj?.id);
         if (!Number.isFinite(userId)) throw new BadRequestError('Invalid user');
 
-        const assignments = await (prisma as any).evaluationAssignment.findMany({
-            where: { userId },
-            include: {
-                evaluation: {
-                    include: {
-                        creator: { select: { id: true, name: true, email: true } },
+        try {
+            const assignments = await (prisma as any).evaluationAssignment.findMany({
+                where: { userId },
+                include: {
+                    evaluation: {
+                        include: {
+                            creator: { select: { id: true, name: true, email: true } },
+                        },
                     },
                 },
-            },
-            orderBy: { createdAt: 'desc' },
-        });
-
-        res.json({ success: true, data: assignments });
+                orderBy: { createdAt: 'desc' },
+            });
+            return res.json({ success: true, data: assignments });
+        } catch (e) {
+            // Fallback to raw SQL if Prisma enum validation fails due to drift
+            const rows = await prisma.$queryRawUnsafe<any>(
+                `SELECT ea.*, 
+                        e.evalNumber, e.rfqTitle, e.createdBy AS evalCreatedBy,
+                        uc.id AS creatorId, uc.name AS creatorName, uc.email AS creatorEmail
+                 FROM EvaluationAssignment ea
+                 JOIN Evaluation e ON ea.evaluationId = e.id
+                 LEFT JOIN User uc ON e.createdBy = uc.id
+                 WHERE ea.userId = ${userId}
+                 ORDER BY ea.createdAt DESC`
+            );
+            const mapped = rows.map((r: any) => ({
+                id: r.id,
+                evaluationId: r.evaluationId,
+                userId: r.userId,
+                sections: r.sections,
+                status: r.status,
+                submittedAt: r.submittedAt ?? null,
+                createdAt: r.createdAt,
+                updatedAt: r.updatedAt,
+                evaluation: {
+                    id: r.evaluationId,
+                    evalNumber: r.evalNumber,
+                    rfqTitle: r.rfqTitle,
+                    creator: { id: r.creatorId, name: r.creatorName, email: r.creatorEmail },
+                },
+            }));
+            return res.json({ success: true, data: mapped, meta: { fallback: true } });
+        }
     })
 );
 
