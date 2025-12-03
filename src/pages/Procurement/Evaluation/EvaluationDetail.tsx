@@ -28,6 +28,11 @@ const EvaluationDetail = () => {
     const [structureEditEnabled, setStructureEditEnabled] = useState<boolean>(false);
     const [returnNotes, setReturnNotes] = useState<string>('');
     const [pendingSectionB, setPendingSectionB] = useState<any>(null);
+    const [showAssignModal, setShowAssignModal] = useState(false);
+    const [availableUsers, setAvailableUsers] = useState<any[]>([]);
+    const [selectedUserId, setSelectedUserId] = useState<string>('');
+    const [selectedAssignSections, setSelectedAssignSections] = useState<string[]>([]);
+    const [currentAssignments, setCurrentAssignments] = useState<any[]>([]);
 
     useEffect(() => {
         dispatch(setPageTitle('Evaluation Details'));
@@ -68,6 +73,24 @@ const EvaluationDetail = () => {
         };
         if (id) loadAssignments();
     }, [id]);
+
+    // Load available users and all assignments for procurement
+    useEffect(() => {
+        const loadUsersAndAssignments = async () => {
+            if (!isProcurement || !id) return;
+            try {
+                // Load all assignments for this evaluation
+                const allAssignments = await evaluationService.getAllAssignments(parseInt(id));
+                setCurrentAssignments(allAssignments || []);
+
+                // Load available users (you may need to add this endpoint)
+                // For now, we'll just show the assignment list
+            } catch (err) {
+                console.error('Failed to load assignments:', err);
+            }
+        };
+        loadUsersAndAssignments();
+    }, [isProcurement, id]);
 
     if (authLoading || !authUser) {
         return (
@@ -124,7 +147,123 @@ const EvaluationDetail = () => {
 
     return (
         <div>
-            {/* Procurement actions */}
+            {/* Assignment Management - Procurement Only */}
+            {isProcurement && evaluation && (
+                <div className="panel mb-4">
+                    <div className="mb-5 flex items-center justify-between">
+                        <h5 className="text-lg font-semibold">Evaluator Assignments</h5>
+                    </div>
+
+                    {/* Quick assign form */}
+                    <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-800 rounded">
+                        <h6 className="font-semibold mb-3">Assign New Evaluator</h6>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div>
+                                <label className="block mb-1 text-sm">User Email or ID</label>
+                                <input type="text" className="form-input" placeholder="Enter user email or ID" value={selectedUserId} onChange={(e) => setSelectedUserId(e.target.value)} />
+                                <p className="text-xs text-gray-500 mt-1">For ICT staff, use their user ID</p>
+                            </div>
+                            <div>
+                                <label className="block mb-1 text-sm">Sections</label>
+                                <div className="flex gap-2 flex-wrap">
+                                    {['A', 'B', 'C', 'D', 'E'].map((sec) => (
+                                        <label key={sec} className="flex items-center gap-1">
+                                            <input
+                                                type="checkbox"
+                                                className="form-checkbox"
+                                                checked={selectedAssignSections.includes(sec)}
+                                                onChange={(e) => {
+                                                    if (e.target.checked) {
+                                                        setSelectedAssignSections([...selectedAssignSections, sec]);
+                                                    } else {
+                                                        setSelectedAssignSections(selectedAssignSections.filter((s) => s !== sec));
+                                                    }
+                                                }}
+                                            />
+                                            <span className="text-sm">{sec}</span>
+                                        </label>
+                                    ))}
+                                    \n{' '}
+                                </div>
+                            </div>
+                            <div className="flex items-end">
+                                <button
+                                    className="btn btn-primary w-full"
+                                    onClick={async () => {
+                                        if (!selectedUserId || selectedAssignSections.length === 0) {
+                                            alert('Please enter a user ID and select at least one section');
+                                            return;
+                                        }
+                                        try {
+                                            await evaluationService.assignEvaluators(evaluation.id, {
+                                                userIds: [parseInt(selectedUserId)],
+                                                sections: selectedAssignSections as Array<'A' | 'B' | 'C' | 'D' | 'E'>,
+                                            });
+                                            const updated = await evaluationService.getAllAssignments(evaluation.id);
+                                            setCurrentAssignments(updated || []);
+                                            setSelectedUserId('');
+                                            setSelectedAssignSections([]);
+                                            alert('Evaluator assigned successfully!');
+                                        } catch (err: any) {
+                                            alert('Failed to assign evaluator: ' + (err.message || 'Unknown error'));
+                                        }
+                                    }}
+                                >
+                                    Assign
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {currentAssignments.length > 0 ? (
+                        <div className="table-responsive">
+                            <table className="table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Evaluator</th>
+                                        <th>Assigned Sections</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {currentAssignments.map((assignment: any) => (
+                                        <tr key={assignment.id}>
+                                            <td>{assignment.user?.name || assignment.user?.email || `User #${assignment.userId}`}</td>
+                                            <td>
+                                                <div className="flex gap-1">
+                                                    {(assignment.sections || []).map((sec: string) => (
+                                                        <span key={sec} className="badge bg-primary">
+                                                            Section {sec}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <button
+                                                    className="btn btn-sm btn-outline-danger"
+                                                    onClick={async () => {
+                                                        if (confirm('Remove this assignment?')) {
+                                                            await evaluationService.removeAssignment(assignment.id);
+                                                            const updated = await evaluationService.getAllAssignments(evaluation.id);
+                                                            setCurrentAssignments(updated || []);
+                                                        }
+                                                    }}
+                                                >
+                                                    Remove
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    ) : (
+                        <div className="text-center py-4 text-gray-500">No evaluators assigned yet. Use the form above to assign an evaluator.</div>
+                    )}
+                </div>
+            )}
+
+            {/* Structure Editing - Procurement Only */}
             {isProcurement && (
                 <div className="panel mb-4 p-4 flex items-center justify-between">
                     <div className="flex items-center gap-3">
