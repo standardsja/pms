@@ -14,7 +14,17 @@ type Props = {
 };
 
 // Full evaluation form matching NewEvaluation structure with conditional editability
-export const EvaluationForm: React.FC<Props> = ({ mode, evaluation, canEditSections = [], onSaveSection, onSubmitSection, onVerifySection, onReturnSection, structureEditableSections = [], onSectionChange }) => {
+export const EvaluationForm: React.FC<Props> = ({
+    mode,
+    evaluation,
+    canEditSections = [],
+    onSaveSection,
+    onSubmitSection,
+    onVerifySection,
+    onReturnSection,
+    structureEditableSections = [],
+    onSectionChange,
+}) => {
     const [sectionA, setSectionA] = useState<SectionA | undefined>(evaluation?.sectionA);
     const [sectionB, setSectionB] = useState<SectionB | undefined>(evaluation?.sectionB);
     const [sectionC, setSectionC] = useState<SectionC | undefined>(evaluation?.sectionC);
