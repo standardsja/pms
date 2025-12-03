@@ -4314,14 +4314,25 @@ app.post(
             throw new NotFoundError('You are not assigned to this evaluation');
         }
 
-        // Update assignment status to COMPLETED
-        await (prisma as any).evaluationAssignment.update({
-            where: { id: assignment.id },
-            data: {
-                status: 'SUBMITTED',
-                submittedAt: new Date(),
-            },
-        });
+        // Update assignment status to SUBMITTED (fallback to raw SQL if enum mismatch exists)
+        try {
+            await (prisma as any).evaluationAssignment.update({
+                where: { id: assignment.id },
+                data: {
+                    status: 'SUBMITTED',
+                    submittedAt: new Date(),
+                },
+            });
+        } catch (e) {
+            // If Prisma enum validation fails due to DB drift, use raw SQL
+            try {
+                await prisma.$executeRawUnsafe(
+                    `UPDATE EvaluationAssignment SET status='SUBMITTED', submittedAt=NOW(), updatedAt=NOW() WHERE id=${assignment.id}`
+                );
+            } catch (inner) {
+                throw e; // bubble original error
+            }
+        }
 
         // Notify procurement officer (creator)
         try {
