@@ -1708,7 +1708,7 @@ const NewEvaluation = () => {
                                         Assign Evaluators
                                     </button>
                                 )}
-                                <button type="button" onClick={handleCreateEvaluation} className="btn btn-success gap-2" disabled={loading || createdEvaluationId}>
+                                <button type="button" onClick={handleCreateEvaluation} className="btn btn-success gap-2" disabled={loading || !!createdEvaluationId}>
                                     {loading ? (
                                         <>
                                             <span className="animate-spin border-2 border-white border-l-transparent rounded-full w-4 h-4 inline-block align-middle"></span>

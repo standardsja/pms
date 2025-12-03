@@ -253,7 +253,7 @@ export const EvaluationForm: React.FC<Props> = ({
                                                                     }}
                                                                     placeholder="Column name"
                                                                 />
-                                                                {sectionB.bidders[0].eligibilityRequirements.columns.length > 1 && (
+                                                                {(sectionB.bidders[0]?.eligibilityRequirements?.columns?.length ?? 0) > 1 && (
                                                                     <button
                                                                         type="button"
                                                                         onClick={() => {
@@ -451,7 +451,7 @@ export const EvaluationForm: React.FC<Props> = ({
                                                                     }}
                                                                     placeholder="Column name"
                                                                 />
-                                                                {sectionB.bidders[0].complianceMatrix.columns.length > 1 && (
+                                                                {(sectionB.bidders[0]?.complianceMatrix?.columns?.length ?? 0) > 1 && (
                                                                     <button
                                                                         type="button"
                                                                         onClick={() => {
@@ -504,7 +504,7 @@ export const EvaluationForm: React.FC<Props> = ({
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {sectionB.bidders[0].complianceMatrix.rows.map((row: any) => (
+                                        {(sectionB.bidders[0]?.complianceMatrix?.rows ?? []).map((row: any) => (
                                             <tr key={row.id}>
                                                 {sectionB.bidders[0].complianceMatrix.columns.map((col: any) => (
                                                     <td key={col.id} className="border px-2 py-2">
@@ -648,7 +648,7 @@ export const EvaluationForm: React.FC<Props> = ({
                                                                     }}
                                                                     placeholder="Column name"
                                                                 />
-                                                                {sectionB.bidders[0].technicalEvaluation.columns.length > 1 && (
+                                                                {(sectionB.bidders[0]?.technicalEvaluation?.columns?.length ?? 0) > 1 && (
                                                                     <button
                                                                         type="button"
                                                                         onClick={() => {
@@ -703,7 +703,7 @@ export const EvaluationForm: React.FC<Props> = ({
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {sectionB.bidders[0].technicalEvaluation.rows.map((row: any) => (
+                                        {(sectionB.bidders[0]?.technicalEvaluation?.rows ?? []).map((row: any) => (
                                             <tr key={row.id}>
                                                 {sectionB.bidders[0].technicalEvaluation.columns.map((col: any) => (
                                                     <td key={col.id} className="border px-2 py-2">
