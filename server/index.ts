@@ -3966,9 +3966,19 @@ app.get(
 
             // Check if user has access: creator, procurement role, committee role, or assigned evaluator
             const isCreator = evaluation.createdBy === userId;
-            const isAssigned = await (prisma as any).evaluationAssignment.findFirst({
-                where: { evaluationId: parseInt(id), userId },
-            });
+            let isAssigned = false;
+            try {
+                const assignment = await (prisma as any).evaluationAssignment.findFirst({
+                    where: { evaluationId: parseInt(id), userId },
+                });
+                isAssigned = !!assignment;
+            } catch (e) {
+                // Fallback to raw SQL if Prisma enum validation fails
+                const assignmentRows = await prisma.$queryRawUnsafe<any>(
+                    `SELECT 1 FROM EvaluationAssignment WHERE evaluationId=${parseInt(id)} AND userId=${userId} LIMIT 1`
+                );
+                isAssigned = assignmentRows.length > 0;
+            }
 
             if (!isCreator && !isProcurement && !isCommittee && !isAssigned) {
                 throw new Error('You do not have permission to view this evaluation');
