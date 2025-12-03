@@ -98,6 +98,8 @@ export interface Evaluation {
     rfqNumber: string;
     rfqTitle: string;
     description?: string;
+    dateSubmissionConsidered?: string;
+    reportCompletionDate?: string;
     status: EvaluationStatus;
 
     sectionA?: SectionA;

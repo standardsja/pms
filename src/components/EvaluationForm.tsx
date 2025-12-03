@@ -70,6 +70,38 @@ export const EvaluationForm: React.FC<Props> = ({
 
     return (
         <div className="space-y-6">
+            {/* Background Section */}
+            {evaluation?.description && (
+                <div className="panel">
+                    <div className="mb-5 -m-5 p-5 bg-gray-100 dark:bg-gray-800 border-l-4 border-gray-500">
+                        <h5 className="text-lg font-bold">Background Information</h5>
+                        <p className="text-sm mt-1">Bureau of Standards Jamaica - Official Evaluation Report Form (PRO_70_F_14/00)</p>
+                    </div>
+                    <div className="p-5 space-y-4">
+                        <div>
+                            <label className="block mb-2 text-sm font-semibold text-lg">BACKGROUND:</label>
+                            <div className="p-3 bg-gray-50 dark:bg-gray-900 rounded border">
+                                <p className="whitespace-pre-wrap">{evaluation.description}</p>
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {evaluation.dateSubmissionConsidered && (
+                                <div>
+                                    <label className="block mb-1 text-sm font-semibold">DATE SUBMISSION WAS CONSIDERED:</label>
+                                    <div className="p-2 bg-gray-50 dark:bg-gray-900 rounded border">{new Date(evaluation.dateSubmissionConsidered).toLocaleDateString()}</div>
+                                </div>
+                            )}
+                            {evaluation.reportCompletionDate && (
+                                <div>
+                                    <label className="block mb-1 text-sm font-semibold">REPORT COMPLETION DATE:</label>
+                                    <div className="p-2 bg-gray-50 dark:bg-gray-900 rounded border">{new Date(evaluation.reportCompletionDate).toLocaleDateString()}</div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Section A: Procurement Details */}
             <div className="panel">
                 <div className="mb-5 -m-5 p-5 bg-primary/10 border-l-4 border-primary">
