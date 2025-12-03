@@ -349,6 +349,17 @@ class EvaluationService {
         const result = await this.fetchWithAuth('/api/evaluations/assignments/me');
         return result.data;
     }
+
+    async getAllAssignments(evaluationId: number): Promise<Array<{ id: number; evaluationId: number; userId: number; user?: any; sections: string[]; status: string; createdAt: string }>> {
+        const result = await this.fetchWithAuth(`/api/evaluations/${evaluationId}/assignments`);
+        return result.data;
+    }
+
+    async removeAssignment(assignmentId: number) {
+        await this.fetchWithAuth(`/api/evaluations/assignments/${assignmentId}`, {
+            method: 'DELETE',
+        });
+    }
 }
 
 export const evaluationService = new EvaluationService();

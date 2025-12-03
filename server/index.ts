@@ -4206,7 +4206,7 @@ app.post(
             const assignment = await (prisma as any).evaluationAssignment.upsert({
                 where: { evaluationId_userId: { evaluationId: evalId, userId: uid } },
                 update: { sections: sectionList },
-                create: { evaluationId: evalId, userId: uid, sections: sectionList },
+                create: { evaluationId: evalId, userId: uid, sections: sectionList, status: 'PENDING' },
             });
             created.push(assignment);
 
@@ -4698,8 +4698,7 @@ app.post(
         }
         if (!existing) throw new NotFoundError('Evaluation not found');
 
-        // Check user roles
-        const userObj: any = (req as any).user;
+        // Check user roles for procurement privilege
         const userRoles = userObj?.roles || [];
         const isProcurement = userRoles.some((role: string) => ['PROCUREMENT', 'PROCUREMENT_OFFICER', 'PROCUREMENT_MANAGER'].includes(role.toUpperCase()));
 

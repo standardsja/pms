@@ -509,7 +509,16 @@ const NewEvaluation = () => {
                 });
                 if (resp.ok) {
                     const users = await resp.json();
-                    setAvailableUsers(users);
+                    // Normalize user objects to ensure numeric `id`
+                    const normalized = (Array.isArray(users) ? users : [])
+                        .map((u: any) => ({
+                            id: typeof u.id === 'number' ? u.id : parseInt(String(u.userId ?? u.id), 10),
+                            email: String(u.email || ''),
+                            name: u.name ?? null,
+                            roles: Array.isArray(u.roles) ? u.roles : [],
+                        }))
+                        .filter((u: any) => Number.isFinite(u.id));
+                    setAvailableUsers(normalized);
                 }
             } catch {
                 // ignore
@@ -530,6 +539,7 @@ const NewEvaluation = () => {
     };
 
     const toggleSelectedUser = (id: number) => {
+        if (!Number.isFinite(id)) return;
         setSelectedUserIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
     };
 
@@ -541,11 +551,23 @@ const NewEvaluation = () => {
         if (!createdEvaluationId) return;
         try {
             setLoading(true);
-            await evaluationService.assignEvaluators(createdEvaluationId, { userIds: selectedUserIds, sections: selectedSections });
+            // Coerce and filter IDs to ensure valid numeric payload
+            const validIds = selectedUserIds.map((v) => (typeof v === 'number' ? v : parseInt(String(v), 10))).filter((n) => Number.isFinite(n));
+
+            if (validIds.length === 0) {
+                setAlertMessage('Please select at least one valid user');
+                setShowErrorAlert(true);
+                setTimeout(() => setShowErrorAlert(false), 4000);
+                return;
+            }
+
+            console.debug('Assigning evaluators', { evaluationId: createdEvaluationId, userIds: validIds, sections: selectedSections });
+            await evaluationService.assignEvaluators(createdEvaluationId, { userIds: validIds, sections: selectedSections });
             setShowAssignModal(false);
             navigate('/procurement/evaluation');
         } catch (err: any) {
-            setAlertMessage(err.message || 'Failed to send assignments');
+            // Surface structured error message
+            setAlertMessage(err?.message || 'Failed to send assignments');
             setShowErrorAlert(true);
             setTimeout(() => setShowErrorAlert(false), 4000);
         } finally {
