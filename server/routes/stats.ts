@@ -8,11 +8,12 @@ const router = Router();
 // Key: userId, Value: { module: 'pms' | 'ih', lastSeen: Date }
 const activeSessions = new Map<number, { module: 'pms' | 'ih'; lastSeen: Date }>();
 
-// Clean up stale sessions (inactive for more than 2 minutes)
+// Clean up stale sessions (inactive for more than 3 minutes)
+// Heartbeat interval is 45s, so 3 minutes allows for ~4 missed heartbeats before cleanup
 setInterval(() => {
-    const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000);
+    const threeMinutesAgo = new Date(Date.now() - 3 * 60 * 1000);
     for (const [userId, session] of activeSessions.entries()) {
-        if (session.lastSeen < twoMinutesAgo) {
+        if (session.lastSeen < threeMinutesAgo) {
             console.log('[Stats] Removing stale session for userId:', userId);
             activeSessions.delete(userId);
         }

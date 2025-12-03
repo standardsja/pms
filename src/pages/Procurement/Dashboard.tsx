@@ -17,20 +17,11 @@ import IconChecks from '../../components/Icon/IconChecks';
 import IconBell from '../../components/Icon/IconBell';
 import IconClock from '../../components/Icon/IconClock';
 import IconTrendingUp from '../../components/Icon/IconTrendingUp';
-import { heartbeatService } from '../../services/heartbeatService';
 
 const ProcurementOfficerDashboard = () => {
     const dispatch = useDispatch();
     useEffect(() => {
         dispatch(setPageTitle('Procurement Officer Dashboard'));
-
-        // Start heartbeat tracking for procurement module
-        heartbeatService.startHeartbeat('pms');
-
-        // Cleanup: stop heartbeat when leaving this page
-        return () => {
-            heartbeatService.stopHeartbeat();
-        };
     }, [dispatch]);
 
     const isDark = useSelector((state: IRootState) => state.themeConfig.theme === 'dark' || state.themeConfig.isDarkMode);
