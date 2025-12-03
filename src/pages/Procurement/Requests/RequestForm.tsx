@@ -920,9 +920,19 @@ const RequestForm = () => {
             <div className="mb-6">
                 <div className="flex justify-center">
                     <div className="w-full max-w-4xl">
-                        <div className="text-center">
-                            <h1 className="text-2xl font-semibold">BUREAU OF STANDARDS JAMAICA</h1>
-                            <h2 className="text-xl font-semibold mt-1 underline">PROCUREMENT REQUISITION FORM</h2>
+                        <div className="flex flex-col items-center">
+                            <div className="flex items-center justify-center w-full mb-2">
+                                <img
+                                    src="/assets/images/bsj-logo.png"
+                                    alt="Bureau of Standards Jamaica Logo"
+                                    className="h-12 w-auto mr-4 print:h-10 print:mr-2"
+                                    style={{ maxWidth: '120px', objectFit: 'contain' }}
+                                />
+                                <div className="flex flex-col items-start">
+                                    <h1 className="text-2xl font-semibold">BUREAU OF STANDARDS JAMAICA</h1>
+                                    <h2 className="text-xl font-semibold mt-1 underline">PROCUREMENT REQUISITION FORM</h2>
+                                </div>
+                            </div>
                             <div className="text-sm italic text-gray-500 mt-2">This form authorizes the Procurement Unit to act on your behalf.</div>
                             <div className="mt-4 flex justify-center">
                                 {/* Inline dropdown controls styled as brackets */}
