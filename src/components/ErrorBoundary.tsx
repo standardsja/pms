@@ -1,4 +1,42 @@
-/**
+import React from 'react';
+
+type ErrorBoundaryState = { hasError: boolean; error?: unknown };
+
+export class ErrorBoundary extends React.Component<React.PropsWithChildren, ErrorBoundaryState> {
+    constructor(props: React.PropsWithChildren) {
+        super(props);
+        this.state = { hasError: false, error: undefined };
+    }
+
+    static getDerivedStateFromError(error: unknown): ErrorBoundaryState {
+        return { hasError: true, error };
+    }
+
+    componentDidCatch(error: unknown) {
+        // Could add logging here (Winston backend captures server-side; frontend keep minimal)
+        console.error('ErrorBoundary caught error:', error);
+    }
+
+    render() {
+        if (this.state.hasError) {
+            return (
+                <div className="p-6">
+                    <div className="panel">
+                        <h2 className="text-lg font-semibold mb-2">Something went wrong</h2>
+                        <p className="text-sm text-white-dark mb-4">An unexpected error occurred. Please try reloading or navigating back.</p>
+                        <div className="flex gap-2">
+                            <button className="btn btn-primary" onClick={() => window.location.reload()}>Reload</button>
+                            <button className="btn btn-outline-secondary" onClick={() => history.back()}>Go Back</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+        return this.props.children;
+    }
+}
+
+export default ErrorBoundary;/**
  * ErrorBoundary Component - Catches runtime errors and displays fallback UI
  * 
  * Features:
