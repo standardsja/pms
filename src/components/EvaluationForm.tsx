@@ -10,10 +10,11 @@ type Props = {
     onVerifySection?: (section: 'A' | 'B' | 'C' | 'D' | 'E', notes?: string) => Promise<void> | void;
     onReturnSection?: (section: 'A' | 'B' | 'C' | 'D' | 'E', notes: string) => Promise<void> | void;
     structureEditableSections?: Array<'A' | 'B' | 'C' | 'D' | 'E'>;
+    onSectionChange?: (section: 'A' | 'B' | 'C' | 'D' | 'E', data: any) => void;
 };
 
 // Full evaluation form matching NewEvaluation structure with conditional editability
-export const EvaluationForm: React.FC<Props> = ({ mode, evaluation, canEditSections = [], onSaveSection, onSubmitSection, onVerifySection, onReturnSection, structureEditableSections = [] }) => {
+export const EvaluationForm: React.FC<Props> = ({ mode, evaluation, canEditSections = [], onSaveSection, onSubmitSection, onVerifySection, onReturnSection, structureEditableSections = [], onSectionChange }) => {
     const [sectionA, setSectionA] = useState<SectionA | undefined>(evaluation?.sectionA);
     const [sectionB, setSectionB] = useState<SectionB | undefined>(evaluation?.sectionB);
     const [sectionC, setSectionC] = useState<SectionC | undefined>(evaluation?.sectionC);
@@ -38,6 +39,13 @@ export const EvaluationForm: React.FC<Props> = ({ mode, evaluation, canEditSecti
         setSectionD(evaluation?.sectionD);
         setSectionE(evaluation?.sectionE);
     }, [evaluation?.sectionA, evaluation?.sectionB, evaluation?.sectionC, evaluation?.sectionD, evaluation?.sectionE]);
+
+    // Notify parent when Section B changes (for procurement structure edits)
+    React.useEffect(() => {
+        if (sectionB && onSectionChange) {
+            onSectionChange('B', sectionB);
+        }
+    }, [sectionB, onSectionChange]);
 
     const saveSec = async (sec: 'A' | 'B' | 'C' | 'D' | 'E') => {
         if (!onSaveSection) return;

@@ -27,6 +27,7 @@ const EvaluationDetail = () => {
     const [canEditSections, setCanEditSections] = useState<string[]>([]);
     const [structureEditEnabled, setStructureEditEnabled] = useState<boolean>(false);
     const [returnNotes, setReturnNotes] = useState<string>('');
+    const [pendingSectionB, setPendingSectionB] = useState<any>(null);
 
     useEffect(() => {
         dispatch(setPageTitle('Evaluation Details'));
@@ -138,9 +139,16 @@ const EvaluationDetail = () => {
                             className="btn btn-outline-danger"
                             onClick={async () => {
                                 if (!evaluation) return;
-                                const updated = await evaluationService.returnSection(evaluation.id, 'B', returnNotes || 'Please update table rows.');
+                                // First, save any pending Section B structural changes
+                                if (pendingSectionB) {
+                                    await evaluationService.updateSection(evaluation.id, 'B', pendingSectionB);
+                                }
+                                // Then return the section with notes
+                                const updated = await evaluationService.returnSection(evaluation.id, 'B', returnNotes || 'Table structure has been updated. Please review the changes.');
                                 setEvaluation(updated);
                                 setReturnNotes('');
+                                setStructureEditEnabled(false);
+                                setPendingSectionB(null);
                             }}
                         >
                             Return Section B
@@ -154,6 +162,11 @@ const EvaluationDetail = () => {
                 evaluation={evaluation}
                 canEditSections={canEditSections as Array<'A' | 'B' | 'C' | 'D' | 'E'>}
                 structureEditableSections={structureEditEnabled ? (['B'] as Array<'A' | 'B' | 'C' | 'D' | 'E'>) : ([] as Array<'A' | 'B' | 'C' | 'D' | 'E'>)}
+                onSectionChange={(sec, data) => {
+                    if (sec === 'B') {
+                        setPendingSectionB(data);
+                    }
+                }}
                 onSaveSection={async (sec, data) => {
                     if (!evaluation) return;
                     const updated = await evaluationService.updateSection(evaluation.id, sec, data);
