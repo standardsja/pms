@@ -69,7 +69,7 @@ const EvaluationDetail = () => {
                     (a.sections || []).forEach((s: string) => sections.add(String(s).toUpperCase()));
                 });
                 setCanEditSections(Array.from(sections));
-                
+
                 // Store my assignment for complete button
                 if (forThisEval.length > 0) {
                     setMyAssignment(forThisEval[0]);
@@ -154,7 +154,7 @@ const EvaluationDetail = () => {
 
     const handleCompleteAssignment = async () => {
         if (!evaluation || !myAssignment) return;
-        
+
         if (!confirm('Are you sure you want to mark your evaluation as complete? The procurement officer will be notified.')) {
             return;
         }
@@ -190,12 +190,7 @@ const EvaluationDetail = () => {
                                 You are assigned to complete: <span className="font-semibold">{myAssignment.sections.join(', ')}</span>
                             </p>
                         </div>
-                        <button
-                            type="button"
-                            className="btn btn-success gap-2"
-                            onClick={handleCompleteAssignment}
-                            disabled={completingAssignment}
-                        >
+                        <button type="button" className="btn btn-success gap-2" onClick={handleCompleteAssignment} disabled={completingAssignment}>
                             {completingAssignment ? (
                                 <>
                                     <span className="animate-spin border-2 border-white border-l-transparent rounded-full w-4 h-4 inline-block"></span>
