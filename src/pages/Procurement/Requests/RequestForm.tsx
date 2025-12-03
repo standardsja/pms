@@ -192,6 +192,7 @@ const RequestForm = () => {
                 setRequestedBy(profile.name || profile.fullName || '');
                 setEmail(profile.email || '');
                 setDivision(profile.department?.name || '');
+                setInstitution('Bureau of Standards Jamaica'); // Default institution
                 // best-effort for branch/unit using dept code
                 if (profile.department?.code && !branchUnit) setBranchUnit(profile.department.code);
             }
