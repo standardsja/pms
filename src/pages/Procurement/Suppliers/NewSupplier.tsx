@@ -14,13 +14,13 @@ const NewSupplier = () => {
 
     const [name, setName] = useState('');
     const [category, setCategory] = useState('');
-    const [contact, setContact] = useState('');
+    const [contactName, setContactName] = useState('');
     const [email, setEmail] = useState('');
     const [phone, setPhone] = useState('');
     const [address, setAddress] = useState('');
-    const [status, setStatus] = useState<'Active' | 'Inactive'>('Active');
-    const [rating, setRating] = useState<number>(4.0);
+    const [website, setWebsite] = useState('');
     const [notes, setNotes] = useState('');
+    const [loading, setLoading] = useState(false);
 
     const [modal, setModal] = useState<{ open: boolean; title: string; message: string; tone: 'success' | 'warning' }>(
         { open: false, title: '', message: '', tone: 'success' }
@@ -29,22 +29,58 @@ const NewSupplier = () => {
     const openModal = (tone: 'success' | 'warning', title: string, message: string) => setModal({ open: true, title, message, tone });
     const closeModal = () => setModal({ open: false, title: '', message: '', tone: 'success' });
 
-    const validate = () => name.trim() && category.trim() && contact.trim() && email.trim();
+    const validate = () => name.trim() && email.trim();
 
-    const handleDraft = () => {
-        openModal('warning', 'Saved as Draft', 'Supplier draft saved. You can complete it later.');
-    };
-
-    const handleCreate = () => {
+    const handleCreate = async () => {
         if (!validate()) {
-            openModal('warning', 'Missing Information', 'Please fill in Name, Category, Contact and Email.');
+            openModal('warning', 'Missing Information', 'Please fill in Supplier Name and Email.');
             return;
         }
-        openModal('success', 'Supplier Created', 'The supplier has been added successfully.');
-        setTimeout(() => {
-            closeModal();
-            navigate('/procurement/suppliers');
-        }, 800);
+
+        try {
+            setLoading(true);
+
+            const token = localStorage.getItem('token');
+            const userId = localStorage.getItem('userId');
+
+            const response = await fetch('http://heron:4000/api/suppliers', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`,
+                    'x-user-id': userId || '',
+                },
+                body: JSON.stringify({
+                    name,
+                    email,
+                    contact: {
+                        name: contactName,
+                        email,
+                        phone,
+                        category,
+                    },
+                    address,
+                    website,
+                    category,
+                }),
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.message || 'Failed to create supplier');
+            }
+
+            openModal('success', 'Supplier Created', 'The supplier has been added successfully.');
+            setTimeout(() => {
+                closeModal();
+                navigate('/procurement/suppliers');
+            }, 800);
+        } catch (err) {
+            console.error('Error creating supplier:', err);
+            openModal('warning', 'Error', err instanceof Error ? err.message : 'Failed to create supplier');
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
@@ -65,25 +101,26 @@ const NewSupplier = () => {
                     <h5 className="mb-5 text-lg font-semibold">Basic Information</h5>
                     <div className="space-y-4">
                         <div>
-                            <label className="mb-1 block text-white-dark">Supplier Name</label>
-                            <input className="form-input" placeholder="e.g. Tech Solutions Inc" value={name} onChange={(e) => setName(e.target.value)} />
+                            <label className="mb-1 block text-white-dark">
+                                Supplier Name <span className="text-danger">*</span>
+                            </label>
+                            <input className="form-input" placeholder="e.g. Tech Solutions Inc" value={name} onChange={(e) => setName(e.target.value)} required />
                         </div>
                         <div>
                             <label className="mb-1 block text-white-dark">Category</label>
-                            <input className="form-input" placeholder="e.g. IT Equipment" value={category} onChange={(e) => setCategory(e.target.value)} />
+                            <select className="form-select" value={category} onChange={(e) => setCategory(e.target.value)}>
+                                <option value="">Select Category</option>
+                                <option value="Office Supplies">Office Supplies</option>
+                                <option value="IT Equipment">IT Equipment</option>
+                                <option value="Office Furniture">Office Furniture</option>
+                                <option value="Cleaning Services">Cleaning Services</option>
+                                <option value="Construction">Construction</option>
+                                <option value="General">General</option>
+                            </select>
                         </div>
-                        <div className="grid gap-4 sm:grid-cols-2">
-                            <div>
-                                <label className="mb-1 block text-white-dark">Status</label>
-                                <select className="form-select" value={status} onChange={(e) => setStatus(e.target.value as 'Active' | 'Inactive')}>
-                                    <option value="Active">Active</option>
-                                    <option value="Inactive">Inactive</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label className="mb-1 block text-white-dark">Rating</label>
-                                <input type="number" min={1} max={5} step="0.1" className="form-input" value={rating} onChange={(e) => setRating(Number(e.target.value))} />
-                            </div>
+                        <div>
+                            <label className="mb-1 block text-white-dark">Website</label>
+                            <input type="url" className="form-input" placeholder="https://supplier.com" value={website} onChange={(e) => setWebsite(e.target.value)} />
                         </div>
                     </div>
                 </div>
@@ -93,17 +130,25 @@ const NewSupplier = () => {
                     <div className="space-y-4">
                         <div>
                             <label className="mb-1 block text-white-dark">Contact Person</label>
-                            <input className="form-input" placeholder="e.g. Jane Doe" value={contact} onChange={(e) => setContact(e.target.value)} />
+                            <input className="form-input" placeholder="e.g. Jane Doe" value={contactName} onChange={(e) => setContactName(e.target.value)} />
                         </div>
-                        <div className="grid gap-4 sm:grid-cols-2">
-                            <div>
-                                <label className="mb-1 block text-white-dark">Email</label>
-                                <input type="email" className="form-input" placeholder="name@company.com" value={email} onChange={(e) => setEmail(e.target.value)} />
-                            </div>
-                            <div>
-                                <label className="mb-1 block text-white-dark">Phone</label>
-                                <input className="form-input" placeholder="+1-555-0123" value={phone} onChange={(e) => setPhone(e.target.value)} />
-                            </div>
+                        <div>
+                            <label className="mb-1 block text-white-dark">
+                                Email <span className="text-danger">*</span>
+                            </label>
+                            <input
+                                type="email"
+                                className="form-input"
+                                placeholder="name@company.com"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                required
+                            />
+                            <p className="mt-1 text-xs text-white-dark">This email will be used for PO notifications</p>
+                        </div>
+                        <div>
+                            <label className="mb-1 block text-white-dark">Phone</label>
+                            <input className="form-input" placeholder="+1-555-0123" value={phone} onChange={(e) => setPhone(e.target.value)} />
                         </div>
                         <div>
                             <label className="mb-1 block text-white-dark">Address</label>
@@ -111,15 +156,26 @@ const NewSupplier = () => {
                         </div>
                         <div>
                             <label className="mb-1 block text-white-dark">Notes</label>
-                            <textarea className="form-textarea" rows={3} placeholder="Optional notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
+                            <textarea className="form-textarea" rows={2} placeholder="Optional notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
                         </div>
                     </div>
                 </div>
             </div>
 
             <div className="mt-6 flex flex-wrap gap-3">
-                <button className="btn bg-warning text-white hover:opacity-90" onClick={handleDraft}>Save as Draft</button>
-                <button className="btn btn-primary" onClick={handleCreate}>Create Supplier</button>
+                <button className="btn btn-primary" onClick={handleCreate} disabled={loading}>
+                    {loading ? (
+                        <>
+                            <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-l-transparent"></span>
+                            <span className="ml-2">Creating...</span>
+                        </>
+                    ) : (
+                        'Create Supplier'
+                    )}
+                </button>
+                <Link to="/procurement/suppliers" className="btn btn-outline-danger">
+                    Cancel
+                </Link>
             </div>
 
             {modal.open && (
