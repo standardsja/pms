@@ -203,37 +203,6 @@ export const EvaluationForm: React.FC<Props> = ({ mode, evaluation, canEditSecti
                                                             />
                                                         ) : (
                                                             <span>{row.data[col.id] || '-'}</span>
-                                        {canEditStructure('B') && (
-                                            <div className="mt-2 flex gap-2">
-                                                <button
-                                                    type="button"
-                                                    className="btn btn-outline-primary btn-sm"
-                                                    onClick={() => {
-                                                        const copy = { ...(sectionB as any) };
-                                                        const cols = copy.bidders[0].complianceMatrix.columns;
-                                                        const newRow = {
-                                                            id: `row-${Date.now()}`,
-                                                            data: Object.fromEntries(cols.map((c: any) => [c.id, ''])),
-                                                        };
-                                                        copy.bidders[0].complianceMatrix.rows = [...copy.bidders[0].complianceMatrix.rows, newRow];
-                                                        setSectionB(copy);
-                                                    }}
-                                                >
-                                                    Add Row
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    className="btn btn-outline-danger btn-sm"
-                                                    onClick={() => {
-                                                        const copy = { ...(sectionB as any) };
-                                                        copy.bidders[0].complianceMatrix.rows = copy.bidders[0].complianceMatrix.rows.slice(0, -1);
-                                                        setSectionB(copy);
-                                                    }}
-                                                >
-                                                    Remove Last Row
-                                                </button>
-                                            </div>
-                                        )}
                                                         )}
                                                     </td>
                                                 ))}
