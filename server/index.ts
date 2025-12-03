@@ -2944,9 +2944,9 @@ app.post('/requests/:id/action', async (req, res) => {
                     }
                 })();
                 const requestCurrency = request.currency || 'JMD';
-                
+
                 const thresholdResult = checkProcurementThresholds(totalValue, procurementTypes, requestCurrency);
-                
+
                 if (thresholdResult.requiresExecutiveApproval) {
                     // High-value request -> send to Executive Director for evaluation
                     nextStatus = 'EXECUTIVE_REVIEW';
