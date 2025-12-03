@@ -4698,8 +4698,18 @@ app.post(
         }
         if (!existing) throw new NotFoundError('Evaluation not found');
 
+        // Check user roles
+        const userObj: any = (req as any).user;
+        const userRoles = userObj?.roles || [];
+        const isProcurement = userRoles.some((role: string) => 
+            ['PROCUREMENT', 'PROCUREMENT_OFFICER', 'PROCUREMENT_MANAGER'].includes(role.toUpperCase())
+        );
+
         const statusField = `section${sectionUpper}Status`;
-        if (existing[statusField] !== 'SUBMITTED') {
+        
+        // Procurement can return sections at any status (for structural edits)
+        // Committee can only return SUBMITTED sections
+        if (!isProcurement && existing[statusField] !== 'SUBMITTED') {
             throw new BadRequestError(`Section ${sectionUpper} must be submitted before returning`);
         }
 
