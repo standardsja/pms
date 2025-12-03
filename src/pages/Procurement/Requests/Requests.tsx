@@ -186,15 +186,9 @@ const Requests = () => {
         };
     }, [currentUserRoles, filteredRequests]);
 
-    // View request details modal (React content, no HTML strings)
+    // View request details - navigate to form
     const viewDetails = (req: Request) => {
-        MySwal.fire({
-            html: <RequestDetailsContent request={req} />,
-            width: '800px',
-            showCloseButton: true,
-            showConfirmButton: false,
-            customClass: { popup: 'text-left' },
-        });
+        navigate(`/apps/requests/edit/${req.id}`);
     };
     return (
         <div className="p-6">
