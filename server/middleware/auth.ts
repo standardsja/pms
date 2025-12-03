@@ -23,14 +23,23 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
         const authHeader = req.headers.authorization;
         const userIdHeader = req.headers['x-user-id'];
 
+        console.log('[Auth] Headers:', {
+            hasAuth: !!authHeader,
+            authPrefix: authHeader?.substring(0, 10),
+            hasUserId: !!userIdHeader,
+        });
+
         // Try Bearer token first
         if (authHeader?.startsWith('Bearer ')) {
             const token = authHeader.substring(7);
+            console.log('[Auth] Attempting JWT verification, token length:', token.length);
             try {
                 const payload = jwt.verify(token, config.JWT_SECRET) as any;
+                console.log('[Auth] JWT verified successfully, payload:', { sub: payload.sub, email: payload.email });
                 (req as AuthenticatedRequest).user = payload;
                 return next();
             } catch (error) {
+                console.error('[Auth] JWT verification failed:', error instanceof Error ? error.message : error);
                 // Token invalid, fall through to x-user-id if available
                 if (!userIdHeader) {
                     throw new UnauthorizedError('Invalid token');

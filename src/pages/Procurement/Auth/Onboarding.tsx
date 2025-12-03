@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { logEvent } from '../../../utils/analytics';
 import { getApiUrl } from '../../../config/api';
 import { statsService, SystemStats } from '../../../services/statsService';
+import { heartbeatService } from '../../../services/heartbeatService';
 
 type ModuleKey = 'pms' | 'ih' | 'committee' | 'budgeting' | 'audit' | 'prime' | 'datapoint' | 'maintenance' | 'asset' | 'ppm' | 'kb';
 
@@ -73,11 +74,11 @@ const Onboarding = () => {
         timestamp: new Date().toISOString(),
     });
     const [moduleStats, setModuleStats] = useState<{
-        pms: { activeNow: number; today: number };
-        ih: { activeNow: number; today: number };
+        pms: { totalUsers: number; activeNow: number; today: number };
+        ih: { totalUsers: number; activeNow: number; today: number };
     }>({
-        pms: { activeNow: 0, today: 0 },
-        ih: { activeNow: 0, today: 0 },
+        pms: { totalUsers: 0, activeNow: 0, today: 0 },
+        ih: { totalUsers: 0, activeNow: 0, today: 0 },
     });
 
     useEffect(() => {
@@ -94,15 +95,20 @@ const Onboarding = () => {
         // Fetch real-time module statistics
         const fetchModuleStats = async () => {
             try {
-                const response = await fetch(getApiUrl('/api/stats/modules'));
+                // In development, use relative URL to leverage Vite proxy
+                const url = import.meta.env.DEV ? '/api/stats/modules' : getApiUrl('/api/stats/modules');
+
+                const response = await fetch(url);
                 if (response.ok) {
                     const data = await response.json();
                     setModuleStats({
                         pms: {
+                            totalUsers: data.procurement?.totalUsers || 0,
                             activeNow: data.procurement?.activeNow || 0,
                             today: data.procurement?.today || 0,
                         },
                         ih: {
+                            totalUsers: data.innovation?.totalUsers || 0,
                             activeNow: data.innovation?.activeNow || 0,
                             today: data.innovation?.today || 0,
                         },
@@ -361,6 +367,10 @@ const Onboarding = () => {
                 dispatch(setOnboardingComplete(true));
             } else {
                 dispatch(setOnboardingComplete(false));
+            }
+            // Start heartbeat tracking for the selected module
+            if (selected === 'pms' || selected === 'ih') {
+                heartbeatService.startHeartbeat(selected);
             }
             // Small UX delay
             await new Promise((r) => setTimeout(r, 200));
@@ -704,7 +714,7 @@ const Onboarding = () => {
                                                         <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                                                             <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
                                                         </svg>
-                                                        {m.id === 'pms' ? '182 users' : '94 users'}
+                                                        {moduleStats[m.id as 'pms' | 'ih'].activeNow} {moduleStats[m.id as 'pms' | 'ih'].activeNow === 1 ? 'user' : 'users'}
                                                     </span>
                                                 )}
                                             </div>

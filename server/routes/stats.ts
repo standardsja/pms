@@ -1,7 +1,92 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '../prismaClient';
+import { authMiddleware, AuthenticatedRequest } from '../middleware/auth';
 
 const router = Router();
+
+// In-memory store for active sessions (module activity)
+// Key: userId, Value: { module: 'pms' | 'ih', lastSeen: Date }
+const activeSessions = new Map<number, { module: 'pms' | 'ih'; lastSeen: Date }>();
+
+// Clean up stale sessions (inactive for more than 2 minutes)
+setInterval(() => {
+    const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000);
+    for (const [userId, session] of activeSessions.entries()) {
+        if (session.lastSeen < twoMinutesAgo) {
+            console.log('[Stats] Removing stale session for userId:', userId);
+            activeSessions.delete(userId);
+        }
+    }
+}, 30 * 1000); // Run cleanup every 30 seconds
+
+/**
+ * DELETE /api/stats/heartbeat
+ * Remove user's active session (called on logout)
+ */
+router.delete('/heartbeat', async (req: Request, res: Response) => {
+    console.log('[Stats/Heartbeat] ===== LOGOUT/CLEANUP =====');
+    try {
+        // TEMPORARY: Use x-user-id header for testing
+        const userId = parseInt(req.headers['x-user-id'] as string) || 1;
+
+        console.log('[Stats/Heartbeat] Removing session for userId:', userId);
+        activeSessions.delete(userId);
+
+        res.json({
+            success: true,
+            message: 'Session cleared',
+            activeUsers: activeSessions.size,
+            timestamp: new Date().toISOString(),
+        });
+    } catch (error) {
+        console.error('[Stats] Error clearing session:', error);
+        res.status(500).json({ error: 'Failed to clear session' });
+    }
+});
+
+/**
+ * POST /api/stats/heartbeat
+ * Track user activity in a specific module
+ * Body: { module: 'pms' | 'ih' }
+ * TEMPORARY: Auth disabled for debugging
+ */
+router.post('/heartbeat', async (req: Request, res: Response) => {
+    console.log('[Stats/Heartbeat] ===== ENDPOINT HIT (NO AUTH) =====');
+    console.log('[Stats/Heartbeat] Body:', req.body);
+    console.log('[Stats/Heartbeat] Headers:', req.headers.authorization?.substring(0, 30));
+
+    try {
+        // TEMPORARY: Use x-user-id header or body for testing
+        const userId = parseInt(req.headers['x-user-id'] as string) || 1; // Default to user 1 for testing
+        const { module } = req.body;
+
+        console.log('[Stats/Heartbeat] Using userId:', userId, 'module:', module);
+
+        if (!module || !['pms', 'ih'].includes(module)) {
+            console.warn('[Stats/Heartbeat] Invalid module:', module);
+            return res.status(400).json({ error: 'Invalid module. Must be "pms" or "ih"' });
+        }
+
+        // Update session activity
+        activeSessions.set(userId, {
+            module: module as 'pms' | 'ih',
+            lastSeen: new Date(),
+        });
+
+        console.log('[Stats/Heartbeat] Session updated. Active sessions:', activeSessions.size);
+        console.log('[Stats/Heartbeat] Active sessions map:', Array.from(activeSessions.entries()));
+
+        res.json({
+            success: true,
+            activeUsers: activeSessions.size,
+            userId: userId,
+            timestamp: new Date().toISOString(),
+        });
+    } catch (error) {
+        console.error('[Stats] Error recording heartbeat:', error);
+        res.status(500).json({ error: 'Failed to record activity' });
+    }
+});
 
 /**
  * GET /api/stats/health
@@ -15,6 +100,7 @@ router.get('/health', async (req: Request, res: Response) => {
         res.json({
             status: 'ok',
             database: 'connected',
+            activeSessions: activeSessions.size,
             timestamp: new Date().toISOString(),
         });
     } catch (error) {
@@ -36,19 +122,27 @@ router.get('/modules', async (req: Request, res: Response) => {
     try {
         const now = new Date();
         const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
 
-        // Get active users in last 5 minutes for procurement
-        const procurementActiveNow = await prisma.user.count({
+        // Count active sessions per module from in-memory store
+        let procurementActiveNow = 0;
+        let innovationActiveNow = 0;
+
+        for (const [userId, session] of activeSessions.entries()) {
+            if (session.module === 'pms') {
+                procurementActiveNow++;
+            } else if (session.module === 'ih') {
+                innovationActiveNow++;
+            }
+        }
+
+        // Total users with procurement access (any procurement-related role)
+        const procurementTotalUsers = await prisma.user.count({
             where: {
-                updatedAt: {
-                    gte: fiveMinutesAgo,
-                },
                 roles: {
                     some: {
                         role: {
                             name: {
-                                in: ['PROCUREMENT_OFFICER', 'PROCUREMENT_MANAGER', 'DEPARTMENT_HEAD', 'EXECUTIVE_DIRECTOR', 'FINANCE_OFFICER'],
+                                in: ['PROCUREMENT_OFFICER', 'PROCUREMENT_MANAGER', 'DEPARTMENT_HEAD', 'EXECUTIVE_DIRECTOR', 'FINANCE_OFFICER', 'BUDGET_MANAGER'],
                             },
                         },
                     },
@@ -74,12 +168,9 @@ router.get('/modules', async (req: Request, res: Response) => {
             },
         });
 
-        // Get active users in last 5 minutes for innovation
-        const innovationActiveNow = await prisma.user.count({
+        // Total users with innovation hub access
+        const innovationTotalUsers = await prisma.user.count({
             where: {
-                updatedAt: {
-                    gte: fiveMinutesAgo,
-                },
                 roles: {
                     some: {
                         role: {
@@ -112,10 +203,12 @@ router.get('/modules', async (req: Request, res: Response) => {
 
         res.json({
             procurement: {
+                totalUsers: procurementTotalUsers,
                 activeNow: procurementActiveNow,
                 today: procurementToday,
             },
             innovation: {
+                totalUsers: innovationTotalUsers,
                 activeNow: innovationActiveNow,
                 today: innovationToday,
             },

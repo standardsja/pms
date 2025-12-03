@@ -35,6 +35,7 @@ import IconMenuPages from '../Icon/Menu/IconMenuPages';
 import IconMenuMore from '../Icon/Menu/IconMenuMore';
 import IconRefresh from '../Icon/IconRefresh';
 import { getUser, clearAuth } from '../../utils/auth';
+import { heartbeatService } from '../../services/heartbeatService';
 import { fetchNotifications, deleteNotification, Notification } from '../../services/notificationApi';
 import { fetchMessages, deleteMessage, Message } from '../../services/messageApi';
 
@@ -645,6 +646,7 @@ const Header = () => {
                                             className="text-danger !py-3"
                                             onClick={() => {
                                                 try {
+                                                    heartbeatService.stopHeartbeat();
                                                     clearAuth();
                                                     dispatch(clearModule());
                                                 } catch {}
