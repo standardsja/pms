@@ -49,6 +49,7 @@ const NewEvaluation = () => {
                 // Pre-fill form data from combined request
                 setFormData((prev) => ({
                     ...prev,
+                    rfqNumber: data.reference || '',
                     rfqTitle: data.title,
                     description: data.description || '',
                 }));
@@ -133,72 +134,183 @@ const NewEvaluation = () => {
     const [errorFields, setErrorFields] = useState<string[]>([]);
     const [loading, setLoading] = useState(false);
 
+    // Send-to-evaluators modal state
+    const [showAssignModal, setShowAssignModal] = useState(false);
+    const [createdEvaluationId, setCreatedEvaluationId] = useState<number | null>(null);
+    const [availableUsers, setAvailableUsers] = useState<Array<{ id: number; email: string; name?: string | null; roles?: string[] }>>([]);
+    const [userSearch, setUserSearch] = useState('');
+    const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
+    const [selectedSections, setSelectedSections] = useState<Array<'A' | 'B' | 'C' | 'D' | 'E'>>(['B', 'C']);
+
     const totalSteps = 5; // Background, Section A, Section B, Section C, Sections D & E
 
-    // Section B - Compliance Matrix (dynamic rows)
-    type ComplianceRow = { clause: string; requirement: string; bidderResponse: string };
+    // Section B - Compliance Matrix (fully customizable table)
+    type ComplianceColumn = { id: string; name: string; width?: string };
+    type ComplianceRow = { id: string; data: Record<string, string> };
+
+    const [complianceColumns, setComplianceColumns] = useState<ComplianceColumn[]>([
+        { id: 'col-1', name: 'Clause', width: '120px' },
+        { id: 'col-2', name: 'COMPLIANCE MATRIX', width: 'auto' },
+        { id: 'col-3', name: 'Stationery & Office Supplies', width: 'auto' },
+    ]);
+
     const [complianceRows, setComplianceRows] = useState<ComplianceRow[]>([
-        { clause: 'ITB 14.1', requirement: 'Signed Letter of Quotation', bidderResponse: 'N/A' },
-        { clause: '', requirement: 'Signed price and delivery schedules', bidderResponse: 'N/A' },
-        { clause: '', requirement: 'Signed and Statement of Compliance', bidderResponse: 'N/A' },
-        { clause: '', requirement: 'Bid Validity of 30 day', bidderResponse: 'YES' },
-        { clause: '', requirement: 'Quotation', bidderResponse: 'YES' },
-        { clause: '', requirement: 'Bid Amount (Inclusive of GCT)', bidderResponse: '$49,680.00' },
+        { id: 'row-1', data: { 'col-1': 'ITB 14.1', 'col-2': 'Signed Letter of Quotation', 'col-3': 'N/A' } },
+        { id: 'row-2', data: { 'col-1': '', 'col-2': 'Signed price and delivery schedules', 'col-3': 'N/A' } },
+        { id: 'row-3', data: { 'col-1': '', 'col-2': 'Signed and Statement of Compliance', 'col-3': 'N/A' } },
+        { id: 'row-4', data: { 'col-1': '', 'col-2': 'Bid Validity of 30 day', 'col-3': 'YES' } },
+        { id: 'row-5', data: { 'col-1': '', 'col-2': 'Quotation', 'col-3': 'YES' } },
+        { id: 'row-6', data: { 'col-1': '', 'col-2': 'Bid Amount (Inclusive of GCT)', 'col-3': '$49,680.00' } },
     ]);
 
-    // Section B.A - Eligibility Requirements (dynamic rows)
-    type EligibilityRow = { label: string; value: string };
-    const [eligibilityRows, setEligibilityRows] = useState<EligibilityRow[]>([
-        { label: 'PPC Reg in the category of:', value: '' },
-        { label: 'TCI/TRN', value: '' },
-        { label: 'Bid Amount (Inclusive of GCT)', value: '' },
-    ]);
-
-    const updateEligibilityRow = (index: number, key: keyof EligibilityRow, value: string) => {
-        setEligibilityRows((rows) => rows.map((r, i) => (i === index ? { ...r, [key]: value } : r)));
-    };
-
-    const addEligibilityRow = () => {
-        setEligibilityRows((rows) => [...rows, { label: '', value: '' }]);
-    };
-
-    const removeEligibilityRow = (index: number) => {
-        setEligibilityRows((rows) => rows.filter((_, i) => i !== index));
-    };
-
-    // Section B.C - Technical Evaluation (dynamic rows)
-    type TechnicalRow = { specifications: string; quantity: string; bidderName: string; bidAmount: string };
-    const [technicalRows, setTechnicalRows] = useState<TechnicalRow[]>([
-        {
-            specifications: 'AA-532BK Image 3 Lever H/Duty Task Chair w/Arms - Black',
-            quantity: '1',
-            bidderName: 'Stationery & Office Supplies',
-            bidAmount: '49680.00',
-        },
-    ]);
-
-    const updateTechnicalRow = (index: number, key: keyof TechnicalRow, value: string) => {
-        setTechnicalRows((rows) => rows.map((r, i) => (i === index ? { ...r, [key]: value } : r)));
-    };
-
-    const addTechnicalRow = () => {
-        setTechnicalRows((rows) => [...rows, { specifications: '', quantity: '1', bidderName: '', bidAmount: '' }]);
-    };
-
-    const removeTechnicalRow = (index: number) => {
-        setTechnicalRows((rows) => rows.filter((_, i) => i !== index));
-    };
-
-    const updateComplianceRow = (index: number, key: keyof ComplianceRow, value: string) => {
-        setComplianceRows((rows) => rows.map((r, i) => (i === index ? { ...r, [key]: value } : r)));
+    const updateComplianceCell = (rowId: string, colId: string, value: string) => {
+        setComplianceRows((rows) => rows.map((r) => (r.id === rowId ? { ...r, data: { ...r.data, [colId]: value } } : r)));
     };
 
     const addComplianceRow = () => {
-        setComplianceRows((rows) => [...rows, { clause: '', requirement: '', bidderResponse: '' }]);
+        const newRow: ComplianceRow = {
+            id: `row-${Date.now()}`,
+            data: complianceColumns.reduce((acc, col) => ({ ...acc, [col.id]: '' }), {}),
+        };
+        setComplianceRows((rows) => [...rows, newRow]);
     };
 
-    const removeComplianceRow = (index: number) => {
-        setComplianceRows((rows) => rows.filter((_, i) => i !== index));
+    const removeComplianceRow = (rowId: string) => {
+        setComplianceRows((rows) => rows.filter((r) => r.id !== rowId));
+    };
+
+    const addComplianceColumn = () => {
+        const colId = `col-${Date.now()}`;
+        const newCol: ComplianceColumn = { id: colId, name: 'New Column', width: 'auto' };
+        setComplianceColumns((cols) => [...cols, newCol]);
+        setComplianceRows((rows) => rows.map((r) => ({ ...r, data: { ...r.data, [colId]: '' } })));
+    };
+
+    const removeComplianceColumn = (colId: string) => {
+        setComplianceColumns((cols) => cols.filter((c) => c.id !== colId));
+        setComplianceRows((rows) => rows.map((r) => ({ ...r, data: Object.fromEntries(Object.entries(r.data).filter(([k]) => k !== colId)) })));
+    };
+
+    const updateComplianceColumnName = (colId: string, newName: string) => {
+        setComplianceColumns((cols) => cols.map((c) => (c.id === colId ? { ...c, name: newName } : c)));
+    };
+
+    // Section B.A - Eligibility Requirements (fully customizable table)
+    type EligibilityColumn = { id: string; name: string; width?: string };
+    type EligibilityRow = { id: string; data: Record<string, string> };
+
+    const [eligibilityColumns, setEligibilityColumns] = useState<EligibilityColumn[]>([
+        { id: 'col-1', name: 'ELIGIBILITY REQUIREMENT', width: 'auto' },
+        { id: 'col-2', name: 'Stationery & Office Supplies', width: 'auto' },
+    ]);
+
+    const [eligibilityRows, setEligibilityRows] = useState<EligibilityRow[]>([
+        { id: 'row-1', data: { 'col-1': 'PPC Reg in the category of:', 'col-2': '' } },
+        { id: 'row-2', data: { 'col-1': 'TCI/TRN', 'col-2': '' } },
+        { id: 'row-3', data: { 'col-1': 'Bid Amount (Inclusive of GCT)', 'col-2': '' } },
+    ]);
+
+    const updateEligibilityCell = (rowId: string, colId: string, value: string) => {
+        setEligibilityRows((rows) => rows.map((r) => (r.id === rowId ? { ...r, data: { ...r.data, [colId]: value } } : r)));
+    };
+
+    const addEligibilityRow = () => {
+        const newRow: EligibilityRow = {
+            id: `row-${Date.now()}`,
+            data: eligibilityColumns.reduce((acc, col) => ({ ...acc, [col.id]: '' }), {}),
+        };
+        setEligibilityRows((rows) => [...rows, newRow]);
+    };
+
+    const removeEligibilityRow = (rowId: string) => {
+        setEligibilityRows((rows) => rows.filter((r) => r.id !== rowId));
+    };
+
+    const addEligibilityColumn = () => {
+        const colId = `col-${Date.now()}`;
+        const newCol: EligibilityColumn = { id: colId, name: 'New Column', width: 'auto' };
+        setEligibilityColumns((cols) => [...cols, newCol]);
+        setEligibilityRows((rows) => rows.map((r) => ({ ...r, data: { ...r.data, [colId]: '' } })));
+    };
+
+    const removeEligibilityColumn = (colId: string) => {
+        setEligibilityColumns((cols) => cols.filter((c) => c.id !== colId));
+        setEligibilityRows((rows) => rows.map((r) => ({ ...r, data: Object.fromEntries(Object.entries(r.data).filter(([k]) => k !== colId)) })));
+    };
+
+    const updateEligibilityColumnName = (colId: string, newName: string) => {
+        setEligibilityColumns((cols) => cols.map((c) => (c.id === colId ? { ...c, name: newName } : c)));
+    };
+
+    // Section B.C - Technical Evaluation (fully customizable table with cell types)
+    type TechnicalColumn = { id: string; name: string; width?: string; cellType?: 'text' | 'radio' };
+    type TechnicalRow = { id: string; data: Record<string, string> };
+
+    const [technicalColumns, setTechnicalColumns] = useState<TechnicalColumn[]>([
+        { id: 'col-1', name: 'Specifications', width: 'auto', cellType: 'text' },
+        { id: 'col-2', name: 'Quantity', width: '120px', cellType: 'text' },
+        { id: 'col-3', name: 'Stationery & Office Supplies', width: 'auto', cellType: 'text' },
+        { id: 'col-4', name: 'Bid Amount (Inclusive of GCT)', width: '200px', cellType: 'text' },
+    ]);
+
+    const [technicalRows, setTechnicalRows] = useState<TechnicalRow[]>([
+        {
+            id: 'row-1',
+            data: {
+                'col-1': 'AA-532BK Image 3 Lever H/Duty Task Chair w/Arms - Black',
+                'col-2': '1',
+                'col-3': 'Stationery & Office Supplies',
+                'col-4': '49680.00',
+            },
+        },
+    ]);
+
+    const updateTechnicalCell = (rowId: string, colId: string, value: string) => {
+        setTechnicalRows((rows) => rows.map((r) => (r.id === rowId ? { ...r, data: { ...r.data, [colId]: value } } : r)));
+    };
+
+    const addTechnicalRow = () => {
+        const newRow: TechnicalRow = {
+            id: `row-${Date.now()}`,
+            data: technicalColumns.reduce((acc, col) => ({ ...acc, [col.id]: '' }), {}),
+        };
+        setTechnicalRows((rows) => [...rows, newRow]);
+    };
+
+    const removeTechnicalRow = (rowId: string) => {
+        setTechnicalRows((rows) => rows.filter((r) => r.id !== rowId));
+    };
+
+    const addTechnicalColumn = () => {
+        const colId = `col-${Date.now()}`;
+        const newCol: TechnicalColumn = { id: colId, name: 'New Column', width: 'auto', cellType: 'text' };
+        setTechnicalColumns((cols) => [...cols, newCol]);
+        // Add empty data for this column in all existing rows
+        setTechnicalRows((rows) => rows.map((r) => ({ ...r, data: { ...r.data, [colId]: '' } })));
+    };
+
+    const removeTechnicalColumn = (colId: string) => {
+        setTechnicalColumns((cols) => cols.filter((c) => c.id !== colId));
+        // Remove data for this column from all rows
+        setTechnicalRows((rows) => rows.map((r) => ({ ...r, data: Object.fromEntries(Object.entries(r.data).filter(([k]) => k !== colId)) })));
+    };
+
+    const updateColumnName = (colId: string, newName: string) => {
+        setTechnicalColumns((cols) => cols.map((c) => (c.id === colId ? { ...c, name: newName } : c)));
+    };
+
+    const updateColumnType = (colId: string, cellType: 'text' | 'radio') => {
+        setTechnicalColumns((cols) => cols.map((c) => (c.id === colId ? { ...c, cellType } : c)));
+        // If switching to radio, clear values that aren't Yes/No
+        if (cellType === 'radio') {
+            setTechnicalRows((rows) =>
+                rows.map((r) => {
+                    const currentValue = r.data[colId]?.toLowerCase();
+                    const newValue = currentValue === 'yes' || currentValue === 'no' ? currentValue.charAt(0).toUpperCase() + currentValue.slice(1) : '';
+                    return { ...r, data: { ...r.data, [colId]: newValue } };
+                })
+            );
+        }
     };
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -348,30 +460,34 @@ const NewEvaluation = () => {
                 sectionB: {
                     bidders: [
                         {
-                            bidderName: (technicalRows[0]?.bidderName || '').trim(),
-                            ppcCategory: eligibilityRows.find((r) => r.label.toLowerCase().includes('ppc'))?.value?.trim() || '',
-                            tciTrn: eligibilityRows.find((r) => r.label.toLowerCase().includes('tci') || r.label.toLowerCase().includes('trn'))?.value?.trim() || '',
-                            bidAmountInclusiveGCT: (() => {
-                                const fromEligibility = eligibilityRows.find((r) => r.label.toLowerCase().includes('amount'))?.value;
-                                const fromTech = technicalRows[0]?.bidAmount;
-                                const val = fromEligibility && fromEligibility.trim() !== '' ? fromEligibility : fromTech;
-                                return safeParseFloat(val);
-                            })(),
-                            complianceMatrix: {
-                                signedLetterOfQuotation: complianceRows.some((r) => r.requirement.toLowerCase().includes('letter of quotation')),
-                                signedPriceSchedules: complianceRows.some((r) => r.requirement.toLowerCase().includes('price')),
-                                signedStatementOfCompliance: complianceRows.some((r) => r.requirement.toLowerCase().includes('compliance')),
-                                bidValidity30Days: complianceRows.some((r) => r.requirement.toLowerCase().includes('validity')),
-                                quotationProvided: complianceRows.some((r) => r.requirement.toLowerCase().includes('quotation')),
-                                bidAmountMatches: complianceRows.some((r) => r.requirement.toLowerCase().includes('amount')),
+                            bidderName: '', // Can be extracted from table if needed
+                            eligibilityRequirements: {
+                                columns: eligibilityColumns,
+                                rows: eligibilityRows
+                                    .filter((row) => Object.values(row.data).some((val) => val.trim() !== ''))
+                                    .map((row) => ({
+                                        id: row.id,
+                                        data: row.data,
+                                    })),
                             },
-                            technicalEvaluation: technicalRows
-                                .filter((r) => r.specifications.trim() !== '' || r.quantity.trim() !== '' || r.bidAmount.trim() !== '')
-                                .map((r) => ({
-                                    specifications: r.specifications.trim(),
-                                    quantity: safeParseInt(r.quantity),
-                                    bidAmount: safeParseFloat(r.bidAmount),
-                                })),
+                            complianceMatrix: {
+                                columns: complianceColumns,
+                                rows: complianceRows
+                                    .filter((row) => Object.values(row.data).some((val) => val.trim() !== ''))
+                                    .map((row) => ({
+                                        id: row.id,
+                                        data: row.data,
+                                    })),
+                            },
+                            technicalEvaluation: {
+                                columns: technicalColumns,
+                                rows: technicalRows
+                                    .filter((row) => Object.values(row.data).some((val) => val.trim() !== ''))
+                                    .map((row) => ({
+                                        id: row.id,
+                                        data: row.data,
+                                    })),
+                            },
                         },
                     ],
                 },
@@ -381,13 +497,25 @@ const NewEvaluation = () => {
 
             const result = await evaluationService.createEvaluation(evaluationData);
 
-            setAlertMessage(`BSJ Evaluation ${evalNumber} created successfully!`);
+            setCreatedEvaluationId(result.id);
+            setAlertMessage(`BSJ Evaluation ${evalNumber} created successfully! Now assign technical evaluators for Section B.`);
             setShowSuccessAlert(true);
 
-            setTimeout(() => {
-                setShowSuccessAlert(false);
-                navigate('/procurement/evaluation');
-            }, 2000);
+            // Load users for selection
+            try {
+                const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
+                const resp = await fetch(getApiUrl('/admin/users'), {
+                    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                });
+                if (resp.ok) {
+                    const users = await resp.json();
+                    setAvailableUsers(users);
+                }
+            } catch {
+                // ignore
+            }
+
+            setShowAssignModal(true);
         } catch (error: any) {
             console.error('Failed to create evaluation:', error);
             setErrorFields([error.message || 'Failed to create evaluation. Please try again.']);
@@ -396,6 +524,30 @@ const NewEvaluation = () => {
             setTimeout(() => {
                 setShowErrorAlert(false);
             }, 5000);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const toggleSelectedUser = (id: number) => {
+        setSelectedUserIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+    };
+
+    const toggleSection = (sec: 'A' | 'B' | 'C' | 'D' | 'E') => {
+        setSelectedSections((prev) => (prev.includes(sec) ? prev.filter((s) => s !== sec) : [...prev, sec]));
+    };
+
+    const handleSendAssignments = async () => {
+        if (!createdEvaluationId) return;
+        try {
+            setLoading(true);
+            await evaluationService.assignEvaluators(createdEvaluationId, { userIds: selectedUserIds, sections: selectedSections });
+            setShowAssignModal(false);
+            navigate('/procurement/evaluation');
+        } catch (err: any) {
+            setAlertMessage(err.message || 'Failed to send assignments');
+            setShowErrorAlert(true);
+            setTimeout(() => setShowErrorAlert(false), 4000);
         } finally {
             setLoading(false);
         }
@@ -489,6 +641,93 @@ const NewEvaluation = () => {
                             <button type="button" className="ltr:ml-auto rtl:mr-auto hover:opacity-80" onClick={() => setShowErrorAlert(false)}>
                                 <IconX className="h-5 w-5" />
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Assign to Evaluators Modal */}
+            {showAssignModal && (
+                <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60">
+                    <div className="panel w-full max-w-3xl overflow-hidden rounded-lg p-0">
+                        <div className="flex items-center p-3.5 rounded-t text-primary bg-primary-light dark:bg-primary-dark-light">
+                            <span className="ltr:pr-2 rtl:pl-2 flex-1">
+                                <strong className="ltr:mr-1 rtl:ml-1 text-lg">Assign Technical Evaluators</strong>
+                            </span>
+                            <button type="button" className="ltr:ml-auto rtl:mr-auto hover:opacity-80" onClick={() => setShowAssignModal(false)}>
+                                <IconX className="h-5 w-5" />
+                            </button>
+                        </div>
+                        <div className="p-5 space-y-4">
+                            <div className="bg-info-light p-3 rounded">
+                                <p className="text-sm font-semibold text-info">Section B: Technical Evaluation</p>
+                                <p className="text-xs text-white-dark mt-1">
+                                    Select evaluators who will complete the technical evaluation tables (eligibility, compliance, and technical criteria). Requester(s) are automatically included.
+                                </p>
+                            </div>
+                            <div className="flex flex-col md:flex-row gap-4">
+                                <div className="flex-1">
+                                    <div className="mb-2">
+                                        <input
+                                            type="text"
+                                            placeholder="Search users by name or email"
+                                            className="form-input w-full"
+                                            value={userSearch}
+                                            onChange={(e) => setUserSearch(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="max-h-72 overflow-auto border rounded">
+                                        {availableUsers
+                                            .filter((u) => {
+                                                const q = userSearch.toLowerCase();
+                                                const hay = `${u.name || ''} ${u.email}`.toLowerCase();
+                                                return !q || hay.includes(q);
+                                            })
+                                            .map((u) => (
+                                                <label key={u.id} className="flex items-center gap-3 p-2 border-b last:border-b-0">
+                                                    <input type="checkbox" className="form-checkbox" checked={selectedUserIds.includes(u.id)} onChange={() => toggleSelectedUser(u.id)} />
+                                                    <div className="flex-1">
+                                                        <div className="font-semibold">{u.name || u.email}</div>
+                                                        <div className="text-xs text-white-dark">{u.email}</div>
+                                                    </div>
+                                                </label>
+                                            ))}
+                                        {availableUsers.length === 0 && <div className="p-3 text-sm text-white-dark">No users found.</div>}
+                                    </div>
+                                </div>
+                                <div className="w-full md:w-60">
+                                    <div className="font-semibold mb-2">Assign Sections</div>
+                                    <label className="flex items-center gap-2 mb-2 opacity-50 cursor-not-allowed">
+                                        <input type="checkbox" className="form-checkbox" disabled />
+                                        <span className="text-sm">Section A (Procurement)</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 mb-2">
+                                        <input type="checkbox" className="form-checkbox" checked={selectedSections.includes('B')} onChange={() => toggleSection('B')} />
+                                        <span className="text-sm font-semibold">Section B (Technical)</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 mb-2">
+                                        <input type="checkbox" className="form-checkbox" checked={selectedSections.includes('C')} onChange={() => toggleSection('C')} />
+                                        <span className="text-sm">Section C (Comments)</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 mb-2 opacity-50 cursor-not-allowed">
+                                        <input type="checkbox" className="form-checkbox" disabled />
+                                        <span className="text-sm">Section D (Summary)</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 mb-2 opacity-50 cursor-not-allowed">
+                                        <input type="checkbox" className="form-checkbox" disabled />
+                                        <span className="text-sm">Section E (Recommendation)</span>
+                                    </label>
+                                    <div className="text-xs text-info mt-2">Assigned users can edit their sections</div>
+                                </div>
+                            </div>
+                            <div className="flex justify-end gap-2 mt-4">
+                                <button className="btn btn-outline-danger" onClick={() => setShowAssignModal(false)}>
+                                    Cancel
+                                </button>
+                                <button className="btn btn-primary" onClick={handleSendAssignments} disabled={loading || selectedUserIds.length === 0}>
+                                    {loading ? 'Assigning...' : `Assign to ${selectedUserIds.length} User${selectedUserIds.length !== 1 ? 's' : ''}`}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -993,51 +1232,73 @@ const NewEvaluation = () => {
                         </div>
 
                         <div className="space-y-6 p-5">
-                            {/* A. Eligibility Requirements */}
+                            {/* A. Eligibility Requirements - Fully Customizable Table */}
                             <div>
                                 <h6 className="text-md font-bold mb-4">A. Eligibility Requirements</h6>
                                 <div className="flex items-center justify-between mb-2">
-                                    <p className="text-xs text-gray-500">Add or remove eligibility details as needed.</p>
-                                    <button type="button" onClick={addEligibilityRow} className="btn btn-outline-primary btn-sm">
-                                        Add Row
-                                    </button>
+                                    <p className="text-xs text-gray-500">Customize columns and rows for eligibility details.</p>
+                                    <div className="flex gap-2">
+                                        <button type="button" onClick={addEligibilityColumn} className="btn btn-outline-info btn-sm">
+                                            + Add Column
+                                        </button>
+                                        <button type="button" onClick={addEligibilityRow} className="btn btn-outline-primary btn-sm">
+                                            + Add Row
+                                        </button>
+                                    </div>
                                 </div>
                                 <div className="overflow-x-auto">
                                     <table className="table-auto w-full border-collapse border border-gray-300 dark:border-gray-600">
                                         <thead>
                                             <tr className="bg-gray-100 dark:bg-gray-800">
-                                                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">ELIGIBILITY REQUIREMENT</th>
-                                                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Stationery & Office Supplies</th>
+                                                {eligibilityColumns.map((col) => (
+                                                    <th key={col.id} className="border border-gray-300 dark:border-gray-600 px-2 py-2" style={{ width: col.width }}>
+                                                        <div className="flex items-center gap-2">
+                                                            <input
+                                                                type="text"
+                                                                className="form-input text-sm font-semibold bg-transparent border-0 p-1"
+                                                                value={col.name}
+                                                                onChange={(e) => updateEligibilityColumnName(col.id, e.target.value)}
+                                                                placeholder="Column name"
+                                                            />
+                                                            {eligibilityColumns.length > 1 && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => removeEligibilityColumn(col.id)}
+                                                                    className="text-danger hover:bg-danger hover:text-white p-1 rounded transition-colors"
+                                                                    title="Remove column"
+                                                                >
+                                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                                    </svg>
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </th>
+                                                ))}
                                                 <th className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-left font-semibold w-24">Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {eligibilityRows.map((row, idx) => (
-                                                <tr key={idx}>
-                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2">
-                                                        <input
-                                                            type="text"
-                                                            className="form-input w-full"
-                                                            value={row.label}
-                                                            onChange={(e) => updateEligibilityRow(idx, 'label', e.target.value)}
-                                                            placeholder={idx === 0 ? 'PPC Reg in the category of:' : 'Requirement label'}
-                                                        />
-                                                    </td>
-                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2">
-                                                        <input
-                                                            type="text"
-                                                            className="form-input w-full"
-                                                            value={row.value}
-                                                            onChange={(e) => updateEligibilityRow(idx, 'value', e.target.value)}
-                                                            placeholder="Value"
-                                                        />
-                                                    </td>
-                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-right">
+                                            {eligibilityRows.map((row) => (
+                                                <tr key={row.id}>
+                                                    {eligibilityColumns.map((col) => (
+                                                        <td key={col.id} className="border border-gray-300 dark:border-gray-600 px-2 py-2">
+                                                            <input
+                                                                type="text"
+                                                                className="form-input w-full text-sm"
+                                                                value={row.data[col.id] || ''}
+                                                                onChange={(e) => updateEligibilityCell(row.id, col.id, e.target.value)}
+                                                                placeholder="Enter value"
+                                                            />
+                                                        </td>
+                                                    ))}
+                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-center">
                                                         <button
                                                             type="button"
-                                                            onClick={() => removeEligibilityRow(idx)}
+                                                            onClick={() => removeEligibilityRow(row.id)}
                                                             className="btn btn-outline-danger btn-sm"
                                                             disabled={eligibilityRows.length <= 1}
+                                                            title="Remove row"
                                                         >
                                                             Remove
                                                         </button>
@@ -1049,57 +1310,74 @@ const NewEvaluation = () => {
                                 </div>
                             </div>
 
-                            {/* B. Compliance Matrix */}
+                            {/* B. Compliance Matrix - Fully Customizable Table */}
                             <div>
                                 <h6 className="text-md font-bold mb-4">B. Compliance Matrix</h6>
                                 <div className="flex items-center justify-between mb-2">
-                                    <p className="text-xs text-gray-500">Add or remove rows as needed.</p>
-                                    <button type="button" onClick={addComplianceRow} className="btn btn-outline-primary btn-sm">
-                                        Add Row
-                                    </button>
+                                    <p className="text-xs text-gray-500">Customize columns and rows for compliance tracking.</p>
+                                    <div className="flex gap-2">
+                                        <button type="button" onClick={addComplianceColumn} className="btn btn-outline-info btn-sm">
+                                            + Add Column
+                                        </button>
+                                        <button type="button" onClick={addComplianceRow} className="btn btn-outline-primary btn-sm">
+                                            + Add Row
+                                        </button>
+                                    </div>
                                 </div>
                                 <div className="overflow-x-auto">
                                     <table className="table-auto w-full border-collapse border border-gray-300 dark:border-gray-600">
                                         <thead>
                                             <tr className="bg-gray-100 dark:bg-gray-800">
-                                                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Clause</th>
-                                                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">COMPLIANCE MATRIX</th>
-                                                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Stationery & Office Supplies</th>
+                                                {complianceColumns.map((col) => (
+                                                    <th key={col.id} className="border border-gray-300 dark:border-gray-600 px-2 py-2" style={{ width: col.width }}>
+                                                        <div className="flex items-center gap-2">
+                                                            <input
+                                                                type="text"
+                                                                className="form-input text-sm font-semibold bg-transparent border-0 p-1"
+                                                                value={col.name}
+                                                                onChange={(e) => updateComplianceColumnName(col.id, e.target.value)}
+                                                                placeholder="Column name"
+                                                            />
+                                                            {complianceColumns.length > 1 && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => removeComplianceColumn(col.id)}
+                                                                    className="text-danger hover:bg-danger hover:text-white p-1 rounded transition-colors"
+                                                                    title="Remove column"
+                                                                >
+                                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                                    </svg>
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </th>
+                                                ))}
                                                 <th className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-left font-semibold w-24">Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {complianceRows.map((row, idx) => (
-                                                <tr key={idx}>
-                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2">
-                                                        <input
-                                                            type="text"
-                                                            className="form-input w-full"
-                                                            value={row.clause}
-                                                            onChange={(e) => updateComplianceRow(idx, 'clause', e.target.value)}
-                                                            placeholder={idx === 0 ? 'ITB 14.1' : ''}
-                                                        />
-                                                    </td>
-                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2">
-                                                        <input
-                                                            type="text"
-                                                            className="form-input w-full"
-                                                            value={row.requirement}
-                                                            onChange={(e) => updateComplianceRow(idx, 'requirement', e.target.value)}
-                                                            placeholder="Requirement"
-                                                        />
-                                                    </td>
-                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2">
-                                                        <input
-                                                            type="text"
-                                                            className="form-input w-full"
-                                                            value={row.bidderResponse}
-                                                            onChange={(e) => updateComplianceRow(idx, 'bidderResponse', e.target.value)}
-                                                            placeholder="N/A / YES / $..."
-                                                        />
-                                                    </td>
-                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-right">
-                                                        <button type="button" onClick={() => removeComplianceRow(idx)} className="btn btn-outline-danger btn-sm" disabled={complianceRows.length <= 1}>
+                                            {complianceRows.map((row) => (
+                                                <tr key={row.id}>
+                                                    {complianceColumns.map((col) => (
+                                                        <td key={col.id} className="border border-gray-300 dark:border-gray-600 px-2 py-2">
+                                                            <input
+                                                                type="text"
+                                                                className="form-input w-full text-sm"
+                                                                value={row.data[col.id] || ''}
+                                                                onChange={(e) => updateComplianceCell(row.id, col.id, e.target.value)}
+                                                                placeholder="Enter value"
+                                                            />
+                                                        </td>
+                                                    ))}
+                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-center">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => removeComplianceRow(row.id)}
+                                                            className="btn btn-outline-danger btn-sm"
+                                                            disabled={complianceRows.length <= 1}
+                                                            title="Remove row"
+                                                        >
                                                             Remove
                                                         </button>
                                                     </td>
@@ -1110,68 +1388,112 @@ const NewEvaluation = () => {
                                 </div>
                             </div>
 
-                            {/* Technical Evaluation */}
+                            {/* Technical Evaluation - Fully Customizable Table */}
                             <div>
                                 <h6 className="text-md font-bold mb-4">Technical Evaluation</h6>
                                 <div className="flex items-center justify-between mb-2">
-                                    <p className="text-xs text-gray-500">Add or remove technical items as needed.</p>
-                                    <button type="button" onClick={addTechnicalRow} className="btn btn-outline-primary btn-sm">
-                                        Add Row
-                                    </button>
+                                    <p className="text-xs text-gray-500">Customize columns and rows to match your evaluation needs.</p>
+                                    <div className="flex gap-2">
+                                        <button type="button" onClick={addTechnicalColumn} className="btn btn-outline-info btn-sm">
+                                            + Add Column
+                                        </button>
+                                        <button type="button" onClick={addTechnicalRow} className="btn btn-outline-primary btn-sm">
+                                            + Add Row
+                                        </button>
+                                    </div>
                                 </div>
                                 <div className="overflow-x-auto">
                                     <table className="table-auto w-full border-collapse border border-gray-300 dark:border-gray-600">
                                         <thead>
                                             <tr className="bg-gray-100 dark:bg-gray-800">
-                                                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Specifications</th>
-                                                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Quantity</th>
-                                                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Stationery & Office Supplies</th>
-                                                <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left font-semibold">Bid Amount (Inclusive of GCT)</th>
+                                                {technicalColumns.map((col) => (
+                                                    <th key={col.id} className="border border-gray-300 dark:border-gray-600 px-2 py-2" style={{ width: col.width }}>
+                                                        <div className="flex flex-col gap-2">
+                                                            <div className="flex items-center gap-2">
+                                                                <input
+                                                                    type="text"
+                                                                    className="form-input text-sm font-semibold bg-transparent border-0 p-1 flex-1"
+                                                                    value={col.name}
+                                                                    onChange={(e) => updateColumnName(col.id, e.target.value)}
+                                                                    placeholder="Column name"
+                                                                />
+                                                                {technicalColumns.length > 1 && (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => removeTechnicalColumn(col.id)}
+                                                                        className="text-danger hover:bg-danger hover:text-white p-1 rounded transition-colors"
+                                                                        title="Remove column"
+                                                                    >
+                                                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                                        </svg>
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                <select
+                                                                    className="form-select text-xs py-1 px-2"
+                                                                    value={col.cellType || 'text'}
+                                                                    onChange={(e) => updateColumnType(col.id, e.target.value as 'text' | 'radio')}
+                                                                    title="Cell type"
+                                                                >
+                                                                    <option value="text">Text</option>
+                                                                    <option value="radio">Yes/No</option>
+                                                                </select>
+                                                            </div>
+                                                        </div>
+                                                    </th>
+                                                ))}
                                                 <th className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-left font-semibold w-24">Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {technicalRows.map((row, idx) => (
-                                                <tr key={idx}>
-                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2 align-top">
-                                                        <textarea
-                                                            className="form-textarea w-full"
-                                                            rows={2}
-                                                            placeholder="Enter specifications"
-                                                            value={row.specifications}
-                                                            onChange={(e) => updateTechnicalRow(idx, 'specifications', e.target.value)}
-                                                        ></textarea>
-                                                    </td>
-                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2">
-                                                        <input
-                                                            type="number"
-                                                            className="form-input w-full"
-                                                            placeholder="1"
-                                                            value={row.quantity}
-                                                            onChange={(e) => updateTechnicalRow(idx, 'quantity', e.target.value)}
-                                                        />
-                                                    </td>
-                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2">
-                                                        <input
-                                                            type="text"
-                                                            className="form-input w-full"
-                                                            placeholder="Stationery & Office Supplies"
-                                                            value={row.bidderName}
-                                                            onChange={(e) => updateTechnicalRow(idx, 'bidderName', e.target.value)}
-                                                        />
-                                                    </td>
-                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2">
-                                                        <input
-                                                            type="number"
-                                                            step="0.01"
-                                                            className="form-input w-full"
-                                                            placeholder="$0.00"
-                                                            value={row.bidAmount}
-                                                            onChange={(e) => updateTechnicalRow(idx, 'bidAmount', e.target.value)}
-                                                        />
-                                                    </td>
-                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-right">
-                                                        <button type="button" onClick={() => removeTechnicalRow(idx)} className="btn btn-outline-danger btn-sm" disabled={technicalRows.length <= 1}>
+                                            {technicalRows.map((row) => (
+                                                <tr key={row.id}>
+                                                    {technicalColumns.map((col) => (
+                                                        <td key={col.id} className="border border-gray-300 dark:border-gray-600 px-2 py-2 align-top">
+                                                            {col.cellType === 'radio' ? (
+                                                                <div className="flex items-center gap-4 justify-center">
+                                                                    <label className="flex items-center gap-1 cursor-pointer">
+                                                                        <input
+                                                                            type="radio"
+                                                                            name={`${row.id}-${col.id}`}
+                                                                            className="form-radio"
+                                                                            checked={row.data[col.id] === 'Yes'}
+                                                                            onChange={() => updateTechnicalCell(row.id, col.id, 'Yes')}
+                                                                        />
+                                                                        <span className="text-sm">Yes</span>
+                                                                    </label>
+                                                                    <label className="flex items-center gap-1 cursor-pointer">
+                                                                        <input
+                                                                            type="radio"
+                                                                            name={`${row.id}-${col.id}`}
+                                                                            className="form-radio"
+                                                                            checked={row.data[col.id] === 'No'}
+                                                                            onChange={() => updateTechnicalCell(row.id, col.id, 'No')}
+                                                                        />
+                                                                        <span className="text-sm">No</span>
+                                                                    </label>
+                                                                </div>
+                                                            ) : (
+                                                                <textarea
+                                                                    className="form-textarea w-full text-sm"
+                                                                    rows={2}
+                                                                    placeholder="Enter value"
+                                                                    value={row.data[col.id] || ''}
+                                                                    onChange={(e) => updateTechnicalCell(row.id, col.id, e.target.value)}
+                                                                />
+                                                            )}
+                                                        </td>
+                                                    ))}
+                                                    <td className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-center">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => removeTechnicalRow(row.id)}
+                                                            className="btn btn-outline-danger btn-sm"
+                                                            disabled={technicalRows.length <= 1}
+                                                            title="Remove row"
+                                                        >
                                                             Remove
                                                         </button>
                                                     </td>
@@ -1355,19 +1677,34 @@ const NewEvaluation = () => {
                                 </svg>
                                 Previous: Section C
                             </button>
-                            <button type="button" onClick={handleCreateEvaluation} className="btn btn-success gap-2" disabled={loading}>
-                                {loading ? (
-                                    <>
-                                        <span className="animate-spin border-2 border-white border-l-transparent rounded-full w-4 h-4 inline-block align-middle"></span>
-                                        <span>Creating...</span>
-                                    </>
-                                ) : (
-                                    <>
-                                        <IconChecks />
-                                        <span>Create Evaluation</span>
-                                    </>
+                            <div className="flex gap-3">
+                                {createdEvaluationId && (
+                                    <button type="button" onClick={() => setShowAssignModal(true)} className="btn btn-primary gap-2">
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                        </svg>
+                                        Assign Evaluators
+                                    </button>
                                 )}
-                            </button>
+                                <button type="button" onClick={handleCreateEvaluation} className="btn btn-success gap-2" disabled={loading || createdEvaluationId}>
+                                    {loading ? (
+                                        <>
+                                            <span className="animate-spin border-2 border-white border-l-transparent rounded-full w-4 h-4 inline-block align-middle"></span>
+                                            <span>Creating...</span>
+                                        </>
+                                    ) : createdEvaluationId ? (
+                                        <>
+                                            <IconChecks />
+                                            <span>Evaluation Created</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <IconChecks />
+                                            <span>Create Evaluation</span>
+                                        </>
+                                    )}
+                                </button>
+                            </div>
                         </div>
                     </>
                 )}

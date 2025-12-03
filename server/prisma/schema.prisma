@@ -152,6 +152,9 @@ model User {
   sectionCVerifications Evaluation[] @relation("SectionCVerifier")
   sectionDVerifications Evaluation[] @relation("SectionDVerifier")
   sectionEVerifications Evaluation[] @relation("SectionEVerifier")
+
+  // Assignments back-relation
+  evaluationAssignments EvaluationAssignment[]
 }
 
 model Department {
@@ -595,6 +598,12 @@ enum SectionVerificationStatus {
   VERIFIED
 }
 
+// Tracks assignment workflow for multi-evaluator completion
+enum AssignmentStatus {
+  PENDING
+  SUBMITTED
+}
+
 enum ProcurementMethod {
   INTERNATIONAL_COMPETITIVE_BIDDING
   NATIONAL_COMPETITIVE_BIDDING
@@ -628,6 +637,12 @@ model Evaluation {
   rfqTitle       String
   description    String?           @db.Text
   status         EvaluationStatus  @default(PENDING)
+  // Assigned Procurement Officer responsible for drafting Section B
+  assignedProcurementOfficerId Int?
+  assignedProcurementOfficer   User?    @relation("AssignedProcurementOfficer", fields: [assignedProcurementOfficerId], references: [id])
+
+  // Section B drafting/verification status gate
+  sectionBStatus SectionBStatus @default(DRAFT)
   
   // Link to combined request (if evaluating multiple lots)
   combinedRequest   CombinedRequest? @relation("CombinedRequestEvaluations", fields: [combinedRequestId], references: [id])
@@ -687,10 +702,32 @@ model Evaluation {
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
   
+  // Assignments (who can fill which sections)
+  assignments    EvaluationAssignment[]
+
   @@index([status])
   @@index([createdBy])
   @@index([evalNumber])
   @@index([rfqNumber])
+
+}
+
+/// Per-user assignment to contribute to an Evaluation
+model EvaluationAssignment {
+  id           Int              @id @default(autoincrement())
+  evaluation   Evaluation       @relation(fields: [evaluationId], references: [id])
+  evaluationId Int
+  user         User             @relation(fields: [userId], references: [id])
+  userId       Int
+  // Sections this user can complete, e.g. ["B", "C"]
+  sections     Json
+  status       AssignmentStatus @default(PENDING)
+  submittedAt  DateTime?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@unique([evaluationId, userId])
+  @@index([userId])
 }
 
 model LoadBalancingSettings {

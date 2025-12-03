@@ -31,13 +31,6 @@ router.get('/', authMiddleware, async (req, res) => {
         if (combinable !== 'true') {
             const combinedRequests = await prisma.combinedRequest.findMany({
                 include: {
-                    createdBy: {
-                        select: {
-                            id: true,
-                            name: true,
-                            email: true,
-                        },
-                    },
                     lots: {
                         select: {
                             id: true,
@@ -50,20 +43,32 @@ router.get('/', authMiddleware, async (req, res) => {
                 orderBy: { createdAt: 'desc' },
             });
 
-            const transformedCombined = combinedRequests.map((combined) => ({
-                id: combined.id,
-                reference: combined.reference,
-                title: combined.title,
-                description: combined.description,
-                lotsCount: combined.lots.length,
-                createdAt: combined.createdAt,
-                updatedAt: combined.updatedAt,
-                createdBy: {
-                    id: combined.createdBy.id,
-                    full_name: combined.createdBy.name,
-                    email: combined.createdBy.email,
-                },
-            }));
+            // Fetch user details separately for each combined request
+            const transformedCombined = await Promise.all(
+                combinedRequests.map(async (combined) => {
+                    const user = await prisma.user.findUnique({
+                        where: { id: combined.createdBy },
+                        select: { id: true, name: true, email: true },
+                    });
+
+                    return {
+                        id: combined.id,
+                        reference: combined.reference,
+                        title: combined.title,
+                        description: combined.description,
+                        lotsCount: combined.lots.length,
+                        createdAt: combined.createdAt,
+                        updatedAt: combined.updatedAt,
+                        createdBy: user
+                            ? {
+                                  id: user.id,
+                                  full_name: user.name || 'Unknown',
+                                  email: user.email,
+                              }
+                            : null,
+                    };
+                })
+            );
 
             return res.json(transformedCombined);
         }
