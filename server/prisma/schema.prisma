@@ -152,6 +152,7 @@ model User {
   sectionCVerifications Evaluation[] @relation("SectionCVerifier")
   sectionDVerifications Evaluation[] @relation("SectionDVerifier")
   sectionEVerifications Evaluation[] @relation("SectionEVerifier")
+  assignedEvaluations  Evaluation[] @relation("AssignedProcurementOfficer")
 
   // Assignments back-relation
   evaluationAssignments EvaluationAssignment[]
@@ -641,9 +642,6 @@ model Evaluation {
   assignedProcurementOfficerId Int?
   assignedProcurementOfficer   User?    @relation("AssignedProcurementOfficer", fields: [assignedProcurementOfficerId], references: [id])
 
-  // Section B drafting/verification status gate
-  sectionBStatus SectionBStatus @default(DRAFT)
-  
   // Link to combined request (if evaluating multiple lots)
   combinedRequest   CombinedRequest? @relation("CombinedRequestEvaluations", fields: [combinedRequestId], references: [id])
   combinedRequestId Int?

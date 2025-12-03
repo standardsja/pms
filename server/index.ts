@@ -4206,7 +4206,7 @@ app.post(
             const assignment = await (prisma as any).evaluationAssignment.upsert({
                 where: { evaluationId_userId: { evaluationId: evalId, userId: uid } },
                 update: { sections: sectionList },
-                create: { evaluationId: evalId, userId: uid, sections: sectionList },
+                create: { evaluationId: evalId, userId: uid, sections: sectionList, status: 'PENDING' },
             });
             created.push(assignment);
 
