@@ -39,6 +39,15 @@ const CombineRequests = () => {
     const [combinedRequests, setCombinedRequests] = useState<any[]>([]);
     const [showExisting, setShowExisting] = useState(false);
 
+    // UI-only enhancements: local filters/search (enterprise UX without backend changes)
+    const [searchQuery, setSearchQuery] = useState<string>('');
+    const [filterPriority, setFilterPriority] = useState<string>('ALL');
+    const [filterStatus, setFilterStatus] = useState<string>('ALL');
+    const [filterDepartment, setFilterDepartment] = useState<string>('ALL');
+
+    // Track initial load to show skeletons elegantly
+    const [initialLoad, setInitialLoad] = useState(true);
+
     // Combine configuration state
     const [config, setConfig] = useState<CombineRequestsConfig>({
         combinedTitle: '',
@@ -103,6 +112,7 @@ const CombineRequests = () => {
                 setError(err instanceof Error ? err.message : 'Failed to load requests');
             } finally {
                 setIsLoading(false);
+                setInitialLoad(false);
             }
         };
 
@@ -127,6 +137,25 @@ const CombineRequests = () => {
     const validation = useMemo(() => validateRequestCombination(selectedRequests), [selectedRequests]);
 
     const preview = useMemo(() => (selectedRequests.length >= 2 ? generateCombinePreview(selectedRequests, config) : null), [selectedRequests, config]);
+
+    // Derived filtered requests (pure UI layer)
+    const filteredRequests = useMemo(() => {
+        let data = [...requests];
+        if (searchQuery.trim()) {
+            const q = searchQuery.toLowerCase();
+            data = data.filter((r) => [r.reference, r.title, r.department, r.requestedBy].some((field) => field?.toLowerCase().includes(q)));
+        }
+        if (filterPriority !== 'ALL') data = data.filter((r) => r.priority === filterPriority);
+        if (filterStatus !== 'ALL') data = data.filter((r) => r.status === filterStatus);
+        if (filterDepartment !== 'ALL') data = data.filter((r) => r.department === filterDepartment);
+        return data;
+    }, [requests, searchQuery, filterPriority, filterStatus, filterDepartment]);
+
+    const distinctDepartments = useMemo(() => {
+        const setDep = new Set<string>();
+        requests.forEach((r) => r.department && setDep.add(r.department));
+        return Array.from(setDep).sort();
+    }, [requests]);
 
     const toggleRequestSelection = (request: CombinableRequest) => {
         setSelectedRequests((prev) => {
@@ -252,34 +281,117 @@ const CombineRequests = () => {
         }
     };
 
-    if (isLoading) {
-        return (
-            <div className="flex justify-center items-center min-h-[400px]">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
-        );
-    }
-
     return (
-        <div>
-            <div className="flex flex-wrap items-center justify-between gap-4 mb-5">
-                <h2 className="text-xl">Combine Requests</h2>
-                <div className="flex gap-2">
+        <main className="space-y-6">
+            {/* Page Header */}
+            <section className="rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-primary p-6 text-white shadow">
+                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+                    <div className="space-y-2">
+                        <h1 className="text-3xl font-semibold tracking-tight drop-shadow-sm">Request Combination</h1>
+                        <p className="text-white/90 text-sm leading-relaxed max-w-2xl">
+                            Strategically consolidate related procurement requests to optimize spend, reduce administrative overhead, and streamline approvals.
+                        </p>
+                    </div>
+                    <div className="flex flex-wrap gap-4">
+                        <div className="bg-white/10 backdrop-blur rounded-lg px-4 py-3 min-w-[140px]">
+                            <div className="text-xs uppercase tracking-wide text-white/70">Combinable</div>
+                            <div className="text-xl font-bold">{requests.length}</div>
+                        </div>
+                        <div className="bg-white/10 backdrop-blur rounded-lg px-4 py-3 min-w-[140px]">
+                            <div className="text-xs uppercase tracking-wide text-white/70">Selected</div>
+                            <div className="text-xl font-bold">{selectedRequests.length}</div>
+                        </div>
+                        <div className="bg-white/10 backdrop-blur rounded-lg px-4 py-3 min-w-[140px]">
+                            <div className="text-xs uppercase tracking-wide text-white/70">Combined</div>
+                            <div className="text-xl font-bold">{combinedRequests.length}</div>
+                        </div>
+                        {/* Removed Permissions metric box per request */}
+                    </div>
+                </div>
+                <div className="mt-6 flex flex-wrap gap-3">
                     {combinedRequests.length > 0 && (
-                        <button type="button" className="btn btn-outline-info gap-2" onClick={() => setShowExisting(!showExisting)}>
+                        <button
+                            type="button"
+                            aria-label={showExisting ? 'Hide existing combined requests' : 'Show existing combined requests'}
+                            className="btn bg-white text-indigo-600 hover:bg-indigo-50 border border-white/40 gap-2 shadow-sm"
+                            onClick={() => setShowExisting(!showExisting)}
+                        >
                             <IconEye className="w-5 h-5" />
-                            {showExisting ? 'Hide' : 'Show'} Existing Combined ({combinedRequests.length})
+                            {showExisting ? 'Hide Combined' : 'Show Combined'} ({combinedRequests.length})
                         </button>
                     )}
-                    <button type="button" className="btn btn-secondary gap-2" onClick={handleSelectAll}>
+                    <button
+                        type="button"
+                        aria-label="Select all combinable requests"
+                        className="btn bg-white text-indigo-600 hover:bg-indigo-50 border border-white/40 gap-2 shadow-sm"
+                        onClick={handleSelectAll}
+                    >
                         {selectedRequests.length === requests.length ? 'Deselect All' : 'Select All'}
                     </button>
-                    <button type="button" className="btn btn-primary gap-2" onClick={handleCombineClick} disabled={selectedRequests.length < 2 || !validation.isValid || !permissions.canCombine}>
+                    <button
+                        type="button"
+                        aria-label="Combine selected requests"
+                        className="btn bg-white text-indigo-600 hover:bg-indigo-50 border border-white/40 gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                        onClick={handleCombineClick}
+                        disabled={selectedRequests.length < 2 || !validation.isValid || !permissions.canCombine}
+                    >
                         <IconPlus className="w-5 h-5" />
-                        Combine Selected ({selectedRequests.length})
+                        Combine ({selectedRequests.length})
                     </button>
                 </div>
-            </div>
+            </section>
+
+            {/* Filters */}
+            <section className="panel border-t-4 border-primary">
+                <div className="panel-header flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <h2 className="text-lg font-semibold">Filter & Refine</h2>
+                    <div className="text-xs text-gray-500">Refine visible requests before combining. Filters are client-side only.</div>
+                </div>
+                <div className="panel-body grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                    <div className="space-y-1">
+                        <label className="text-xs font-medium tracking-wide text-gray-600">Search</label>
+                        <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="Reference, title, department, user..."
+                            className="form-input"
+                            aria-label="Search requests"
+                        />
+                    </div>
+                    <div className="space-y-1">
+                        <label className="text-xs font-medium tracking-wide text-gray-600">Priority</label>
+                        <select className="form-select" value={filterPriority} onChange={(e) => setFilterPriority(e.target.value)} aria-label="Filter by priority">
+                            <option value="ALL">All</option>
+                            <option value="LOW">Low</option>
+                            <option value="MEDIUM">Medium</option>
+                            <option value="HIGH">High</option>
+                            <option value="URGENT">Urgent</option>
+                        </select>
+                    </div>
+                    <div className="space-y-1">
+                        <label className="text-xs font-medium tracking-wide text-gray-600">Status</label>
+                        <select className="form-select" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} aria-label="Filter by status">
+                            <option value="ALL">All</option>
+                            <option value="DRAFT">Draft</option>
+                            <option value="SUBMITTED">Submitted</option>
+                            <option value="DEPARTMENT_REVIEW">Department Review</option>
+                            <option value="PROCUREMENT_REVIEW">Procurement Review</option>
+                        </select>
+                    </div>
+                    <div className="space-y-1">
+                        <label className="text-xs font-medium tracking-wide text-gray-600">Department</label>
+                        <select className="form-select" value={filterDepartment} onChange={(e) => setFilterDepartment(e.target.value)} aria-label="Filter by department">
+                            <option value="ALL">All</option>
+                            {distinctDepartments.map((dep) => (
+                                <option key={dep} value={dep}>
+                                    {dep}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                </div>
+            </section>
 
             {error && (
                 <div className="alert alert-danger mb-5">
@@ -295,36 +407,52 @@ const CombineRequests = () => {
 
             {/* Existing Combined Requests */}
             {showExisting && combinedRequests.length > 0 && (
-                <div className="panel mb-5">
-                    <div className="panel-header">
+                <div className="panel overflow-hidden">
+                    <div className="panel-header flex items-center justify-between">
                         <h5 className="font-semibold text-lg">Existing Combined Requests</h5>
+                        <div className="text-xs text-gray-500">
+                            {combinedRequests.length} combined request{combinedRequests.length !== 1 ? 's' : ''}
+                        </div>
                     </div>
                     <div className="table-responsive">
                         <table className="table-hover">
-                            <thead>
+                            <thead className="bg-gray-50 dark:bg-slate-700">
                                 <tr>
-                                    <th>Reference</th>
-                                    <th>Title</th>
-                                    <th>Lots</th>
-                                    <th>Created</th>
-                                    <th>Created By</th>
-                                    <th>Actions</th>
+                                    <th className="px-4 py-3.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Reference</th>
+                                    <th className="px-4 py-3.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Title</th>
+                                    <th className="px-4 py-3.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Lots</th>
+                                    <th className="px-4 py-3.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Created</th>
+                                    <th className="px-4 py-3.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Created By</th>
+                                    <th className="px-4 py-3.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {combinedRequests.map((combined: any) => (
-                                    <tr key={combined.id}>
-                                        <td>
-                                            <span className="font-semibold text-primary">{combined.reference}</span>
+                                    <tr key={combined.id} className="border-t hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
+                                        <td className="px-4 py-4">
+                                            <span className="text-sm font-semibold text-primary">{combined.reference}</span>
                                         </td>
-                                        <td>{combined.title}</td>
-                                        <td>
-                                            <span className="badge bg-info">{combined.lotsCount || 0} Lots</span>
+                                        <td className="px-4 py-4">
+                                            <div className="text-sm font-medium text-gray-900 dark:text-gray-100 max-w-md">{combined.title}</div>
                                         </td>
-                                        <td>{new Date(combined.createdAt).toLocaleDateString()}</td>
-                                        <td>{combined.createdBy?.full_name || 'Unknown'}</td>
-                                        <td>
-                                            <button type="button" className="btn btn-sm btn-primary gap-1" onClick={() => navigate(`/apps/requests/combined/${combined.id}`)}>
+                                        <td className="px-4 py-4">
+                                            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide bg-info text-white whitespace-nowrap">
+                                                {combined.lotsCount || 0} Lots
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-4">
+                                            <span className="text-sm text-gray-700 dark:text-gray-300">{new Date(combined.createdAt).toLocaleDateString()}</span>
+                                        </td>
+                                        <td className="px-4 py-4">
+                                            <span className="text-sm text-gray-700 dark:text-gray-300">{combined.createdBy?.full_name || 'Unknown'}</span>
+                                        </td>
+                                        <td className="px-4 py-4">
+                                            <button
+                                                type="button"
+                                                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary/90 shadow-sm transition-all"
+                                                onClick={() => navigate(`/apps/requests/combined/${combined.id}`)}
+                                                aria-label="View combined request details"
+                                            >
                                                 <IconEye className="w-4 h-4" />
                                                 View Details
                                             </button>
@@ -376,79 +504,108 @@ const CombineRequests = () => {
             )}
 
             {/* Requests Table */}
-            <div className="datatables">
-                <table className="table-hover">
-                    <thead>
-                        <tr>
-                            <th>
-                                <input type="checkbox" checked={selectedRequests.length === requests.length && requests.length > 0} onChange={handleSelectAll} />
-                            </th>
-                            <th>Reference</th>
-                            <th>Title</th>
-                            <th>Department</th>
-                            <th>Requested By</th>
-                            <th>Total</th>
-                            <th>Priority</th>
-                            <th>Status</th>
-                            <th>Created</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {requests.length === 0 ? (
+            <div className="panel overflow-hidden">
+                <div className="panel-header flex items-center justify-between">
+                    <h5 className="font-semibold text-lg">Combinable Requests</h5>
+                    <div className="text-xs text-gray-500">
+                        Showing {filteredRequests.length} of {requests.length}
+                    </div>
+                </div>
+                <div className="table-responsive">
+                    <table className="table-hover">
+                        <thead>
                             <tr>
-                                <td colSpan={10} className="text-center py-4">
-                                    No combinable requests found
-                                </td>
+                                <th>
+                                    <input type="checkbox" checked={selectedRequests.length === requests.length && requests.length > 0} onChange={handleSelectAll} />
+                                </th>
+                                <th>Reference</th>
+                                <th>Title</th>
+                                <th>Department</th>
+                                <th>Requested By</th>
+                                <th>Total</th>
+                                <th>Priority</th>
+                                <th>Status</th>
+                                <th>Created</th>
+                                <th>Actions</th>
                             </tr>
-                        ) : (
-                            requests.map((request) => {
-                                const isSelected = selectedRequests.some((r) => r.id === request.id);
-                                return (
-                                    <tr key={request.id} className={isSelected ? 'bg-primary/10' : ''}>
-                                        <td>
-                                            <input type="checkbox" checked={isSelected} onChange={() => toggleRequestSelection(request)} />
-                                        </td>
-                                        <td className="font-semibold text-primary">{request.reference}</td>
-                                        <td>{request.title}</td>
-                                        <td>{request.department}</td>
-                                        <td>{request.requestedBy}</td>
-                                        <td>
-                                            {request.currency} {(request.totalEstimated || 0).toLocaleString()}
-                                        </td>
-                                        <td>
-                                            <span
-                                                className={`badge ${
-                                                    request.priority === 'URGENT'
-                                                        ? 'badge-danger'
-                                                        : request.priority === 'HIGH'
-                                                        ? 'badge-warning'
-                                                        : request.priority === 'MEDIUM'
-                                                        ? 'badge-info'
-                                                        : 'badge-secondary'
-                                                }`}
-                                            >
-                                                {request.priority}
-                                            </span>
-                                        </td>
-                                        <td>
-                                            {(() => {
-                                                const statusBadge = getStatusBadge(request.status);
-                                                return <span className={`badge px-2 py-1 rounded-full text-sm font-medium ${statusBadge.bg} ${statusBadge.text}`}>{statusBadge.label}</span>;
-                                            })()}
-                                        </td>
-                                        <td>{new Date(request.createdAt).toLocaleDateString()}</td>
-                                        <td>
-                                            <button type="button" className="btn btn-sm btn-outline-primary" onClick={() => navigate('/apps/requests')}>
-                                                <IconEye className="w-4 h-4" />
-                                            </button>
+                        </thead>
+                        <tbody>
+                            {initialLoad &&
+                                isLoading &&
+                                [...Array(5)].map((_, i) => (
+                                    <tr key={i}>
+                                        <td colSpan={10} className="py-3">
+                                            <div className="h-4 w-full animate-pulse bg-gray-200 rounded" />
                                         </td>
                                     </tr>
-                                );
-                            })
-                        )}
-                    </tbody>
-                </table>
+                                ))}
+                            {!isLoading && filteredRequests.length === 0 && (
+                                <tr>
+                                    <td colSpan={10} className="text-center py-6 text-sm text-gray-500">
+                                        No requests match current filters
+                                    </td>
+                                </tr>
+                            )}
+                            {!isLoading &&
+                                filteredRequests.map((request) => {
+                                    const isSelected = selectedRequests.some((r) => r.id === request.id);
+                                    return (
+                                        <tr key={request.id} className={isSelected ? 'bg-primary/10' : ''}>
+                                            <td>
+                                                <input type="checkbox" checked={isSelected} onChange={() => toggleRequestSelection(request)} />
+                                            </td>
+                                            <td className="font-semibold text-primary">{request.reference}</td>
+                                            <td>{request.title}</td>
+                                            <td>{request.department}</td>
+                                            <td>{request.requestedBy}</td>
+                                            <td>
+                                                {request.currency} {(request.totalEstimated || 0).toLocaleString()}
+                                            </td>
+                                            <td>
+                                                {(() => {
+                                                    const cls =
+                                                        request.priority === 'URGENT'
+                                                            ? 'bg-danger text-white'
+                                                            : request.priority === 'HIGH'
+                                                            ? 'bg-warning text-gray-900'
+                                                            : request.priority === 'MEDIUM'
+                                                            ? 'bg-info text-white'
+                                                            : 'bg-secondary text-white';
+                                                    return (
+                                                        <span
+                                                            className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold uppercase tracking-wide ${cls}`}
+                                                            aria-label={`Priority ${request.priority}`}
+                                                        >
+                                                            {request.priority}
+                                                        </span>
+                                                    );
+                                                })()}
+                                            </td>
+                                            <td>
+                                                {(() => {
+                                                    const statusBadge = getStatusBadge(request.status);
+                                                    return (
+                                                        <span
+                                                            className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold uppercase tracking-wide whitespace-nowrap ${statusBadge.bg} ${statusBadge.text}`}
+                                                            aria-label={`Status ${statusBadge.label}`}
+                                                        >
+                                                            {statusBadge.label}
+                                                        </span>
+                                                    );
+                                                })()}
+                                            </td>
+                                            <td>{new Date(request.createdAt).toLocaleDateString()}</td>
+                                            <td>
+                                                <button type="button" className="btn btn-sm btn-outline-primary" onClick={() => navigate('/apps/requests')}>
+                                                    <IconEye className="w-4 h-4" />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
             {/* Preview Panel */}
@@ -580,7 +737,7 @@ const CombineRequests = () => {
                             )}
                         </div>
 
-                        <div className="flex items-center justify-end gap-2 p-4 border-t">
+                        <div className="flex items-center justify-end gap-2 p-4 border-t bg-gray-50">
                             <button type="button" className="btn btn-outline-danger" onClick={() => setShowCombineModal(false)}>
                                 Cancel
                             </button>
@@ -592,7 +749,7 @@ const CombineRequests = () => {
                     </div>
                 </div>
             )}
-        </div>
+        </main>
     );
 };
 

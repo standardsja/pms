@@ -386,65 +386,65 @@ const EvaluationList = () => {
                         )}
                     </div>
                 ) : (
-                    <div className="table-responsive">
-                        <table className="table-hover">
+                    <div className="overflow-visible">
+                        <table className="table-hover w-full">
                             <thead>
                                 <tr>
-                                    <th>{t('evaluation.col.evalNumber', 'Evaluation #')}</th>
-                                    <th>{t('evaluation.col.rfqNumber', 'RFQ #')}</th>
-                                    <th>{t('evaluation.col.description', 'Description')}</th>
-                                    <th>{t('evaluation.col.evaluator', 'Evaluator')}</th>
-                                    <th>{t('evaluation.col.dueDate', 'Due Date')}</th>
-                                    <th>{t('evaluation.col.status', 'Status')}</th>
-                                    <th>{t('evaluation.col.actions', 'Actions')}</th>
+                                    <th className="whitespace-nowrap w-[120px]">{t('evaluation.col.evalNumber', 'Evaluation #')}</th>
+                                    <th className="whitespace-nowrap w-[120px]">{t('evaluation.col.rfqNumber', 'RFQ #')}</th>
+                                    <th className="w-auto min-w-[200px]">{t('evaluation.col.description', 'Description')}</th>
+                                    <th className="whitespace-nowrap w-[150px]">{t('evaluation.col.evaluator', 'Evaluator')}</th>
+                                    <th className="whitespace-nowrap w-[110px]">{t('evaluation.col.dueDate', 'Due Date')}</th>
+                                    <th className="whitespace-nowrap w-[180px]">{t('evaluation.col.status', 'Status')}</th>
+                                    <th className="whitespace-nowrap w-[140px]">{t('evaluation.col.actions', 'Actions')}</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {filteredEvaluations.map((evaluation) => (
                                     <tr key={evaluation.id}>
-                                        <td>
+                                        <td className="whitespace-nowrap">
                                             <button onClick={() => handleViewDetails(evaluation.id)} className="font-semibold text-primary hover:underline bg-transparent border-0 p-0 cursor-pointer">
                                                 {evaluation.evalNumber}
                                             </button>
                                         </td>
-                                        <td>
+                                        <td className="whitespace-nowrap">
                                             <span className="text-info">{evaluation.rfqNumber}</span>
                                         </td>
                                         <td>
-                                            <div className="max-w-xs truncate" title={evaluation.rfqTitle}>
-                                                {evaluation.rfqTitle}
+                                            <div className="max-w-[300px]" title={evaluation.rfqTitle}>
+                                                <div className="line-clamp-2">{evaluation.rfqTitle}</div>
                                             </div>
-                                            {evaluation.description && <div className="text-xs text-white-dark truncate">{evaluation.description}</div>}
+                                            {evaluation.description && <div className="text-xs text-white-dark line-clamp-1">{evaluation.description}</div>}
                                         </td>
-                                        <td>{evaluation.evaluator || evaluation.creator.name || '-'}</td>
-                                        <td>{formatDate(evaluation.dueDate)}</td>
+                                        <td className="whitespace-nowrap">{evaluation.evaluator || evaluation.creator.name || '-'}</td>
+                                        <td className="whitespace-nowrap">{formatDate(evaluation.dueDate)}</td>
                                         <td>
-                                            <div className="flex items-center gap-2">
-                                                <span className={`badge ${getStatusBadge(evaluation.status)}`}>{statusMap[evaluation.status]}</span>
+                                            <div className="flex flex-wrap items-center gap-1">
+                                                <span className={`badge ${getStatusBadge(evaluation.status)} whitespace-nowrap`}>{statusMap[evaluation.status]}</span>
                                                 {isCommittee && hasNewSubmissions(evaluation) && (
-                                                    <span className="badge bg-info" title="Submitted sections awaiting committee review">
+                                                    <span className="badge bg-info whitespace-nowrap" title="Submitted sections awaiting committee review">
                                                         New
                                                     </span>
                                                 )}
                                                 {isProcurement && hasReturnedSections(evaluation) && (
-                                                    <span className="badge bg-warning" title="Sections returned by committee; needs updates">
+                                                    <span className="badge bg-warning whitespace-nowrap" title="Sections returned by committee; needs updates">
                                                         Returned
                                                     </span>
                                                 )}
                                                 {hasStartedEditing(evaluation) && (
-                                                    <span className="badge bg-secondary" title="First edits saved; not yet submitted">
+                                                    <span className="badge bg-secondary whitespace-nowrap" title="First edits saved; not yet submitted">
                                                         Edited
                                                     </span>
                                                 )}
                                                 {isProcurement && evaluation.status === 'COMPLETED' && (
-                                                    <span className="badge bg-success animate-pulse" title="All sections verified; evaluation completed">
+                                                    <span className="badge bg-success animate-pulse whitespace-nowrap" title="All sections verified; evaluation completed">
                                                         ✓ Verified
                                                     </span>
                                                 )}
                                             </div>
                                         </td>
                                         <td>
-                                            <div className="flex gap-2">
+                                            <div className="flex flex-wrap gap-1">
                                                 <button
                                                     onClick={() => handleViewDetails(evaluation.id)}
                                                     className="btn btn-sm btn-outline-primary"
