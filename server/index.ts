@@ -4698,8 +4698,7 @@ app.post(
         }
         if (!existing) throw new NotFoundError('Evaluation not found');
 
-        // Check user roles
-        const userObj: any = (req as any).user;
+        // Check user roles for procurement privilege
         const userRoles = userObj?.roles || [];
         const isProcurement = userRoles.some((role: string) => ['PROCUREMENT', 'PROCUREMENT_OFFICER', 'PROCUREMENT_MANAGER'].includes(role.toUpperCase()));
 
