@@ -29,7 +29,7 @@ import { checkSplintering } from './services/splinteringService';
 import { createThresholdNotifications } from './services/notificationService';
 import { getLoadBalancingSettings, updateLoadBalancingSettings, autoAssignRequest, shouldAutoAssign } from './services/loadBalancingService';
 import type { Prisma } from '@prisma/client';
-import { requireCommittee as requireCommitteeRole, requireEvaluationCommittee, requireAdmin, requireExecutive } from './middleware/rbac';
+import { requireCommittee as requireCommitteeRole, requireEvaluationCommittee, requireAdmin, requireExecutive, requireRole } from './middleware/rbac';
 import { validate, createIdeaSchema, voteSchema, approveRejectIdeaSchema, promoteIdeaSchema, sanitizeInput as sanitize } from './middleware/validation';
 import { errorHandler, notFoundHandler, asyncHandler, NotFoundError, BadRequestError } from './middleware/errorHandler';
 import statsRouter from './routes/stats';
@@ -4669,11 +4669,11 @@ app.post(
     })
 );
 
-// POST /api/evaluations/:id/sections/:section/return - Committee returns section for changes
+// POST /api/evaluations/:id/sections/:section/return - Committee or Procurement returns section for changes
 app.post(
     '/api/evaluations/:id/sections/:section/return',
     authMiddleware,
-    requireEvaluationCommittee,
+    requireRole('EVALUATION_COMMITTEE', 'PROCUREMENT', 'PROCUREMENT_OFFICER', 'PROCUREMENT_MANAGER'),
     asyncHandler(async (req, res) => {
         const { id, section } = req.params;
         const { notes } = req.body;
