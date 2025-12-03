@@ -4326,9 +4326,7 @@ app.post(
         } catch (e) {
             // If Prisma enum validation fails due to DB drift, use raw SQL
             try {
-                await prisma.$executeRawUnsafe(
-                    `UPDATE EvaluationAssignment SET status='SUBMITTED', submittedAt=NOW(), updatedAt=NOW() WHERE id=${assignment.id}`
-                );
+                await prisma.$executeRawUnsafe(`UPDATE EvaluationAssignment SET status='SUBMITTED', submittedAt=NOW(), updatedAt=NOW() WHERE id=${assignment.id}`);
             } catch (inner) {
                 throw e; // bubble original error
             }
