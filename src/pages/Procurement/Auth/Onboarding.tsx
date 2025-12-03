@@ -132,16 +132,9 @@ const Onboarding = () => {
     useEffect(() => {
         dispatch(setPageTitle(t('onboarding.title')));
 
-        // Debug logging
-        console.log('🔍 [Onboarding] User roles:', userRoles);
-        console.log('🔍 [Onboarding] isProcurementManager:', isProcurementManager);
-        console.log('🔍 [Onboarding] isCommittee:', isCommittee);
-        console.log('🔍 [Onboarding] isRequester:', isRequester);
-
         // If a committee-ONLY member lands here, redirect them to their dashboard
         const isCommitteeOnly = isCommittee && userRoles.length === 1;
         if (isCommitteeOnly) {
-            console.log('🔍 [Onboarding] Redirecting committee-only user to committee dashboard');
             navigate('/innovation/committee/dashboard', { replace: true });
             return;
         }

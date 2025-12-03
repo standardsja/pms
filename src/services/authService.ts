@@ -18,7 +18,6 @@ class AuthService {
         }
         // Use mock service if enabled in environment
         if (USE_MOCK_AUTH) {
-            console.log('[AuthService] Using mock auth');
             const result = await mockAuthService.login(credentials);
             if (result.success && result.token) {
                 localStorage.setItem('token', result.token);
@@ -27,7 +26,6 @@ class AuthService {
         }
 
         // Use real backend API
-        console.log('[AuthService] Using real backend API at /api/auth/login');
         try {
             // Normalize email to lowercase before sending
             const normalizedCredentials = {
@@ -43,11 +41,8 @@ class AuthService {
                 body: JSON.stringify(normalizedCredentials),
             });
 
-            console.log('[AuthService] Response status:', response.status);
-
             if (!response.ok) {
                 const errorText = await response.text();
-                console.error('[AuthService] Login failed:', response.status, errorText);
                 return {
                     success: false,
                     message: errorText || 'Login failed',
@@ -55,7 +50,6 @@ class AuthService {
             }
 
             const data = await response.json();
-            console.log('[AuthService] Login successful:', data);
 
             if (data.token) {
                 localStorage.setItem('token', data.token);
@@ -87,8 +81,6 @@ class AuthService {
                 message: 'Login successful',
             };
         } catch (error) {
-            console.error('[AuthService] Network error:', error);
-
             // Provide user-friendly error messages for network issues
             let errorMessage = 'Network error';
 

@@ -55,10 +55,8 @@ class HeartbeatService {
             const apiUrl = import.meta.env.DEV ? '/api/stats/heartbeat' : `${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/stats/heartbeat`;
 
             const token = getToken();
-            console.log('[Heartbeat] Sending heartbeat for module:', module, 'URL:', apiUrl, 'Has token:', !!token);
 
             if (!token) {
-                console.warn('[Heartbeat] No auth token available, skipping heartbeat');
                 return;
             }
 
@@ -73,13 +71,9 @@ class HeartbeatService {
 
             if (!response.ok) {
                 const errorText = await response.text();
-                console.warn('[Heartbeat] Failed:', response.status, errorText);
-            } else {
-                const data = await response.json();
-                console.log('[Heartbeat] Success:', data);
             }
         } catch (error) {
-            console.error('[Heartbeat] Error:', error);
+            // Silent fail
         }
     }
 
@@ -106,10 +100,8 @@ class HeartbeatService {
                     Authorization: token ? `Bearer ${token}` : '',
                 },
             });
-
-            console.log('[Heartbeat] Session cleared on backend');
         } catch (error) {
-            console.debug('[Heartbeat] Error clearing session:', error);
+            // Silent fail
         }
     }
 }
