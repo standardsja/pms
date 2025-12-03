@@ -185,7 +185,10 @@ export const EvaluationForm: React.FC<Props> = ({ mode, evaluation, canEditSecti
                                                 const colId = `col-${Date.now()}`;
                                                 const newCol = { id: colId, name: 'New Column', cellType: 'text' };
                                                 copy.bidders[0].eligibilityRequirements.columns = [...copy.bidders[0].eligibilityRequirements.columns, newCol];
-                                                copy.bidders[0].eligibilityRequirements.rows = copy.bidders[0].eligibilityRequirements.rows.map((r: any) => ({ ...r, data: { ...r.data, [colId]: '' } }));
+                                                copy.bidders[0].eligibilityRequirements.rows = copy.bidders[0].eligibilityRequirements.rows.map((r: any) => ({
+                                                    ...r,
+                                                    data: { ...r.data, [colId]: '' },
+                                                }));
                                                 setSectionB(copy);
                                             }}
                                         >
@@ -225,7 +228,7 @@ export const EvaluationForm: React.FC<Props> = ({ mode, evaluation, canEditSecti
                                                                     value={col.name}
                                                                     onChange={(e) => {
                                                                         const copy = { ...(sectionB as any) };
-                                                                        copy.bidders[0].eligibilityRequirements.columns = copy.bidders[0].eligibilityRequirements.columns.map((c: any) => 
+                                                                        copy.bidders[0].eligibilityRequirements.columns = copy.bidders[0].eligibilityRequirements.columns.map((c: any) =>
                                                                             c.id === col.id ? { ...c, name: e.target.value } : c
                                                                         );
                                                                         setSectionB(copy);
@@ -237,7 +240,9 @@ export const EvaluationForm: React.FC<Props> = ({ mode, evaluation, canEditSecti
                                                                         type="button"
                                                                         onClick={() => {
                                                                             const copy = { ...(sectionB as any) };
-                                                                            copy.bidders[0].eligibilityRequirements.columns = copy.bidders[0].eligibilityRequirements.columns.filter((c: any) => c.id !== col.id);
+                                                                            copy.bidders[0].eligibilityRequirements.columns = copy.bidders[0].eligibilityRequirements.columns.filter(
+                                                                                (c: any) => c.id !== col.id
+                                                                            );
                                                                             copy.bidders[0].eligibilityRequirements.rows = copy.bidders[0].eligibilityRequirements.rows.map((r: any) => {
                                                                                 const newData = { ...r.data };
                                                                                 delete newData[col.id];
@@ -353,7 +358,12 @@ export const EvaluationForm: React.FC<Props> = ({ mode, evaluation, canEditSecti
                                                             title="Remove row"
                                                         >
                                                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                                <path
+                                                                    strokeLinecap="round"
+                                                                    strokeLinejoin="round"
+                                                                    strokeWidth={2}
+                                                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                                                />
                                                             </svg>
                                                         </button>
                                                     </td>
