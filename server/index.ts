@@ -4284,6 +4284,104 @@ app.post(
     })
 );
 
+// POST /api/evaluations/:id/assign - Assign evaluation sections to users (auto-includes requesters)
+app.post(
+    '/api/evaluations/:id/assign',
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+        const { id } = req.params;
+        const { userIds, sections } = (req.body || {}) as { userIds?: number[]; sections?: string[] };
+        const authUser: any = (req as any).user;
+        const roles: string[] = authUser?.roles || [];
+        const isProcurement = roles.some((r: string) => r.toUpperCase().includes('PROCUREMENT'));
+
+        if (!isProcurement) {
+            return res.status(403).json({ success: false, message: 'Only procurement users can assign evaluators' });
+        }
+
+        if (!hasEvaluationDelegate()) {
+            return res.status(501).json({ success: false, message: 'Assignments require Prisma model; please run migrations' });
+        }
+
+        const evalId = parseInt(id);
+        if (!Number.isFinite(evalId)) throw new BadRequestError('Invalid evaluation ID');
+
+        const evalRecord = await (prisma as any).evaluation.findUnique({
+            where: { id: evalId },
+            include: {
+                combinedRequest: { include: { lots: { select: { requesterId: true } } } },
+            },
+        });
+        if (!evalRecord) throw new NotFoundError('Evaluation not found');
+
+        // Determine requester(s) from combined lots; auto-include as assignees
+        const requesterIds: number[] = Array.isArray(evalRecord?.combinedRequest?.lots) ? Array.from(new Set(evalRecord.combinedRequest.lots.map((l: any) => l.requesterId).filter(Boolean))) : [];
+
+        const uniqueUserIds = Array.from(new Set([...(userIds || []), ...requesterIds])).filter((n) => Number.isFinite(n));
+        if (uniqueUserIds.length === 0) {
+            return res.status(400).json({ success: false, message: 'No valid recipients to assign' });
+        }
+
+        const sectionList = (Array.isArray(sections) && sections.length ? sections : ['B', 'C']).map((s) => String(s).toUpperCase());
+
+        // Upsert assignments
+        const created: any[] = [];
+        for (const uid of uniqueUserIds) {
+            const assignment = await (prisma as any).evaluationAssignment.upsert({
+                where: { evaluationId_userId: { evaluationId: evalId, userId: uid } },
+                update: { sections: sectionList },
+                create: { evaluationId: evalId, userId: uid, sections: sectionList },
+            });
+            created.push(assignment);
+
+            // Notify assignee
+            try {
+                await (prisma as any).notification.create({
+                    data: {
+                        userId: uid,
+                        type: 'EVALUATION_VERIFIED',
+                        message: `You have been assigned to contribute to Evaluation ${evalRecord.evalNumber}.`,
+                        data: { evaluationId: evalId, evalNumber: evalRecord.evalNumber, rfqTitle: evalRecord.rfqTitle, sections: sectionList },
+                    },
+                });
+            } catch (e) {
+                console.error('Failed to create assignment notification:', e);
+            }
+        }
+
+        return res.json({ success: true, data: created, message: 'Assignments saved' });
+    })
+);
+
+// GET /api/evaluations/assignments/me - List assignments for current user
+app.get(
+    '/api/evaluations/assignments/me',
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+        if (!hasEvaluationDelegate()) {
+            return res.status(501).json({ success: false, message: 'Assignments require Prisma model; please run migrations' });
+        }
+
+        const userObj: any = (req as any).user;
+        const userId = parseInt(userObj?.sub || userObj?.id);
+        if (!Number.isFinite(userId)) throw new BadRequestError('Invalid user');
+
+        const assignments = await (prisma as any).evaluationAssignment.findMany({
+            where: { userId },
+            include: {
+                evaluation: {
+                    include: {
+                        creator: { select: { id: true, name: true, email: true } },
+                    },
+                },
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+
+        res.json({ success: true, data: assignments });
+    })
+);
+
 // PATCH /api/evaluations/:id - Update evaluation
 app.patch(
     '/api/evaluations/:id',
@@ -4478,16 +4576,28 @@ app.patch(
         }
         if (!existing) throw new NotFoundError('Evaluation not found');
 
-        // Authorization: Only the creator or procurement officers can update sections
-        if (existing.createdBy !== userId) {
-            // Check if user has procurement role
-            const roles = userObj?.roles || [];
-            const isProcurement = roles.some(
-                (r: string) => r.toUpperCase().includes('PROCUREMENT_OFFICER') || r.toUpperCase().includes('PROCUREMENT_MANAGER') || r.toUpperCase().includes('PROCUREMENT')
-            );
-            if (!isProcurement) {
-                throw new BadRequestError('Unauthorized to update this evaluation');
+        // Authorization: Creator, procurement, or assigned user for this section
+        let authorized = existing.createdBy === userId;
+        if (!authorized) {
+            const rolesArr = userObj?.roles || [];
+            const isProc = rolesArr.some((r: string) => r.toUpperCase().includes('PROCUREMENT_OFFICER') || r.toUpperCase().includes('PROCUREMENT_MANAGER') || r.toUpperCase().includes('PROCUREMENT'));
+            if (isProc) authorized = true;
+        }
+        if (!authorized && hasEvaluationDelegate()) {
+            const assn = await (prisma as any).evaluationAssignment.findUnique({
+                where: { evaluationId_userId: { evaluationId, userId } },
+            });
+            if (assn) {
+                try {
+                    const secs = Array.isArray(assn.sections) ? (assn.sections as any[]) : [];
+                    authorized = secs.map((s) => String(s).toUpperCase()).includes(sectionUpper);
+                } catch {
+                    authorized = false;
+                }
             }
+        }
+        if (!authorized) {
+            throw new BadRequestError('Unauthorized to update this evaluation');
         }
 
         const updateData: any = {};

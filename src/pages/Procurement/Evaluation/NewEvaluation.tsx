@@ -49,6 +49,7 @@ const NewEvaluation = () => {
                 // Pre-fill form data from combined request
                 setFormData((prev) => ({
                     ...prev,
+                    rfqNumber: data.reference || '',
                     rfqTitle: data.title,
                     description: data.description || '',
                 }));
@@ -135,6 +136,14 @@ const NewEvaluation = () => {
     const [alertMessage, setAlertMessage] = useState('');
     const [errorFields, setErrorFields] = useState<string[]>([]);
     const [loading, setLoading] = useState(false);
+
+    // Send-to-evaluators modal state
+    const [showAssignModal, setShowAssignModal] = useState(false);
+    const [createdEvaluationId, setCreatedEvaluationId] = useState<number | null>(null);
+    const [availableUsers, setAvailableUsers] = useState<Array<{ id: number; email: string; name?: string | null; roles?: string[] }>>([]);
+    const [userSearch, setUserSearch] = useState('');
+    const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
+    const [selectedSections, setSelectedSections] = useState<Array<'A' | 'B' | 'C' | 'D' | 'E'>>(['B', 'C']);
 
     const totalSteps = 5; // Background, Section A, Section B, Section C, Sections D & E
 
@@ -491,13 +500,25 @@ const NewEvaluation = () => {
 
             const result = await evaluationService.createEvaluation(evaluationData);
 
-            setAlertMessage(`BSJ Evaluation ${evalNumber} created successfully!`);
+            setCreatedEvaluationId(result.id);
+            setAlertMessage(`BSJ Evaluation ${evalNumber} created successfully! Now assign technical evaluators for Section B.`);
             setShowSuccessAlert(true);
 
-            setTimeout(() => {
-                setShowSuccessAlert(false);
-                navigate('/procurement/evaluation');
-            }, 2000);
+            // Load users for selection
+            try {
+                const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
+                const resp = await fetch(getApiUrl('/admin/users'), {
+                    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                });
+                if (resp.ok) {
+                    const users = await resp.json();
+                    setAvailableUsers(users);
+                }
+            } catch {
+                // ignore
+            }
+
+            setShowAssignModal(true);
         } catch (error: any) {
             console.error('Failed to create evaluation:', error);
             setErrorFields([error.message || 'Failed to create evaluation. Please try again.']);
@@ -506,6 +527,30 @@ const NewEvaluation = () => {
             setTimeout(() => {
                 setShowErrorAlert(false);
             }, 5000);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const toggleSelectedUser = (id: number) => {
+        setSelectedUserIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+    };
+
+    const toggleSection = (sec: 'A' | 'B' | 'C' | 'D' | 'E') => {
+        setSelectedSections((prev) => (prev.includes(sec) ? prev.filter((s) => s !== sec) : [...prev, sec]));
+    };
+
+    const handleSendAssignments = async () => {
+        if (!createdEvaluationId) return;
+        try {
+            setLoading(true);
+            await evaluationService.assignEvaluators(createdEvaluationId, { userIds: selectedUserIds, sections: selectedSections });
+            setShowAssignModal(false);
+            navigate('/procurement/evaluation');
+        } catch (err: any) {
+            setAlertMessage(err.message || 'Failed to send assignments');
+            setShowErrorAlert(true);
+            setTimeout(() => setShowErrorAlert(false), 4000);
         } finally {
             setLoading(false);
         }
@@ -599,6 +644,93 @@ const NewEvaluation = () => {
                             <button type="button" className="ltr:ml-auto rtl:mr-auto hover:opacity-80" onClick={() => setShowErrorAlert(false)}>
                                 <IconX className="h-5 w-5" />
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Assign to Evaluators Modal */}
+            {showAssignModal && (
+                <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60">
+                    <div className="panel w-full max-w-3xl overflow-hidden rounded-lg p-0">
+                        <div className="flex items-center p-3.5 rounded-t text-primary bg-primary-light dark:bg-primary-dark-light">
+                            <span className="ltr:pr-2 rtl:pl-2 flex-1">
+                                <strong className="ltr:mr-1 rtl:ml-1 text-lg">Assign Technical Evaluators</strong>
+                            </span>
+                            <button type="button" className="ltr:ml-auto rtl:mr-auto hover:opacity-80" onClick={() => setShowAssignModal(false)}>
+                                <IconX className="h-5 w-5" />
+                            </button>
+                        </div>
+                        <div className="p-5 space-y-4">
+                            <div className="bg-info-light p-3 rounded">
+                                <p className="text-sm font-semibold text-info">Section B: Technical Evaluation</p>
+                                <p className="text-xs text-white-dark mt-1">
+                                    Select evaluators who will complete the technical evaluation tables (eligibility, compliance, and technical criteria). Requester(s) are automatically included.
+                                </p>
+                            </div>
+                            <div className="flex flex-col md:flex-row gap-4">
+                                <div className="flex-1">
+                                    <div className="mb-2">
+                                        <input
+                                            type="text"
+                                            placeholder="Search users by name or email"
+                                            className="form-input w-full"
+                                            value={userSearch}
+                                            onChange={(e) => setUserSearch(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="max-h-72 overflow-auto border rounded">
+                                        {availableUsers
+                                            .filter((u) => {
+                                                const q = userSearch.toLowerCase();
+                                                const hay = `${u.name || ''} ${u.email}`.toLowerCase();
+                                                return !q || hay.includes(q);
+                                            })
+                                            .map((u) => (
+                                                <label key={u.id} className="flex items-center gap-3 p-2 border-b last:border-b-0">
+                                                    <input type="checkbox" className="form-checkbox" checked={selectedUserIds.includes(u.id)} onChange={() => toggleSelectedUser(u.id)} />
+                                                    <div className="flex-1">
+                                                        <div className="font-semibold">{u.name || u.email}</div>
+                                                        <div className="text-xs text-white-dark">{u.email}</div>
+                                                    </div>
+                                                </label>
+                                            ))}
+                                        {availableUsers.length === 0 && <div className="p-3 text-sm text-white-dark">No users found.</div>}
+                                    </div>
+                                </div>
+                                <div className="w-full md:w-60">
+                                    <div className="font-semibold mb-2">Assign Sections</div>
+                                    <label className="flex items-center gap-2 mb-2 opacity-50 cursor-not-allowed">
+                                        <input type="checkbox" className="form-checkbox" disabled />
+                                        <span className="text-sm">Section A (Procurement)</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 mb-2">
+                                        <input type="checkbox" className="form-checkbox" checked={selectedSections.includes('B')} onChange={() => toggleSection('B')} />
+                                        <span className="text-sm font-semibold">Section B (Technical)</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 mb-2">
+                                        <input type="checkbox" className="form-checkbox" checked={selectedSections.includes('C')} onChange={() => toggleSection('C')} />
+                                        <span className="text-sm">Section C (Comments)</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 mb-2 opacity-50 cursor-not-allowed">
+                                        <input type="checkbox" className="form-checkbox" disabled />
+                                        <span className="text-sm">Section D (Summary)</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 mb-2 opacity-50 cursor-not-allowed">
+                                        <input type="checkbox" className="form-checkbox" disabled />
+                                        <span className="text-sm">Section E (Recommendation)</span>
+                                    </label>
+                                    <div className="text-xs text-info mt-2">Assigned users can edit their sections</div>
+                                </div>
+                            </div>
+                            <div className="flex justify-end gap-2 mt-4">
+                                <button className="btn btn-outline-danger" onClick={() => setShowAssignModal(false)}>
+                                    Cancel
+                                </button>
+                                <button className="btn btn-primary" onClick={handleSendAssignments} disabled={loading || selectedUserIds.length === 0}>
+                                    {loading ? 'Assigning...' : `Assign to ${selectedUserIds.length} User${selectedUserIds.length !== 1 ? 's' : ''}`}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1539,19 +1671,34 @@ const NewEvaluation = () => {
                                 </svg>
                                 Previous: Section C
                             </button>
-                            <button type="button" onClick={handleCreateEvaluation} className="btn btn-success gap-2" disabled={loading}>
-                                {loading ? (
-                                    <>
-                                        <span className="animate-spin border-2 border-white border-l-transparent rounded-full w-4 h-4 inline-block align-middle"></span>
-                                        <span>Creating...</span>
-                                    </>
-                                ) : (
-                                    <>
-                                        <IconChecks />
-                                        <span>Create Evaluation</span>
-                                    </>
+                            <div className="flex gap-3">
+                                {createdEvaluationId && (
+                                    <button type="button" onClick={() => setShowAssignModal(true)} className="btn btn-primary gap-2">
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                        </svg>
+                                        Assign Evaluators
+                                    </button>
                                 )}
-                            </button>
+                                <button type="button" onClick={handleCreateEvaluation} className="btn btn-success gap-2" disabled={loading || createdEvaluationId}>
+                                    {loading ? (
+                                        <>
+                                            <span className="animate-spin border-2 border-white border-l-transparent rounded-full w-4 h-4 inline-block align-middle"></span>
+                                            <span>Creating...</span>
+                                        </>
+                                    ) : createdEvaluationId ? (
+                                        <>
+                                            <IconChecks />
+                                            <span>Evaluation Created</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <IconChecks />
+                                            <span>Create Evaluation</span>
+                                        </>
+                                    )}
+                                </button>
+                            </div>
                         </div>
                     </>
                 )}
