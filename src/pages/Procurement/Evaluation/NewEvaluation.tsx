@@ -509,7 +509,14 @@ const NewEvaluation = () => {
                 });
                 if (resp.ok) {
                     const users = await resp.json();
-                    setAvailableUsers(users);
+                    // Normalize user objects to ensure numeric `id`
+                    const normalized = (Array.isArray(users) ? users : []).map((u: any) => ({
+                        id: typeof u.id === 'number' ? u.id : parseInt(String(u.userId ?? u.id), 10),
+                        email: String(u.email || ''),
+                        name: u.name ?? null,
+                        roles: Array.isArray(u.roles) ? u.roles : [],
+                    })).filter((u: any) => Number.isFinite(u.id));
+                    setAvailableUsers(normalized);
                 }
             } catch {
                 // ignore
@@ -530,6 +537,7 @@ const NewEvaluation = () => {
     };
 
     const toggleSelectedUser = (id: number) => {
+        if (!Number.isFinite(id)) return;
         setSelectedUserIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
     };
 
