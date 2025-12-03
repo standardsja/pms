@@ -65,3 +65,7 @@ Thumbs.db
 # Logs and debug
 *.log.*
 debug.log
+
+# Deployment scripts (local only)
+deploy-update.ps1
+ecosystem.config.js
