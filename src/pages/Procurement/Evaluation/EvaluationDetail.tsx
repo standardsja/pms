@@ -66,7 +66,15 @@ const EvaluationDetail = () => {
                 const forThisEval = assignments.filter((a: any) => String(a.evaluationId) === String(id));
                 const sections = new Set<string>();
                 forThisEval.forEach((a: any) => {
-                    (a.sections || []).forEach((s: string) => sections.add(String(s).toUpperCase()));
+                    const raw = a.sections;
+                    const arr = Array.isArray(raw) ? raw : (() => {
+                        try {
+                            return JSON.parse(raw || '[]');
+                        } catch {
+                            return [];
+                        }
+                    })();
+                    (arr || []).forEach((s: string) => sections.add(String(s).toUpperCase()));
                 });
                 setCanEditSections(Array.from(sections));
 

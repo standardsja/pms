@@ -4595,7 +4595,15 @@ app.patch(
             });
             if (assn) {
                 try {
-                    const secs = Array.isArray(assn.sections) ? (assn.sections as any[]) : [];
+                    const secs = Array.isArray(assn.sections)
+                        ? (assn.sections as any[])
+                        : (() => {
+                              try {
+                                  return JSON.parse((assn as any).sections || '[]');
+                              } catch {
+                                  return [];
+                              }
+                          })();
                     authorized = secs.map((s) => String(s).toUpperCase()).includes(sectionUpper);
                 } catch {
                     authorized = false;
@@ -4678,7 +4686,15 @@ app.post(
             if (!assignment) {
                 throw new Error('You are not assigned to this evaluation');
             }
-            const assignedSections = Array.isArray(assignment.sections) ? assignment.sections : [];
+            const assignedSections = Array.isArray(assignment.sections)
+                ? assignment.sections
+                : (() => {
+                      try {
+                          return JSON.parse((assignment as any).sections || '[]');
+                      } catch {
+                          return [];
+                      }
+                  })();
             if (!assignedSections.includes(sectionUpper)) {
                 throw new Error(`You are not assigned to Section ${sectionUpper}`);
             }
