@@ -67,13 +67,15 @@ const EvaluationDetail = () => {
                 const sections = new Set<string>();
                 forThisEval.forEach((a: any) => {
                     const raw = a.sections;
-                    const arr = Array.isArray(raw) ? raw : (() => {
-                        try {
-                            return JSON.parse(raw || '[]');
-                        } catch {
-                            return [];
-                        }
-                    })();
+                    const arr = Array.isArray(raw)
+                        ? raw
+                        : (() => {
+                              try {
+                                  return JSON.parse(raw || '[]');
+                              } catch {
+                                  return [];
+                              }
+                          })();
                     (arr || []).forEach((s: string) => sections.add(String(s).toUpperCase()));
                 });
                 setCanEditSections(Array.from(sections));
