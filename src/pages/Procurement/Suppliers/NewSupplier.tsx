@@ -22,9 +22,7 @@ const NewSupplier = () => {
     const [notes, setNotes] = useState('');
     const [loading, setLoading] = useState(false);
 
-    const [modal, setModal] = useState<{ open: boolean; title: string; message: string; tone: 'success' | 'warning' }>(
-        { open: false, title: '', message: '', tone: 'success' }
-    );
+    const [modal, setModal] = useState<{ open: boolean; title: string; message: string; tone: 'success' | 'warning' }>({ open: false, title: '', message: '', tone: 'success' });
 
     const openModal = (tone: 'success' | 'warning', title: string, message: string) => setModal({ open: true, title, message, tone });
     const closeModal = () => setModal({ open: false, title: '', message: '', tone: 'success' });
@@ -136,14 +134,7 @@ const NewSupplier = () => {
                             <label className="mb-1 block text-white-dark">
                                 Email <span className="text-danger">*</span>
                             </label>
-                            <input
-                                type="email"
-                                className="form-input"
-                                placeholder="name@company.com"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                required
-                            />
+                            <input type="email" className="form-input" placeholder="name@company.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
                             <p className="mt-1 text-xs text-white-dark">This email will be used for PO notifications</p>
                         </div>
                         <div>

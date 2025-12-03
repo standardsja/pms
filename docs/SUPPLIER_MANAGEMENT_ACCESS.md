@@ -3,40 +3,39 @@
 ## ✅ Current Implementation Status
 
 ### Backend Access Control
+
 **File:** `server/routes/suppliers.ts`
 
 All supplier management endpoints are protected with role-based access:
 
 #### **Who Can Add New Suppliers:**
+
 ✅ **Procurement Officers** - `PROCUREMENT_OFFICER`, `PROCUREMENT OFFICER`, `PROCUREMENT`  
 ✅ **Procurement Managers** - `PROCUREMENT_MANAGER`, `PROCUREMENT MANAGER`  
 ✅ **Administrators** - `ADMIN`, `ADMINISTRATOR`, `SUPER_ADMIN`
 
 #### **Endpoints:**
-- `POST /api/suppliers` - Create new supplier
-- `GET /api/suppliers` - View all suppliers
-- `GET /api/suppliers/:id` - View supplier details
-- `PATCH /api/suppliers/:id` - Update supplier
-- `DELETE /api/suppliers/:id` - Delete supplier (only if no requests)
+
+-   `POST /api/suppliers` - Create new supplier
+-   `GET /api/suppliers` - View all suppliers
+-   `GET /api/suppliers/:id` - View supplier details
+-   `PATCH /api/suppliers/:id` - Update supplier
+-   `DELETE /api/suppliers/:id` - Delete supplier (only if no requests)
 
 ### Role Checking Logic
+
 **File:** `server/utils/roleUtils.ts`
 
 ```typescript
-const isProcurementOfficer = normalizedRoles.some(
-    (role) => ['PROCUREMENT_OFFICER', 'PROCUREMENT OFFICER', 'PROCUREMENT'].includes(role) || 
-              (role.includes('PROCUREMENT') && role.includes('OFFICER'))
-);
+const isProcurementOfficer = normalizedRoles.some((role) => ['PROCUREMENT_OFFICER', 'PROCUREMENT OFFICER', 'PROCUREMENT'].includes(role) || (role.includes('PROCUREMENT') && role.includes('OFFICER')));
 
-const isProcurementManager = normalizedRoles.some(
-    (role) => ['PROCUREMENT_MANAGER', 'PROCUREMENT MANAGER'].includes(role) || 
-              (role.includes('PROCUREMENT') && role.includes('MANAGER'))
-);
+const isProcurementManager = normalizedRoles.some((role) => ['PROCUREMENT_MANAGER', 'PROCUREMENT MANAGER'].includes(role) || (role.includes('PROCUREMENT') && role.includes('MANAGER')));
 
 const isProcurementUser = isProcurementOfficer || isProcurementManager || isAdmin;
 ```
 
 ### Frontend Integration
+
 **File:** `src/pages/Procurement/Suppliers/NewSupplier.tsx`
 
 The "Add Supplier" form now:
@@ -48,14 +47,15 @@ The "Add Supplier" form now:
 ✅ Validates required fields (name and email)
 
 #### **Form Fields:**
-- **Supplier Name*** (required)
-- **Email*** (required - used for PO notifications)
-- Category (dropdown)
-- Website
-- Contact Person
-- Phone
-- Address
-- Notes
+
+-   **Supplier Name\*** (required)
+-   **Email\*** (required - used for PO notifications)
+-   Category (dropdown)
+-   Website
+-   Contact Person
+-   Phone
+-   Address
+-   Notes
 
 ---
 
@@ -64,16 +64,19 @@ The "Add Supplier" form now:
 ### 1. Test as Procurement Officer
 
 **Login with a user having one of these roles:**
-- PROCUREMENT_OFFICER
-- PROCUREMENT
-- PROCUREMENT OFFICER
+
+-   PROCUREMENT_OFFICER
+-   PROCUREMENT
+-   PROCUREMENT OFFICER
 
 **Navigate to:**
+
 ```
 /procurement/suppliers → Click "Add Supplier"
 ```
 
 **Fill in the form:**
+
 ```
 Supplier Name: ABC Corporation
 Email: supplier@abc.com
@@ -116,6 +119,7 @@ curl -X POST http://heron:4000/api/suppliers \
 ```
 
 **Expected Response:**
+
 ```json
 {
   "success": true,
@@ -132,15 +136,17 @@ curl -X POST http://heron:4000/api/suppliers \
 ### 3. Test Access Denied (Non-Procurement User)
 
 **Login with a user without procurement roles:**
-- DEPT_MANAGER (without PROCUREMENT role)
-- FINANCE
-- Regular user
+
+-   DEPT_MANAGER (without PROCUREMENT role)
+-   FINANCE
+-   Regular user
 
 **Expected Result:**
+
 ```json
 {
-  "error": "Access denied",
-  "message": "Only procurement users can create suppliers"
+    "error": "Access denied",
+    "message": "Only procurement users can create suppliers"
 }
 ```
 
@@ -151,27 +157,30 @@ curl -X POST http://heron:4000/api/suppliers \
 ### For Procurement Officers:
 
 1. **Navigate to Suppliers**
-   - Click "Suppliers" in sidebar
-   - View existing supplier list
+
+    - Click "Suppliers" in sidebar
+    - View existing supplier list
 
 2. **Add New Supplier**
-   - Click "Add Supplier" button (top right)
-   - Fill in required fields:
-     * Supplier Name
-     * Email (for PO notifications)
-   - Fill in optional fields:
-     * Category, Website, Contact Person, Phone, Address, Notes
-   - Click "Create Supplier"
+
+    - Click "Add Supplier" button (top right)
+    - Fill in required fields:
+        - Supplier Name
+        - Email (for PO notifications)
+    - Fill in optional fields:
+        - Category, Website, Contact Person, Phone, Address, Notes
+    - Click "Create Supplier"
 
 3. **Confirmation**
-   - Success modal appears
-   - Automatically redirected to supplier list
-   - New supplier visible in grid
+
+    - Success modal appears
+    - Automatically redirected to supplier list
+    - New supplier visible in grid
 
 4. **Use Supplier for POs**
-   - When creating Purchase Orders
-   - System can auto-lookup supplier email
-   - Notifications sent when PO is approved
+    - When creating Purchase Orders
+    - System can auto-lookup supplier email
+    - Notifications sent when PO is approved
 
 ---
 
@@ -180,18 +189,20 @@ curl -X POST http://heron:4000/api/suppliers \
 When a Purchase Order is created or approved:
 
 1. **System looks up supplier email from:**
-   - Request body (`supplierEmail` parameter)
-   - Vendor record (`vendor.email` field)
-   - Vendor contact (`vendor.contact.email`)
+
+    - Request body (`supplierEmail` parameter)
+    - Vendor record (`vendor.email` field)
+    - Vendor contact (`vendor.contact.email`)
 
 2. **Sends notification to supplier:**
-   - PO Number
-   - Description
-   - Amount
-   - Delivery Date
-   - Terms & Conditions
+    - PO Number
+    - Description
+    - Amount
+    - Delivery Date
+    - Terms & Conditions
 
 **Example PO Creation:**
+
 ```json
 POST /api/purchase-orders
 {
@@ -208,6 +219,7 @@ POST /api/purchase-orders
 ## Security & Permissions
 
 ### Role Hierarchy
+
 ```
 ADMIN / SUPER_ADMIN
     ↓
@@ -220,13 +232,13 @@ PROCUREMENT_OFFICER
 
 ### Permission Matrix
 
-| Action | Procurement Officer | Procurement Manager | Admin | Others |
-|--------|---------------------|---------------------|-------|--------|
-| View Suppliers | ✅ | ✅ | ✅ | ❌ |
-| Add Supplier | ✅ | ✅ | ✅ | ❌ |
-| Edit Supplier | ✅ | ✅ | ✅ | ❌ |
-| Delete Supplier | ✅ | ✅ | ✅ | ❌ |
-| View Supplier Details | ✅ | ✅ | ✅ | ❌ |
+| Action                | Procurement Officer | Procurement Manager | Admin | Others |
+| --------------------- | ------------------- | ------------------- | ----- | ------ |
+| View Suppliers        | ✅                  | ✅                  | ✅    | ❌     |
+| Add Supplier          | ✅                  | ✅                  | ✅    | ❌     |
+| Edit Supplier         | ✅                  | ✅                  | ✅    | ❌     |
+| Delete Supplier       | ✅                  | ✅                  | ✅    | ❌     |
+| View Supplier Details | ✅                  | ✅                  | ✅    | ❌     |
 
 ---
 
@@ -236,14 +248,16 @@ PROCUREMENT_OFFICER
 
 **Problem:** User cannot create suppliers  
 **Check:**
+
 1. User has one of these roles:
-   - PROCUREMENT_OFFICER
-   - PROCUREMENT_MANAGER
-   - ADMIN
+    - PROCUREMENT_OFFICER
+    - PROCUREMENT_MANAGER
+    - ADMIN
 2. JWT token is valid
 3. User ID matches token
 
 **Solution:**
+
 ```bash
 # Check user roles
 node scripts/check-user-roles.mjs
@@ -256,11 +270,13 @@ node scripts/add-procurement-manager-role.mjs <userId>
 
 **Problem:** Created supplier doesn't show in list  
 **Check:**
+
 1. Frontend is pulling from API (not mock data)
 2. Browser cache cleared (Ctrl+F5)
 3. API response successful (check Network tab)
 
 **Solution:**
+
 ```bash
 # Verify supplier in database
 npx prisma studio
@@ -271,6 +287,7 @@ npx prisma studio
 
 **Problem:** Supplier not receiving PO notifications  
 **Check:**
+
 1. Supplier email field is populated
 2. Notification service logs show email being sent
 3. Email service configured (SendGrid/AWS SES)
@@ -281,14 +298,14 @@ npx prisma studio
 
 ## Future Enhancements
 
-- [ ] Supplier portal for self-registration
-- [ ] Bulk supplier import (CSV/Excel)
-- [ ] Supplier rating and review system
-- [ ] Performance tracking and analytics
-- [ ] Document attachment for certifications
-- [ ] Multi-contact support per supplier
-- [ ] Supplier categories with custom fields
-- [ ] Approval workflow for new suppliers
+-   [ ] Supplier portal for self-registration
+-   [ ] Bulk supplier import (CSV/Excel)
+-   [ ] Supplier rating and review system
+-   [ ] Performance tracking and analytics
+-   [ ] Document attachment for certifications
+-   [ ] Multi-contact support per supplier
+-   [ ] Supplier categories with custom fields
+-   [ ] Approval workflow for new suppliers
 
 ---
 
@@ -299,6 +316,6 @@ npx prisma studio
 ✅ **Security:** Role-based access control enforced  
 ✅ **Integration:** Supplier email used for PO notifications  
 ✅ **Validation:** Required fields enforced  
-✅ **User Experience:** Loading states, error handling, success feedback  
+✅ **User Experience:** Loading states, error handling, success feedback
 
 The feature is **production-ready** and allows all procurement officers to efficiently manage the supplier database.
