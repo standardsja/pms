@@ -187,7 +187,8 @@ const EvaluationDetail = () => {
                         <div>
                             <h6 className="font-semibold text-success mb-1">Your Evaluation Assignment</h6>
                             <p className="text-sm text-white-dark">
-                                You are assigned to complete: <span className="font-semibold">{Array.isArray(myAssignment.sections) ? myAssignment.sections.join(', ') : JSON.parse(myAssignment.sections || '[]').join(', ')}</span>
+                                You are assigned to complete:{' '}
+                                <span className="font-semibold">{Array.isArray(myAssignment.sections) ? myAssignment.sections.join(', ') : JSON.parse(myAssignment.sections || '[]').join(', ')}</span>
                             </p>
                         </div>
                         <button type="button" className="btn btn-success gap-2" onClick={handleCompleteAssignment} disabled={completingAssignment}>
