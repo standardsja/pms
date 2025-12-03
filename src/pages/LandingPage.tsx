@@ -7,28 +7,22 @@ const LandingPage = () => {
     const navigate = useNavigate();
 
     useEffect(() => {
-        // Debug authentication status
+        // Check authentication status
         const authenticated = isAuthenticated();
         const user = getUser();
-        const token = getToken();
-
-        console.log('LandingPage auth check:', { authenticated, user, token });
 
         // If not authenticated, redirect to login
         if (!authenticated) {
-            console.log('Not authenticated, redirecting to login');
             navigate('/auth/login', { replace: true });
             return;
         }
 
         // If authenticated, check if user is Innovation Committee member
         const userRoles = user?.roles || (user?.role ? [user.role] : []);
-        console.log('User roles:', userRoles);
 
         // Only Innovation committee goes directly to their dashboard
         // All other users see the ModuleSelector
         if (userRoles.includes('INNOVATION_COMMITTEE')) {
-            console.log('Committee member, redirecting to committee dashboard');
             navigate('/innovation/committee/dashboard', { replace: true });
             return;
         }

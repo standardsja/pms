@@ -41,6 +41,12 @@ const ProcurementManagerRequests = () => {
     const [requests, setRequests] = useState<Req[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [initialLoad, setInitialLoad] = useState(true);
+
+    // UI-only enhancements: client-side filters
+    const [searchQuery, setSearchQuery] = useState<string>('');
+    const [filterDepartment, setFilterDepartment] = useState<string>('ALL');
+    const [filterPriority, setFilterPriority] = useState<string>('ALL');
 
     // Get current user profile - with error handling
     let userProfile: any = {};
@@ -91,6 +97,7 @@ const ProcurementManagerRequests = () => {
                 setError(err.message || 'Failed to load requests');
             } finally {
                 setLoading(false);
+                setInitialLoad(false);
             }
         };
 
@@ -99,6 +106,24 @@ const ProcurementManagerRequests = () => {
 
     // Filter requests at PROCUREMENT_REVIEW status
     const pending = useMemo(() => requests.filter((r) => r.status === 'PROCUREMENT_REVIEW'), [requests]);
+
+    // Client-side filtering for UI refinement
+    const filteredRequests = useMemo(() => {
+        let data = [...pending];
+        if (searchQuery.trim()) {
+            const q = searchQuery.toLowerCase();
+            data = data.filter((r) => [r.reference, r.title, r.requester.name, r.department.name, r.accountingCode].some((field) => field?.toLowerCase().includes(q)));
+        }
+        if (filterDepartment !== 'ALL') data = data.filter((r) => r.department.name === filterDepartment);
+        if (filterPriority !== 'ALL') data = data.filter((r) => r.priority === filterPriority);
+        return data;
+    }, [pending, searchQuery, filterDepartment, filterPriority]);
+
+    const distinctDepartments = useMemo(() => {
+        const setDep = new Set<string>();
+        pending.forEach((r) => r.department.name && setDep.add(r.department.name));
+        return Array.from(setDep).sort();
+    }, [pending]);
 
     const viewDetails = (req: Req) => {
         // Navigate to the request form in edit mode
@@ -260,30 +285,109 @@ const ProcurementManagerRequests = () => {
     }
 
     return (
-        <div className="p-6">
-            <div className="mb-6">
-                <h1 className="text-2xl font-semibold">Procurement Manager Queue</h1>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Review requests awaiting procurement processing. You can self-assign requests or delegate them to procurement officers.</p>
-            </div>
+        <main className="space-y-6">
+            {/* Page Header */}
+            <section className="rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-primary p-6 text-white shadow">
+                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+                    <div className="space-y-2">
+                        <h1 className="text-3xl font-semibold tracking-tight drop-shadow-sm">Procurement Manager Queue</h1>
+                        <p className="text-white/90 text-sm leading-relaxed max-w-2xl">
+                            Review requests awaiting procurement processing. Self-assign or delegate to procurement officers for efficient workflow management.
+                        </p>
+                    </div>
+                    <div className="flex flex-wrap gap-4">
+                        <div className="bg-white/10 backdrop-blur rounded-lg px-4 py-3 min-w-[140px]">
+                            <div className="text-xs uppercase tracking-wide text-white/70">Total Queue</div>
+                            <div className="text-xl font-bold">{pending.length}</div>
+                        </div>
+                        <div className="bg-white/10 backdrop-blur rounded-lg px-4 py-3 min-w-[140px]">
+                            <div className="text-xs uppercase tracking-wide text-white/70">Filtered</div>
+                            <div className="text-xl font-bold">{filteredRequests.length}</div>
+                        </div>
+                        <div className="bg-white/10 backdrop-blur rounded-lg px-4 py-3 min-w-[140px]">
+                            <div className="text-xs uppercase tracking-wide text-white/70">Departments</div>
+                            <div className="text-xl font-bold">{distinctDepartments.length}</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
 
-            <div className="bg-white dark:bg-slate-800 shadow rounded overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="min-w-full table-auto">
-                        <thead className="bg-slate-50 dark:bg-slate-700 text-sm font-semibold">
+            {/* Filters */}
+            <section className="panel border-t-4 border-primary">
+                <div className="panel-header flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <h2 className="text-lg font-semibold">Filter & Refine</h2>
+                    <div className="text-xs text-gray-500">Refine visible requests before assigning. Filters are client-side only.</div>
+                </div>
+                <div className="panel-body grid gap-4 md:grid-cols-3">
+                    <div className="space-y-1">
+                        <label className="text-xs font-medium tracking-wide text-gray-600">Search</label>
+                        <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="Reference, title, requester, dept, code..."
+                            className="form-input"
+                            aria-label="Search requests"
+                        />
+                    </div>
+                    <div className="space-y-1">
+                        <label className="text-xs font-medium tracking-wide text-gray-600">Department</label>
+                        <select className="form-select" value={filterDepartment} onChange={(e) => setFilterDepartment(e.target.value)} aria-label="Filter by department">
+                            <option value="ALL">All Departments</option>
+                            {distinctDepartments.map((dep) => (
+                                <option key={dep} value={dep}>
+                                    {dep}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="space-y-1">
+                        <label className="text-xs font-medium tracking-wide text-gray-600">Priority</label>
+                        <select className="form-select" value={filterPriority} onChange={(e) => setFilterPriority(e.target.value)} aria-label="Filter by priority">
+                            <option value="ALL">All Priorities</option>
+                            <option value="LOW">Low</option>
+                            <option value="MEDIUM">Medium</option>
+                            <option value="HIGH">High</option>
+                            <option value="URGENT">Urgent</option>
+                        </select>
+                    </div>
+                </div>
+            </section>
+
+            {/* Requests Table */}
+            <div className="panel overflow-hidden">
+                <div className="panel-header flex items-center justify-between">
+                    <h5 className="font-semibold text-lg">Pending Requests</h5>
+                    <div className="text-xs text-gray-500">
+                        Showing {filteredRequests.length} of {pending.length}
+                    </div>
+                </div>
+                <div className="table-responsive">
+                    <table className="table-hover">
+                        <thead className="bg-gray-50 dark:bg-slate-700">
                             <tr>
-                                <th className="px-4 py-3 text-left">Reference</th>
-                                <th className="px-4 py-3 text-left">Title</th>
-                                <th className="px-4 py-3 text-left">Requester</th>
-                                <th className="px-4 py-3 text-left">Department</th>
-                                <th className="px-4 py-3 text-left">Status</th>
-                                <th className="px-4 py-3 text-left">Amount</th>
-                                <th className="px-4 py-3 text-left">Acct Code</th>
-                                <th className="px-4 py-3 text-left">Date</th>
-                                <th className="px-4 py-3 text-left w-80">Actions</th>
+                                <th className="px-4 py-3.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Reference</th>
+                                <th className="px-4 py-3.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Title</th>
+                                <th className="px-4 py-3.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Requester</th>
+                                <th className="px-4 py-3.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Department</th>
+                                <th className="px-4 py-3.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Status</th>
+                                <th className="px-4 py-3.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Amount</th>
+                                <th className="px-4 py-3.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Acct Code</th>
+                                <th className="px-4 py-3.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Date</th>
+                                <th className="px-4 py-3.5 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="text-sm">
-                            {pending.length === 0 && (
+                            {initialLoad &&
+                                loading &&
+                                [...Array(3)].map((_, i) => (
+                                    <tr key={i}>
+                                        <td colSpan={9} className="px-4 py-3">
+                                            <div className="h-4 w-full animate-pulse bg-gray-200 rounded" />
+                                        </td>
+                                    </tr>
+                                ))}
+                            {!loading && filteredRequests.length === 0 && (
                                 <tr>
                                     <td className="px-4 py-8 text-center text-gray-500 dark:text-gray-400" colSpan={9}>
                                         <div className="flex flex-col items-center gap-2">
@@ -295,105 +399,124 @@ const ProcurementManagerRequests = () => {
                                                     d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                                                 />
                                             </svg>
-                                            <p className="font-medium">No requests pending procurement</p>
-                                            <p className="text-xs">Requests will appear here when approved by finance</p>
+                                            <p className="font-medium">{pending.length === 0 ? 'No requests pending procurement' : 'No requests match current filters'}</p>
+                                            <p className="text-xs">{pending.length === 0 ? 'Requests will appear here when approved by finance' : 'Try adjusting your search or filter criteria'}</p>
                                         </div>
                                     </td>
                                 </tr>
                             )}
-                            {pending.map((r) => {
-                                // Format the form code from header fields
-                                const deptCode = r.headerDeptCode || r.department.code || '---';
-                                const month = r.headerMonth || '---';
-                                const year = r.headerYear || '----';
-                                const sequence = r.headerSequence !== undefined && r.headerSequence !== null ? String(r.headerSequence).padStart(3, '0') : '000';
-                                const formCode = `[${deptCode}]/[${month}]/[${year}]/[${sequence}]`;
+                            {!loading &&
+                                filteredRequests.map((r) => {
+                                    // Format the form code from header fields
+                                    const deptCode = r.headerDeptCode || r.department.code || '---';
+                                    const month = r.headerMonth || '---';
+                                    const year = r.headerYear || '----';
+                                    const sequence = r.headerSequence !== undefined && r.headerSequence !== null ? String(r.headerSequence).padStart(3, '0') : '000';
+                                    const formCode = `[${deptCode}]/[${month}]/[${year}]/[${sequence}]`;
 
-                                return (
-                                    <tr key={r.id} className="border-t last:border-b hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
-                                        <td className="px-4 py-3 font-medium text-primary">{formCode}</td>
-                                        <td className="px-4 py-3">{r.title}</td>
-                                        <td className="px-4 py-3">{r.requester.name}</td>
-                                        <td className="px-4 py-3">
-                                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                                                {r.department.code}
-                                            </span>
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            {(() => {
-                                                const badge = getStatusBadge(r.status);
-                                                return <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${badge.bg} ${badge.text}`}>{badge.label}</span>;
-                                            })()}
-                                        </td>
-                                        <td className="px-4 py-3 font-medium">
-                                            {r.currency} ${(Number(r.totalEstimated) || 0).toFixed(2)}
-                                        </td>
-                                        <td className="px-4 py-3 text-xs font-mono">{r.accountingCode || '—'}</td>
-                                        <td className="px-4 py-3 text-xs text-gray-500">{new Date(r.createdAt).toLocaleDateString()}</td>
-                                        <td className="px-4 py-3">
-                                            <div className="flex gap-2 items-center">
-                                                <button
-                                                    className="p-1.5 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 dark:text-blue-400 transition-colors"
-                                                    onClick={() => viewDetails(r)}
-                                                    title="View Full Details"
-                                                >
-                                                    <IconEye className="w-5 h-5" />
-                                                </button>
-                                                <button
-                                                    className="p-1.5 rounded hover:bg-amber-50 dark:hover:bg-amber-900/20 text-amber-600 dark:text-amber-400 transition-colors"
-                                                    onClick={() => editRequest(r)}
-                                                    title="Edit Request"
-                                                >
-                                                    <IconEdit className="w-5 h-5" />
-                                                </button>
-                                                <button
-                                                    className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 transition-colors"
-                                                    onClick={() => downloadPdf(r)}
-                                                    title="Download PDF"
-                                                >
-                                                    <IconPrinter className="w-5 h-5" />
-                                                </button>
-                                                <div className="w-px h-5 bg-gray-300 dark:bg-gray-600"></div>
-                                                <button
-                                                    className="px-3 py-1.5 rounded bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 transition-colors"
-                                                    onClick={() => handleSelfAssign(r)}
-                                                    title="Assign to Self"
-                                                >
-                                                    Assign to Me
-                                                </button>
-                                                <button
-                                                    className="px-3 py-1.5 rounded bg-purple-600 text-white text-xs font-medium hover:bg-purple-700 transition-colors flex items-center gap-1"
-                                                    onClick={() => handleAssignToOfficer(r)}
-                                                    title="Assign to Officer"
-                                                >
-                                                    <IconUsersGroup className="w-4 h-4" />
-                                                    Assign
-                                                </button>
-                                                <button
-                                                    className="px-3 py-1.5 rounded bg-red-600 text-white text-xs font-medium hover:bg-red-700 transition-colors"
-                                                    onClick={() => handleReturn(r)}
-                                                    title="Return Request"
-                                                >
-                                                    Return
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                );
-                            })}
+                                    return (
+                                        <tr key={r.id} className="border-t hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
+                                            <td className="px-4 py-4">
+                                                <span className="text-sm font-semibold text-primary">{formCode}</span>
+                                            </td>
+                                            <td className="px-4 py-4">
+                                                <div className="text-sm font-medium text-gray-900 dark:text-gray-100 max-w-xs">{r.title}</div>
+                                            </td>
+                                            <td className="px-4 py-4 text-sm text-gray-700 dark:text-gray-300">{r.requester.name}</td>
+                                            <td className="px-4 py-4">
+                                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold uppercase tracking-wide bg-info text-white whitespace-nowrap">
+                                                    {r.department.code}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-4">
+                                                {(() => {
+                                                    const badge = getStatusBadge(r.status);
+                                                    return (
+                                                        <span
+                                                            className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold uppercase tracking-wide whitespace-nowrap ${badge.bg} ${badge.text}`}
+                                                            aria-label={`Status ${badge.label}`}
+                                                        >
+                                                            {badge.label}
+                                                        </span>
+                                                    );
+                                                })()}
+                                            </td>
+                                            <td className="px-4 py-4">
+                                                <span className="text-sm font-semibold text-gray-900 dark:text-gray-100 whitespace-nowrap">
+                                                    {r.currency} ${(Number(r.totalEstimated) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-4">
+                                                <span className="text-xs font-mono text-gray-600 dark:text-gray-400">{r.accountingCode || '—'}</span>
+                                            </td>
+                                            <td className="px-4 py-4">
+                                                <span className="text-xs text-gray-500 dark:text-gray-400">{new Date(r.createdAt).toLocaleDateString()}</span>
+                                            </td>
+                                            <td className="px-4 py-4">
+                                                <div className="flex items-center gap-1.5">
+                                                    {/* Icon Actions */}
+                                                    <div className="flex items-center gap-1">
+                                                        <button
+                                                            className="p-1.5 rounded-md hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 dark:text-blue-400 transition-colors"
+                                                            onClick={() => viewDetails(r)}
+                                                            title="View Full Details"
+                                                            aria-label="View details"
+                                                        >
+                                                            <IconEye className="w-4 h-4" />
+                                                        </button>
+                                                        <button
+                                                            className="p-1.5 rounded-md hover:bg-amber-50 dark:hover:bg-amber-900/20 text-amber-600 dark:text-amber-400 transition-colors"
+                                                            onClick={() => editRequest(r)}
+                                                            title="Edit Request"
+                                                            aria-label="Edit request"
+                                                        >
+                                                            <IconEdit className="w-4 h-4" />
+                                                        </button>
+                                                        <button
+                                                            className="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 transition-colors"
+                                                            onClick={() => downloadPdf(r)}
+                                                            title="Download PDF"
+                                                            aria-label="Download PDF"
+                                                        >
+                                                            <IconPrinter className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+
+                                                    {/* Primary Actions */}
+                                                    <div className="flex items-center gap-1.5 ml-1">
+                                                        <button
+                                                            className="inline-flex items-center px-2.5 py-1.5 rounded-md bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 shadow-sm transition-all whitespace-nowrap"
+                                                            onClick={() => handleSelfAssign(r)}
+                                                            title="Assign to Self"
+                                                        >
+                                                            Assign to Me
+                                                        </button>
+                                                        <button
+                                                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-purple-600 text-white text-xs font-semibold hover:bg-purple-700 shadow-sm transition-all whitespace-nowrap"
+                                                            onClick={() => handleAssignToOfficer(r)}
+                                                            title="Assign to Officer"
+                                                        >
+                                                            <IconUsersGroup className="w-3.5 h-3.5" />
+                                                            Assign
+                                                        </button>
+                                                        <button
+                                                            className="inline-flex items-center px-2.5 py-1.5 rounded-md bg-red-600 text-white text-xs font-semibold hover:bg-red-700 shadow-sm transition-all whitespace-nowrap"
+                                                            onClick={() => handleReturn(r)}
+                                                            title="Return Request"
+                                                        >
+                                                            Return
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
                         </tbody>
                     </table>
                 </div>
             </div>
-
-            {pending.length > 0 && (
-                <div className="mt-4 text-sm text-gray-500 dark:text-gray-400">
-                    <p>
-                        Showing {pending.length} request{pending.length !== 1 ? 's' : ''} awaiting procurement assignment
-                    </p>
-                </div>
-            )}
-        </div>
+        </main>
     );
 };
 

@@ -17,12 +17,21 @@ import IconChecks from '../../components/Icon/IconChecks';
 import IconBell from '../../components/Icon/IconBell';
 import IconClock from '../../components/Icon/IconClock';
 import IconTrendingUp from '../../components/Icon/IconTrendingUp';
+import { heartbeatService } from '../../services/heartbeatService';
 
 const ProcurementOfficerDashboard = () => {
     const dispatch = useDispatch();
     useEffect(() => {
         dispatch(setPageTitle('Procurement Officer Dashboard'));
-    });
+
+        // Start heartbeat tracking for procurement module
+        heartbeatService.startHeartbeat('pms');
+
+        // Cleanup: stop heartbeat when leaving this page
+        return () => {
+            heartbeatService.stopHeartbeat();
+        };
+    }, [dispatch]);
 
     const isDark = useSelector((state: IRootState) => state.themeConfig.theme === 'dark' || state.themeConfig.isDarkMode);
     const isRtl = useSelector((state: IRootState) => state.themeConfig.rtlClass) === 'rtl' ? true : false;
@@ -222,10 +231,7 @@ const ProcurementOfficerDashboard = () => {
                     {/* Removed RFQs and Quotes from Quick Access as requested */}
 
                     {/* Evaluations */}
-                    <Link
-                        to="/procurement/evaluation"
-                        className="panel group cursor-pointer border-2 border-transparent hover:border-info"
-                    >
+                    <Link to="/procurement/evaluation" className="panel group cursor-pointer border-2 border-transparent hover:border-info">
                         <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-info/10 text-info group-hover:bg-info group-hover:text-white">
                             <IconClipboardText className="h-6 w-6" />
                         </div>
@@ -234,10 +240,7 @@ const ProcurementOfficerDashboard = () => {
                     </Link>
 
                     {/* Procurement Review */}
-                    <Link
-                        to="/procurement/review"
-                        className="panel group cursor-pointer border-2 border-transparent hover:border-success"
-                    >
+                    <Link to="/procurement/review" className="panel group cursor-pointer border-2 border-transparent hover:border-success">
                         <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-success/10 text-success group-hover:bg-success group-hover:text-white">
                             <IconChecks className="h-6 w-6" />
                         </div>
@@ -246,10 +249,7 @@ const ProcurementOfficerDashboard = () => {
                     </Link>
 
                     {/* PO/Contract */}
-                    <Link
-                        to="/procurement/purchase-orders"
-                        className="panel group cursor-pointer border-2 border-transparent hover:border-secondary"
-                    >
+                    <Link to="/procurement/purchase-orders" className="panel group cursor-pointer border-2 border-transparent hover:border-secondary">
                         <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-secondary/10 text-secondary group-hover:bg-secondary group-hover:text-white">
                             <IconCreditCard className="h-6 w-6" />
                         </div>
@@ -258,10 +258,7 @@ const ProcurementOfficerDashboard = () => {
                     </Link>
 
                     {/* Suppliers */}
-                    <Link
-                        to="/procurement/suppliers"
-                        className="panel group cursor-pointer border-2 border-transparent hover:border-danger"
-                    >
+                    <Link to="/procurement/suppliers" className="panel group cursor-pointer border-2 border-transparent hover:border-danger">
                         <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-danger/10 text-danger group-hover:bg-danger group-hover:text-white">
                             <IconUser className="h-6 w-6" />
                         </div>
@@ -270,10 +267,7 @@ const ProcurementOfficerDashboard = () => {
                     </Link>
 
                     {/* Catalog */}
-                    <Link
-                        to="/procurement/catalog"
-                        className="panel group cursor-pointer border-2 border-transparent hover:border-primary"
-                    >
+                    <Link to="/procurement/catalog" className="panel group cursor-pointer border-2 border-transparent hover:border-primary">
                         <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white">
                             <IconFolder className="h-6 w-6" />
                         </div>
@@ -282,10 +276,7 @@ const ProcurementOfficerDashboard = () => {
                     </Link>
 
                     {/* Reports */}
-                    <Link
-                        to="/procurement/reports"
-                        className="panel group cursor-pointer border-2 border-transparent hover:border-warning"
-                    >
+                    <Link to="/procurement/reports" className="panel group cursor-pointer border-2 border-transparent hover:border-warning">
                         <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-warning/10 text-warning group-hover:bg-warning group-hover:text-white">
                             <IconChartSquare className="h-6 w-6" />
                         </div>
@@ -294,10 +285,7 @@ const ProcurementOfficerDashboard = () => {
                     </Link>
 
                     {/* Admin */}
-                    <Link
-                        to="/procurement/admin"
-                        className="panel group cursor-pointer border-2 border-transparent hover:border-info"
-                    >
+                    <Link to="/procurement/admin" className="panel group cursor-pointer border-2 border-transparent hover:border-info">
                         <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-info/10 text-info group-hover:bg-info group-hover:text-white">
                             <IconSettings className="h-6 w-6" />
                         </div>
@@ -306,10 +294,7 @@ const ProcurementOfficerDashboard = () => {
                     </Link>
 
                     {/* Payments */}
-                    <Link
-                        to="/procurement/payments"
-                        className="panel group cursor-pointer border-2 border-transparent hover:border-success"
-                    >
+                    <Link to="/procurement/payments" className="panel group cursor-pointer border-2 border-transparent hover:border-success">
                         <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-success/10 text-success group-hover:bg-success group-hover:text-white">
                             <IconDollarSignCircle className="h-6 w-6" />
                         </div>
@@ -337,11 +322,7 @@ const ProcurementOfficerDashboard = () => {
                                 <div key={activity.id} className="flex items-start gap-3 border-b border-white-light pb-4 dark:border-white/10">
                                     <div
                                         className={`mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
-                                            activity.status === 'success'
-                                                ? 'bg-success/10 text-success'
-                                                : activity.status === 'info'
-                                                ? 'bg-info/10 text-info'
-                                                : 'bg-primary/10 text-primary'
+                                            activity.status === 'success' ? 'bg-success/10 text-success' : activity.status === 'info' ? 'bg-info/10 text-info' : 'bg-primary/10 text-primary'
                                         }`}
                                     >
                                         <IconClock className="h-4 w-4" />
@@ -385,17 +366,7 @@ const ProcurementOfficerDashboard = () => {
                                 {pendingApprovals.map((item) => (
                                     <tr key={item.id}>
                                         <td>
-                                            <span
-                                                className={`badge ${
-                                                    item.type === 'Evaluation'
-                                                        ? 'bg-warning'
-                                                        : item.type === 'Evaluation'
-                                                        ? 'bg-info'
-                                                        : 'bg-success'
-                                                }`}
-                                            >
-                                                {item.type}
-                                            </span>
+                                            <span className={`badge ${item.type === 'Evaluation' ? 'bg-warning' : item.type === 'Evaluation' ? 'bg-info' : 'bg-success'}`}>{item.type}</span>
                                         </td>
                                         <td>
                                             <Link to="#" className="text-primary hover:underline">

@@ -7,6 +7,8 @@ import { getUser } from '../../../utils/auth';
 import { useTranslation } from 'react-i18next';
 import { logEvent } from '../../../utils/analytics';
 import { getApiUrl } from '../../../config/api';
+import { statsService, SystemStats } from '../../../services/statsService';
+import { heartbeatService } from '../../../services/heartbeatService';
 
 type ModuleKey = 'pms' | 'ih' | 'committee' | 'budgeting' | 'audit' | 'prime' | 'datapoint' | 'maintenance' | 'asset' | 'ppm' | 'kb';
 
@@ -62,27 +64,51 @@ const Onboarding = () => {
     const [canScrollLeft, setCanScrollLeft] = useState(false);
     const [canScrollRight, setCanScrollRight] = useState(true);
     const [showStats, setShowStats] = useState(true);
+    const [systemStats, setSystemStats] = useState<SystemStats>({
+        activeUsers: 0,
+        requestsThisMonth: 0,
+        innovationIdeas: 0,
+        pendingApprovals: 0,
+        systemUptime: 99.9,
+        totalProcessedRequests: 0,
+        timestamp: new Date().toISOString(),
+    });
     const [moduleStats, setModuleStats] = useState<{
-        pms: { activeNow: number; today: number };
-        ih: { activeNow: number; today: number };
+        pms: { totalUsers: number; activeNow: number; today: number };
+        ih: { totalUsers: number; activeNow: number; today: number };
     }>({
-        pms: { activeNow: 0, today: 0 },
-        ih: { activeNow: 0, today: 0 },
+        pms: { totalUsers: 0, activeNow: 0, today: 0 },
+        ih: { totalUsers: 0, activeNow: 0, today: 0 },
     });
 
     useEffect(() => {
+        // Fetch real-time system statistics
+        const fetchSystemStats = async () => {
+            try {
+                const data = await statsService.getSystemStats();
+                setSystemStats(data);
+            } catch (error) {
+                console.error('Failed to fetch system stats:', error);
+            }
+        };
+
         // Fetch real-time module statistics
         const fetchModuleStats = async () => {
             try {
-                const response = await fetch(getApiUrl('/api/stats/modules'));
+                // In development, use relative URL to leverage Vite proxy
+                const url = import.meta.env.DEV ? '/api/stats/modules' : getApiUrl('/api/stats/modules');
+
+                const response = await fetch(url);
                 if (response.ok) {
                     const data = await response.json();
                     setModuleStats({
                         pms: {
+                            totalUsers: data.procurement?.totalUsers || 0,
                             activeNow: data.procurement?.activeNow || 0,
                             today: data.procurement?.today || 0,
                         },
                         ih: {
+                            totalUsers: data.innovation?.totalUsers || 0,
                             activeNow: data.innovation?.activeNow || 0,
                             today: data.innovation?.today || 0,
                         },
@@ -93,25 +119,22 @@ const Onboarding = () => {
             }
         };
 
+        fetchSystemStats();
         fetchModuleStats();
         // Refresh stats every 30 seconds
-        const interval = setInterval(fetchModuleStats, 30000);
+        const interval = setInterval(() => {
+            fetchSystemStats();
+            fetchModuleStats();
+        }, 30000);
         return () => clearInterval(interval);
     }, []);
 
     useEffect(() => {
         dispatch(setPageTitle(t('onboarding.title')));
 
-        // Debug logging
-        console.log('🔍 [Onboarding] User roles:', userRoles);
-        console.log('🔍 [Onboarding] isProcurementManager:', isProcurementManager);
-        console.log('🔍 [Onboarding] isCommittee:', isCommittee);
-        console.log('🔍 [Onboarding] isRequester:', isRequester);
-
         // If a committee-ONLY member lands here, redirect them to their dashboard
         const isCommitteeOnly = isCommittee && userRoles.length === 1;
         if (isCommitteeOnly) {
-            console.log('🔍 [Onboarding] Redirecting committee-only user to committee dashboard');
             navigate('/innovation/committee/dashboard', { replace: true });
             return;
         }
@@ -338,6 +361,10 @@ const Onboarding = () => {
             } else {
                 dispatch(setOnboardingComplete(false));
             }
+            // Start heartbeat tracking for the selected module
+            if (selected === 'pms' || selected === 'ih') {
+                heartbeatService.startHeartbeat(selected);
+            }
             // Small UX delay
             await new Promise((r) => setTimeout(r, 200));
             // analytics: continue
@@ -498,7 +525,7 @@ const Onboarding = () => {
                                     <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
                                 </svg>
                             </div>
-                            <div className="text-3xl font-black mb-1">247</div>
+                            <div className="text-3xl font-black mb-1">{systemStats.activeUsers.toLocaleString()}</div>
                             <div className="text-blue-100 text-sm font-medium">Active Users</div>
                         </div>
                         <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-shadow">
@@ -511,7 +538,7 @@ const Onboarding = () => {
                                     />
                                 </svg>
                             </div>
-                            <div className="text-3xl font-black mb-1">1,429</div>
+                            <div className="text-3xl font-black mb-1">{systemStats.requestsThisMonth.toLocaleString()}</div>
                             <div className="text-purple-100 text-sm font-medium">Requests This Month</div>
                         </div>
                         <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-shadow">
@@ -520,7 +547,7 @@ const Onboarding = () => {
                                     <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                                 </svg>
                             </div>
-                            <div className="text-3xl font-black mb-1">89</div>
+                            <div className="text-3xl font-black mb-1">{systemStats.innovationIdeas.toLocaleString()}</div>
                             <div className="text-green-100 text-sm font-medium">Innovation Ideas</div>
                         </div>
                         <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-shadow">
@@ -533,7 +560,7 @@ const Onboarding = () => {
                                     />
                                 </svg>
                             </div>
-                            <div className="text-3xl font-black mb-1">12</div>
+                            <div className="text-3xl font-black mb-1">{systemStats.pendingApprovals.toLocaleString()}</div>
                             <div className="text-orange-100 text-sm font-medium">Pending Approvals</div>
                         </div>
                     </div>
@@ -680,7 +707,7 @@ const Onboarding = () => {
                                                         <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                                                             <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
                                                         </svg>
-                                                        {m.id === 'pms' ? '182 users' : '94 users'}
+                                                        {moduleStats[m.id as 'pms' | 'ih'].activeNow} {moduleStats[m.id as 'pms' | 'ih'].activeNow === 1 ? 'user' : 'users'}
                                                     </span>
                                                 )}
                                             </div>
