@@ -115,14 +115,14 @@ const EvaluationDetail = () => {
                           })();
                     (arr || []).forEach((s: string) => sections.add(String(s).toUpperCase()));
                 });
-                
+
                 // Procurement officers can always edit sections A, D, and E (their sections)
                 if (isProcurement) {
                     sections.add('A');
                     sections.add('D');
                     sections.add('E');
                 }
-                
+
                 setCanEditSections(Array.from(sections));
 
                 // Store my assignment for complete button
@@ -245,42 +245,26 @@ const EvaluationDetail = () => {
                     <h6 className="font-semibold mb-3">Assignment Status</h6>
                     <div className="space-y-2">
                         {currentAssignments.map((assignment: any) => {
-                            const sections = Array.isArray(assignment.sections) 
-                                ? assignment.sections 
+                            const sections = Array.isArray(assignment.sections)
+                                ? assignment.sections
                                 : (() => {
-                                    try {
-                                        return JSON.parse(assignment.sections || '[]');
-                                    } catch {
-                                        return [];
-                                    }
-                                })();
+                                      try {
+                                          return JSON.parse(assignment.sections || '[]');
+                                      } catch {
+                                          return [];
+                                      }
+                                  })();
                             const isCompleted = assignment.status === 'SUBMITTED';
                             return (
-                                <div key={assignment.id} className={`p-3 rounded border ${
-                                    isCompleted 
-                                        ? 'bg-success-light border-success' 
-                                        : 'bg-warning-light border-warning'
-                                }`}>
+                                <div key={assignment.id} className={`p-3 rounded border ${isCompleted ? 'bg-success-light border-success' : 'bg-warning-light border-warning'}`}>
                                     <div className="flex items-center justify-between">
                                         <div>
-                                            <span className="font-semibold">
-                                                {assignment.user?.name || assignment.user?.email || `User #${assignment.userId}`}
-                                            </span>
-                                            <span className="text-sm ml-2">
-                                                (Sections: {sections.join(', ')})
-                                            </span>
+                                            <span className="font-semibold">{assignment.user?.name || assignment.user?.email || `User #${assignment.userId}`}</span>
+                                            <span className="text-sm ml-2">(Sections: {sections.join(', ')})</span>
                                         </div>
-                                        <span className={`badge ${
-                                            isCompleted ? 'bg-success' : 'bg-warning'
-                                        }`}>
-                                            {isCompleted ? '✓ Completed' : 'In Progress'}
-                                        </span>
+                                        <span className={`badge ${isCompleted ? 'bg-success' : 'bg-warning'}`}>{isCompleted ? '✓ Completed' : 'In Progress'}</span>
                                     </div>
-                                    {isCompleted && assignment.submittedAt && (
-                                        <div className="text-xs text-white-dark mt-1">
-                                            Submitted: {new Date(assignment.submittedAt).toLocaleString()}
-                                        </div>
-                                    )}
+                                    {isCompleted && assignment.submittedAt && <div className="text-xs text-white-dark mt-1">Submitted: {new Date(assignment.submittedAt).toLocaleString()}</div>}
                                 </div>
                             );
                         })}
@@ -476,19 +460,19 @@ const EvaluationDetail = () => {
                     <div className="flex items-center justify-between">
                         <div>
                             <h6 className="font-semibold text-primary mb-1">Ready to Print?</h6>
-                            <p className="text-sm text-white-dark">
-                                Print the complete evaluation document with all sections consolidated.
-                            </p>
+                            <p className="text-sm text-white-dark">Print the complete evaluation document with all sections consolidated.</p>
                         </div>
-                        <button 
-                            type="button" 
-                            className="btn btn-primary gap-2"
-                            onClick={handlePrintEvaluation}
-                        >
+                        <button type="button" className="btn btn-primary gap-2" onClick={handlePrintEvaluation}>
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M6 9V2H18V9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                                <path d="M6 18H4C3.46957 18 2.96086 17.7893 2.58579 17.4142C2.21071 17.0391 2 16.5304 2 16V11C2 10.4696 2.21071 9.96086 2.58579 9.58579C2.96086 9.21071 3.46957 9 4 9H20C20.5304 9 21.0391 9.21071 21.4142 9.58579C21.7893 9.96086 22 10.4696 22 11V16C22 16.5304 21.7893 17.0391 21.4142 17.4142C21.0391 17.7893 20.5304 18 20 18H18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                                <path d="M18 14H6V22H18V14Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                                <path d="M6 9V2H18V9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                <path
+                                    d="M6 18H4C3.46957 18 2.96086 17.7893 2.58579 17.4142C2.21071 17.0391 2 16.5304 2 16V11C2 10.4696 2.21071 9.96086 2.58579 9.58579C2.96086 9.21071 3.46957 9 4 9H20C20.5304 9 21.0391 9.21071 21.4142 9.58579C21.7893 9.96086 22 10.4696 22 11V16C22 16.5304 21.7893 17.0391 21.4142 17.4142C21.0391 17.7893 20.5304 18 20 18H18"
+                                    stroke="currentColor"
+                                    strokeWidth="1.5"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                />
+                                <path d="M18 14H6V22H18V14Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                             </svg>
                             Print/Export Evaluation
                         </button>
