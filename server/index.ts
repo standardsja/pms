@@ -2934,7 +2934,41 @@ app.post('/requests/:id/action', async (req, res) => {
                 // Don't assign here - let auto-assignment handle it
                 nextAssigneeId = null;
             } else if (request.status === 'PROCUREMENT_REVIEW') {
-                // Procurement approved -> final approval (ready to send to vendor)
+                // Procurement approved -> check if Executive Director approval needed
+                const totalValue = request.totalEstimated || 0;
+                const procurementTypes = (() => {
+                    try {
+                        return request.procurementType ? (Array.isArray(request.procurementType) ? request.procurementType : JSON.parse(request.procurementType as any)) : [];
+                    } catch {
+                        return [];
+                    }
+                })();
+                const requestCurrency = request.currency || 'JMD';
+                
+                const thresholdResult = checkProcurementThresholds(totalValue, procurementTypes, requestCurrency);
+                
+                if (thresholdResult.requiresExecutiveApproval) {
+                    // High-value request -> send to Executive Director for evaluation
+                    nextStatus = 'EXECUTIVE_REVIEW';
+                    const executiveDirector = await prisma.user.findFirst({
+                        where: {
+                            roles: { some: { role: { name: { in: ['EXECUTIVE_DIRECTOR', 'EXECUTIVE'] } } } },
+                        },
+                    });
+                    nextAssigneeId = executiveDirector?.id || null;
+                } else {
+                    // Normal flow -> final approval (ready to send to vendor)
+                    nextStatus = 'FINANCE_APPROVED';
+                    // Assign back to procurement manager so they can print/process
+                    const procurementManager = await prisma.user.findFirst({
+                        where: {
+                            roles: { some: { role: { name: 'PROCUREMENT_MANAGER' } } },
+                        },
+                    });
+                    nextAssigneeId = procurementManager?.id || null;
+                }
+            } else if (request.status === 'EXECUTIVE_REVIEW') {
+                // Executive Director approved -> final approval (ready to send to vendor)
                 nextStatus = 'FINANCE_APPROVED';
                 // Assign back to procurement manager so they can print/process
                 const procurementManager = await prisma.user.findFirst({
@@ -2990,7 +3024,7 @@ app.post('/requests/:id/action', async (req, res) => {
                 },
             });
 
-            // Notify the next assignee (procurement manager/officer) if present (normal path)
+            // Notify the next assignee (procurement manager/officer/executive) if present (normal path)
             try {
                 const assigneeId = updated.currentAssignee?.id || updated.currentAssigneeId || null;
                 if (assigneeId) {
@@ -3005,6 +3039,28 @@ app.post('/requests/:id/action', async (req, res) => {
                 }
             } catch (notifErr) {
                 console.warn('Failed to create notification on approve action:', notifErr);
+            }
+
+            // If routed to Executive Director for evaluation, create a direct evaluation link notification
+            try {
+                if (nextStatus === 'EXECUTIVE_REVIEW' && updated.currentAssigneeId) {
+                    // Find or create evaluation for this request context (lightweight pointer)
+                    await prisma.notification.create({
+                        data: {
+                            userId: Number(updated.currentAssigneeId),
+                            type: 'EVALUATION_REQUIRED',
+                            message: `High-value request ${updated.reference || updated.id} requires your evaluation`,
+                            data: {
+                                requestId: updated.id,
+                                action: 'OPEN_EVALUATION',
+                                // Frontend route for creating a new evaluation
+                                url: `/procurement/evaluation/new?requestId=${updated.id}`,
+                            },
+                        },
+                    });
+                }
+            } catch (notifErr) {
+                console.warn('Failed to create executive evaluation notification:', notifErr);
             }
         } catch (e: any) {
             const msg = String(e?.message || '');
