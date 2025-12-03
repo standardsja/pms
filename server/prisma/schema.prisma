@@ -85,6 +85,8 @@ enum NotificationType {
   THRESHOLD_EXCEEDED
   EVALUATION_VERIFIED
   EVALUATION_RETURNED
+  PO_AWARDED
+  CONTRACT_AWARDED
 }
 
 enum AuditAction {
@@ -210,6 +212,7 @@ model Vendor {
   id        Int       @id @default(autoincrement())
   name      String
   contact   Json?
+  email     String?   // Supplier email for notifications
   address   String?
   website   String?
   createdAt DateTime  @default(now())

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth';
 import { checkUserRoles } from '../utils/roleUtils';
+import { sendPOAwardNotification } from '../services/notificationService';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -132,7 +133,7 @@ router.get('/:id', authMiddleware, async (req, res) => {
 // Create new purchase order
 router.post('/', authMiddleware, async (req, res) => {
     try {
-        const { requestId, supplierName, description, deliveryDate, amount, currency, items, terms, notes } = req.body;
+        const { requestId, supplierName, supplierEmail, description, deliveryDate, amount, currency, items, terms, notes } = req.body;
 
         const authReq = req as AuthenticatedRequest;
         const userId = authReq.user.sub;
@@ -160,6 +161,12 @@ router.post('/', authMiddleware, async (req, res) => {
         const timestamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 8);
         const count = await (prisma as any).purchaseOrder.count();
         const poNumber = `PO-${timestamp}-${String(count + 1).padStart(3, '0')}`;
+
+        // Get creator details for notification
+        const creator = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { name: true, email: true },
+        });
 
         const purchaseOrder = await (prisma as any).purchaseOrder.create({
             data: {
@@ -191,6 +198,22 @@ router.post('/', authMiddleware, async (req, res) => {
             },
         });
 
+        // Send notification to supplier if email provided
+        if (supplierEmail) {
+            await sendPOAwardNotification({
+                poNumber,
+                poId: purchaseOrder.id,
+                supplierName,
+                supplierEmail,
+                description,
+                amount: Number(amount),
+                currency: currency || 'JMD',
+                deliveryDate: deliveryDate ? new Date(deliveryDate) : undefined,
+                createdBy: creator?.name || 'Procurement Team',
+                terms,
+            });
+        }
+
         res.status(201).json({
             success: true,
             message: 'Purchase order created successfully',
@@ -212,7 +235,7 @@ router.post('/', authMiddleware, async (req, res) => {
 router.patch('/:id/status', authMiddleware, async (req, res) => {
     try {
         const { id } = req.params;
-        const { status, paymentStatus, deliveryStatus } = req.body;
+        const { status, paymentStatus, deliveryStatus, supplierEmail } = req.body;
 
         const authReq = req as AuthenticatedRequest;
         const userId = authReq.user.sub;
@@ -225,6 +248,20 @@ router.patch('/:id/status', authMiddleware, async (req, res) => {
                 error: 'Access denied',
             });
         }
+
+        // Get existing PO to check for supplier email
+        const existingPO = await (prisma as any).purchaseOrder.findUnique({
+            where: { id: parseInt(id) },
+            select: {
+                supplierName: true,
+                description: true,
+                amount: true,
+                currency: true,
+                deliveryDate: true,
+                poNumber: true,
+                terms: true,
+            },
+        });
 
         const updateData: any = {};
         if (status) updateData.status = status;
@@ -241,6 +278,46 @@ router.patch('/:id/status', authMiddleware, async (req, res) => {
             where: { id: parseInt(id) },
             data: updateData,
         });
+
+        // Send notification to supplier when PO is approved
+        if (status === 'Approved' && existingPO) {
+            const approver = await prisma.user.findUnique({
+                where: { id: userId },
+                select: { name: true },
+            });
+
+            // Try to get supplier email from vendor record or from request body
+            let emailToUse = supplierEmail;
+
+            if (!emailToUse && existingPO.supplierName) {
+                const vendor = await (prisma as any).vendor.findFirst({
+                    where: { name: existingPO.supplierName },
+                    select: { email: true, contact: true },
+                });
+
+                if (vendor?.email) {
+                    emailToUse = vendor.email;
+                } else if (vendor?.contact) {
+                    const contact = vendor.contact as any;
+                    emailToUse = contact?.email;
+                }
+            }
+
+            if (emailToUse) {
+                await sendPOAwardNotification({
+                    poNumber: existingPO.poNumber,
+                    poId: parseInt(id),
+                    supplierName: existingPO.supplierName,
+                    supplierEmail: emailToUse,
+                    description: existingPO.description,
+                    amount: Number(existingPO.amount),
+                    currency: existingPO.currency,
+                    deliveryDate: existingPO.deliveryDate,
+                    createdBy: approver?.name || 'Procurement Team',
+                    terms: existingPO.terms,
+                });
+            }
+        }
 
         res.json({
             success: true,

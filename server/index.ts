@@ -36,6 +36,7 @@ import statsRouter from './routes/stats';
 import combineRouter from './routes/combine';
 import approvalsRouter from './routes/approvals';
 import purchaseOrdersRouter from './routes/purchaseOrders';
+import suppliersRouter from './routes/suppliers';
 
 const app = express();
 const httpServer = http.createServer(app);
@@ -4980,6 +4981,9 @@ app.use('/api/approvals', approvalsRouter);
 
 // Purchase Orders API routes
 app.use('/api/purchase-orders', purchaseOrdersRouter);
+
+// Suppliers API routes
+app.use('/api/suppliers', suppliersRouter);
 
 // DEBUG: List all registered routes (temporary; remove in production)
 app.get('/api/_routes', (req, res) => {

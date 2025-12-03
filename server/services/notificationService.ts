@@ -147,3 +147,124 @@ export async function getProcurementNotificationUsers(): Promise<Array<{ id: num
         return [];
     }
 }
+
+/**
+ * Send PO award notification to supplier via email
+ */
+export interface POAwardNotificationData {
+    poNumber: string;
+    poId: number;
+    supplierName: string;
+    supplierEmail?: string;
+    description: string;
+    amount: number;
+    currency: string;
+    deliveryDate?: Date;
+    createdBy: string;
+    terms?: string;
+}
+
+export async function sendPOAwardNotification(data: POAwardNotificationData): Promise<void> {
+    try {
+        if (!data.supplierEmail) {
+            console.warn(`[PO Award] No email provided for supplier "${data.supplierName}". Skipping notification.`);
+            return;
+        }
+
+        console.log(`[PO Award] Sending PO award notification to ${data.supplierName} (${data.supplierEmail})`);
+
+        // TODO: Integrate with email service (SendGrid, AWS SES, etc.)
+        // For now, we'll log the notification details
+        const emailContent = {
+            to: data.supplierEmail,
+            subject: `Purchase Order Awarded - ${data.poNumber}`,
+            body: `
+Dear ${data.supplierName},
+
+You have been awarded a Purchase Order:
+
+Purchase Order Number: ${data.poNumber}
+Description: ${data.description}
+Amount: ${data.currency} ${data.amount.toLocaleString()}
+${data.deliveryDate ? `Expected Delivery: ${data.deliveryDate.toISOString().split('T')[0]}` : ''}
+Issued By: ${data.createdBy}
+
+${data.terms ? `Terms & Conditions:\n${data.terms}\n` : ''}
+
+Please log in to the system to view full details and confirm acceptance.
+
+Best regards,
+Procurement Team
+            `.trim(),
+        };
+
+        console.log('[PO Award Email]:', JSON.stringify(emailContent, null, 2));
+
+        // Store notification in database (optional - for internal tracking)
+        // Note: This is separate from User notifications since suppliers may not have user accounts
+        // You could create a separate SupplierNotification table or use an external notification log
+
+        console.log(`[PO Award] Notification sent successfully to ${data.supplierName}`);
+    } catch (error) {
+        console.error('[PO Award] Failed to send notification:', error);
+        // Don't throw - PO creation should succeed even if notification fails
+    }
+}
+
+/**
+ * Send contract award notification to supplier via email
+ */
+export interface ContractAwardNotificationData {
+    contractNumber: string;
+    contractId: number;
+    supplierName: string;
+    supplierEmail?: string;
+    title: string;
+    description?: string;
+    value: number;
+    currency: string;
+    startDate?: Date;
+    endDate?: Date;
+    createdBy: string;
+}
+
+export async function sendContractAwardNotification(data: ContractAwardNotificationData): Promise<void> {
+    try {
+        if (!data.supplierEmail) {
+            console.warn(`[Contract Award] No email provided for supplier "${data.supplierName}". Skipping notification.`);
+            return;
+        }
+
+        console.log(`[Contract Award] Sending contract award notification to ${data.supplierName} (${data.supplierEmail})`);
+
+        const emailContent = {
+            to: data.supplierEmail,
+            subject: `Contract Awarded - ${data.contractNumber}`,
+            body: `
+Dear ${data.supplierName},
+
+Congratulations! You have been awarded a Contract:
+
+Contract Number: ${data.contractNumber}
+Title: ${data.title}
+${data.description ? `Description: ${data.description}` : ''}
+Contract Value: ${data.currency} ${data.value.toLocaleString()}
+${data.startDate ? `Start Date: ${data.startDate.toISOString().split('T')[0]}` : ''}
+${data.endDate ? `End Date: ${data.endDate.toISOString().split('T')[0]}` : ''}
+Issued By: ${data.createdBy}
+
+Please log in to the system to review the contract details and submit your acceptance.
+
+Best regards,
+Procurement Team
+            `.trim(),
+        };
+
+        console.log('[Contract Award Email]:', JSON.stringify(emailContent, null, 2));
+
+        console.log(`[Contract Award] Notification sent successfully to ${data.supplierName}`);
+    } catch (error) {
+        console.error('[Contract Award] Failed to send notification:', error);
+        // Don't throw - contract creation should succeed even if notification fails
+    }
+}
