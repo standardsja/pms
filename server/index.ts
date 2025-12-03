@@ -34,6 +34,8 @@ import { validate, createIdeaSchema, voteSchema, approveRejectIdeaSchema, promot
 import { errorHandler, notFoundHandler, asyncHandler, NotFoundError, BadRequestError } from './middleware/errorHandler';
 import statsRouter from './routes/stats';
 import combineRouter from './routes/combine';
+import approvalsRouter from './routes/approvals';
+import purchaseOrdersRouter from './routes/purchaseOrders';
 
 const app = express();
 const httpServer = http.createServer(app);
@@ -4862,6 +4864,12 @@ app.use('/api/stats', statsRouter);
 
 // Combine requests API routes
 app.use('/api/requests/combine', combineRouter);
+
+// Approvals API routes
+app.use('/api/approvals', approvalsRouter);
+
+// Purchase Orders API routes
+app.use('/api/purchase-orders', purchaseOrdersRouter);
 
 // DEBUG: List all registered routes (temporary; remove in production)
 app.get('/api/_routes', (req, res) => {
