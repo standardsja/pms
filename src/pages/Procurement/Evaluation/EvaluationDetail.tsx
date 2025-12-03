@@ -33,6 +33,8 @@ const EvaluationDetail = () => {
     const [selectedUserId, setSelectedUserId] = useState<string>('');
     const [selectedAssignSections, setSelectedAssignSections] = useState<string[]>([]);
     const [currentAssignments, setCurrentAssignments] = useState<any[]>([]);
+    const [myAssignment, setMyAssignment] = useState<any>(null);
+    const [completingAssignment, setCompletingAssignment] = useState(false);
 
     useEffect(() => {
         dispatch(setPageTitle('Evaluation Details'));
@@ -67,6 +69,11 @@ const EvaluationDetail = () => {
                     (a.sections || []).forEach((s: string) => sections.add(String(s).toUpperCase()));
                 });
                 setCanEditSections(Array.from(sections));
+                
+                // Store my assignment for complete button
+                if (forThisEval.length > 0) {
+                    setMyAssignment(forThisEval[0]);
+                }
             } catch {
                 setCanEditSections([]);
             }
@@ -145,8 +152,66 @@ const EvaluationDetail = () => {
         }
     };
 
+    const handleCompleteAssignment = async () => {
+        if (!evaluation || !myAssignment) return;
+        
+        if (!confirm('Are you sure you want to mark your evaluation as complete? The procurement officer will be notified.')) {
+            return;
+        }
+
+        try {
+            setCompletingAssignment(true);
+            await evaluationService.completeAssignment(evaluation.id);
+            alert('Your evaluation has been marked as complete. The procurement officer has been notified.');
+            // Reload to update assignment status
+            loadEvaluation();
+            // Reload assignment
+            const assignments = await evaluationService.getMyAssignments();
+            const forThisEval = assignments.filter((a: any) => String(a.evaluationId) === String(id));
+            if (forThisEval.length > 0) {
+                setMyAssignment(forThisEval[0]);
+            }
+        } catch (err: any) {
+            alert(err.message || 'Failed to complete assignment');
+        } finally {
+            setCompletingAssignment(false);
+        }
+    };
+
     return (
         <div>
+            {/* Evaluator Complete Assignment Button */}
+            {!isProcurement && !isCommittee && myAssignment && myAssignment.status !== 'COMPLETED' && evaluation && (
+                <div className="panel mb-4 bg-success-light border-2 border-success">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <h6 className="font-semibold text-success mb-1">Your Evaluation Assignment</h6>
+                            <p className="text-sm text-white-dark">
+                                You are assigned to complete: <span className="font-semibold">{myAssignment.sections.join(', ')}</span>
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            className="btn btn-success gap-2"
+                            onClick={handleCompleteAssignment}
+                            disabled={completingAssignment}
+                        >
+                            {completingAssignment ? (
+                                <>
+                                    <span className="animate-spin border-2 border-white border-l-transparent rounded-full w-4 h-4 inline-block"></span>
+                                    Completing...
+                                </>
+                            ) : (
+                                <>
+                                    <IconChecks />
+                                    Mark Complete & Return to Procurement
+                                </>
+                            )}
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {/* Assignment Management - Procurement Only */}
             {isProcurement && evaluation && (
                 <div className="panel mb-4">

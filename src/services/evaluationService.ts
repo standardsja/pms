@@ -360,6 +360,13 @@ class EvaluationService {
             method: 'DELETE',
         });
     }
+
+    async completeAssignment(evaluationId: number) {
+        const result = await this.fetchWithAuth(`/api/evaluations/${evaluationId}/assignments/complete`, {
+            method: 'POST',
+        });
+        return result;
+    }
 }
 
 export const evaluationService = new EvaluationService();

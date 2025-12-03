@@ -3808,6 +3808,11 @@ app.get(
     authMiddleware,
     asyncHandler(async (req, res) => {
         const { status, search, dueBefore, dueAfter } = req.query;
+        const userObj: any = (req as any).user;
+        const userId = parseInt(userObj?.sub || userObj?.id);
+        const roles: string[] = userObj?.roles || [];
+        const isProcurement = roles.some((r: string) => r.toUpperCase().includes('PROCUREMENT'));
+        const isCommittee = roles.some((r: string) => r.toUpperCase().includes('EVALUATION_COMMITTEE'));
         if (hasEvaluationDelegate()) {
             const where: Prisma.EvaluationWhereInput = {};
             if (status && status !== 'ALL') where.status = status as any;
@@ -3833,7 +3838,7 @@ app.get(
                     where.dueDate = { gte: new Date(dueAfter as string) };
                 }
             }
-            const evaluations = await (prisma as any).evaluation.findMany({
+            let evaluations = await (prisma as any).evaluation.findMany({
                 where,
                 include: {
                     creator: { select: { id: true, name: true, email: true } },
@@ -3846,6 +3851,17 @@ app.get(
                 },
                 orderBy: { createdAt: 'desc' },
             });
+
+            // Filter evaluations based on access: show only if user is creator, procurement, committee, or assigned
+            if (!isProcurement && !isCommittee) {
+                const myAssignments = await (prisma as any).evaluationAssignment.findMany({
+                    where: { userId },
+                    select: { evaluationId: true },
+                });
+                const assignedIds = new Set(myAssignments.map((a: any) => a.evaluationId));
+                evaluations = evaluations.filter((e: any) => e.createdBy === userId || assignedIds.has(e.id));
+            }
+
             return res.json({ success: true, data: evaluations });
         }
         // Raw SQL fallback
@@ -3927,6 +3943,12 @@ app.get(
     authMiddleware,
     asyncHandler(async (req, res) => {
         const { id } = req.params;
+        const userObj: any = (req as any).user;
+        const userId = parseInt(userObj?.sub || userObj?.id);
+        const roles: string[] = userObj?.roles || [];
+        const isProcurement = roles.some((r: string) => r.toUpperCase().includes('PROCUREMENT'));
+        const isCommittee = roles.some((r: string) => r.toUpperCase().includes('EVALUATION_COMMITTEE'));
+
         if (hasEvaluationDelegate()) {
             const evaluation = await (prisma as any).evaluation.findUnique({
                 where: { id: parseInt(id) },
@@ -3941,6 +3963,16 @@ app.get(
                 },
             });
             if (!evaluation) throw new NotFoundError('Evaluation not found');
+
+            // Check if user has access: creator, procurement role, committee role, or assigned evaluator
+            const isCreator = evaluation.createdBy === userId;
+            const isAssigned = await (prisma as any).evaluationAssignment.findFirst({
+                where: { evaluationId: parseInt(id), userId },
+            });
+
+            if (!isCreator && !isProcurement && !isCommittee && !isAssigned) {
+                throw new Error('You do not have permission to view this evaluation');
+            }
             return res.json({ success: true, data: evaluation });
         }
         const rows = await prisma.$queryRawUnsafe<any>(
@@ -4258,6 +4290,57 @@ app.get(
     })
 );
 
+// POST /api/evaluations/:id/assignments/complete - Evaluator marks their assignment as complete
+app.post(
+    '/api/evaluations/:id/assignments/complete',
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+        if (!hasEvaluationDelegate()) {
+            return res.status(501).json({ success: false, message: 'Assignments require Prisma model' });
+        }
+
+        const { id } = req.params;
+        const userObj: any = (req as any).user;
+        const userId = parseInt(userObj?.sub || userObj?.id);
+        const evaluationId = parseInt(id);
+
+        // Find the assignment
+        const assignment = await (prisma as any).evaluationAssignment.findFirst({
+            where: { evaluationId, userId },
+            include: { evaluation: { include: { creator: true } } },
+        });
+
+        if (!assignment) {
+            throw new NotFoundError('You are not assigned to this evaluation');
+        }
+
+        // Update assignment status to COMPLETED
+        await (prisma as any).evaluationAssignment.update({
+            where: { id: assignment.id },
+            data: {
+                status: 'COMPLETED',
+                submittedAt: new Date(),
+            },
+        });
+
+        // Notify procurement officer (creator)
+        try {
+            await (prisma as any).notification.create({
+                data: {
+                    userId: assignment.evaluation.createdBy,
+                    type: 'EVALUATION_VERIFIED',
+                    message: `${userObj.name || userObj.email} has completed their evaluation assignment for ${assignment.evaluation.evalNumber}`,
+                    data: { evaluationId, evalNumber: assignment.evaluation.evalNumber },
+                },
+            });
+        } catch (e) {
+            console.error('Failed to create completion notification:', e);
+        }
+
+        res.json({ success: true, message: 'Assignment marked as complete and procurement notified' });
+    })
+);
+
 // PATCH /api/evaluations/:id - Update evaluation
 app.patch(
     '/api/evaluations/:id',
@@ -4514,6 +4597,10 @@ app.post(
     asyncHandler(async (req, res) => {
         const { id, section } = req.params;
         const sectionUpper = section.toUpperCase();
+        const userObj: any = (req as any).user;
+        const userId = parseInt(userObj?.sub || userObj?.id);
+        const roles: string[] = userObj?.roles || [];
+        const isProcurement = roles.some((r: string) => r.toUpperCase().includes('PROCUREMENT'));
 
         // Validate ID is numeric
         const evaluationId = parseInt(id);
@@ -4533,6 +4620,22 @@ app.post(
             existing = checkRow[0];
         }
         if (!existing) throw new NotFoundError('Evaluation not found');
+
+        // Check access: procurement can submit Section A; assigned evaluators can submit their assigned sections
+        const isCreator = existing.createdBy === userId;
+        if (!isProcurement && !isCreator) {
+            // Check if user is assigned and section is in their assignment
+            const assignment = await (prisma as any).evaluationAssignment.findFirst({
+                where: { evaluationId, userId },
+            });
+            if (!assignment) {
+                throw new Error('You are not assigned to this evaluation');
+            }
+            const assignedSections = Array.isArray(assignment.sections) ? assignment.sections : [];
+            if (!assignedSections.includes(sectionUpper)) {
+                throw new Error(`You are not assigned to Section ${sectionUpper}`);
+            }
+        }
 
         // Check if section data exists
         const sectionDataKey = `section${sectionUpper}`;
