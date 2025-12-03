@@ -8,7 +8,6 @@ import { useTranslation } from 'react-i18next';
 import { logEvent } from '../../../utils/analytics';
 import { getApiUrl } from '../../../config/api';
 import { statsService, SystemStats } from '../../../services/statsService';
-import { heartbeatService } from '../../../services/heartbeatService';
 
 type ModuleKey = 'pms' | 'ih' | 'committee' | 'budgeting' | 'audit' | 'prime' | 'datapoint' | 'maintenance' | 'asset' | 'ppm' | 'kb';
 
@@ -360,10 +359,6 @@ const Onboarding = () => {
                 dispatch(setOnboardingComplete(true));
             } else {
                 dispatch(setOnboardingComplete(false));
-            }
-            // Start heartbeat tracking for the selected module
-            if (selected === 'pms' || selected === 'ih') {
-                heartbeatService.startHeartbeat(selected);
             }
             // Small UX delay
             await new Promise((r) => setTimeout(r, 200));

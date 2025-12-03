@@ -80,6 +80,9 @@ router.get('/', authMiddleware, async (req, res) => {
             in: ['DRAFT', 'SUBMITTED', 'DEPARTMENT_REVIEW', 'PROCUREMENT_REVIEW'],
         };
 
+        // Exclude requests that have already been combined
+        whereClause.combinedRequestId = null;
+
         if (userRoleInfo.isProcurementOfficer || userRoleInfo.isProcurementManager || userRoleInfo.isAdmin) {
             // Procurement users can see all combinable requests
         } else {

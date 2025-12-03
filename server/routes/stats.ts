@@ -8,11 +8,12 @@ const router = Router();
 // Key: userId, Value: { module: 'pms' | 'ih', lastSeen: Date }
 const activeSessions = new Map<number, { module: 'pms' | 'ih'; lastSeen: Date }>();
 
-// Clean up stale sessions (inactive for more than 2 minutes)
+// Clean up stale sessions (inactive for more than 3 minutes)
+// Heartbeat interval is 45s, so 3 minutes allows for ~4 missed heartbeats before cleanup
 setInterval(() => {
-    const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000);
+    const threeMinutesAgo = new Date(Date.now() - 3 * 60 * 1000);
     for (const [userId, session] of activeSessions.entries()) {
-        if (session.lastSeen < twoMinutesAgo) {
+        if (session.lastSeen < threeMinutesAgo) {
             console.log('[Stats] Removing stale session for userId:', userId);
             activeSessions.delete(userId);
         }
@@ -23,11 +24,17 @@ setInterval(() => {
  * DELETE /api/stats/heartbeat
  * Remove user's active session (called on logout)
  */
-router.delete('/heartbeat', async (req: Request, res: Response) => {
+router.delete('/heartbeat', authMiddleware, async (req: Request, res: Response) => {
     console.log('[Stats/Heartbeat] ===== LOGOUT/CLEANUP =====');
     try {
-        // TEMPORARY: Use x-user-id header for testing
-        const userId = parseInt(req.headers['x-user-id'] as string) || 1;
+        // Extract userId from authenticated request
+        const authReq = req as AuthenticatedRequest;
+        const userId = authReq.user?.sub;
+
+        if (!userId) {
+            console.warn('[Stats/Heartbeat] No userId found in request');
+            return res.status(401).json({ error: 'Authentication required' });
+        }
 
         console.log('[Stats/Heartbeat] Removing session for userId:', userId);
         activeSessions.delete(userId);
@@ -48,16 +55,21 @@ router.delete('/heartbeat', async (req: Request, res: Response) => {
  * POST /api/stats/heartbeat
  * Track user activity in a specific module
  * Body: { module: 'pms' | 'ih' }
- * TEMPORARY: Auth disabled for debugging
  */
-router.post('/heartbeat', async (req: Request, res: Response) => {
-    console.log('[Stats/Heartbeat] ===== ENDPOINT HIT (NO AUTH) =====');
+router.post('/heartbeat', authMiddleware, async (req: Request, res: Response) => {
+    console.log('[Stats/Heartbeat] ===== ENDPOINT HIT =====');
     console.log('[Stats/Heartbeat] Body:', req.body);
-    console.log('[Stats/Heartbeat] Headers:', req.headers.authorization?.substring(0, 30));
 
     try {
-        // TEMPORARY: Use x-user-id header or body for testing
-        const userId = parseInt(req.headers['x-user-id'] as string) || 1; // Default to user 1 for testing
+        // Extract userId from authenticated request
+        const authReq = req as AuthenticatedRequest;
+        const userId = authReq.user?.sub;
+
+        if (!userId) {
+            console.warn('[Stats/Heartbeat] No userId found in request');
+            return res.status(401).json({ error: 'Authentication required' });
+        }
+
         const { module } = req.body;
 
         console.log('[Stats/Heartbeat] Using userId:', userId, 'module:', module);
@@ -284,17 +296,10 @@ router.get('/system', async (req: Request, res: Response) => {
         const now = new Date();
         const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
         const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-        // Total active users (active in last 7 days)
-        console.log('[Stats] Counting active users...');
-        const activeUsers = await prisma.user.count({
-            where: {
-                updatedAt: {
-                    gte: sevenDaysAgo,
-                },
-            },
-        });
+        // Active users now (from real-time sessions)
+        console.log('[Stats] Counting active users from sessions...');
+        const activeUsers = activeSessions.size;
         console.log(`[Stats] Active users: ${activeUsers}`);
 
         // Requests this month

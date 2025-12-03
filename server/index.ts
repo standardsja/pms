@@ -2937,9 +2937,49 @@ app.post('/requests/:id/action', async (req, res) => {
                 // Don't assign here - let auto-assignment handle it
                 nextAssigneeId = null;
             } else if (request.status === 'PROCUREMENT_REVIEW') {
-                // Procurement approved -> final approval (ready to send to vendor)
+                // Procurement approved -> check if Executive Director approval needed
+                const totalValue = request.totalEstimated || 0;
+                const procurementTypes = (() => {
+                    try {
+                        return request.procurementType ? (Array.isArray(request.procurementType) ? request.procurementType : JSON.parse(request.procurementType as any)) : [];
+                    } catch {
+                        return [];
+                    }
+                })();
+                const requestCurrency = request.currency || 'JMD';
+
+                const thresholdResult = checkProcurementThresholds(totalValue, procurementTypes, requestCurrency);
+
+                if (thresholdResult.requiresExecutiveApproval) {
+                    // High-value request -> send to Executive Director for evaluation
+                    nextStatus = 'EXECUTIVE_REVIEW';
+                    const executiveDirector = await prisma.user.findFirst({
+                        where: {
+                            roles: { some: { role: { name: { in: ['EXECUTIVE_DIRECTOR', 'EXECUTIVE'] } } } },
+                        },
+                    });
+                    nextAssigneeId = executiveDirector?.id || null;
+                } else {
+                    // Normal flow -> final approval (ready to send to vendor)
+                    nextStatus = 'FINANCE_APPROVED';
+                    // Assign back to procurement manager so they can print/process
+                    const procurementManager = await prisma.user.findFirst({
+                        where: {
+                            roles: { some: { role: { name: 'PROCUREMENT_MANAGER' } } },
+                        },
+                    });
+                    nextAssigneeId = procurementManager?.id || null;
+                }
+            } else if (request.status === 'EXECUTIVE_REVIEW') {
+                // Executive Director approved -> final approval (ready to send to vendor)
                 nextStatus = 'FINANCE_APPROVED';
-                nextAssigneeId = null;
+                // Assign back to procurement manager so they can print/process
+                const procurementManager = await prisma.user.findFirst({
+                    where: {
+                        roles: { some: { role: { name: 'PROCUREMENT_MANAGER' } } },
+                    },
+                });
+                nextAssigneeId = procurementManager?.id || null;
             }
         } else if (action === 'SEND_TO_VENDOR') {
             if (request.status !== 'FINANCE_APPROVED') {
@@ -2987,7 +3027,7 @@ app.post('/requests/:id/action', async (req, res) => {
                 },
             });
 
-            // Notify the next assignee (procurement manager/officer) if present (normal path)
+            // Notify the next assignee (procurement manager/officer/executive) if present (normal path)
             try {
                 const assigneeId = updated.currentAssignee?.id || updated.currentAssigneeId || null;
                 if (assigneeId) {
@@ -3002,6 +3042,28 @@ app.post('/requests/:id/action', async (req, res) => {
                 }
             } catch (notifErr) {
                 console.warn('Failed to create notification on approve action:', notifErr);
+            }
+
+            // If routed to Executive Director for evaluation, create a direct evaluation link notification
+            try {
+                if (nextStatus === 'EXECUTIVE_REVIEW' && updated.currentAssigneeId) {
+                    // Find or create evaluation for this request context (lightweight pointer)
+                    await prisma.notification.create({
+                        data: {
+                            userId: Number(updated.currentAssigneeId),
+                            type: 'EVALUATION_REQUIRED',
+                            message: `High-value request ${updated.reference || updated.id} requires your evaluation`,
+                            data: {
+                                requestId: updated.id,
+                                action: 'OPEN_EVALUATION',
+                                // Frontend route for creating a new evaluation
+                                url: `/procurement/evaluation/new?requestId=${updated.id}`,
+                            },
+                        },
+                    });
+                }
+            } catch (notifErr) {
+                console.warn('Failed to create executive evaluation notification:', notifErr);
             }
         } catch (e: any) {
             const msg = String(e?.message || '');
@@ -3933,6 +3995,11 @@ app.get(
     authMiddleware,
     asyncHandler(async (req, res) => {
         const { status, search, dueBefore, dueAfter } = req.query;
+        const userObj: any = (req as any).user;
+        const userId = parseInt(userObj?.sub || userObj?.id);
+        const roles: string[] = userObj?.roles || [];
+        const isProcurement = roles.some((r: string) => r.toUpperCase().includes('PROCUREMENT'));
+        const isCommittee = roles.some((r: string) => r.toUpperCase().includes('EVALUATION_COMMITTEE'));
         if (hasEvaluationDelegate()) {
             const where: Prisma.EvaluationWhereInput = {};
             if (status && status !== 'ALL') where.status = status as any;
@@ -3958,7 +4025,7 @@ app.get(
                     where.dueDate = { gte: new Date(dueAfter as string) };
                 }
             }
-            const evaluations = await (prisma as any).evaluation.findMany({
+            let evaluations = await (prisma as any).evaluation.findMany({
                 where,
                 include: {
                     creator: { select: { id: true, name: true, email: true } },
@@ -3971,6 +4038,17 @@ app.get(
                 },
                 orderBy: { createdAt: 'desc' },
             });
+
+            // Filter evaluations based on access: show only if user is creator, procurement, committee, or assigned
+            if (!isProcurement && !isCommittee) {
+                const myAssignments = await (prisma as any).evaluationAssignment.findMany({
+                    where: { userId },
+                    select: { evaluationId: true },
+                });
+                const assignedIds = new Set(myAssignments.map((a: any) => a.evaluationId));
+                evaluations = evaluations.filter((e: any) => e.createdBy === userId || assignedIds.has(e.id));
+            }
+
             return res.json({ success: true, data: evaluations });
         }
         // Raw SQL fallback
@@ -4052,6 +4130,12 @@ app.get(
     authMiddleware,
     asyncHandler(async (req, res) => {
         const { id } = req.params;
+        const userObj: any = (req as any).user;
+        const userId = parseInt(userObj?.sub || userObj?.id);
+        const roles: string[] = userObj?.roles || [];
+        const isProcurement = roles.some((r: string) => r.toUpperCase().includes('PROCUREMENT'));
+        const isCommittee = roles.some((r: string) => r.toUpperCase().includes('EVALUATION_COMMITTEE'));
+
         if (hasEvaluationDelegate()) {
             const evaluation = await (prisma as any).evaluation.findUnique({
                 where: { id: parseInt(id) },
@@ -4066,6 +4150,24 @@ app.get(
                 },
             });
             if (!evaluation) throw new NotFoundError('Evaluation not found');
+
+            // Check if user has access: creator, procurement role, committee role, or assigned evaluator
+            const isCreator = evaluation.createdBy === userId;
+            let isAssigned = false;
+            try {
+                const assignment = await (prisma as any).evaluationAssignment.findFirst({
+                    where: { evaluationId: parseInt(id), userId },
+                });
+                isAssigned = !!assignment;
+            } catch (e) {
+                // Fallback to raw SQL if Prisma enum validation fails
+                const assignmentRows = await prisma.$queryRawUnsafe<any>(`SELECT 1 FROM EvaluationAssignment WHERE evaluationId=${parseInt(id)} AND userId=${userId} LIMIT 1`);
+                isAssigned = assignmentRows.length > 0;
+            }
+
+            if (!isCreator && !isProcurement && !isCommittee && !isAssigned) {
+                throw new Error('You do not have permission to view this evaluation');
+            }
             return res.json({ success: true, data: evaluation });
         }
         const rows = await prisma.$queryRawUnsafe<any>(
@@ -4331,7 +4433,7 @@ app.post(
             const assignment = await (prisma as any).evaluationAssignment.upsert({
                 where: { evaluationId_userId: { evaluationId: evalId, userId: uid } },
                 update: { sections: sectionList },
-                create: { evaluationId: evalId, userId: uid, sections: sectionList },
+                create: { evaluationId: evalId, userId: uid, sections: sectionList, status: 'PENDING' },
             });
             created.push(assignment);
 
@@ -4367,19 +4469,109 @@ app.get(
         const userId = parseInt(userObj?.sub || userObj?.id);
         if (!Number.isFinite(userId)) throw new BadRequestError('Invalid user');
 
-        const assignments = await (prisma as any).evaluationAssignment.findMany({
-            where: { userId },
-            include: {
-                evaluation: {
-                    include: {
-                        creator: { select: { id: true, name: true, email: true } },
+        try {
+            const assignments = await (prisma as any).evaluationAssignment.findMany({
+                where: { userId },
+                include: {
+                    evaluation: {
+                        include: {
+                            creator: { select: { id: true, name: true, email: true } },
+                        },
                     },
                 },
-            },
-            orderBy: { createdAt: 'desc' },
+                orderBy: { createdAt: 'desc' },
+            });
+            return res.json({ success: true, data: assignments });
+        } catch (e) {
+            // Fallback to raw SQL if Prisma enum validation fails due to drift
+            const rows = await prisma.$queryRawUnsafe<any>(
+                `SELECT ea.*, 
+                        e.evalNumber, e.rfqTitle, e.createdBy AS evalCreatedBy,
+                        uc.id AS creatorId, uc.name AS creatorName, uc.email AS creatorEmail
+                 FROM EvaluationAssignment ea
+                 JOIN Evaluation e ON ea.evaluationId = e.id
+                 LEFT JOIN User uc ON e.createdBy = uc.id
+                 WHERE ea.userId = ${userId}
+                 ORDER BY ea.createdAt DESC`
+            );
+            const mapped = rows.map((r: any) => ({
+                id: r.id,
+                evaluationId: r.evaluationId,
+                userId: r.userId,
+                sections: r.sections,
+                status: r.status,
+                submittedAt: r.submittedAt ?? null,
+                createdAt: r.createdAt,
+                updatedAt: r.updatedAt,
+                evaluation: {
+                    id: r.evaluationId,
+                    evalNumber: r.evalNumber,
+                    rfqTitle: r.rfqTitle,
+                    creator: { id: r.creatorId, name: r.creatorName, email: r.creatorEmail },
+                },
+            }));
+            return res.json({ success: true, data: mapped, meta: { fallback: true } });
+        }
+    })
+);
+
+// POST /api/evaluations/:id/assignments/complete - Evaluator marks their assignment as complete
+app.post(
+    '/api/evaluations/:id/assignments/complete',
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+        if (!hasEvaluationDelegate()) {
+            return res.status(501).json({ success: false, message: 'Assignments require Prisma model' });
+        }
+
+        const { id } = req.params;
+        const userObj: any = (req as any).user;
+        const userId = parseInt(userObj?.sub || userObj?.id);
+        const evaluationId = parseInt(id);
+
+        // Find the assignment
+        const assignment = await (prisma as any).evaluationAssignment.findFirst({
+            where: { evaluationId, userId },
+            include: { evaluation: { include: { creator: true } } },
         });
 
-        res.json({ success: true, data: assignments });
+        if (!assignment) {
+            throw new NotFoundError('You are not assigned to this evaluation');
+        }
+
+        // Update assignment status to SUBMITTED (fallback to raw SQL if enum mismatch exists)
+        try {
+            await (prisma as any).evaluationAssignment.update({
+                where: { id: assignment.id },
+                data: {
+                    status: 'SUBMITTED',
+                    submittedAt: new Date(),
+                },
+            });
+        } catch (e) {
+            // If Prisma enum validation fails due to DB drift, use raw SQL
+            try {
+                await prisma.$executeRawUnsafe(`UPDATE EvaluationAssignment SET status='SUBMITTED', submittedAt=NOW(), updatedAt=NOW() WHERE id=${assignment.id}`);
+            } catch (inner) {
+                throw e; // bubble original error
+            }
+        }
+
+        // Notify procurement officer (creator)
+        try {
+            await (prisma as any).notification.create({
+                data: {
+                    userId: assignment.evaluation.createdBy,
+                    type: 'EVALUATION_VERIFIED',
+                    message: `${userObj.name || userObj.email} has completed their evaluation assignment for ${assignment.evaluation.evalNumber}`,
+                    data: { evaluationId, evalNumber: assignment.evaluation.evalNumber },
+                },
+            });
+        } catch (e) {
+            console.error('Failed to create completion notification:', e);
+        }
+
+        res.json({ success: true, message: 'Assignment marked as complete and procurement notified' });
     })
 );
 
@@ -4590,7 +4782,15 @@ app.patch(
             });
             if (assn) {
                 try {
-                    const secs = Array.isArray(assn.sections) ? (assn.sections as any[]) : [];
+                    const secs = Array.isArray(assn.sections)
+                        ? (assn.sections as any[])
+                        : (() => {
+                              try {
+                                  return JSON.parse((assn as any).sections || '[]');
+                              } catch {
+                                  return [];
+                              }
+                          })();
                     authorized = secs.map((s) => String(s).toUpperCase()).includes(sectionUpper);
                 } catch {
                     authorized = false;
@@ -4639,6 +4839,10 @@ app.post(
     asyncHandler(async (req, res) => {
         const { id, section } = req.params;
         const sectionUpper = section.toUpperCase();
+        const userObj: any = (req as any).user;
+        const userId = parseInt(userObj?.sub || userObj?.id);
+        const roles: string[] = userObj?.roles || [];
+        const isProcurement = roles.some((r: string) => r.toUpperCase().includes('PROCUREMENT'));
 
         // Validate ID is numeric
         const evaluationId = parseInt(id);
@@ -4658,6 +4862,30 @@ app.post(
             existing = checkRow[0];
         }
         if (!existing) throw new NotFoundError('Evaluation not found');
+
+        // Check access: procurement can submit Section A; assigned evaluators can submit their assigned sections
+        const isCreator = existing.createdBy === userId;
+        if (!isProcurement && !isCreator) {
+            // Check if user is assigned and section is in their assignment
+            const assignment = await (prisma as any).evaluationAssignment.findFirst({
+                where: { evaluationId, userId },
+            });
+            if (!assignment) {
+                throw new Error('You are not assigned to this evaluation');
+            }
+            const assignedSections = Array.isArray(assignment.sections)
+                ? assignment.sections
+                : (() => {
+                      try {
+                          return JSON.parse((assignment as any).sections || '[]');
+                      } catch {
+                          return [];
+                      }
+                  })();
+            if (!assignedSections.includes(sectionUpper)) {
+                throw new Error(`You are not assigned to Section ${sectionUpper}`);
+            }
+        }
 
         // Check if section data exists
         const sectionDataKey = `section${sectionUpper}`;

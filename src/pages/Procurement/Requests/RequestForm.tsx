@@ -119,6 +119,9 @@ const RequestForm = () => {
         return r?.role?.name || r?.name || '';
     });
 
+    // Procurement role check for starting evaluations
+    const isProcurementRole = userRoles.some((r: string) => r === 'PROCUREMENT_OFFICER' || r === 'PROCUREMENT_MANAGER' || /procurement/i.test(r));
+
     // Check if user is a budget officer (FINANCE role) vs budget manager
     // For now, we'll use a simple check: if they have FINANCE role, they're a budget officer
     // Budget managers would need a separate role or identification method
@@ -192,6 +195,7 @@ const RequestForm = () => {
                 setRequestedBy(profile.name || profile.fullName || '');
                 setEmail(profile.email || '');
                 setDivision(profile.department?.name || '');
+                setInstitution('Bureau of Standards Jamaica'); // Default institution
                 // best-effort for branch/unit using dept code
                 if (profile.department?.code && !branchUnit) setBranchUnit(profile.department.code);
             }
@@ -1678,6 +1682,12 @@ const RequestForm = () => {
                         >
                             {isSubmitting ? (isEditMode ? 'Saving…' : 'Submitting…') : isEditMode ? 'Save Changes' : 'Submit Procurement Request'}
                         </button>
+                        {/* Procurement-only: Start Evaluation for this request */}
+                        {isEditMode && isProcurementRole && (
+                            <button type="button" onClick={() => navigate(`/procurement/evaluation/new?requestId=${id}`)} className="px-6 py-2 rounded bg-indigo-600 text-white hover:bg-indigo-700">
+                                Start Evaluation
+                            </button>
+                        )}
                         {isEditMode && canDispatchToVendors && (
                             <>
                                 <button type="button" onClick={handleDownloadPdf} className="px-6 py-2 rounded border border-gray-300 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700">

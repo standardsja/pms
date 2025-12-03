@@ -9,7 +9,6 @@ import { getHolidayGradient, getCurrentHolidayTheme } from '../../utils/holidayT
 import HolidayBanner from '../../components/HolidayBanner';
 import HolidayCountdown from '../../components/HolidayCountdown';
 import Swal from 'sweetalert2';
-import { heartbeatService } from '../../services/heartbeatService';
 
 interface DashboardStats {
     myIdeas: number;
@@ -39,14 +38,6 @@ const InnovationDashboard = () => {
     useEffect(() => {
         dispatch(setPageTitle(t('innovation.hub')));
         loadDashboardData();
-
-        // Start heartbeat tracking for innovation hub
-        heartbeatService.startHeartbeat('ih');
-
-        // Cleanup: stop heartbeat when leaving this page
-        return () => {
-            heartbeatService.stopHeartbeat();
-        };
     }, [dispatch, t]);
 
     async function loadDashboardData() {

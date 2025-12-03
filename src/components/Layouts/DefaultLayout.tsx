@@ -9,7 +9,9 @@ import Header from './Header';
 import Setting from './Setting';
 import Sidebar from './Sidebar';
 import Portals from '../../components/Portals';
+import ErrorBoundary from '../../components/ErrorBoundary';
 import { getToken, getUser, clearAuth } from '../../utils/auth';
+import { heartbeatService } from '../../services/heartbeatService';
 
 const DefaultLayout = ({ children }: PropsWithChildren) => {
     const themeConfig = useSelector((state: IRootState) => state.themeConfig);
@@ -43,13 +45,33 @@ const DefaultLayout = ({ children }: PropsWithChildren) => {
         }
 
         return () => {
-            window.removeEventListener('onscroll', onScrollHandler);
+            window.removeEventListener('scroll', onScrollHandler);
         };
     }, []);
 
+    // Router location for guards and heartbeat
+    const location = useLocation();
+
+    // Global heartbeat tracking for all authenticated users
+    useEffect(() => {
+        const token = getToken();
+        if (token) {
+            // Determine module based on current path
+            const path = location.pathname;
+            const module = path.startsWith('/innovation') ? 'ih' : 'pms';
+
+            // Start heartbeat for this module
+            heartbeatService.startHeartbeat(module);
+
+            // Cleanup: stop heartbeat when component unmounts or user logs out
+            return () => {
+                heartbeatService.stopHeartbeat();
+            };
+        }
+    }, [location.pathname]);
+
     // Auth guard: if no token present, redirect to login.
     // This runs only for routes using DefaultLayout (protected). Blank layout routes (login/onboarding) are unaffected.
-    const location = useLocation();
     const token = getToken();
     const user = getUser();
     if (!token) {
@@ -103,9 +125,11 @@ const DefaultLayout = ({ children }: PropsWithChildren) => {
                         {/* END TOP NAVBAR */}
 
                         {/* BEGIN CONTENT AREA */}
-                        <Suspense>
-                            <div className={`${themeConfig.animation} p-6 animate__animated`}>{children}</div>
-                        </Suspense>
+                        <ErrorBoundary>
+                            <Suspense>
+                                <div className={`${themeConfig.animation} p-6 animate__animated`}>{children}</div>
+                            </Suspense>
+                        </ErrorBoundary>
                         {/* END CONTENT AREA */}
 
                         {/* BEGIN FOOTER */}

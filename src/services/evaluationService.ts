@@ -98,6 +98,8 @@ export interface Evaluation {
     rfqNumber: string;
     rfqTitle: string;
     description?: string;
+    dateSubmissionConsidered?: string;
+    reportCompletionDate?: string;
     status: EvaluationStatus;
 
     sectionA?: SectionA;
@@ -359,6 +361,13 @@ class EvaluationService {
         await this.fetchWithAuth(`/api/evaluations/assignments/${assignmentId}`, {
             method: 'DELETE',
         });
+    }
+
+    async completeAssignment(evaluationId: number) {
+        const result = await this.fetchWithAuth(`/api/evaluations/${evaluationId}/assignments/complete`, {
+            method: 'POST',
+        });
+        return result;
     }
 }
 

@@ -54,13 +54,13 @@ module.exports = {
     ],
 
     deploy: {
-        production: {
-            user: 'deploy',
-            host: ['your-server.com'],
-            ref: 'origin/main',
-            repo: 'git@github.com:your-org/pms.git',
+        heron: {
+            user: 'ict_admin',
+            host: 'heron',
+            ref: 'origin/Kymarley',
+            repo: 'git@github.com:standardsja/pms.git',
             path: '/var/www/pms',
-            'post-deploy': 'npm ci && npm run build && pm2 reload ecosystem.config.js --env production',
+            'post-deploy': 'npm install && npm run build && pm2 reload ecosystem.config.js --env production',
             env: {
                 NODE_ENV: 'production',
             },
