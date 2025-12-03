@@ -295,17 +295,10 @@ router.get('/system', async (req: Request, res: Response) => {
         const now = new Date();
         const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
         const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-        // Total active users (active in last 7 days)
-        console.log('[Stats] Counting active users...');
-        const activeUsers = await prisma.user.count({
-            where: {
-                updatedAt: {
-                    gte: sevenDaysAgo,
-                },
-            },
-        });
+        // Active users now (from real-time sessions)
+        console.log('[Stats] Counting active users from sessions...');
+        const activeUsers = activeSessions.size;
         console.log(`[Stats] Active users: ${activeUsers}`);
 
         // Requests this month
