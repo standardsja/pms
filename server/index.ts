@@ -4701,12 +4701,10 @@ app.post(
         // Check user roles
         const userObj: any = (req as any).user;
         const userRoles = userObj?.roles || [];
-        const isProcurement = userRoles.some((role: string) => 
-            ['PROCUREMENT', 'PROCUREMENT_OFFICER', 'PROCUREMENT_MANAGER'].includes(role.toUpperCase())
-        );
+        const isProcurement = userRoles.some((role: string) => ['PROCUREMENT', 'PROCUREMENT_OFFICER', 'PROCUREMENT_MANAGER'].includes(role.toUpperCase()));
 
         const statusField = `section${sectionUpper}Status`;
-        
+
         // Procurement can return sections at any status (for structural edits)
         // Committee can only return SUBMITTED sections
         if (!isProcurement && existing[statusField] !== 'SUBMITTED') {
