@@ -32,6 +32,7 @@ import type { Prisma } from '@prisma/client';
 import { requireCommittee as requireCommitteeRole, requireEvaluationCommittee, requireAdmin, requireExecutive, requireRole } from './middleware/rbac';
 import { validate, createIdeaSchema, voteSchema, approveRejectIdeaSchema, promoteIdeaSchema, sanitizeInput as sanitize } from './middleware/validation';
 import { errorHandler, notFoundHandler, asyncHandler, NotFoundError, BadRequestError } from './middleware/errorHandler';
+import { getLDAPService } from './services/ldapService';
 import statsRouter from './routes/stats';
 import combineRouter from './routes/combine';
 import approvalsRouter from './routes/approvals';
@@ -479,6 +480,115 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
     } catch (e: any) {
         console.error('Login error:', e);
         return res.status(500).json({ message: e?.message || 'Login failed' });
+    }
+});
+
+// LDAP Login endpoint
+app.post('/api/auth/ldap-login', authLimiter, async (req, res) => {
+    try {
+        const { email, password } = req.body || {};
+
+        if (!email || !password) {
+            return res.status(400).json({ message: 'Email and password required' });
+        }
+
+        console.log(`[LDAP Login] Attempting authentication for: ${email}`);
+
+        // Authenticate against LDAP
+        const ldapService = getLDAPService();
+        const ldapUser = await ldapService.authenticate(email, password);
+
+        if (!ldapUser) {
+            console.log(`[LDAP Login] Authentication failed for: ${email}`);
+            return res.status(401).json({ message: 'Invalid credentials' });
+        }
+
+        console.log(`[LDAP Login] Authentication successful for: ${email}`);
+
+        // Check if user exists in local database
+        let user = await prisma.user.findUnique({
+            where: { email: ldapUser.email },
+            include: {
+                roles: {
+                    include: {
+                        role: true,
+                    },
+                },
+                department: true,
+            },
+        });
+
+        // If user doesn't exist in local DB, create them
+        if (!user) {
+            console.log(`[LDAP Login] Creating new user in local DB: ${ldapUser.email}`);
+
+            // Create user with LDAP details
+            user = await prisma.user.create({
+                data: {
+                    email: ldapUser.email,
+                    name: ldapUser.name || ldapUser.email.split('@')[0],
+                    passwordHash: '', // No local password for LDAP users
+                    // You can add department lookup here if needed
+                },
+                include: {
+                    roles: {
+                        include: {
+                            role: true,
+                        },
+                    },
+                    department: true,
+                },
+            });
+
+            console.log(`[LDAP Login] User created in local DB with ID: ${user.id}`);
+        } else {
+            console.log(`[LDAP Login] User exists in local DB with ID: ${user.id}`);
+
+            // Optionally update user info from LDAP
+            if (ldapUser.name && user.name !== ldapUser.name) {
+                await prisma.user.update({
+                    where: { id: user.id },
+                    data: { name: ldapUser.name },
+                });
+            }
+        }
+
+        // Generate JWT token
+        const roles = user.roles.map((r) => r.role.name);
+        const token = jwt.sign(
+            {
+                sub: user.id,
+                email: user.email,
+                roles,
+                name: user.name,
+                ldapUser: true, // Flag to indicate LDAP authentication
+            },
+            JWT_SECRET,
+            { expiresIn: '1d' }
+        );
+
+        console.log(`[LDAP Login] Token generated for user ID: ${user.id}`);
+
+        return res.json({
+            token,
+            user: {
+                id: user.id,
+                email: user.email,
+                name: user.name,
+                roles,
+                department: user.department
+                    ? {
+                          id: user.department.id,
+                          name: user.department.name,
+                          code: user.department.code,
+                      }
+                    : null,
+                ldapAuthenticated: true,
+            },
+        });
+    } catch (e: any) {
+        console.error('[LDAP Login] Error:', e);
+        return res.status(500).json({ message: e?.message || 'LDAP login failed' });
     }
 });
 
