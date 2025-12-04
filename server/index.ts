@@ -4105,6 +4105,46 @@ app.get('/api/auth/test-login', (req, res) => {
     res.status(405).json({ message: 'Use POST method' });
 });
 
+// GET /api/auth/test-ldap - Diagnostic endpoint to test LDAP connection
+app.get('/api/auth/test-ldap', async (req, res) => {
+    try {
+        console.log('[LDAP Test] Testing connection to:', LDAP_URL);
+        
+        const testClient = new Client({
+            url: LDAP_URL,
+        });
+        
+        await testClient.bind(LDAP_BIND_DN, LDAP_BIND_PASSWORD);
+        console.log('[LDAP Test] Successfully bound with admin credentials');
+        
+        const { searchEntries } = await testClient.search(LDAP_SEARCH_DN, {
+            filter: '(objectClass=*)',
+            sizeLimit: 1,
+        });
+        
+        console.log('[LDAP Test] Search successful, found', searchEntries.length, 'entries');
+        await testClient.unbind();
+        
+        return res.json({
+            success: true,
+            message: 'LDAP connection successful',
+            ldapUrl: LDAP_URL,
+            bindDN: LDAP_BIND_DN,
+            searchDN: LDAP_SEARCH_DN,
+        });
+    } catch (e: any) {
+        console.error('[LDAP Test] Connection failed:', e.message);
+        return res.status(500).json({
+            success: false,
+            message: 'LDAP connection failed',
+            error: e.message,
+            ldapUrl: LDAP_URL,
+            bindDN: LDAP_BIND_DN,
+            searchDN: LDAP_SEARCH_DN,
+        });
+    }
+});
+
 // ============================================
 // EVALUATION ENDPOINTS
 // ============================================
