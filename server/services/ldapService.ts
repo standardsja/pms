@@ -79,16 +79,22 @@ export class LDAPService {
                 await this.client.bind(entry.dn as string, password);
                 console.log(`[LDAP] User authentication successful: ${email}`);
 
-                // Extract user details
+                // Extract user details (LDAP attributes can be arrays, so normalize to strings)
+                const getStringValue = (value: any): string | undefined => {
+                    if (!value) return undefined;
+                    if (Array.isArray(value)) return value[0]?.toString();
+                    return value.toString();
+                };
+
                 const ldapUser: LDAPUser = {
                     dn: entry.dn as string,
-                    email: (entry.mail as string) || (entry.userPrincipalName as string) || email,
-                    name: (entry.displayName as string) || (entry.cn as string) || email.split('@')[0],
-                    displayName: entry.displayName as string,
-                    department: entry.department as string,
-                    title: entry.title as string,
-                    telephoneNumber: entry.telephoneNumber as string,
-                    employeeId: (entry.employeeID as string) || (entry.employeeNumber as string),
+                    email: getStringValue(entry.mail) || getStringValue(entry.userPrincipalName) || email,
+                    name: getStringValue(entry.displayName) || getStringValue(entry.cn) || email.split('@')[0],
+                    displayName: getStringValue(entry.displayName),
+                    department: getStringValue(entry.department),
+                    title: getStringValue(entry.title),
+                    telephoneNumber: getStringValue(entry.telephoneNumber),
+                    employeeId: getStringValue(entry.employeeID) || getStringValue(entry.employeeNumber),
                 };
 
                 await this.client.unbind();

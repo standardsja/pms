@@ -49,6 +49,7 @@ const Login = () => {
     const [mfaCode, setMfaCode] = useState(['', '', '', '', '', '']);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
+    const [loginMode] = useState<'local' | 'ldap'>('ldap'); // Default to LDAP, hide toggle
     const [systemStats, setSystemStats] = useState<SystemStats>({
         activeUsers: 0,
         requestsThisMonth: 0,
@@ -69,8 +70,11 @@ const Login = () => {
             // use relative URLs (e.g. `/api/...`) and are handled by Vite's proxy.
             const apiUrl = import.meta.env.VITE_API_URL || '';
 
-            // Unified endpoint - backend handles both LDAP and database authentication
-            let res = await fetch(`${apiUrl}/api/auth/login`, {
+            // Choose endpoint based on login mode
+            const endpoint = loginMode === 'ldap' ? '/api/auth/ldap-login' : '/api/auth/login';
+
+            // Primary: real password login (local or LDAP)
+            let res = await fetch(`${apiUrl}${endpoint}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password }),
@@ -79,7 +83,8 @@ const Login = () => {
 
             // Dev-only fallback: if backend login endpoint returns 404/500 during local setup,
             // try the non-password helper endpoint to unblock UX. This will NOT run in production builds.
-            if (!res.ok && import.meta.env.DEV) {
+            // Skip fallback for LDAP mode
+            if (!res.ok && import.meta.env.DEV && loginMode === 'local') {
                 try {
                     // Use relative path so Vite proxy can route to backend in dev
                     const fallbackRes = await fetch(`${apiUrl}/auth/test-login`, {
@@ -444,7 +449,8 @@ const Login = () => {
                             <div className="mb-8">
                                 <h2 className="text-4xl font-black text-gray-900 dark:text-white mb-3">Sign In</h2>
                                 <p className="text-gray-600 dark:text-gray-400 text-lg">Enter your credentials to access your account</p>
-                                <div className="mt-4 flex items-center gap-4 text-sm">
+
+                                <div className="mt-6 flex items-center gap-4 text-sm">
                                     <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
                                         <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                                         <span className="font-medium">System Online</span>
@@ -487,7 +493,7 @@ const Login = () => {
                                             value={email}
                                             onChange={(e) => setEmail(e.target.value)}
                                             className="form-input pl-11 w-full h-12 text-base border-2 focus:border-primary"
-                                            placeholder="your.email@bsj.gov.jm or username@bos.local"
+                                            placeholder="your.email@bos.local"
                                             required
                                         />
                                     </div>
