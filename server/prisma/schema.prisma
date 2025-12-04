@@ -112,16 +112,6 @@ model User {
   email        String  @unique
   name         String?
   passwordHash String? // ← for local email/password testing
-  
-  // Profile fields
-  jobTitle     String?
-  country      String?
-  address      String?
-  city         String?
-  phone        String?
-  employeeId   String?
-  supervisor   String?
-  profileImage String?
 
   department   Department? @relation("userDepartment", fields: [departmentId], references: [id])
   departmentId Int?

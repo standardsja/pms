@@ -27,11 +27,6 @@ const authLimiter = rateLimit({
 router.post(
     '/login',
     authLimiter,
-    (req, res, next) => {
-        console.log('[Auth Route] Body:', req.body);
-        console.log('[Auth Route] Headers:', req.headers);
-        next();
-    },
     validate(loginSchema),
     asyncHandler(async (req, res) => {
         const { email, password } = req.body;
