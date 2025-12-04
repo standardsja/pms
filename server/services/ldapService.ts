@@ -30,9 +30,17 @@ class LDAPService {
         if (config.LDAP) {
             this.client = new Client({
                 url: config.LDAP.url,
-                timeout: 5000, // 5 second timeout
-                connectTimeout: 5000,
+                timeout: 10000, // 10 second timeout (increased)
+                connectTimeout: 10000,
+                strictDN: false, // More lenient DN parsing
             });
+            
+            logger.info('LDAP Service initialized', { 
+                url: config.LDAP.url,
+                searchDN: config.LDAP.searchDN 
+            });
+        } else {
+            logger.info('LDAP Service not configured - using database authentication only');
         }
     }
 
@@ -65,6 +73,12 @@ class LDAPService {
 
         try {
             // Step 1: Bind with admin credentials to search for user
+            logger.info('LDAP attempting admin bind', { 
+                url: config.LDAP.url,
+                bindDN: config.LDAP.bindDN,
+                searchDN: config.LDAP.searchDN
+            });
+            
             await this.client!.bind(config.LDAP.bindDN, config.LDAP.bindPassword);
 
             logger.info('LDAP admin bind successful for user search', { email: sanitizedEmail });
@@ -105,26 +119,45 @@ class LDAPService {
             await this.client!.bind(userDN, password);
 
             logger.info('LDAP user authenticated successfully', {
-                email: sanitizedEmail,
-                dn: userDN,
-            });
-
-            // Successfully authenticated
-            return ldapUser;
         } catch (error: any) {
             logger.error('LDAP authentication error', {
                 email: sanitizedEmail,
                 error: error.message,
                 code: error.code,
+                errno: error.errno,
+                syscall: error.syscall,
+                stack: error.stack?.split('\n').slice(0, 3).join('\n'), // First 3 lines of stack
             });
 
             // Always try to unbind to clean up
             await this.safeUnbind();
 
-            // Determine error type
+            // Determine error type with better error messages
             if (error.code === 49 || error.message?.includes('Invalid credentials')) {
                 throw new UnauthorizedError('Invalid credentials');
             }
+
+            // Connection errors
+            if (error.errno === 'ETIMEDOUT' || error.message?.includes('timeout')) {
+                logger.error('LDAP connection timeout - server may be unreachable', {
+                    url: config.LDAP.url,
+                    suggestion: 'Check network connectivity and firewall rules'
+                });
+                throw new BadRequestError('LDAP server connection timeout. Please contact your system administrator.');
+            }
+
+            if (error.errno === 'ECONNREFUSED') {
+                logger.error('LDAP connection refused - server may be down', {
+                    url: config.LDAP.url
+                });
+                throw new BadRequestError('LDAP server is not responding. Please contact your system administrator.');
+            }
+
+            if (error instanceof BadRequestError || error instanceof UnauthorizedError) {
+                throw error;
+            }
+
+            throw new BadRequestError('LDAP authentication failed');
 
             if (error instanceof BadRequestError || error instanceof UnauthorizedError) {
                 throw error;
