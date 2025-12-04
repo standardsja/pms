@@ -76,7 +76,6 @@ const Login = () => {
                 body: JSON.stringify({ email, password }),
             });
             let data = await res.json().catch(() => null);
-            }
 
             if (!res.ok) {
                 const msg = (data && (data.message || data.error)) || 'Login failed';
