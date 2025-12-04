@@ -501,13 +501,36 @@ app.post('/api/auth/ldap-login', authLimiter, async (req, res) => {
 
         try {
             // Bind with admin credentials to search
+            console.log('[LDAP] Attempting bind with admin credentials...');
             await ldapClient.bind(LDAP_BIND_DN, LDAP_BIND_PASSWORD);
-            const { searchEntries } = await ldapClient.search(LDAP_SEARCH_DN, {
-                filter: `(userPrincipalName=${email})`,
-            });
+            console.log('[LDAP] Admin bind successful, searching for user:', email);
+            
+            // Try multiple search filters to find the user
+            let searchEntries: any[] = [];
+            const searchFilters = [
+                `(userPrincipalName=${email})`,
+                `(mail=${email})`,
+                `(sAMAccountName=${email.split('@')[0]})`,
+            ];
+            
+            for (const filter of searchFilters) {
+                console.log('[LDAP] Trying search filter:', filter);
+                try {
+                    const result = await ldapClient.search(LDAP_SEARCH_DN, { filter });
+                    if (result.searchEntries.length > 0) {
+                        searchEntries = result.searchEntries;
+                        console.log('[LDAP] Found user with filter:', filter);
+                        break;
+                    }
+                } catch (filterErr) {
+                    console.log('[LDAP] Filter failed, trying next:', filter, filterErr);
+                    continue;
+                }
+            }
 
             if (searchEntries.length === 0) {
                 await ldapClient.unbind().catch(() => null);
+                console.error('[LDAP] User not found in directory:', email);
                 return res.status(401).json({ message: 'User not found in directory' });
             }
 
@@ -516,12 +539,13 @@ app.post('/api/auth/ldap-login', authLimiter, async (req, res) => {
 
             // Unbind from admin and try to bind as the user
             await ldapClient.unbind();
+            console.log('[LDAP] Attempting user bind with password...');
             await ldapClient.bind(ldapDN, password);
             userAuthenticated = true;
             console.log('[LDAP] User authenticated successfully:', email);
         } catch (ldapErr: any) {
             await ldapClient.unbind().catch(() => null);
-            console.error('[LDAP] Authentication failed:', ldapErr.message);
+            console.error('[LDAP] Authentication failed:', ldapErr.message || ldapErr);
             return res.status(401).json({ message: 'Invalid credentials' });
         }
 
