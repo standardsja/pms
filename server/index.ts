@@ -441,57 +441,8 @@ app.get('/api/analytics/time-based', authMiddleware, async (_req, res) => {
 app.get('/api/ping', (_req, res) => {
     res.json({ pong: true });
 });
-// Auth endpoints
+// Auth endpoints - unified LDAP + database fallback
 app.post('/api/auth/login', authLimiter, async (req, res) => {
-    try {
-        const { email, password } = req.body || {};
-        if (!email || !password) return res.status(400).json({ message: 'Email and password required' });
-
-        const user = await prisma.user.findUnique({
-            where: { email },
-            include: {
-                roles: {
-                    include: {
-                        role: true,
-                    },
-                },
-                department: true,
-            },
-        });
-        if (!user) return res.status(401).json({ message: 'Invalid credentials' });
-        if (!user.passwordHash) return res.status(401).json({ message: 'Invalid credentials' });
-
-        const ok = await bcrypt.compare(String(password), user.passwordHash);
-        if (!ok) return res.status(401).json({ message: 'Invalid credentials' });
-
-        const roles = user.roles.map((r) => r.role.name);
-
-        const token = jwt.sign({ sub: user.id, email: user.email, roles: roles, name: user.name }, JWT_SECRET, { expiresIn: '1d' });
-
-        return res.json({
-            token,
-            user: {
-                id: user.id,
-                email: user.email,
-                name: user.name,
-                roles: roles,
-                department: user.department
-                    ? {
-                          id: user.department.id,
-                          name: user.department.name,
-                          code: user.department.code,
-                      }
-                    : null,
-            },
-        });
-    } catch (e: any) {
-        console.error('Login error:', e);
-        return res.status(500).json({ message: e?.message || 'Login failed' });
-    }
-});
-
-// LDAP login endpoint
-app.post('/api/auth/ldap-login', authLimiter, async (req, res) => {
     try {
         const { email, password } = req.body || {};
         if (!email || !password) return res.status(400).json({ message: 'Email and password required' });
