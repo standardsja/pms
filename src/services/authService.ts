@@ -1,6 +1,7 @@
 // Client-side auth service: use real backend API
 import { LoginCredentials, AuthResponse } from '../types/auth';
 import mockAuthService from './mockAuthService';
+import { getApiUrl } from '../config/api';
 
 // Use mock auth in development if VITE_USE_MOCK_AUTH is true
 const USE_MOCK_AUTH = import.meta.env.VITE_USE_MOCK_AUTH === 'true';
@@ -33,7 +34,7 @@ class AuthService {
                 email: credentials.email.toLowerCase().trim(),
             };
 
-            const response = await fetch('/api/auth/login', {
+            const response = await fetch(getApiUrl('/api/auth/login'), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

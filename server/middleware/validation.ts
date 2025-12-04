@@ -14,8 +14,10 @@ const passwordSchema = z.string().min(8).max(128);
 
 // Authentication schemas
 export const loginSchema = z.object({
-    email: emailSchema,
-    password: passwordSchema,
+    body: z.object({
+        email: emailSchema,
+        password: passwordSchema,
+    }),
 });
 
 // Idea schemas

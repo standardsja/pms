@@ -9,7 +9,6 @@ import fs from 'fs';
 import crypto from 'crypto';
 import http from 'http';
 import { fileURLToPath } from 'url';
-import { Client } from 'ldapts';
 
 // ES module equivalent of __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -35,6 +34,7 @@ import { validate, createIdeaSchema, voteSchema, approveRejectIdeaSchema, promot
 import { errorHandler, notFoundHandler, asyncHandler, NotFoundError, BadRequestError } from './middleware/errorHandler';
 import statsRouter from './routes/stats';
 import combineRouter from './routes/combine';
+import { authRoutes } from './routes/auth';
 
 const app = express();
 const httpServer = http.createServer(app);
@@ -47,16 +47,6 @@ const API_HOST = process.env.API_HOST || (APP_ENV === 'local' ? '0.0.0.0' : '0.0
 // Public host for logs (what users type in the browser)
 const PUBLIC_HOST = process.env.API_PUBLIC_HOST || (APP_ENV === 'local' ? 'localhost' : 'heron');
 const JWT_SECRET = process.env.JWT_SECRET || 'devsecret-change-me';
-
-// LDAP configuration
-const LDAP_URL = process.env.LDAP_URL || 'ldap://BOS.local:389';
-const LDAP_BIND_DN = process.env.LDAP_BIND_DN || 'CN=Policy Test,OU=MIS_STAFF,OU=MIS,DC=BOS,DC=local';
-const LDAP_BIND_PASSWORD = process.env.LDAP_BIND_PASSWORD || 'Password@101';
-const LDAP_SEARCH_DN = process.env.LDAP_SEARCH_DN || 'DC=BOS,DC=local';
-
-const ldapClient = new Client({
-    url: LDAP_URL,
-});
 
 let trendingJobInterval: NodeJS.Timeout | null = null;
 
@@ -101,13 +91,9 @@ const batchLimiter = rateLimit({
 });
 
 app.use(cors());
-// Only parse JSON for non-multipart requests (let multer handle multipart)
-app.use((req, res, next) => {
-    if (req.is('multipart/form-data')) {
-        return next();
-    }
-    express.json()(req, res, next);
-});
+// Body parsing middleware - MUST come before routes
+app.use(express.json()); // Parse JSON bodies
+app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
 app.use(morgan('dev'));
 app.use(requestMonitoringMiddleware); // Performance monitoring
 app.use(sanitize); // Sanitize all inputs
@@ -441,138 +427,8 @@ app.get('/api/analytics/time-based', authMiddleware, async (_req, res) => {
 app.get('/api/ping', (_req, res) => {
     res.json({ pong: true });
 });
-// Auth endpoints
-app.post('/api/auth/login', authLimiter, async (req, res) => {
-    try {
-        const { email, password } = req.body || {};
-        if (!email || !password) return res.status(400).json({ message: 'Email and password required' });
 
-        const user = await prisma.user.findUnique({
-            where: { email },
-            include: {
-                roles: {
-                    include: {
-                        role: true,
-                    },
-                },
-                department: true,
-            },
-        });
-        if (!user) return res.status(401).json({ message: 'Invalid credentials' });
-        if (!user.passwordHash) return res.status(401).json({ message: 'Invalid credentials' });
-
-        const ok = await bcrypt.compare(String(password), user.passwordHash);
-        if (!ok) return res.status(401).json({ message: 'Invalid credentials' });
-
-        const roles = user.roles.map((r) => r.role.name);
-
-        const token = jwt.sign({ sub: user.id, email: user.email, roles: roles, name: user.name }, JWT_SECRET, { expiresIn: '1d' });
-
-        return res.json({
-            token,
-            user: {
-                id: user.id,
-                email: user.email,
-                name: user.name,
-                roles: roles,
-                department: user.department
-                    ? {
-                          id: user.department.id,
-                          name: user.department.name,
-                          code: user.department.code,
-                      }
-                    : null,
-            },
-        });
-    } catch (e: any) {
-        console.error('Login error:', e);
-        return res.status(500).json({ message: e?.message || 'Login failed' });
-    }
-});
-
-// LDAP login endpoint
-app.post('/api/auth/ldap-login', authLimiter, async (req, res) => {
-    try {
-        const { email, password } = req.body || {};
-        if (!email || !password) return res.status(400).json({ message: 'Email and password required' });
-
-        let ldapDN = '';
-        let userAuthenticated = false;
-
-        try {
-            // Bind with admin credentials to search
-            await ldapClient.bind(LDAP_BIND_DN, LDAP_BIND_PASSWORD);
-            const { searchEntries } = await ldapClient.search(LDAP_SEARCH_DN, {
-                filter: `(userPrincipalName=${email})`,
-            });
-
-            if (searchEntries.length === 0) {
-                await ldapClient.unbind().catch(() => null);
-                return res.status(401).json({ message: 'User not found in directory' });
-            }
-
-            ldapDN = searchEntries[0].dn;
-            console.log('[LDAP] Found user DN:', ldapDN);
-
-            // Unbind from admin and try to bind as the user
-            await ldapClient.unbind();
-            await ldapClient.bind(ldapDN, password);
-            userAuthenticated = true;
-            console.log('[LDAP] User authenticated successfully:', email);
-        } catch (ldapErr: any) {
-            await ldapClient.unbind().catch(() => null);
-            console.error('[LDAP] Authentication failed:', ldapErr.message);
-            return res.status(401).json({ message: 'Invalid credentials' });
-        }
-
-        if (!userAuthenticated) {
-            return res.status(401).json({ message: 'Invalid credentials' });
-        }
-
-        // Look up user in local database
-        const user = await prisma.user.findUnique({
-            where: { email },
-            include: {
-                roles: {
-                    include: {
-                        role: true,
-                    },
-                },
-                department: true,
-            },
-        });
-
-        if (!user) {
-            return res.status(401).json({ message: 'User account not found in system. Please contact your administrator.' });
-        }
-
-        // Generate JWT token
-        const roles = user.roles.map((r) => r.role.name);
-        const token = jwt.sign({ sub: user.id, email: user.email, roles: roles, name: user.name }, JWT_SECRET, { expiresIn: '1d' });
-
-        console.log('[LDAP] User logged in successfully:', user.id, email);
-
-        return res.json({
-            token,
-            user: {
-                id: user.id,
-                email: user.email,
-                name: user.name,
-                roles: roles,
-                department: user.department
-                    ? {
-                          id: user.department.id,
-                          name: user.department.name,
-                          code: user.department.code,
-                      }
-                    : null,
-            },
-        });
-    } catch (e: any) {
-        console.error('[LDAP] Login error:', e);
-        return res.status(500).json({ message: e?.message || 'Login failed' });
-    }
-});
+// Auth endpoints are now in /routes/auth.ts and mounted at /api/auth
 
 async function authMiddleware(req: any, res: any, next: any) {
     // Accept either Bearer token OR x-user-id header for flexibility
@@ -644,36 +500,6 @@ function requireCommittee(req: any, res: any, next: any) {
     }
     next();
 }
-
-app.get('/api/auth/me', authMiddleware, async (req, res) => {
-    const payload = (req as any).user as { sub: number };
-    const user = await prisma.user.findUnique({
-        where: { id: payload.sub },
-        include: {
-            roles: {
-                include: {
-                    role: true,
-                },
-            },
-            department: true,
-        },
-    });
-    if (!user) return res.status(404).json({ message: 'Not found' });
-    const roles = user.roles.map((r) => r.role.name);
-    return res.json({
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        roles: roles,
-        department: user.department
-            ? {
-                  id: user.department.id,
-                  name: user.department.name,
-                  code: user.department.code,
-              }
-            : null,
-    });
-});
 
 // =============== Notifications & Messages ===============
 
@@ -4108,39 +3934,43 @@ app.get('/api/auth/test-login', (req, res) => {
 // GET /api/auth/test-ldap - Diagnostic endpoint to test LDAP connection
 app.get('/api/auth/test-ldap', async (req, res) => {
     try {
-        console.log('[LDAP Test] Testing connection to:', LDAP_URL);
+        const { ldapService } = await import('./services/ldapService.js');
+        const { config } = await import('./config/environment.js');
 
-        const testClient = new Client({
-            url: LDAP_URL,
-        });
+        if (!ldapService.isEnabled()) {
+            return res.json({
+                success: false,
+                message: 'LDAP is not configured',
+                configured: false,
+            });
+        }
 
-        await testClient.bind(LDAP_BIND_DN, LDAP_BIND_PASSWORD);
-        console.log('[LDAP Test] Successfully bound with admin credentials');
+        console.log('[LDAP Test] Testing connection');
 
-        const { searchEntries } = await testClient.search(LDAP_SEARCH_DN, {
-            filter: '(objectClass=*)',
-            sizeLimit: 1,
-        });
+        const testResult = await ldapService.testConnection();
 
-        console.log('[LDAP Test] Search successful, found', searchEntries.length, 'entries');
-        await testClient.unbind();
-
-        return res.json({
-            success: true,
-            message: 'LDAP connection successful',
-            ldapUrl: LDAP_URL,
-            bindDN: LDAP_BIND_DN,
-            searchDN: LDAP_SEARCH_DN,
-        });
+        if (testResult) {
+            return res.json({
+                success: true,
+                message: 'LDAP connection successful',
+                configured: true,
+                ldapUrl: config.LDAP?.url,
+                searchDN: config.LDAP?.searchDN,
+            });
+        } else {
+            return res.status(500).json({
+                success: false,
+                message: 'LDAP connection failed',
+                configured: true,
+                ldapUrl: config.LDAP?.url,
+            });
+        }
     } catch (e: any) {
         console.error('[LDAP Test] Connection failed:', e.message);
         return res.status(500).json({
             success: false,
-            message: 'LDAP connection failed',
+            message: 'LDAP test failed',
             error: e.message,
-            ldapUrl: LDAP_URL,
-            bindDN: LDAP_BIND_DN,
-            searchDN: LDAP_SEARCH_DN,
         });
     }
 });
@@ -5391,6 +5221,9 @@ app.use('/api/stats', statsRouter);
 
 // Combine requests API routes
 app.use('/api/requests/combine', combineRouter);
+
+// Auth API routes
+app.use('/api/auth', authRoutes);
 
 // DEBUG: List all registered routes (temporary; remove in production)
 app.get('/api/_routes', (req, res) => {
