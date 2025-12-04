@@ -126,87 +126,94 @@ router.get(
     })
 );
 
-//ldap login
+// LDAP login
 router.post(
     '/ldap-login',
     authLimiter,
     validate(loginSchema),
     asyncHandler(async (req, res) => {
         let userAuthenticated = false;
+        let ldapDN = '';
         const { email, password } = req.body;
+        
         try {
+            // Bind with admin credentials to search
             await client.bind(bindDN, password);
-            const { searchEntries, searchReferences } = await client.search(searchDN, {
+            const { searchEntries } = await client.search(searchDN, {
                 filter: '(userPrincipalName=' + email + ')',
             });
+            
             if (searchEntries.length === 0) {
+                await client.unbind();
                 throw new BadRequestError('User not found');
-            } else {
-                try {
-                    await client.unbind();
-                    await client.bind(searchEntries[0].dn, password);
-                    userAuthenticated = true;
-                    logger.info('ldap user details', { email, dn: searchEntries[0].dn });
-                } catch (ex) {
-                    console.log(ex);
-                    throw new UnauthorizedError('Invalid credentials');
-                }
             }
-        } catch (ex) {
-            console.log(ex);
-            throw new BadRequestError('User not found');
-        } finally {
+            
+            ldapDN = searchEntries[0].dn;
+            logger.info('LDAP user details', { email, dn: ldapDN });
+            
+            // Unbind from admin and try to bind as the user
             await client.unbind();
-            if (!userAuthenticated) {
-                throw new UnauthorizedError('Invalid credentials');
-            } else {
-                logger.info('User authenticated via LDAP successfully', { email });
-                // see if user exists in local db
-                let user = await prisma.user.findUnique({
-                    where: { email },
-                    include: {
-                        roles: {
-                            include: {
-                                role: true,
-                            },
-                        },
-                        department: true,
-                    },
-                });
-                logger.info('LDAP user lookup in local DB', { email, userExists: !!user });
-                // if (!user) {
-                //     // Create user if not exists
-                //     user = await prisma.user.create({
-                //         data: {
-                //             email,
-                //             name: email.split('@')[0], //  can find better name from LDAP
-                //             passwordHash: '', // No local password cuz we are using LDAP
-                //         },
-                //     });
-                // }
-                //const roles = user.roles.map((r) => r.role.name);
-                //const token = jwt.sign({ sub: user.id, email: user.email, roles, name: user.name }, config.JWT_SECRET, { expiresIn: '24h' });
-
-                logger.info('User logged in via LDAP successfully', { userId: user.id, email: user.email });
-
-                // res.json({
-                //     token,
-                //     user: {
-                //         id: user.id,
-                //         email: user.email,
-                //         name: user.name,
-                //         roles,
-                //         department: user.department
-                //             ? {
-                //                 id: user.department.id,
-                //                 name: user.department.name,
-                //                 code: user.department.code,
-                //             }
-                //             : null,
-                //     },
-                // });
-            }
+            await client.bind(ldapDN, password);
+            userAuthenticated = true;
+            logger.info('User authenticated via LDAP successfully', { email, dn: ldapDN });
+            
+        } catch (ex) {
+            await client.unbind().catch(() => null);
+            console.error('LDAP authentication error:', ex);
+            throw new UnauthorizedError('Invalid credentials');
         }
+        
+        // If we get here, user is authenticated
+        if (!userAuthenticated) {
+            throw new UnauthorizedError('Invalid credentials');
+        }
+        
+        // Look up user in local database
+        let user = await prisma.user.findUnique({
+            where: { email },
+            include: {
+                roles: {
+                    include: {
+                        role: true,
+                    },
+                },
+                department: true,
+            },
+        });
+        
+        logger.info('LDAP user lookup in local DB', { email, userExists: !!user });
+        
+        if (!user) {
+            // User authenticated via LDAP but not in local DB - cannot proceed
+            throw new BadRequestError('User account not found in system. Please contact your administrator.');
+        }
+        
+        // Generate JWT token
+        const roles = user.roles.map((r) => r.role.name);
+        const token = jwt.sign(
+            { sub: user.id, email: user.email, roles, name: user.name },
+            config.JWT_SECRET,
+            { expiresIn: '24h' }
+        );
+        
+        logger.info('User logged in via LDAP successfully', { userId: user.id, email: user.email });
+        
+        res.json({
+            token,
+            user: {
+                id: user.id,
+                email: user.email,
+                name: user.name,
+                roles,
+                department: user.department
+                    ? {
+                          id: user.department.id,
+                          name: user.department.name,
+                          code: user.department.code,
+                      }
+                    : null,
+            },
+        });
     })
 );
 
