@@ -83,8 +83,15 @@ async function apiPost<T = any>(path: string, body: any): Promise<T> {
     return res.json();
 }
 
+export interface RoleOption {
+    id: number;
+    name: string;
+    description?: string;
+}
+
 const BACKEND = {
     getUsers: (): Promise<AdminUser[]> => apiGet('/admin/users'),
+    getAllRoles: (): Promise<RoleOption[]> => apiGet('/admin/roles'),
     createDepartment: (input: CreateDepartmentInput) => apiPost('/admin/departments', input),
     updateUserRoles: (userId: number, roles: string[]) => apiPost(`/admin/users/${userId}/roles`, { roles }),
     getAuditLog: (q: AuditQuery) => {
@@ -96,6 +103,7 @@ const BACKEND = {
     },
 };
 
-export const ADMIN_ROLE_NAMES = ['ADMIN', 'REQUESTER', 'DEPT_MANAGER', 'HEAD_OF_DIVISION', 'PROCUREMENT', 'FINANCE'];
+// Fallback hardcoded roles if API fails
+export const ADMIN_ROLE_NAMES = ['ADMIN', 'REQUESTER', 'DEPT_MANAGER', 'HEAD_OF_DIVISION', 'PROCUREMENT_MANAGER', 'PROCUREMENT_OFFICER', 'PROCUREMENT', 'FINANCE', 'EVALUATION_COMMITTEE', 'INNOVATION_COMMITTEE'];
 
 export default BACKEND;

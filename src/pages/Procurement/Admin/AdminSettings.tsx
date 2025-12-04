@@ -52,6 +52,10 @@ const AdminSettings = () => {
     const [users, setUsers] = useState<AdminUser[]>([]);
     const [usersLoading, setUsersLoading] = useState(false);
     const [usersError, setUsersError] = useState<string | null>(null);
+    
+    const [allRoles, setAllRoles] = useState<Array<{ id: number; name: string; description?: string }>>([]);
+    const [rolesLoading, setRolesLoading] = useState(false);
+    const [rolesError, setRolesError] = useState<string | null>(null);
 
     const [deptName, setDeptName] = useState('');
     const [deptCode, setDeptCode] = useState('');
@@ -84,9 +88,32 @@ const AdminSettings = () => {
         }
     }
 
+    // Fetch all available roles
+    async function loadRoles() {
+        setRolesLoading(true);
+        setRolesError(null);
+        try {
+            const roles = await adminService.getAllRoles();
+            setAllRoles(roles);
+        } catch (e: any) {
+            console.warn('Failed to fetch roles from API, using fallback:', e?.message);
+            // Use fallback roles if API fails
+            setAllRoles(
+                ADMIN_ROLE_NAMES.map((name) => ({
+                    id: Math.random(), // Temporary ID for fallback
+                    name,
+                }))
+            );
+            setRolesError(null); // Don't show error if we have fallback
+        } finally {
+            setRolesLoading(false);
+        }
+    }
+
     useEffect(() => {
         if (activeTab === 'users' || activeTab === 'departments') {
             loadUsers();
+            loadRoles();
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeTab]);
@@ -304,7 +331,7 @@ const AdminSettings = () => {
                                 </thead>
                                 <tbody>
                                     {flatUsers.map((u) => (
-                                        <UserRow key={u.id} user={u} onSave={handleSaveRoles} />
+                                        <UserRow key={u.id} user={u} availableRoles={allRoles} onSave={handleSaveRoles} />
                                     ))}
                                 </tbody>
                             </table>
@@ -879,7 +906,15 @@ function ReassignRequestsTab() {
 // Local sub-component: editable user row with role checkboxes
 type FlatUser = { id: number; email: string; name: string; dept: string; roles: string[] };
 
-function UserRow({ user, onSave }: { user: FlatUser; onSave: (userId: number, roles: string[]) => void }) {
+function UserRow({
+    user,
+    availableRoles,
+    onSave,
+}: {
+    user: FlatUser;
+    availableRoles: Array<{ id: number; name: string; description?: string }>;
+    onSave: (userId: number, roles: string[]) => void;
+}) {
     const [localRoles, setLocalRoles] = useState<string[]>(user.roles);
     const [saving, setSaving] = useState(false);
     const changed = useMemo(() => {
@@ -908,10 +943,10 @@ function UserRow({ user, onSave }: { user: FlatUser; onSave: (userId: number, ro
             <td>{user.dept}</td>
             <td>
                 <div className="flex flex-wrap gap-2">
-                    {ADMIN_ROLE_NAMES.map((r) => (
-                        <label key={r} className="inline-flex items-center gap-1">
-                            <input type="checkbox" className="form-checkbox" checked={localRoles.includes(r)} onChange={() => toggleRole(r)} />
-                            <span className="text-xs">{r}</span>
+                    {availableRoles.map((role) => (
+                        <label key={role.name} className="inline-flex items-center gap-1 whitespace-nowrap" title={role.description || ''}>
+                            <input type="checkbox" className="form-checkbox" checked={localRoles.includes(role.name)} onChange={() => toggleRole(role.name)} />
+                            <span className="text-xs">{role.name}</span>
                         </label>
                     ))}
                 </div>

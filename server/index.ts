@@ -3627,6 +3627,21 @@ app.post('/api/requisitions', async (req, res) => {
 // ADMIN ENDPOINTS
 // ============================================
 
+// GET /api/admin/roles - Get all available roles
+app.get('/api/admin/roles', async (req, res) => {
+    try {
+        const roles = await prisma.role.findMany({
+            orderBy: { name: 'asc' },
+            select: { id: true, name: true, description: true },
+        });
+
+        res.json(roles);
+    } catch (e: any) {
+        console.error('GET /api/admin/roles error:', e);
+        res.status(500).json({ message: 'Failed to fetch roles' });
+    }
+});
+
 // GET /admin/users - Get all users with their roles and departments
 app.get('/admin/users', async (req, res) => {
     try {
