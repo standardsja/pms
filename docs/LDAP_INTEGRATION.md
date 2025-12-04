@@ -1,520 +1,350 @@
-# LDAP / Active Directory Integration
+# LDAP Integration Documentation
 
 ## Overview
 
-The system now supports LDAP/Active Directory authentication alongside local database authentication. Users can log in using their corporate credentials, and user accounts are automatically created in the local database upon first LDAP login.
+The Procurement Management System now includes enterprise-grade LDAP authentication support, allowing users to authenticate against Active Directory or any LDAP-compatible directory service.
 
----
+## Architecture
 
-## Features
+The LDAP integration follows the project's strict architectural standards:
 
-✅ **LDAP Authentication** - Authenticate users against Active Directory  
-✅ **Auto User Creation** - Automatically create user accounts on first LDAP login  
-✅ **User Sync** - Optionally sync user details (name, department) from LDAP  
-✅ **Dual Authentication** - Supports both LDAP and local password authentication  
-✅ **Role Management** - Roles still managed in local database  
-✅ **Secure** - Uses service account for search, authenticates with user credentials
+### 1. **Configuration Layer** (`server/config/environment.ts`)
 
----
+-   Centralized environment variable management
+-   Type-safe configuration with validation
+-   Optional LDAP configuration support
 
-## Installation
+### 2. **Service Layer** (`server/services/ldapService.ts`)
 
-### 1. Install Dependencies
+-   Pure business logic for LDAP operations
+-   Stateless, testable, and deterministic
+-   Handles authentication, user search, and connection testing
+-   Built-in security features:
+    -   LDAP injection prevention
+    -   Secure credential handling
+    -   Automatic connection cleanup
+    -   Comprehensive error handling
 
-```bash
-npm install ldapts
-```
+### 3. **Route Layer** (`server/routes/auth.ts`)
 
-The `ldapts` package provides LDAP client functionality for Node.js.
+-   Thin route handlers
+-   Validation and response formatting
+-   Integration with existing auth patterns
 
-### 2. Configure Environment Variables
+## Configuration
 
-Add to your `.env` file or create `.env.ldap`:
+### Environment Variables
+
+Add these variables to your `.env` file to enable LDAP authentication:
 
 ```env
-# LDAP Server Configuration
-LDAP_URL=ldap://BOS.local:389
-LDAP_BIND_DN=CN=Policy Test,OU=MIS_STAFF,OU=MIS,DC=BOS,DC=local
-LDAP_BIND_PASSWORD=Password@101
-LDAP_SEARCH_BASE=DC=BOS,DC=local
-LDAP_SEARCH_FILTER=(userPrincipalName={email})
+# LDAP Authentication (Optional)
+LDAP_URL="ldap://your-domain.local:389"
+LDAP_BIND_DN="CN=ServiceAccount,OU=Users,DC=your-domain,DC=local"
+LDAP_BIND_PASSWORD="your-service-account-password"
+LDAP_SEARCH_DN="DC=your-domain,DC=local"
 ```
 
-**Security Note:** Never commit `.env` files with real credentials to version control!
+### Configuration Details
 
-### 3. Verify Configuration
+-   **LDAP_URL**: The LDAP server URL (e.g., `ldap://domain.local:389` or `ldaps://domain.local:636` for SSL)
+-   **LDAP_BIND_DN**: Distinguished Name of a service account with read permissions
+-   **LDAP_BIND_PASSWORD**: Password for the service account
+-   **LDAP_SEARCH_DN**: Base DN for user searches (e.g., `DC=company,DC=local`)
 
-Test the LDAP connection:
+**Security Notes:**
 
-```bash
-node server/scripts/test-ldap-connection.mjs
-```
+-   Use a dedicated service account with minimal read-only permissions
+-   Never commit these values to version control
+-   In production, use LDAPS (LDAP over SSL) on port 636
+-   Rotate service account passwords regularly
 
-(You'll need to create this test script - see below)
+## API Endpoints
 
----
+### POST `/api/auth/ldap-login`
 
-## Configuration Details
-
-### LDAP_URL
-
--   **Format:** `ldap://hostname:port` or `ldaps://hostname:port`
--   **Default:** `ldap://BOS.local:389`
--   **SSL:** Use `ldaps://` and port `636` for secure connections
--   **Examples:**
-    ```
-    ldap://dc01.bos.local:389
-    ldaps://dc01.bos.local:636
-    ldap://192.168.1.10:389
-    ```
-
-### LDAP_BIND_DN
-
--   **Purpose:** Distinguished Name of service account used to search for users
--   **Requirements:** Must have read permission on user objects
--   **Format:** `CN=username,OU=department,DC=domain,DC=com`
--   **Example:** `CN=Policy Test,OU=MIS_STAFF,OU=MIS,DC=BOS,DC=local`
-
-### LDAP_BIND_PASSWORD
-
--   **Purpose:** Password for the service account
--   **Security:** Store in environment variable, never hardcode
--   **Rotation:** Update regularly according to security policy
-
-### LDAP_SEARCH_BASE
-
--   **Purpose:** The base DN where user searches begin
--   **Format:** `DC=domain,DC=com`
--   **Example:** `DC=BOS,DC=local`
--   **Tip:** Use the root of your domain or specific OU if you know where users are
-
-### LDAP_SEARCH_FILTER
-
--   **Purpose:** LDAP filter to find user by email
--   **Placeholder:** Use `{email}` which will be replaced with the user's email
--   **Common Filters:**
-    ```
-    (userPrincipalName={email})          # Active Directory - most common
-    (mail={email})                       # Email attribute
-    (sAMAccountName={email})             # Username (without @domain)
-    (|(mail={email})(userPrincipalName={email}))  # Either email or UPN
-    ```
-
----
-
-## API Usage
-
-### LDAP Login Endpoint
-
-**Endpoint:** `POST /api/auth/ldap-login`
+Authenticate a user against LDAP and issue a JWT token.
 
 **Request:**
 
 ```json
 {
-    "email": "user@bos.local",
-    "password": "userPassword123"
+    "email": "user@domain.local",
+    "password": "userPassword"
 }
 ```
 
-**Success Response (200):**
+**Response (Success):**
 
 ```json
 {
     "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
     "user": {
-        "id": 42,
-        "email": "user@bos.local",
+        "id": 1,
+        "email": "user@domain.local",
         "name": "John Doe",
-        "roles": ["DEPT_MANAGER", "PROCUREMENT"],
+        "roles": ["USER", "DEPARTMENT_HEAD"],
         "department": {
-            "id": 5,
+            "id": 2,
             "name": "IT Department",
             "code": "IT"
-        },
-        "ldapAuthenticated": true
+        }
     }
 }
 ```
 
-**Error Responses:**
+**Response (Error):**
 
-| Code | Message                     | Meaning                    |
-| ---- | --------------------------- | -------------------------- |
-| 400  | Email and password required | Missing credentials        |
-| 401  | Invalid credentials         | LDAP authentication failed |
-| 500  | LDAP login failed           | Server error               |
-
----
-
-## Frontend Integration
-
-### 1. Update Login Component
-
-Add LDAP login option to your login form:
-
-```typescript
-// src/pages/Authentication/Login.tsx
-
-const handleLDAPLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-
-    try {
-        const response = await fetch('http://heron:4000/api/auth/ldap-login', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ email, password }),
-        });
-
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.message || 'LDAP login failed');
-        }
-
-        const data = await response.json();
-
-        // Store token and user info
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('userId', data.user.id.toString());
-        localStorage.setItem('user', JSON.stringify(data.user));
-
-        // Redirect to dashboard
-        navigate('/dashboard');
-    } catch (err) {
-        setError(err instanceof Error ? err.message : 'LDAP login failed');
-    } finally {
-        setLoading(false);
-    }
-};
+```json
+{
+    "success": false,
+    "message": "Invalid credentials"
+}
 ```
 
-### 2. Add Login Mode Toggle
+**Rate Limiting:** 5 attempts per 15 minutes per IP
 
-```tsx
-<div className="panel">
-    <h2>Login</h2>
+### GET `/api/auth/test-ldap`
 
-    {/* Login Mode Selector */}
-    <div className="mb-4">
-        <button className={loginMode === 'ldap' ? 'btn btn-primary' : 'btn btn-outline-primary'} onClick={() => setLoginMode('ldap')}>
-            Active Directory
-        </button>
-        <button className={loginMode === 'local' ? 'btn btn-primary' : 'btn btn-outline-primary'} onClick={() => setLoginMode('local')}>
-            Local Account
-        </button>
-    </div>
+Test LDAP connection and configuration (diagnostic endpoint).
 
-    <form onSubmit={loginMode === 'ldap' ? handleLDAPLogin : handleLocalLogin}>{/* ... form fields ... */}</form>
-</div>
+**Response (Success):**
+
+```json
+{
+    "success": true,
+    "message": "LDAP connection successful",
+    "configured": true,
+    "ldapUrl": "ldap://domain.local:389",
+    "searchDN": "DC=domain,DC=local"
+}
 ```
 
----
+**Response (Not Configured):**
 
-## How It Works
+```json
+{
+    "success": false,
+    "message": "LDAP is not configured",
+    "configured": false
+}
+```
 
-### Authentication Flow
+## Authentication Flow
 
 1. **User submits credentials** to `/api/auth/ldap-login`
-2. **Server binds with service account** to LDAP server
-3. **Server searches for user** using email in search filter
-4. **If user found**, server unbinds service account
-5. **Server authenticates user** by binding with user's DN and password
-6. **If authentication successful**, check local database for user
-7. **If user doesn't exist**, create new user account automatically
-8. **Generate JWT token** with user ID, email, roles
-9. **Return token and user details** to client
+2. **System validates input** using Zod schemas
+3. **LDAP service authenticates**:
+    - Binds with service account credentials
+    - Searches for user by email (userPrincipalName)
+    - Unbinds service account
+    - Attempts to bind as the user to verify password
+    - Unbinds user connection
+4. **System looks up user** in local database
+5. **JWT token is issued** with user roles and permissions
+6. **Token is returned** to client
 
-### User Lifecycle
+## Security Features
 
-**First Login (LDAP user not in local DB):**
+### 1. Input Sanitization
 
+All user input is sanitized to prevent LDAP injection attacks:
+
+```typescript
+// Removes: () \ * and null bytes
+private sanitizeInput(input: string): string {
+    return input.replace(/[()\\*\x00]/g, '');
+}
 ```
-LDAP Auth → User Created → Roles = [] → Admin assigns roles → Full access
+
+### 2. Connection Management
+
+-   Automatic connection cleanup with `finally` blocks
+-   Safe unbind operations that never throw
+-   Connection timeouts (5 seconds)
+
+### 3. Error Handling
+
+-   No sensitive information in error messages
+-   Structured logging for audit trails
+-   Rate limiting on authentication endpoints
+
+### 4. Password Security
+
+-   Passwords never logged or stored
+-   LDAP bind used for password verification
+-   No password transmission to local database
+
+### 5. User Authorization
+
+-   Users must exist in local database before LDAP login
+-   Roles and permissions managed locally
+-   LDAP only handles authentication, not authorization
+
+## Integration with Existing System
+
+### User Management
+
+LDAP authentication requires users to be pre-created in the local database:
+
+1. Create user accounts with matching email addresses
+2. Assign roles and permissions locally
+3. Users can then authenticate via LDAP
+
+**Note:** The system does NOT auto-create users from LDAP. This is intentional to maintain control over access.
+
+### Token Flow
+
+LDAP authentication issues the same JWT tokens as standard authentication:
+
+-   24-hour expiration
+-   Contains user ID, email, name, and roles
+-   Compatible with all existing middleware and RBAC
+
+### Frontend Integration
+
+Use the same login flow, but call the LDAP endpoint:
+
+```typescript
+// Standard login
+const response = await api.post('/auth/login', { email, password });
+
+// LDAP login
+const response = await api.post('/auth/ldap-login', { email, password });
 ```
 
-**Subsequent Logins:**
-
-```
-LDAP Auth → User Exists → Roles Loaded → Access Granted
-```
-
-**Role Management:**
-
--   Roles are managed in the local database
--   LDAP only handles authentication
--   Admins assign roles using existing user management
-
----
+The response format is identical, so no frontend changes are needed.
 
 ## Testing
 
-### Test LDAP Connection
+### Manual Testing
 
-Create `server/scripts/test-ldap-connection.mjs`:
+1. **Test LDAP Connection:**
 
-```javascript
-import { getLDAPService } from '../services/ldapService.js';
+    ```bash
+    curl http://localhost:4000/api/auth/test-ldap
+    ```
 
-async function testConnection() {
-    const ldap = getLDAPService();
+2. **Test LDAP Login:**
+    ```bash
+    curl -X POST http://localhost:4000/api/auth/ldap-login \
+      -H "Content-Type: application/json" \
+      -d '{"email":"user@domain.local","password":"password"}'
+    ```
 
-    console.log('Testing LDAP connection...');
-    const connected = await ldap.testConnection();
+### Integration Testing
 
-    if (connected) {
-        console.log('✅ LDAP connection successful');
-    } else {
-        console.log('❌ LDAP connection failed');
-        process.exit(1);
-    }
+The LDAP service is designed for easy testing:
+
+```typescript
+import { ldapService } from './services/ldapService';
+
+// Check if LDAP is enabled
+if (ldapService.isEnabled()) {
+    // Test connection
+    const connected = await ldapService.testConnection();
+
+    // Authenticate user
+    const ldapUser = await ldapService.authenticateUser(email, password);
 }
-
-testConnection();
 ```
-
-Run:
-
-```bash
-node server/scripts/test-ldap-connection.mjs
-```
-
-### Test User Authentication
-
-```bash
-curl -X POST http://heron:4000/api/auth/ldap-login \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "test.user@bos.local",
-    "password": "userPassword123"
-  }'
-```
-
----
 
 ## Troubleshooting
 
 ### Common Issues
 
-#### 1. "LDAP connection failed"
+1. **"LDAP is not configured"**
 
-**Possible Causes:**
+    - Ensure all LDAP\_\* environment variables are set
+    - Check that LDAP_URL is valid
+    - Restart the server after updating .env
 
--   LDAP server unreachable
--   Wrong LDAP URL or port
--   Firewall blocking connection
+2. **"User not found in directory"**
 
-**Solutions:**
+    - Verify the email format matches userPrincipalName in AD
+    - Check LDAP_SEARCH_DN includes the user's location
+    - Ensure service account has read permissions
 
-```bash
-# Test network connectivity
-ping BOS.local
+3. **"Invalid credentials"**
 
-# Test LDAP port
-telnet BOS.local 389
+    - Verify user password is correct
+    - Check if account is locked in AD
+    - Verify LDAP_BIND_DN and LDAP_BIND_PASSWORD are correct
 
-# Check LDAP service
-nslookup BOS.local
+4. **"User account not found in system"**
+    - User must be created in local database first
+    - Email in local DB must match LDAP email exactly
+    - Check user has appropriate roles assigned
+
+### Debug Logging
+
+LDAP operations are logged using Winston:
+
+```
+[INFO] LDAP admin bind successful for user search
+[INFO] LDAP user found in directory - dn: CN=User,OU=Users,DC=domain,DC=local
+[INFO] LDAP user authenticated successfully
+[INFO] User logged in via LDAP successfully - userId: 5
 ```
 
-#### 2. "User not found"
+Check server logs for detailed authentication flow.
 
-**Possible Causes:**
+### Network Issues
 
--   Wrong search filter
--   User not in search base
--   Service account has no read permission
+-   Verify LDAP server is reachable: `telnet domain.local 389`
+-   Check firewall rules allow outbound LDAP traffic
+-   For SSL: `telnet domain.local 636`
+-   Verify DNS resolution: `nslookup domain.local`
 
-**Solutions:**
+## Production Deployment
 
--   Verify LDAP_SEARCH_FILTER matches your AD schema
--   Check user's DN is under LDAP_SEARCH_BASE
--   Try different search filters:
-    ```env
-    # Try these one at a time
-    LDAP_SEARCH_FILTER=(userPrincipalName={email})
-    LDAP_SEARCH_FILTER=(mail={email})
-    LDAP_SEARCH_FILTER=(sAMAccountName={email})
-    ```
+### Security Checklist
 
-#### 3. "Invalid credentials" (user exists but can't authenticate)
+-   [ ] Use LDAPS (LDAP over SSL) instead of plain LDAP
+-   [ ] Create dedicated service account with minimal permissions
+-   [ ] Use strong, rotated passwords for service account
+-   [ ] Store credentials in secure secret management (Azure Key Vault, AWS Secrets Manager)
+-   [ ] Enable audit logging for LDAP authentication events
+-   [ ] Set appropriate rate limiting thresholds
+-   [ ] Monitor failed authentication attempts
+-   [ ] Regularly review LDAP service account permissions
 
-**Possible Causes:**
-
--   Incorrect password
--   Account locked/disabled in AD
--   Password expired
-
-**Solutions:**
-
--   Verify password works in Windows login
--   Check AD user account status
--   Reset password if expired
-
-#### 4. "Service account bind failed"
-
-**Possible Causes:**
-
--   Wrong service account DN
--   Wrong service account password
--   Service account locked/disabled
-
-**Solutions:**
-
--   Verify LDAP_BIND_DN format
--   Test service account credentials in AD
--   Ensure account has appropriate permissions
-
----
-
-## Security Best Practices
-
-### 1. Use Service Account
-
-✅ **DO:** Create dedicated service account for LDAP binding  
-❌ **DON'T:** Use personal account or admin account
-
-### 2. Limit Permissions
-
-The service account only needs:
-
--   Read permission on user objects
--   No write, delete, or admin permissions
-
-### 3. Secure Communication
-
-For production:
+### Environment Configuration
 
 ```env
-# Use LDAPS (LDAP over SSL)
-LDAP_URL=ldaps://BOS.local:636
+# Production LDAP Configuration
+LDAP_URL="ldaps://domain.local:636"
+LDAP_BIND_DN="CN=SvcProcurementApp,OU=ServiceAccounts,DC=domain,DC=local"
+LDAP_BIND_PASSWORD="${SECURE_LDAP_PASSWORD}"
+LDAP_SEARCH_DN="OU=Users,DC=domain,DC=local"
 ```
 
-### 4. Password Management
+### Monitoring
 
--   Store LDAP credentials in `.env` file
--   Add `.env` to `.gitignore`
--   Use different credentials per environment
--   Rotate service account password regularly
+Monitor these metrics in production:
 
-### 5. Rate Limiting
+-   LDAP authentication success/failure rate
+-   LDAP connection timeouts
+-   Average authentication time
+-   Rate limit violations
 
-The LDAP login endpoint uses the same rate limiter as regular login:
+## Architecture Compliance
 
--   5 attempts per 15 minutes per IP
--   Prevents brute force attacks
+This implementation follows all enterprise-grade requirements:
 
----
+✅ **Strict TypeScript** - No `any` types, full type safety  
+✅ **Service Layer Pattern** - Pure business logic in services  
+✅ **Centralized Configuration** - Environment variables validated  
+✅ **Security First** - Input sanitization, safe error handling  
+✅ **Structured Logging** - Winston, no console.log  
+✅ **Deterministic & Testable** - Stateless service methods  
+✅ **Production Ready** - Error handling, timeouts, cleanup
 
-## Advanced Configuration
+## Support
 
-### Department Mapping
+For issues or questions:
 
-Automatically assign users to departments based on LDAP attributes:
-
-```typescript
-// In LDAP login endpoint
-if (!user) {
-    // Map LDAP department to local department
-    const department = await prisma.department.findFirst({
-        where: { name: ldapUser.department },
-    });
-
-    user = await prisma.user.create({
-        data: {
-            email: ldapUser.email,
-            name: ldapUser.name,
-            passwordHash: '',
-            departmentId: department?.id,
-        },
-        // ...
-    });
-}
-```
-
-### Role Assignment
-
-Auto-assign roles based on LDAP groups or attributes:
-
-```typescript
-// Check LDAP group membership
-const ldapGroups = await ldapService.getUserGroups(ldapUser.dn);
-
-// Map LDAP groups to local roles
-const roleMap = {
-    'CN=Procurement Officers,DC=BOS,DC=local': 'PROCUREMENT_OFFICER',
-    'CN=Department Heads,DC=BOS,DC=local': 'DEPT_MANAGER',
-};
-
-for (const [groupDN, roleName] of Object.entries(roleMap)) {
-    if (ldapGroups.includes(groupDN)) {
-        const role = await prisma.role.findUnique({ where: { name: roleName } });
-        if (role) {
-            await prisma.userRole.create({
-                data: { userId: user.id, roleId: role.id },
-            });
-        }
-    }
-}
-```
-
----
-
-## Migration Guide
-
-### Migrating Existing Users to LDAP
-
-For users who already have local accounts:
-
-1. **Clear their password hash:**
-
-    ```sql
-    UPDATE User SET passwordHash = '' WHERE email LIKE '%@bos.local';
-    ```
-
-2. **They can now only log in via LDAP**
-
-3. **Or keep dual authentication:**
-    - Allow both LDAP and local passwords
-    - LDAP takes precedence if configured
-
----
-
-## Monitoring
-
-### LDAP Login Logs
-
-All LDAP operations are logged:
-
-```
-[LDAP] Attempting authentication for: user@bos.local
-[LDAP] Service account bind successful
-[LDAP] User found: CN=John Doe,OU=Staff,DC=BOS,DC=local
-[LDAP] User authentication successful: user@bos.local
-[LDAP Login] Creating new user in local DB: user@bos.local
-[LDAP Login] Token generated for user ID: 42
-```
-
-### Monitoring Metrics
-
-Track:
-
--   LDAP login attempts vs successes
--   New user creation rate
--   LDAP connection failures
--   Authentication latency
-
----
-
-## Summary
-
-✅ **Installed:** `ldapts` package for LDAP client  
-✅ **Created:** `server/services/ldapService.ts` - LDAP service layer  
-✅ **Added:** `/api/auth/ldap-login` endpoint  
-✅ **Configured:** Environment variables for LDAP connection  
-✅ **Documented:** Complete integration guide
-
-The system now supports enterprise Active Directory authentication while maintaining backward compatibility with local authentication!
+1. Check server logs for detailed error messages
+2. Verify all environment variables are correctly set
+3. Test LDAP connection using `/api/auth/test-ldap`
+4. Consult Active Directory administrator for directory-specific issues

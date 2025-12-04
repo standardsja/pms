@@ -7,6 +7,13 @@ import { config as dotenvConfig } from 'dotenv';
 // Load environment variables from .env file
 dotenvConfig();
 
+export interface LDAPConfig {
+    url: string;
+    bindDN: string;
+    bindPassword: string;
+    searchDN: string;
+}
+
 export interface EnvironmentConfig {
     NODE_ENV: 'development' | 'production' | 'test';
     PORT: number;
@@ -17,6 +24,7 @@ export interface EnvironmentConfig {
     MAX_FILE_SIZE: number;
     CORS_ORIGIN?: string;
     LOG_LEVEL: 'error' | 'warn' | 'info' | 'debug';
+    LDAP?: LDAPConfig;
 }
 
 function validateEnvironment(): EnvironmentConfig {
@@ -35,6 +43,21 @@ function validateEnvironment(): EnvironmentConfig {
         throw new Error('JWT_SECRET must be set to a secure value in production');
     }
 
+    // Optional LDAP configuration
+    const ldapConfig: LDAPConfig | undefined = env.LDAP_URL
+        ? {
+              url: env.LDAP_URL,
+              bindDN: env.LDAP_BIND_DN || '',
+              bindPassword: env.LDAP_BIND_PASSWORD || '',
+              searchDN: env.LDAP_SEARCH_DN || '',
+          }
+        : undefined;
+
+    // Validate LDAP config if URL is provided
+    if (ldapConfig && (!ldapConfig.bindDN || !ldapConfig.bindPassword || !ldapConfig.searchDN)) {
+        throw new Error('LDAP_URL is set, but LDAP_BIND_DN, LDAP_BIND_PASSWORD, or LDAP_SEARCH_DN is missing');
+    }
+
     return {
         NODE_ENV: (env.NODE_ENV as any) || 'development',
         PORT: parseInt(env.PORT || '4000', 10),
@@ -45,6 +68,7 @@ function validateEnvironment(): EnvironmentConfig {
         MAX_FILE_SIZE: parseInt(env.MAX_FILE_SIZE || '5242880', 10), // 5MB default
         CORS_ORIGIN: env.CORS_ORIGIN,
         LOG_LEVEL: (env.LOG_LEVEL as any) || 'info',
+        LDAP: ldapConfig,
     };
 }
 

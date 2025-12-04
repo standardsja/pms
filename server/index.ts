@@ -27,17 +27,14 @@ import { requestMonitoringMiddleware, trackCacheHit, trackCacheMiss, getMetrics,
 import { checkProcurementThresholds } from './services/thresholdService';
 import { checkSplintering } from './services/splinteringService';
 import { createThresholdNotifications } from './services/notificationService';
-import { getLoadBalancingSettings, updateLoadBalancingSettings, autoAssignRequest, shouldAutoAssign } from './services/loadBalancingService';
+import { getLoadBalancingSettings, updateLoadBalancingSettings, autoAssignRequest, autoAssignFinanceOfficer, shouldAutoAssign } from './services/loadBalancingService';
 import type { Prisma } from '@prisma/client';
 import { requireCommittee as requireCommitteeRole, requireEvaluationCommittee, requireAdmin, requireExecutive, requireRole } from './middleware/rbac';
 import { validate, createIdeaSchema, voteSchema, approveRejectIdeaSchema, promoteIdeaSchema, sanitizeInput as sanitize } from './middleware/validation';
 import { errorHandler, notFoundHandler, asyncHandler, NotFoundError, BadRequestError } from './middleware/errorHandler';
-import { getLDAPService } from './services/ldapService';
 import statsRouter from './routes/stats';
 import combineRouter from './routes/combine';
-import approvalsRouter from './routes/approvals';
-import purchaseOrdersRouter from './routes/purchaseOrders';
-import suppliersRouter from './routes/suppliers';
+import { authRoutes } from './routes/auth';
 
 const app = express();
 const httpServer = http.createServer(app);
@@ -94,13 +91,9 @@ const batchLimiter = rateLimit({
 });
 
 app.use(cors());
-// Only parse JSON for non-multipart requests (let multer handle multipart)
-app.use((req, res, next) => {
-    if (req.is('multipart/form-data')) {
-        return next();
-    }
-    express.json()(req, res, next);
-});
+// Body parsing middleware - MUST come before routes
+app.use(express.json()); // Parse JSON bodies
+app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
 app.use(morgan('dev'));
 app.use(requestMonitoringMiddleware); // Performance monitoring
 app.use(sanitize); // Sanitize all inputs
@@ -434,171 +427,8 @@ app.get('/api/analytics/time-based', authMiddleware, async (_req, res) => {
 app.get('/api/ping', (_req, res) => {
     res.json({ pong: true });
 });
-// Auth endpoints
-app.post('/api/auth/login', authLimiter, async (req, res) => {
-    try {
-        const { email, password } = req.body || {};
-        if (!email || !password) return res.status(400).json({ message: 'Email and password required' });
 
-        const user = await prisma.user.findUnique({
-            where: { email },
-            include: {
-                roles: {
-                    include: {
-                        role: true,
-                    },
-                },
-                department: true,
-            },
-        });
-        if (!user) return res.status(401).json({ message: 'Invalid credentials' });
-        if (!user.passwordHash) return res.status(401).json({ message: 'Invalid credentials' });
-
-        const ok = await bcrypt.compare(String(password), user.passwordHash);
-        if (!ok) return res.status(401).json({ message: 'Invalid credentials' });
-
-        const roles = user.roles.map((r) => r.role.name);
-
-        const token = jwt.sign({ sub: user.id, email: user.email, roles: roles, name: user.name }, JWT_SECRET, { expiresIn: '1d' });
-
-        return res.json({
-            token,
-            user: {
-                id: user.id,
-                email: user.email,
-                name: user.name,
-                roles: roles,
-                department: user.department
-                    ? {
-                          id: user.department.id,
-                          name: user.department.name,
-                          code: user.department.code,
-                      }
-                    : null,
-            },
-        });
-    } catch (e: any) {
-        console.error('Login error:', e);
-        return res.status(500).json({ message: e?.message || 'Login failed' });
-    }
-});
-
-// LDAP Login endpoint
-app.post('/api/auth/ldap-login', authLimiter, async (req, res) => {
-    try {
-        const { email, password } = req.body || {};
-
-        if (!email || !password) {
-            return res.status(400).json({ message: 'Email and password required' });
-        }
-
-        console.log(`[LDAP Login] Attempting authentication for: ${email}`);
-
-        // Authenticate against LDAP
-        const ldapService = getLDAPService();
-        const ldapUser = await ldapService.authenticate(email, password);
-
-        if (!ldapUser) {
-            console.log(`[LDAP Login] Authentication failed for: ${email}`);
-            return res.status(401).json({ message: 'Invalid credentials' });
-        }
-
-        console.log(`[LDAP Login] Authentication successful for: ${email}`);
-
-        // Validate LDAP user data
-        if (!ldapUser.email || typeof ldapUser.email !== 'string' || ldapUser.email.length === 0) {
-            console.error(`[LDAP Login] Invalid email from LDAP:`, ldapUser.email);
-            return res.status(500).json({ message: 'Invalid user data from LDAP' });
-        }
-
-        console.log(`[LDAP Login] LDAP user email: ${ldapUser.email}`);
-
-        // Check if user exists in local database
-        let user = await prisma.user.findUnique({
-            where: { email: ldapUser.email },
-            include: {
-                roles: {
-                    include: {
-                        role: true,
-                    },
-                },
-                department: true,
-            },
-        });
-
-        // If user doesn't exist in local DB, create them
-        if (!user) {
-            console.log(`[LDAP Login] Creating new user in local DB: ${ldapUser.email}`);
-
-            // Create user with LDAP details
-            user = await prisma.user.create({
-                data: {
-                    email: ldapUser.email,
-                    name: ldapUser.name || ldapUser.email.split('@')[0],
-                    passwordHash: '', // No local password for LDAP users
-                    // You can add department lookup here if needed
-                },
-                include: {
-                    roles: {
-                        include: {
-                            role: true,
-                        },
-                    },
-                    department: true,
-                },
-            });
-
-            console.log(`[LDAP Login] User created in local DB with ID: ${user.id}`);
-        } else {
-            console.log(`[LDAP Login] User exists in local DB with ID: ${user.id}`);
-
-            // Optionally update user info from LDAP
-            if (ldapUser.name && user.name !== ldapUser.name) {
-                await prisma.user.update({
-                    where: { id: user.id },
-                    data: { name: ldapUser.name },
-                });
-            }
-        }
-
-        // Generate JWT token
-        const roles = user.roles.map((r) => r.role.name);
-        const token = jwt.sign(
-            {
-                sub: user.id,
-                email: user.email,
-                roles,
-                name: user.name,
-                ldapUser: true, // Flag to indicate LDAP authentication
-            },
-            JWT_SECRET,
-            { expiresIn: '1d' }
-        );
-
-        console.log(`[LDAP Login] Token generated for user ID: ${user.id}`);
-
-        return res.json({
-            token,
-            user: {
-                id: user.id,
-                email: user.email,
-                name: user.name,
-                roles,
-                department: user.department
-                    ? {
-                          id: user.department.id,
-                          name: user.department.name,
-                          code: user.department.code,
-                      }
-                    : null,
-                ldapAuthenticated: true,
-            },
-        });
-    } catch (e: any) {
-        console.error('[LDAP Login] Error:', e);
-        return res.status(500).json({ message: e?.message || 'LDAP login failed' });
-    }
-});
+// Auth endpoints are now in /routes/auth.ts and mounted at /api/auth
 
 async function authMiddleware(req: any, res: any, next: any) {
     // Accept either Bearer token OR x-user-id header for flexibility
@@ -670,36 +500,6 @@ function requireCommittee(req: any, res: any, next: any) {
     }
     next();
 }
-
-app.get('/api/auth/me', authMiddleware, async (req, res) => {
-    const payload = (req as any).user as { sub: number };
-    const user = await prisma.user.findUnique({
-        where: { id: payload.sub },
-        include: {
-            roles: {
-                include: {
-                    role: true,
-                },
-            },
-            department: true,
-        },
-    });
-    if (!user) return res.status(404).json({ message: 'Not found' });
-    const roles = user.roles.map((r) => r.role.name);
-    return res.json({
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        roles: roles,
-        department: user.department
-            ? {
-                  id: user.department.id,
-                  name: user.department.name,
-                  code: user.department.code,
-              }
-            : null,
-    });
-});
 
 // =============== Notifications & Messages ===============
 
@@ -2111,6 +1911,9 @@ app.get('/requests', async (_req, res) => {
                 procurementType: true,
                 createdAt: true,
                 updatedAt: true,
+                isCombined: true,
+                combinedRequestId: true,
+                lotNumber: true,
                 requester: { select: { id: true, name: true, email: true } },
                 department: { select: { id: true, name: true, code: true } },
                 currentAssignee: { select: { id: true, name: true, email: true } },
@@ -2144,6 +1947,9 @@ app.get('/requests', async (_req, res) => {
                             procurementType: true,
                             createdAt: true,
                             updatedAt: true,
+                            isCombined: true,
+                            combinedRequestId: true,
+                            lotNumber: true,
                             requester: { select: { id: true, name: true, email: true } },
                             department: { select: { id: true, name: true, code: true } },
                             currentAssignee: { select: { id: true, name: true, email: true } },
@@ -2298,7 +2104,7 @@ app.post(
 
                 console.log(`[POST /requests] Checking threshold - Value: ${requestCurrency} ${totalValue}, Types: ${JSON.stringify(procurementTypes)}`);
 
-                const thresholdResult = checkProcurementThresholds(Number(totalValue), procurementTypes, requestCurrency);
+                const thresholdResult = checkProcurementThresholds(totalValue, procurementTypes, requestCurrency);
 
                 console.log(`[POST /requests] Threshold check result:`, {
                     requiresExecutiveApproval: thresholdResult.requiresExecutiveApproval,
@@ -2486,7 +2292,7 @@ app.patch('/requests/:id', async (req, res) => {
 
         // Create a notification for the new assignee (if any)
         try {
-            const assigneeId = updated.currentAssigneeId || null;
+            const assigneeId = updated.currentAssignee?.id || updated.currentAssigneeId || null;
             if (assigneeId) {
                 await prisma.notification.create({
                     data: {
@@ -2531,7 +2337,7 @@ app.put('/requests/:id', async (req, res) => {
 
         // Notify the assignee after explicit assignment
         try {
-            const assigneeId = updated.currentAssigneeId || null;
+            const assigneeId = updated.currentAssignee?.id || updated.currentAssigneeId || null;
             if (assigneeId) {
                 await prisma.notification.create({
                     data: {
@@ -2738,7 +2544,7 @@ app.post('/requests/:id/submit', async (req, res) => {
         try {
             // Check if splintering detection is enabled in load balancing settings
             const lbSettings = await prisma.loadBalancingSettings.findFirst();
-            const splinteringEnabled = false; // TODO: Add splinteringEnabled field to LoadBalancingSettings schema
+            const splinteringEnabled = lbSettings?.splinteringEnabled ?? false;
 
             if (splinteringEnabled) {
                 const windowDays = Number(process.env.SPLINTER_WINDOW_DAYS || 30);
@@ -2797,11 +2603,29 @@ app.post('/requests/:id/submit', async (req, res) => {
 
                     // Create detailed audit notification for override
                     try {
-                        // Log to console instead of creating system notification
-                        console.log(`⚠️ Splintering override: ${actingUser.name} (${actingUser.email}) bypassed splintering warning for request ${request.reference || request.id}`);
+                        await prisma.notification.create({
+                            data: {
+                                userId: null, // Broadcast to system/audit
+                                type: 'THRESHOLD_EXCEEDED',
+                                message: `⚠️ Splintering override: ${actingUser.name} (${actingUser.email}) bypassed splintering warning for request ${request.reference || request.id}`,
+                                data: {
+                                    requestId: request.id,
+                                    requestReference: request.reference,
+                                    overriddenBy: {
+                                        id: actingUser.id,
+                                        name: actingUser.name,
+                                        email: actingUser.email,
+                                        roles: actingUser.roles.map((ur) => ur.role.name),
+                                    },
+                                    splinter: spl,
+                                    timestamp: new Date().toISOString(),
+                                    action: 'SPLINTERING_OVERRIDE',
+                                },
+                            },
+                        });
 
-                        // Also log to request status history for permanent audit trail
-                        await prisma.requestStatusHistory.create({
+                        // Also log to status history for permanent audit trail
+                        await prisma.statusHistory.create({
                             data: {
                                 requestId: request.id,
                                 status: 'DRAFT', // Still draft at this point
@@ -2845,6 +2669,13 @@ app.post('/requests/:id/submit', async (req, res) => {
                 status: 'DEPARTMENT_REVIEW',
                 currentAssigneeId: deptManager?.id || null,
                 submittedAt: new Date(),
+                statusHistory: {
+                    create: {
+                        status: 'DEPARTMENT_REVIEW',
+                        changedById: request.requesterId,
+                        comment: 'Request submitted for department manager review',
+                    },
+                },
             },
             include: {
                 items: true,
@@ -2857,7 +2688,7 @@ app.post('/requests/:id/submit', async (req, res) => {
 
         // Notify the department manager (new assignee) that a request was submitted
         try {
-            const assigneeId = updated.currentAssigneeId || null;
+            const assigneeId = updated.currentAssignee?.id || updated.currentAssigneeId || null;
             if (assigneeId) {
                 await prisma.notification.create({
                     data: {
@@ -3005,12 +2836,9 @@ app.post('/requests/:id/action', async (req, res) => {
                 nextStatus = 'HOD_REVIEW';
                 nextAssigneeId = hod?.id || null;
             } else if (request.status === 'HOD_REVIEW') {
-                // HOD approved -> send to Finance Officer
-                const financeOfficer = await prisma.user.findFirst({
-                    where: { roles: { some: { role: { name: 'FINANCE' } } } },
-                });
+                // HOD approved -> send to Finance Officer (auto-assigned based on load-balancing)
                 nextStatus = 'FINANCE_REVIEW';
-                nextAssigneeId = financeOfficer?.id || null;
+                nextAssigneeId = null; // Will be auto-assigned via load-balancing strategy
             } else if (request.status === 'FINANCE_REVIEW') {
                 // Finance Officer approved -> MUST go to Budget Manager (required step)
                 const budgetManager = await prisma.user.findFirst({
@@ -3025,7 +2853,7 @@ app.post('/requests/:id/action', async (req, res) => {
                 nextAssigneeId = null;
             } else if (request.status === 'PROCUREMENT_REVIEW') {
                 // Procurement approved -> check if Executive Director approval needed
-                const totalValue = Number(request.totalEstimated || 0);
+                const totalValue = request.totalEstimated || 0;
                 const procurementTypes = (() => {
                     try {
                         return request.procurementType ? (Array.isArray(request.procurementType) ? request.procurementType : JSON.parse(request.procurementType as any)) : [];
@@ -3116,7 +2944,7 @@ app.post('/requests/:id/action', async (req, res) => {
 
             // Notify the next assignee (procurement manager/officer/executive) if present (normal path)
             try {
-                const assigneeId = updated.currentAssigneeId || null;
+                const assigneeId = updated.currentAssignee?.id || updated.currentAssigneeId || null;
                 if (assigneeId) {
                     await prisma.notification.create({
                         data: {
@@ -3138,7 +2966,7 @@ app.post('/requests/:id/action', async (req, res) => {
                     await prisma.notification.create({
                         data: {
                             userId: Number(updated.currentAssigneeId),
-                            type: 'STAGE_CHANGED',
+                            type: 'EVALUATION_REQUIRED',
                             message: `High-value request ${updated.reference || updated.id} requires your evaluation`,
                             data: {
                                 requestId: updated.id,
@@ -3219,10 +3047,41 @@ app.post('/requests/:id/action', async (req, res) => {
                     console.warn('Failed to create auto-assignment notification:', notifErr);
                 }
             }
+        } else if (nextStatus === 'FINANCE_REVIEW' && settings?.enabled) {
+            // Auto-assign finance officer when entering FINANCE_REVIEW
+            console.log(`[Workflow] Triggering finance officer auto-assignment for request ${updated.id}`);
+            const assignedFinanceOfficerId = await autoAssignFinanceOfficer(prisma, updated.id);
+
+            if (assignedFinanceOfficerId) {
+                // Refresh the updated request to include the new assignee
+                updated = (await prisma.request.findUnique({
+                    where: { id: parseInt(id, 10) },
+                    include: {
+                        items: true,
+                        requester: { select: { id: true, name: true, email: true } },
+                        department: { select: { id: true, name: true, code: true } },
+                        currentAssignee: { select: { id: true, name: true, email: true } },
+                    },
+                })) as any;
+
+                // Notify the auto-assigned finance officer
+                try {
+                    await prisma.notification.create({
+                        data: {
+                            userId: assignedFinanceOfficerId,
+                            type: 'STAGE_CHANGED',
+                            message: `Request ${updated.reference || updated.id} has been assigned to you for finance review`,
+                            data: { requestId: updated.id, status: updated.status, autoAssigned: true },
+                        },
+                    });
+                } catch (notifErr) {
+                    console.warn('Failed to create finance officer assignment notification:', notifErr);
+                }
+            }
         } else if (!updated.currentAssigneeId && nextStatus !== 'DRAFT') {
             // If no auto-assignment and no assignee, notify the next assignee if one was set manually
             try {
-                const assigneeId = updated.currentAssigneeId || null;
+                const assigneeId = updated.currentAssignee?.id || updated.currentAssigneeId || null;
                 if (assigneeId) {
                     await prisma.notification.create({
                         data: {
@@ -3354,7 +3213,14 @@ app.post('/admin/requests/:id/override-splinter', requireAdmin, async (req, res)
 
         // Create audit notification for procurement/audit team
         try {
-            console.log(`Admin override applied to request ${updated.reference || updated.id} by user ${adminUserId}`);
+            await prisma.notification.create({
+                data: {
+                    userId: null,
+                    type: 'THRESHOLD_EXCEEDED',
+                    message: `Admin override applied to request ${updated.reference || updated.id} by user ${adminUserId}`,
+                    data: { requestId: updated.id, overriddenBy: adminUserId },
+                },
+            });
         } catch (notifErr) {
             console.warn('Failed to create admin override notification:', notifErr);
         }
@@ -3363,131 +3229,6 @@ app.post('/admin/requests/:id/override-splinter', requireAdmin, async (req, res)
     } catch (e: any) {
         console.error('POST /admin/requests/:id/override-splinter error:', e);
         return res.status(500).json({ message: e?.message || 'Failed to apply admin override' });
-    }
-});
-
-// POST /requests/:id/forward-to-executive - Forward high-value request to Executive Director
-app.post('/requests/:id/forward-to-executive', async (req, res) => {
-    try {
-        const requestId = parseInt(req.params.id, 10);
-        const { comment } = req.body;
-        const userId = req.headers['x-user-id'];
-
-        if (!userId) {
-            return res.status(401).json({ error: 'User ID required' });
-        }
-
-        const userIdNum = parseInt(String(userId), 10);
-
-        // Verify user is procurement manager
-        const user = await prisma.user.findUnique({
-            where: { id: userIdNum },
-            include: { roles: { include: { role: true } } },
-        });
-
-        if (!user) {
-            return res.status(404).json({ error: 'User not found' });
-        }
-
-        // const userRoleInfo = checkUserRoles(user.roles.map((ur) => ur.role.name));
-
-        const userRoles = user.roles.map((ur) => ur.role.name.toUpperCase());
-        const isProcurementManager = userRoles.includes('PROCUREMENT_MANAGER');
-        const isAdmin = userRoles.includes('ADMIN');
-
-        if (!isProcurementManager && !isAdmin) {
-            return res.status(403).json({ error: 'Only procurement managers can forward requests to Executive Director' });
-        }
-
-        // Get the request
-        const request = await prisma.request.findUnique({
-            where: { id: requestId },
-            include: {
-                requester: true,
-                department: true,
-            },
-        });
-
-        if (!request) {
-            return res.status(404).json({ error: 'Request not found' });
-        }
-
-        // Find Executive Director
-        const executiveDirector = await prisma.user.findFirst({
-            where: {
-                roles: {
-                    some: {
-                        role: {
-                            name: 'EXECUTIVE_DIRECTOR',
-                        },
-                    },
-                },
-            },
-        });
-
-        if (!executiveDirector) {
-            return res.status(404).json({ error: 'Executive Director not found in system' });
-        }
-
-        // Update request status and assign to Executive Director
-        const updatedRequest = await prisma.request.update({
-            where: { id: requestId },
-            data: {
-                status: 'EXECUTIVE_REVIEW',
-                currentAssigneeId: executiveDirector.id,
-            },
-        });
-
-        // Create status history
-        await prisma.requestStatusHistory.create({
-            data: {
-                requestId: requestId,
-                status: 'EXECUTIVE_REVIEW',
-                changedById: userIdNum,
-                comment: comment || 'Request forwarded to Executive Director for threshold approval',
-            },
-        });
-
-        // Create audit log
-        await prisma.requestAction.create({
-            data: {
-                requestId: requestId,
-                performedById: userIdNum,
-                action: 'COMMENT',
-                comment: `Forwarded to Executive Director: ${executiveDirector.name}${comment ? ` - ${comment}` : ''}`,
-            },
-        });
-
-        // Create notification for Executive Director
-        await prisma.notification.create({
-            data: {
-                userId: executiveDirector.id,
-                type: 'STAGE_CHANGED',
-                message: `Request ${request.reference} (${request.currency} ${request.totalEstimated?.toLocaleString()}) has been forwarded to you for approval as it exceeds procurement thresholds.`,
-                data: {
-                    requestId: request.id,
-                    reference: request.reference,
-                    amount: request.totalEstimated,
-                    currency: request.currency,
-                    forwardedBy: user.name,
-                },
-            },
-        });
-
-        console.log(`[FORWARD] Request ${request.reference} forwarded to Executive Director ${executiveDirector.name} by ${user.name}`);
-
-        return res.json({
-            success: true,
-            message: 'Request forwarded to Executive Director',
-            data: {
-                requestId: updatedRequest.id,
-                status: updatedRequest.status,
-                assignedTo: executiveDirector.name,
-            },
-        });
-    } catch (e: any) {
-        console.error('POST /requests/:id/forward-to-executive error:', e);
-        return res.status(500).json({ error: 'Failed to forward request', message: e?.message });
     }
 });
 
@@ -3776,6 +3517,9 @@ app.get('/api/requests', async (_req, res) => {
                 status: true,
                 createdAt: true,
                 updatedAt: true,
+                isCombined: true,
+                combinedRequestId: true,
+                lotNumber: true,
                 requester: { select: { id: true, name: true, email: true } },
                 department: { select: { id: true, name: true, code: true } },
             },
@@ -3800,6 +3544,9 @@ app.get('/api/requests', async (_req, res) => {
                             status: true,
                             createdAt: true,
                             updatedAt: true,
+                            isCombined: true,
+                            combinedRequestId: true,
+                            lotNumber: true,
                             requester: { select: { id: true, name: true, email: true } },
                             department: { select: { id: true, name: true, code: true } },
                         },
@@ -3812,7 +3559,9 @@ app.get('/api/requests', async (_req, res) => {
         }
         if (e?.code === 'P2022') {
             try {
-                const rows = await prisma.$queryRawUnsafe('SELECT id, reference, title, requesterId, departmentId, status, createdAt, updatedAt FROM Request ORDER BY createdAt DESC');
+                const rows = await prisma.$queryRawUnsafe(
+                    'SELECT id, reference, title, requesterId, departmentId, status, createdAt, updatedAt, isCombined, combinedRequestId, lotNumber FROM Request ORDER BY createdAt DESC'
+                );
                 // rows will not include requester/department objects; return as-is
                 return res.json(rows);
             } catch (rawErr: any) {
@@ -4004,6 +3753,149 @@ app.post('/admin/requests/:id/reassign', async (req, res) => {
     }
 });
 
+// POST /requests/:id/assign-finance-officer - Budget Manager can reassign finance officers to requests
+app.post('/requests/:id/assign-finance-officer', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { financeOfficerId } = req.body || {};
+        const userId = req.headers['x-user-id'];
+        if (!userId) return res.status(401).json({ message: 'User ID required' });
+
+        // Verify user is Budget Manager
+        const user = await prisma.user.findUnique({
+            where: { id: parseInt(String(userId), 10) },
+            include: { roles: { include: { role: true } } },
+        });
+        const isBudgetManager = user?.roles.some((r) => r.role.name === 'BUDGET_MANAGER');
+        if (!isBudgetManager) return res.status(403).json({ message: 'Budget Manager access required' });
+
+        const request = await prisma.request.findUnique({
+            where: { id: parseInt(id, 10) },
+            include: { currentAssignee: true, department: true },
+        });
+        if (!request) return res.status(404).json({ message: 'Request not found' });
+
+        // Only allow reassignment when request is in FINANCE_REVIEW
+        if (request.status !== 'FINANCE_REVIEW') {
+            return res.status(400).json({ message: 'Finance officer can only be reassigned when request is in FINANCE_REVIEW status' });
+        }
+
+        // Validate financeOfficerId exists and has FINANCE role
+        const financeOfficer = await prisma.user.findUnique({
+            where: { id: parseInt(String(financeOfficerId), 10) },
+            include: { roles: { include: { role: true } } },
+        });
+        if (!financeOfficer) return res.status(404).json({ message: 'Finance officer not found' });
+        if (!financeOfficer.roles.some((r) => r.role.name === 'FINANCE')) {
+            return res.status(400).json({ message: 'Selected user does not have FINANCE role' });
+        }
+
+        const previousAssigneeId = request.currentAssigneeId;
+
+        const updated = await prisma.request.update({
+            where: { id: parseInt(id, 10) },
+            data: {
+                currentAssigneeId: parseInt(String(financeOfficerId), 10),
+                statusHistory: {
+                    create: {
+                        status: request.status as any,
+                        changedById: parseInt(String(userId), 10),
+                        comment: `Finance officer reassigned by Budget Manager from ${previousAssigneeId ? 'user ' + previousAssigneeId : 'unassigned'} to ${financeOfficer.name}`,
+                    },
+                },
+                actions: {
+                    create: {
+                        action: 'REASSIGN',
+                        performedById: parseInt(String(userId), 10),
+                        comment: `Finance officer reassigned to ${financeOfficer.name}`,
+                        metadata: { previousAssigneeId, newAssigneeId: parseInt(String(financeOfficerId), 10) },
+                    },
+                },
+            },
+            include: {
+                items: true,
+                requester: { select: { id: true, name: true, email: true } },
+                department: { select: { id: true, name: true, code: true } },
+                currentAssignee: { select: { id: true, name: true, email: true } },
+                statusHistory: true,
+                actions: true,
+            },
+        });
+
+        // Notify the newly assigned finance officer
+        try {
+            await prisma.notification.create({
+                data: {
+                    userId: parseInt(String(financeOfficerId), 10),
+                    type: 'STAGE_CHANGED',
+                    message: `Request ${updated.reference || updated.id} has been reassigned to you for finance review by the Budget Manager`,
+                    data: { requestId: updated.id, status: updated.status, reassignedBy: user?.name },
+                },
+            });
+        } catch (notifErr) {
+            console.warn('Failed to create reassignment notification:', notifErr);
+        }
+
+        return res.json(updated);
+    } catch (e: any) {
+        console.error('POST /requests/:id/assign-finance-officer error:', e);
+        return res.status(500).json({ message: 'Failed to assign finance officer' });
+    }
+});
+
+// GET /finance-officers - Get list of available finance officers (for Budget Manager assignment UI)
+app.get('/finance-officers', async (req, res) => {
+    try {
+        const userId = req.headers['x-user-id'];
+        if (!userId) return res.status(401).json({ message: 'User ID required' });
+
+        // Allow Budget Manager or Procurement Manager to view finance officers
+        const user = await prisma.user.findUnique({
+            where: { id: parseInt(String(userId), 10) },
+            include: { roles: { include: { role: true } } },
+        });
+        const allowedRoles = user?.roles.map((r) => r.role.name) || [];
+        const isAuthorized = allowedRoles.some((r) => r === 'BUDGET_MANAGER' || r === 'ADMIN' || r === 'PROCUREMENT_MANAGER');
+        if (!isAuthorized) return res.status(403).json({ message: 'Access required' });
+
+        // Get all finance officers with their current workload
+        const financeOfficers = await prisma.user.findMany({
+            where: {
+                roles: { some: { role: { name: 'FINANCE' } } },
+            },
+            select: {
+                id: true,
+                name: true,
+                email: true,
+            },
+        });
+
+        // Get workload for each officer (active assignments at FINANCE_REVIEW stage)
+        const officersWithWorkload = await Promise.all(
+            financeOfficers.map(async (officer) => {
+                const assignedCount = await prisma.request.count({
+                    where: {
+                        currentAssigneeId: officer.id,
+                        status: { in: ['FINANCE_REVIEW'] },
+                    },
+                });
+
+                return {
+                    id: officer.id,
+                    name: officer.name,
+                    email: officer.email,
+                    assignedCount,
+                };
+            })
+        );
+
+        return res.json(officersWithWorkload);
+    } catch (e: any) {
+        console.error('GET /finance-officers error:', e);
+        return res.status(500).json({ message: 'Failed to fetch finance officers' });
+    }
+});
+
 // POST /admin/maintenance/fix-invalid-request-statuses - Admin maintenance to repair invalid enum values
 app.post('/admin/maintenance/fix-invalid-request-statuses', async (req, res) => {
     try {
@@ -4037,6 +3929,50 @@ app.get('/api/auth/login', (req, res) => {
 // GET /api/auth/test-login - Test endpoint
 app.get('/api/auth/test-login', (req, res) => {
     res.status(405).json({ message: 'Use POST method' });
+});
+
+// GET /api/auth/test-ldap - Diagnostic endpoint to test LDAP connection
+app.get('/api/auth/test-ldap', async (req, res) => {
+    try {
+        const { ldapService } = await import('./services/ldapService.js');
+        const { config } = await import('./config/environment.js');
+
+        if (!ldapService.isEnabled()) {
+            return res.json({
+                success: false,
+                message: 'LDAP is not configured',
+                configured: false,
+            });
+        }
+
+        console.log('[LDAP Test] Testing connection');
+
+        const testResult = await ldapService.testConnection();
+
+        if (testResult) {
+            return res.json({
+                success: true,
+                message: 'LDAP connection successful',
+                configured: true,
+                ldapUrl: config.LDAP?.url,
+                searchDN: config.LDAP?.searchDN,
+            });
+        } else {
+            return res.status(500).json({
+                success: false,
+                message: 'LDAP connection failed',
+                configured: true,
+                ldapUrl: config.LDAP?.url,
+            });
+        }
+    } catch (e: any) {
+        console.error('[LDAP Test] Connection failed:', e.message);
+        return res.status(500).json({
+            success: false,
+            message: 'LDAP test failed',
+            error: e.message,
+        });
+    }
 });
 
 // ============================================
@@ -4866,7 +4802,7 @@ app.patch(
                                   return [];
                               }
                           })();
-                    authorized = secs.map((s: any) => String(s).toUpperCase()).includes(sectionUpper);
+                    authorized = secs.map((s) => String(s).toUpperCase()).includes(sectionUpper);
                 } catch {
                     authorized = false;
                 }
@@ -5286,14 +5222,8 @@ app.use('/api/stats', statsRouter);
 // Combine requests API routes
 app.use('/api/requests/combine', combineRouter);
 
-// Approvals API routes
-app.use('/api/approvals', approvalsRouter);
-
-// Purchase Orders API routes
-app.use('/api/purchase-orders', purchaseOrdersRouter);
-
-// Suppliers API routes
-app.use('/api/suppliers', suppliersRouter);
+// Auth API routes
+app.use('/api/auth', authRoutes);
 
 // DEBUG: List all registered routes (temporary; remove in production)
 app.get('/api/_routes', (req, res) => {

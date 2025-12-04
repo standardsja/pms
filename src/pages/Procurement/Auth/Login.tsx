@@ -63,35 +63,17 @@ const Login = () => {
         setIsLoading(true);
 
         try {
-            // Get API URL from environment. In dev, prefer an empty base so requests
-            // use relative URLs (e.g. `/api/...`) and are handled by Vite's proxy.
+            // Get API URL from environment
             const apiUrl = import.meta.env.VITE_API_URL || '';
 
             // Primary: real password login
-            let res = await fetch(`${apiUrl}/api/auth/login`, {
+            const res = await fetch(`${apiUrl}/api/auth/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password }),
             });
-            let data = await res.json().catch(() => null);
 
-            // Dev-only fallback: if backend login endpoint returns 404/500 during local setup,
-            // try the non-password helper endpoint to unblock UX. This will NOT run in production builds.
-            if (!res.ok && import.meta.env.DEV) {
-                try {
-                    // Use relative path so Vite proxy can route to backend in dev
-                    const fallbackRes = await fetch(`${apiUrl}/auth/test-login`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ email: String(email).toLowerCase().trim() }),
-                    });
-                    if (fallbackRes.ok) {
-                        const d = await fallbackRes.json().catch(() => null);
-                        data = d ? { token: d.token || 'dev-token', user: d.user } : null;
-                        res = fallbackRes as any;
-                    }
-                } catch {}
-            }
+            const data = await res.json().catch(() => null);
 
             if (!res.ok) {
                 const msg = (data && (data.message || data.error)) || 'Login failed';
