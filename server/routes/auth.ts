@@ -69,16 +69,16 @@ router.post(
 
             // Get or create Requester role for LDAP users
             let userRoles = user.roles.map((r) => r.role.name);
-            
+
             // If LDAP user has no roles, automatically assign Requester role
             if (userRoles.length === 0) {
                 logger.info('LDAP user has no roles, assigning Requester role', { userId: user.id, email });
-                
+
                 // Find the Requester role
                 const requesterRole = await prisma.role.findUnique({
                     where: { name: 'REQUESTER' },
                 });
-                
+
                 if (requesterRole) {
                     // Assign Requester role to user
                     await prisma.userRole.create({
