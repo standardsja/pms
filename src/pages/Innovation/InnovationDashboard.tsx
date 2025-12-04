@@ -49,17 +49,17 @@ const InnovationDashboard = () => {
 
             // Fetch only recent ideas with server-side sorting
             const response = await fetchIdeas({ sort: 'recent' });
-            const ideas = response.ideas || response;
+            const ideas = Array.isArray(response) ? response : (response as any).ideas || response;
 
             // Calculate myIdeas count (still need to filter client-side for this)
-            const myIdeas = ideas.filter((idea) => idea.submittedBy === currentUser?.name || idea.submittedBy === currentUser?.email).length;
+            const myIdeas = ideas.filter((idea: any) => idea.submittedBy === currentUser?.name || idea.submittedBy === currentUser?.email).length;
 
             setStats({
                 myIdeas,
                 approvedIdeas: counts.approved || 0,
                 pendingIdeas: counts.pending || 0,
                 promotedProjects: counts.promoted || 0,
-                totalVotes: ideas.reduce((sum, idea) => sum + (idea.voteCount || 0), 0),
+                totalVotes: ideas.reduce((sum: number, idea: any) => sum + (idea.voteCount || 0), 0),
             });
 
             // Get 3 most recent ideas for activity feed (already sorted by API)

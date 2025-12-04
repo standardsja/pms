@@ -110,15 +110,15 @@ const CommitteeDashboard = () => {
             try {
                 if (selectedTab === 'pending') {
                     const response = await fetchIdeas({ status: 'pending' });
-                    const data = response.ideas || response;
+                    const data = Array.isArray(response) ? response : (response as any).ideas || response;
                     setPendingIdeas(data);
                 } else if (selectedTab === 'approved') {
                     const response = await fetchIdeas({ status: 'approved' });
-                    const data = response.ideas || response;
+                    const data = Array.isArray(response) ? response : (response as any).ideas || response;
                     setApprovedIdeas(data);
                 } else {
                     const response = await fetchIdeas({ status: 'promoted' });
-                    const data = response.ideas || response;
+                    const data = Array.isArray(response) ? response : (response as any).ideas || response;
                     setPromotedIdeas(data);
                 }
             } catch (e) {

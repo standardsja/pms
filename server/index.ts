@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import morgan from 'morgan';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
@@ -50,6 +51,17 @@ const JWT_SECRET = process.env.JWT_SECRET || 'devsecret-change-me';
 
 let trendingJobInterval: NodeJS.Timeout | null = null;
 
+/**
+ * Security utility: Sanitize error messages for production
+ * Prevents information disclosure by hiding implementation details
+ */
+const safeErrorMessage = (error: any, fallbackMessage: string): string => {
+    if (process.env.NODE_ENV !== 'production') {
+        return error?.message || fallbackMessage;
+    }
+    return fallbackMessage;
+};
+
 // Rate limiting configurations
 const generalLimiter = rateLimit({
     windowMs: 1 * 60 * 1000, // 1 minute
@@ -91,6 +103,32 @@ const batchLimiter = rateLimit({
 });
 
 app.use(cors());
+// Security headers with Helmet
+app.use(
+    helmet({
+        contentSecurityPolicy: {
+            directives: {
+                defaultSrc: ["'self'"],
+                scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // React requires eval in dev
+                styleSrc: ["'self'", "'unsafe-inline'"],
+                imgSrc: ["'self'", 'data:', 'http://heron:4000', 'http://localhost:4000'],
+                connectSrc: ["'self'", 'http://heron:4000', 'http://localhost:4000', 'ws://heron:4000', 'ws://localhost:4000'],
+                fontSrc: ["'self'", 'data:'],
+                objectSrc: ["'none'"],
+                mediaSrc: ["'self'"],
+                frameSrc: ["'none'"],
+            },
+        },
+        hsts: {
+            maxAge: 31536000, // 1 year
+            includeSubDomains: true,
+            preload: true,
+        },
+        noSniff: true,
+        xssFilter: true,
+        referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+    })
+);
 // Body parsing middleware - MUST come before routes
 app.use(express.json()); // Parse JSON bodies
 app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
@@ -534,10 +572,10 @@ app.get('/api/notifications', authMiddleware, async (req, res) => {
             // Handle cases where DB contains enum values not present in the Prisma schema
             const msg = String(err?.message || '');
             if (msg.toLowerCase().includes('not found in enum') || msg.toLowerCase().includes('invalid enum')) {
-                console.warn('Prisma enum mismatch when fetching notifications, falling back to raw query:', msg);
+                console.warn('Prisma enum mismatch when fetching notifications, falling back to parameterized query:', msg);
                 try {
-                    // Use a raw SQL query to avoid Prisma enum coercion errors. Results will be raw rows.
-                    const rows: any = await prisma.$queryRawUnsafe(`SELECT * FROM "Notification" WHERE "userId" = $1 ORDER BY "createdAt" DESC LIMIT 50`, userId);
+                    // Use parameterized raw SQL query (safer than $queryRawUnsafe)
+                    const rows: any = await prisma.$queryRaw`SELECT * FROM "Notification" WHERE "userId" = ${userId} ORDER BY "createdAt" DESC LIMIT 50`;
                     notifications = rows || [];
                 } catch (rawErr) {
                     console.error('Raw fallback for notifications failed:', rawErr);
@@ -554,7 +592,9 @@ app.get('/api/notifications', authMiddleware, async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Failed to fetch notifications',
-            details: error instanceof Error ? error.message : String(error),
+            ...(process.env.NODE_ENV !== 'production' && {
+                details: error instanceof Error ? error.message : String(error),
+            }),
         });
     }
 });
@@ -1017,7 +1057,7 @@ app.get('/api/ideas', authMiddleware, async (req, res) => {
 });
 
 // Counts for dashboard (pending, approved, rejected, promoted)
-app.get('/api/ideas/counts', async (_req, res) => {
+app.get('/api/ideas/counts', authMiddleware, async (_req, res) => {
     try {
         const [pending, approved, rejected, promoted] = await Promise.all([
             prisma.idea.count({ where: { status: 'PENDING_REVIEW' } }).catch(() => 0),
@@ -1397,7 +1437,10 @@ app.post('/api/ideas', authMiddleware, ideaCreationLimiter, upload.single('image
         return res.status(201).json(created);
     } catch (e: any) {
         console.error('POST /api/ideas error:', e);
-        return res.status(500).json({ error: 'failed to create idea', details: e?.message });
+        return res.status(500).json({
+            error: 'Failed to create idea',
+            ...(process.env.NODE_ENV !== 'production' && { details: e?.message }),
+        });
     }
 });
 
@@ -1460,7 +1503,7 @@ app.post('/api/ideas/:id/approve', authMiddleware, requireCommittee, async (req,
         return res.json(updated);
     } catch (e: any) {
         console.error('POST /api/ideas/:id/approve error:', e);
-        return res.status(500).json({ message: e?.message || 'Failed to approve idea' });
+        return res.status(500).json({ message: safeErrorMessage(e, 'Failed to approve idea') });
     }
 });
 
@@ -1522,7 +1565,7 @@ app.post('/api/ideas/:id/reject', authMiddleware, requireCommittee, async (req, 
         return res.json(updated);
     } catch (e: any) {
         console.error('POST /api/ideas/:id/reject error:', e);
-        return res.status(500).json({ message: e?.message || 'Failed to reject idea' });
+        return res.status(500).json({ message: safeErrorMessage(e, 'Failed to reject idea') });
     }
 });
 
@@ -1605,7 +1648,7 @@ app.post('/api/ideas/:id/promote', authMiddleware, requireCommittee, async (req,
         return res.json(updated);
     } catch (e: any) {
         console.error('POST /api/ideas/:id/promote error:', e);
-        return res.status(500).json({ message: e?.message || 'Failed to promote idea' });
+        return res.status(500).json({ message: safeErrorMessage(e, 'Failed to promote idea') });
     }
 });
 
@@ -1637,7 +1680,7 @@ app.post('/api/ideas/batch/approve', authMiddleware, requireCommittee, batchLimi
         });
     } catch (e: any) {
         console.error('POST /api/ideas/batch/approve error:', e);
-        return res.status(500).json({ message: e?.message || 'Failed to batch approve ideas' });
+        return res.status(500).json({ message: safeErrorMessage(e, 'Failed to batch approve ideas') });
     }
 });
 
@@ -1669,7 +1712,7 @@ app.post('/api/ideas/batch/reject', authMiddleware, requireCommittee, batchLimit
         });
     } catch (e: any) {
         console.error('POST /api/ideas/batch/reject error:', e);
-        return res.status(500).json({ message: e?.message || 'Failed to batch reject ideas' });
+        return res.status(500).json({ message: safeErrorMessage(e, 'Failed to batch reject ideas') });
     }
 });
 
@@ -1838,7 +1881,7 @@ app.post('/api/ideas/:id/vote', authMiddleware, voteLimiter, async (req, res) =>
         return res.json({ ...updated, hasVoted });
     } catch (e: any) {
         console.error('POST /api/ideas/:id/vote error:', e);
-        return res.status(500).json({ message: e?.message || 'Failed to vote' });
+        return res.status(500).json({ message: safeErrorMessage(e, 'Failed to vote') });
     }
 });
 
@@ -1889,7 +1932,7 @@ app.delete('/api/ideas/:id/vote', authMiddleware, voteLimiter, async (req, res) 
         return res.json({ ...idea, hasVoted: null });
     } catch (e: any) {
         console.error('DELETE /api/ideas/:id/vote error:', e);
-        return res.status(500).json({ message: e?.message || 'Failed to remove vote' });
+        return res.status(500).json({ message: safeErrorMessage(e, 'Failed to remove vote') });
     }
 });
 
@@ -3518,9 +3561,9 @@ app.get('/api/requests', async (_req, res) => {
         }
         if (e?.code === 'P2022') {
             try {
-                const rows = await prisma.$queryRawUnsafe(
-                    'SELECT id, reference, title, requesterId, departmentId, status, createdAt, updatedAt, isCombined, combinedRequestId, lotNumber FROM Request ORDER BY createdAt DESC'
-                );
+                const rows = await prisma.$queryRaw`
+                    SELECT id, reference, title, requesterId, departmentId, status, createdAt, updatedAt, isCombined, combinedRequestId, lotNumber FROM Request ORDER BY createdAt DESC
+                `;
                 // rows will not include requester/department objects; return as-is
                 return res.json(rows);
             } catch (rawErr: any) {
@@ -3668,7 +3711,10 @@ app.post('/admin/users/:userId/roles', authMiddleware, async (req, res) => {
         });
     } catch (e: any) {
         console.error('POST /admin/users/:userId/roles error:', e);
-        res.status(500).json({ message: 'Failed to update user roles', error: e?.message });
+        res.status(500).json({
+            message: 'Failed to update user roles',
+            ...(process.env.NODE_ENV !== 'production' && { error: e?.message }),
+        });
     }
 });
 
@@ -4075,8 +4121,9 @@ app.get(
                 });
                 isAssigned = !!assignment;
             } catch (e) {
-                // Fallback to raw SQL if Prisma enum validation fails
-                const assignmentRows = await prisma.$queryRawUnsafe<any>(`SELECT 1 FROM EvaluationAssignment WHERE evaluationId=${parseInt(id)} AND userId=${userId} LIMIT 1`);
+                // Fallback to parameterized raw SQL if Prisma enum validation fails
+                const evaluationId = parseInt(id);
+                const assignmentRows = await prisma.$queryRaw<any>`SELECT 1 FROM EvaluationAssignment WHERE evaluationId=${evaluationId} AND userId=${userId} LIMIT 1`;
                 isAssigned = assignmentRows.length > 0;
             }
 
@@ -4085,8 +4132,8 @@ app.get(
             }
             return res.json({ success: true, data: evaluation });
         }
-        const rows = await prisma.$queryRawUnsafe<any>(
-            `SELECT e.*, 
+        const rows = await prisma.$queryRaw<any>`
+            SELECT e.*, 
              uc.id AS creatorId, uc.name AS creatorName, uc.email AS creatorEmail, 
              uv.id AS validatorId, uv.name AS validatorName, uv.email AS validatorEmail,
              ua.id AS sectionAVerifierId, ua.name AS sectionAVerifierName, ua.email AS sectionAVerifierEmail,
@@ -4254,33 +4301,34 @@ app.post(
                 throw error;
             }
         }
-        // Fallback duplicate check via raw SQL
-        const dupRows = await prisma.$queryRawUnsafe<any>(`SELECT id FROM Evaluation WHERE evalNumber='${evalNumber.replace(/'/g, "''")}' LIMIT 1`);
+        // Fallback duplicate check via parameterized raw SQL
+        const dupRows = await prisma.$queryRaw<any>`SELECT id FROM Evaluation WHERE evalNumber=${evalNumber} LIMIT 1`;
         if (dupRows[0]) throw new BadRequestError('Evaluation number already exists');
 
         const evalStatus = submitToCommittee ? 'COMMITTEE_REVIEW' : 'PENDING';
 
-        await prisma.$executeRawUnsafe(
-            `INSERT INTO Evaluation (evalNumber, rfqNumber, rfqTitle, description, sectionA, sectionAStatus, sectionB, sectionBStatus, sectionC, sectionCStatus, sectionD, sectionDStatus, sectionE, sectionEStatus, createdBy, evaluator, dueDate, status, createdAt, updatedAt) VALUES (
-                            '${evalNumber}', '${rfqNumber}', '${rfqTitle}', 
-                            ${description ? `'${description.replace(/'/g, "''")}'` : 'NULL'}, 
-                            ${sectionA ? `'${JSON.stringify(sectionA).replace(/'/g, "''")}'` : 'NULL'}, 
-                            ${sectionA && submitToCommittee ? "'SUBMITTED'" : "'NOT_STARTED'"},
-                            ${sectionB ? `'${JSON.stringify(sectionB).replace(/'/g, "''")}'` : 'NULL'}, 
-                            ${sectionB && submitToCommittee ? "'SUBMITTED'" : "'NOT_STARTED'"},
-                            ${sectionC ? `'${JSON.stringify(sectionC).replace(/'/g, "''")}'` : 'NULL'}, 
-                            ${sectionC && submitToCommittee ? "'SUBMITTED'" : "'NOT_STARTED'"},
-                            ${sectionD ? `'${JSON.stringify(sectionD).replace(/'/g, "''")}'` : 'NULL'}, 
-                            ${sectionD && submitToCommittee ? "'SUBMITTED'" : "'NOT_STARTED'"},
-                            ${sectionE ? `'${JSON.stringify(sectionE).replace(/'/g, "''")}'` : 'NULL'}, 
-                            ${sectionE && submitToCommittee ? "'SUBMITTED'" : "'NOT_STARTED'"},
-                            ${userId}, 
-                            ${evaluator ? `'${evaluator.replace(/'/g, "''")}'` : 'NULL'}, 
-                            ${dueDate ? `'${new Date(dueDate).toISOString().slice(0, 19).replace('T', ' ')}'` : 'NULL'}, '${evalStatus}', NOW(), NOW())`
-        );
-        const createdRow = await prisma.$queryRawUnsafe<any>(
-            `SELECT e.*, uc.id AS creatorId, uc.name AS creatorName, uc.email AS creatorEmail FROM Evaluation e LEFT JOIN User uc ON e.createdBy = uc.id WHERE e.evalNumber='${evalNumber}' LIMIT 1`
-        );
+        // Build parameterized INSERT query
+        const safeDescription = description ? description.replace(/'/g, "''") : null;
+        const safeSectionA = sectionA ? JSON.stringify(sectionA).replace(/'/g, "''") : null;
+        const safeSectionB = sectionB ? JSON.stringify(sectionB).replace(/'/g, "''") : null;
+        const safeSectionC = sectionC ? JSON.stringify(sectionC).replace(/'/g, "''") : null;
+        const safeSectionD = sectionD ? JSON.stringify(sectionD).replace(/'/g, "''") : null;
+        const safeSectionE = sectionE ? JSON.stringify(sectionE).replace(/'/g, "''") : null;
+        const safeEvaluator = evaluator ? evaluator.replace(/'/g, "''") : null;
+        const safeDueDate = dueDate ? new Date(dueDate).toISOString().slice(0, 19).replace('T', ' ') : null;
+        const sectionAStatus = sectionA && submitToCommittee ? 'SUBMITTED' : 'NOT_STARTED';
+        const sectionBStatus = sectionB && submitToCommittee ? 'SUBMITTED' : 'NOT_STARTED';
+        const sectionCStatus = sectionC && submitToCommittee ? 'SUBMITTED' : 'NOT_STARTED';
+        const sectionDStatus = sectionD && submitToCommittee ? 'SUBMITTED' : 'NOT_STARTED';
+        const sectionEStatus = sectionE && submitToCommittee ? 'SUBMITTED' : 'NOT_STARTED';
+
+        await prisma.$executeRaw`
+            INSERT INTO Evaluation (evalNumber, rfqNumber, rfqTitle, description, sectionA, sectionAStatus, sectionB, sectionBStatus, sectionC, sectionCStatus, sectionD, sectionDStatus, sectionE, sectionEStatus, createdBy, evaluator, dueDate, status, createdAt, updatedAt) 
+            VALUES (${evalNumber}, ${rfqNumber}, ${rfqTitle}, ${safeDescription}, ${safeSectionA}, ${sectionAStatus}, ${safeSectionB}, ${sectionBStatus}, ${safeSectionC}, ${sectionCStatus}, ${safeSectionD}, ${sectionDStatus}, ${safeSectionE}, ${sectionEStatus}, ${userId}, ${safeEvaluator}, ${safeDueDate}, ${evalStatus}, NOW(), NOW())
+        `;
+        const createdRow = await prisma.$queryRaw<any>`
+            SELECT e.*, uc.id AS creatorId, uc.name AS creatorName, uc.email AS creatorEmail FROM Evaluation e LEFT JOIN User uc ON e.createdBy = uc.id WHERE e.evalNumber=${evalNumber} LIMIT 1
+        `;
         const r = createdRow[0];
         const mapped = {
             id: r.id,
@@ -4399,16 +4447,16 @@ app.get(
             return res.json({ success: true, data: assignments });
         } catch (e) {
             // Fallback to raw SQL if Prisma enum validation fails due to drift
-            const rows = await prisma.$queryRawUnsafe<any>(
-                `SELECT ea.*, 
+            const rows = await prisma.$queryRaw<any>`
+                SELECT ea.*, 
                         e.evalNumber, e.rfqTitle, e.createdBy AS evalCreatedBy,
                         uc.id AS creatorId, uc.name AS creatorName, uc.email AS creatorEmail
                  FROM EvaluationAssignment ea
                  JOIN Evaluation e ON ea.evaluationId = e.id
                  LEFT JOIN User uc ON e.createdBy = uc.id
                  WHERE ea.userId = ${userId}
-                 ORDER BY ea.createdAt DESC`
-            );
+                 ORDER BY ea.createdAt DESC
+            `;
             const mapped = rows.map((r: any) => ({
                 id: r.id,
                 evaluationId: r.evaluationId,
@@ -4466,7 +4514,7 @@ app.post(
         } catch (e) {
             // If Prisma enum validation fails due to DB drift, use raw SQL
             try {
-                await prisma.$executeRawUnsafe(`UPDATE EvaluationAssignment SET status='SUBMITTED', submittedAt=NOW(), updatedAt=NOW() WHERE id=${assignment.id}`);
+                await prisma.$executeRaw`UPDATE EvaluationAssignment SET status='SUBMITTED', submittedAt=NOW(), updatedAt=NOW() WHERE id=${assignment.id}`;
             } catch (inner) {
                 throw e; // bubble original error
             }
@@ -4499,7 +4547,8 @@ app.patch(
         const { status, sectionA, sectionB, sectionC, sectionD, sectionE, validationNotes } = req.body;
 
         if (!hasEvaluationDelegate()) {
-            const checkRow = await prisma.$queryRawUnsafe<any>(`SELECT id FROM Evaluation WHERE id = ${parseInt(id)} LIMIT 1`);
+            const evaluationId = parseInt(id);
+            const checkRow = await prisma.$queryRaw<any>`SELECT id FROM Evaluation WHERE id = ${evaluationId} LIMIT 1`;
             if (!checkRow[0]) throw new NotFoundError('Evaluation not found');
         } else {
             const existing = await (prisma as any).evaluation.findUnique({ where: { id: parseInt(id) } });
@@ -4539,12 +4588,11 @@ app.patch(
         }
         if (validationNotes) sets.push(`validationNotes='${String(validationNotes).replace(/'/g, "''")}'`);
         sets.push('updatedAt=NOW()');
-        if (sets.length) await prisma.$executeRawUnsafe(`UPDATE Evaluation SET ${sets.join(', ')} WHERE id=${parseInt(id)}`);
-        const row = await prisma.$queryRawUnsafe<any>(
-            `SELECT e.*, uc.id AS creatorId, uc.name AS creatorName, uc.email AS creatorEmail, uv.id AS validatorId, uv.name AS validatorName, uv.email AS validatorEmail FROM Evaluation e LEFT JOIN User uc ON e.createdBy = uc.id LEFT JOIN User uv ON e.validatedBy = uv.id WHERE e.id = ${parseInt(
-                id
-            )} LIMIT 1`
-        );
+        const evaluationId = parseInt(id);
+        if (sets.length) await prisma.$executeRaw`UPDATE Evaluation SET ${prisma.raw(sets.join(', '))} WHERE id=${evaluationId}`;
+        const row = await prisma.$queryRaw<any>`
+            SELECT e.*, uc.id AS creatorId, uc.name AS creatorName, uc.email AS creatorEmail, uv.id AS validatorId, uv.name AS validatorName, uv.email AS validatorEmail FROM Evaluation e LEFT JOIN User uc ON e.createdBy = uc.id LEFT JOIN User uv ON e.validatedBy = uv.id WHERE e.id = ${evaluationId} LIMIT 1
+        `;
         const r = row[0];
         const mapped = {
             id: r.id,
@@ -4590,7 +4638,8 @@ app.patch(
         if (hasEvaluationDelegate()) {
             existing = await (prisma as any).evaluation.findUnique({ where: { id: parseInt(id) } });
         } else {
-            const checkRow = await prisma.$queryRawUnsafe<any>(`SELECT id, status FROM Evaluation WHERE id = ${parseInt(id)} LIMIT 1`);
+            const evaluationId = parseInt(id);
+            const checkRow = await prisma.$queryRaw<any>`SELECT id, status FROM Evaluation WHERE id = ${evaluationId} LIMIT 1`;
             existing = checkRow[0];
         }
         if (!existing) throw new NotFoundError('Evaluation not found');
@@ -4617,10 +4666,11 @@ app.patch(
         sets.push(`${sectionField}='${JSON.stringify(data).replace(/'/g, "''")}'`);
         if (existing.status === 'PENDING') sets.push(`status='IN_PROGRESS'`);
         sets.push('updatedAt=NOW()');
-        await prisma.$executeRawUnsafe(`UPDATE Evaluation SET ${sets.join(', ')} WHERE id=${parseInt(id)}`);
-        const row = await prisma.$queryRawUnsafe<any>(
-            `SELECT e.*, uc.id AS creatorId, uc.name AS creatorName, uc.email AS creatorEmail FROM Evaluation e LEFT JOIN User uc ON e.createdBy = uc.id WHERE e.id = ${parseInt(id)} LIMIT 1`
-        );
+        const evaluationId = parseInt(id);
+        await prisma.$executeRaw`UPDATE Evaluation SET ${prisma.raw(sets.join(', '))} WHERE id=${evaluationId}`;
+        const row = await prisma.$queryRaw<any>`
+            SELECT e.*, uc.id AS creatorId, uc.name AS creatorName, uc.email AS creatorEmail FROM Evaluation e LEFT JOIN User uc ON e.createdBy = uc.id WHERE e.id = ${evaluationId} LIMIT 1
+        `;
         const r = row[0];
         const mapped = {
             id: r.id,
@@ -4679,7 +4729,7 @@ app.patch(
         if (hasEvaluationDelegate()) {
             existing = await (prisma as any).evaluation.findUnique({ where: { id: evaluationId } });
         } else {
-            const checkRow = await prisma.$queryRawUnsafe<any>(`SELECT * FROM Evaluation WHERE id = ${evaluationId} LIMIT 1`);
+            const checkRow = await prisma.$queryRaw<any>`SELECT * FROM Evaluation WHERE id = ${evaluationId} LIMIT 1`;
             existing = checkRow[0];
         }
         if (!existing) throw new NotFoundError('Evaluation not found');
@@ -4738,11 +4788,10 @@ app.patch(
         }
 
         const jsonData = JSON.stringify(sectionData).replace(/'/g, "''");
-        await prisma.$executeRawUnsafe(
-            `UPDATE Evaluation SET section${sectionUpper}='${jsonData}', section${sectionUpper}Status='IN_PROGRESS', section${sectionUpper}Notes=NULL, section${sectionUpper}VerifiedAt=NULL, section${sectionUpper}VerifiedBy=NULL, updatedAt=NOW() WHERE id=${parseInt(
-                id
-            )}`
-        );
+        const evaluationId = parseInt(id);
+        await prisma.$executeRaw`
+            UPDATE Evaluation SET ${prisma.raw(`section${sectionUpper}='${jsonData}', section${sectionUpper}Status='IN_PROGRESS', section${sectionUpper}Notes=NULL, section${sectionUpper}VerifiedAt=NULL, section${sectionUpper}VerifiedBy=NULL, updatedAt=NOW()`)} WHERE id=${evaluationId}
+        `;
         res.json({ success: true, message: `Section ${sectionUpper} updated`, meta: { fallback: true } });
     })
 );
@@ -4773,7 +4822,7 @@ app.post(
         if (hasEvaluationDelegate()) {
             existing = await (prisma as any).evaluation.findUnique({ where: { id: evaluationId } });
         } else {
-            const checkRow = await prisma.$queryRawUnsafe<any>(`SELECT * FROM Evaluation WHERE id = ${evaluationId} LIMIT 1`);
+            const checkRow = await prisma.$queryRaw<any>`SELECT * FROM Evaluation WHERE id = ${evaluationId} LIMIT 1`;
             existing = checkRow[0];
         }
         if (!existing) throw new NotFoundError('Evaluation not found');
@@ -4833,7 +4882,8 @@ app.post(
         if (existing.status !== 'COMMITTEE_REVIEW' && existing.status !== 'COMPLETED') {
             sets.push(`status='COMMITTEE_REVIEW'`);
         }
-        await prisma.$executeRawUnsafe(`UPDATE Evaluation SET ${sets.join(', ')} WHERE id=${parseInt(id)}`);
+        const evaluationId = parseInt(id);
+        await prisma.$executeRaw`UPDATE Evaluation SET ${prisma.raw(sets.join(', '))} WHERE id=${evaluationId}`;
         res.json({ success: true, message: `Section ${sectionUpper} submitted for review`, meta: { fallback: true } });
     })
 );
@@ -4854,11 +4904,12 @@ app.post(
             throw new BadRequestError('Invalid section. Must be A, B, C, D, or E');
         }
 
+        const evaluationId = parseInt(id);
         let existing: any = null;
         if (hasEvaluationDelegate()) {
-            existing = await (prisma as any).evaluation.findUnique({ where: { id: parseInt(id) } });
+            existing = await (prisma as any).evaluation.findUnique({ where: { id: evaluationId } });
         } else {
-            const checkRow = await prisma.$queryRawUnsafe<any>(`SELECT * FROM Evaluation WHERE id = ${parseInt(id)} LIMIT 1`);
+            const checkRow = await prisma.$queryRaw<any>`SELECT * FROM Evaluation WHERE id = ${evaluationId} LIMIT 1`;
             existing = checkRow[0];
         }
         if (!existing) throw new NotFoundError('Evaluation not found');
@@ -4932,7 +4983,8 @@ app.post(
 
         const sets: string[] = [`${statusField}='VERIFIED'`, `section${sectionUpper}VerifiedBy=${userId}`, `section${sectionUpper}VerifiedAt=NOW()`, 'updatedAt=NOW()'];
         if (notes) sets.push(`section${sectionUpper}Notes='${notes.replace(/'/g, "''")}'`);
-        await prisma.$executeRawUnsafe(`UPDATE Evaluation SET ${sets.join(', ')} WHERE id=${parseInt(id)}`);
+        const evaluationId = parseInt(id);
+        await prisma.$executeRaw`UPDATE Evaluation SET ${prisma.raw(sets.join(', '))} WHERE id=${evaluationId}`;
         res.json({ success: true, message: `Section ${sectionUpper} verified`, meta: { fallback: true } });
     })
 );
@@ -4957,11 +5009,12 @@ app.post(
             throw new BadRequestError('Notes are required when returning a section');
         }
 
+        const evaluationId = parseInt(id);
         let existing: any = null;
         if (hasEvaluationDelegate()) {
-            existing = await (prisma as any).evaluation.findUnique({ where: { id: parseInt(id) } });
+            existing = await (prisma as any).evaluation.findUnique({ where: { id: evaluationId } });
         } else {
-            const checkRow = await prisma.$queryRawUnsafe<any>(`SELECT * FROM Evaluation WHERE id = ${parseInt(id)} LIMIT 1`);
+            const checkRow = await prisma.$queryRaw<any>`SELECT * FROM Evaluation WHERE id = ${evaluationId} LIMIT 1`;
             existing = checkRow[0];
         }
         if (!existing) throw new NotFoundError('Evaluation not found');
@@ -5027,7 +5080,8 @@ app.post(
             `status='IN_PROGRESS'`,
             'updatedAt=NOW()',
         ];
-        await prisma.$executeRawUnsafe(`UPDATE Evaluation SET ${sets.join(', ')} WHERE id=${parseInt(id)}`);
+        const evaluationId = parseInt(id);
+        await prisma.$executeRaw`UPDATE Evaluation SET ${prisma.raw(sets.join(', '))} WHERE id=${evaluationId}`;
         res.json({ success: true, message: `Section ${sectionUpper} returned for changes`, meta: { fallback: true } });
     })
 );
@@ -5045,11 +5099,12 @@ app.post(
 
         if (isNaN(parseInt(id))) throw new BadRequestError('Invalid evaluation ID');
 
+        const evaluationId = parseInt(id);
         let existing: any = null;
         if (hasEvaluationDelegate()) {
-            existing = await (prisma as any).evaluation.findUnique({ where: { id: parseInt(id) } });
+            existing = await (prisma as any).evaluation.findUnique({ where: { id: evaluationId } });
         } else {
-            const checkRow = await prisma.$queryRawUnsafe<any>(`SELECT * FROM Evaluation WHERE id = ${parseInt(id)} LIMIT 1`);
+            const checkRow = await prisma.$queryRaw<any>`SELECT * FROM Evaluation WHERE id = ${evaluationId} LIMIT 1`;
             existing = checkRow[0];
         }
         if (!existing) throw new NotFoundError('Evaluation not found');
@@ -5091,11 +5146,12 @@ app.post(
         }
 
         // Fallback: raw SQL path
+        const evaluationId = parseInt(id);
         const safeNotes = notes ? notes.replace(/'/g, "''") : null;
-        await prisma.$executeRawUnsafe(
-            `UPDATE Evaluation SET status='VALIDATED', validatedBy=${userId}, validatedAt=NOW(), validationNotes=${safeNotes ? `'${safeNotes}'` : 'NULL'}, updatedAt=NOW() WHERE id=${parseInt(id)}`
-        );
-        const row = await prisma.$queryRawUnsafe<any>(`SELECT * FROM Evaluation WHERE id = ${parseInt(id)} LIMIT 1`);
+        await prisma.$executeRaw`
+            UPDATE Evaluation SET status='VALIDATED', validatedBy=${userId}, validatedAt=NOW(), validationNotes=${safeNotes}, updatedAt=NOW() WHERE id=${evaluationId}
+        `;
+        const row = await prisma.$queryRaw<any>`SELECT * FROM Evaluation WHERE id = ${evaluationId} LIMIT 1`;
         const updated = row[0];
         res.json({ success: true, data: updated, message: 'Evaluation validated' });
     })
@@ -5113,9 +5169,10 @@ app.delete(
             await (prisma as any).evaluation.delete({ where: { id: parseInt(id) } });
             return res.json({ success: true, message: 'Evaluation deleted successfully' });
         }
-        const checkRow = await prisma.$queryRawUnsafe<any>(`SELECT id FROM Evaluation WHERE id = ${parseInt(id)} LIMIT 1`);
+        const evaluationId = parseInt(id);
+        const checkRow = await prisma.$queryRaw<any>`SELECT id FROM Evaluation WHERE id = ${evaluationId} LIMIT 1`;
         if (!checkRow[0]) throw new NotFoundError('Evaluation not found');
-        await prisma.$executeRawUnsafe(`DELETE FROM Evaluation WHERE id = ${parseInt(id)}`);
+        await prisma.$executeRaw`DELETE FROM Evaluation WHERE id = ${evaluationId}`;
         res.json({ success: true, message: 'Evaluation deleted successfully', meta: { fallback: true } });
     })
 );

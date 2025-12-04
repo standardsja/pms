@@ -31,7 +31,7 @@ const BSJProjects = () => {
         setError(null);
         try {
             const response = await fetchIdeas({ status: 'promoted' });
-            const data = response.ideas || response;
+            const data = Array.isArray(response) ? response : (response as any).ideas || response;
             setProjects(data);
         } catch (e: any) {
             const errorMessage = e?.message || 'Unable to load projects';
