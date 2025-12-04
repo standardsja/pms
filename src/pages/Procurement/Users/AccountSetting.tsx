@@ -4,6 +4,7 @@ import { setPageTitle } from '../../../store/themeConfigSlice';
 import { useDispatch, useSelector } from 'react-redux';
 import { IRootState } from '../../../store';
 import { getToken, getUser } from '../../../utils/auth';
+import Swal from 'sweetalert2';
 import IconHome from '../../../components/Icon/IconHome';
 import IconDollarSignCircle from '../../../components/Icon/IconDollarSignCircle';
 import IconUser from '../../../components/Icon/IconUser';
@@ -107,7 +108,12 @@ const AccountSetting = () => {
             setIsSaving(true);
             const token = getToken();
             if (!token) {
-                alert('Authentication token not found. Please log in again.');
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Authentication Error',
+                    text: 'Your session has expired. Please log in again.',
+                    confirmButtonColor: '#3b82f6',
+                });
                 return;
             }
 
@@ -133,13 +139,28 @@ const AccountSetting = () => {
 
             if (response.ok) {
                 setOriginalFormData(formData);
-                alert('Profile changes saved successfully!');
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Success',
+                    text: 'Your profile has been updated successfully!',
+                    confirmButtonColor: '#3b82f6',
+                });
             } else {
-                alert('Failed to save profile changes. Please try again.');
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Save Failed',
+                    text: 'We encountered an issue saving your changes. Please try again.',
+                    confirmButtonColor: '#3b82f6',
+                });
             }
         } catch (error) {
             console.error('Error saving profile:', error);
-            alert('An error occurred while saving. Please try again.');
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'An unexpected error occurred while saving your profile. Please try again.',
+                confirmButtonColor: '#3b82f6',
+            });
         } finally {
             setIsSaving(false);
         }
@@ -154,13 +175,23 @@ const AccountSetting = () => {
 
         // Validate file type
         if (!file.type.startsWith('image/')) {
-            alert('Please select a valid image file');
+            Swal.fire({
+                icon: 'warning',
+                title: 'Invalid File Type',
+                text: 'Please select a valid image file (JPG, PNG, GIF, etc.).',
+                confirmButtonColor: '#3b82f6',
+            });
             return;
         }
 
         // Validate file size (max 5MB)
         if (file.size > 5 * 1024 * 1024) {
-            alert('Image size should be less than 5MB');
+            Swal.fire({
+                icon: 'warning',
+                title: 'File Too Large',
+                text: 'Your image must be less than 5MB. Please choose a smaller file.',
+                confirmButtonColor: '#3b82f6',
+            });
             return;
         }
 
@@ -168,7 +199,12 @@ const AccountSetting = () => {
             setIsUploadingImage(true);
             const token = getToken();
             if (!token) {
-                alert('Authentication token not found');
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Authentication Error',
+                    text: 'Your session has expired. Please log in again.',
+                    confirmButtonColor: '#3b82f6',
+                });
                 return;
             }
 
@@ -186,13 +222,28 @@ const AccountSetting = () => {
             if (response.ok) {
                 const data = await response.json();
                 setProfileImage(data.profileImage);
-                alert('Profile picture updated successfully!');
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Upload Successful',
+                    text: 'Your profile picture has been updated!',
+                    confirmButtonColor: '#3b82f6',
+                });
             } else {
-                alert('Failed to upload profile picture');
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Upload Failed',
+                    text: 'We were unable to upload your profile picture. Please try again.',
+                    confirmButtonColor: '#3b82f6',
+                });
             }
         } catch (error) {
             console.error('Error uploading image:', error);
-            alert('An error occurred while uploading');
+            Swal.fire({
+                icon: 'error',
+                title: 'Upload Error',
+                text: 'An unexpected error occurred while uploading your image. Please try again.',
+                confirmButtonColor: '#3b82f6',
+            });
         } finally {
             setIsUploadingImage(false);
         }
