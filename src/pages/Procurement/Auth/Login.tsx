@@ -444,7 +444,7 @@ const Login = () => {
                             <div className="mb-8">
                                 <h2 className="text-4xl font-black text-gray-900 dark:text-white mb-3">Sign In</h2>
                                 <p className="text-gray-600 dark:text-gray-400 text-lg">Enter your credentials to access your account</p>
-                <div className="mt-4 flex items-center gap-4 text-sm">
+                                <div className="mt-4 flex items-center gap-4 text-sm">
                                     <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
                                         <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                                         <span className="font-medium">System Online</span>
