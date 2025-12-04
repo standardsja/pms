@@ -70,7 +70,7 @@ const Login = () => {
             const apiUrl = import.meta.env.VITE_API_URL || '';
 
             // Primary: real password login
-            let res = await fetch(`${apiUrl}/api/auth/login`, {
+            let res = await fetch(`${apiUrl}/api/auth/ldap-login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password }),
