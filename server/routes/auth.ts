@@ -18,24 +18,36 @@ const router = Router();
 // Rate limiting for auth endpoints
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 5, // 5 attempts per window
+    max: 10, // 10 attempts per window (increased from 5 for testing)
     message: 'Too many authentication attempts, please try again later.',
     skipSuccessfulRequests: true,
 });
 
-// Login endpoint
+// Login endpoint - Unified LDAP + database authentication
 router.post(
     '/login',
     authLimiter,
-    (req, res, next) => {
-        console.log('[Auth Route] Body:', req.body);
-        console.log('[Auth Route] Headers:', req.headers);
-        next();
-    },
     validate(loginSchema),
     asyncHandler(async (req, res) => {
         const { email, password } = req.body;
+        let authMethod = 'DATABASE';
+        let ldapAuthenticated = false;
 
+        // Try LDAP authentication first if enabled
+        if (ldapService.isEnabled()) {
+            try {
+                logger.info('Attempting LDAP authentication', { email });
+                await ldapService.authenticateUser(email, password);
+                ldapAuthenticated = true;
+                authMethod = 'LDAP';
+                logger.info('LDAP authentication successful', { email });
+            } catch (ldapError) {
+                logger.warn('LDAP authentication failed, falling back to database', { email, error: ldapError instanceof Error ? ldapError.message : 'Unknown error' });
+                // Fall through to database authentication
+            }
+        }
+
+        // Look up user in local database
         const user = await prisma.user.findUnique({
             where: { email },
             include: {
@@ -48,6 +60,41 @@ router.post(
             },
         });
 
+        // If LDAP succeeded, we just need to verify user exists in database
+        if (ldapAuthenticated) {
+            if (!user) {
+                logger.warn('LDAP authenticated user not found in local database', { email });
+                throw new UnauthorizedError('User account not found in system. Please contact your administrator.');
+            }
+
+            const roles = user.roles.map((r) => r.role.name);
+            const token = jwt.sign(
+                { sub: user.id, email: user.email, roles, name: user.name },
+                config.JWT_SECRET,
+                { expiresIn: '24h' }
+            );
+
+            logger.info('User logged in via LDAP successfully', { userId: user.id, email: user.email });
+
+            return res.json({
+                token,
+                user: {
+                    id: user.id,
+                    email: user.email,
+                    name: user.name,
+                    roles,
+                    department: user.department
+                        ? {
+                              id: user.department.id,
+                              name: user.department.name,
+                              code: user.department.code,
+                          }
+                        : null,
+                },
+            });
+        }
+
+        // If LDAP didn't work or is disabled, try database authentication
         if (!user || !user.passwordHash) {
             throw new UnauthorizedError('Invalid credentials');
         }
@@ -60,7 +107,7 @@ router.post(
         const roles = user.roles.map((r) => r.role.name);
         const token = jwt.sign({ sub: user.id, email: user.email, roles, name: user.name }, config.JWT_SECRET, { expiresIn: '24h' });
 
-        logger.info('User logged in successfully', { userId: user.id, email: user.email });
+        logger.info('User logged in via database successfully', { userId: user.id, email: user.email });
 
         res.json({
             token,
