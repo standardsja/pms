@@ -4109,22 +4109,22 @@ app.get('/api/auth/test-login', (req, res) => {
 app.get('/api/auth/test-ldap', async (req, res) => {
     try {
         console.log('[LDAP Test] Testing connection to:', LDAP_URL);
-        
+
         const testClient = new Client({
             url: LDAP_URL,
         });
-        
+
         await testClient.bind(LDAP_BIND_DN, LDAP_BIND_PASSWORD);
         console.log('[LDAP Test] Successfully bound with admin credentials');
-        
+
         const { searchEntries } = await testClient.search(LDAP_SEARCH_DN, {
             filter: '(objectClass=*)',
             sizeLimit: 1,
         });
-        
+
         console.log('[LDAP Test] Search successful, found', searchEntries.length, 'entries');
         await testClient.unbind();
-        
+
         return res.json({
             success: true,
             message: 'LDAP connection successful',
