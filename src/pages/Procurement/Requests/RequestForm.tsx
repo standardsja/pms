@@ -98,11 +98,10 @@ const RequestForm = () => {
     const [headerDeptCode, setHeaderDeptCode] = useState('');
     const [headerMonth, setHeaderMonth] = useState('');
     const [headerYear, setHeaderYear] = useState<number | null>(new Date().getFullYear());
-    const [headerSequence, setHeaderSequence] = useState<number | null>(0);
-    const paddedSequence = String(headerSequence ?? 0).padStart(3, '0');
-    const headerPreview = `[${headerDeptCode || '---'}]/[${headerMonth || '---'}]/[${headerYear || '----'}]/[${paddedSequence}]`;
+    const [headerSequence, setHeaderSequence] = useState<string>('000');
+    const headerPreview = `[${headerDeptCode || '---'}]/[${headerMonth || '---'}]/[${headerYear || '----'}]/[${headerSequence}]`;
 
-    const isFormCodeComplete = Boolean(headerDeptCode && headerMonth && headerYear !== null && headerSequence !== null && headerSequence !== undefined);
+    const isFormCodeComplete = Boolean(headerDeptCode && headerMonth && headerYear !== null && headerSequence && headerSequence !== '000');
     // prevent duplicate submissions when network is slow
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [managerApproved, setManagerApproved] = useState(false);
@@ -316,7 +315,7 @@ const RequestForm = () => {
                 setHeaderDeptCode(request.headerDeptCode || request.department?.code || '');
                 setHeaderMonth(request.headerMonth || '');
                 setHeaderYear(request.headerYear || new Date().getFullYear());
-                setHeaderSequence(request.headerSequence ?? 0);
+                setHeaderSequence(String(request.headerSequence ?? 0).padStart(3, '0'));
 
                 // Track status and assignee for edit gating
                 const assigneeId = request.currentAssignee?.id || request.currentAssigneeId || null;
@@ -712,7 +711,7 @@ const RequestForm = () => {
                 }
 
                 // Validate form code is filled out
-                if (!headerDeptCode || !headerMonth || !headerYear || headerSequence === null || headerSequence === undefined) {
+                if (!headerDeptCode || !headerMonth || !headerYear || !headerSequence || headerSequence === '000') {
                     Swal.fire({
                         icon: 'error',
                         title: 'Form Code Required',
@@ -767,7 +766,7 @@ const RequestForm = () => {
                 formData.append('headerDeptCode', headerDeptCode || '');
                 formData.append('headerMonth', headerMonth || '');
                 if (headerYear) formData.append('headerYear', String(headerYear));
-                if (headerSequence !== null && headerSequence !== undefined) formData.append('headerSequence', String(headerSequence));
+                formData.append('headerSequence', headerSequence);
 
                 const resp = await fetch(getApiUrl('/requests'), {
                     method: 'POST',
@@ -1067,11 +1066,14 @@ const RequestForm = () => {
                                     <span className="inline-flex items-center bg-yellow-600 text-white rounded-sm px-2 py-1">
                                         [
                                         <input
-                                            type="number"
-                                            min={0}
-                                            max={999}
-                                            value={headerSequence ?? 0}
-                                            onChange={(e) => setHeaderSequence(e.target.value ? parseInt(e.target.value, 10) : 0)}
+                                            type="text"
+                                            inputMode="numeric"
+                                            maxLength={3}
+                                            value={headerSequence}
+                                            onChange={(e) => {
+                                                let val = e.target.value.replace(/\D/g, '').slice(0, 3);
+                                                setHeaderSequence(val.padStart(3, '0'));
+                                            }}
                                             className="bg-transparent border-0 text-white font-semibold text-sm focus:ring-0 w-10 text-center"
                                             disabled={isEditMode}
                                             readOnly={isEditMode}
@@ -1794,11 +1796,11 @@ const RequestForm = () => {
                     <div className="flex flex-wrap items-center gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
                         <button
                             type="submit"
-                            disabled={isSubmitting || (!isEditMode && !isFormCodeComplete)}
+                            disabled={isSubmitting || (!isEditMode && (!isFormCodeComplete || headerSequence === '000'))}
                             className={`px-6 py-2 rounded bg-primary text-white font-medium ${
-                                isSubmitting || (!isEditMode && !isFormCodeComplete) ? 'opacity-60 cursor-not-allowed' : 'hover:opacity-95'
+                                isSubmitting || (!isEditMode && (!isFormCodeComplete || headerSequence === '000')) ? 'opacity-60 cursor-not-allowed' : 'hover:opacity-95'
                             }`}
-                            title={!isEditMode && !isFormCodeComplete ? 'Complete the form code before submitting' : undefined}
+                            title={!isEditMode && (!isFormCodeComplete || headerSequence === '000') ? 'Complete the form code before submitting' : undefined}
                         >
                             {isSubmitting ? (isEditMode ? 'Saving…' : 'Submitting…') : isEditMode ? 'Save Changes' : 'Submit Procurement Request'}
                         </button>
