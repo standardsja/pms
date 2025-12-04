@@ -112,7 +112,6 @@ model User {
   email        String  @unique
   name         String?
   passwordHash String? // ← for local email/password testing
-  ldapDN       String? // LDAP Distinguished Name
   
   // Profile fields
   jobTitle     String?
