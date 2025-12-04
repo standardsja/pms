@@ -135,39 +135,38 @@ router.post(
         let userAuthenticated = false;
         let ldapDN = '';
         const { email, password } = req.body;
-        
+
         try {
             // Bind with admin credentials to search
             await client.bind(bindDN, password);
             const { searchEntries } = await client.search(searchDN, {
                 filter: '(userPrincipalName=' + email + ')',
             });
-            
+
             if (searchEntries.length === 0) {
                 await client.unbind();
                 throw new BadRequestError('User not found');
             }
-            
+
             ldapDN = searchEntries[0].dn;
             logger.info('LDAP user details', { email, dn: ldapDN });
-            
+
             // Unbind from admin and try to bind as the user
             await client.unbind();
             await client.bind(ldapDN, password);
             userAuthenticated = true;
             logger.info('User authenticated via LDAP successfully', { email, dn: ldapDN });
-            
         } catch (ex) {
             await client.unbind().catch(() => null);
             console.error('LDAP authentication error:', ex);
             throw new UnauthorizedError('Invalid credentials');
         }
-        
+
         // If we get here, user is authenticated
         if (!userAuthenticated) {
             throw new UnauthorizedError('Invalid credentials');
         }
-        
+
         // Look up user in local database
         let user = await prisma.user.findUnique({
             where: { email },
@@ -180,24 +179,20 @@ router.post(
                 department: true,
             },
         });
-        
+
         logger.info('LDAP user lookup in local DB', { email, userExists: !!user });
-        
+
         if (!user) {
             // User authenticated via LDAP but not in local DB - cannot proceed
             throw new BadRequestError('User account not found in system. Please contact your administrator.');
         }
-        
+
         // Generate JWT token
         const roles = user.roles.map((r) => r.role.name);
-        const token = jwt.sign(
-            { sub: user.id, email: user.email, roles, name: user.name },
-            config.JWT_SECRET,
-            { expiresIn: '24h' }
-        );
-        
+        const token = jwt.sign({ sub: user.id, email: user.email, roles, name: user.name }, config.JWT_SECRET, { expiresIn: '24h' });
+
         logger.info('User logged in via LDAP successfully', { userId: user.id, email: user.email });
-        
+
         res.json({
             token,
             user: {
