@@ -17,6 +17,7 @@ dist-ssr
 .env.local
 .env.*.local
 server/prisma/.env
+.env.ldap.example
 
 # Build output
 build/
