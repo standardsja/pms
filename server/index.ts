@@ -504,15 +504,11 @@ app.post('/api/auth/ldap-login', authLimiter, async (req, res) => {
             console.log('[LDAP] Attempting bind with admin credentials...');
             await ldapClient.bind(LDAP_BIND_DN, LDAP_BIND_PASSWORD);
             console.log('[LDAP] Admin bind successful, searching for user:', email);
-            
+
             // Try multiple search filters to find the user
             let searchEntries: any[] = [];
-            const searchFilters = [
-                `(userPrincipalName=${email})`,
-                `(mail=${email})`,
-                `(sAMAccountName=${email.split('@')[0]})`,
-            ];
-            
+            const searchFilters = [`(userPrincipalName=${email})`, `(mail=${email})`, `(sAMAccountName=${email.split('@')[0]})`];
+
             for (const filter of searchFilters) {
                 console.log('[LDAP] Trying search filter:', filter);
                 try {
