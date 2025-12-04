@@ -3653,6 +3653,72 @@ app.get('/admin/users', async (req, res) => {
     }
 });
 
+// POST /admin/users/:userId/roles - Update user roles (admin only)
+app.post('/admin/users/:userId/roles', async (req, res) => {
+    try {
+        const adminId = req.headers['x-user-id'];
+        if (!adminId) return res.status(401).json({ message: 'User ID required' });
+
+        // Verify admin
+        const admin = await prisma.user.findUnique({
+            where: { id: parseInt(String(adminId), 10) },
+            include: { roles: { include: { role: true } } },
+        });
+        const isAdmin = admin?.roles.some((r) => r.role.name === 'ADMIN');
+        if (!isAdmin) return res.status(403).json({ message: 'Admin access required' });
+
+        const { userId } = req.params;
+        const { roles } = req.body;
+
+        if (!roles || !Array.isArray(roles)) {
+            return res.status(400).json({ message: 'roles must be an array' });
+        }
+
+        const parsedUserId = parseInt(userId, 10);
+
+        // Verify user exists
+        const user = await prisma.user.findUnique({ where: { id: parsedUserId } });
+        if (!user) return res.status(404).json({ message: 'User not found' });
+
+        // Get all role IDs for the provided role names
+        const roleRecords = await prisma.role.findMany({
+            where: { name: { in: roles } },
+        });
+
+        if (roleRecords.length !== roles.length) {
+            return res.status(400).json({ message: 'One or more invalid role names' });
+        }
+
+        // Remove all existing roles for this user
+        await prisma.userRole.deleteMany({
+            where: { userId: parsedUserId },
+        });
+
+        // Assign new roles
+        const userRoles = await Promise.all(
+            roleRecords.map((role) =>
+                prisma.userRole.create({
+                    data: {
+                        userId: parsedUserId,
+                        roleId: role.id,
+                    },
+                })
+            )
+        );
+
+        console.log(`[Admin] Updated roles for user ${parsedUserId}: ${roles.join(', ')}`);
+
+        return res.json({
+            message: 'User roles updated successfully',
+            userId: parsedUserId,
+            roles: roles,
+        });
+    } catch (e: any) {
+        console.error('POST /admin/users/:userId/roles error:', e);
+        res.status(500).json({ message: 'Failed to update user roles' });
+    }
+});
+
 // POST /admin/requests/:id/reassign - Admin can reassign any request to any user
 app.post('/admin/requests/:id/reassign', async (req, res) => {
     try {
