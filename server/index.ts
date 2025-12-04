@@ -3657,6 +3657,65 @@ app.get('/api/departments', async (req, res) => {
     }
 });
 
+// POST /api/admin/departments - Create a new department (admin only)
+app.post('/api/admin/departments', async (req, res) => {
+    try {
+        const adminId = req.headers['x-user-id'];
+        if (!adminId) return res.status(401).json({ message: 'User ID required' });
+
+        // Verify admin
+        const admin = await prisma.user.findUnique({
+            where: { id: parseInt(String(adminId), 10) },
+            include: { roles: { include: { role: true } } },
+        });
+        const isAdmin = admin?.roles.some((r) => r.role.name === 'ADMIN');
+        if (!isAdmin) return res.status(403).json({ message: 'Admin access required' });
+
+        const { name, code, managerId } = req.body;
+
+        if (!name || !code) {
+            return res.status(400).json({ message: 'Department name and code are required' });
+        }
+
+        // Check if code already exists
+        const existingDept = await prisma.department.findUnique({
+            where: { code },
+        });
+        if (existingDept) {
+            return res.status(400).json({ message: 'Department code already exists' });
+        }
+
+        // Verify manager exists if provided
+        if (managerId) {
+            const manager = await prisma.user.findUnique({
+                where: { id: managerId },
+            });
+            if (!manager) {
+                return res.status(404).json({ message: 'Manager user not found' });
+            }
+        }
+
+        const newDept = await prisma.department.create({
+            data: {
+                name,
+                code,
+                managerId: managerId || null,
+            },
+            select: { id: true, name: true, code: true },
+        });
+
+        console.log(`[Admin] Created department: ${name} (${code})`);
+
+        res.status(201).json({
+            message: 'Department created successfully',
+            department: newDept,
+        });
+    } catch (e: any) {
+        console.error('POST /api/admin/departments error:', e);
+        res.status(500).json({ message: 'Failed to create department' });
+    }
+});
+
 // POST /api/admin/users/:userId/department - Update user's department (admin only)
 app.post('/api/admin/users/:userId/department', async (req, res) => {
     try {
