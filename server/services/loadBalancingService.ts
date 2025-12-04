@@ -135,6 +135,47 @@ async function getProcurementOfficersWithWorkload(prisma: PrismaClient) {
 }
 
 /**
+ * Get all finance officers with their current workload
+ */
+async function getFinanceOfficersWithWorkload(prisma: PrismaClient) {
+    const officers = await prisma.user.findMany({
+        where: {
+            roles: { some: { role: { name: 'FINANCE' } } },
+        },
+        select: {
+            id: true,
+            name: true,
+            email: true,
+        },
+    });
+
+    if (officers.length === 0) {
+        return [];
+    }
+
+    // Get workload for each officer (active assignments at FINANCE_REVIEW stage)
+    const officersWithWorkload = await Promise.all(
+        officers.map(async (officer) => {
+            const assignedCount = await prisma.request.count({
+                where: {
+                    currentAssigneeId: officer.id,
+                    status: { in: ['FINANCE_REVIEW'] },
+                },
+            });
+
+            return {
+                id: officer.id,
+                name: officer.name,
+                email: officer.email,
+                assignedCount,
+            };
+        })
+    );
+
+    return officersWithWorkload;
+}
+
+/**
  * Select officer using LEAST_LOADED strategy
  * Assigns to the officer with the fewest active requests
  */
@@ -151,6 +192,82 @@ async function selectOfficerLeastLoaded(prisma: PrismaClient): Promise<number | 
     const selected = sorted[0];
 
     console.log(`[LoadBalancing] LEAST_LOADED strategy selected officer ${selected.name} (ID: ${selected.id}, current load: ${selected.assignedCount})`);
+    return selected.id;
+}
+
+/**
+ * Select finance officer using LEAST_LOADED strategy
+ * Assigns to the officer with the fewest active requests
+ */
+async function selectFinanceOfficerLeastLoaded(prisma: PrismaClient): Promise<number | null> {
+    const officers = await getFinanceOfficersWithWorkload(prisma);
+
+    if (officers.length === 0) {
+        console.warn('[LoadBalancing] No finance officers available');
+        return null;
+    }
+
+    // Sort by workload ascending and pick first (least loaded)
+    const sorted = officers.sort((a, b) => a.assignedCount - b.assignedCount);
+    const selected = sorted[0];
+
+    console.log(`[LoadBalancing] Finance LEAST_LOADED strategy selected officer ${selected.name} (ID: ${selected.id}, current load: ${selected.assignedCount})`);
+    return selected.id;
+}
+
+/**
+ * Select finance officer using ROUND_ROBIN strategy
+ * Cycles through officers in order, ensuring even distribution over time
+ */
+async function selectFinanceOfficerRoundRobin(prisma: PrismaClient): Promise<number | null> {
+    const officers = await getFinanceOfficersWithWorkload(prisma);
+
+    if (officers.length === 0) {
+        console.warn('[LoadBalancing] No finance officers available');
+        return null;
+    }
+
+    // Get current settings to access counter
+    const settings = await prisma.loadBalancingSettings.findFirst();
+    if (!settings) {
+        console.warn('[LoadBalancing] No settings found for finance round-robin counter');
+        return null;
+    }
+
+    // Sort officers by ID for consistent ordering
+    const sorted = officers.sort((a, b) => a.id - b.id);
+
+    // Use modulo to cycle through officers (use separate counter for finance)
+    const financeCounter = (settings as any).financeRoundRobinCounter || 0;
+    const index = financeCounter % sorted.length;
+    const selected = sorted[index];
+
+    // Increment finance counter for next assignment
+    await prisma.loadBalancingSettings.update({
+        where: { id: settings.id },
+        data: { ...((settings as any).financeRoundRobinCounter !== undefined ? { financeRoundRobinCounter: financeCounter + 1 } : {}) },
+    });
+
+    console.log(`[LoadBalancing] Finance ROUND_ROBIN strategy selected officer ${selected.name} (ID: ${selected.id}, position: ${index + 1}/${sorted.length})`);
+    return selected.id;
+}
+
+/**
+ * Select finance officer using RANDOM strategy
+ * Randomly picks an officer from the available pool
+ */
+async function selectFinanceOfficerRandom(prisma: PrismaClient): Promise<number | null> {
+    const officers = await getFinanceOfficersWithWorkload(prisma);
+
+    if (officers.length === 0) {
+        console.warn('[LoadBalancing] No finance officers available');
+        return null;
+    }
+
+    const randomIndex = Math.floor(Math.random() * officers.length);
+    const selected = officers[randomIndex];
+
+    console.log(`[LoadBalancing] Finance RANDOM strategy selected officer ${selected.name} (ID: ${selected.id})`);
     return selected.id;
 }
 
@@ -330,4 +447,61 @@ export function shouldAutoAssign(newStatus: string, settings: LoadBalancingConfi
     }
 
     return false;
+}
+
+/**
+ * Auto-assign finance officer to FINANCE_REVIEW requests
+ * Uses configured load-balancing strategy
+ *
+ * @param prisma - Prisma client instance
+ * @param requestId - ID of the request to assign
+ * @returns Officer ID if assignment succeeded, null otherwise
+ */
+export async function autoAssignFinanceOfficer(prisma: PrismaClient, requestId: number): Promise<number | null> {
+    try {
+        const settings = await getLoadBalancingSettings(prisma);
+
+        // If load balancing is disabled, don't assign
+        if (!settings || !settings.enabled) {
+            console.log(`[LoadBalancing] Load balancing disabled, skipping finance officer assignment for request ${requestId}`);
+            return null;
+        }
+
+        console.log(`[LoadBalancing] Auto-assigning finance officer for request ${requestId} using ${settings.strategy} strategy`);
+
+        // Select officer based on strategy
+        let officerId: number | null = null;
+
+        switch (settings.strategy) {
+            case 'LEAST_LOADED':
+                officerId = await selectFinanceOfficerLeastLoaded(prisma);
+                break;
+            case 'ROUND_ROBIN':
+                officerId = await selectFinanceOfficerRoundRobin(prisma);
+                break;
+            case 'RANDOM':
+                officerId = await selectFinanceOfficerRandom(prisma);
+                break;
+            default:
+                console.warn(`[LoadBalancing] Unknown strategy: ${settings.strategy}`);
+                return null;
+        }
+
+        if (!officerId) {
+            console.warn(`[LoadBalancing] No finance officer selected for request ${requestId}`);
+            return null;
+        }
+
+        // Update request with assigned officer
+        await prisma.request.update({
+            where: { id: requestId },
+            data: { currentAssigneeId: officerId },
+        });
+
+        console.log(`[LoadBalancing] Successfully auto-assigned finance officer ${officerId} to request ${requestId}`);
+        return officerId;
+    } catch (error) {
+        console.error(`[LoadBalancing] Error auto-assigning finance officer for request ${requestId}:`, error);
+        return null;
+    }
 }

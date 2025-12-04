@@ -9,6 +9,7 @@ import fs from 'fs';
 import crypto from 'crypto';
 import http from 'http';
 import { fileURLToPath } from 'url';
+import { Client } from 'ldapts';
 
 // ES module equivalent of __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -27,7 +28,7 @@ import { requestMonitoringMiddleware, trackCacheHit, trackCacheMiss, getMetrics,
 import { checkProcurementThresholds } from './services/thresholdService';
 import { checkSplintering } from './services/splinteringService';
 import { createThresholdNotifications } from './services/notificationService';
-import { getLoadBalancingSettings, updateLoadBalancingSettings, autoAssignRequest, shouldAutoAssign } from './services/loadBalancingService';
+import { getLoadBalancingSettings, updateLoadBalancingSettings, autoAssignRequest, autoAssignFinanceOfficer, shouldAutoAssign } from './services/loadBalancingService';
 import type { Prisma } from '@prisma/client';
 import { requireCommittee as requireCommitteeRole, requireEvaluationCommittee, requireAdmin, requireExecutive, requireRole } from './middleware/rbac';
 import { validate, createIdeaSchema, voteSchema, approveRejectIdeaSchema, promoteIdeaSchema, sanitizeInput as sanitize } from './middleware/validation';
@@ -46,6 +47,16 @@ const API_HOST = process.env.API_HOST || (APP_ENV === 'local' ? '0.0.0.0' : '0.0
 // Public host for logs (what users type in the browser)
 const PUBLIC_HOST = process.env.API_PUBLIC_HOST || (APP_ENV === 'local' ? 'localhost' : 'heron');
 const JWT_SECRET = process.env.JWT_SECRET || 'devsecret-change-me';
+
+// LDAP configuration
+const LDAP_URL = process.env.LDAP_URL || 'ldap://BOS.local:389';
+const LDAP_BIND_DN = process.env.LDAP_BIND_DN || 'CN=Policy Test,OU=MIS_STAFF,OU=MIS,DC=BOS,DC=local';
+const LDAP_BIND_PASSWORD = process.env.LDAP_BIND_PASSWORD || 'Password@101';
+const LDAP_SEARCH_DN = process.env.LDAP_SEARCH_DN || 'DC=BOS,DC=local';
+
+const ldapClient = new Client({
+    url: LDAP_URL,
+});
 
 let trendingJobInterval: NodeJS.Timeout | null = null;
 
@@ -475,6 +486,90 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
         });
     } catch (e: any) {
         console.error('Login error:', e);
+        return res.status(500).json({ message: e?.message || 'Login failed' });
+    }
+});
+
+// LDAP login endpoint
+app.post('/api/auth/ldap-login', authLimiter, async (req, res) => {
+    try {
+        const { email, password } = req.body || {};
+        if (!email || !password) return res.status(400).json({ message: 'Email and password required' });
+
+        let ldapDN = '';
+        let userAuthenticated = false;
+
+        try {
+            // Bind with admin credentials to search
+            await ldapClient.bind(LDAP_BIND_DN, LDAP_BIND_PASSWORD);
+            const { searchEntries } = await ldapClient.search(LDAP_SEARCH_DN, {
+                filter: `(userPrincipalName=${email})`,
+            });
+
+            if (searchEntries.length === 0) {
+                await ldapClient.unbind().catch(() => null);
+                return res.status(401).json({ message: 'User not found in directory' });
+            }
+
+            ldapDN = searchEntries[0].dn;
+            console.log('[LDAP] Found user DN:', ldapDN);
+
+            // Unbind from admin and try to bind as the user
+            await ldapClient.unbind();
+            await ldapClient.bind(ldapDN, password);
+            userAuthenticated = true;
+            console.log('[LDAP] User authenticated successfully:', email);
+        } catch (ldapErr: any) {
+            await ldapClient.unbind().catch(() => null);
+            console.error('[LDAP] Authentication failed:', ldapErr.message);
+            return res.status(401).json({ message: 'Invalid credentials' });
+        }
+
+        if (!userAuthenticated) {
+            return res.status(401).json({ message: 'Invalid credentials' });
+        }
+
+        // Look up user in local database
+        const user = await prisma.user.findUnique({
+            where: { email },
+            include: {
+                roles: {
+                    include: {
+                        role: true,
+                    },
+                },
+                department: true,
+            },
+        });
+
+        if (!user) {
+            return res.status(401).json({ message: 'User account not found in system. Please contact your administrator.' });
+        }
+
+        // Generate JWT token
+        const roles = user.roles.map((r) => r.role.name);
+        const token = jwt.sign({ sub: user.id, email: user.email, roles: roles, name: user.name }, JWT_SECRET, { expiresIn: '1d' });
+
+        console.log('[LDAP] User logged in successfully:', user.id, email);
+
+        return res.json({
+            token,
+            user: {
+                id: user.id,
+                email: user.email,
+                name: user.name,
+                roles: roles,
+                department: user.department
+                    ? {
+                          id: user.department.id,
+                          name: user.department.name,
+                          code: user.department.code,
+                      }
+                    : null,
+            },
+        });
+    } catch (e: any) {
+        console.error('[LDAP] Login error:', e);
         return res.status(500).json({ message: e?.message || 'Login failed' });
     }
 });
@@ -2915,12 +3010,9 @@ app.post('/requests/:id/action', async (req, res) => {
                 nextStatus = 'HOD_REVIEW';
                 nextAssigneeId = hod?.id || null;
             } else if (request.status === 'HOD_REVIEW') {
-                // HOD approved -> send to Finance Officer
-                const financeOfficer = await prisma.user.findFirst({
-                    where: { roles: { some: { role: { name: 'FINANCE' } } } },
-                });
+                // HOD approved -> send to Finance Officer (auto-assigned based on load-balancing)
                 nextStatus = 'FINANCE_REVIEW';
-                nextAssigneeId = financeOfficer?.id || null;
+                nextAssigneeId = null; // Will be auto-assigned via load-balancing strategy
             } else if (request.status === 'FINANCE_REVIEW') {
                 // Finance Officer approved -> MUST go to Budget Manager (required step)
                 const budgetManager = await prisma.user.findFirst({
@@ -3127,6 +3219,37 @@ app.post('/requests/:id/action', async (req, res) => {
                     });
                 } catch (notifErr) {
                     console.warn('Failed to create auto-assignment notification:', notifErr);
+                }
+            }
+        } else if (nextStatus === 'FINANCE_REVIEW' && settings?.enabled) {
+            // Auto-assign finance officer when entering FINANCE_REVIEW
+            console.log(`[Workflow] Triggering finance officer auto-assignment for request ${updated.id}`);
+            const assignedFinanceOfficerId = await autoAssignFinanceOfficer(prisma, updated.id);
+
+            if (assignedFinanceOfficerId) {
+                // Refresh the updated request to include the new assignee
+                updated = (await prisma.request.findUnique({
+                    where: { id: parseInt(id, 10) },
+                    include: {
+                        items: true,
+                        requester: { select: { id: true, name: true, email: true } },
+                        department: { select: { id: true, name: true, code: true } },
+                        currentAssignee: { select: { id: true, name: true, email: true } },
+                    },
+                })) as any;
+
+                // Notify the auto-assigned finance officer
+                try {
+                    await prisma.notification.create({
+                        data: {
+                            userId: assignedFinanceOfficerId,
+                            type: 'STAGE_CHANGED',
+                            message: `Request ${updated.reference || updated.id} has been assigned to you for finance review`,
+                            data: { requestId: updated.id, status: updated.status, autoAssigned: true },
+                        },
+                    });
+                } catch (notifErr) {
+                    console.warn('Failed to create finance officer assignment notification:', notifErr);
                 }
             }
         } else if (!updated.currentAssigneeId && nextStatus !== 'DRAFT') {
@@ -3804,6 +3927,149 @@ app.post('/admin/requests/:id/reassign', async (req, res) => {
     }
 });
 
+// POST /requests/:id/assign-finance-officer - Budget Manager can reassign finance officers to requests
+app.post('/requests/:id/assign-finance-officer', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { financeOfficerId } = req.body || {};
+        const userId = req.headers['x-user-id'];
+        if (!userId) return res.status(401).json({ message: 'User ID required' });
+
+        // Verify user is Budget Manager
+        const user = await prisma.user.findUnique({
+            where: { id: parseInt(String(userId), 10) },
+            include: { roles: { include: { role: true } } },
+        });
+        const isBudgetManager = user?.roles.some((r) => r.role.name === 'BUDGET_MANAGER');
+        if (!isBudgetManager) return res.status(403).json({ message: 'Budget Manager access required' });
+
+        const request = await prisma.request.findUnique({
+            where: { id: parseInt(id, 10) },
+            include: { currentAssignee: true, department: true },
+        });
+        if (!request) return res.status(404).json({ message: 'Request not found' });
+
+        // Only allow reassignment when request is in FINANCE_REVIEW
+        if (request.status !== 'FINANCE_REVIEW') {
+            return res.status(400).json({ message: 'Finance officer can only be reassigned when request is in FINANCE_REVIEW status' });
+        }
+
+        // Validate financeOfficerId exists and has FINANCE role
+        const financeOfficer = await prisma.user.findUnique({
+            where: { id: parseInt(String(financeOfficerId), 10) },
+            include: { roles: { include: { role: true } } },
+        });
+        if (!financeOfficer) return res.status(404).json({ message: 'Finance officer not found' });
+        if (!financeOfficer.roles.some((r) => r.role.name === 'FINANCE')) {
+            return res.status(400).json({ message: 'Selected user does not have FINANCE role' });
+        }
+
+        const previousAssigneeId = request.currentAssigneeId;
+
+        const updated = await prisma.request.update({
+            where: { id: parseInt(id, 10) },
+            data: {
+                currentAssigneeId: parseInt(String(financeOfficerId), 10),
+                statusHistory: {
+                    create: {
+                        status: request.status as any,
+                        changedById: parseInt(String(userId), 10),
+                        comment: `Finance officer reassigned by Budget Manager from ${previousAssigneeId ? 'user ' + previousAssigneeId : 'unassigned'} to ${financeOfficer.name}`,
+                    },
+                },
+                actions: {
+                    create: {
+                        action: 'REASSIGN',
+                        performedById: parseInt(String(userId), 10),
+                        comment: `Finance officer reassigned to ${financeOfficer.name}`,
+                        metadata: { previousAssigneeId, newAssigneeId: parseInt(String(financeOfficerId), 10) },
+                    },
+                },
+            },
+            include: {
+                items: true,
+                requester: { select: { id: true, name: true, email: true } },
+                department: { select: { id: true, name: true, code: true } },
+                currentAssignee: { select: { id: true, name: true, email: true } },
+                statusHistory: true,
+                actions: true,
+            },
+        });
+
+        // Notify the newly assigned finance officer
+        try {
+            await prisma.notification.create({
+                data: {
+                    userId: parseInt(String(financeOfficerId), 10),
+                    type: 'STAGE_CHANGED',
+                    message: `Request ${updated.reference || updated.id} has been reassigned to you for finance review by the Budget Manager`,
+                    data: { requestId: updated.id, status: updated.status, reassignedBy: user?.name },
+                },
+            });
+        } catch (notifErr) {
+            console.warn('Failed to create reassignment notification:', notifErr);
+        }
+
+        return res.json(updated);
+    } catch (e: any) {
+        console.error('POST /requests/:id/assign-finance-officer error:', e);
+        return res.status(500).json({ message: 'Failed to assign finance officer' });
+    }
+});
+
+// GET /finance-officers - Get list of available finance officers (for Budget Manager assignment UI)
+app.get('/finance-officers', async (req, res) => {
+    try {
+        const userId = req.headers['x-user-id'];
+        if (!userId) return res.status(401).json({ message: 'User ID required' });
+
+        // Allow Budget Manager or Procurement Manager to view finance officers
+        const user = await prisma.user.findUnique({
+            where: { id: parseInt(String(userId), 10) },
+            include: { roles: { include: { role: true } } },
+        });
+        const allowedRoles = user?.roles.map((r) => r.role.name) || [];
+        const isAuthorized = allowedRoles.some((r) => r === 'BUDGET_MANAGER' || r === 'ADMIN' || r === 'PROCUREMENT_MANAGER');
+        if (!isAuthorized) return res.status(403).json({ message: 'Access required' });
+
+        // Get all finance officers with their current workload
+        const financeOfficers = await prisma.user.findMany({
+            where: {
+                roles: { some: { role: { name: 'FINANCE' } } },
+            },
+            select: {
+                id: true,
+                name: true,
+                email: true,
+            },
+        });
+
+        // Get workload for each officer (active assignments at FINANCE_REVIEW stage)
+        const officersWithWorkload = await Promise.all(
+            financeOfficers.map(async (officer) => {
+                const assignedCount = await prisma.request.count({
+                    where: {
+                        currentAssigneeId: officer.id,
+                        status: { in: ['FINANCE_REVIEW'] },
+                    },
+                });
+
+                return {
+                    id: officer.id,
+                    name: officer.name,
+                    email: officer.email,
+                    assignedCount,
+                };
+            })
+        );
+
+        return res.json(officersWithWorkload);
+    } catch (e: any) {
+        console.error('GET /finance-officers error:', e);
+        return res.status(500).json({ message: 'Failed to fetch finance officers' });
+    }
+});
+
 // POST /admin/maintenance/fix-invalid-request-statuses - Admin maintenance to repair invalid enum values
 app.post('/admin/maintenance/fix-invalid-request-statuses', async (req, res) => {
     try {
@@ -3837,6 +4103,46 @@ app.get('/api/auth/login', (req, res) => {
 // GET /api/auth/test-login - Test endpoint
 app.get('/api/auth/test-login', (req, res) => {
     res.status(405).json({ message: 'Use POST method' });
+});
+
+// GET /api/auth/test-ldap - Diagnostic endpoint to test LDAP connection
+app.get('/api/auth/test-ldap', async (req, res) => {
+    try {
+        console.log('[LDAP Test] Testing connection to:', LDAP_URL);
+
+        const testClient = new Client({
+            url: LDAP_URL,
+        });
+
+        await testClient.bind(LDAP_BIND_DN, LDAP_BIND_PASSWORD);
+        console.log('[LDAP Test] Successfully bound with admin credentials');
+
+        const { searchEntries } = await testClient.search(LDAP_SEARCH_DN, {
+            filter: '(objectClass=*)',
+            sizeLimit: 1,
+        });
+
+        console.log('[LDAP Test] Search successful, found', searchEntries.length, 'entries');
+        await testClient.unbind();
+
+        return res.json({
+            success: true,
+            message: 'LDAP connection successful',
+            ldapUrl: LDAP_URL,
+            bindDN: LDAP_BIND_DN,
+            searchDN: LDAP_SEARCH_DN,
+        });
+    } catch (e: any) {
+        console.error('[LDAP Test] Connection failed:', e.message);
+        return res.status(500).json({
+            success: false,
+            message: 'LDAP connection failed',
+            error: e.message,
+            ldapUrl: LDAP_URL,
+            bindDN: LDAP_BIND_DN,
+            searchDN: LDAP_SEARCH_DN,
+        });
+    }
 });
 
 // ============================================
