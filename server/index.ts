@@ -505,6 +505,14 @@ app.post('/api/auth/ldap-login', authLimiter, async (req, res) => {
 
         console.log(`[LDAP Login] Authentication successful for: ${email}`);
 
+        // Validate LDAP user data
+        if (!ldapUser.email || typeof ldapUser.email !== 'string' || ldapUser.email.length === 0) {
+            console.error(`[LDAP Login] Invalid email from LDAP:`, ldapUser.email);
+            return res.status(500).json({ message: 'Invalid user data from LDAP' });
+        }
+
+        console.log(`[LDAP Login] LDAP user email: ${ldapUser.email}`);
+
         // Check if user exists in local database
         let user = await prisma.user.findUnique({
             where: { email: ldapUser.email },
