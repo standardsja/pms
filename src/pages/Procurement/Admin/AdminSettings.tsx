@@ -94,8 +94,22 @@ const AdminSettings = () => {
     // Persist role changes
     async function handleSaveRoles(userId: number, roles: string[]) {
         try {
-            await adminService.updateUserRoles(userId, roles);
+            const result = await adminService.updateUserRoles(userId, roles);
             await loadUsers();
+
+            // If updating current user, refresh their auth data in storage
+            const currentUserRaw = localStorage.getItem('auth_user') || sessionStorage.getItem('auth_user');
+            if (currentUserRaw) {
+                const currentUser = JSON.parse(currentUserRaw);
+                if (currentUser.id === userId) {
+                    const updated = { ...currentUser, roles: result.roles };
+                    localStorage.setItem('auth_user', JSON.stringify(updated));
+                    sessionStorage.setItem('auth_user', JSON.stringify(updated));
+                    // Force a page reload to update sidebar
+                    window.location.reload();
+                }
+            }
+
             openModal('success', 'Roles Updated', 'User roles have been updated.');
         } catch (e: any) {
             openModal('danger', 'Update Failed', e?.message || 'Failed to update roles');

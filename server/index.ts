@@ -2292,7 +2292,7 @@ app.patch('/requests/:id', async (req, res) => {
 
         // Create a notification for the new assignee (if any)
         try {
-            const assigneeId = updated.currentAssignee?.id || updated.currentAssigneeId || null;
+            const assigneeId = updated.currentAssigneeId || null;
             if (assigneeId) {
                 await prisma.notification.create({
                     data: {
@@ -2337,7 +2337,7 @@ app.put('/requests/:id', async (req, res) => {
 
         // Notify the assignee after explicit assignment
         try {
-            const assigneeId = updated.currentAssignee?.id || updated.currentAssigneeId || null;
+            const assigneeId = updated.currentAssigneeId || null;
             if (assigneeId) {
                 await prisma.notification.create({
                     data: {
@@ -2605,7 +2605,7 @@ app.post('/requests/:id/submit', async (req, res) => {
                     try {
                         await prisma.notification.create({
                             data: {
-                                userId: null, // Broadcast to system/audit
+                                userId: undefined, // Broadcast to system/audit
                                 type: 'THRESHOLD_EXCEEDED',
                                 message: `⚠️ Splintering override: ${actingUser.name} (${actingUser.email}) bypassed splintering warning for request ${request.reference || request.id}`,
                                 data: {
@@ -2621,18 +2621,6 @@ app.post('/requests/:id/submit', async (req, res) => {
                                     timestamp: new Date().toISOString(),
                                     action: 'SPLINTERING_OVERRIDE',
                                 },
-                            },
-                        });
-
-                        // Also log to status history for permanent audit trail
-                        await prisma.statusHistory.create({
-                            data: {
-                                requestId: request.id,
-                                status: 'DRAFT', // Still draft at this point
-                                changedById: actingUser.id,
-                                comment: `Manager override: Splintering warning bypassed. Combined value: ${spl.combined.toFixed(2)} JMD (threshold: ${spl.threshold} JMD, window: ${
-                                    spl.windowDays
-                                } days)`,
                             },
                         });
 
@@ -2863,7 +2851,7 @@ app.post('/requests/:id/action', async (req, res) => {
                 })();
                 const requestCurrency = request.currency || 'JMD';
 
-                const thresholdResult = checkProcurementThresholds(totalValue, procurementTypes, requestCurrency);
+                const thresholdResult = checkProcurementThresholds(Number(totalValue), procurementTypes, requestCurrency);
 
                 if (thresholdResult.requiresExecutiveApproval) {
                     // High-value request -> send to Executive Director for evaluation
@@ -2966,7 +2954,7 @@ app.post('/requests/:id/action', async (req, res) => {
                     await prisma.notification.create({
                         data: {
                             userId: Number(updated.currentAssigneeId),
-                            type: 'EVALUATION_REQUIRED',
+                            type: 'REQUEST_SUBMITTED',
                             message: `High-value request ${updated.reference || updated.id} requires your evaluation`,
                             data: {
                                 requestId: updated.id,
@@ -3215,7 +3203,7 @@ app.post('/admin/requests/:id/override-splinter', requireAdmin, async (req, res)
         try {
             await prisma.notification.create({
                 data: {
-                    userId: null,
+                    userId: undefined,
                     type: 'THRESHOLD_EXCEEDED',
                     message: `Admin override applied to request ${updated.reference || updated.id} by user ${adminUserId}`,
                     data: { requestId: updated.id, overriddenBy: adminUserId },
@@ -3437,7 +3425,7 @@ app.post('/procurement/load-balancing-settings', async (req, res) => {
             prisma,
             {
                 enabled: enabled !== undefined ? enabled : undefined,
-                strategy: strategy,
+                strategy: strategy as any,
                 autoAssignOnApproval: autoAssignOnApproval !== undefined ? autoAssignOnApproval : undefined,
                 splinteringEnabled: splinteringEnabled !== undefined ? splinteringEnabled : undefined,
             },
@@ -3653,6 +3641,66 @@ app.get('/admin/users', async (req, res) => {
     }
 });
 
+// POST /admin/users/:userId/roles - Update user roles
+app.post('/admin/users/:userId/roles', authMiddleware, async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const { roles } = req.body;
+
+        if (!Array.isArray(roles)) {
+            return res.status(400).json({ message: 'Roles must be an array' });
+        }
+
+        const uid = parseInt(userId, 10);
+
+        // Check if user exists
+        const user = await prisma.user.findUnique({ where: { id: uid } });
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        // Get all role IDs for the provided role names
+        const roleRecords = await prisma.role.findMany({
+            where: { name: { in: roles } },
+        });
+
+        if (roleRecords.length !== roles.length) {
+            return res.status(400).json({ message: 'One or more invalid role names' });
+        }
+
+        // Delete existing user roles
+        await prisma.userRole.deleteMany({ where: { userId: uid } });
+
+        // Create new user roles
+        await prisma.userRole.createMany({
+            data: roleRecords.map((role) => ({
+                userId: uid,
+                roleId: role.id,
+            })),
+        });
+
+        // Return updated user
+        const updated = await prisma.user.findUnique({
+            where: { id: uid },
+            include: {
+                roles: { include: { role: true } },
+                department: { select: { id: true, name: true, code: true } },
+            },
+        });
+
+        res.json({
+            id: updated?.id,
+            email: updated?.email,
+            name: updated?.name,
+            department: updated?.department?.name || null,
+            roles: updated?.roles.map((r) => r.role.name) || [],
+        });
+    } catch (e: any) {
+        console.error('POST /admin/users/:userId/roles error:', e);
+        res.status(500).json({ message: 'Failed to update user roles', error: e?.message });
+    }
+});
+
 // POST /admin/requests/:id/reassign - Admin can reassign any request to any user
 app.post('/admin/requests/:id/reassign', async (req, res) => {
     try {
@@ -3805,7 +3853,7 @@ app.post('/requests/:id/assign-finance-officer', async (req, res) => {
                 },
                 actions: {
                     create: {
-                        action: 'REASSIGN',
+                        action: 'ASSIGN',
                         performedById: parseInt(String(userId), 10),
                         comment: `Finance officer reassigned to ${financeOfficer.name}`,
                         metadata: { previousAssigneeId, newAssigneeId: parseInt(String(financeOfficerId), 10) },
@@ -4802,7 +4850,7 @@ app.patch(
                                   return [];
                               }
                           })();
-                    authorized = secs.map((s) => String(s).toUpperCase()).includes(sectionUpper);
+                    authorized = secs.map((s: string) => String(s).toUpperCase()).includes(sectionUpper);
                 } catch {
                     authorized = false;
                 }
