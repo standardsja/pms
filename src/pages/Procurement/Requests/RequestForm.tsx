@@ -1066,17 +1066,16 @@ const RequestForm = () => {
                                     <span className="inline-flex items-center bg-yellow-600 text-white rounded-sm px-2 py-1">
                                         [
                                         <input
-                                            type="text"
-                                            inputMode="numeric"
-                                            maxLength={3}
-                                            value={headerSequence}
+                                            type="number"
+                                            min="1"
+                                            max="999"
+                                            value={parseInt(headerSequence, 10)}
                                             onChange={(e) => {
-                                                let val = e.target.value.replace(/\D/g, '').slice(0, 3);
-                                                setHeaderSequence(val.padStart(3, '0'));
+                                                const num = Math.max(0, Math.min(999, parseInt(e.target.value, 10) || 0));
+                                                setHeaderSequence(String(num).padStart(3, '0'));
                                             }}
                                             className="bg-transparent border-0 text-white font-semibold text-sm focus:ring-0 w-10 text-center"
                                             disabled={isEditMode}
-                                            readOnly={isEditMode}
                                         />
                                         ]
                                     </span>
