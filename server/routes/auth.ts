@@ -67,10 +67,36 @@ router.post(
                 throw new UnauthorizedError('User account not found in system. Please contact your administrator.');
             }
 
-            const roles = user.roles.map((r) => r.role.name);
-            const token = jwt.sign({ sub: user.id, email: user.email, roles, name: user.name }, config.JWT_SECRET, { expiresIn: '24h' });
+            // Get or create Requester role for LDAP users
+            let userRoles = user.roles.map((r) => r.role.name);
+            
+            // If LDAP user has no roles, automatically assign Requester role
+            if (userRoles.length === 0) {
+                logger.info('LDAP user has no roles, assigning Requester role', { userId: user.id, email });
+                
+                // Find the Requester role
+                const requesterRole = await prisma.role.findUnique({
+                    where: { name: 'REQUESTER' },
+                });
+                
+                if (requesterRole) {
+                    // Assign Requester role to user
+                    await prisma.userRole.create({
+                        data: {
+                            userId: user.id,
+                            roleId: requesterRole.id,
+                        },
+                    });
+                    userRoles = ['REQUESTER'];
+                    logger.info('Requester role assigned to LDAP user', { userId: user.id, email });
+                } else {
+                    logger.warn('Requester role not found in database', { userId: user.id, email });
+                }
+            }
 
-            logger.info('User logged in via LDAP successfully', { userId: user.id, email: user.email });
+            const token = jwt.sign({ sub: user.id, email: user.email, roles: userRoles, name: user.name }, config.JWT_SECRET, { expiresIn: '24h' });
+
+            logger.info('User logged in via LDAP successfully', { userId: user.id, email: user.email, roles: userRoles });
 
             return res.json({
                 token,
@@ -78,7 +104,7 @@ router.post(
                     id: user.id,
                     email: user.email,
                     name: user.name,
-                    roles,
+                    roles: userRoles,
                     department: user.department
                         ? {
                               id: user.department.id,
