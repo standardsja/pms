@@ -1,7 +1,10 @@
 import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { setPageTitle } from '../../../store/themeConfigSlice';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
+import { IRootState } from '../../../store';
+import { getToken, getUser } from '../../../utils/auth';
+import Swal from 'sweetalert2';
 import IconHome from '../../../components/Icon/IconHome';
 import IconDollarSignCircle from '../../../components/Icon/IconDollarSignCircle';
 import IconUser from '../../../components/Icon/IconUser';
@@ -10,23 +13,257 @@ import IconLinkedin from '../../../components/Icon/IconLinkedin';
 import IconTwitter from '../../../components/Icon/IconTwitter';
 import IconFacebook from '../../../components/Icon/IconFacebook';
 import IconGithub from '../../../components/Icon/IconGithub';
+import IconBell from '../../../components/Icon/IconBell';
+import IconLock from '../../../components/Icon/IconLock';
 
 const AccountSetting = () => {
     const dispatch = useDispatch();
-    useEffect(() => {
-        dispatch(setPageTitle('Account Setting'));
-    });
+    const { user } = useSelector((state: IRootState) => state.auth);
     const [tabs, setTabs] = useState<string>('home');
+    const [profileData, setProfileData] = useState<any>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [isSaving, setIsSaving] = useState(false);
+    const [formData, setFormData] = useState({
+        fullName: '',
+        jobTitle: '',
+        department: '',
+        country: '',
+        address: '',
+        city: '',
+        phone: '',
+        email: '',
+        employeeId: '',
+        supervisor: '',
+    });
+    const [originalFormData, setOriginalFormData] = useState({ ...formData });
+    const [profileImage, setProfileImage] = useState<string>('');
+    const [isUploadingImage, setIsUploadingImage] = useState(false);
+
+    useEffect(() => {
+        dispatch(setPageTitle('Account Settings'));
+    }, [dispatch]);
+
+    useEffect(() => {
+        const fetchProfileData = async () => {
+            try {
+                const token = getToken();
+                const currentUser = getUser();
+
+                if (!token || !currentUser) {
+                    setIsLoading(false);
+                    return;
+                }
+
+                // Fetch user profile from API
+                const response = await fetch(`http://heron:4000/api/auth/me`, {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    setProfileData(data);
+                    setProfileImage(data.profileImage || '');
+                    const userData = {
+                        fullName: data.name || '',
+                        jobTitle: data.jobTitle || '',
+                        department: data.department?.name || '',
+                        country: data.country || '',
+                        address: data.address || '',
+                        city: data.city || '',
+                        phone: data.phone || '',
+                        email: data.email || '',
+                        employeeId: data.employeeId || '',
+                        supervisor: data.supervisor || '',
+                    };
+                    setFormData(userData);
+                    setOriginalFormData(userData);
+                }
+            } catch (error) {
+                console.error('Error fetching profile data:', error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchProfileData();
+    }, []);
+
     const toggleTabs = (name: string) => {
         setTabs(name);
+    };
+
+    const handleFormChange = (e: any) => {
+        const { id, value } = e.target;
+        setFormData((prev) => ({
+            ...prev,
+            [id]: value,
+        }));
+    };
+
+    const handleSave = async () => {
+        try {
+            setIsSaving(true);
+            const token = getToken();
+            if (!token) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Authentication Error',
+                    text: 'Your session has expired. Please log in again.',
+                    confirmButtonColor: '#3b82f6',
+                });
+                return;
+            }
+
+            // Send updated profile data to backend
+            const response = await fetch(`http://heron:4000/api/auth/profile`, {
+                method: 'PUT',
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    name: formData.fullName,
+                    jobTitle: formData.jobTitle,
+                    department: formData.department,
+                    country: formData.country,
+                    address: formData.address,
+                    city: formData.city,
+                    phone: formData.phone,
+                    employeeId: formData.employeeId,
+                    supervisor: formData.supervisor,
+                }),
+            });
+
+            if (response.ok) {
+                setOriginalFormData(formData);
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Success',
+                    text: 'Your profile has been updated successfully!',
+                    confirmButtonColor: '#3b82f6',
+                });
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Save Failed',
+                    text: 'We encountered an issue saving your changes. Please try again.',
+                    confirmButtonColor: '#3b82f6',
+                });
+            }
+        } catch (error) {
+            console.error('Error saving profile:', error);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'An unexpected error occurred while saving your profile. Please try again.',
+                confirmButtonColor: '#3b82f6',
+            });
+        } finally {
+            setIsSaving(false);
+        }
+    };
+    const handleCancel = () => {
+        setFormData(originalFormData);
+    };
+
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        // Validate file type
+        if (!file.type.startsWith('image/')) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Invalid File Type',
+                text: 'Please select a valid image file (JPG, PNG, GIF, etc.).',
+                confirmButtonColor: '#3b82f6',
+            });
+            return;
+        }
+
+        // Validate file size (max 5MB)
+        if (file.size > 5 * 1024 * 1024) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'File Too Large',
+                text: 'Your image must be less than 5MB. Please choose a smaller file.',
+                confirmButtonColor: '#3b82f6',
+            });
+            return;
+        }
+
+        try {
+            setIsUploadingImage(true);
+            const token = getToken();
+            if (!token) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Authentication Error',
+                    text: 'Your session has expired. Please log in again.',
+                    confirmButtonColor: '#3b82f6',
+                });
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('profileImage', file);
+
+            const response = await fetch(`http://heron:4000/api/auth/profile-image`, {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+                body: formData,
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setProfileImage(data.profileImage);
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Upload Successful',
+                    text: 'Your profile picture has been updated!',
+                    confirmButtonColor: '#3b82f6',
+                });
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Upload Failed',
+                    text: 'We were unable to upload your profile picture. Please try again.',
+                    confirmButtonColor: '#3b82f6',
+                });
+            }
+        } catch (error) {
+            console.error('Error uploading image:', error);
+            Swal.fire({
+                icon: 'error',
+                title: 'Upload Error',
+                text: 'An unexpected error occurred while uploading your image. Please try again.',
+                confirmButtonColor: '#3b82f6',
+            });
+        } finally {
+            setIsUploadingImage(false);
+        }
+    };
+
+    const getInitials = (name: string): string => {
+        if (!name) return 'U';
+        const names = name.trim().split(' ');
+        if (names.length >= 2) {
+            return `${names[0][0]}${names[names.length - 1][0]}`.toUpperCase();
+        }
+        return name.substring(0, 2).toUpperCase();
     };
 
     return (
         <div>
             <ul className="flex space-x-2 rtl:space-x-reverse">
                 <li>
-                    <Link to="/" className="text-primary hover:underline">
-                        Dashboard
+                    <Link to="#" className="text-primary hover:underline">
+                        Users
                     </Link>
                 </li>
                 <li className="before:content-['/'] ltr:before:mr-2 rtl:before:ml-2">
@@ -37,478 +274,250 @@ const AccountSetting = () => {
                 <div className="flex items-center justify-between mb-5">
                     <h5 className="font-semibold text-lg dark:text-white-light">Settings</h5>
                 </div>
-                <div>
-                    <ul className="sm:flex font-semibold border-b border-[#ebedf2] dark:border-[#191e3a] mb-5 whitespace-nowrap overflow-y-auto">
-                        <li className="inline-block">
-                            <button
-                                onClick={() => toggleTabs('home')}
-                                className={`flex gap-2 p-4 border-b border-transparent hover:border-primary hover:text-primary ${tabs === 'home' ? '!border-primary text-primary' : ''}`}
-                            >
-                                <IconHome />
-                                Home
-                            </button>
-                        </li>
-                        <li className="inline-block">
-                            <button
-                                onClick={() => toggleTabs('payment-details')}
-                                className={`flex gap-2 p-4 border-b border-transparent hover:border-primary hover:text-primary ${tabs === 'payment-details' ? '!border-primary text-primary' : ''}`}
-                            >
-                                <IconDollarSignCircle />
-                                Payment Details
-                            </button>
-                        </li>
-                        <li className="inline-block">
-                            <button
-                                onClick={() => toggleTabs('preferences')}
-                                className={`flex gap-2 p-4 border-b border-transparent hover:border-primary hover:text-primary ${tabs === 'preferences' ? '!border-primary text-primary' : ''}`}
-                            >
-                                <IconUser className="w-5 h-5" />
-                                Preferences
-                            </button>
-                        </li>
-                        <li className="inline-block">
-                            <button
-                                onClick={() => toggleTabs('danger-zone')}
-                                className={`flex gap-2 p-4 border-b border-transparent hover:border-primary hover:text-primary ${tabs === 'danger-zone' ? '!border-primary text-primary' : ''}`}
-                            >
-                                <IconPhone />
-                                Danger Zone
-                            </button>
-                        </li>
-                    </ul>
-                </div>
-                {tabs === 'home' ? (
-                    <div>
-                        <form className="border border-[#ebedf2] dark:border-[#191e3a] rounded-md p-4 mb-5 bg-white dark:bg-black">
-                            <h6 className="text-lg font-bold mb-5">General Information</h6>
-                            <div className="flex flex-col sm:flex-row">
-                                <div className="ltr:sm:mr-4 rtl:sm:ml-4 w-full sm:w-2/12 mb-5">
-                                    <img src="/assets//images/user-profile.jpeg" alt="img" className="w-20 h-20 md:w-32 md:h-32 rounded-full object-cover mx-auto" />
-                                </div>
-                                <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-5">
-                                    <div>
-                                        <label htmlFor="name">Full Name</label>
-                                        <input id="name" type="text" placeholder="John Doe" className="form-input" defaultValue="John Doe" />
-                                    </div>
-                                    <div>
-                                        <label htmlFor="profession">Job Title</label>
-                                        <input id="profession" type="text" placeholder="Procurement Officer" className="form-input" defaultValue="Procurement Officer" />
-                                    </div>
-                                    <div>
-                                        <label htmlFor="department">Department</label>
-                                        <select defaultValue="Procurement" id="department" className="form-select text-white-dark">
-                                            <option value="Procurement">Procurement</option>
-                                            <option value="Finance">Finance</option>
-                                            <option value="Operations">Operations</option>
-                                            <option value="IT">IT</option>
-                                            <option value="HR">HR</option>
-                                            <option value="Admin">Admin</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label htmlFor="country">Country</label>
-                                        <select defaultValue="Jamaica" id="country" className="form-select text-white-dark">
-                                            <option value="Jamaica">Jamaica</option>
-                                            <option value="United States">United States</option>
-                                            <option value="United Kingdom">United Kingdom</option>
-                                            <option value="Canada">Canada</option>
-                                            <option value="Trinidad and Tobago">Trinidad and Tobago</option>
-                                            <option value="Barbados">Barbados</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label htmlFor="address">Office Address</label>
-                                        <input id="address" type="text" placeholder="Kingston" className="form-input" defaultValue="123 Main Street" />
-                                    </div>
-                                    <div>
-                                        <label htmlFor="location">City</label>
-                                        <input id="location" type="text" placeholder="City" className="form-input" defaultValue="Kingston" />
-                                    </div>
-                                    <div>
-                                        <label htmlFor="phone">Office Phone</label>
-                                        <input id="phone" type="text" placeholder="+1 (876) 555-1234" className="form-input" defaultValue="+1 (876) 555-1234" />
-                                    </div>
-                                    <div>
-                                        <label htmlFor="email">Work Email</label>
-                                        <input id="email" type="email" placeholder="john.doe@company.com" className="form-input" defaultValue="john.doe@company.com" />
-                                    </div>
-                                    <div>
-                                        <label htmlFor="employeeId">Employee ID</label>
-                                        <input id="employeeId" type="text" placeholder="Enter Employee ID" className="form-input" defaultValue="EMP-2024-001" />
-                                    </div>
-                                    <div>
-                                        <label htmlFor="supervisor">Reporting To</label>
-                                        <input id="supervisor" type="text" placeholder="Supervisor Name" className="form-input" defaultValue="Sarah Johnson" />
-                                    </div>
-                                    <div className="sm:col-span-2 mt-3">
-                                        <button type="button" className="btn btn-primary">
-                                            Save Changes
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </form>
-                        <form className="border border-[#ebedf2] dark:border-[#191e3a] rounded-md p-4 bg-white dark:bg-black">
-                            <h6 className="text-lg font-bold mb-5">Procurement Access & Permissions</h6>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                                <div className="space-y-3">
-                                    <label className="inline-flex cursor-pointer">
-                                        <input type="checkbox" className="form-checkbox" defaultChecked />
-                                        <span className="text-white-dark relative checked:bg-none ltr:ml-2 rtl:mr-2">Create RFQs</span>
-                                    </label>
-                                </div>
-                                <div className="space-y-3">
-                                    <label className="inline-flex cursor-pointer">
-                                        <input type="checkbox" className="form-checkbox" defaultChecked />
-                                        <span className="text-white-dark relative checked:bg-none ltr:ml-2 rtl:mr-2">Evaluate Quotes</span>
-                                    </label>
-                                </div>
-                                <div className="space-y-3">
-                                    <label className="inline-flex cursor-pointer">
-                                        <input type="checkbox" className="form-checkbox" defaultChecked />
-                                        <span className="text-white-dark relative checked:bg-none ltr:ml-2 rtl:mr-2">Generate Purchase Orders</span>
-                                    </label>
-                                </div>
-                                <div className="space-y-3">
-                                    <label className="inline-flex cursor-pointer">
-                                        <input type="checkbox" className="form-checkbox" defaultChecked />
-                                        <span className="text-white-dark relative checked:bg-none ltr:ml-2 rtl:mr-2">Manage Suppliers</span>
-                                    </label>
-                                </div>
-                                <div className="space-y-3">
-                                    <label className="inline-flex cursor-pointer">
-                                        <input type="checkbox" className="form-checkbox" defaultChecked />
-                                        <span className="text-white-dark relative checked:bg-none ltr:ml-2 rtl:mr-2">View Reports</span>
-                                    </label>
-                                </div>
-                                <div className="space-y-3">
-                                    <label className="inline-flex cursor-pointer">
-                                        <input type="checkbox" className="form-checkbox" />
-                                        <span className="text-white-dark relative checked:bg-none ltr:ml-2 rtl:mr-2">Approve Payments</span>
-                                    </label>
-                                </div>
-                            </div>
-                        </form>
+                {isLoading ? (
+                    <div className="flex justify-center items-center h-64">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
                     </div>
                 ) : (
-                    ''
-                )}
-                {tabs === 'payment-details' ? (
                     <div>
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
-                            <div className="panel">
-                                <div className="mb-5">
-                                    <h5 className="font-semibold text-lg mb-4">Supplier Payment Addresses</h5>
-                                    <p>
-                                        Manage <span className="text-primary">supplier payment</span> addresses and financial contact information for procurement transactions.
-                                    </p>
-                                </div>
-                                <div className="mb-5">
-                                    <div className="border-b border-[#ebedf2] dark:border-[#1b2e4b]">
-                                        <div className="flex items-start justify-between py-3">
-                                            <h6 className="text-[#515365] font-bold dark:text-white-dark text-[15px]">
-                                                Office #1
-                                                <span className="block text-white-dark dark:text-white-light font-normal text-xs mt-1">123 Main Street, Kingston, Jamaica</span>
-                                            </h6>
-                                            <div className="flex items-start justify-between ltr:ml-auto rtl:mr-auto">
-                                                <button className="btn btn-dark">Edit</button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="border-b border-[#ebedf2] dark:border-[#1b2e4b]">
-                                        <div className="flex items-start justify-between py-3">
-                                            <h6 className="text-[#515365] font-bold dark:text-white-dark text-[15px]">
-                                                Warehouse #2
-                                                <span className="block text-white-dark dark:text-white-light font-normal text-xs mt-1">45 Industrial Park, Portmore, Jamaica</span>
-                                            </h6>
-                                            <div className="flex items-start justify-between ltr:ml-auto rtl:mr-auto">
-                                                <button className="btn btn-dark">Edit</button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <div className="flex items-start justify-between py-3">
-                                            <h6 className="text-[#515365] font-bold dark:text-white-dark text-[15px]">
-                                                Finance Dept.
-                                                <span className="block text-white-dark dark:text-white-light font-normal text-xs mt-1">78 Business District, New Kingston, Jamaica</span>
-                                            </h6>
-                                            <div className="flex items-start justify-between ltr:ml-auto rtl:mr-auto">
-                                                <button className="btn btn-dark">Edit</button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <button className="btn btn-primary">Add Delivery Address</button>
-                            </div>
-                            <div className="panel">
-                                <div className="mb-5">
-                                    <h5 className="font-semibold text-lg mb-4">Recent Purchase Orders</h5>
-                                    <p>
-                                        View your recent <span className="text-primary">Purchase Orders</span> and payment processing status for procurement activities.
-                                    </p>
-                                </div>
-                                <div className="mb-5">
-                                    <div className="border-b border-[#ebedf2] dark:border-[#1b2e4b]">
-                                        <div className="flex items-start justify-between py-3">
-                                            <div className="flex-none ltr:mr-4 rtl:ml-4">
-                                                <span className="badge bg-success">Paid</span>
-                                            </div>
-                                            <h6 className="text-[#515365] font-bold dark:text-white-dark text-[15px]">
-                                                PO-2024-098
-                                                <span className="block text-white-dark dark:text-white-light font-normal text-xs mt-1">Office Furniture - $15,240</span>
-                                            </h6>
-                                            <div className="flex items-start justify-between ltr:ml-auto rtl:mr-auto">
-                                                <button className="btn btn-dark">View</button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="border-b border-[#ebedf2] dark:border-[#1b2e4b]">
-                                        <div className="flex items-start justify-between py-3">
-                                            <div className="flex-none ltr:mr-4 rtl:ml-4">
-                                                <span className="badge bg-warning">Pending</span>
-                                            </div>
-                                            <h6 className="text-[#515365] font-bold dark:text-white-dark text-[15px]">
-                                                PO-2024-099
-                                                <span className="block text-white-dark dark:text-white-light font-normal text-xs mt-1">IT Equipment - $22,100</span>
-                                            </h6>
-                                            <div className="flex items-start justify-between ltr:ml-auto rtl:mr-auto">
-                                                <button className="btn btn-dark">View</button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <div className="flex items-start justify-between py-3">
-                                            <div className="flex-none ltr:mr-4 rtl:ml-4">
-                                                <span className="badge bg-info">Processing</span>
-                                            </div>
-                                            <h6 className="text-[#515365] font-bold dark:text-white-dark text-[15px]">
-                                                PO-2024-100
-                                                <span className="block text-white-dark dark:text-white-light font-normal text-xs mt-1">Janitorial Supplies - $3,450</span>
-                                            </h6>
-                                            <div className="flex items-start justify-between ltr:ml-auto rtl:mr-auto">
-                                                <button className="btn btn-dark">View</button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <Link to="/procurement/purchase-orders" className="btn btn-primary">View All Purchase Orders</Link>
-                            </div>
+                        <div className="mb-5">
+                            <ul className="mb-5 overflow-y-auto whitespace-nowrap border-b border-[#ebedf2] font-semibold dark:border-[#191e3a] sm:flex">
+                                <li className="inline-block">
+                                    <button
+                                        onClick={() => setTabs('home')}
+                                        className={`flex gap-2 border-b border-transparent p-4 hover:border-primary hover:text-primary ${tabs === 'home' ? '!border-primary text-primary' : ''}`}
+                                    >
+                                        <IconHome />
+                                        Home
+                                    </button>
+                                </li>
+                                <li className="inline-block">
+                                    <button
+                                        onClick={() => setTabs('preferences')}
+                                        className={`flex gap-2 border-b border-transparent p-4 hover:border-primary hover:text-primary ${tabs === 'preferences' ? '!border-primary text-primary' : ''}`}
+                                    >
+                                        <IconUser className="w-5 h-5" />
+                                        Preferences
+                                    </button>
+                                </li>
+                            </ul>
                         </div>
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                            <div className="panel">
-                                <div className="mb-5">
-                                    <h5 className="font-semibold text-lg mb-4">Add Delivery Address</h5>
-                                    <p>
-                                        Add a new <span className="text-primary">delivery location</span> for procurement shipments.
-                                    </p>
-                                </div>
-                                <div className="mb-5">
-                                    <form>
-                                        <div className="mb-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                            <div>
-                                                <label htmlFor="billingName">Name</label>
-                                                <input id="billingName" type="text" placeholder="Enter Name" className="form-input" />
-                                            </div>
-                                            <div>
-                                                <label htmlFor="billingEmail">Email</label>
-                                                <input id="billingEmail" type="email" placeholder="Enter Email" className="form-input" />
-                                            </div>
-                                        </div>
-                                        <div className="mb-5">
-                                            <label htmlFor="billingAddress">Address</label>
-                                            <input id="billingAddress" type="text" placeholder="Enter Address" className="form-input" />
-                                        </div>
-                                        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-5">
-                                            <div className="md:col-span-2">
-                                                <label htmlFor="billingCity">City</label>
-                                                <input id="billingCity" type="text" placeholder="Enter City" className="form-input" />
-                                            </div>
-                                            <div>
-                                                <label htmlFor="billingState">State</label>
-                                                <select id="billingState" className="form-select text-white-dark">
-                                                    <option>Choose...</option>
-                                                    <option>...</option>
-                                                </select>
-                                            </div>
-                                            <div>
-                                                <label htmlFor="billingZip">Zip</label>
-                                                <input id="billingZip" type="text" placeholder="Enter Zip" className="form-input" />
+                        {tabs === 'home' ? (
+                            <div>
+                                <form className="border border-[#ebedf2] dark:border-[#191e3a] rounded-md p-4 mb-5 bg-white dark:bg-black">
+                                    <h6 className="text-lg font-bold mb-5">General Information</h6>
+                                    <div className="flex flex-col sm:flex-row">
+                                        <div className="ltr:sm:mr-4 rtl:sm:ml-4 w-full sm:w-2/12 mb-5">
+                                            <div className="relative w-20 h-20 md:w-32 md:h-32 mx-auto">
+                                                {profileImage ? (
+                                                    <img src={profileImage} alt="Profile" className="w-full h-full rounded-full object-cover" />
+                                                ) : (
+                                                    <div className="w-full h-full rounded-full bg-primary flex items-center justify-center text-white text-2xl md:text-4xl font-bold">
+                                                        {getInitials(formData.fullName)}
+                                                    </div>
+                                                )}
+                                                <label
+                                                    htmlFor="profile-image-upload"
+                                                    className="absolute bottom-0 right-0 bg-primary text-white rounded-full p-2 cursor-pointer hover:bg-primary-dark transition-colors"
+                                                    title="Upload profile picture"
+                                                >
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 md:w-5 md:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path
+                                                            strokeLinecap="round"
+                                                            strokeLinejoin="round"
+                                                            strokeWidth={2}
+                                                            d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
+                                                        />
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                    </svg>
+                                                </label>
+                                                <input id="profile-image-upload" type="file" accept="image/*" onChange={handleImageUpload} className="hidden" disabled={isUploadingImage} />
+                                                {isUploadingImage && (
+                                                    <div className="absolute inset-0 bg-black bg-opacity-50 rounded-full flex items-center justify-center">
+                                                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
-                                        <button type="button" className="btn btn-primary">
-                                            Add
-                                        </button>
+                                        <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-5">
+                                            <div>
+                                                <label htmlFor="fullName">Full Name</label>
+                                                <input id="fullName" type="text" placeholder="" className="form-input" value={formData.fullName} onChange={handleFormChange} />
+                                            </div>
+                                            <div>
+                                                <label htmlFor="jobTitle">Job Title</label>
+                                                <input id="jobTitle" type="text" placeholder="" className="form-input" value={formData.jobTitle} onChange={handleFormChange} />
+                                            </div>
+                                            <div>
+                                                <label htmlFor="department">Department</label>
+                                                <input id="department" type="text" placeholder="" className="form-input" value={formData.department} onChange={handleFormChange} />
+                                            </div>
+                                            <div>
+                                                <label htmlFor="country">Country</label>
+                                                <input id="country" type="text" placeholder="" className="form-input" value={formData.country} onChange={handleFormChange} />
+                                            </div>
+                                            <div>
+                                                <label htmlFor="address">Office Address</label>
+                                                <input id="address" type="text" placeholder="" className="form-input" value={formData.address} onChange={handleFormChange} />
+                                            </div>
+                                            <div>
+                                                <label htmlFor="city">City</label>
+                                                <input id="city" type="text" placeholder="" className="form-input" value={formData.city} onChange={handleFormChange} />
+                                            </div>
+                                            <div>
+                                                <label htmlFor="phone">Office Phone</label>
+                                                <input id="phone" type="text" placeholder="" className="form-input" value={formData.phone} onChange={handleFormChange} />
+                                            </div>
+                                            <div>
+                                                <label htmlFor="email">Work Email</label>
+                                                <input id="email" type="email" placeholder="" className="form-input" value={formData.email} onChange={handleFormChange} disabled />
+                                            </div>
+                                            <div>
+                                                <label htmlFor="employeeId">Employee ID</label>
+                                                <input id="employeeId" type="text" placeholder="" className="form-input" value={formData.employeeId} onChange={handleFormChange} />
+                                            </div>
+                                            <div>
+                                                <label htmlFor="supervisor">Reporting To</label>
+                                                <input id="supervisor" type="text" placeholder="" className="form-input" value={formData.supervisor} onChange={handleFormChange} />
+                                            </div>
+                                            <div className="sm:col-span-2 mt-3 flex gap-3">
+                                                <button type="button" className="btn btn-primary" onClick={handleSave} disabled={isSaving}>
+                                                    {isSaving ? 'Saving...' : 'Save Changes'}
+                                                </button>
+                                                <button type="button" className="btn btn-outline-primary" onClick={handleCancel} disabled={isSaving}>
+                                                    Cancel
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </form>
+                                {profileData?.roles?.some((role: string) => ['PROCUREMENT_MANAGER', 'PROCUREMENT_OFFICER', 'DEPT_MANAGER', 'BUDGET_MANAGER', 'EXECUTIVE_DIRECTOR'].includes(role)) && (
+                                    <form className="border border-[#ebedf2] dark:border-[#191e3a] rounded-md p-4 bg-white dark:bg-black">
+                                        <h6 className="text-lg font-bold mb-5">Procurement Access & Permissions</h6>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                                            <div className="space-y-3">
+                                                <label className="inline-flex cursor-pointer">
+                                                    <input type="checkbox" className="form-checkbox" defaultChecked />
+                                                    <span className="text-white-dark relative checked:bg-none ltr:ml-2 rtl:mr-2">Create RFQs</span>
+                                                </label>
+                                            </div>
+                                            <div className="space-y-3">
+                                                <label className="inline-flex cursor-pointer">
+                                                    <input type="checkbox" className="form-checkbox" defaultChecked />
+                                                    <span className="text-white-dark relative checked:bg-none ltr:ml-2 rtl:mr-2">Evaluate Quotes</span>
+                                                </label>
+                                            </div>
+                                            <div className="space-y-3">
+                                                <label className="inline-flex cursor-pointer">
+                                                    <input type="checkbox" className="form-checkbox" defaultChecked />
+                                                    <span className="text-white-dark relative checked:bg-none ltr:ml-2 rtl:mr-2">Generate Purchase Orders</span>
+                                                </label>
+                                            </div>
+                                            <div className="space-y-3">
+                                                <label className="inline-flex cursor-pointer">
+                                                    <input type="checkbox" className="form-checkbox" defaultChecked />
+                                                    <span className="text-white-dark relative checked:bg-none ltr:ml-2 rtl:mr-2">Manage Suppliers</span>
+                                                </label>
+                                            </div>
+                                            <div className="space-y-3">
+                                                <label className="inline-flex cursor-pointer">
+                                                    <input type="checkbox" className="form-checkbox" defaultChecked />
+                                                    <span className="text-white-dark relative checked:bg-none ltr:ml-2 rtl:mr-2">View Reports</span>
+                                                </label>
+                                            </div>
+                                            <div className="space-y-3">
+                                                <label className="inline-flex cursor-pointer">
+                                                    <input type="checkbox" className="form-checkbox" />
+                                                    <span className="text-white-dark relative checked:bg-none ltr:ml-2 rtl:mr-2">Approve Payments</span>
+                                                </label>
+                                            </div>
+                                        </div>
                                     </form>
-                                </div>
+                                )}
                             </div>
-                            <div className="panel">
-                                <div className="mb-5">
-                                    <h5 className="font-semibold text-lg mb-4">Supplier Contact Information</h5>
-                                    <p>
-                                        Add <span className="text-primary">supplier contact</span> details for procurement communication.
-                                    </p>
-                                </div>
-                                <div className="mb-5">
-                                    <form>
-                                        <div className="mb-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                            <div>
-                                                <label htmlFor="supplierName">Supplier Name</label>
-                                                <input id="supplierName" type="text" placeholder="Enter Supplier Name" className="form-input" />
-                                            </div>
-                                            <div>
-                                                <label htmlFor="supplierEmail">Contact Email</label>
-                                                <input id="supplierEmail" type="email" placeholder="Enter Email" className="form-input" />
-                                            </div>
-                                        </div>
-                                        <div className="mb-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                            <div>
-                                                <label htmlFor="supplierPhone">Phone Number</label>
-                                                <input id="supplierPhone" type="text" placeholder="Enter Phone" className="form-input" />
-                                            </div>
-                                            <div>
-                                                <label htmlFor="category">Category</label>
-                                                <select id="category" className="form-select text-white-dark">
-                                                    <option>Office Supplies</option>
-                                                    <option>IT Equipment</option>
-                                                    <option>Furniture</option>
-                                                    <option>Janitorial</option>
-                                                    <option>Services</option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                        <button type="button" className="btn btn-primary">
-                                            Add Supplier
-                                        </button>
-                                    </form>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                ) : (
-                    ''
-                )}
-                {tabs === 'preferences' ? (
-                    <div className="switch">
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
-                            <div className="panel space-y-5">
-                                <h5 className="font-semibold text-lg mb-4">Choose Theme</h5>
-                                <div className="flex justify-around">
-                                    <div className="flex">
-                                        <label className="inline-flex cursor-pointer">
-                                            <input className="form-radio ltr:mr-4 rtl:ml-4 cursor-pointer" type="radio" name="flexRadioDefault" defaultChecked />
-                                            <span>
-                                                <img className="ms-3" width="100" height="68" alt="settings-dark" src="/assets/images/settings-light.svg" />
-                                            </span>
+                        ) : (
+                            ''
+                        )}
+                        {tabs === 'preferences' ? (
+                            <div className="switch">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                                    <div className="panel space-y-5">
+                                        <h5 className="font-semibold text-lg mb-4">Public Profile</h5>
+                                        <p>
+                                            Your <span className="text-primary">Profile</span> will be visible to anyone on the network.
+                                        </p>
+                                        <label className="w-12 h-6 relative">
+                                            <input type="checkbox" className="custom_switch absolute w-full h-full opacity-0 z-10 cursor-pointer peer" id="custom_switch_checkbox1" />
+                                            <span className="bg-[#ebedf2] dark:bg-dark block h-full rounded-full before:absolute before:left-1 before:bg-white dark:before:bg-white-dark dark:peer-checked:before:bg-white before:bottom-1 before:w-4 before:h-4 before:rounded-full peer-checked:before:left-7 peer-checked:bg-primary before:transition-all before:duration-300"></span>
                                         </label>
                                     </div>
-
-                                    <label className="inline-flex cursor-pointer">
-                                        <input className="form-radio ltr:mr-4 rtl:ml-4 cursor-pointer" type="radio" name="flexRadioDefault" />
-                                        <span>
-                                            <img className="ms-3" width="100" height="68" alt="settings-light" src="/assets/images/settings-dark.svg" />
-                                        </span>
-                                    </label>
+                                    <div className="panel space-y-5">
+                                        <h5 className="font-semibold text-lg mb-4">Show my email</h5>
+                                        <p>
+                                            Your <span className="text-primary">Email</span> will be visible to anyone on the network.
+                                        </p>
+                                        <label className="w-12 h-6 relative">
+                                            <input type="checkbox" className="custom_switch absolute w-full h-full opacity-0 z-10 cursor-pointer peer" id="custom_switch_checkbox2" />
+                                            <span className="bg-[#ebedf2] dark:bg-dark block h-full rounded-full before:absolute before:left-1 before:bg-white  dark:before:bg-white-dark dark:peer-checked:before:bg-white before:bottom-1 before:w-4 before:h-4 before:rounded-full peer-checked:before:left-7 peer-checked:bg-primary before:transition-all before:duration-300"></span>
+                                        </label>
+                                    </div>
+                                    <div className="panel space-y-5">
+                                        <h5 className="font-semibold text-lg mb-4">Enable Notifications</h5>
+                                        <p>
+                                            Receive alerts for <span className="text-primary">updates</span>, submissions, and approval requests.
+                                        </p>
+                                        <label className="w-12 h-6 relative">
+                                            <input type="checkbox" className="custom_switch absolute w-full h-full opacity-0 z-10 cursor-pointer peer" id="custom_switch_checkbox3" defaultChecked />
+                                            <span className="bg-[#ebedf2] dark:bg-dark block h-full rounded-full before:absolute before:left-1 before:bg-white  dark:before:bg-white-dark dark:peer-checked:before:bg-white before:bottom-1 before:w-4 before:h-4 before:rounded-full peer-checked:before:left-7 peer-checked:bg-primary before:transition-all before:duration-300"></span>
+                                        </label>
+                                    </div>
+                                    <div className="panel space-y-5">
+                                        <h5 className="font-semibold text-lg mb-4">Hide left navigation</h5>
+                                        <p>
+                                            Sidebar will be <span className="text-primary">hidden</span> by default
+                                        </p>
+                                        <label className="w-12 h-6 relative">
+                                            <input type="checkbox" className="custom_switch absolute w-full h-full opacity-0 z-10 cursor-pointer peer" id="custom_switch_checkbox4" />
+                                            <span className="bg-[#ebedf2] dark:bg-dark block h-full rounded-full before:absolute before:left-1 before:bg-white  dark:before:bg-white-dark dark:peer-checked:before:bg-white before:bottom-1 before:w-4 before:h-4 before:rounded-full peer-checked:before:left-7 peer-checked:bg-primary before:transition-all before:duration-300"></span>
+                                        </label>
+                                    </div>
+                                    {profileData?.roles?.some((role: string) =>
+                                        ['PROCUREMENT_MANAGER', 'PROCUREMENT_OFFICER', 'DEPT_MANAGER', 'BUDGET_MANAGER', 'EXECUTIVE_DIRECTOR'].includes(role)
+                                    ) && (
+                                        <>
+                                            <div className="panel space-y-5">
+                                                <h5 className="font-semibold text-lg mb-4">Auto-Approve Low-Value Items</h5>
+                                                <p>
+                                                    Automatically approve requests under <span className="text-primary">$1,000</span>
+                                                </p>
+                                                <label className="w-12 h-6 relative">
+                                                    <input type="checkbox" className="custom_switch absolute w-full h-full opacity-0 z-10 cursor-pointer peer" id="custom_switch_checkbox5" />
+                                                    <span className="bg-[#ebedf2] dark:bg-dark block h-full rounded-full before:absolute before:left-1 before:bg-white  dark:before:bg-white-dark dark:peer-checked:before:bg-white before:bottom-1 before:w-4 before:h-4 before:rounded-full peer-checked:before:left-7 peer-checked:bg-primary before:transition-all before:duration-300"></span>
+                                                </label>
+                                            </div>
+                                            <div className="panel space-y-5">
+                                                <h5 className="font-semibold text-lg mb-4">Supplier Email Notifications</h5>
+                                                <p>
+                                                    Send automatic email updates to <span className="text-primary">suppliers</span> on changes
+                                                </p>
+                                                <label className="w-12 h-6 relative">
+                                                    <input
+                                                        type="checkbox"
+                                                        className="custom_switch absolute w-full h-full opacity-0 z-10 cursor-pointer peer"
+                                                        id="custom_switch_checkbox6"
+                                                        defaultChecked
+                                                    />
+                                                    <span className="bg-[#ebedf2] dark:bg-dark block h-full rounded-full before:absolute before:left-1 before:bg-white  dark:before:bg-white-dark dark:peer-checked:before:bg-white before:bottom-1 before:w-4 before:h-4 before:rounded-full peer-checked:before:left-7 peer-checked:bg-primary before:transition-all before:duration-300"></span>
+                                                </label>
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
                             </div>
-                            <div className="panel space-y-5">
-                                <h5 className="font-semibold text-lg mb-4">Activity Data Export</h5>
-                                <p>Download your Procurement Activity, RFQs, Purchase Orders, and Evaluation History Data</p>
-                                <button type="button" className="btn btn-primary">
-                                    Download Procurement Data
-                                </button>
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                            <div className="panel space-y-5">
-                                <h5 className="font-semibold text-lg mb-4">Public Profile</h5>
-                                <p>
-                                    Your <span className="text-primary">Profile</span> will be visible to anyone on the network.
-                                </p>
-                                <label className="w-12 h-6 relative">
-                                    <input type="checkbox" className="custom_switch absolute w-full h-full opacity-0 z-10 cursor-pointer peer" id="custom_switch_checkbox1" />
-                                    <span className="bg-[#ebedf2] dark:bg-dark block h-full rounded-full before:absolute before:left-1 before:bg-white dark:before:bg-white-dark dark:peer-checked:before:bg-white before:bottom-1 before:w-4 before:h-4 before:rounded-full peer-checked:before:left-7 peer-checked:bg-primary before:transition-all before:duration-300"></span>
-                                </label>
-                            </div>
-                            <div className="panel space-y-5">
-                                <h5 className="font-semibold text-lg mb-4">Show my email</h5>
-                                <p>
-                                    Your <span className="text-primary">Email</span> will be visible to anyone on the network.
-                                </p>
-                                <label className="w-12 h-6 relative">
-                                    <input type="checkbox" className="custom_switch absolute w-full h-full opacity-0 z-10 cursor-pointer peer" id="custom_switch_checkbox2" />
-                                    <span className="bg-[#ebedf2] dark:bg-dark block h-full rounded-full before:absolute before:left-1 before:bg-white  dark:before:bg-white-dark dark:peer-checked:before:bg-white before:bottom-1 before:w-4 before:h-4 before:rounded-full peer-checked:before:left-7 peer-checked:bg-primary before:transition-all before:duration-300"></span>
-                                </label>
-                            </div>
-                            <div className="panel space-y-5">
-                                <h5 className="font-semibold text-lg mb-4">Enable Procurement Notifications</h5>
-                                <p>
-                                    Receive alerts for <span className="text-primary">RFQ updates</span>, quote submissions, and approval requests.
-                                </p>
-                                <label className="w-12 h-6 relative">
-                                    <input type="checkbox" className="custom_switch absolute w-full h-full opacity-0 z-10 cursor-pointer peer" id="custom_switch_checkbox3" defaultChecked />
-                                    <span className="bg-[#ebedf2] dark:bg-dark block h-full rounded-full before:absolute before:left-1 before:bg-white  dark:before:bg-white-dark dark:peer-checked:before:bg-white before:bottom-1 before:w-4 before:h-4 before:rounded-full peer-checked:before:left-7 peer-checked:bg-primary before:transition-all before:duration-300"></span>
-                                </label>
-                            </div>
-                            <div className="panel space-y-5">
-                                <h5 className="font-semibold text-lg mb-4">Hide left navigation</h5>
-                                <p>
-                                    Sidebar will be <span className="text-primary">hidden</span> by default
-                                </p>
-                                <label className="w-12 h-6 relative">
-                                    <input type="checkbox" className="custom_switch absolute w-full h-full opacity-0 z-10 cursor-pointer peer" id="custom_switch_checkbox4" />
-                                    <span className="bg-[#ebedf2] dark:bg-dark block h-full rounded-full before:absolute before:left-1 before:bg-white  dark:before:bg-white-dark dark:peer-checked:before:bg-white before:bottom-1 before:w-4 before:h-4 before:rounded-full peer-checked:before:left-7 peer-checked:bg-primary before:transition-all before:duration-300"></span>
-                                </label>
-                            </div>
-                            <div className="panel space-y-5">
-                                <h5 className="font-semibold text-lg mb-4">Auto-Approve Low-Value Items</h5>
-                                <p>
-                                    Automatically approve RFQs under <span className="text-primary">$1,000</span>
-                                </p>
-                                <label className="w-12 h-6 relative">
-                                    <input type="checkbox" className="custom_switch absolute w-full h-full opacity-0 z-10 cursor-pointer peer" id="custom_switch_checkbox5" />
-                                    <span className="bg-[#ebedf2] dark:bg-dark block h-full rounded-full before:absolute before:left-1 before:bg-white  dark:before:bg-white-dark dark:peer-checked:before:bg-white before:bottom-1 before:w-4 before:h-4 before:rounded-full peer-checked:before:left-7 peer-checked:bg-primary before:transition-all before:duration-300"></span>
-                                </label>
-                            </div>
-                            <div className="panel space-y-5">
-                                <h5 className="font-semibold text-lg mb-4">Supplier Email Notifications</h5>
-                                <p>
-                                    Send automatic email updates to <span className="text-primary">suppliers</span> on RFQ changes
-                                </p>
-                                <label className="w-12 h-6 relative">
-                                    <input type="checkbox" className="custom_switch absolute w-full h-full opacity-0 z-10 cursor-pointer peer" id="custom_switch_checkbox6" defaultChecked />
-                                    <span className="bg-[#ebedf2] dark:bg-dark block h-full rounded-full before:absolute before:left-1 before:bg-white  dark:before:bg-white-dark dark:peer-checked:before:bg-white before:bottom-1 before:w-4 before:h-4 before:rounded-full peer-checked:before:left-7 peer-checked:bg-primary before:transition-all before:duration-300"></span>
-                                </label>
-                            </div>
-                        </div>
+                        ) : (
+                            ''
+                        )}
                     </div>
-                ) : (
-                    ''
-                )}
-                {tabs === 'danger-zone' ? (
-                    <div className="switch">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                            <div className="panel space-y-5">
-                                <h5 className="font-semibold text-lg mb-4">Clear Procurement Cache</h5>
-                                <p>Remove cached RFQ data, supplier information, and reports to improve system performance.</p>
-                                <button className="btn btn-secondary">Clear Cache</button>
-                            </div>
-                            <div className="panel space-y-5">
-                                <h5 className="font-semibold text-lg mb-4">Deactivate Account</h5>
-                                <p>You will not be able to receive messages, notifications for up to 24 hours.</p>
-                                <label className="w-12 h-6 relative">
-                                    <input type="checkbox" className="custom_switch absolute w-full h-full opacity-0 z-10 cursor-pointer peer" id="custom_switch_checkbox7" />
-                                    <span className="bg-[#ebedf2] dark:bg-dark block h-full rounded-full before:absolute before:left-1 before:bg-white dark:before:bg-white-dark dark:peer-checked:before:bg-white before:bottom-1 before:w-4 before:h-4 before:rounded-full peer-checked:before:left-7 peer-checked:bg-primary before:transition-all before:duration-300"></span>
-                                </label>
-                            </div>
-                            <div className="panel space-y-5">
-                                <h5 className="font-semibold text-lg mb-4">Delete Account</h5>
-                                <p>Once you delete the account, there is no going back. Please be certain.</p>
-                                <button className="btn btn-danger btn-delete-account">Delete my account</button>
-                            </div>
-                        </div>
-                    </div>
-                ) : (
-                    ''
                 )}
             </div>
         </div>

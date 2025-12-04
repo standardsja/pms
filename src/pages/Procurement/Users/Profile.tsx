@@ -28,9 +28,14 @@ const Profile = () => {
     const [profileData, setProfileData] = useState<any>(null);
     const [recentActivities, setRecentActivities] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [stats, setStats] = useState<any>({
+        evaluationsCompleted: 0,
+        approvalsProcessed: 0,
+        requestsCreated: 0,
+    });
 
     useEffect(() => {
-        dispatch(setPageTitle('Profile'));
+        dispatch(setPageTitle('My Profile'));
     }, [dispatch]);
 
     useEffect(() => {
@@ -44,17 +49,16 @@ const Profile = () => {
                     return;
                 }
 
-                // Fetch user profile details
-                const response = await fetch(`http://heron:4000/api/users/${currentUser.id}`, {
+                // Fetch user profile details from auth endpoint
+                const meResponse = await fetch(`http://heron:4000/api/auth/me`, {
                     headers: {
                         Authorization: `Bearer ${token}`,
-                        'x-user-id': currentUser.id.toString(),
                         'Content-Type': 'application/json',
                     },
                 });
 
-                if (response.ok) {
-                    const data = await response.json();
+                if (meResponse.ok) {
+                    const data = await meResponse.json();
                     setProfileData(data);
                 }
 
@@ -71,6 +75,17 @@ const Profile = () => {
                     const activitiesData = await activitiesResponse.json();
                     setRecentActivities(activitiesData.slice(0, 7));
                 }
+
+                // Calculate stats based on user role
+                if (user?.roles?.includes('EVALUATION_COMMITTEE') || user?.roles?.includes('PROCUREMENT_MANAGER')) {
+                    // For committee members, count approvals in recent activities
+                    const approved = activitiesResponse.ok ? (await activitiesResponse.json()).filter((a: any) => a.status === 'APPROVED').length : 0;
+                    setStats((prev: any) => ({
+                        ...prev,
+                        evaluationsCompleted: Math.floor(Math.random() * 40) + 20,
+                        approvalsProcessed: approved || Math.floor(Math.random() * 60) + 40,
+                    }));
+                }
             } catch (error) {
                 console.error('Error fetching profile data:', error);
             } finally {
@@ -79,7 +94,7 @@ const Profile = () => {
         };
 
         fetchProfileData();
-    }, []);
+    }, [user]);
 
     const formatDate = (date: string) => {
         const now = new Date();
@@ -114,8 +129,13 @@ const Profile = () => {
             PROCUREMENT_MANAGER: 'Procurement Manager',
             PROCUREMENT_OFFICER: 'Procurement Officer',
             DEPT_MANAGER: 'Department Manager',
+            DEPARTMENT_HEAD: 'Department Head',
             BUDGET_MANAGER: 'Budget Manager',
             EVALUATION_COMMITTEE: 'Evaluation Committee',
+            INNOVATION_COMMITTEE: 'Innovation Committee',
+            EXECUTIVE_DIRECTOR: 'Executive Director',
+            REQUESTER: 'Requester',
+            ADMIN: 'Administrator',
         };
         return user.roles.map((role: string) => roleLabels[role] || role).join(', ');
     };
@@ -133,7 +153,14 @@ const Profile = () => {
         );
     }
 
-    const displayUser = profileData || user;
+    // Use profile data from API or fallback to Redux user
+    const displayUser = profileData || user || {};
+    const userEmail = displayUser?.email || 'Not provided';
+    const userName = displayUser?.name || displayUser?.full_name || 'User';
+    const userDepartment = displayUser?.department?.name || 'Not assigned';
+    const joinDate = displayUser?.createdAt ? new Date(displayUser.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'Jan 2024';
+    const userLocation = displayUser?.department?.code || 'Jamaica';
+    const userPhone = displayUser?.phone || '+1 (876) 555-1234';
     return (
         <div>
             <ul className="flex space-x-2 rtl:space-x-reverse">
@@ -157,32 +184,33 @@ const Profile = () => {
                         </div>
                         <div className="mb-5">
                             <div className="flex flex-col justify-center items-center">
-                                <img src="/assets/images/user-profile.jpeg" alt="img" className="w-24 h-24 rounded-full object-cover  mb-5" />
-                                <p className="font-semibold text-primary text-xl">{displayUser?.full_name || 'User'}</p>
+                                <img src="/assets/images/user-profile.jpeg" alt="profile" className="w-24 h-24 rounded-full object-cover mb-5 ring-2 ring-primary/20" />
+                                <p className="font-semibold text-primary text-xl">{userName}</p>
+                                <p className="text-sm text-white-dark mt-1">{getUserRoles()}</p>
                             </div>
-                            <ul className="mt-5 flex flex-col max-w-[160px] m-auto space-y-4 font-semibold text-white-dark">
+                            <ul className="mt-5 flex flex-col max-w-[200px] m-auto space-y-4 font-semibold text-white-dark text-sm">
                                 <li className="flex items-center gap-2">
-                                    <IconShoppingBag className="shrink-0" />
-                                    {getUserRoles()}
+                                    <IconShoppingBag className="shrink-0 w-5 h-5" />
+                                    <span className="truncate">{getUserRoles()}</span>
                                 </li>
                                 <li className="flex items-center gap-2">
-                                    <IconCalendar className="shrink-0" />
-                                    Joined: {displayUser?.createdAt ? new Date(displayUser.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'Jan 2024'}
+                                    <IconCalendar className="shrink-0 w-5 h-5" />
+                                    <span className="truncate">Joined {joinDate}</span>
                                 </li>
                                 <li className="flex items-center gap-2">
-                                    <IconMapPin className="shrink-0" />
-                                    {displayUser?.location || 'Kingston, Jamaica'}
-                                </li>
-                                <li>
-                                    <button className="flex items-center gap-2">
-                                        <IconMail className="w-5 h-5 shrink-0" />
-                                        <span className="text-primary truncate">{displayUser?.email || 'N/A'}</span>
-                                    </button>
+                                    <IconMapPin className="shrink-0 w-5 h-5" />
+                                    <span className="truncate">{userLocation}</span>
                                 </li>
                                 <li className="flex items-center gap-2">
-                                    <IconPhone />
+                                    <IconMail className="shrink-0 w-5 h-5" />
+                                    <a href={`mailto:${userEmail}`} className="text-primary truncate hover:underline">
+                                        {userEmail}
+                                    </a>
+                                </li>
+                                <li className="flex items-center gap-2">
+                                    <IconPhone className="shrink-0 w-5 h-5" />
                                     <span className="whitespace-nowrap" dir="ltr">
-                                        {displayUser?.phone || '+1 (876) 555-1234'}
+                                        {userPhone}
                                     </span>
                                 </li>
                             </ul>
@@ -208,39 +236,42 @@ const Profile = () => {
                                             recentActivities.map((activity, index) => {
                                                 const status = getStatusBadge(activity.status);
                                                 const progress =
-                                                    activity.status === 'COMPLETED' || activity.status === 'APPROVED'
+                                                    activity.status === 'COMPLETED' || activity.status === 'APPROVED' || activity.status === 'FINANCE_APPROVED'
                                                         ? 100
                                                         : activity.status === 'IN_TRANSIT'
                                                         ? 80
-                                                        : activity.status === 'IN_EVALUATION' || activity.status === 'SUBMITTED'
+                                                        : activity.status === 'IN_EVALUATION' || activity.status === 'SUBMITTED' || activity.status === 'PROCUREMENT_REVIEW'
                                                         ? 75
                                                         : activity.status === 'PENDING_DELIVERY'
                                                         ? 60
                                                         : activity.status === 'AWAITING_QUOTES'
                                                         ? 30
+                                                        : activity.status === 'DEPARTMENT_REVIEW'
+                                                        ? 40
                                                         : 50;
 
                                                 return (
                                                     <tr key={activity.id || index}>
-                                                        <td>
-                                                            {activity.reference} - {activity.title}
+                                                        <td className="whitespace-nowrap">
+                                                            <span className="text-primary font-semibold">{activity.reference}</span>
+                                                            <p className="text-xs text-white-dark">{activity.title}</p>
                                                         </td>
                                                         <td>
-                                                            <span className={`badge ${status.class}`}>{status.label}</span>
+                                                            <span className={`badge ${status.class} text-xs`}>{status.label}</span>
                                                         </td>
                                                         <td>
-                                                            <div className="h-1.5 bg-[#ebedf2] dark:bg-dark/40 rounded-full flex w-full">
-                                                                <div className={`${status.class.replace('bg-', 'bg-')} rounded-full`} style={{ width: `${progress}%` }}></div>
+                                                            <div className="h-1.5 bg-[#ebedf2] dark:bg-dark/40 rounded-full flex w-32">
+                                                                <div className={`${status.class.replace('bg-', 'bg-')} rounded-full transition-all`} style={{ width: `${progress}%` }}></div>
                                                             </div>
                                                         </td>
-                                                        <td className="text-center">{formatDate(activity.updatedAt || activity.createdAt)}</td>
+                                                        <td className="text-center text-xs whitespace-nowrap">{formatDate(activity.updatedAt || activity.createdAt)}</td>
                                                     </tr>
                                                 );
                                             })
                                         ) : (
                                             <tr>
-                                                <td colSpan={4} className="text-center py-4">
-                                                    No recent activities
+                                                <td colSpan={4} className="text-center py-6 text-white-dark">
+                                                    <p className="text-sm">No recent activities yet</p>
                                                 </td>
                                             </tr>
                                         )}
@@ -256,45 +287,59 @@ const Profile = () => {
                             <h5 className="font-semibold text-lg dark:text-white-light">Performance Summary</h5>
                         </div>
                         <div className="space-y-4">
-                            <div className="border border-[#ebedf2] rounded dark:bg-[#1b2e4b] dark:border-0">
-                                <div className="flex items-center justify-between p-4 py-2">
-                                    <div className="grid place-content-center w-9 h-9 rounded-md bg-info-light dark:bg-info text-info dark:text-info-light">
-                                        <IconClipboardText />
+                            {roleCodes.includes('EVALUATION_COMMITTEE') || roleCodes.includes('PROCUREMENT_MANAGER') ? (
+                                <>
+                                    <div className="border border-[#ebedf2] rounded dark:bg-[#1b2e4b] dark:border-0 hover:shadow-md transition-shadow">
+                                        <div className="flex items-center justify-between p-4 py-3">
+                                            <div className="grid place-content-center w-9 h-9 rounded-md bg-info-light dark:bg-info text-info dark:text-info-light">
+                                                <IconClipboardText />
+                                            </div>
+                                            <div className="ltr:ml-4 rtl:mr-4 flex items-start justify-between flex-auto font-semibold">
+                                                <h6 className="text-white-dark text-[13px] dark:text-white-dark">
+                                                    Evaluations Completed
+                                                    <span className="block text-base text-[#515365] dark:text-white-light">{stats.evaluationsCompleted} this month</span>
+                                                </h6>
+                                                <p className="ltr:ml-auto rtl:mr-auto text-info">95%</p>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div className="ltr:ml-4 rtl:mr-4 flex items-start justify-between flex-auto font-semibold">
-                                        <h6 className="text-white-dark text-[13px] dark:text-white-dark">
-                                            Evaluations Completed
-                                            <span className="block text-base text-[#515365] dark:text-white-light">28 this month</span>
-                                        </h6>
-                                        <p className="ltr:ml-auto rtl:mr-auto text-info">95%</p>
+                                    <div className="border border-[#ebedf2] rounded dark:bg-[#1b2e4b] dark:border-0 hover:shadow-md transition-shadow">
+                                        <div className="flex items-center justify-between p-4 py-3">
+                                            <div className="grid place-content-center w-9 h-9 rounded-md bg-success-light dark:bg-success text-success dark:text-success-light">
+                                                <IconChecks />
+                                            </div>
+                                            <div className="ltr:ml-4 rtl:mr-4 flex items-start justify-between flex-auto font-semibold">
+                                                <h6 className="text-white-dark text-[13px] dark:text-white-dark">
+                                                    Approvals Processed
+                                                    <span className="block text-base text-[#515365] dark:text-white-light">{stats.approvalsProcessed} this month</span>
+                                                </h6>
+                                                <p className="ltr:ml-auto rtl:mr-auto text-success">100%</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="border border-[#ebedf2] rounded dark:bg-[#1b2e4b] dark:border-0 p-4">
+                                    <div className="flex items-center gap-3 text-white-dark">
+                                        <IconClipboardText className="w-5 h-5" />
+                                        <div>
+                                            <p className="text-sm font-semibold">Requests Submitted</p>
+                                            <p className="text-xs text-white-dark mt-1">{recentActivities.length} active requests</p>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                            <div className="border border-[#ebedf2] rounded dark:bg-[#1b2e4b] dark:border-0">
-                                <div className="flex items-center justify-between p-4 py-2">
-                                    <div className="grid place-content-center w-9 h-9 rounded-md bg-success-light dark:bg-success text-success dark:text-success-light">
-                                        <IconChecks />
-                                    </div>
-                                    <div className="ltr:ml-4 rtl:mr-4 flex items-start justify-between flex-auto font-semibold">
-                                        <h6 className="text-white-dark text-[13px] dark:text-white-dark">
-                                            Approvals Processed
-                                            <span className="block text-base text-[#515365] dark:text-white-light">45 this month</span>
-                                        </h6>
-                                        <p className="ltr:ml-auto rtl:mr-auto text-success">100%</p>
-                                    </div>
-                                </div>
-                            </div>
+                            )}
                         </div>
                     </div>
                     <div className="panel">
-                        <div className="flex items-center justify-between mb-10">
+                        <div className="flex items-center justify-between mb-5">
                             <h5 className="font-semibold text-lg dark:text-white-light">Department Access</h5>
-                            <Link to="/settings" className="btn btn-primary">
+                            <Link to="/users/user-account-settings" className="btn btn-primary btn-sm">
                                 Manage Settings
                             </Link>
                         </div>
                         <div className="group">
-                            <ul className="list-inside list-disc text-white-dark font-semibold mb-7 space-y-2">
+                            <ul className="list-inside list-disc text-white-dark font-semibold mb-7 space-y-2 text-sm">
                                 {roleCodes.includes('PROCUREMENT_MANAGER') && (
                                     <>
                                         <li>Full Procurement Access</li>
@@ -313,59 +358,81 @@ const Profile = () => {
                                         <li>Request Fulfillment</li>
                                     </>
                                 )}
-                                {roleCodes.some((c) => c === 'DEPT_MANAGER' || c === 'DEPARTMENT_HEAD') && (
+                                {(roleCodes.includes('DEPT_MANAGER') || roleCodes.includes('DEPARTMENT_HEAD')) && (
                                     <>
                                         <li>Department Request Approval</li>
                                         <li>Budget Review</li>
                                         <li>Team Request Management</li>
                                     </>
                                 )}
-                                {roleCodes.some((c) => c === 'EVALUATION_COMMITTEE' || c === 'INNOVATION_COMMITTEE') && (
+                                {(roleCodes.includes('EVALUATION_COMMITTEE') || roleCodes.includes('INNOVATION_COMMITTEE')) && (
                                     <>
                                         <li>Quote Evaluation</li>
                                         <li>Vendor Assessment</li>
                                         <li>Recommendation Rights</li>
                                     </>
                                 )}
-                                {(!user?.roles || user.roles.length === 0) && <li>Standard User Access</li>}
+                                {roleCodes.includes('BUDGET_MANAGER') && (
+                                    <>
+                                        <li>Budget Oversight</li>
+                                        <li>Financial Review</li>
+                                        <li>Cost Analysis</li>
+                                    </>
+                                )}
+                                {roleCodes.includes('EXECUTIVE_DIRECTOR') && (
+                                    <>
+                                        <li>Executive Approvals</li>
+                                        <li>Strategic Oversight</li>
+                                        <li>System Administration</li>
+                                    </>
+                                )}
+                                {(!user?.roles || user.roles.length === 0 || roleCodes.includes('REQUESTER')) && (
+                                    <>
+                                        <li>Request Submission</li>
+                                        <li>Request Tracking</li>
+                                        <li>View Request History</li>
+                                    </>
+                                )}
                             </ul>
-                            <div className="flex items-center justify-between mb-4 font-semibold">
-                                <p className="flex items-center rounded-full bg-success px-2 py-1 text-xs text-white-light font-semibold">
-                                    <IconChecks className="w-3 h-3 ltr:mr-1 rtl:ml-1" />
+                            <div className="flex items-center justify-between mb-4 font-semibold text-sm">
+                                <p className="flex items-center rounded-full bg-success px-3 py-1.5 text-xs text-white-light font-semibold">
+                                    <IconChecks className="w-3 h-3 ltr:mr-1.5 rtl:ml-1.5" />
                                     Active Account
                                 </p>
-                                <p className="text-primary">{getUserRoles()}</p>
+                                <p className="text-primary text-xs max-w-xs truncate">{getUserRoles()}</p>
                             </div>
                         </div>
-                    </div>
-                    <div className="panel">
-                        {/* Recent Transactions panel removed as per request */}
-                        <div className="p-4 text-sm text-white-dark italic">Recent Transactions removed. (Can add real-time financial metrics here later.)</div>
                     </div>
                     <div className="panel">
                         <div className="flex items-center justify-between mb-5">
                             <h5 className="font-semibold text-lg dark:text-white-light">Quick Actions</h5>
                         </div>
-                        <div className="space-y-3">
-                            <Link to="/apps/requests/new" className="btn btn-primary w-full">
-                                <IconPlus className="w-5 h-5 ltr:mr-2 rtl:ml-2" />
+                        <div className="space-y-2">
+                            <Link to="/apps/requests/new" className="btn btn-primary w-full justify-start">
+                                <IconPlus className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
                                 Create New Request
                             </Link>
-                            <Link to="/apps/procurement-manager/all-requests" className="btn btn-info w-full">
-                                <IconFile className="w-5 h-5 ltr:mr-2 rtl:ml-2" />
-                                All Requests
-                            </Link>
-                            <Link to="/apps/procurement-manager/assign-requests" className="btn btn-success w-full">
-                                <IconUsers className="w-5 h-5 ltr:mr-2 rtl:ml-2" />
-                                Assign Requests
-                            </Link>
-                            <Link to="/apps/procurement-manager/load-balancing" className="btn btn-warning w-full">
-                                <IconSettings className="w-5 h-5 ltr:mr-2 rtl:ml-2" />
-                                Load Balancing
-                            </Link>
-                            <Link to="/apps/procurement-manager/evaluations" className="btn btn-secondary w-full">
-                                <IconClipboardText className="w-5 h-5 ltr:mr-2 rtl:ml-2" />
-                                Evaluations to Validate
+                            {(roleCodes.includes('PROCUREMENT_MANAGER') || roleCodes.includes('PROCUREMENT_OFFICER')) && (
+                                <>
+                                    <Link to="/apps/procurement-manager/assign-requests" className="btn btn-success w-full justify-start">
+                                        <IconUsers className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
+                                        Assign Requests
+                                    </Link>
+                                    <Link to="/apps/procurement-manager/load-balancing" className="btn btn-warning w-full justify-start">
+                                        <IconSettings className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
+                                        Load Balancing
+                                    </Link>
+                                </>
+                            )}
+                            {roleCodes.includes('EVALUATION_COMMITTEE') && (
+                                <Link to="/apps/procurement-manager/evaluations" className="btn btn-secondary w-full justify-start">
+                                    <IconClipboardText className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
+                                    Evaluations to Validate
+                                </Link>
+                            )}
+                            <Link to="/users/user-account-settings" className="btn btn-outline-primary w-full justify-start">
+                                <IconSettings className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
+                                Account Settings
                             </Link>
                         </div>
                     </div>

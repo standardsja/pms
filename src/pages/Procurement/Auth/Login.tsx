@@ -10,36 +10,10 @@ import IconEye from '../../../components/Icon/IconEye';
 import packageInfo from '../../../../package.json';
 import { setAuth } from '../../../utils/auth';
 import { loginWithMicrosoft, initializeMsal, isMsalConfigured } from '../../../auth/msal';
-import { statsService, SystemStats } from '../../../services/statsService';
 
 const Login = () => {
     const dispatch = useDispatch();
     const navigate = useNavigate();
-
-    useEffect(() => {
-        dispatch(setPageTitle('Login'));
-        // Initialize MSAL early so button clicks don't race initialization
-        if (isMsalConfigured) {
-            initializeMsal().catch(() => {});
-        }
-    });
-
-    useEffect(() => {
-        // Fetch real-time system statistics
-        const fetchSystemStats = async () => {
-            try {
-                const data = await statsService.getSystemStats();
-                setSystemStats(data);
-            } catch (error) {
-                console.error('Failed to fetch system stats:', error);
-            }
-        };
-
-        fetchSystemStats();
-        // Refresh stats every 30 seconds
-        const interval = setInterval(fetchSystemStats, 30000);
-        return () => clearInterval(interval);
-    }, []);
 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -49,16 +23,39 @@ const Login = () => {
     const [mfaCode, setMfaCode] = useState(['', '', '', '', '', '']);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
-    const [loginMode] = useState<'local' | 'ldap'>('ldap'); // Default to LDAP, hide toggle
-    const [systemStats, setSystemStats] = useState<SystemStats>({
-        activeUsers: 0,
-        requestsThisMonth: 0,
-        innovationIdeas: 0,
-        pendingApprovals: 0,
-        systemUptime: 99.9,
-        totalProcessedRequests: 0,
-        timestamp: new Date().toISOString(),
+    const [systemStats, setSystemStats] = useState({ activeUsers: 0, systemUptime: 99.9 });
+
+    useEffect(() => {
+        dispatch(setPageTitle('Login'));
+        // Initialize MSAL early so button clicks don't race initialization
+        if (isMsalConfigured) {
+            initializeMsal().catch(() => {});
+        }
     });
+
+    // Fetch system stats from backend
+    useEffect(() => {
+        const fetchStats = async () => {
+            try {
+                const apiUrl = import.meta.env.VITE_API_URL || '';
+                const response = await fetch(`${apiUrl}/api/stats/system`);
+                if (response.ok) {
+                    const data = await response.json();
+                    setSystemStats({
+                        activeUsers: data.activeUsers || 0,
+                        systemUptime: data.systemUptime || 99.9,
+                    });
+                }
+            } catch (err) {
+                // Silently fail - use defaults
+                console.debug('Failed to fetch system stats');
+            }
+        };
+        fetchStats();
+        // Refresh stats every 30 seconds
+        const interval = setInterval(fetchStats, 30000);
+        return () => clearInterval(interval);
+    }, []);
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -70,11 +67,8 @@ const Login = () => {
             // use relative URLs (e.g. `/api/...`) and are handled by Vite's proxy.
             const apiUrl = import.meta.env.VITE_API_URL || '';
 
-            // Choose endpoint based on login mode
-            const endpoint = loginMode === 'ldap' ? '/api/auth/ldap-login' : '/api/auth/login';
-
-            // Primary: real password login (local or LDAP)
-            let res = await fetch(`${apiUrl}${endpoint}`, {
+            // Primary: real password login
+            let res = await fetch(`${apiUrl}/api/auth/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password }),
@@ -83,8 +77,7 @@ const Login = () => {
 
             // Dev-only fallback: if backend login endpoint returns 404/500 during local setup,
             // try the non-password helper endpoint to unblock UX. This will NOT run in production builds.
-            // Skip fallback for LDAP mode
-            if (!res.ok && import.meta.env.DEV && loginMode === 'local') {
+            if (!res.ok && import.meta.env.DEV) {
                 try {
                     // Use relative path so Vite proxy can route to backend in dev
                     const fallbackRes = await fetch(`${apiUrl}/auth/test-login`, {
@@ -296,7 +289,7 @@ const Login = () => {
                                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
                             </svg>
                             <div>
-                                <div className="text-white font-bold text-lg">{systemStats.systemUptime.toFixed(1)}%</div>
+                                <div className="text-white font-bold text-lg">{systemStats.systemUptime}%</div>
                                 <div className="text-white/80 text-xs">Uptime</div>
                             </div>
                         </div>
@@ -393,7 +386,7 @@ const Login = () => {
                                         <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                                             <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
                                         </svg>
-                                        <span>{systemStats.activeUsers.toLocaleString()} active users</span>
+                                        <span>{systemStats.activeUsers.toLocaleString()} active users today</span>
                                     </div>
                                 </div>
                             </div>
@@ -449,8 +442,7 @@ const Login = () => {
                             <div className="mb-8">
                                 <h2 className="text-4xl font-black text-gray-900 dark:text-white mb-3">Sign In</h2>
                                 <p className="text-gray-600 dark:text-gray-400 text-lg">Enter your credentials to access your account</p>
-
-                                <div className="mt-6 flex items-center gap-4 text-sm">
+                                <div className="mt-4 flex items-center gap-4 text-sm">
                                     <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
                                         <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                                         <span className="font-medium">System Online</span>
@@ -493,7 +485,7 @@ const Login = () => {
                                             value={email}
                                             onChange={(e) => setEmail(e.target.value)}
                                             className="form-input pl-11 w-full h-12 text-base border-2 focus:border-primary"
-                                            placeholder="your.email@bos.local"
+                                            placeholder="your.email@bsj.gov.jm"
                                             required
                                         />
                                     </div>
