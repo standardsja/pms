@@ -2,7 +2,7 @@
 /**
  * LDAP Connection Test Script
  * Tests LDAP connectivity and authentication
- * 
+ *
  * Usage: node scripts/test-ldap-connection.mjs [email]
  */
 import { Client } from 'ldapts';
@@ -46,32 +46,32 @@ const client = new Client({
 async function testConnection() {
     try {
         console.log('Step 1: Testing LDAP server connection...');
-        
+
         // Try to bind with admin credentials
         await client.bind(LDAP_CONFIG.bindDN, LDAP_CONFIG.bindPassword);
         console.log('✅ Successfully connected and authenticated to LDAP server');
-        
+
         // If email provided, search for user
         const email = process.argv[2];
         if (email) {
             console.log(`\nStep 2: Searching for user: ${email}`);
-            
+
             const { searchEntries } = await client.search(LDAP_CONFIG.searchDN, {
                 filter: `(userPrincipalName=${email})`,
                 scope: 'sub',
                 attributes: ['dn', 'userPrincipalName', 'cn', 'displayName', 'mail', 'department', 'sAMAccountName'],
             });
-            
+
             if (searchEntries.length === 0) {
                 console.log('❌ User not found in LDAP directory');
                 console.log('\nTrying alternative search with mail attribute...');
-                
+
                 const { searchEntries: mailEntries } = await client.search(LDAP_CONFIG.searchDN, {
                     filter: `(mail=${email})`,
                     scope: 'sub',
                     attributes: ['dn', 'userPrincipalName', 'cn', 'displayName', 'mail', 'department', 'sAMAccountName'],
                 });
-                
+
                 if (mailEntries.length === 0) {
                     console.log('❌ User not found with mail attribute either');
                     console.log('\nSuggestions:');
@@ -92,15 +92,14 @@ async function testConnection() {
             console.log('\nℹ️  To search for a specific user, provide email as argument:');
             console.log('   node scripts/test-ldap-connection.mjs user@example.com');
         }
-        
+
         await client.unbind();
         console.log('\n✅ Test completed successfully');
         process.exit(0);
-        
     } catch (error) {
         console.error('\n❌ LDAP connection test failed');
         console.error('Error:', error.message);
-        
+
         if (error.errno === 'ETIMEDOUT') {
             console.error('\n🔍 Diagnosis: Connection timeout');
             console.error('Possible causes:');
@@ -119,10 +118,10 @@ async function testConnection() {
             console.error('\n🔍 Diagnosis: Invalid credentials');
             console.error('The bind DN or password is incorrect');
         }
-        
+
         console.error('\nFull error details:');
         console.error(error);
-        
+
         await client.unbind().catch(() => {});
         process.exit(1);
     }
