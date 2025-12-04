@@ -145,8 +145,8 @@ const Sidebar = () => {
                     </div>
                     <PerfectScrollbar className="h-[calc(100vh-80px)] relative">
                         <ul className="relative font-semibold space-y-0.5 p-4 py-0">
-                            {isAdmin ? (
-                                // Admin Menu
+                            {/* Show ADMIN section for admin users */}
+                            {isAdmin && (
                                 <>
                                     <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
                                         <IconMinus className="w-4 h-5 flex-none hidden" />
@@ -189,7 +189,10 @@ const Sidebar = () => {
                                         </NavLink>
                                     </li>
                                 </>
-                            ) : isEvaluationCommittee ? (
+                            )}
+
+                            {/* Show EVALUATION_COMMITTEE section */}
+                            {isEvaluationCommittee && (
                                 // Evaluation Committee Menu
                                 <>
                                     <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
@@ -205,7 +208,10 @@ const Sidebar = () => {
                                         </NavLink>
                                     </li>
                                 </>
-                            ) : isCommitteeMember ? (
+                            )}
+
+                            {/* Show INNOVATION_COMMITTEE section */}
+                            {isCommitteeMember && (
                                 // Innovation Committee Menu
                                 <>
                                     <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
@@ -258,7 +264,10 @@ const Sidebar = () => {
                                         </NavLink>
                                     </li>
                                 </>
-                            ) : isInnovationHub ? (
+                            )}
+
+                            {/* Show INNOVATION_HUB section when not already in innovation context */}
+                            {!isCommitteeMember && isInnovationHub && (
                                 // Innovation Hub Menu
                                 <>
                                     <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
@@ -320,7 +329,10 @@ const Sidebar = () => {
                                         </NavLink>
                                     </li>
                                 </>
-                            ) : isSupplier ? (
+                            )}
+
+                            {/* Show SUPPLIER section */}
+                            {isSupplier && (
                                 // Supplier Only Menu
                                 <>
                                     <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
@@ -336,7 +348,10 @@ const Sidebar = () => {
                                         </NavLink>
                                     </li>
                                 </>
-                            ) : isRequester ? (
+                            )}
+
+                            {/* Show REQUESTER section */}
+                            {isRequester && (
                                 // Requester Only Menu
                                 <>
                                     <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
@@ -360,7 +375,10 @@ const Sidebar = () => {
                                         </NavLink>
                                     </li>
                                 </>
-                            ) : isDepartmentManager ? (
+                            )}
+
+                            {/* Show DEPARTMENT_MANAGER section */}
+                            {isDepartmentManager && (
                                 // Department Manager Menu
                                 <>
                                     <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
@@ -395,7 +413,10 @@ const Sidebar = () => {
                                         </NavLink>
                                     </li>
                                 </>
-                            ) : isProcurementOfficer ? (
+                            )}
+
+                            {/* Show PROCUREMENT_OFFICER section */}
+                            {isProcurementOfficer && (
                                 // Procurement Officer Only Menu
                                 <>
                                     <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
@@ -516,7 +537,10 @@ const Sidebar = () => {
                                         </NavLink>
                                     </li>
                                 </>
-                            ) : isProcurementManager ? (
+                            )}
+
+                            {/* Show PROCUREMENT_MANAGER section */}
+                            {isProcurementManager && (
                                 // Procurement Manager Only Menu
                                 <>
                                     <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
@@ -600,8 +624,11 @@ const Sidebar = () => {
                                         </NavLink>
                                     </li>
                                 </>
-                            ) : (
-                                // All Roles Menu (Default)
+                            )}
+
+                            {/* Show Budget Manager section if applicable */}
+                            {userRoles.some((r: string) => r?.toUpperCase()?.includes('BUDGET')) && (
+                                // Budget Manager Menu (Old fallback - kept for compatibility)
                                 <>
                                     <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
                                         <IconMinus className="w-4 h-5 flex-none hidden" />
