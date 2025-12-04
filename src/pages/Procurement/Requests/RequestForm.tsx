@@ -92,6 +92,9 @@ const RequestForm = () => {
     const [procurementComments, setProcurementComments] = useState('');
     const [attachments, setAttachments] = useState<File[]>([]);
     const [existingAttachments, setExistingAttachments] = useState<Array<{ id: number; filename: string; url: string }>>([]);
+    const [financeOfficers, setFinanceOfficers] = useState<Array<{ id: number; name: string; email: string; assignedCount: number }>>([]);
+    const [selectedFinanceOfficerId, setSelectedFinanceOfficerId] = useState<number | null>(null);
+    const [isReassigningOfficer, setIsReassigningOfficer] = useState(false);
     const [headerDeptCode, setHeaderDeptCode] = useState('');
     const [headerMonth, setHeaderMonth] = useState('');
     const [headerYear, setHeaderYear] = useState<number | null>(new Date().getFullYear());
@@ -126,6 +129,7 @@ const RequestForm = () => {
     // For now, we'll use a simple check: if they have FINANCE role, they're a budget officer
     // Budget managers would need a separate role or identification method
     const isBudgetOfficer = userRoles.some((r: string) => r === 'FINANCE' || /finance/i.test(r));
+    const isBudgetManager = userRoles.some((r: string) => r === 'BUDGET_MANAGER' || /budget.*manager/i.test(r));
 
     // Check if user has manager privileges (can override splintering warnings)
     const hasManagerRole = userRoles.some((r: string) => r === 'PROCUREMENT_MANAGER' || r === 'DEPT_MANAGER' || r === 'MANAGER' || r === 'EXECUTIVE' || /manager/i.test(r));
@@ -146,6 +150,31 @@ const RequestForm = () => {
     const canApproveBudgetOfficer = !!(isAssignee && requestMeta?.status === 'FINANCE_REVIEW' && isBudgetOfficer);
     const canApproveBudgetManager = !!(isAssignee && requestMeta?.status === 'BUDGET_MANAGER_REVIEW' && !isBudgetOfficer);
     const canDispatchToVendors = !!(isAssignee && requestMeta?.status === 'FINANCE_APPROVED');
+
+    // Load available finance officers if user is Budget Manager and request is in FINANCE_REVIEW
+    useEffect(() => {
+        if (!isEditMode || !isBudgetManager || requestMeta?.status !== 'FINANCE_REVIEW') return;
+
+        const fetchFinanceOfficers = async () => {
+            try {
+                const resp = await fetch(getApiUrl('/finance-officers'), {
+                    headers: { 'x-user-id': String(currentUserId) },
+                });
+                if (resp.ok) {
+                    const officers = await resp.json();
+                    setFinanceOfficers(officers);
+                    // Pre-select current assignee if available
+                    if (requestMeta?.currentAssigneeId) {
+                        setSelectedFinanceOfficerId(requestMeta.currentAssigneeId);
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to fetch finance officers:', err);
+            }
+        };
+
+        fetchFinanceOfficers();
+    }, [isEditMode, isBudgetManager, requestMeta?.status, requestMeta?.currentAssigneeId, currentUserId]);
 
     // Auto-fill manager/HOD/Budget names when they're the assignee and field is empty
     useEffect(() => {
@@ -818,6 +847,50 @@ const RequestForm = () => {
         } catch (err: any) {
             console.error(err);
             Swal.fire({ icon: 'error', title: 'Failed', text: err?.message || String(err) });
+        }
+    };
+
+    const handleReassignFinanceOfficer = async () => {
+        if (!id || !selectedFinanceOfficerId) return;
+
+        const raw = localStorage.getItem('userProfile');
+        const profile = raw ? JSON.parse(raw) : null;
+        const userId = profile?.id || profile?.userId || null;
+        if (!userId) {
+            Swal.fire({ icon: 'error', title: 'Not logged in' });
+            return;
+        }
+
+        const confirm = await Swal.fire({
+            icon: 'question',
+            title: 'Reassign Finance Officer',
+            text: 'Are you sure you want to reassign this request to the selected finance officer?',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, reassign',
+        });
+        if (!confirm.isConfirmed) return;
+
+        try {
+            setIsReassigningOfficer(true);
+            const resp = await fetch(getApiUrl(`/requests/${id}/assign-finance-officer`), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-user-id': String(userId) },
+                body: JSON.stringify({ financeOfficerId: selectedFinanceOfficerId }),
+            });
+
+            if (!resp.ok) {
+                const err = await resp.json().catch(() => ({}));
+                throw new Error(err.message || resp.statusText || 'Failed to reassign');
+            }
+
+            Swal.fire({ icon: 'success', title: 'Reassigned', text: 'Finance officer has been reassigned successfully.' });
+            // Refresh the page to show updated assignment
+            window.location.reload();
+        } catch (err: any) {
+            console.error('Reassign failed', err);
+            Swal.fire({ icon: 'error', title: 'Failed to reassign', text: err?.message || String(err) });
+        } finally {
+            setIsReassigningOfficer(false);
         }
     };
 
@@ -1560,6 +1633,41 @@ const RequestForm = () => {
                                 </div>
                             </div>
                         </div>
+
+                        {/* Budget Manager: Finance Officer Assignment Panel */}
+                        {isEditMode && isBudgetManager && requestMeta?.status === 'FINANCE_REVIEW' && (
+                            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-300 dark:border-blue-700 p-4 rounded mt-4">
+                                <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-3">Assign Finance Officer</h4>
+                                <p className="text-xs text-blue-800 dark:text-blue-200 mb-3">As Budget Manager, you can reassign this request to a different finance officer to manage their workload.</p>
+                                <div className="space-y-3">
+                                    <div>
+                                        <label className="block text-sm font-medium mb-2">Select Finance Officer:</label>
+                                        <select
+                                            value={selectedFinanceOfficerId || ''}
+                                            onChange={(e) => setSelectedFinanceOfficerId(e.target.value ? parseInt(e.target.value, 10) : null)}
+                                            className="form-select w-full"
+                                        >
+                                            <option value="">-- Choose a finance officer --</option>
+                                            {financeOfficers.map((officer) => (
+                                                <option key={officer.id} value={officer.id}>
+                                                    {officer.name} ({officer.email}) - {officer.assignedCount} assigned
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={handleReassignFinanceOfficer}
+                                        disabled={isReassigningOfficer || !selectedFinanceOfficerId}
+                                        className={`px-4 py-2 rounded text-white font-medium ${
+                                            isReassigningOfficer || !selectedFinanceOfficerId ? 'opacity-60 cursor-not-allowed bg-blue-400' : 'bg-blue-600 hover:bg-blue-700'
+                                        }`}
+                                    >
+                                        {isReassigningOfficer ? 'Reassigning…' : 'Reassign Finance Officer'}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Section III: To be completed by Procurement unit */}
