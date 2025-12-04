@@ -90,11 +90,11 @@ export interface RoleOption {
 }
 
 const BACKEND = {
-    getUsers: (): Promise<AdminUser[]> => apiGet('/admin/users'),
-    getAllRoles: (): Promise<RoleOption[]> => apiGet('/admin/roles'),
-    createDepartment: (input: CreateDepartmentInput) => apiPost('/admin/departments', input),
-    updateUserRoles: (userId: number, roles: string[]) => apiPost(`/admin/users/${userId}/roles`, { roles }),
-    updateUserDepartment: (userId: number, departmentId: number | null) => apiPost(`/admin/users/${userId}/department`, { departmentId }),
+    getUsers: (): Promise<AdminUser[]> => apiGet('/api/admin/users'),
+    getAllRoles: (): Promise<RoleOption[]> => apiGet('/api/admin/roles'),
+    createDepartment: (input: CreateDepartmentInput) => apiPost('/api/admin/departments', input),
+    updateUserRoles: (userId: number, roles: string[]) => apiPost(`/api/admin/users/${userId}/roles`, { roles }),
+    updateUserDepartment: (userId: number, departmentId: number | null) => apiPost(`/api/admin/users/${userId}/department`, { departmentId }),
     getAuditLog: (q: AuditQuery) => {
         const params = new URLSearchParams();
         if (q.startDate) params.set('startDate', q.startDate);

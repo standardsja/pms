@@ -3764,8 +3764,8 @@ app.post('/api/admin/users/:userId/department', async (req, res) => {
     }
 });
 
-// GET /admin/users - Get all users with their roles and departments
-app.get('/admin/users', async (req, res) => {
+// GET /api/admin/users - Get all users with their roles and departments
+app.get('/api/admin/users', async (req, res) => {
     try {
         const users = await prisma.user.findMany({
             include: {
@@ -3790,8 +3790,8 @@ app.get('/admin/users', async (req, res) => {
     }
 });
 
-// POST /admin/users/:userId/roles - Update user roles (admin only)
-app.post('/admin/users/:userId/roles', async (req, res) => {
+// POST /api/admin/users/:userId/roles - Update user roles (admin only)
+app.post('/api/admin/users/:userId/roles', async (req, res) => {
     try {
         const adminId = req.headers['x-user-id'];
         if (!adminId) return res.status(401).json({ message: 'User ID required' });
