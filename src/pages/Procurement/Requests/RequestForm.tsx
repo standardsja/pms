@@ -1638,7 +1638,9 @@ const RequestForm = () => {
                         {isEditMode && isBudgetManager && requestMeta?.status === 'FINANCE_REVIEW' && (
                             <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-300 dark:border-blue-700 p-4 rounded mt-4">
                                 <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-3">Assign Finance Officer</h4>
-                                <p className="text-xs text-blue-800 dark:text-blue-200 mb-3">As Budget Manager, you can reassign this request to a different finance officer to manage their workload.</p>
+                                <p className="text-xs text-blue-800 dark:text-blue-200 mb-3">
+                                    As Budget Manager, you can reassign this request to a different finance officer to manage their workload.
+                                </p>
                                 <div className="space-y-3">
                                     <div>
                                         <label className="block text-sm font-medium mb-2">Select Finance Officer:</label>
