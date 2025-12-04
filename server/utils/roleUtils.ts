@@ -17,6 +17,7 @@ export interface UserRoleChecker {
 
 /**
  * Check user roles and return comprehensive role information
+ * NOTE: Admin users automatically have ALL permissions and all role flags
  */
 export function checkUserRoles(userRoles: string[] = []): UserRoleChecker {
     // Normalize roles to uppercase for consistent checking
@@ -24,6 +25,22 @@ export function checkUserRoles(userRoles: string[] = []): UserRoleChecker {
 
     // Admin roles
     const isAdmin = normalizedRoles.some((role) => ['ADMIN', 'ADMINISTRATOR', 'SUPER_ADMIN'].includes(role));
+
+    // If user is admin, automatically grant all permissions and role flags
+    if (isAdmin) {
+        return {
+            isAdmin: true,
+            isProcurementUser: true,
+            isProcurementOfficer: true,
+            isProcurementManager: true,
+            isDepartmentHead: true,
+            isFinanceUser: true,
+            isExecutiveDirector: true,
+            isCommitteeMember: true,
+            canCombineRequests: true,
+            canApproveRequests: true,
+        };
+    }
 
     // Procurement roles - be more specific to avoid matching non-procurement managers
     const isProcurementOfficer = normalizedRoles.some(
@@ -33,7 +50,7 @@ export function checkUserRoles(userRoles: string[] = []): UserRoleChecker {
     const isProcurementManager = normalizedRoles.some((role) => ['PROCUREMENT_MANAGER', 'PROCUREMENT MANAGER'].includes(role) || (role.includes('PROCUREMENT') && role.includes('MANAGER')));
 
     // Only actual procurement roles, not generic managers
-    const isProcurementUser = isProcurementOfficer || isProcurementManager || isAdmin;
+    const isProcurementUser = isProcurementOfficer || isProcurementManager;
 
     // Department management roles
     const isDepartmentHead = normalizedRoles.some((role) => ['DEPARTMENT_HEAD', 'DEPT_MANAGER', 'HEAD_OF_DIVISION', 'DEPARTMENT HEAD'].includes(role));
@@ -48,7 +65,7 @@ export function checkUserRoles(userRoles: string[] = []): UserRoleChecker {
     const isCommitteeMember = normalizedRoles.some((role) => ['INNOVATION_COMMITTEE', 'COMMITTEE_MEMBER', 'EVALUATION_COMMITTEE'].includes(role));
 
     // Derived permissions - only procurement officers and procurement managers can combine requests
-    const canCombineRequests = isProcurementOfficer || isProcurementManager || isAdmin;
+    const canCombineRequests = isProcurementOfficer || isProcurementManager;
     const canApproveRequests = isProcurementUser || isDepartmentHead || isFinanceUser || isExecutiveDirector;
 
     return {
@@ -67,9 +84,15 @@ export function checkUserRoles(userRoles: string[] = []): UserRoleChecker {
 
 /**
  * Check if user has specific permission
+ * NOTE: Admin users automatically have all permissions
  */
 export function hasPermission(userRoles: string[], permission: string): boolean {
     const roles = checkUserRoles(userRoles);
+
+    // Admin users automatically have all permissions
+    if (roles.isAdmin) {
+        return true;
+    }
 
     switch (permission) {
         case 'combine_requests':
@@ -79,7 +102,7 @@ export function hasPermission(userRoles: string[], permission: string): boolean 
         case 'view_all_requests':
             return roles.isProcurementUser;
         case 'manage_procurement':
-            return roles.isProcurementManager || roles.isAdmin;
+            return roles.isProcurementManager;
         case 'admin_access':
             return roles.isAdmin;
         default:
