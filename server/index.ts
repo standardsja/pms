@@ -3104,8 +3104,8 @@ app.post('/requests/:id/action', async (req, res) => {
     }
 });
 
-// GET /users/procurement-officers - List all procurement officers with workload
-app.get('/users/procurement-officers', async (req, res) => {
+// GET /api/users/procurement-officers - List all procurement officers with workload
+app.get('/api/users/procurement-officers', async (req, res) => {
     try {
         const userId = req.headers['x-user-id'];
         if (!userId) {
