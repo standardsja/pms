@@ -496,10 +496,12 @@ app.post('/api/auth/ldap-login', authLimiter, async (req, res) => {
         const { email, password } = req.body || {};
         if (!email || !password) return res.status(400).json({ message: 'Email and password required' });
 
-        let ldapDN = '';
         let userAuthenticated = false;
+        let authMethod = 'LDAP';
 
+        // Try LDAP authentication first
         try {
+            console.log('[Auth] Attempting LDAP authentication for:', email);
             // Bind with admin credentials to search
             console.log('[LDAP] Attempting bind with admin credentials...');
             await ldapClient.bind(LDAP_BIND_DN, LDAP_BIND_PASSWORD);
@@ -526,29 +528,88 @@ app.post('/api/auth/ldap-login', authLimiter, async (req, res) => {
 
             if (searchEntries.length === 0) {
                 await ldapClient.unbind().catch(() => null);
-                console.error('[LDAP] User not found in directory:', email);
-                return res.status(401).json({ message: 'User not found in directory' });
+                console.warn('[LDAP] User not found in directory:', email, '- will try database fallback');
+                // Fall through to database authentication
+            } else {
+                const ldapDN = searchEntries[0].dn;
+                console.log('[LDAP] Found user DN:', ldapDN);
+
+                // Unbind from admin and try to bind as the user
+                await ldapClient.unbind();
+                console.log('[LDAP] Attempting user bind with password...');
+                await ldapClient.bind(ldapDN, password);
+                userAuthenticated = true;
+                authMethod = 'LDAP';
+                console.log('[LDAP] User authenticated successfully:', email);
             }
-
-            ldapDN = searchEntries[0].dn;
-            console.log('[LDAP] Found user DN:', ldapDN);
-
-            // Unbind from admin and try to bind as the user
-            await ldapClient.unbind();
-            console.log('[LDAP] Attempting user bind with password...');
-            await ldapClient.bind(ldapDN, password);
-            userAuthenticated = true;
-            console.log('[LDAP] User authenticated successfully:', email);
         } catch (ldapErr: any) {
             await ldapClient.unbind().catch(() => null);
-            console.error('[LDAP] Authentication failed:', ldapErr.message || ldapErr);
-            return res.status(401).json({ message: 'Invalid credentials' });
+            console.warn('[LDAP] LDAP authentication failed:', ldapErr.message || ldapErr, '- will try database fallback');
+            // Fall through to database authentication
         }
 
+        // If LDAP failed, try database authentication
         if (!userAuthenticated) {
-            return res.status(401).json({ message: 'Invalid credentials' });
+            console.log('[Auth] LDAP failed, attempting database authentication for:', email);
+            const user = await prisma.user.findUnique({
+                where: { email },
+                include: {
+                    roles: {
+                        include: {
+                            role: true,
+                        },
+                    },
+                    department: true,
+                },
+            });
+
+            if (!user) {
+                console.warn('[Auth] User not found in database:', email);
+                return res.status(401).json({ message: 'Invalid credentials' });
+            }
+
+            // Check if user has a password hash in database
+            if (!user.password) {
+                console.warn('[Auth] User has no password set in database:', email);
+                return res.status(401).json({ message: 'Invalid credentials - no password configured' });
+            }
+
+            // Verify password against database hash
+            const isPasswordValid = await bcrypt.compare(password, user.password);
+            if (!isPasswordValid) {
+                console.warn('[Auth] Invalid password for user:', email);
+                return res.status(401).json({ message: 'Invalid credentials' });
+            }
+
+            userAuthenticated = true;
+            authMethod = 'DATABASE';
+            console.log('[Auth] User authenticated via database:', user.id, email);
+
+            // Generate JWT token
+            const roles = user.roles.map((r) => r.role.name);
+            const token = jwt.sign({ sub: user.id, email: user.email, roles: roles, name: user.name }, JWT_SECRET, { expiresIn: '1d' });
+
+            console.log('[Auth] User logged in successfully via', authMethod, ':', user.id, email);
+
+            return res.json({
+                token,
+                user: {
+                    id: user.id,
+                    email: user.email,
+                    name: user.name,
+                    roles: roles,
+                    department: user.department
+                        ? {
+                              id: user.department.id,
+                              name: user.department.name,
+                              code: user.department.code,
+                          }
+                        : null,
+                },
+            });
         }
 
+        // LDAP authentication succeeded
         // Look up user in local database
         const user = await prisma.user.findUnique({
             where: { email },
@@ -563,6 +624,7 @@ app.post('/api/auth/ldap-login', authLimiter, async (req, res) => {
         });
 
         if (!user) {
+            console.warn('[Auth] User not found in database after LDAP auth:', email);
             return res.status(401).json({ message: 'User account not found in system. Please contact your administrator.' });
         }
 
@@ -570,7 +632,7 @@ app.post('/api/auth/ldap-login', authLimiter, async (req, res) => {
         const roles = user.roles.map((r) => r.role.name);
         const token = jwt.sign({ sub: user.id, email: user.email, roles: roles, name: user.name }, JWT_SECRET, { expiresIn: '1d' });
 
-        console.log('[LDAP] User logged in successfully:', user.id, email);
+        console.log('[Auth] User logged in successfully via', authMethod, ':', user.id, email);
 
         return res.json({
             token,
@@ -589,7 +651,7 @@ app.post('/api/auth/ldap-login', authLimiter, async (req, res) => {
             },
         });
     } catch (e: any) {
-        console.error('[LDAP] Login error:', e);
+        console.error('[Auth] Login error:', e);
         return res.status(500).json({ message: e?.message || 'Login failed' });
     }
 });
