@@ -524,13 +524,13 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
             }
 
             // Check if user has a password hash in database
-            if (!user.password) {
+            if (!user.passwordHash) {
                 console.warn('[Auth] User has no password set in database:', email);
                 return res.status(401).json({ message: 'Invalid credentials - no password configured' });
             }
 
             // Verify password against database hash
-            const isPasswordValid = await bcrypt.compare(password, user.password);
+            const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
             if (!isPasswordValid) {
                 console.warn('[Auth] Invalid password for user:', email);
                 return res.status(401).json({ message: 'Invalid credentials' });
