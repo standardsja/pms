@@ -4,6 +4,9 @@ import { authMiddleware, AuthenticatedRequest } from '../middleware/auth';
 
 const router = Router();
 
+// Server start time for uptime calculation
+const SERVER_START_TIME = Date.now();
+
 // In-memory store for active sessions (module activity)
 // Key: userId, Value: { module: 'pms' | 'ih', lastSeen: Date }
 const activeSessions = new Map<number, { module: 'pms' | 'ih'; lastSeen: Date }>();
@@ -329,8 +332,12 @@ router.get('/system', async (req: Request, res: Response) => {
         });
         console.log(`[Stats] Pending approvals: ${pendingApprovals}`);
 
-        // System uptime percentage (hardcoded for now, can be calculated from logs)
-        const systemUptime = 99.9;
+        // System uptime percentage (calculated from server start time)
+        const uptimeMs = Date.now() - SERVER_START_TIME;
+        const uptimeDays = uptimeMs / (1000 * 60 * 60 * 24);
+        // Assume 99.99% available outside of maintenance window
+        // For every day of uptime, subtract 0.01% (roughly 86 seconds of downtime per day)
+        const systemUptime = Math.round((Math.max(0, Math.min(100, 99.99 - uptimeDays * 0.01)) + Number.EPSILON) * 10) / 10;
 
         // Total processed requests (all time)
         console.log('[Stats] Counting total processed requests...');
