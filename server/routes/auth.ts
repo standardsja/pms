@@ -12,17 +12,6 @@ import { logger } from '../config/logger';
 import { asyncHandler, BadRequestError, UnauthorizedError } from '../middleware/errorHandler';
 import { validate, loginSchema } from '../middleware/validation';
 
-import { Client } from 'ldapts';
-
-const url = 'ldap://BOS.local:389';
-const bindDN = 'CN=Policy Test,OU=MIS_STAFF,OU=MIS,DC=BOS,DC=local';
-const password = 'Password@101';
-const searchDN = 'DC=BOS,DC=local';
-
-const client = new Client({
-    url,
-});
-
 const router = Router();
 
 // Rate limiting for auth endpoints
@@ -123,90 +112,6 @@ router.get(
                   }
                 : null,
         });
-    })
-);
-
-//ldap login
-router.post(
-    '/ldap-login',
-    authLimiter,
-    validate(loginSchema),
-    asyncHandler(async (req, res) => {
-        let userAuthenticated = false;
-        const { email, password } = req.body;
-        try {
-            await client.bind(bindDN, password);
-            const { searchEntries, searchReferences } = await client.search(searchDN, {
-                filter: '(userPrincipalName=' + email + ')',
-            });
-            if (searchEntries.length === 0) {
-                throw new BadRequestError('User not found');
-            } else {
-                try {
-                    await client.unbind();
-                    await client.bind(searchEntries[0].dn, password);
-                    userAuthenticated = true;
-                    logger.info('ldap user details', { email, dn: searchEntries[0].dn });
-                } catch (ex) {
-                    console.log(ex);
-                    throw new UnauthorizedError('Invalid credentials');
-                }
-            }
-        } catch (ex) {
-            console.log(ex);
-            throw new BadRequestError('User not found');
-        } finally {
-            await client.unbind();
-            if (!userAuthenticated) {
-                throw new UnauthorizedError('Invalid credentials');
-            } else {
-                logger.info('User authenticated via LDAP successfully', { email });
-                // see if user exists in local db
-                let user = await prisma.user.findUnique({
-                    where: { email },
-                    include: {
-                        roles: {
-                            include: {
-                                role: true,
-                            },
-                        },
-                        department: true,
-                    },
-                });
-                logger.info('LDAP user lookup in local DB', { email, userExists: !!user });
-                // if (!user) {
-                //     // Create user if not exists
-                //     user = await prisma.user.create({
-                //         data: {
-                //             email,
-                //             name: email.split('@')[0], //  can find better name from LDAP
-                //             passwordHash: '', // No local password cuz we are using LDAP
-                //         },
-                //     });
-                // }
-                //const roles = user.roles.map((r) => r.role.name);
-                //const token = jwt.sign({ sub: user.id, email: user.email, roles, name: user.name }, config.JWT_SECRET, { expiresIn: '24h' });
-
-                logger.info('User logged in via LDAP successfully', { userId: user.id, email: user.email });
-
-                // res.json({
-                //     token,
-                //     user: {
-                //         id: user.id,
-                //         email: user.email,
-                //         name: user.name,
-                //         roles,
-                //         department: user.department
-                //             ? {
-                //                 id: user.department.id,
-                //                 name: user.department.name,
-                //                 code: user.department.code,
-                //             }
-                //             : null,
-                //     },
-                // });
-            }
-        }
     })
 );
 
