@@ -27,7 +27,7 @@ import { requestMonitoringMiddleware, trackCacheHit, trackCacheMiss, getMetrics,
 import { checkProcurementThresholds } from './services/thresholdService';
 import { checkSplintering } from './services/splinteringService';
 import { createThresholdNotifications } from './services/notificationService';
-import { getLoadBalancingSettings, updateLoadBalancingSettings, autoAssignRequest, shouldAutoAssign } from './services/loadBalancingService';
+import { getLoadBalancingSettings, updateLoadBalancingSettings, autoAssignRequest, autoAssignFinanceOfficer, shouldAutoAssign } from './services/loadBalancingService';
 import type { Prisma } from '@prisma/client';
 import { requireCommittee as requireCommitteeRole, requireEvaluationCommittee, requireAdmin, requireExecutive, requireRole } from './middleware/rbac';
 import { validate, createIdeaSchema, voteSchema, approveRejectIdeaSchema, promoteIdeaSchema, sanitizeInput as sanitize } from './middleware/validation';
@@ -2915,12 +2915,9 @@ app.post('/requests/:id/action', async (req, res) => {
                 nextStatus = 'HOD_REVIEW';
                 nextAssigneeId = hod?.id || null;
             } else if (request.status === 'HOD_REVIEW') {
-                // HOD approved -> send to Finance Officer
-                const financeOfficer = await prisma.user.findFirst({
-                    where: { roles: { some: { role: { name: 'FINANCE' } } } },
-                });
+                // HOD approved -> send to Finance Officer (auto-assigned based on load-balancing)
                 nextStatus = 'FINANCE_REVIEW';
-                nextAssigneeId = financeOfficer?.id || null;
+                nextAssigneeId = null; // Will be auto-assigned via load-balancing strategy
             } else if (request.status === 'FINANCE_REVIEW') {
                 // Finance Officer approved -> MUST go to Budget Manager (required step)
                 const budgetManager = await prisma.user.findFirst({
@@ -3127,6 +3124,37 @@ app.post('/requests/:id/action', async (req, res) => {
                     });
                 } catch (notifErr) {
                     console.warn('Failed to create auto-assignment notification:', notifErr);
+                }
+            }
+        } else if (nextStatus === 'FINANCE_REVIEW' && settings?.enabled) {
+            // Auto-assign finance officer when entering FINANCE_REVIEW
+            console.log(`[Workflow] Triggering finance officer auto-assignment for request ${updated.id}`);
+            const assignedFinanceOfficerId = await autoAssignFinanceOfficer(prisma, updated.id);
+
+            if (assignedFinanceOfficerId) {
+                // Refresh the updated request to include the new assignee
+                updated = (await prisma.request.findUnique({
+                    where: { id: parseInt(id, 10) },
+                    include: {
+                        items: true,
+                        requester: { select: { id: true, name: true, email: true } },
+                        department: { select: { id: true, name: true, code: true } },
+                        currentAssignee: { select: { id: true, name: true, email: true } },
+                    },
+                })) as any;
+
+                // Notify the auto-assigned finance officer
+                try {
+                    await prisma.notification.create({
+                        data: {
+                            userId: assignedFinanceOfficerId,
+                            type: 'STAGE_CHANGED',
+                            message: `Request ${updated.reference || updated.id} has been assigned to you for finance review`,
+                            data: { requestId: updated.id, status: updated.status, autoAssigned: true },
+                        },
+                    });
+                } catch (notifErr) {
+                    console.warn('Failed to create finance officer assignment notification:', notifErr);
                 }
             }
         } else if (!updated.currentAssigneeId && nextStatus !== 'DRAFT') {
@@ -3801,6 +3829,149 @@ app.post('/admin/requests/:id/reassign', async (req, res) => {
     } catch (e: any) {
         console.error('POST /admin/requests/:id/reassign error:', e);
         return res.status(500).json({ message: 'Failed to reassign request' });
+    }
+});
+
+// POST /requests/:id/assign-finance-officer - Budget Manager can reassign finance officers to requests
+app.post('/requests/:id/assign-finance-officer', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { financeOfficerId } = req.body || {};
+        const userId = req.headers['x-user-id'];
+        if (!userId) return res.status(401).json({ message: 'User ID required' });
+
+        // Verify user is Budget Manager
+        const user = await prisma.user.findUnique({
+            where: { id: parseInt(String(userId), 10) },
+            include: { roles: { include: { role: true } } },
+        });
+        const isBudgetManager = user?.roles.some((r) => r.role.name === 'BUDGET_MANAGER');
+        if (!isBudgetManager) return res.status(403).json({ message: 'Budget Manager access required' });
+
+        const request = await prisma.request.findUnique({
+            where: { id: parseInt(id, 10) },
+            include: { currentAssignee: true, department: true },
+        });
+        if (!request) return res.status(404).json({ message: 'Request not found' });
+
+        // Only allow reassignment when request is in FINANCE_REVIEW
+        if (request.status !== 'FINANCE_REVIEW') {
+            return res.status(400).json({ message: 'Finance officer can only be reassigned when request is in FINANCE_REVIEW status' });
+        }
+
+        // Validate financeOfficerId exists and has FINANCE role
+        const financeOfficer = await prisma.user.findUnique({
+            where: { id: parseInt(String(financeOfficerId), 10) },
+            include: { roles: { include: { role: true } } },
+        });
+        if (!financeOfficer) return res.status(404).json({ message: 'Finance officer not found' });
+        if (!financeOfficer.roles.some((r) => r.role.name === 'FINANCE')) {
+            return res.status(400).json({ message: 'Selected user does not have FINANCE role' });
+        }
+
+        const previousAssigneeId = request.currentAssigneeId;
+
+        const updated = await prisma.request.update({
+            where: { id: parseInt(id, 10) },
+            data: {
+                currentAssigneeId: parseInt(String(financeOfficerId), 10),
+                statusHistory: {
+                    create: {
+                        status: request.status as any,
+                        changedById: parseInt(String(userId), 10),
+                        comment: `Finance officer reassigned by Budget Manager from ${previousAssigneeId ? 'user ' + previousAssigneeId : 'unassigned'} to ${financeOfficer.name}`,
+                    },
+                },
+                actions: {
+                    create: {
+                        action: 'REASSIGN',
+                        performedById: parseInt(String(userId), 10),
+                        comment: `Finance officer reassigned to ${financeOfficer.name}`,
+                        metadata: { previousAssigneeId, newAssigneeId: parseInt(String(financeOfficerId), 10) },
+                    },
+                },
+            },
+            include: {
+                items: true,
+                requester: { select: { id: true, name: true, email: true } },
+                department: { select: { id: true, name: true, code: true } },
+                currentAssignee: { select: { id: true, name: true, email: true } },
+                statusHistory: true,
+                actions: true,
+            },
+        });
+
+        // Notify the newly assigned finance officer
+        try {
+            await prisma.notification.create({
+                data: {
+                    userId: parseInt(String(financeOfficerId), 10),
+                    type: 'STAGE_CHANGED',
+                    message: `Request ${updated.reference || updated.id} has been reassigned to you for finance review by the Budget Manager`,
+                    data: { requestId: updated.id, status: updated.status, reassignedBy: user?.name },
+                },
+            });
+        } catch (notifErr) {
+            console.warn('Failed to create reassignment notification:', notifErr);
+        }
+
+        return res.json(updated);
+    } catch (e: any) {
+        console.error('POST /requests/:id/assign-finance-officer error:', e);
+        return res.status(500).json({ message: 'Failed to assign finance officer' });
+    }
+});
+
+// GET /finance-officers - Get list of available finance officers (for Budget Manager assignment UI)
+app.get('/finance-officers', async (req, res) => {
+    try {
+        const userId = req.headers['x-user-id'];
+        if (!userId) return res.status(401).json({ message: 'User ID required' });
+
+        // Allow Budget Manager or Procurement Manager to view finance officers
+        const user = await prisma.user.findUnique({
+            where: { id: parseInt(String(userId), 10) },
+            include: { roles: { include: { role: true } } },
+        });
+        const allowedRoles = user?.roles.map((r) => r.role.name) || [];
+        const isAuthorized = allowedRoles.some((r) => r === 'BUDGET_MANAGER' || r === 'ADMIN' || r === 'PROCUREMENT_MANAGER');
+        if (!isAuthorized) return res.status(403).json({ message: 'Access required' });
+
+        // Get all finance officers with their current workload
+        const financeOfficers = await prisma.user.findMany({
+            where: {
+                roles: { some: { role: { name: 'FINANCE' } } },
+            },
+            select: {
+                id: true,
+                name: true,
+                email: true,
+            },
+        });
+
+        // Get workload for each officer (active assignments at FINANCE_REVIEW stage)
+        const officersWithWorkload = await Promise.all(
+            financeOfficers.map(async (officer) => {
+                const assignedCount = await prisma.request.count({
+                    where: {
+                        currentAssigneeId: officer.id,
+                        status: { in: ['FINANCE_REVIEW'] },
+                    },
+                });
+
+                return {
+                    id: officer.id,
+                    name: officer.name,
+                    email: officer.email,
+                    assignedCount,
+                };
+            })
+        );
+
+        return res.json(officersWithWorkload);
+    } catch (e: any) {
+        console.error('GET /finance-officers error:', e);
+        return res.status(500).json({ message: 'Failed to fetch finance officers' });
     }
 });
 
