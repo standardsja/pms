@@ -1,9 +1,9 @@
 /**
  * LDAP Group to Role Mapping Configuration
- * 
+ *
  * Maps Active Directory groups to PMS roles and departments
  * This enables automatic role assignment based on AD group membership
- * 
+ *
  * Configure these mappings in your environment or update this file
  * Example AD groups: CN=PMS_Finance_Managers,OU=Groups,DC=bsj,DC=local
  */
@@ -17,7 +17,7 @@ export interface GroupRoleMapping {
 
 /**
  * Default group mappings
- * 
+ *
  * Customize these based on your Active Directory structure
  * You can override via environment variable: LDAP_GROUP_MAPPINGS (JSON)
  */

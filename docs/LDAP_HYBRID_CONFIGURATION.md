@@ -7,6 +7,7 @@ The PMS now supports a **hybrid LDAP approach** that combines automatic role ass
 ### How It Works
 
 **Authentication Flow:**
+
 ```
 User Login
     ↓
@@ -47,19 +48,20 @@ Edit `/server/config/ldapGroupMapping.ts` to map your AD groups to PMS roles and
 ```typescript
 export const DEFAULT_GROUP_MAPPINGS: GroupRoleMapping[] = [
     {
-        adGroupName: 'PMS_Finance_Managers',        // AD group name (CN=...)
-        roles: ['DEPT_MANAGER', 'FINANCE'],         // Roles to assign
-        department: 'FIN',                           // Department code
-        departmentName: 'Finance Department',        // Full department name
+        adGroupName: 'PMS_Finance_Managers', // AD group name (CN=...)
+        roles: ['DEPT_MANAGER', 'FINANCE'], // Roles to assign
+        department: 'FIN', // Department code
+        departmentName: 'Finance Department', // Full department name
     },
     // ... more mappings
 ];
 ```
 
 **Example AD Group Names:**
-- `CN=PMS_Finance_Managers,OU=Groups,DC=bos,DC=local`
-- `CN=PMS_IT_Staff,OU=Groups,DC=bos,DC=local`
-- `CN=PMS_Procurement_Officers,OU=Groups,DC=bos,DC=local`
+
+-   `CN=PMS_Finance_Managers,OU=Groups,DC=bos,DC=local`
+-   `CN=PMS_IT_Staff,OU=Groups,DC=bos,DC=local`
+-   `CN=PMS_Procurement_Officers,OU=Groups,DC=bos,DC=local`
 
 The system will match groups by their CN (Common Name) part, so the configuration can use simpler names.
 
@@ -67,21 +69,22 @@ The system will match groups by their CN (Common Name) part, so the configuratio
 
 Create these groups in Active Directory (or customize based on your needs):
 
-| Group Name | Recommended Roles | Department | Purpose |
-|---|---|---|---|
-| PMS_Finance_Managers | DEPT_MANAGER, FINANCE | FIN | Finance department managers |
-| PMS_Finance_Staff | REQUESTER, FINANCE | FIN | Finance staff who make requests |
-| PMS_Finance_HOD | HEAD_OF_DIVISION, FINANCE | FIN | Finance HOD for approvals |
-| PMS_IT_Managers | DEPT_MANAGER | ICT | IT department managers |
-| PMS_IT_Staff | REQUESTER | ICT | IT staff who make requests |
-| PMS_Procurement_Officers | PROCUREMENT_OFFICER, PROCUREMENT | PROC | Procurement officers |
-| PMS_Admins | ADMIN, REQUESTER | - | System administrators |
-| PMS_Innovation_Committee | INNOVATION_COMMITTEE | - | Innovation committee members |
-| PMS_Evaluation_Committee | EVALUATION_COMMITTEE | - | Evaluation committee members |
+| Group Name               | Recommended Roles                | Department | Purpose                         |
+| ------------------------ | -------------------------------- | ---------- | ------------------------------- |
+| PMS_Finance_Managers     | DEPT_MANAGER, FINANCE            | FIN        | Finance department managers     |
+| PMS_Finance_Staff        | REQUESTER, FINANCE               | FIN        | Finance staff who make requests |
+| PMS_Finance_HOD          | HEAD_OF_DIVISION, FINANCE        | FIN        | Finance HOD for approvals       |
+| PMS_IT_Managers          | DEPT_MANAGER                     | ICT        | IT department managers          |
+| PMS_IT_Staff             | REQUESTER                        | ICT        | IT staff who make requests      |
+| PMS_Procurement_Officers | PROCUREMENT_OFFICER, PROCUREMENT | PROC       | Procurement officers            |
+| PMS_Admins               | ADMIN, REQUESTER                 | -          | System administrators           |
+| PMS_Innovation_Committee | INNOVATION_COMMITTEE             | -          | Innovation committee members    |
+| PMS_Evaluation_Committee | EVALUATION_COMMITTEE             | -          | Evaluation committee members    |
 
 ### Step 4: Configure Fallback (Admin Panel)
 
 If users are not yet assigned to AD groups, use the Admin Panel to manually assign:
+
 1. Go to **Admin Settings → User Management**
 2. Select a user
 3. Assign roles from the dropdown
@@ -107,18 +110,19 @@ pm2 logs pms-backend | grep "LDAP"
 ```
 
 Look for messages like:
-- `LDAP: User belongs to AD groups, applying mapped roles` - User roles from AD groups
-- `LDAP: No AD group mappings found, using admin-assigned roles` - Falling back to admin panel
-- `LDAP: No roles found, assigning REQUESTER as default` - Final fallback
+
+-   `LDAP: User belongs to AD groups, applying mapped roles` - User roles from AD groups
+-   `LDAP: No AD group mappings found, using admin-assigned roles` - Falling back to admin panel
+-   `LDAP: No roles found, assigning REQUESTER as default` - Final fallback
 
 ### Example Log Output
 
 ```json
 {
-  "level": "info",
-  "message": "LDAP user roles synced",
-  "email": "john.doe@bos.local",
-  "syncSummary": "Roles from AD groups: DEPT_MANAGER, FINANCE | Department: Finance Department"
+    "level": "info",
+    "message": "LDAP user roles synced",
+    "email": "john.doe@bos.local",
+    "syncSummary": "Roles from AD groups: DEPT_MANAGER, FINANCE | Department: Finance Department"
 }
 ```
 
@@ -140,13 +144,15 @@ curl -X POST http://localhost:4000/api/auth/login \
 ```
 
 Check the response to see:
-- User ID and email
-- Assigned roles
-- Assigned department
+
+-   User ID and email
+-   Assigned roles
+-   Assigned department
 
 ### 3. Verify AD Group Membership
 
 If user isn't getting expected roles:
+
 1. Check that user belongs to correct AD group in Active Directory
 2. Verify group name matches configuration in `ldapGroupMapping.ts`
 3. Confirm role exists in database (Admin Settings → view roles)
@@ -168,6 +174,7 @@ export LDAP_GROUP_MAPPINGS='[
 ### Issue: User not getting expected roles after AD group assignment
 
 **Solution:**
+
 1. Verify AD groups in `ldapGroupMapping.ts` match actual AD group names
 2. Check if role name exists in database (Admin Settings page)
 3. Review logs: `pm2 logs pms-backend | grep "LDAP"`
@@ -176,6 +183,7 @@ export LDAP_GROUP_MAPPINGS='[
 ### Issue: Users can't login because no roles assigned
 
 **Solution:**
+
 1. Ensure REQUESTER role exists in database
 2. Check logs for sync errors
 3. Manually assign role via Admin Panel as temporary workaround
@@ -184,6 +192,7 @@ export LDAP_GROUP_MAPPINGS='[
 ### Issue: Department not auto-assigning from AD
 
 **Solution:**
+
 1. Verify `department` field in mapping configuration
 2. Confirm department code matches database (e.g., 'FIN', 'ICT')
 3. Use Admin Panel to manually assign if AD sync fails
@@ -203,12 +212,13 @@ export LDAP_GROUP_MAPPINGS='[
 ✅ **Flexible** - Admin panel provides fallback for edge cases  
 ✅ **Scalable** - Large organizations can manage via AD groups  
 ✅ **Gradual** - Can transition users incrementally from admin panel to AD groups  
-✅ **Safe** - Admin panel override always available for troubleshooting  
+✅ **Safe** - Admin panel override always available for troubleshooting
 
 ## Contact & Support
 
 For LDAP configuration questions, contact your IT/Systems Administrator with:
-- Current LDAP server settings
-- AD group structure
-- Desired role mappings
-- Any sync issues from logs
+
+-   Current LDAP server settings
+-   AD group structure
+-   Desired role mappings
+-   Any sync issues from logs

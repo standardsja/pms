@@ -56,7 +56,7 @@ const AdminSettings = () => {
     const [allRoles, setAllRoles] = useState<Array<{ id: number; name: string; description?: string }>>([]);
     const [rolesLoading, setRolesLoading] = useState(false);
     const [rolesError, setRolesError] = useState<string | null>(null);
-    
+
     const [allDepartments, setAllDepartments] = useState<Array<{ id: number; name: string; code: string }>>([]);
     const [departmentsLoading, setDepartmentsLoading] = useState(false);
 
@@ -923,12 +923,22 @@ function ReassignRequestsTab() {
 // Local sub-component: editable user row with role checkboxes
 type FlatUser = { id: number; email: string; name: string; dept: string; roles: string[] };
 
-function UserRow({ user, availableRoles, availableDepartments, onSave }: { user: FlatUser; availableRoles: Array<{ id: number; name: string; description?: string }>; availableDepartments: Array<{ id: number; name: string; code: string }>; onSave: (userId: number, roles: string[]) => void }) {
+function UserRow({
+    user,
+    availableRoles,
+    availableDepartments,
+    onSave,
+}: {
+    user: FlatUser;
+    availableRoles: Array<{ id: number; name: string; description?: string }>;
+    availableDepartments: Array<{ id: number; name: string; code: string }>;
+    onSave: (userId: number, roles: string[]) => void;
+}) {
     const [localRoles, setLocalRoles] = useState<string[]>(user.roles);
     const [localDeptId, setLocalDeptId] = useState<string>(user.dept ? String(user.dept) : '');
     const [saving, setSaving] = useState(false);
     const [savingDept, setSavingDept] = useState(false);
-    
+
     const changed = useMemo(() => {
         const a = [...localRoles].sort().join(',');
         const b = [...user.roles].sort().join(',');
@@ -968,12 +978,7 @@ function UserRow({ user, availableRoles, availableDepartments, onSave }: { user:
             <td className="font-mono">{user.email}</td>
             <td>{user.name}</td>
             <td>
-                <select
-                    className="form-select text-xs"
-                    value={localDeptId}
-                    onChange={(e) => setLocalDeptId(e.target.value)}
-                    disabled={savingDept}
-                >
+                <select className="form-select text-xs" value={localDeptId} onChange={(e) => setLocalDeptId(e.target.value)} disabled={savingDept}>
                     <option value="">No Department</option>
                     {availableDepartments.map((dept) => (
                         <option key={dept.id} value={dept.id}>
@@ -982,11 +987,7 @@ function UserRow({ user, availableRoles, availableDepartments, onSave }: { user:
                     ))}
                 </select>
                 {user.dept && localDeptId !== String(user.dept) && (
-                    <button
-                        className="btn btn-sm btn-warning ml-2"
-                        onClick={handleSaveDept}
-                        disabled={savingDept}
-                    >
+                    <button className="btn btn-sm btn-warning ml-2" onClick={handleSaveDept} disabled={savingDept}>
                         {savingDept ? 'Saving…' : 'Save Dept'}
                     </button>
                 )}

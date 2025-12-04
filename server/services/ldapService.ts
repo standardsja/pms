@@ -39,10 +39,10 @@ class LDAPService {
                 connectTimeout: 10000,
                 strictDN: false, // More lenient DN parsing
             });
-            
-            logger.info('LDAP Service initialized', { 
+
+            logger.info('LDAP Service initialized', {
                 url: config.LDAP.url,
-                searchDN: config.LDAP.searchDN 
+                searchDN: config.LDAP.searchDN,
             });
         } else {
             logger.info('LDAP Service not configured - using database authentication only');
@@ -78,12 +78,12 @@ class LDAPService {
 
         try {
             // Step 1: Bind with admin credentials to search for user
-            logger.info('LDAP attempting admin bind', { 
+            logger.info('LDAP attempting admin bind', {
                 url: config.LDAP.url,
                 bindDN: config.LDAP.bindDN,
-                searchDN: config.LDAP.searchDN
+                searchDN: config.LDAP.searchDN,
             });
-            
+
             await this.client!.bind(config.LDAP.bindDN, config.LDAP.bindPassword);
 
             logger.info('LDAP admin bind successful for user search', { email: sanitizedEmail });
@@ -105,11 +105,7 @@ class LDAPService {
             userDN = entry.dn as string;
 
             // Extract group memberships
-            const memberOf = Array.isArray(entry.memberOf)
-                ? (entry.memberOf as string[])
-                : entry.memberOf
-                ? [entry.memberOf as string]
-                : [];
+            const memberOf = Array.isArray(entry.memberOf) ? (entry.memberOf as string[]) : entry.memberOf ? [entry.memberOf as string] : [];
 
             ldapUser = {
                 dn: userDN,
@@ -161,14 +157,14 @@ class LDAPService {
             if (error.errno === 'ETIMEDOUT' || error.message?.includes('timeout')) {
                 logger.error('LDAP connection timeout - server may be unreachable', {
                     url: config.LDAP.url,
-                    suggestion: 'Check network connectivity and firewall rules'
+                    suggestion: 'Check network connectivity and firewall rules',
                 });
                 throw new BadRequestError('LDAP server connection timeout. Please contact your system administrator.');
             }
 
             if (error.errno === 'ECONNREFUSED') {
                 logger.error('LDAP connection refused - server may be down', {
-                    url: config.LDAP.url
+                    url: config.LDAP.url,
                 });
                 throw new BadRequestError('LDAP server is not responding. Please contact your system administrator.');
             }
@@ -219,11 +215,7 @@ class LDAPService {
             const entry = searchEntries[0];
 
             // Extract group memberships
-            const memberOf = Array.isArray(entry.memberOf)
-                ? (entry.memberOf as string[])
-                : entry.memberOf
-                ? [entry.memberOf as string]
-                : [];
+            const memberOf = Array.isArray(entry.memberOf) ? (entry.memberOf as string[]) : entry.memberOf ? [entry.memberOf as string] : [];
 
             return {
                 dn: entry.dn as string,

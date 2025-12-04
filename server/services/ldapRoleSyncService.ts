@@ -1,6 +1,6 @@
 /**
  * LDAP Role Sync Service
- * 
+ *
  * Synchronizes AD group memberships to PMS roles and departments
  * Provides hybrid approach: AD groups + admin panel fallback
  */
@@ -8,13 +8,7 @@
 import { PrismaClient } from '@prisma/client';
 import { logger } from '../config/logger';
 import { LDAPUser } from './ldapService';
-import { 
-    getGroupMappings, 
-    findMappingsForGroups, 
-    mergeRoles, 
-    getFirstDepartment,
-    GroupRoleMapping 
-} from '../config/ldapGroupMapping';
+import { getGroupMappings, findMappingsForGroups, mergeRoles, getFirstDepartment, GroupRoleMapping } from '../config/ldapGroupMapping';
 
 const prisma = new PrismaClient();
 
@@ -30,17 +24,14 @@ export interface RoleSyncResult {
 
 /**
  * Sync LDAP user to database with roles and department
- * 
+ *
  * Strategy:
  * 1. If user has AD group memberships, extract roles from mapping
  * 2. If no roles from AD groups, use admin-assigned roles (fallback)
  * 3. If no roles at all, assign REQUESTER as default
  * 4. If AD mapping specifies department, assign it; otherwise use admin-assigned
  */
-export async function syncLDAPUserToDatabase(
-    ldapUser: LDAPUser,
-    existingUser?: any
-): Promise<RoleSyncResult> {
+export async function syncLDAPUserToDatabase(ldapUser: LDAPUser, existingUser?: any): Promise<RoleSyncResult> {
     const result: RoleSyncResult = {
         rolesApplied: [],
         appliedFromADGroups: false,
@@ -85,9 +76,7 @@ export async function syncLDAPUserToDatabase(
             });
 
             // Extract unique roles from all matched mappings
-            const adRoleNames = mergeRoles(
-                ...matchedMappings.map((m) => m.roles)
-            );
+            const adRoleNames = mergeRoles(...matchedMappings.map((m) => m.roles));
 
             // Get role records from database
             const roles = await prisma.role.findMany({
@@ -193,10 +182,7 @@ export async function syncLDAPUserToDatabase(
         if (!result.departmentAssigned && ldapUser.department) {
             const dept = await prisma.department.findFirst({
                 where: {
-                    OR: [
-                        { name: { contains: ldapUser.department } },
-                        { code: ldapUser.department.toUpperCase() },
-                    ],
+                    OR: [{ name: { contains: ldapUser.department } }, { code: ldapUser.department.toUpperCase() }],
                 },
             });
 
@@ -238,11 +224,7 @@ export function describeSyncResult(result: RoleSyncResult): string {
     const parts: string[] = [];
 
     if (result.rolesApplied.length > 0) {
-        const source = result.appliedFromADGroups
-            ? 'AD groups'
-            : result.appliedFromAdminPanel
-            ? 'admin panel'
-            : 'unknown';
+        const source = result.appliedFromADGroups ? 'AD groups' : result.appliedFromAdminPanel ? 'admin panel' : 'unknown';
         parts.push(`Roles from ${source}: ${result.rolesApplied.join(', ')}`);
     } else {
         parts.push('No roles assigned');
