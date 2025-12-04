@@ -9,6 +9,7 @@ import fs from 'fs';
 import crypto from 'crypto';
 import http from 'http';
 import { fileURLToPath } from 'url';
+import { Client } from 'ldapts';
 
 // ES module equivalent of __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -46,6 +47,16 @@ const API_HOST = process.env.API_HOST || (APP_ENV === 'local' ? '0.0.0.0' : '0.0
 // Public host for logs (what users type in the browser)
 const PUBLIC_HOST = process.env.API_PUBLIC_HOST || (APP_ENV === 'local' ? 'localhost' : 'heron');
 const JWT_SECRET = process.env.JWT_SECRET || 'devsecret-change-me';
+
+// LDAP configuration
+const LDAP_URL = process.env.LDAP_URL || 'ldap://BOS.local:389';
+const LDAP_BIND_DN = process.env.LDAP_BIND_DN || 'CN=Policy Test,OU=MIS_STAFF,OU=MIS,DC=BOS,DC=local';
+const LDAP_BIND_PASSWORD = process.env.LDAP_BIND_PASSWORD || 'Password@101';
+const LDAP_SEARCH_DN = process.env.LDAP_SEARCH_DN || 'DC=BOS,DC=local';
+
+const ldapClient = new Client({
+    url: LDAP_URL,
+});
 
 let trendingJobInterval: NodeJS.Timeout | null = null;
 
@@ -475,6 +486,90 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
         });
     } catch (e: any) {
         console.error('Login error:', e);
+        return res.status(500).json({ message: e?.message || 'Login failed' });
+    }
+});
+
+// LDAP login endpoint
+app.post('/api/auth/ldap-login', authLimiter, async (req, res) => {
+    try {
+        const { email, password } = req.body || {};
+        if (!email || !password) return res.status(400).json({ message: 'Email and password required' });
+
+        let ldapDN = '';
+        let userAuthenticated = false;
+
+        try {
+            // Bind with admin credentials to search
+            await ldapClient.bind(LDAP_BIND_DN, LDAP_BIND_PASSWORD);
+            const { searchEntries } = await ldapClient.search(LDAP_SEARCH_DN, {
+                filter: `(userPrincipalName=${email})`,
+            });
+
+            if (searchEntries.length === 0) {
+                await ldapClient.unbind().catch(() => null);
+                return res.status(401).json({ message: 'User not found in directory' });
+            }
+
+            ldapDN = searchEntries[0].dn;
+            console.log('[LDAP] Found user DN:', ldapDN);
+
+            // Unbind from admin and try to bind as the user
+            await ldapClient.unbind();
+            await ldapClient.bind(ldapDN, password);
+            userAuthenticated = true;
+            console.log('[LDAP] User authenticated successfully:', email);
+        } catch (ldapErr: any) {
+            await ldapClient.unbind().catch(() => null);
+            console.error('[LDAP] Authentication failed:', ldapErr.message);
+            return res.status(401).json({ message: 'Invalid credentials' });
+        }
+
+        if (!userAuthenticated) {
+            return res.status(401).json({ message: 'Invalid credentials' });
+        }
+
+        // Look up user in local database
+        const user = await prisma.user.findUnique({
+            where: { email },
+            include: {
+                roles: {
+                    include: {
+                        role: true,
+                    },
+                },
+                department: true,
+            },
+        });
+
+        if (!user) {
+            return res.status(401).json({ message: 'User account not found in system. Please contact your administrator.' });
+        }
+
+        // Generate JWT token
+        const roles = user.roles.map((r) => r.role.name);
+        const token = jwt.sign({ sub: user.id, email: user.email, roles: roles, name: user.name }, JWT_SECRET, { expiresIn: '1d' });
+
+        console.log('[LDAP] User logged in successfully:', user.id, email);
+
+        return res.json({
+            token,
+            user: {
+                id: user.id,
+                email: user.email,
+                name: user.name,
+                roles: roles,
+                department: user.department
+                    ? {
+                          id: user.department.id,
+                          name: user.department.name,
+                          code: user.department.code,
+                      }
+                    : null,
+            },
+        });
+    } catch (e: any) {
+        console.error('[LDAP] Login error:', e);
         return res.status(500).json({ message: e?.message || 'Login failed' });
     }
 });
