@@ -68,11 +68,7 @@ router.post(
             }
 
             const roles = user.roles.map((r) => r.role.name);
-            const token = jwt.sign(
-                { sub: user.id, email: user.email, roles, name: user.name },
-                config.JWT_SECRET,
-                { expiresIn: '24h' }
-            );
+            const token = jwt.sign({ sub: user.id, email: user.email, roles, name: user.name }, config.JWT_SECRET, { expiresIn: '24h' });
 
             logger.info('User logged in via LDAP successfully', { userId: user.id, email: user.email });
 
