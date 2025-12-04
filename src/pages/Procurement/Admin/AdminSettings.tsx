@@ -52,7 +52,7 @@ const AdminSettings = () => {
     const [users, setUsers] = useState<AdminUser[]>([]);
     const [usersLoading, setUsersLoading] = useState(false);
     const [usersError, setUsersError] = useState<string | null>(null);
-    
+
     const [allRoles, setAllRoles] = useState<Array<{ id: number; name: string; description?: string }>>([]);
     const [rolesLoading, setRolesLoading] = useState(false);
     const [rolesError, setRolesError] = useState<string | null>(null);
@@ -906,15 +906,7 @@ function ReassignRequestsTab() {
 // Local sub-component: editable user row with role checkboxes
 type FlatUser = { id: number; email: string; name: string; dept: string; roles: string[] };
 
-function UserRow({
-    user,
-    availableRoles,
-    onSave,
-}: {
-    user: FlatUser;
-    availableRoles: Array<{ id: number; name: string; description?: string }>;
-    onSave: (userId: number, roles: string[]) => void;
-}) {
+function UserRow({ user, availableRoles, onSave }: { user: FlatUser; availableRoles: Array<{ id: number; name: string; description?: string }>; onSave: (userId: number, roles: string[]) => void }) {
     const [localRoles, setLocalRoles] = useState<string[]>(user.roles);
     const [saving, setSaving] = useState(false);
     const changed = useMemo(() => {
