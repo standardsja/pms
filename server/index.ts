@@ -4132,6 +4132,7 @@ app.get(
             }
             return res.json({ success: true, data: evaluation });
         }
+        const evaluationId = parseInt(id);
         const rows = await prisma.$queryRaw<any>`
             SELECT e.*, 
              uc.id AS creatorId, uc.name AS creatorName, uc.email AS creatorEmail, 
@@ -4139,7 +4140,7 @@ app.get(
              ua.id AS sectionAVerifierId, ua.name AS sectionAVerifierName, ua.email AS sectionAVerifierEmail,
              ub.id AS sectionBVerifierId, ub.name AS sectionBVerifierName, ub.email AS sectionBVerifierEmail,
              uc_v.id AS sectionCVerifierId, uc_v.name AS sectionCVerifierName, uc_v.email AS sectionCVerifierEmail,
-             ud.id AS sectionDVerifierId, ud.name AS sectionDVerifierName, ud.email AS sectionDVerifierEmail,
+             ud.id AS sectionDVerifierId, ud.name AS sectionDVerifierName, ud.email AS sectionDVerifierName,
              ue.id AS sectionEVerifierId, ue.name AS sectionEVerifierName, ue.email AS sectionEVerifierEmail
              FROM Evaluation e 
              LEFT JOIN User uc ON e.createdBy = uc.id 
@@ -4149,8 +4150,8 @@ app.get(
              LEFT JOIN User uc_v ON e.sectionCVerifiedBy = uc_v.id
              LEFT JOIN User ud ON e.sectionDVerifiedBy = ud.id
              LEFT JOIN User ue ON e.sectionEVerifiedBy = ue.id
-             WHERE e.id = ${parseInt(id)} LIMIT 1`
-        );
+             WHERE e.id = ${evaluationId} LIMIT 1
+        `;
         const r = rows[0];
         if (!r) throw new NotFoundError('Evaluation not found');
         const mapped = {
@@ -4788,9 +4789,10 @@ app.patch(
         }
 
         const jsonData = JSON.stringify(sectionData).replace(/'/g, "''");
-        const evaluationId = parseInt(id);
         await prisma.$executeRaw`
-            UPDATE Evaluation SET ${prisma.raw(`section${sectionUpper}='${jsonData}', section${sectionUpper}Status='IN_PROGRESS', section${sectionUpper}Notes=NULL, section${sectionUpper}VerifiedAt=NULL, section${sectionUpper}VerifiedBy=NULL, updatedAt=NOW()`)} WHERE id=${evaluationId}
+            UPDATE Evaluation SET ${prisma.raw(
+                `section${sectionUpper}='${jsonData}', section${sectionUpper}Status='IN_PROGRESS', section${sectionUpper}Notes=NULL, section${sectionUpper}VerifiedAt=NULL, section${sectionUpper}VerifiedBy=NULL, updatedAt=NOW()`
+            )} WHERE id=${evaluationId}
         `;
         res.json({ success: true, message: `Section ${sectionUpper} updated`, meta: { fallback: true } });
     })
@@ -4882,7 +4884,6 @@ app.post(
         if (existing.status !== 'COMMITTEE_REVIEW' && existing.status !== 'COMPLETED') {
             sets.push(`status='COMMITTEE_REVIEW'`);
         }
-        const evaluationId = parseInt(id);
         await prisma.$executeRaw`UPDATE Evaluation SET ${prisma.raw(sets.join(', '))} WHERE id=${evaluationId}`;
         res.json({ success: true, message: `Section ${sectionUpper} submitted for review`, meta: { fallback: true } });
     })
@@ -4983,7 +4984,6 @@ app.post(
 
         const sets: string[] = [`${statusField}='VERIFIED'`, `section${sectionUpper}VerifiedBy=${userId}`, `section${sectionUpper}VerifiedAt=NOW()`, 'updatedAt=NOW()'];
         if (notes) sets.push(`section${sectionUpper}Notes='${notes.replace(/'/g, "''")}'`);
-        const evaluationId = parseInt(id);
         await prisma.$executeRaw`UPDATE Evaluation SET ${prisma.raw(sets.join(', '))} WHERE id=${evaluationId}`;
         res.json({ success: true, message: `Section ${sectionUpper} verified`, meta: { fallback: true } });
     })
@@ -5080,7 +5080,6 @@ app.post(
             `status='IN_PROGRESS'`,
             'updatedAt=NOW()',
         ];
-        const evaluationId = parseInt(id);
         await prisma.$executeRaw`UPDATE Evaluation SET ${prisma.raw(sets.join(', '))} WHERE id=${evaluationId}`;
         res.json({ success: true, message: `Section ${sectionUpper} returned for changes`, meta: { fallback: true } });
     })
@@ -5146,7 +5145,6 @@ app.post(
         }
 
         // Fallback: raw SQL path
-        const evaluationId = parseInt(id);
         const safeNotes = notes ? notes.replace(/'/g, "''") : null;
         await prisma.$executeRaw`
             UPDATE Evaluation SET status='VALIDATED', validatedBy=${userId}, validatedAt=NOW(), validationNotes=${safeNotes}, updatedAt=NOW() WHERE id=${evaluationId}

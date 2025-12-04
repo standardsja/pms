@@ -266,8 +266,8 @@ const Sidebar = () => {
                                 </>
                             )}
 
-                            {/* Show INNOVATION_HUB section when not already in innovation context */}
-                            {!isCommitteeMember && isInnovationHub && (
+                            {/* Show INNOVATION_HUB section when in innovation context and not a committee member */}
+                            {!isCommitteeMember && !isEvaluationCommittee && isInnovationHub && (
                                 // Innovation Hub Menu
                                 <>
                                     <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
@@ -377,8 +377,8 @@ const Sidebar = () => {
                                 </>
                             )}
 
-                            {/* Show DEPARTMENT_MANAGER section */}
-                            {isDepartmentManager && (
+                            {/* Show DEPARTMENT_MANAGER section - hide when in Innovation Hub */}
+                            {isDepartmentManager && !isInnovationHub && (
                                 // Department Manager Menu
                                 <>
                                     <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
@@ -415,8 +415,8 @@ const Sidebar = () => {
                                 </>
                             )}
 
-                            {/* Show PROCUREMENT_OFFICER section */}
-                            {isProcurementOfficer && (
+                            {/* Show PROCUREMENT_OFFICER section - hide when in Innovation Hub */}
+                            {isProcurementOfficer && !isInnovationHub && (
                                 // Procurement Officer Only Menu
                                 <>
                                     <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
@@ -539,8 +539,8 @@ const Sidebar = () => {
                                 </>
                             )}
 
-                            {/* Show PROCUREMENT_MANAGER section */}
-                            {isProcurementManager && (
+                            {/* Show PROCUREMENT_MANAGER section - hide when in Innovation Hub */}
+                            {isProcurementManager && !isInnovationHub && (
                                 // Procurement Manager Only Menu
                                 <>
                                     <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
@@ -626,8 +626,8 @@ const Sidebar = () => {
                                 </>
                             )}
 
-                            {/* Show Budget Manager section if applicable */}
-                            {userRoles.some((r: string) => r?.toUpperCase()?.includes('BUDGET')) && (
+                            {/* Show Budget Manager section if applicable - hide when in Innovation Hub */}
+                            {userRoles.some((r: string) => r?.toUpperCase()?.includes('BUDGET')) && !isInnovationHub && (
                                 // Budget Manager Menu (Old fallback - kept for compatibility)
                                 <>
                                     <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
