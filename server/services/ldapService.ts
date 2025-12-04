@@ -119,6 +119,12 @@ class LDAPService {
             await this.client!.bind(userDN, password);
 
             logger.info('LDAP user authenticated successfully', {
+                email: sanitizedEmail,
+                dn: userDN,
+            });
+
+            // Successfully authenticated
+            return ldapUser;
         } catch (error: any) {
             logger.error('LDAP authentication error', {
                 email: sanitizedEmail,
