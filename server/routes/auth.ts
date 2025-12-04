@@ -1,6 +1,12 @@
 /**
  * Authentication Routes
  * Handles user login, token validation, and user profile endpoints
+ * 
+ * Now includes hybrid LDAP approach:
+ * 1. Authenticate against LDAP
+ * 2. Sync user roles from AD groups (via ldapRoleSyncService)
+ * 3. Fall back to admin-assigned roles if no AD groups
+ * 4. Always assign REQUESTER if no roles found
  */
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
@@ -12,6 +18,7 @@ import { logger } from '../config/logger';
 import { asyncHandler, BadRequestError, UnauthorizedError } from '../middleware/errorHandler';
 import { validate, loginSchema } from '../middleware/validation';
 import { ldapService } from '../services/ldapService';
+import { syncLDAPUserToDatabase, describeSyncResult } from '../services/ldapRoleSyncService';
 
 const router = Router();
 
@@ -23,7 +30,7 @@ const authLimiter = rateLimit({
     skipSuccessfulRequests: true,
 });
 
-// Login endpoint - Unified LDAP + database authentication
+// Login endpoint - Unified LDAP + database authentication with hybrid role sync
 router.post(
     '/login',
     authLimiter,
@@ -32,23 +39,30 @@ router.post(
         const { email, password } = req.body;
         let authMethod = 'DATABASE';
         let ldapAuthenticated = false;
+        let ldapUser: any = null;
 
         // Try LDAP authentication first if enabled
         if (ldapService.isEnabled()) {
             try {
                 logger.info('Attempting LDAP authentication', { email });
-                await ldapService.authenticateUser(email, password);
+                ldapUser = await ldapService.authenticateUser(email, password);
                 ldapAuthenticated = true;
                 authMethod = 'LDAP';
-                logger.info('LDAP authentication successful', { email });
+                logger.info('LDAP authentication successful', { 
+                    email,
+                    groupCount: ldapUser.memberOf?.length || 0
+                });
             } catch (ldapError) {
-                logger.warn('LDAP authentication failed, falling back to database', { email, error: ldapError instanceof Error ? ldapError.message : 'Unknown error' });
+                logger.warn('LDAP authentication failed, falling back to database', { 
+                    email, 
+                    error: ldapError instanceof Error ? ldapError.message : 'Unknown error' 
+                });
                 // Fall through to database authentication
             }
         }
 
         // Look up user in local database
-        const user = await prisma.user.findUnique({
+        let user = await prisma.user.findUnique({
             where: { email },
             include: {
                 roles: {
@@ -60,43 +74,65 @@ router.post(
             },
         });
 
-        // If LDAP succeeded, we just need to verify user exists in database
-        if (ldapAuthenticated) {
+        // If LDAP succeeded, sync user data and roles
+        if (ldapAuthenticated && ldapUser) {
             if (!user) {
-                logger.warn('LDAP authenticated user not found in local database', { email });
-                throw new UnauthorizedError('User account not found in system. Please contact your administrator.');
-            }
-
-            // Get or create Requester role for LDAP users
-            let userRoles = user.roles.map((r) => r.role.name);
-
-            // If LDAP user has no roles, automatically assign Requester role
-            if (userRoles.length === 0) {
-                logger.info('LDAP user has no roles, assigning Requester role', { userId: user.id, email });
-
-                // Find the Requester role
-                const requesterRole = await prisma.role.findUnique({
-                    where: { name: 'REQUESTER' },
-                });
-
-                if (requesterRole) {
-                    // Assign Requester role to user
-                    await prisma.userRole.create({
-                        data: {
-                            userId: user.id,
-                            roleId: requesterRole.id,
+                logger.info('LDAP authenticated user not in database, creating new user', { email });
+                user = await prisma.user.create({
+                    data: {
+                        email,
+                        name: ldapUser.name || email,
+                        ldapDN: ldapUser.dn,
+                    },
+                    include: {
+                        roles: {
+                            include: {
+                                role: true,
+                            },
                         },
-                    });
-                    userRoles = ['REQUESTER'];
-                    logger.info('Requester role assigned to LDAP user', { userId: user.id, email });
-                } else {
-                    logger.warn('Requester role not found in database', { userId: user.id, email });
-                }
+                        department: true,
+                    },
+                });
             }
 
-            const token = jwt.sign({ sub: user.id, email: user.email, roles: userRoles, name: user.name }, config.JWT_SECRET, { expiresIn: '24h' });
+            // Perform hybrid role sync: AD groups → admin panel → default REQUESTER
+            const syncResult = await syncLDAPUserToDatabase(ldapUser, user);
+            
+            logger.info('LDAP user roles synced', { 
+                email,
+                syncSummary: describeSyncResult(syncResult)
+            });
 
-            logger.info('User logged in via LDAP successfully', { userId: user.id, email: user.email, roles: userRoles });
+            // Refresh user data from database with new roles
+            user = await prisma.user.findUnique({
+                where: { id: user.id },
+                include: {
+                    roles: {
+                        include: {
+                            role: true,
+                        },
+                    },
+                    department: true,
+                },
+            });
+
+            if (!user) {
+                throw new UnauthorizedError('User account not found in system.');
+            }
+
+            const roles = user.roles.map((r) => r.role.name);
+            const token = jwt.sign(
+                { sub: user.id, email: user.email, roles, name: user.name },
+                config.JWT_SECRET,
+                { expiresIn: '24h' }
+            );
+
+            logger.info('User logged in via LDAP with role sync', { 
+                userId: user.id, 
+                email: user.email, 
+                roles,
+                syncMethod: syncResult.appliedFromADGroups ? 'AD_GROUPS' : 'ADMIN_PANEL'
+            });
 
             return res.json({
                 token,
@@ -104,7 +140,7 @@ router.post(
                     id: user.id,
                     email: user.email,
                     name: user.name,
-                    roles: userRoles,
+                    roles,
                     department: user.department
                         ? {
                               id: user.department.id,
@@ -127,7 +163,11 @@ router.post(
         }
 
         const roles = user.roles.map((r) => r.role.name);
-        const token = jwt.sign({ sub: user.id, email: user.email, roles, name: user.name }, config.JWT_SECRET, { expiresIn: '24h' });
+        const token = jwt.sign(
+            { sub: user.id, email: user.email, roles, name: user.name },
+            config.JWT_SECRET,
+            { expiresIn: '24h' }
+        );
 
         logger.info('User logged in via database successfully', { userId: user.id, email: user.email });
 
@@ -150,7 +190,7 @@ router.post(
     })
 );
 
-// LDAP Login endpoint
+// LDAP Login endpoint (explicit LDAP only, with hybrid role sync)
 router.post(
     '/ldap-login',
     authLimiter,
@@ -166,10 +206,14 @@ router.post(
         // Authenticate user against LDAP
         const ldapUser = await ldapService.authenticateUser(email, password);
 
-        logger.info('LDAP authentication successful', { email, dn: ldapUser.dn });
+        logger.info('LDAP authentication successful', { 
+            email, 
+            dn: ldapUser.dn,
+            groupCount: ldapUser.memberOf?.length || 0
+        });
 
-        // Look up user in local database
-        const user = await prisma.user.findUnique({
+        // Look up or create user in local database
+        let user = await prisma.user.findUnique({
             where: { email },
             include: {
                 roles: {
@@ -182,11 +226,49 @@ router.post(
         });
 
         if (!user) {
-            logger.warn('LDAP authenticated user not found in local database', { email });
-            throw new UnauthorizedError('User account not found in system. Please contact your administrator.');
+            logger.info('LDAP authenticated user not in database, creating new user', { email });
+            user = await prisma.user.create({
+                data: {
+                    email,
+                    name: ldapUser.name || email,
+                    ldapDN: ldapUser.dn,
+                },
+                include: {
+                    roles: {
+                        include: {
+                            role: true,
+                        },
+                    },
+                    department: true,
+                },
+            });
         }
 
-        // Generate JWT token
+        // Perform hybrid role sync: AD groups → admin panel → default REQUESTER
+        const syncResult = await syncLDAPUserToDatabase(ldapUser, user);
+
+        logger.info('LDAP user roles synced', { 
+            email,
+            syncSummary: describeSyncResult(syncResult)
+        });
+
+        // Refresh user data from database with new roles
+        user = await prisma.user.findUnique({
+            where: { id: user.id },
+            include: {
+                roles: {
+                    include: {
+                        role: true,
+                    },
+                },
+                department: true,
+            },
+        });
+
+        if (!user) {
+            throw new UnauthorizedError('User account not found in system.');
+        }
+
         const roles = user.roles.map((r) => r.role.name);
         const token = jwt.sign(
             {
@@ -199,10 +281,12 @@ router.post(
             { expiresIn: '24h' }
         );
 
-        logger.info('User logged in via LDAP successfully', {
+        logger.info('User logged in via LDAP with role sync', {
             userId: user.id,
             email: user.email,
             ldapDN: ldapUser.dn,
+            roles,
+            syncMethod: syncResult.appliedFromADGroups ? 'AD_GROUPS' : 'ADMIN_PANEL'
         });
 
         res.json({

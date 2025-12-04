@@ -94,6 +94,7 @@ const BACKEND = {
     getAllRoles: (): Promise<RoleOption[]> => apiGet('/admin/roles'),
     createDepartment: (input: CreateDepartmentInput) => apiPost('/admin/departments', input),
     updateUserRoles: (userId: number, roles: string[]) => apiPost(`/admin/users/${userId}/roles`, { roles }),
+    updateUserDepartment: (userId: number, departmentId: number | null) => apiPost(`/admin/users/${userId}/department`, { departmentId }),
     getAuditLog: (q: AuditQuery) => {
         const params = new URLSearchParams();
         if (q.startDate) params.set('startDate', q.startDate);

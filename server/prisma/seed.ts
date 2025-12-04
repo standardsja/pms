@@ -40,10 +40,13 @@ async function main() {
         ensureRole('REQUESTER', 'Department staff who can submit requests'),
         ensureRole('DEPT_MANAGER', 'Department manager - first approval'),
         ensureRole('HEAD_OF_DIVISION', 'Head of Division - second approval'),
+        ensureRole('PROCUREMENT_OFFICER', 'Procurement officer - basic procurement access'),
+        ensureRole('PROCUREMENT_MANAGER', 'Procurement manager - advanced procurement access and management'),
         ensureRole('PROCUREMENT', 'Procurement officer - third review and final processing'),
         ensureRole('FINANCE', 'Finance officer - fourth review'),
         ensureRole('BUDGET_MANAGER', 'Budget Manager - final finance approval'),
         ensureRole('INNOVATION_COMMITTEE', 'Innovation Committee - review and adjudication of ideas'),
+        ensureRole('EVALUATION_COMMITTEE', 'Evaluation Committee - evaluate innovation ideas'),
     ]);
     console.log('[seed] Roles ensured:', roles.map((r) => r.name).join(', '));
 

@@ -56,6 +56,9 @@ const AdminSettings = () => {
     const [allRoles, setAllRoles] = useState<Array<{ id: number; name: string; description?: string }>>([]);
     const [rolesLoading, setRolesLoading] = useState(false);
     const [rolesError, setRolesError] = useState<string | null>(null);
+    
+    const [allDepartments, setAllDepartments] = useState<Array<{ id: number; name: string; code: string }>>([]);
+    const [departmentsLoading, setDepartmentsLoading] = useState(false);
 
     const [deptName, setDeptName] = useState('');
     const [deptCode, setDeptCode] = useState('');
@@ -110,10 +113,24 @@ const AdminSettings = () => {
         }
     }
 
+    // Fetch all available departments
+    async function loadDepartments() {
+        setDepartmentsLoading(true);
+        try {
+            const depts = await fetch(getApiUrl('/api/departments')).then((r) => r.json());
+            setAllDepartments(depts);
+        } catch (e: any) {
+            console.warn('Failed to fetch departments:', e?.message);
+        } finally {
+            setDepartmentsLoading(false);
+        }
+    }
+
     useEffect(() => {
         if (activeTab === 'users' || activeTab === 'departments') {
             loadUsers();
             loadRoles();
+            loadDepartments();
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeTab]);
@@ -331,7 +348,7 @@ const AdminSettings = () => {
                                 </thead>
                                 <tbody>
                                     {flatUsers.map((u) => (
-                                        <UserRow key={u.id} user={u} availableRoles={allRoles} onSave={handleSaveRoles} />
+                                        <UserRow key={u.id} user={u} availableRoles={allRoles} availableDepartments={allDepartments} onSave={handleSaveRoles} />
                                     ))}
                                 </tbody>
                             </table>
@@ -906,9 +923,12 @@ function ReassignRequestsTab() {
 // Local sub-component: editable user row with role checkboxes
 type FlatUser = { id: number; email: string; name: string; dept: string; roles: string[] };
 
-function UserRow({ user, availableRoles, onSave }: { user: FlatUser; availableRoles: Array<{ id: number; name: string; description?: string }>; onSave: (userId: number, roles: string[]) => void }) {
+function UserRow({ user, availableRoles, availableDepartments, onSave }: { user: FlatUser; availableRoles: Array<{ id: number; name: string; description?: string }>; availableDepartments: Array<{ id: number; name: string; code: string }>; onSave: (userId: number, roles: string[]) => void }) {
     const [localRoles, setLocalRoles] = useState<string[]>(user.roles);
+    const [localDeptId, setLocalDeptId] = useState<string>(user.dept ? String(user.dept) : '');
     const [saving, setSaving] = useState(false);
+    const [savingDept, setSavingDept] = useState(false);
+    
     const changed = useMemo(() => {
         const a = [...localRoles].sort().join(',');
         const b = [...user.roles].sort().join(',');
@@ -928,11 +948,49 @@ function UserRow({ user, availableRoles, onSave }: { user: FlatUser; availableRo
         }
     }
 
+    async function handleSaveDept() {
+        setSavingDept(true);
+        try {
+            const deptId = localDeptId ? Number(localDeptId) : null;
+            await adminService.updateUserDepartment(user.id, deptId);
+            // Reload users to reflect changes
+            window.location.reload();
+        } catch (e: any) {
+            console.error('Failed to update department:', e);
+            alert('Failed to update department');
+        } finally {
+            setSavingDept(false);
+        }
+    }
+
     return (
         <tr>
             <td className="font-mono">{user.email}</td>
             <td>{user.name}</td>
-            <td>{user.dept}</td>
+            <td>
+                <select
+                    className="form-select text-xs"
+                    value={localDeptId}
+                    onChange={(e) => setLocalDeptId(e.target.value)}
+                    disabled={savingDept}
+                >
+                    <option value="">No Department</option>
+                    {availableDepartments.map((dept) => (
+                        <option key={dept.id} value={dept.id}>
+                            {dept.name} ({dept.code})
+                        </option>
+                    ))}
+                </select>
+                {user.dept && localDeptId !== String(user.dept) && (
+                    <button
+                        className="btn btn-sm btn-warning ml-2"
+                        onClick={handleSaveDept}
+                        disabled={savingDept}
+                    >
+                        {savingDept ? 'Saving…' : 'Save Dept'}
+                    </button>
+                )}
+            </td>
             <td>
                 <div className="flex flex-wrap gap-2">
                     {availableRoles.map((role) => (

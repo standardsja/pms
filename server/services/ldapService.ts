@@ -18,6 +18,11 @@ export interface LDAPUser {
     email: string;
     name?: string;
     department?: string;
+    memberOf?: string[]; // AD group memberships
+}
+
+export interface LDAPUserWithGroups extends LDAPUser {
+    memberOf: string[]; // List of AD group DNs
 }
 
 /**
@@ -87,7 +92,7 @@ class LDAPService {
             const { searchEntries } = await this.client!.search(config.LDAP.searchDN, {
                 filter: `(userPrincipalName=${sanitizedEmail})`,
                 scope: 'sub',
-                attributes: ['dn', 'userPrincipalName', 'cn', 'displayName', 'mail', 'department'],
+                attributes: ['dn', 'userPrincipalName', 'cn', 'displayName', 'mail', 'department', 'memberOf'],
             });
 
             if (searchEntries.length === 0) {
@@ -99,17 +104,26 @@ class LDAPService {
             const entry = searchEntries[0];
             userDN = entry.dn as string;
 
+            // Extract group memberships
+            const memberOf = Array.isArray(entry.memberOf)
+                ? (entry.memberOf as string[])
+                : entry.memberOf
+                ? [entry.memberOf as string]
+                : [];
+
             ldapUser = {
                 dn: userDN,
                 email: (entry.mail as string) || sanitizedEmail,
                 name: (entry.displayName as string) || (entry.cn as string) || undefined,
                 department: entry.department as string | undefined,
+                memberOf,
             };
 
             logger.info('LDAP user found in directory', {
                 email: sanitizedEmail,
                 dn: userDN,
                 name: ldapUser.name,
+                groupCount: memberOf.length,
             });
 
             // Step 3: Unbind admin connection
@@ -195,7 +209,7 @@ class LDAPService {
             const { searchEntries } = await this.client!.search(config.LDAP.searchDN, {
                 filter: `(userPrincipalName=${sanitizedEmail})`,
                 scope: 'sub',
-                attributes: ['dn', 'userPrincipalName', 'cn', 'displayName', 'mail', 'department'],
+                attributes: ['dn', 'userPrincipalName', 'cn', 'displayName', 'mail', 'department', 'memberOf'],
             });
 
             if (searchEntries.length === 0) {
@@ -203,11 +217,20 @@ class LDAPService {
             }
 
             const entry = searchEntries[0];
+
+            // Extract group memberships
+            const memberOf = Array.isArray(entry.memberOf)
+                ? (entry.memberOf as string[])
+                : entry.memberOf
+                ? [entry.memberOf as string]
+                : [];
+
             return {
                 dn: entry.dn as string,
                 email: (entry.mail as string) || sanitizedEmail,
                 name: (entry.displayName as string) || (entry.cn as string) || undefined,
                 department: entry.department as string | undefined,
+                memberOf,
             };
         } catch (error: any) {
             logger.error('LDAP user search error', {

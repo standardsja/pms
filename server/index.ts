@@ -3642,6 +3642,69 @@ app.get('/api/admin/roles', async (req, res) => {
     }
 });
 
+// GET /api/departments - Get all departments
+app.get('/api/departments', async (req, res) => {
+    try {
+        const departments = await prisma.department.findMany({
+            orderBy: { name: 'asc' },
+            select: { id: true, name: true, code: true },
+        });
+
+        res.json(departments);
+    } catch (e: any) {
+        console.error('GET /api/departments error:', e);
+        res.status(500).json({ message: 'Failed to fetch departments' });
+    }
+});
+
+// POST /api/admin/users/:userId/department - Update user's department (admin only)
+app.post('/api/admin/users/:userId/department', async (req, res) => {
+    try {
+        const adminId = req.headers['x-user-id'];
+        if (!adminId) return res.status(401).json({ message: 'User ID required' });
+
+        // Verify admin
+        const admin = await prisma.user.findUnique({
+            where: { id: parseInt(String(adminId), 10) },
+            include: { roles: { include: { role: true } } },
+        });
+        const isAdmin = admin?.roles.some((r) => r.role.name === 'ADMIN');
+        if (!isAdmin) return res.status(403).json({ message: 'Admin access required' });
+
+        const { userId } = req.params;
+        const { departmentId } = req.body;
+
+        const parsedUserId = parseInt(userId, 10);
+
+        // Verify user exists
+        const user = await prisma.user.findUnique({ where: { id: parsedUserId } });
+        if (!user) return res.status(404).json({ message: 'User not found' });
+
+        // If departmentId is provided, verify department exists
+        if (departmentId) {
+            const dept = await prisma.department.findUnique({ where: { id: departmentId } });
+            if (!dept) return res.status(404).json({ message: 'Department not found' });
+        }
+
+        // Update user's department
+        const updated = await prisma.user.update({
+            where: { id: parsedUserId },
+            data: { departmentId: departmentId || null },
+        });
+
+        console.log(`[Admin] Updated department for user ${parsedUserId} to department ${departmentId || 'none'}`);
+
+        return res.json({
+            message: 'User department updated successfully',
+            userId: parsedUserId,
+            departmentId: updated.departmentId,
+        });
+    } catch (e: any) {
+        console.error('POST /api/admin/users/:userId/department error:', e);
+        res.status(500).json({ message: 'Failed to update user department' });
+    }
+});
+
 // GET /admin/users - Get all users with their roles and departments
 app.get('/admin/users', async (req, res) => {
     try {
