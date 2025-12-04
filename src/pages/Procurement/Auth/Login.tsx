@@ -66,8 +66,8 @@ const Login = () => {
             // Get API URL from environment
             const apiUrl = import.meta.env.VITE_API_URL || '';
 
-            // Primary: real password login
-            const res = await fetch(`${apiUrl}/api/auth/login`, {
+            // Use LDAP authentication endpoint
+            const res = await fetch(`${apiUrl}/api/auth/ldap-login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password }),
