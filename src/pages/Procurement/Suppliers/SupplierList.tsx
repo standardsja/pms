@@ -18,100 +18,47 @@ const SupplierList = () => {
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
     const [categoryFilter, setCategoryFilter] = useState('all');
+    const [suppliers, setSuppliers] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
-    // Mock supplier data
-    const suppliers = [
-        {
-            id: 1,
-            name: 'ABC Corporation',
-            category: 'Office Supplies',
-            contact: 'John Smith',
-            email: 'john@abccorp.com',
-            phone: '+1-555-0101',
-            address: '123 Business St, City',
-            rating: 4.8,
-            totalOrders: 45,
-            totalSpend: 125000,
-            status: 'Active',
-            registeredDate: '2023-01-15',
-        },
-        {
-            id: 2,
-            name: 'Tech Solutions Inc',
-            category: 'IT Equipment',
-            contact: 'Sarah Johnson',
-            email: 'sarah@techsolutions.com',
-            phone: '+1-555-0102',
-            address: '456 Tech Ave, City',
-            rating: 4.9,
-            totalOrders: 28,
-            totalSpend: 87500,
-            status: 'Active',
-            registeredDate: '2023-03-20',
-        },
-        {
-            id: 3,
-            name: 'Office Pro Supply',
-            category: 'Office Furniture',
-            contact: 'Mike Wilson',
-            email: 'mike@officepro.com',
-            phone: '+1-555-0103',
-            address: '789 Commerce Rd, City',
-            rating: 4.5,
-            totalOrders: 52,
-            totalSpend: 65000,
-            status: 'Active',
-            registeredDate: '2022-11-10',
-        },
-        {
-            id: 4,
-            name: 'Clean Corp Ltd',
-            category: 'Cleaning Services',
-            contact: 'Emily Brown',
-            email: 'emily@cleancorp.com',
-            phone: '+1-555-0104',
-            address: '321 Service Lane, City',
-            rating: 4.7,
-            totalOrders: 18,
-            totalSpend: 54000,
-            status: 'Active',
-            registeredDate: '2023-05-05',
-        },
-        {
-            id: 5,
-            name: 'XYZ Suppliers Ltd',
-            category: 'General',
-            contact: 'David Lee',
-            email: 'david@xyzsuppliers.com',
-            phone: '+1-555-0105',
-            address: '654 Industrial Park, City',
-            rating: 4.6,
-            totalOrders: 32,
-            totalSpend: 98000,
-            status: 'Active',
-            registeredDate: '2023-02-28',
-        },
-        {
-            id: 6,
-            name: 'Beta Industries',
-            category: 'IT Equipment',
-            contact: 'Lisa Anderson',
-            email: 'lisa@betaindustries.com',
-            phone: '+1-555-0106',
-            address: '987 Market St, City',
-            rating: 3.8,
-            totalOrders: 12,
-            totalSpend: 42000,
-            status: 'Inactive',
-            registeredDate: '2022-08-12',
-        },
-    ];
+    // Fetch suppliers from API
+    useEffect(() => {
+        fetchSuppliers();
+    }, []);
+
+    const fetchSuppliers = async () => {
+        try {
+            setLoading(true);
+            setError(null);
+
+            const token = localStorage.getItem('token');
+            const userId = localStorage.getItem('userId');
+
+            const response = await fetch('http://heron:4000/api/suppliers', {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'x-user-id': userId || '',
+                },
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch suppliers');
+            }
+
+            const data = await response.json();
+            setSuppliers(data);
+        } catch (err) {
+            console.error('Error fetching suppliers:', err);
+            setError(err instanceof Error ? err.message : 'Unknown error');
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const filteredSuppliers = suppliers.filter((supplier) => {
         const matchesSearch =
-            supplier.name.toLowerCase().includes(search.toLowerCase()) ||
-            supplier.contact.toLowerCase().includes(search.toLowerCase()) ||
-            supplier.email.toLowerCase().includes(search.toLowerCase());
+            supplier.name.toLowerCase().includes(search.toLowerCase()) || supplier.contact.toLowerCase().includes(search.toLowerCase()) || supplier.email.toLowerCase().includes(search.toLowerCase());
         const matchesStatus = statusFilter === 'all' || supplier.status === statusFilter;
         const matchesCategory = categoryFilter === 'all' || supplier.category === categoryFilter;
         return matchesSearch && matchesStatus && matchesCategory;
@@ -159,6 +106,28 @@ const SupplierList = () => {
     };
 
     const categories = [...new Set(suppliers.map((s) => s.category))];
+
+    if (loading) {
+        return (
+            <div className="flex min-h-[400px] items-center justify-center">
+                <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-l-transparent"></div>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="panel">
+                <div className="py-8 text-center">
+                    <div className="mb-4 text-danger">Error loading suppliers</div>
+                    <p className="text-white-dark">{error}</p>
+                    <button onClick={fetchSuppliers} className="btn btn-primary mt-4">
+                        Retry
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div>
@@ -210,13 +179,7 @@ const SupplierList = () => {
             <div className="panel mb-6">
                 <div className="mb-5 flex flex-col gap-5 md:flex-row md:items-center">
                     <div className="flex-1">
-                        <input
-                            type="text"
-                            className="form-input w-full"
-                            placeholder="Search suppliers..."
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                        />
+                        <input type="text" className="form-input w-full" placeholder="Search suppliers..." value={search} onChange={(e) => setSearch(e.target.value)} />
                     </div>
                     <div className="flex gap-3">
                         <select className="form-select w-full md:w-auto" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>

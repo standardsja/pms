@@ -65,12 +65,14 @@ const CombineRequests = () => {
             setIsLoading(true);
             setError(null);
             try {
-                const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
+                const token = localStorage.getItem('token');
+                const userId = localStorage.getItem('userId');
 
                 // Fetch combinable requests
                 const response = await fetch(getApiUrl('/api/requests/combine?combinable=true'), {
                     headers: {
                         Authorization: `Bearer ${token}`,
+                        'x-user-id': userId || '',
                         'Content-Type': 'application/json',
                     },
                 });
@@ -97,6 +99,7 @@ const CombineRequests = () => {
                 const combinedResponse = await fetch(getApiUrl('/api/requests/combine'), {
                     headers: {
                         Authorization: `Bearer ${token}`,
+                        'x-user-id': userId || '',
                         'Content-Type': 'application/json',
                     },
                 });
@@ -240,11 +243,13 @@ const CombineRequests = () => {
                 requiresApproval: permissions.requiresApproval,
             };
 
-            const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
+            const token = localStorage.getItem('token');
+            const userId = localStorage.getItem('userId');
             const response = await fetch(getApiUrl('/api/requests/combine'), {
                 method: 'POST',
                 headers: {
                     Authorization: `Bearer ${token}`,
+                    'x-user-id': userId || '',
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify(combinedRequestData),

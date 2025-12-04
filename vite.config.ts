@@ -19,17 +19,13 @@ export default defineConfig({
         allowedHosts: process.env.VITE_ALLOWED_HOSTS ? process.env.VITE_ALLOWED_HOSTS.split(',').map((s) => s.trim()) : ['heron', 'localhost', '127.0.0.1'],
         proxy: {
             // Proxy API requests to the unified TypeScript backend
-            // Uses VITE_API_URL from .env if available, otherwise heron
+            // Uses VITE_API_URL from .env if available, otherwise localhost:4000
             '/api': {
                 target: process.env.VITE_API_URL || 'http://localhost:4000',
                 changeOrigin: true,
             },
-            // Also proxy admin/auth and non-prefixed endpoints used by the app
+            // Proxy legacy admin and requests endpoints (non-prefixed)
             '/admin': {
-                target: process.env.VITE_API_URL || 'http://localhost:4000',
-                changeOrigin: true,
-            },
-            '/auth': {
                 target: process.env.VITE_API_URL || 'http://localhost:4000',
                 changeOrigin: true,
             },
