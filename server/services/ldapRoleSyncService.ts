@@ -65,6 +65,14 @@ export async function syncLDAPUserToDatabase(ldapUser: LDAPUser, existingUser?: 
 
         // Step 1: Extract AD groups and find matching mappings
         const userGroups = ldapUser.memberOf || [];
+
+        logger.info('LDAP: Checking user group memberships', {
+            email: ldapUser.email,
+            groupCount: userGroups.length,
+            userGroups: userGroups.length > 0 ? userGroups : ['(no groups)'],
+            availableMappings: mappings.map((m) => m.adGroupName),
+        });
+
         const matchedMappings = findMappingsForGroups(userGroups, mappings);
 
         if (matchedMappings.length > 0) {
@@ -72,7 +80,8 @@ export async function syncLDAPUserToDatabase(ldapUser: LDAPUser, existingUser?: 
                 email: ldapUser.email,
                 groupCount: userGroups.length,
                 mappingCount: matchedMappings.length,
-                groups: userGroups.slice(0, 3), // Log first 3 groups
+                matchedGroups: matchedMappings.map((m) => m.adGroupName),
+                rolesToApply: matchedMappings.flatMap((m) => m.roles),
             });
 
             // Extract unique roles from all matched mappings
@@ -136,9 +145,12 @@ export async function syncLDAPUserToDatabase(ldapUser: LDAPUser, existingUser?: 
             }
         } else {
             // No AD groups matched - use admin-panel assigned roles as fallback
-            logger.info('LDAP: No AD group mappings found, using admin-assigned roles', {
+            logger.warn('LDAP: No AD group mappings found, using admin-assigned roles', {
                 email: ldapUser.email,
-                userGroups: userGroups.length,
+                userGroupCount: userGroups.length,
+                userGroupsReceived: userGroups.length > 0 ? userGroups : ['(none)'],
+                availableMappings: mappings.length,
+                mappingNames: mappings.map((m) => m.adGroupName),
             });
 
             const userRoles = await prisma.userRole.findMany({

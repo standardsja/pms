@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '../prismaClient';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth';
+import { getSystemHealthMetrics } from '../services/monitoringService';
 
 const router = Router();
 
@@ -10,6 +11,9 @@ const SERVER_START_TIME = Date.now();
 // In-memory store for active sessions (module activity)
 // Key: userId, Value: { module: 'pms' | 'ih', lastSeen: Date }
 const activeSessions = new Map<number, { module: 'pms' | 'ih'; lastSeen: Date }>();
+
+// Export for real-time broadcasts
+export { activeSessions, SERVER_START_TIME };
 
 // Clean up stale sessions (inactive for more than 3 minutes)
 // Heartbeat interval is 45s, so 3 minutes allows for ~4 missed heartbeats before cleanup
@@ -332,12 +336,8 @@ router.get('/system', async (req: Request, res: Response) => {
         });
         console.log(`[Stats] Pending approvals: ${pendingApprovals}`);
 
-        // System uptime percentage (calculated from server start time)
-        const uptimeMs = Date.now() - SERVER_START_TIME;
-        const uptimeDays = uptimeMs / (1000 * 60 * 60 * 24);
-        // Assume 99.99% available outside of maintenance window
-        // For every day of uptime, subtract 0.01% (roughly 86 seconds of downtime per day)
-        const systemUptime = Math.round((Math.max(0, Math.min(100, 99.99 - uptimeDays * 0.01)) + Number.EPSILON) * 10) / 10;
+        // Get comprehensive health metrics from monitoring service
+        const healthMetrics = getSystemHealthMetrics();
 
         // Total processed requests (all time)
         console.log('[Stats] Counting total processed requests...');
@@ -355,7 +355,12 @@ router.get('/system', async (req: Request, res: Response) => {
             requestsThisMonth,
             innovationIdeas,
             pendingApprovals,
-            systemUptime,
+            systemUptime: healthMetrics.systemUptime,
+            apiResponseTime: healthMetrics.apiResponseTime,
+            requestSuccessRate: healthMetrics.requestSuccessRate,
+            serverHealthScore: healthMetrics.serverHealthScore,
+            cpuLoad: healthMetrics.cpuLoad,
+            memoryUsage: healthMetrics.memoryUsage,
             totalProcessedRequests,
             timestamp: now.toISOString(),
         };

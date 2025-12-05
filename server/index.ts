@@ -23,9 +23,18 @@ import { initTrendingScoreJob, updateIdeaTrendingScore } from './services/trendi
 import { findPotentialDuplicates } from './services/duplicateDetectionService';
 import { searchIdeas, getSearchSuggestions } from './services/searchService';
 import { batchUpdateIdeas, getCommitteeDashboardStats, getPendingIdeasForReview, getCommitteeMemberStats } from './services/committeeService';
-import { initWebSocket, emitIdeaCreated, emitIdeaStatusChanged, emitVoteUpdated, emitBatchApproval, emitCommentAdded } from './services/websocketService';
+import { initWebSocket, emitIdeaCreated, emitIdeaStatusChanged, emitVoteUpdated, emitBatchApproval, emitCommentAdded, broadcastSystemStats } from './services/websocketService';
 import { initAnalyticsJob, stopAnalyticsJob, getAnalytics, getCategoryAnalytics, getTimeBasedAnalytics } from './services/analyticsService';
-import { requestMonitoringMiddleware, trackCacheHit, trackCacheMiss, getMetrics, getHealthStatus, getSlowEndpoints, getErrorProneEndpoints } from './services/monitoringService';
+import {
+    requestMonitoringMiddleware,
+    trackCacheHit,
+    trackCacheMiss,
+    getMetrics,
+    getHealthStatus,
+    getSlowEndpoints,
+    getErrorProneEndpoints,
+    getSystemHealthMetrics,
+} from './services/monitoringService';
 import { checkProcurementThresholds } from './services/thresholdService';
 import { checkSplintering } from './services/splinteringService';
 import { createThresholdNotifications } from './services/notificationService';
@@ -51,6 +60,8 @@ const PUBLIC_HOST = process.env.API_PUBLIC_HOST || (APP_ENV === 'local' ? 'local
 const JWT_SECRET = process.env.JWT_SECRET || 'devsecret-change-me';
 
 let trendingJobInterval: NodeJS.Timeout | null = null;
+let systemStatsInterval: NodeJS.Timeout | null = null;
+const SERVER_START_TIME = Date.now();
 
 // Initialize global RoleResolver early so middleware can use it
 try {
@@ -5648,6 +5659,29 @@ async function start() {
         initAnalyticsJob(); // Start analytics aggregation job
         initWebSocket(httpServer); // Initialize WebSocket server
 
+        // Start real-time system stats broadcast (every 5 seconds)
+        const { activeSessions: sessions } = await import('./routes/stats');
+        systemStatsInterval = setInterval(async () => {
+            try {
+                const activeUsers = sessions.size;
+
+                // Get comprehensive health metrics from monitoring service
+                const healthMetrics = getSystemHealthMetrics();
+
+                broadcastSystemStats({
+                    activeUsers,
+                    systemUptime: healthMetrics.systemUptime,
+                    apiResponseTime: healthMetrics.apiResponseTime,
+                    requestSuccessRate: healthMetrics.requestSuccessRate,
+                    serverHealthScore: healthMetrics.serverHealthScore,
+                    cpuLoad: healthMetrics.cpuLoad,
+                    memoryUsage: healthMetrics.memoryUsage,
+                });
+            } catch (err) {
+                console.error('[SystemStats] Error broadcasting stats:', err);
+            }
+        }, 5000); // Broadcast every 5 seconds
+
         httpServer.listen(PORT, API_HOST, () => {
             console.log(`🚀 Environment: ${APP_ENV.toUpperCase()}`);
             console.log(`API server listening on http://${PUBLIC_HOST}:${PORT} (bind ${API_HOST})`);
@@ -5668,6 +5702,12 @@ function gracefulShutdown(signal: string) {
     if (trendingJobInterval) {
         clearInterval(trendingJobInterval);
         trendingJobInterval = null;
+    }
+
+    // Clear system stats broadcast
+    if (systemStatsInterval) {
+        clearInterval(systemStatsInterval);
+        systemStatsInterval = null;
     }
 
     // Stop analytics job
