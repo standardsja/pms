@@ -29,12 +29,12 @@ const Profile = () => {
     const [profileData, setProfileData] = useState<any>(null);
     const [recentActivities, setRecentActivities] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [uploadingPhoto, setUploadingPhoto] = useState(false);
     const [stats, setStats] = useState<any>({
         evaluationsCompleted: 0,
         approvalsProcessed: 0,
         requestsCreated: 0,
     });
-    const [useProfileImage, setUseProfileImage] = useState(false);
 
     useEffect(() => {
         dispatch(setPageTitle('My Profile'));
@@ -51,7 +51,7 @@ const Profile = () => {
                     return;
                 }
 
-                // Fetch user profile details from auth endpoint (uses /api/auth/me)
+                // Fetch user profile details from auth endpoint
                 const meResponse = await fetch(getApiUrl('/api/auth/me'), {
                     headers: {
                         Authorization: `Bearer ${token}`,
@@ -61,7 +61,13 @@ const Profile = () => {
 
                 if (meResponse.ok) {
                     const data = await meResponse.json();
+                    // Add timestamp to profile image for cache busting
+                    if (data.profileImage) {
+                        data.profileImage = `${data.profileImage}?t=${Date.now()}`;
+                        console.log('[PROFILE] Loaded profileImage with timestamp:', data.profileImage);
+                    }
                     setProfileData(data);
+                    console.log('[PROFILE] Profile data set:', data);
                 }
 
                 // Fetch recent activities/requests
@@ -96,32 +102,92 @@ const Profile = () => {
         };
 
         fetchProfileData();
-
-        // Set up real-time polling - refresh every 30 seconds
-        const intervalId = setInterval(fetchProfileData, 30000);
-
-        // Cleanup interval on unmount
-        return () => clearInterval(intervalId);
     }, [user]);
 
-    useEffect(() => {
-        const savedMode = typeof window !== 'undefined' ? localStorage.getItem('profileAvatarMode') : null;
-        if (savedMode === 'photo') {
-            setUseProfileImage(true);
-        }
-    }, []);
+    const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
 
-    useEffect(() => {
-        if (typeof window !== 'undefined') {
-            localStorage.setItem('profileAvatarMode', useProfileImage ? 'photo' : 'initials');
+        // Validate file type
+        if (!file.type.startsWith('image/')) {
+            alert('Please select an image file');
+            return;
         }
-    }, [useProfileImage]);
 
-    useEffect(() => {
-        if (!profileData?.profileImage) {
-            setUseProfileImage(false);
+        // Validate file size (5MB max)
+        if (file.size > 5 * 1024 * 1024) {
+            alert('Image size must be less than 5MB');
+            return;
         }
-    }, [profileData]);
+
+        setUploadingPhoto(true);
+
+        try {
+            const token = getToken();
+            const currentUser = getUser();
+
+            if (!token || !currentUser) {
+                throw new Error('Not authenticated');
+            }
+
+            const formData = new FormData();
+            formData.append('photo', file);
+
+            const response = await fetch(getApiUrl('/api/auth/upload-photo'), {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'x-user-id': currentUser.id.toString(),
+                },
+                body: formData,
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.message || 'Failed to upload photo');
+            }
+
+            const data = await response.json();
+
+            // Update profile data with new photo (add timestamp to bust cache)
+            const newProfileImage = `${data.profileImage}?t=${Date.now()}`;
+            setProfileData((prev: any) => ({
+                ...prev,
+                profileImage: newProfileImage,
+            }));
+
+            // Trigger a custom event to notify Header component
+            window.dispatchEvent(
+                new CustomEvent('profilePhotoUpdated', {
+                    detail: { profileImage: newProfileImage },
+                })
+            );
+
+            // Show success notification using Swal instead of alert
+            const Swal = (await import('sweetalert2')).default;
+            Swal.fire({
+                title: 'Success!',
+                text: 'Profile photo updated successfully',
+                icon: 'success',
+                timer: 2000,
+                showConfirmButton: false,
+                toast: true,
+                position: 'top-end',
+            });
+        } catch (error: any) {
+            console.error('Error uploading photo:', error);
+            // Show error notification using Swal
+            const Swal = (await import('sweetalert2')).default;
+            Swal.fire({
+                title: 'Error!',
+                text: error.message || 'Failed to upload photo',
+                icon: 'error',
+                confirmButtonText: 'OK',
+            });
+        } finally {
+            setUploadingPhoto(false);
+        }
+    };
 
     const formatDate = (date: string) => {
         const now = new Date();
@@ -173,15 +239,6 @@ const Profile = () => {
         return user.roles.map((role: string) => roleLabels[role] || role).join(', ');
     };
 
-    const getInitials = (name: string): string => {
-        if (!name) return 'U';
-        const names = name.trim().split(' ');
-        if (names.length >= 2) {
-            return `${names[0][0]}${names[names.length - 1][0]}`.toUpperCase();
-        }
-        return name.substring(0, 2).toUpperCase();
-    };
-
     const isRtl = useSelector((state: IRootState) => state.themeConfig.rtlClass) === 'rtl';
 
     // Normalize user roles to CODE format (e.g., 'Procurement Manager' -> 'PROCUREMENT_MANAGER') for reliable checks
@@ -200,15 +257,9 @@ const Profile = () => {
     const userEmail = displayUser?.email || 'Not provided';
     const userName = displayUser?.name || displayUser?.full_name || 'User';
     const userDepartment = displayUser?.department?.name || 'Not assigned';
-    const joinDate = displayUser?.createdAt
-        ? new Date(displayUser.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
-        : new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+    const joinDate = displayUser?.createdAt ? new Date(displayUser.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'Jan 2024';
     const userLocation = displayUser?.department?.code || 'Jamaica';
-    const userPhone = displayUser?.phone || 'Not provided';
-    const profileImage: string | undefined = displayUser?.profileImage;
-    const isLdapUser = !!displayUser?.ldapDN;
-
-    const shouldShowPhoto = useProfileImage && Boolean(profileImage);
+    const userPhone = displayUser?.phone || '+1 (876) 555-1234';
     return (
         <div>
             <ul className="flex space-x-2 rtl:space-x-reverse">
@@ -232,23 +283,29 @@ const Profile = () => {
                         </div>
                         <div className="mb-5">
                             <div className="flex flex-col justify-center items-center">
-                                {shouldShowPhoto ? (
-                                    <img src={profileImage} alt="Profile" className="w-24 h-24 rounded-full object-cover mb-5 ring-2 ring-primary/20" />
-                                ) : (
-                                    <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold text-4xl mb-5 ring-2 ring-primary/20">
-                                        {getInitials(userName)}
-                                    </div>
-                                )}
-                                {profileImage && (
-                                    <button type="button" className="-mt-3 mb-2 text-xs text-primary hover:underline" onClick={() => setUseProfileImage((prev) => !prev)}>
-                                        {shouldShowPhoto ? 'Use initials' : 'Use photo'}
-                                    </button>
-                                )}
-                                <p className="font-semibold text-primary text-xl">{userName}</p>
-                                <div className="flex items-center gap-2 justify-center">
-                                    <p className="text-sm text-white-dark mt-1">{getUserRoles()}</p>
-                                    {isLdapUser && <span className="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-full font-medium">LDAP</span>}
+                                <div className="relative group">
+                                    <img
+                                        src={
+                                            displayUser?.profileImage
+                                                ? displayUser.profileImage.startsWith('http')
+                                                    ? displayUser.profileImage
+                                                    : getApiUrl(displayUser.profileImage)
+                                                : '/assets/images/user-profile.jpeg'
+                                        }
+                                        alt="profile"
+                                        className="w-24 h-24 rounded-full object-cover mb-5 ring-2 ring-primary/20"
+                                    />
+                                    <label
+                                        htmlFor="photo-upload"
+                                        className="absolute bottom-5 right-0 bg-primary text-white p-2 rounded-full cursor-pointer hover:bg-primary-dark transition opacity-0 group-hover:opacity-100"
+                                        title="Upload photo"
+                                    >
+                                        {uploadingPhoto ? <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div> : <IconPencilPaper className="w-4 h-4" />}
+                                    </label>
+                                    <input id="photo-upload" type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" disabled={uploadingPhoto} />
                                 </div>
+                                <p className="font-semibold text-primary text-xl">{userName}</p>
+                                <p className="text-sm text-white-dark mt-1">{getUserRoles()}</p>
                             </div>
                             <ul className="mt-5 flex flex-col max-w-[200px] m-auto space-y-4 font-semibold text-white-dark text-sm">
                                 <li className="flex items-center gap-2">

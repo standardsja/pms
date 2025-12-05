@@ -34,11 +34,11 @@ import IconMenuForms from '../Icon/Menu/IconMenuForms';
 import IconMenuPages from '../Icon/Menu/IconMenuPages';
 import IconMenuMore from '../Icon/Menu/IconMenuMore';
 import IconRefresh from '../Icon/IconRefresh';
-import { getUser, clearAuth, getToken } from '../../utils/auth';
-import { getApiUrl } from '../../config/api';
+import { getUser, getToken, clearAuth } from '../../utils/auth';
 import { heartbeatService } from '../../services/heartbeatService';
 import { fetchNotifications, deleteNotification, Notification } from '../../services/notificationApi';
 import { fetchMessages, deleteMessage, Message } from '../../services/messageApi';
+import { getApiUrl } from '../../config/api';
 
 const Header = () => {
     const location = useLocation();
@@ -47,61 +47,8 @@ const Header = () => {
 
     // Current user & role derivations (align with Sidebar logic)
     const currentUser = getUser();
+    const [profileImage, setProfileImage] = useState<string | null>(null);
     const userRoles = currentUser?.roles || (currentUser?.role ? [currentUser.role] : []);
-
-    // Profile image state
-    const [profileImage, setProfileImage] = useState<string>('');
-
-    // Fetch profile image on mount and listen for updates
-    useEffect(() => {
-        const fetchProfileImage = async () => {
-            try {
-                const token = getToken();
-                if (!token) return;
-
-                const response = await fetch(getApiUrl('/api/auth/me'), {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        'Content-Type': 'application/json',
-                    },
-                });
-
-                if (response.ok) {
-                    const data = await response.json();
-                    if (data.profileImage) {
-                        setProfileImage(data.profileImage);
-                    }
-                }
-            } catch (error) {
-                console.error('Error fetching profile image:', error);
-            }
-        };
-
-        fetchProfileImage();
-
-        // Listen for profile image updates from AccountSetting
-        const handleProfileImageUpdated = (event: any) => {
-            const { profileImage: newImage } = event.detail;
-            setProfileImage(newImage);
-        };
-
-        window.addEventListener('profileImageUpdated', handleProfileImageUpdated);
-        return () => window.removeEventListener('profileImageUpdated', handleProfileImageUpdated);
-    }, []);
-
-    const getImageUrl = (imagePath: string): string => {
-        if (!imagePath) return '/assets/images/user-profile.jpeg';
-        // Remove existing timestamp if present
-        const cleanPath = imagePath.split('?')[0];
-        // Always add fresh timestamp to prevent caching
-        const timestamp = new Date().getTime();
-        if (cleanPath.startsWith('http://') || cleanPath.startsWith('https://')) {
-            return `${cleanPath}?t=${timestamp}`;
-        }
-        return `${getApiUrl(cleanPath)}?t=${timestamp}`;
-    };
-
-    const isAdmin = userRoles.includes('ADMIN') || userRoles.includes('ADMINISTRATOR');
     const isCommitteeMember = userRoles.includes('INNOVATION_COMMITTEE');
     const isProcurementManager = userRoles.includes('PROCUREMENT_MANAGER') || userRoles.includes('MANAGER') || userRoles.some((r: string) => r && r.toUpperCase().includes('MANAGER'));
     const isProcurementOfficer = !isProcurementManager && (userRoles.includes('PROCUREMENT_OFFICER') || userRoles.includes('PROCUREMENT'));
@@ -113,9 +60,7 @@ const Header = () => {
     const currentModule = isInnovationHub ? 'innovation' : 'procurement';
 
     // Set dashboard path based on user role (Manager takes precedence over Officer)
-    const dashboardPath = isAdmin
-        ? '/procurement/admin'
-        : isCommitteeMember
+    const dashboardPath = isCommitteeMember
         ? '/innovation/committee/dashboard'
         : isInnovationHub
         ? '/innovation/dashboard'
@@ -131,16 +76,6 @@ const Header = () => {
     console.log('[HEADER] User roles:', userRoles);
     console.log('[HEADER] isProcurementManager:', isProcurementManager);
     console.log('[HEADER] Calculated dashboardPath:', dashboardPath);
-
-    // Helper function to get user initials
-    const getInitials = (name: string): string => {
-        if (!name) return 'U';
-        const names = name.trim().split(' ');
-        if (names.length >= 2) {
-            return `${names[0][0]}${names[names.length - 1][0]}`.toUpperCase();
-        }
-        return name.substring(0, 2).toUpperCase();
-    };
 
     useEffect(() => {
         const selector = document.querySelector('ul.horizontal-menu a[href="' + window.location.pathname + '"]');
@@ -216,8 +151,57 @@ const Header = () => {
 
     // Initial load and polling (60s interval, matching Innovation Hub pattern)
     useEffect(() => {
+        // Get fresh auth data on every effect run
+        const token = getToken();
+        const user = getUser();
+
+        if (!user || !token) {
+            console.log('[HEADER] No token or user, skipping profile image load');
+            return;
+        }
+
         loadNotifications();
         loadMessages();
+
+        // Fetch user profile image
+        const loadProfileImage = async () => {
+            try {
+                console.log('[HEADER] Fetching /api/auth/me for user:', user.id);
+                const response = await fetch(getApiUrl('/api/auth/me'), {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('[HEADER] /api/auth/me response:', data);
+                    if (data.profileImage) {
+                        // Add timestamp to bust cache on every load
+                        const imageWithTimestamp = `${data.profileImage}?t=${Date.now()}`;
+                        console.log('[HEADER] Loaded profileImage with timestamp:', imageWithTimestamp);
+                        setProfileImage(imageWithTimestamp);
+                    } else {
+                        console.log('[HEADER] No profileImage in response');
+                    }
+                } else {
+                    console.log('[HEADER] /api/auth/me failed:', response.status);
+                }
+            } catch (error) {
+                console.error('[HEADER] Error loading profile image:', error);
+            }
+        };
+
+        loadProfileImage();
+
+        // Listen for profile photo updates
+        const handleProfilePhotoUpdate = (event: CustomEvent) => {
+            if (event.detail?.profileImage) {
+                setProfileImage(event.detail.profileImage);
+            }
+        };
+
+        window.addEventListener('profilePhotoUpdated', handleProfilePhotoUpdate as EventListener);
 
         // Poll for new data every 60 seconds
         const pollInterval = setInterval(() => {
@@ -239,6 +223,7 @@ const Header = () => {
         return () => {
             clearInterval(pollInterval);
             document.removeEventListener('visibilitychange', handleVisibilityChange);
+            window.removeEventListener('profilePhotoUpdated', handleProfilePhotoUpdate as EventListener);
         };
     }, []);
     const removeNotification = async (id: number) => {
@@ -661,14 +646,22 @@ const Header = () => {
                                 offset={[0, 8]}
                                 placement={`${isRtl ? 'bottom-start' : 'bottom-end'}`}
                                 btnClassName="relative group block"
-                                button={<img className="w-9 h-9 rounded-full object-cover saturate-50 group-hover:saturate-100" src={getImageUrl(profileImage)} alt="userProfile" />}
+                                button={
+                                    <img
+                                        className="w-9 h-9 rounded-full object-cover saturate-50 group-hover:saturate-100"
+                                        src={profileImage ? (profileImage.startsWith('http') ? profileImage : getApiUrl(profileImage)) : '/assets/images/user-profile.jpeg'}
+                                        alt="userProfile"
+                                    />
+                                }
                             >
                                 <ul className="text-dark dark:text-white-dark !py-0 w-[230px] font-semibold dark:text-white-light/90">
                                     <li>
                                         <div className="flex items-center px-4 py-4">
-                                            <div className="rounded-md w-10 h-10 bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold text-sm">
-                                                {getInitials(currentUser?.name || 'U')}
-                                            </div>
+                                            <img
+                                                className="rounded-md w-10 h-10 object-cover"
+                                                src={profileImage ? (profileImage.startsWith('http') ? profileImage : getApiUrl(profileImage)) : '/assets/images/user-profile.jpeg'}
+                                                alt="userProfile"
+                                            />
                                             <div className="ltr:pl-4 rtl:pr-4 truncate">
                                                 <h4 className="text-base">
                                                     {currentUser?.name || 'User'}
