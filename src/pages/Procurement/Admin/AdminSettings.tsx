@@ -1005,7 +1005,11 @@ function ReassignRequestsTab() {
                                     key={user.id}
                                     onClick={() => isClickable && reassignRequest(selectedRequest!, user.id)}
                                     className={`rounded border p-3 ${
-                                        isClickable ? (isInProgress ? 'opacity-60 cursor-wait border-white-light dark:border-dark' : 'cursor-pointer hover:bg-success/10 border-white-light dark:border-dark') : 'opacity-50 cursor-not-allowed border-white-light dark:border-dark'
+                                        isClickable
+                                            ? isInProgress
+                                                ? 'opacity-60 cursor-wait border-white-light dark:border-dark'
+                                                : 'cursor-pointer hover:bg-success/10 border-white-light dark:border-dark'
+                                            : 'opacity-50 cursor-not-allowed border-white-light dark:border-dark'
                                     }`}
                                 >
                                     <div className="flex items-center justify-between">
@@ -1020,9 +1024,7 @@ function ReassignRequestsTab() {
                                                 ))}
                                             </div>
                                         </div>
-                                        <div className="ml-4">
-                                            {isInProgress ? <span className="text-xs text-muted">Reassigning…</span> : null}
-                                        </div>
+                                        <div className="ml-4">{isInProgress ? <span className="text-xs text-muted">Reassigning…</span> : null}</div>
                                     </div>
                                 </div>
                             );
