@@ -12,6 +12,28 @@ import { getApiUrl } from '../../../config/api';
 
 const MySwal = withReactContent(Swal);
 
+// Helper to get current user ID consistently
+function getCurrentUserId(): number | null {
+    try {
+        // Try modern storage first
+        const authRaw = localStorage.getItem('auth_user') || sessionStorage.getItem('auth_user');
+        if (authRaw) {
+            const u = JSON.parse(authRaw);
+            if (u?.id) return Number(u.id);
+        }
+        // Fallback to legacy userProfile
+        const legacy = localStorage.getItem('userProfile');
+        if (legacy) {
+            const u = JSON.parse(legacy);
+            if (u?.id) return Number(u.id);
+            if (u?.userId) return Number(u.userId);
+        }
+    } catch (err) {
+        console.error('[Auth] Error retrieving user ID:', err);
+    }
+    return null;
+}
+
 interface LoadBalancingSettings {
     enabled: boolean;
     strategy: 'ROUND_ROBIN' | 'LEAST_LOADED' | 'RANDOM';
@@ -41,27 +63,62 @@ const LoadBalancingSettings = () => {
             setError(null);
 
             try {
-                const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
-                const currentUserId = userProfile?.id || userProfile?.userId || null;
+                const currentUserId = getCurrentUserId();
+                const apiUrl = getApiUrl('/procurement/load-balancing-settings');
 
-                const res = await fetch(getApiUrl('/procurement/load-balancing-settings'), {
+                console.log('[LoadBalancing] Fetching settings...');
+                console.log('[LoadBalancing] User ID:', currentUserId);
+                console.log('[LoadBalancing] API URL:', apiUrl);
+
+                if (!currentUserId) {
+                    throw new Error('User not authenticated. Please log in again.');
+                }
+
+                const res = await fetch(apiUrl, {
                     headers: {
-                        'x-user-id': String(currentUserId || ''),
+                        'x-user-id': String(currentUserId),
                     },
                 });
+
+                console.log('[LoadBalancing] Response status:', res.status, res.statusText);
+
                 if (!res.ok) {
                     if (res.status === 404) {
                         // Settings don't exist yet, use defaults
+                        console.log('[LoadBalancing] No settings found, using defaults');
                         setLoading(false);
                         return;
                     }
-                    throw new Error('Failed to fetch settings');
+
+                    // Try to get error details from response
+                    let errorMessage = `HTTP ${res.status}: ${res.statusText}`;
+                    try {
+                        const errorData = await res.json();
+                        console.error('[LoadBalancing] Error response:', errorData);
+                        errorMessage = errorData.message || errorMessage;
+                    } catch (parseErr) {
+                        console.error('[LoadBalancing] Could not parse error response');
+                    }
+
+                    throw new Error(errorMessage);
                 }
+
                 const data = await res.json();
+                console.log('[LoadBalancing] Settings loaded successfully:', data);
                 setSettings(data);
             } catch (err: any) {
-                console.error('Error fetching settings:', err);
-                setError(err.message || 'Failed to load settings');
+                console.error('[LoadBalancing] Error fetching settings:', err);
+
+                // Provide user-friendly error message based on error type
+                let userMessage = err.message || 'Failed to load settings';
+
+                if (err.name === 'TypeError' && err.message.includes('fetch')) {
+                    userMessage = 'Cannot connect to server. Please check if the backend is running.';
+                } else if (err.message.includes('User not authenticated')) {
+                    userMessage = 'Session expired. Please log in again.';
+                }
+
+                setError(userMessage);
             } finally {
                 setLoading(false);
             }
@@ -74,22 +131,34 @@ const LoadBalancingSettings = () => {
         setSaving(true);
 
         try {
-            const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
-            const currentUserId = userProfile?.id || userProfile?.userId || null;
+            const currentUserId = getCurrentUserId();
+            const apiUrl = getApiUrl('/procurement/load-balancing-settings');
 
-            const res = await fetch(getApiUrl('/procurement/load-balancing-settings'), {
+            if (!currentUserId) {
+                throw new Error('User not authenticated. Please log in again.');
+            }
+
+            console.log('[LoadBalancing] Saving settings:', settings);
+
+            const res = await fetch(apiUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'x-user-id': String(currentUserId || ''),
+                    'x-user-id': String(currentUserId),
                 },
                 body: JSON.stringify(settings),
             });
 
             if (!res.ok) {
-                const error = await res.json().catch(() => ({}));
-                throw new Error(error.message || 'Failed to save settings');
+                let errorMessage = `HTTP ${res.status}: ${res.statusText}`;
+                try {
+                    const errorData = await res.json();
+                    errorMessage = errorData.message || errorMessage;
+                } catch {}
+                throw new Error(errorMessage);
             }
+
+            console.log('[LoadBalancing] Settings saved successfully');
 
             MySwal.fire({
                 icon: 'success',
@@ -99,11 +168,17 @@ const LoadBalancingSettings = () => {
                 showConfirmButton: false,
             });
         } catch (err: any) {
-            console.error('Error saving settings:', err);
+            console.error('[LoadBalancing] Error saving settings:', err);
+
+            let userMessage = err.message || 'Failed to save settings';
+            if (err.name === 'TypeError' && err.message.includes('fetch')) {
+                userMessage = 'Cannot connect to server. Please check if the backend is running.';
+            }
+
             MySwal.fire({
                 icon: 'error',
                 title: 'Save Failed',
-                text: err.message || 'Failed to save settings. Please try again.',
+                text: userMessage,
             });
         } finally {
             setSaving(false);
@@ -144,8 +219,33 @@ const LoadBalancingSettings = () => {
     if (error) {
         return (
             <div className="p-6">
-                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded p-4">
-                    <p className="text-red-800 dark:text-red-200">Error: {error}</p>
+                <div className="panel">
+                    <div className="bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800 rounded-lg p-6">
+                        <div className="flex items-start gap-4">
+                            <div className="flex-shrink-0">
+                                <IconX className="h-8 w-8 text-red-600 dark:text-red-400" />
+                            </div>
+                            <div className="flex-1">
+                                <h3 className="text-lg font-semibold text-red-800 dark:text-red-200 mb-2">Failed to Load Settings</h3>
+                                <p className="text-red-700 dark:text-red-300 mb-4">{error}</p>
+
+                                <div className="bg-white dark:bg-gray-800 rounded p-4 mb-4">
+                                    <p className="text-sm text-gray-700 dark:text-gray-300 mb-2 font-semibold">Troubleshooting:</p>
+                                    <ul className="list-disc list-inside text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                                        <li>Check if the backend server is running (http://heron:4000)</li>
+                                        <li>Verify you are logged in with PROCUREMENT_MANAGER role</li>
+                                        <li>Open browser console (F12) for detailed error logs</li>
+                                        <li>Check network connectivity to the server</li>
+                                    </ul>
+                                </div>
+
+                                <button onClick={() => window.location.reload()} className="btn btn-primary gap-2">
+                                    <IconRefresh className="h-4 w-4" />
+                                    Retry
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         );

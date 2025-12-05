@@ -53,18 +53,24 @@ const Sidebar = () => {
     const isCommitteeMember = userRoles.includes('INNOVATION_COMMITTEE');
     const isEvaluationCommittee = userRoles.includes('EVALUATION_COMMITTEE');
 
-    // Department managers (check first to prevent procurement manager from catching them)
-    const isDepartmentManager = userRoles.some((r: string) => {
+    // Finance Manager or Budget Manager - limited access
+    const isFinanceManager = userRoles.some((r: string) => {
         const upper = r?.toUpperCase() || '';
-        return upper === 'DEPT_MANAGER' || upper === 'DEPARTMENT_MANAGER';
+        return upper === 'FINANCE_MANAGER' || upper === 'BUDGET_MANAGER' || upper.includes('FINANCE') || upper.includes('BUDGET');
     });
 
-    // Specific procurement manager role (must have PROCUREMENT in the name and NOT be a department manager)
-    const isProcurementManager =
-        !isDepartmentManager &&
+    // Specific procurement manager role (must have PROCUREMENT in the name)
+    const isProcurementManager = userRoles.some((r: string) => {
+        const upper = r?.toUpperCase() || '';
+        return upper === 'PROCUREMENT_MANAGER' || (upper.includes('PROCUREMENT') && upper.includes('MANAGER'));
+    });
+
+    // Department managers (not procurement-specific)
+    const isDepartmentManager =
+        !isProcurementManager &&
         userRoles.some((r: string) => {
             const upper = r?.toUpperCase() || '';
-            return upper === 'PROCUREMENT_MANAGER' || (upper.includes('PROCUREMENT') && upper.includes('MANAGER'));
+            return upper === 'DEPT_MANAGER' || upper === 'DEPARTMENT_MANAGER' || upper === 'MANAGER';
         });
 
     // Only check for Officer if not a Manager
@@ -73,21 +79,6 @@ const Sidebar = () => {
     const isSupplier = userRoles.includes('SUPPLIER') || userRoles.some((r) => r && r.toUpperCase().includes('SUPPLIER'));
     // Requester role (minimal access: Requests only)
     const isRequester = !isProcurementManager && !isDepartmentManager && !isProcurementOfficer && !isCommitteeMember && !isSupplier && userRoles.some((r) => r.toUpperCase().includes('REQUEST')); // matches REQUESTER / REQUEST_USER etc.
-
-    // Finance roles
-    const isFinanceOfficer = userRoles.some((r) => {
-        const upper = r?.toUpperCase() || '';
-        return upper === 'FINANCE_OFFICER' || upper === 'FINANCE_PAYMENT_STAGE';
-    });
-
-    // Auditor role
-    const isAuditor = userRoles.some((r) => r?.toUpperCase() === 'AUDITOR');
-
-    // Department Head (distinct from Dept Manager)
-    const isDepartmentHead = userRoles.some((r) => r?.toUpperCase() === 'DEPARTMENT_HEAD');
-
-    // Executive Director role
-    const isExecutiveDirector = userRoles.some((r) => r?.toUpperCase() === 'EXECUTIVE_DIRECTOR');
 
     // Determine if we're in Innovation Hub
     const isInnovationHub = location.pathname.startsWith('/innovation');
@@ -101,27 +92,20 @@ const Sidebar = () => {
         ? '/innovation/committee/dashboard'
         : isInnovationHub
         ? '/innovation/dashboard'
+        : isFinanceManager
+        ? '/finance'
         : isProcurementManager
         ? '/procurement/manager'
-        : isExecutiveDirector
-        ? '/procurement/executive-director-dashboard'
-        : isDepartmentHead
-        ? '/procurement/dashboard/department-head'
-        : isFinanceOfficer
-        ? '/procurement/dashboard/finance-officer'
-        : isAuditor
-        ? '/procurement/dashboard/auditor'
-        : isRequester
-        ? '/procurement/dashboard/requester'
         : isDepartmentManager
-        ? '/procurement/dashboard/department-manager'
+        ? '/apps/requests/pending-approval'
         : isSupplier
         ? '/supplier'
+        : isRequester
+        ? '/apps/requests'
         : '/procurement/dashboard';
 
     // Debug logging for dashboard path
     console.log('[SIDEBAR] User roles:', userRoles);
-    console.log('[SIDEBAR] isDepartmentManager:', isDepartmentManager);
     console.log('[SIDEBAR] isProcurementManager:', isProcurementManager);
     console.log('[SIDEBAR] Calculated dashboardPath:', dashboardPath);
 
@@ -484,16 +468,8 @@ const Sidebar = () => {
                                 <>
                                     <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
                                         <IconMinus className="w-4 h-5 flex-none hidden" />
-                                        <span>Requester</span>
+                                        <span>USER</span>
                                     </h2>
-                                    <li className="nav-item">
-                                        <NavLink to="/procurement/dashboard/requester" className="group">
-                                            <div className="flex items-center">
-                                                <IconMenuDashboard className="group-hover:!text-primary shrink-0" />
-                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Dashboard</span>
-                                            </div>
-                                        </NavLink>
-                                    </li>
                                     <li className="nav-item">
                                         <NavLink to="/apps/requests" className="group">
                                             <div className="flex items-center">
@@ -513,116 +489,6 @@ const Sidebar = () => {
                                 </>
                             )}
 
-                            {/* Show DEPARTMENT_HEAD section */}
-                            {isDepartmentHead && !isAdmin && !isInnovationHub && (
-                                <>
-                                    <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
-                                        <IconMinus className="w-4 h-5 flex-none hidden" />
-                                        <span>Department Head</span>
-                                    </h2>
-                                    <li className="nav-item">
-                                        <NavLink to="/procurement/dashboard/department-head" className="group">
-                                            <div className="flex items-center">
-                                                <IconMenuDashboard className="group-hover:!text-primary shrink-0" />
-                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Dashboard</span>
-                                            </div>
-                                        </NavLink>
-                                    </li>
-                                    <li className="nav-item">
-                                        <NavLink to="/procurement/approvals" className="group">
-                                            <div className="flex items-center">
-                                                <IconChecks className="group-hover:!text-primary shrink-0" />
-                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Approvals</span>
-                                            </div>
-                                        </NavLink>
-                                    </li>
-                                    <li className="nav-item">
-                                        <NavLink to="/procurement/reports" className="group">
-                                            <div className="flex items-center">
-                                                <IconBarChart className="group-hover:!text-primary shrink-0" />
-                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Reports</span>
-                                            </div>
-                                        </NavLink>
-                                    </li>
-                                </>
-                            )}
-
-                            {/* Show FINANCE_OFFICER section */}
-                            {isFinanceOfficer && !isAdmin && !isInnovationHub && (
-                                <>
-                                    <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
-                                        <IconMinus className="w-4 h-5 flex-none hidden" />
-                                        <span>Finance Officer</span>
-                                    </h2>
-                                    <li className="nav-item">
-                                        <NavLink to="/procurement/dashboard/finance-officer" className="group">
-                                            <div className="flex items-center">
-                                                <IconMenuDashboard className="group-hover:!text-primary shrink-0" />
-                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Dashboard</span>
-                                            </div>
-                                        </NavLink>
-                                    </li>
-                                    <li className="nav-item">
-                                        <NavLink to="/procurement/payments" className="group">
-                                            <div className="flex items-center">
-                                                <IconCreditCard className="group-hover:!text-primary shrink-0" />
-                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Payments</span>
-                                            </div>
-                                        </NavLink>
-                                    </li>
-                                    <li className="nav-item">
-                                        <NavLink to="/procurement/approvals" className="group">
-                                            <div className="flex items-center">
-                                                <IconChecks className="group-hover:!text-primary shrink-0" />
-                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Approvals</span>
-                                            </div>
-                                        </NavLink>
-                                    </li>
-                                    <li className="nav-item">
-                                        <NavLink to="/procurement/reports" className="group">
-                                            <div className="flex items-center">
-                                                <IconBarChart className="group-hover:!text-primary shrink-0" />
-                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Reports</span>
-                                            </div>
-                                        </NavLink>
-                                    </li>
-                                </>
-                            )}
-
-                            {/* Show AUDITOR section */}
-                            {isAuditor && !isAdmin && !isInnovationHub && (
-                                <>
-                                    <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
-                                        <IconMinus className="w-4 h-5 flex-none hidden" />
-                                        <span>Auditor</span>
-                                    </h2>
-                                    <li className="nav-item">
-                                        <NavLink to="/procurement/dashboard/auditor" className="group">
-                                            <div className="flex items-center">
-                                                <IconMenuDashboard className="group-hover:!text-primary shrink-0" />
-                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Dashboard</span>
-                                            </div>
-                                        </NavLink>
-                                    </li>
-                                    <li className="nav-item">
-                                        <NavLink to="/procurement/audit" className="group">
-                                            <div className="flex items-center">
-                                                <IconClipboardText className="group-hover:!text-primary shrink-0" />
-                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Audit Logs</span>
-                                            </div>
-                                        </NavLink>
-                                    </li>
-                                    <li className="nav-item">
-                                        <NavLink to="/procurement/reports" className="group">
-                                            <div className="flex items-center">
-                                                <IconBarChart className="group-hover:!text-primary shrink-0" />
-                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Reports</span>
-                                            </div>
-                                        </NavLink>
-                                    </li>
-                                </>
-                            )}
-
                             {/* Show DEPARTMENT_MANAGER section - hide for admins */}
                             {isDepartmentManager && !isAdmin && !isInnovationHub && (
                                 // Department Manager Menu
@@ -631,15 +497,6 @@ const Sidebar = () => {
                                         <IconMinus className="w-4 h-5 flex-none hidden" />
                                         <span>Department Manager</span>
                                     </h2>
-
-                                    <li className="nav-item">
-                                        <NavLink to="/procurement/dashboard/department-manager" className="group">
-                                            <div className="flex items-center">
-                                                <IconMenuDashboard className="group-hover:!text-primary shrink-0" />
-                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Dashboard</span>
-                                            </div>
-                                        </NavLink>
-                                    </li>
 
                                     <li className="nav-item">
                                         <NavLink to="/apps/requests" className="group">
@@ -881,8 +738,64 @@ const Sidebar = () => {
                                 </>
                             )}
 
+                            {/* Show FINANCE_MANAGER or BUDGET_MANAGER section - limited access to USER and FINANCE only */}
+                            {isFinanceManager && !isAdmin && !isProcurementManager && !isInnovationHub && (
+                                <>
+                                    <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
+                                        <IconMinus className="w-4 h-5 flex-none hidden" />
+                                        <span>USER</span>
+                                    </h2>
+
+                                    <li className="nav-item">
+                                        <NavLink to="/apps/requests" className="group">
+                                            <div className="flex items-center">
+                                                <IconFile className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Requests</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+
+                                    <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1 mt-4">
+                                        <IconMinus className="w-4 h-5 flex-none hidden" />
+                                        <span>Finance</span>
+                                    </h2>
+                                    <li className="nav-item">
+                                        <NavLink to="/finance" className="group">
+                                            <div className="flex items-center">
+                                                <IconMenuDashboard className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Finance Dashboard</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+                                    <li className="nav-item list-none">
+                                        <NavLink to="/finance/requests" className="group">
+                                            <div className="flex items-center">
+                                                <IconMenuInvoice className="group-hover:!text-primary shrink-0 w-5 h-5" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Finance Requests</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+                                    <li className="nav-item list-none">
+                                        <NavLink to="/finance/awaiting-delivery" className="group">
+                                            <div className="flex items-center">
+                                                <IconInbox className="group-hover:!text-primary shrink-0 w-5 h-5" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Awaiting Delivery Confirmation</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+                                    <li className="nav-item list-none">
+                                        <NavLink to="/finance/payments-to-process" className="group">
+                                            <div className="flex items-center">
+                                                <IconCreditCard className="group-hover:!text-primary shrink-0 w-5 h-5" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Payments to Process</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+                                </>
+                            )}
+
                             {/* Show Budget Manager section if applicable - hide for admins and when in Innovation Hub */}
-                            {userRoles.some((r: string) => r?.toUpperCase()?.includes('BUDGET')) && !isAdmin && !isInnovationHub && (
+                            {userRoles.some((r: string) => r?.toUpperCase()?.includes('BUDGET')) && !isAdmin && !isFinanceManager && !isInnovationHub && (
                                 // Budget Manager Menu (Old fallback - kept for compatibility)
                                 <>
                                     <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">

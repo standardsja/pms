@@ -1,4 +1,4 @@
-import { getToken, getUser } from './auth';
+import { getToken, getUser, clearAuth } from './auth';
 import { getApiUrl } from '../config/api';
 
 export type Idea = {
@@ -50,6 +50,11 @@ export type Idea = {
 function authHeaders(): Record<string, string> {
     const token = getToken();
     const user = getUser();
+
+    console.log('[ideasApi authHeaders] token:', token?.substring(0, 20) + '...', 'user:', user);
+    console.log('[ideasApi authHeaders] sessionStorage token:', sessionStorage.getItem('auth_token')?.substring(0, 20) + '...');
+    console.log('[ideasApi authHeaders] localStorage token:', localStorage.getItem('auth_token')?.substring(0, 20) + '...');
+
     const h: Record<string, string> = { 'Content-Type': 'application/json' };
 
     // Backend accepts either x-user-id or Authorization: Bearer <id>
@@ -114,6 +119,15 @@ export async function fetchIdeas(params?: {
         });
 
         if (!res.ok) {
+            // Handle 401 Unauthorized - log error but don't auto-redirect
+            if (res.status === 401) {
+                console.error('401 Unauthorized on Innovation Hub API. Token:', localStorage.getItem('token')?.substring(0, 20) + '...');
+                // Temporarily disabled auto-logout to debug
+                // clearAuth();
+                // window.location.href = '/auth/login';
+                throw new Error('Unauthorized. Check if Innovation Hub token is valid.');
+            }
+
             // Try to parse error response
             let errorMessage = 'Unable to load ideas. Please try again later.';
             try {
@@ -121,8 +135,7 @@ export async function fetchIdeas(params?: {
                 errorMessage = errorData.message || errorData.error || errorMessage;
             } catch {
                 // If JSON parsing fails, use status text
-                errorMessage =
-                    res.status === 404 ? 'Ideas not found' : res.status === 403 ? 'Access denied' : res.status === 401 ? 'Please log in to continue' : 'Unable to load ideas. Please try again later.';
+                errorMessage = res.status === 404 ? 'Ideas not found' : res.status === 403 ? 'Access denied' : 'Unable to load ideas. Please try again later.';
             }
             throw new Error(errorMessage);
         }

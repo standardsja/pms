@@ -250,7 +250,6 @@ router.post(
                 data: {
                     email,
                     name: ldapUser.name || email,
-                    ldapDN: ldapUser.dn,
                 },
                 include: {
                     roles: {
@@ -264,7 +263,7 @@ router.post(
         }
 
         // Perform hybrid role sync: AD groups → admin panel → default REQUESTER
-        const syncResult = await syncLDAPUserToDatabase(ldapUser, user);
+        const syncResult = await syncLDAPUserToDatabase(ldapUser, user!);
 
         logger.info('LDAP user roles synced', {
             email,
