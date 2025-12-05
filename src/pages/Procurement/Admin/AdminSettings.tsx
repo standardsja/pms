@@ -911,7 +911,6 @@ function ReassignRequestsTab() {
     }
 
     async function reassignRequest(requestId: number, assigneeId: number | null) {
-        setReassigning(requestId);
         try {
             setReassigning({ requestId, userId: assigneeId });
             await adminService.reassignRequest(requestId, { assigneeId, comment: 'Manually reassigned by admin', newStatus: selectedStatus || undefined });
@@ -998,22 +997,32 @@ function ReassignRequestsTab() {
                                 })
                                 .filter(Boolean);
 
+                            const isClickable = Boolean(selectedRequest);
+                            const isInProgress = reassigning && reassigning.requestId === selectedRequest && reassigning.userId === user.id;
+
                             return (
                                 <div
                                     key={user.id}
-                                    onClick={() => selectedRequest && reassignRequest(selectedRequest, user.id)}
+                                    onClick={() => isClickable && reassignRequest(selectedRequest!, user.id)}
                                     className={`rounded border p-3 ${
-                                        selectedRequest ? 'cursor-pointer hover:bg-success/10 border-white-light dark:border-dark' : 'opacity-50 cursor-not-allowed border-white-light dark:border-dark'
+                                        isClickable ? (isInProgress ? 'opacity-60 cursor-wait border-white-light dark:border-dark' : 'cursor-pointer hover:bg-success/10 border-white-light dark:border-dark') : 'opacity-50 cursor-not-allowed border-white-light dark:border-dark'
                                     }`}
                                 >
-                                    <div className="font-semibold">{user.name}</div>
-                                    <div className="text-xs text-white-dark">{user.email}</div>
-                                    <div className="mt-1 flex flex-wrap gap-1">
-                                        {roleNames.map((role) => (
-                                            <span key={role} className="badge badge-outline-primary text-xs">
-                                                {role}
-                                            </span>
-                                        ))}
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <div className="font-semibold">{user.name}</div>
+                                            <div className="text-xs text-white-dark">{user.email}</div>
+                                            <div className="mt-1 flex flex-wrap gap-1">
+                                                {roleNames.map((role) => (
+                                                    <span key={role} className="badge badge-outline-primary text-xs">
+                                                        {role}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <div className="ml-4">
+                                            {isInProgress ? <span className="text-xs text-muted">Reassigning…</span> : null}
+                                        </div>
                                     </div>
                                 </div>
                             );
