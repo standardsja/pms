@@ -192,27 +192,42 @@ export async function syncLDAPUserToDatabase(ldapUser: LDAPUser, existingUser?: 
 
         // Step 3: Sync LDAP department attribute if not already set from AD groups
         if (!result.departmentAssigned && ldapUser.department) {
-            const dept = await prisma.department.findFirst({
-                where: {
-                    OR: [{ name: { contains: ldapUser.department } }, { code: ldapUser.department.toUpperCase() }],
-                },
-            });
+            // Defensive handling: ldapUser.department may not be a string (could be null/array/object).
+            const rawDept = ldapUser.department;
+            const deptStr = typeof rawDept === 'string' ? rawDept.trim() : rawDept != null ? String(rawDept).trim() : '';
+            const deptCode = deptStr ? deptStr.toUpperCase() : undefined;
 
-            if (dept && !dbUser.departmentId) {
-                await prisma.user.update({
-                    where: { id: dbUser.id },
-                    data: { departmentId: dept.id },
-                });
+            try {
+                const whereClauses: any[] = [];
+                if (deptStr) whereClauses.push({ name: { contains: deptStr } });
+                if (deptCode) whereClauses.push({ code: deptCode });
 
-                result.departmentAssigned = {
-                    id: dept.id,
-                    name: dept.name,
-                };
+                if (whereClauses.length > 0) {
+                    const dept = await prisma.department.findFirst({
+                        where: { OR: whereClauses },
+                    });
 
-                logger.info('LDAP: Department assigned from LDAP attribute', {
-                    email: ldapUser.email,
-                    department: dept.name,
-                });
+                    if (dept && !dbUser.departmentId) {
+                        await prisma.user.update({
+                            where: { id: dbUser.id },
+                            data: { departmentId: dept.id },
+                        });
+
+                        result.departmentAssigned = {
+                            id: dept.id,
+                            name: dept.name,
+                        };
+
+                        logger.info('LDAP: Department assigned from LDAP attribute', {
+                            email: ldapUser.email,
+                            department: dept.name,
+                        });
+                    }
+                } else {
+                    logger.debug('LDAP: department attribute present but empty after coercion', { email: ldapUser.email, rawDept });
+                }
+            } catch (deptErr: any) {
+                logger.warn('LDAP: Failed to resolve department from LDAP attribute', { email: ldapUser.email, rawDept, error: deptErr?.message || deptErr });
             }
         }
 

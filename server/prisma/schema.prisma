@@ -178,6 +178,25 @@ model User {
 
   // Assignments back-relation
   evaluationAssignments EvaluationAssignment[]
+  
+  // Refresh tokens back-relation
+  refreshTokens RefreshToken[]
+}
+
+model RefreshToken {
+  id            Int      @id @default(autoincrement())
+  tokenHash     String   @unique
+  user          User     @relation(fields: [userId], references: [id])
+  userId        Int
+  revoked       Boolean  @default(false)
+  replacedById  Int?
+  replacedBy    RefreshToken? @relation("RefreshTokenReplacement", fields: [replacedById], references: [id])
+  // inverse side of the self-relation: tokens that were replaced by this token
+  replaced      RefreshToken[] @relation("RefreshTokenReplacement")
+  createdAt     DateTime @default(now())
+  expiresAt     DateTime
+
+  @@index([userId])
 }
 
 model Department {

@@ -19,8 +19,16 @@ import { asyncHandler, BadRequestError, UnauthorizedError } from '../middleware/
 import { validate, loginSchema } from '../middleware/validation';
 import { ldapService } from '../services/ldapService';
 import { syncLDAPUserToDatabase, describeSyncResult } from '../services/ldapRoleSyncService';
+import { createRefreshToken, verifyAndRotateRefreshToken, revokeRefreshToken } from '../services/tokenService';
 
 const router = Router();
+
+// Access token helper
+function generateAccessToken(user: { id: number; email: string; name?: string; roles?: string[] }) {
+    return jwt.sign({ sub: user.id, email: user.email, roles: user.roles, name: user.name }, config.JWT_SECRET, {
+        expiresIn: '24h',
+    });
+}
 
 // Rate limiting for auth endpoints
 const authLimiter = rateLimit({
@@ -42,20 +50,9 @@ router.post(
             hasPassword: Boolean(password),
         });
 
-        if (!email || !password) {
-            return res.status(400).json({
-                error: 'Validation Error',
-                message: 'Email and password are required',
-                statusCode: 400,
-                timestamp: new Date().toISOString(),
-                path: '/api/auth/login',
-            });
-        }
         let authMethod = 'DATABASE';
         let ldapAuthenticated = false;
         let ldapUser: any = null;
-
-        // Try LDAP authentication first if enabled
         if (ldapService.isEnabled()) {
             try {
                 logger.info('Attempting LDAP authentication', { email });
@@ -135,7 +132,8 @@ router.post(
             }
 
             const roles = user.roles.map((r) => r.role.name);
-            const token = jwt.sign({ sub: user.id, email: user.email, roles, name: user.name }, config.JWT_SECRET, { expiresIn: '24h' });
+            const accessToken = generateAccessToken({ id: user.id, email: user.email, name: user.name, roles });
+            const refreshToken = await createRefreshToken(user.id);
 
             logger.info('User logged in via LDAP with role sync', {
                 userId: user.id,
@@ -145,7 +143,8 @@ router.post(
             });
 
             return res.json({
-                token,
+                token: accessToken,
+                refreshToken,
                 user: {
                     id: user.id,
                     email: user.email,
@@ -173,12 +172,14 @@ router.post(
         }
 
         const roles = user.roles.map((r) => r.role.name);
-        const token = jwt.sign({ sub: user.id, email: user.email, roles, name: user.name }, config.JWT_SECRET, { expiresIn: '24h' });
+        const accessToken = generateAccessToken({ id: user.id, email: user.email, name: user.name, roles });
+        const refreshToken = await createRefreshToken(user.id);
 
         logger.info('User logged in via database successfully', { userId: user.id, email: user.email });
 
         res.json({
-            token,
+            token: accessToken,
+            refreshToken,
             user: {
                 id: user.id,
                 email: user.email,
@@ -193,6 +194,18 @@ router.post(
                     : null,
             },
         });
+    })
+);
+
+// Logout (revoke a refresh token)
+router.post(
+    '/logout',
+    asyncHandler(async (req, res) => {
+        const { refreshToken } = req.body;
+        if (!refreshToken) return res.status(400).json({ success: false, message: 'refreshToken required' });
+
+        const ok = await revokeRefreshToken(refreshToken);
+        return res.json({ success: Boolean(ok) });
     })
 );
 
@@ -276,16 +289,8 @@ router.post(
         }
 
         const roles = user.roles.map((r) => r.role.name);
-        const token = jwt.sign(
-            {
-                sub: user.id,
-                email: user.email,
-                roles,
-                name: user.name,
-            },
-            config.JWT_SECRET,
-            { expiresIn: '24h' }
-        );
+        const accessToken = generateAccessToken({ id: user.id, email: user.email, name: user.name, roles });
+        const refreshToken = await createRefreshToken(user.id);
 
         logger.info('User logged in via LDAP with role sync', {
             userId: user.id,
@@ -296,7 +301,8 @@ router.post(
         });
 
         res.json({
-            token,
+            token: accessToken,
+            refreshToken,
             user: {
                 id: user.id,
                 email: user.email,
@@ -355,3 +361,34 @@ router.get(
 );
 
 export { router as authRoutes };
+
+// Refresh token endpoint
+router.post(
+    '/refresh',
+    asyncHandler(async (req, res) => {
+        const { refreshToken } = req.body;
+        if (!refreshToken) {
+            return res.status(400).json({ success: false, message: 'refreshToken required' });
+        }
+
+        const refreshSecret = process.env.REFRESH_SECRET || config.JWT_SECRET;
+
+        try {
+            const rotated = await verifyAndRotateRefreshToken(refreshToken);
+            if (!rotated) {
+                return res.status(401).json({ success: false, message: 'Invalid refresh token' });
+            }
+
+            const user = await prisma.user.findUnique({ where: { id: rotated.userId }, include: { roles: { include: { role: true } } } });
+            if (!user) return res.status(401).json({ success: false, message: 'Invalid refresh token' });
+
+            const roles = user.roles.map((r) => r.role.name);
+            const accessToken = generateAccessToken({ id: user.id, email: user.email, name: user.name, roles });
+
+            return res.json({ token: accessToken, refreshToken: rotated.newRefreshToken });
+        } catch (err: any) {
+            logger.warn('Refresh token rotation failed', { message: err?.message || String(err) });
+            return res.status(401).json({ success: false, message: 'Invalid refresh token' });
+        }
+    })
+);
