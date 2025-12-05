@@ -3749,14 +3749,35 @@ app.post('/api/admin/users/:userId/department', async (req, res) => {
         const updated = await prisma.user.update({
             where: { id: parsedUserId },
             data: { departmentId: departmentId || null },
+            include: {
+                roles: { include: { role: true } },
+                department: true,
+            },
         });
 
         console.log(`[Admin] Updated department for user ${parsedUserId} to department ${departmentId || 'none'}`);
+
+        // Check if this user is currently logged in (same as admin making the change)
+        const isCurrentUser = parseInt(String(adminId), 10) === parsedUserId;
 
         return res.json({
             message: 'User department updated successfully',
             userId: parsedUserId,
             departmentId: updated.departmentId,
+            isCurrentUser,
+            updatedUser: {
+                id: updated.id,
+                email: updated.email,
+                name: updated.name,
+                roles: updated.roles.map((r) => r.role.name),
+                department: updated.department
+                    ? {
+                          id: updated.department.id,
+                          name: updated.department.name,
+                          code: updated.department.code,
+                      }
+                    : null,
+            },
         });
     } catch (e: any) {
         console.error('POST /api/admin/users/:userId/department error:', e);
@@ -3845,10 +3866,38 @@ app.post('/api/admin/users/:userId/roles', async (req, res) => {
 
         console.log(`[Admin] Updated roles for user ${parsedUserId}: ${roles.join(', ')}`);
 
+        // Fetch the updated user with full details for session update
+        const updatedUser = await prisma.user.findUnique({
+            where: { id: parsedUserId },
+            include: {
+                roles: { include: { role: true } },
+                department: true,
+            },
+        });
+
+        // Check if this user is currently logged in (same as admin making the change)
+        const isCurrentUser = parseInt(String(adminId), 10) === parsedUserId;
+
         return res.json({
             message: 'User roles updated successfully',
             userId: parsedUserId,
             roles: roles,
+            isCurrentUser,
+            updatedUser: updatedUser
+                ? {
+                      id: updatedUser.id,
+                      email: updatedUser.email,
+                      name: updatedUser.name,
+                      roles: updatedUser.roles.map((r) => r.role.name),
+                      department: updatedUser.department
+                          ? {
+                                id: updatedUser.department.id,
+                                name: updatedUser.department.name,
+                                code: updatedUser.department.code,
+                            }
+                          : null,
+                  }
+                : null,
         });
     } catch (e: any) {
         console.error('POST /admin/users/:userId/roles error:', e);

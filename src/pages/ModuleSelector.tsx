@@ -1,14 +1,20 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { setPageTitle } from '../store/themeConfigSlice';
 import { selectUser } from '../store/authSlice';
 import { UserRole } from '../types/auth';
+import RoleSelectionModal from '../components/RoleSelectionModal';
+import { roleRequestService } from '../services/roleRequestApi';
 
 const ModuleSelector = () => {
     const dispatch = useDispatch();
     const navigate = useNavigate();
     const user = useSelector(selectUser);
+
+    const [showRoleModal, setShowRoleModal] = useState(false);
+    const [selectedModule, setSelectedModule] = useState<string | null>(null);
+    const [departments, setDepartments] = useState<Array<{ id: number; name: string }>>([]);
 
     useEffect(() => {
         dispatch(setPageTitle('Select Module'));
@@ -18,6 +24,50 @@ const ModuleSelector = () => {
         }
     }, [dispatch, user, navigate]);
 
+    const handleModuleClick = (moduleId: string, modulePath: string) => {
+        // Innovation Hub has no role restriction - direct access
+        if (moduleId === 'ih') {
+            navigate(modulePath);
+            return;
+        }
+
+        // Procurement module requires role confirmation
+        if (moduleId === 'pms') {
+            setSelectedModule(moduleId);
+            setShowRoleModal(true);
+            return;
+        }
+
+        // Default: navigate directly
+        navigate(modulePath);
+    };
+
+    const handleRoleSubmit = async (data: { role: string; departmentId?: number; reason?: string }) => {
+        try {
+            // Submit the role request
+            await roleRequestService.submitRoleRequest({
+                role: data.role,
+                module: 'procurement',
+                departmentId: data.departmentId,
+                reason: data.reason,
+            });
+
+            // Close modal and navigate to procurement
+            setShowRoleModal(false);
+            setSelectedModule(null);
+
+            // Navigate to procurement with a message
+            navigate('/procurement/dashboard', {
+                state: {
+                    message: 'Your role request has been submitted and is awaiting approval from an administrator.',
+                },
+            });
+        } catch (error) {
+            console.error('Failed to submit role request:', error);
+            throw error;
+        }
+    };
+
     const modules = [
         {
             id: 'pms',
@@ -26,13 +76,7 @@ const ModuleSelector = () => {
             icon: '📦',
             gradient: 'from-blue-500 to-blue-700',
             path: '/procurement/dashboard',
-            features: [
-                'Request Management',
-                'RFQ & Quotes',
-                'Supplier Management',
-                'Purchase Orders',
-                'Payment Processing'
-            ]
+            features: ['Request Management', 'RFQ & Quotes', 'Supplier Management', 'Purchase Orders', 'Payment Processing'],
         },
         {
             id: 'ih',
@@ -41,14 +85,8 @@ const ModuleSelector = () => {
             icon: '💡',
             gradient: 'from-purple-500 to-pink-600',
             path: '/innovation/dashboard',
-            features: [
-                'Submit Ideas',
-                'Vote on Innovations',
-                'Browse Popular Ideas',
-                'Track Your Submissions',
-                'Project Promotions'
-            ]
-        }
+            features: ['Submit Ideas', 'Vote on Innovations', 'Browse Popular Ideas', 'Track Your Submissions', 'Project Promotions'],
+        },
     ];
 
     return (
@@ -71,12 +109,8 @@ const ModuleSelector = () => {
             {/* Main Content */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
                 <div className="text-center mb-12">
-                    <h2 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">
-                        Welcome! Choose Your Module
-                    </h2>
-                    <p className="text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
-                        Select the system you'd like to access. You can switch between modules anytime.
-                    </p>
+                    <h2 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">Welcome! Choose Your Module</h2>
+                    <p className="text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">Select the system you'd like to access. You can switch between modules anytime.</p>
                 </div>
 
                 {/* Module Cards */}
@@ -84,14 +118,12 @@ const ModuleSelector = () => {
                     {modules.map((module) => (
                         <div
                             key={module.id}
-                            onClick={() => navigate(module.path)}
+                            onClick={() => handleModuleClick(module.id, module.path)}
                             className="group relative bg-white dark:bg-gray-800 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 cursor-pointer overflow-hidden border-2 border-transparent hover:border-primary"
                         >
                             {/* Gradient Header */}
                             <div className={`bg-gradient-to-r ${module.gradient} p-8 text-white relative overflow-hidden`}>
-                                <div className="absolute top-0 right-0 text-9xl opacity-10 transform translate-x-4 -translate-y-4">
-                                    {module.icon}
-                                </div>
+                                <div className="absolute top-0 right-0 text-9xl opacity-10 transform translate-x-4 -translate-y-4">{module.icon}</div>
                                 <div className="relative z-10">
                                     <div className="text-6xl mb-4">{module.icon}</div>
                                     <h3 className="text-2xl font-bold mb-2">{module.title}</h3>
@@ -101,14 +133,16 @@ const ModuleSelector = () => {
 
                             {/* Features List */}
                             <div className="p-8">
-                                <h4 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-4">
-                                    Key Features
-                                </h4>
+                                <h4 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-4">Key Features</h4>
                                 <ul className="space-y-3">
                                     {module.features.map((feature, idx) => (
                                         <li key={idx} className="flex items-center gap-3 text-gray-700 dark:text-gray-300">
                                             <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                                <path
+                                                    fillRule="evenodd"
+                                                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                                                    clipRule="evenodd"
+                                                />
                                             </svg>
                                             <span>{feature}</span>
                                         </li>
@@ -136,6 +170,21 @@ const ModuleSelector = () => {
                         </a>
                     </p>
                 </div>
+
+                {/* Role Selection Modal */}
+                {selectedModule && (
+                    <RoleSelectionModal
+                        isOpen={showRoleModal}
+                        moduleName={selectedModule}
+                        moduleDisplay="Procurement Management"
+                        onClose={() => {
+                            setShowRoleModal(false);
+                            setSelectedModule(null);
+                        }}
+                        onSubmit={handleRoleSubmit}
+                        departments={departments}
+                    />
+                )}
             </div>
         </div>
     );

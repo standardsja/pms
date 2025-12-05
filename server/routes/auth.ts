@@ -34,9 +34,23 @@ const authLimiter = rateLimit({
 router.post(
     '/login',
     authLimiter,
-    validate(loginSchema),
     asyncHandler(async (req, res) => {
         const { email, password } = req.body;
+
+        logger.info('Auth login request received', {
+            email,
+            hasPassword: Boolean(password),
+        });
+
+        if (!email || !password) {
+            return res.status(400).json({
+                error: 'Validation Error',
+                message: 'Email and password are required',
+                statusCode: 400,
+                timestamp: new Date().toISOString(),
+                path: '/api/auth/login',
+            });
+        }
         let authMethod = 'DATABASE';
         let ldapAuthenticated = false;
         let ldapUser: any = null;
@@ -82,7 +96,7 @@ router.post(
                     data: {
                         email,
                         name: ldapUser.name || email,
-                        ldapDN: ldapUser.dn,
+                        externalId: ldapUser.dn,
                     },
                     include: {
                         roles: {

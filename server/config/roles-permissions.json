@@ -1,0 +1,253 @@
+{
+    "roles": {
+        "REQUESTER": {
+            "description": "Employee who creates procurement requests",
+            "permissions": {
+                "request:create": true,
+                "request:read_own": true,
+                "request:edit_own": true,
+                "request:submit": true,
+                "request:read_all": false,
+                "request:approve": false,
+                "request:reject": false,
+                "request:reassign": false,
+                "request:delete": false,
+                "vendor:read": false,
+                "vendor:create": false,
+                "budget:read_own": true,
+                "budget:approve": false,
+                "payment:read": false,
+                "payment:approve": false,
+                "audit:read": false,
+                "admin:manage_users": false,
+                "admin:manage_roles": false,
+                "admin:view_system": false
+            }
+        },
+        "FINANCE_OFFICER": {
+            "description": "Finance officer who reviews and processes payment stage requests",
+            "permissions": {
+                "request:create": false,
+                "request:read_own": false,
+                "request:edit_own": false,
+                "request:submit": false,
+                "request:read_all": true,
+                "request:approve": true,
+                "request:reject": true,
+                "request:reassign": false,
+                "request:delete": false,
+                "vendor:read": true,
+                "vendor:create": false,
+                "budget:read_own": false,
+                "budget:approve": false,
+                "payment:read": true,
+                "payment:approve": true,
+                "audit:read": true,
+                "admin:manage_users": false,
+                "admin:manage_roles": false,
+                "admin:view_system": false
+            }
+        },
+        "PROCUREMENT_OFFICER": {
+            "description": "Procurement officer who reviews requests and manages RFQs",
+            "permissions": {
+                "request:create": false,
+                "request:read_own": false,
+                "request:edit_own": false,
+                "request:submit": false,
+                "request:read_all": true,
+                "request:approve": true,
+                "request:reject": true,
+                "request:reassign": false,
+                "request:delete": false,
+                "vendor:read": true,
+                "vendor:create": true,
+                "budget:read_own": false,
+                "budget:approve": false,
+                "payment:read": false,
+                "payment:approve": false,
+                "audit:read": true,
+                "admin:manage_users": false,
+                "admin:manage_roles": false,
+                "admin:view_system": false
+            }
+        },
+        "PROCUREMENT_MANAGER": {
+            "description": "Procurement manager who oversees procurement process and can reassign",
+            "permissions": {
+                "request:create": false,
+                "request:read_own": false,
+                "request:edit_own": false,
+                "request:submit": false,
+                "request:read_all": true,
+                "request:approve": true,
+                "request:reject": true,
+                "request:reassign": true,
+                "request:delete": false,
+                "vendor:read": true,
+                "vendor:create": true,
+                "budget:read_own": false,
+                "budget:approve": false,
+                "payment:read": true,
+                "payment:approve": false,
+                "audit:read": true,
+                "admin:manage_users": false,
+                "admin:manage_roles": false,
+                "admin:view_system": false
+            }
+        },
+        "DEPARTMENT_HEAD": {
+            "description": "Department head who reviews and approves departmental requests",
+            "permissions": {
+                "request:create": false,
+                "request:read_own": false,
+                "request:edit_own": false,
+                "request:submit": false,
+                "request:read_all": true,
+                "request:approve": true,
+                "request:reject": true,
+                "request:reassign": false,
+                "request:delete": false,
+                "vendor:read": true,
+                "vendor:create": false,
+                "budget:read_own": false,
+                "budget:approve": false,
+                "payment:read": false,
+                "payment:approve": false,
+                "audit:read": true,
+                "admin:manage_users": false,
+                "admin:manage_roles": false,
+                "admin:view_system": false
+            }
+        },
+        "EXECUTIVE_DIRECTOR": {
+            "description": "Executive director with approval authority over high-value requests",
+            "permissions": {
+                "request:create": false,
+                "request:read_own": false,
+                "request:edit_own": false,
+                "request:submit": false,
+                "request:read_all": true,
+                "request:approve": true,
+                "request:reject": true,
+                "request:reassign": false,
+                "request:delete": false,
+                "vendor:read": true,
+                "vendor:create": false,
+                "budget:read_own": false,
+                "budget:approve": true,
+                "payment:read": true,
+                "payment:approve": false,
+                "audit:read": true,
+                "admin:manage_users": false,
+                "admin:manage_roles": false,
+                "admin:view_system": false
+            }
+        },
+        "SENIOR_DIRECTOR": {
+            "description": "Senior director with highest approval authority",
+            "permissions": {
+                "request:create": false,
+                "request:read_own": false,
+                "request:edit_own": false,
+                "request:submit": false,
+                "request:read_all": true,
+                "request:approve": true,
+                "request:reject": true,
+                "request:reassign": true,
+                "request:delete": false,
+                "vendor:read": true,
+                "vendor:create": false,
+                "budget:read_own": false,
+                "budget:approve": true,
+                "payment:read": true,
+                "payment:approve": true,
+                "audit:read": true,
+                "admin:manage_users": false,
+                "admin:manage_roles": false,
+                "admin:view_system": false
+            }
+        },
+        "AUDITOR": {
+            "description": "Auditor with read-only access to all requests and audit logs",
+            "permissions": {
+                "request:create": false,
+                "request:read_own": false,
+                "request:edit_own": false,
+                "request:submit": false,
+                "request:read_all": true,
+                "request:approve": false,
+                "request:reject": false,
+                "request:reassign": false,
+                "request:delete": false,
+                "vendor:read": true,
+                "vendor:create": false,
+                "budget:read_own": false,
+                "budget:approve": false,
+                "payment:read": true,
+                "payment:approve": false,
+                "audit:read": true,
+                "admin:manage_users": false,
+                "admin:manage_roles": false,
+                "admin:view_system": true
+            }
+        },
+        "FINANCE_PAYMENT_STAGE": {
+            "description": "Finance officer responsible for payment stage processing",
+            "permissions": {
+                "request:create": false,
+                "request:read_own": false,
+                "request:edit_own": false,
+                "request:submit": false,
+                "request:read_all": true,
+                "request:approve": false,
+                "request:reject": false,
+                "request:reassign": false,
+                "request:delete": false,
+                "vendor:read": true,
+                "vendor:create": false,
+                "budget:read_own": false,
+                "budget:approve": false,
+                "payment:read": true,
+                "payment:approve": true,
+                "audit:read": true,
+                "admin:manage_users": false,
+                "admin:manage_roles": false,
+                "admin:view_system": false
+            }
+        }
+    },
+    "ldapGroupMappings": {
+        "cn=procurement-officers,ou=roles,dc=company,dc=com": "PROCUREMENT_OFFICER",
+        "cn=procurement-managers,ou=roles,dc=company,dc=com": "PROCUREMENT_MANAGER",
+        "cn=finance-officers,ou=roles,dc=company,dc=com": "FINANCE_OFFICER",
+        "cn=finance-payment,ou=roles,dc=company,dc=com": "FINANCE_PAYMENT_STAGE",
+        "cn=department-heads,ou=roles,dc=company,dc=com": "DEPARTMENT_HEAD",
+        "cn=executive-directors,ou=roles,dc=company,dc=com": "EXECUTIVE_DIRECTOR",
+        "cn=senior-directors,ou=roles,dc=company,dc=com": "SENIOR_DIRECTOR",
+        "cn=auditors,ou=roles,dc=company,dc=com": "AUDITOR"
+    },
+    "ldapAttributeMappings": {
+        "title": {
+            "Procurement Officer": "PROCUREMENT_OFFICER",
+            "Procurement Manager": "PROCUREMENT_MANAGER",
+            "Finance Officer": "FINANCE_OFFICER",
+            "Finance Payment Officer": "FINANCE_PAYMENT_STAGE",
+            "Department Head": "DEPARTMENT_HEAD",
+            "Executive Director": "EXECUTIVE_DIRECTOR",
+            "Senior Director": "SENIOR_DIRECTOR",
+            "Auditor": "AUDITOR"
+        },
+        "departmentCode": {
+            "FIN": "FINANCE_OFFICER"
+        }
+    },
+    "permissionCategories": {
+        "request": ["request:create", "request:read_own", "request:edit_own", "request:submit", "request:read_all", "request:approve", "request:reject", "request:reassign", "request:delete"],
+        "vendor": ["vendor:read", "vendor:create"],
+        "budget": ["budget:read_own", "budget:approve"],
+        "payment": ["payment:read", "payment:approve"],
+        "audit": ["audit:read"],
+        "admin": ["admin:manage_users", "admin:manage_roles", "admin:view_system"]
+    }
+}

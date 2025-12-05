@@ -57,6 +57,7 @@ const PaymentDetail = lazy(() => import('../pages/Procurement/Payments/PaymentDe
 const FinanceDashboard = lazy(() => import('../pages/Procurement/Payments/FinanceDashboard'));
 const AwaitingDelivery = lazy(() => import('../pages/Procurement/Payments/AwaitingDelivery'));
 const PaymentsToProcess = lazy(() => import('../pages/Procurement/Payments/PaymentsToProcess'));
+const AdminDashboard = lazy(() => import('../pages/Procurement/Admin/AdminDashboard'));
 const AdminSettings = lazy(() => import('../pages/Procurement/Admin/AdminSettings'));
 
 // Request Pages
@@ -482,6 +483,14 @@ const routes = [
     // ============================================
     {
         path: '/procurement/admin',
+        element: (
+            <AdminRoute>
+                <AdminDashboard />
+            </AdminRoute>
+        ),
+    },
+    {
+        path: '/procurement/admin/settings',
         element: (
             <AdminRoute>
                 <AdminSettings />
