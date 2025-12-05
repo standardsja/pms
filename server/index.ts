@@ -2316,6 +2316,114 @@ app.patch('/requests/:id', async (req, res) => {
         // Remove deprecated fields that no longer exist in schema
         const { budgetOfficerApproved, budgetManagerApproved, ...cleanUpdates } = updates;
 
+        // Coerce numeric fields sent as strings (e.g. headerSequence '005') to integers
+        try {
+            if ('headerSequence' in cleanUpdates) {
+                const v = cleanUpdates.headerSequence;
+                cleanUpdates.headerSequence = v === '' || v === null ? null : parseInt(String(v), 10);
+                if (cleanUpdates.headerSequence !== null && Number.isNaN(cleanUpdates.headerSequence)) {
+                    return res.status(400).json({ message: 'Invalid headerSequence; expected integer or null' });
+                }
+            }
+            if ('headerYear' in cleanUpdates) {
+                const v = cleanUpdates.headerYear;
+                cleanUpdates.headerYear = v === '' || v === null ? null : parseInt(String(v), 10);
+                if (cleanUpdates.headerYear !== null && Number.isNaN(cleanUpdates.headerYear)) {
+                    return res.status(400).json({ message: 'Invalid headerYear; expected integer or null' });
+                }
+            }
+            if ('lotNumber' in cleanUpdates) {
+                const v = cleanUpdates.lotNumber;
+                cleanUpdates.lotNumber = v === '' || v === null ? null : parseInt(String(v), 10);
+                if (cleanUpdates.lotNumber !== null && Number.isNaN(cleanUpdates.lotNumber)) {
+                    return res.status(400).json({ message: 'Invalid lotNumber; expected integer or null' });
+                }
+            }
+        } catch (e) {
+            return res.status(400).json({ message: 'Invalid numeric field in update' });
+        }
+
+        // Coerce numeric fields sent as strings (e.g. headerSequence '005') to integers
+        try {
+            if ('headerSequence' in cleanUpdates) {
+                const v = cleanUpdates.headerSequence;
+                cleanUpdates.headerSequence = v === '' || v === null ? null : parseInt(String(v), 10);
+                if (cleanUpdates.headerSequence !== null && Number.isNaN(cleanUpdates.headerSequence)) {
+                    return res.status(400).json({ message: 'Invalid headerSequence; expected integer or null' });
+                }
+            }
+            if ('headerYear' in cleanUpdates) {
+                const v = cleanUpdates.headerYear;
+                cleanUpdates.headerYear = v === '' || v === null ? null : parseInt(String(v), 10);
+                if (cleanUpdates.headerYear !== null && Number.isNaN(cleanUpdates.headerYear)) {
+                    return res.status(400).json({ message: 'Invalid headerYear; expected integer or null' });
+                }
+            }
+            if ('lotNumber' in cleanUpdates) {
+                const v = cleanUpdates.lotNumber;
+                cleanUpdates.lotNumber = v === '' || v === null ? null : parseInt(String(v), 10);
+                if (cleanUpdates.lotNumber !== null && Number.isNaN(cleanUpdates.lotNumber)) {
+                    return res.status(400).json({ message: 'Invalid lotNumber; expected integer or null' });
+                }
+            }
+        } catch (e) {
+            return res.status(400).json({ message: 'Invalid numeric field in update' });
+        }
+
+        // Coerce numeric fields sent as strings (e.g. headerSequence '005') to integers
+        try {
+            if ('headerSequence' in cleanUpdates) {
+                const v = cleanUpdates.headerSequence;
+                cleanUpdates.headerSequence = v === '' || v === null ? null : parseInt(String(v), 10);
+                if (cleanUpdates.headerSequence !== null && Number.isNaN(cleanUpdates.headerSequence)) {
+                    return res.status(400).json({ message: 'Invalid headerSequence; expected integer or null' });
+                }
+            }
+            if ('headerYear' in cleanUpdates) {
+                const v = cleanUpdates.headerYear;
+                cleanUpdates.headerYear = v === '' || v === null ? null : parseInt(String(v), 10);
+                if (cleanUpdates.headerYear !== null && Number.isNaN(cleanUpdates.headerYear)) {
+                    return res.status(400).json({ message: 'Invalid headerYear; expected integer or null' });
+                }
+            }
+            if ('lotNumber' in cleanUpdates) {
+                const v = cleanUpdates.lotNumber;
+                cleanUpdates.lotNumber = v === '' || v === null ? null : parseInt(String(v), 10);
+                if (cleanUpdates.lotNumber !== null && Number.isNaN(cleanUpdates.lotNumber)) {
+                    return res.status(400).json({ message: 'Invalid lotNumber; expected integer or null' });
+                }
+            }
+        } catch (e) {
+            return res.status(400).json({ message: 'Invalid numeric field in update' });
+        }
+
+        // Coerce numeric fields sent as strings (e.g. headerSequence '005') to integers
+        try {
+            if ('headerSequence' in cleanUpdates) {
+                const v = cleanUpdates.headerSequence;
+                cleanUpdates.headerSequence = v === '' || v === null ? null : parseInt(String(v), 10);
+                if (cleanUpdates.headerSequence !== null && Number.isNaN(cleanUpdates.headerSequence)) {
+                    return res.status(400).json({ message: 'Invalid headerSequence; expected integer or null' });
+                }
+            }
+            if ('headerYear' in cleanUpdates) {
+                const v = cleanUpdates.headerYear;
+                cleanUpdates.headerYear = v === '' || v === null ? null : parseInt(String(v), 10);
+                if (cleanUpdates.headerYear !== null && Number.isNaN(cleanUpdates.headerYear)) {
+                    return res.status(400).json({ message: 'Invalid headerYear; expected integer or null' });
+                }
+            }
+            if ('lotNumber' in cleanUpdates) {
+                const v = cleanUpdates.lotNumber;
+                cleanUpdates.lotNumber = v === '' || v === null ? null : parseInt(String(v), 10);
+                if (cleanUpdates.lotNumber !== null && Number.isNaN(cleanUpdates.lotNumber)) {
+                    return res.status(400).json({ message: 'Invalid lotNumber; expected integer or null' });
+                }
+            }
+        } catch (e) {
+            return res.status(400).json({ message: 'Invalid numeric field in update' });
+        }
+
         const updated = await prisma.request.update({
             where: { id: parseInt(id, 10) },
             data: cleanUpdates,
@@ -3809,7 +3917,7 @@ app.post('/api/admin/users/:userId/department', async (req, res) => {
                 id: updated.id,
                 email: updated.email,
                 name: updated.name,
-                roles: updated.roles.map((r) => r.role.name),
+                roles: (updated.roles || []).map((r) => ({ role: r.role })),
                 department: updated.department
                     ? {
                           id: updated.department.id,
@@ -3841,7 +3949,8 @@ app.get('/api/admin/users', async (req, res) => {
             email: u.email,
             name: u.name,
             department: u.department?.name || null,
-            roles: u.roles.map((r) => r.role.name),
+            // Return roles in the shape expected by the admin UI: array of objects with `role` property
+            roles: (u.roles || []).map((r) => ({ role: r.role })),
         }));
 
         res.json(formatted);
@@ -3928,7 +4037,7 @@ app.post('/api/admin/users/:userId/roles', async (req, res) => {
                       id: updatedUser.id,
                       email: updatedUser.email,
                       name: updatedUser.name,
-                      roles: updatedUser.roles.map((r) => r.role.name),
+                      roles: (updatedUser.roles || []).map((r) => ({ role: r.role })),
                       department: updatedUser.department
                           ? {
                                 id: updatedUser.department.id,
