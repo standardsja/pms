@@ -48,7 +48,7 @@ const Header = () => {
     // Current user & role derivations (align with Sidebar logic)
     const currentUser = getUser();
     const userRoles = currentUser?.roles || (currentUser?.role ? [currentUser.role] : []);
-    
+
     // Profile image state
     const [profileImage, setProfileImage] = useState<string>('');
 
@@ -58,14 +58,14 @@ const Header = () => {
             try {
                 const token = getToken();
                 if (!token) return;
-                
+
                 const response = await fetch(getApiUrl('/api/auth/me'), {
                     headers: {
                         Authorization: `Bearer ${token}`,
                         'Content-Type': 'application/json',
                     },
                 });
-                
+
                 if (response.ok) {
                     const data = await response.json();
                     if (data.profileImage) {
