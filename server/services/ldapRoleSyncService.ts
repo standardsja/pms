@@ -55,8 +55,19 @@ export async function syncLDAPUserToDatabase(ldapUser: LDAPUser, existingUser?: 
                     email: ldapUser.email,
                     name: ldapUser.name || ldapUser.email,
                     ldapDN: ldapUser.dn,
+                    profileImage: ldapUser.profileImage,
                 },
                 include: { roles: true },
+            });
+        } else if (ldapUser.profileImage && !dbUser.profileImage) {
+            // Update profile image from LDAP if user doesn't have one
+            await prisma.user.update({
+                where: { id: dbUser.id },
+                data: { profileImage: ldapUser.profileImage },
+            });
+            logger.info('LDAP: Profile image updated from LDAP', {
+                email: ldapUser.email,
+                profileImage: ldapUser.profileImage,
             });
         }
 
