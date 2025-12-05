@@ -16,6 +16,21 @@ const AdminSettings = () => {
     useEffect(() => {
         dispatch(setPageTitle('Admin Settings'));
     });
+    // Allow direct linking to a specific tab via `?tab=` query param (e.g. ?tab=reassign)
+    useEffect(() => {
+        try {
+            const qs = new URLSearchParams(window.location.search);
+            const t = qs.get('tab');
+            if (t && ['users', 'departments', 'workflows', 'templates', 'approvals', 'general', 'reassign', 'splintering'].includes(t)) {
+                // setActiveTab is declared below; use a microtask to avoid hooks ordering issues
+                setTimeout(() => {
+                    setActiveTab(t as any);
+                }, 0);
+            }
+        } catch (e) {
+            // ignore
+        }
+    }, []);
 
     const [activeTab, setActiveTab] = useState<'users' | 'departments' | 'workflows' | 'templates' | 'approvals' | 'general' | 'reassign' | 'splintering'>('users');
 
