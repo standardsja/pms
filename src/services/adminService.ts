@@ -106,8 +106,7 @@ const BACKEND = {
         return apiGet(`/admin/audit-log?${params.toString()}`);
     },
     // Reassign a request to another user (admin action)
-    reassignRequest: (requestId: number, payload: { assigneeId: number | null; comment?: string; newStatus?: string }) =>
-        apiPost(`/api/admin/requests/${requestId}/reassign`, payload),
+    reassignRequest: (requestId: number, payload: { assigneeId: number | null; comment?: string; newStatus?: string }) => apiPost(`/api/admin/requests/${requestId}/reassign`, payload),
 };
 
 // Fallback hardcoded roles if API fails

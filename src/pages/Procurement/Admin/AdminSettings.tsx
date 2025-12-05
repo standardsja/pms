@@ -965,13 +965,15 @@ function ReassignRequestsTab() {
                     </div>
                     <div className="space-y-2 max-h-96 overflow-y-auto">
                         {users.map((user) => {
-                            const roleNames: string[] = (user.roles || []).map((r: any) => {
-                                if (!r) return '';
-                                if (typeof r === 'string') return r;
-                                if (r.role && typeof r.role === 'object') return r.role.name || '';
-                                if (r.name) return r.name;
-                                return '';
-                            }).filter(Boolean);
+                            const roleNames: string[] = (user.roles || [])
+                                .map((r: any) => {
+                                    if (!r) return '';
+                                    if (typeof r === 'string') return r;
+                                    if (r.role && typeof r.role === 'object') return r.role.name || '';
+                                    if (r.name) return r.name;
+                                    return '';
+                                })
+                                .filter(Boolean);
 
                             return (
                                 <div
