@@ -36,5 +36,9 @@
         "typescriptreact": "javascript"
     },
     "prisma.showPrismaDataPlatformNotification": false,
-    "prisma.pinToPrisma6": true
+    "prisma.pinToPrisma6": true,
+    "cSpell.words": [
+        "MSAL",
+        "msal"
+    ]
 }
