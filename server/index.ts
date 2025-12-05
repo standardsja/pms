@@ -2316,6 +2316,19 @@ app.patch('/requests/:id', async (req, res) => {
         // Remove deprecated fields that no longer exist in schema
         const { budgetOfficerApproved, budgetManagerApproved, ...cleanUpdates } = updates;
 
+        // DEBUG: log incoming numeric fields before coercion to help diagnose why strings persist
+        try {
+            console.info(`[DEBUG] PUT /requests/${id} incoming types before coercion:`, {
+                headerSequence: cleanUpdates.headerSequence,
+                headerYear: cleanUpdates.headerYear,
+                lotNumber: cleanUpdates.lotNumber,
+                headerSequenceType: typeof cleanUpdates.headerSequence,
+                headerYearType: typeof cleanUpdates.headerYear,
+            });
+        } catch (logErr) {
+            // ignore logging errors
+        }
+
         // Coerce numeric fields sent as strings (e.g. headerSequence '005') to integers
         try {
             if ('headerSequence' in cleanUpdates) {
@@ -2342,6 +2355,16 @@ app.patch('/requests/:id', async (req, res) => {
         } catch (e) {
             return res.status(400).json({ message: 'Invalid numeric field in update' });
         }
+
+        try {
+            console.info(`[DEBUG] PUT /requests/${id} types after coercion:`, {
+                headerSequence: cleanUpdates.headerSequence,
+                headerYear: cleanUpdates.headerYear,
+                lotNumber: cleanUpdates.lotNumber,
+                headerSequenceType: typeof cleanUpdates.headerSequence,
+                headerYearType: typeof cleanUpdates.headerYear,
+            });
+        } catch (logErr) {}
 
         // Coerce numeric fields sent as strings (e.g. headerSequence '005') to integers
         try {
