@@ -75,7 +75,7 @@ const AdminDashboard = () => {
         setSelectedUser(user);
         const userRoles = (user.roles || []).map((r) => r.role?.name).filter(Boolean) as string[];
         setEditingRoles(userRoles);
-        setEditingDept(user.departmentId || null);
+        setEditingDept(user.department?.id || null);
     };
 
     // Toggle role in edit modal
@@ -94,7 +94,7 @@ const AdminDashboard = () => {
 
             // Update department if changed - backend returns updated user data
             let deptResult = null;
-            if (editingDept !== selectedUser.departmentId) {
+            if (editingDept !== selectedUser.department?.id) {
                 deptResult = await adminService.updateUserDepartment(selectedUser.id, editingDept);
             }
 

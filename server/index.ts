@@ -2292,7 +2292,7 @@ app.patch('/requests/:id', async (req, res) => {
 
         // Create a notification for the new assignee (if any)
         try {
-            const assigneeId = updated.currentAssignee?.id || updated.currentAssigneeId || null;
+            const assigneeId = updated.currentAssigneeId || null;
             if (assigneeId) {
                 await prisma.notification.create({
                     data: {
@@ -2337,7 +2337,7 @@ app.put('/requests/:id', async (req, res) => {
 
         // Notify the assignee after explicit assignment
         try {
-            const assigneeId = updated.currentAssignee?.id || updated.currentAssigneeId || null;
+            const assigneeId = updated.currentAssigneeId || null;
             if (assigneeId) {
                 await prisma.notification.create({
                     data: {
@@ -2605,7 +2605,7 @@ app.post('/requests/:id/submit', async (req, res) => {
                     try {
                         await prisma.notification.create({
                             data: {
-                                userId: null, // Broadcast to system/audit
+                                user: { connect: { id: actingUser.id } },
                                 type: 'THRESHOLD_EXCEEDED',
                                 message: `⚠️ Splintering override: ${actingUser.name} (${actingUser.email}) bypassed splintering warning for request ${request.reference || request.id}`,
                                 data: {
@@ -2625,14 +2625,18 @@ app.post('/requests/:id/submit', async (req, res) => {
                         });
 
                         // Also log to status history for permanent audit trail
-                        await prisma.statusHistory.create({
+                        await prisma.request.update({
+                            where: { id: request.id },
                             data: {
-                                requestId: request.id,
-                                status: 'DRAFT', // Still draft at this point
-                                changedById: actingUser.id,
-                                comment: `Manager override: Splintering warning bypassed. Combined value: ${spl.combined.toFixed(2)} JMD (threshold: ${spl.threshold} JMD, window: ${
-                                    spl.windowDays
-                                } days)`,
+                                statusHistory: {
+                                    create: {
+                                        status: 'DRAFT', // Still draft at this point
+                                        changedById: actingUser.id,
+                                        comment: `Manager override: Splintering warning bypassed. Combined value: ${spl.combined.toFixed(2)} JMD (threshold: ${spl.threshold} JMD, window: ${
+                                            spl.windowDays
+                                        } days)`,
+                                    },
+                                },
                             },
                         });
 
@@ -2863,7 +2867,7 @@ app.post('/requests/:id/action', async (req, res) => {
                 })();
                 const requestCurrency = request.currency || 'JMD';
 
-                const thresholdResult = checkProcurementThresholds(totalValue, procurementTypes, requestCurrency);
+                const thresholdResult = checkProcurementThresholds(Number(totalValue || 0), procurementTypes, requestCurrency);
 
                 if (thresholdResult.requiresExecutiveApproval) {
                     // High-value request -> send to Executive Director for evaluation
@@ -2966,7 +2970,7 @@ app.post('/requests/:id/action', async (req, res) => {
                     await prisma.notification.create({
                         data: {
                             userId: Number(updated.currentAssigneeId),
-                            type: 'EVALUATION_REQUIRED',
+                            type: 'STAGE_CHANGED',
                             message: `High-value request ${updated.reference || updated.id} requires your evaluation`,
                             data: {
                                 requestId: updated.id,
@@ -3215,10 +3219,10 @@ app.post('/admin/requests/:id/override-splinter', requireAdmin, async (req, res)
         try {
             await prisma.notification.create({
                 data: {
-                    userId: null,
+                    user: { connect: { id: parseInt(String(adminUserId), 10) } },
                     type: 'THRESHOLD_EXCEEDED',
                     message: `Admin override applied to request ${updated.reference || updated.id} by user ${adminUserId}`,
-                    data: { requestId: updated.id, overriddenBy: adminUserId },
+                    data: { requestId: updated.id, overriddenBy: parseInt(String(adminUserId), 10) },
                 },
             });
         } catch (notifErr) {
@@ -3437,7 +3441,7 @@ app.post('/procurement/load-balancing-settings', async (req, res) => {
             prisma,
             {
                 enabled: enabled !== undefined ? enabled : undefined,
-                strategy: strategy,
+                strategy: strategy as 'LEAST_LOADED' | 'ROUND_ROBIN' | 'RANDOM' | undefined,
                 autoAssignOnApproval: autoAssignOnApproval !== undefined ? autoAssignOnApproval : undefined,
                 splinteringEnabled: splinteringEnabled !== undefined ? splinteringEnabled : undefined,
             },
@@ -4057,7 +4061,7 @@ app.post('/requests/:id/assign-finance-officer', async (req, res) => {
                 },
                 actions: {
                     create: {
-                        action: 'REASSIGN',
+                        action: 'ASSIGN',
                         performedById: parseInt(String(userId), 10),
                         comment: `Finance officer reassigned to ${financeOfficer.name}`,
                         metadata: { previousAssigneeId, newAssigneeId: parseInt(String(financeOfficerId), 10) },
@@ -5054,7 +5058,7 @@ app.patch(
                                   return [];
                               }
                           })();
-                    authorized = secs.map((s) => String(s).toUpperCase()).includes(sectionUpper);
+                    authorized = secs.map((s: string) => String(s).toUpperCase()).includes(sectionUpper);
                 } catch {
                     authorized = false;
                 }
