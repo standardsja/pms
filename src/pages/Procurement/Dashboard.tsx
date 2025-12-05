@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { IRootState } from '../../store';
 import { setPageTitle } from '../../store/themeConfigSlice';
@@ -17,9 +17,28 @@ import IconChecks from '../../components/Icon/IconChecks';
 import IconBell from '../../components/Icon/IconBell';
 import IconClock from '../../components/Icon/IconClock';
 import IconTrendingUp from '../../components/Icon/IconTrendingUp';
+import { getUser } from '../../utils/auth';
 
 const ProcurementOfficerDashboard = () => {
     const dispatch = useDispatch();
+
+    // Check if user is Finance Manager and redirect them
+    const currentUser = getUser();
+    const userRoles = currentUser?.roles || (currentUser?.role ? [currentUser.role] : []);
+    const isFinanceManager = userRoles.some((r: string) => {
+        const upper = r?.toUpperCase() || '';
+        return upper === 'FINANCE_MANAGER' || upper === 'BUDGET_MANAGER' || upper.includes('FINANCE') || upper.includes('BUDGET');
+    });
+    const isProcurementRole = userRoles.some((r: string) => {
+        const upper = r?.toUpperCase() || '';
+        return upper.includes('PROCUREMENT') || upper === 'ADMIN';
+    });
+
+    // Redirect Finance/Budget Managers to Finance Dashboard
+    if (isFinanceManager && !isProcurementRole) {
+        return <Navigate to="/finance" replace />;
+    }
+
     useEffect(() => {
         dispatch(setPageTitle('Procurement Officer Dashboard'));
     }, [dispatch]);
