@@ -179,7 +179,7 @@ model RefreshToken {
   user          User     @relation(fields: [userId], references: [id])
   userId        Int
   revoked       Boolean  @default(false)
-  replacedById  Int?
+  replacedById  Int?     @unique
   replacedBy    RefreshToken? @relation("RefreshTokenReplacement", fields: [replacedById], references: [id])
   // inverse side of the self-relation (the token that was replaced by this one)
   replaced      RefreshToken? @relation("RefreshTokenReplacement")
