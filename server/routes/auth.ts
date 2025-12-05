@@ -12,6 +12,9 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import rateLimit from 'express-rate-limit';
+import multer from 'multer';
+import fs from 'fs';
+import path from 'path';
 import { prisma } from '../prismaClient';
 import { config } from '../config/environment';
 import { logger } from '../config/logger';
@@ -20,6 +23,7 @@ import { validate, loginSchema } from '../middleware/validation';
 import { ldapService } from '../services/ldapService';
 import { syncLDAPUserToDatabase, describeSyncResult } from '../services/ldapRoleSyncService';
 import { createRefreshToken, verifyAndRotateRefreshToken, revokeRefreshToken } from '../services/tokenService';
+import { authMiddleware, AuthenticatedRequest } from '../middleware/auth';
 
 const router = Router();
 
@@ -36,6 +40,35 @@ const authLimiter = rateLimit({
     max: 10, // 10 attempts per window (increased from 5 for testing)
     message: 'Too many authentication attempts, please try again later.',
     skipSuccessfulRequests: true,
+});
+
+// Multer storage for profile images
+const profileUploadDir = path.resolve(process.cwd(), 'uploads', 'profiles');
+if (!fs.existsSync(profileUploadDir)) {
+    fs.mkdirSync(profileUploadDir, { recursive: true });
+}
+
+const profileImageStorage = multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, profileUploadDir),
+    filename: (req, file, cb) => {
+        const authReq = req as AuthenticatedRequest;
+        const userId = authReq.user?.sub || 'anon';
+        const ext = path.extname(file.originalname) || '.jpg';
+        const safeBase = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9-_]/g, '');
+        cb(null, `profile-${userId}-${Date.now()}-${safeBase}${ext}`);
+    },
+});
+
+const profileImageUpload = multer({
+    storage: profileImageStorage,
+    limits: { fileSize: 5 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+        // Accept common image uploads; defer strict validation to downstream processing if needed
+        if (!file.mimetype || !file.mimetype.startsWith('image/')) {
+            return cb(new Error('INVALID_FILE_TYPE'));
+        }
+        cb(null, true);
+    },
 });
 
 // Login endpoint - Unified LDAP + database authentication with hybrid role sync
@@ -94,6 +127,7 @@ router.post(
                         email,
                         name: ldapUser.name || email,
                         externalId: ldapUser.dn,
+                        ldapDN: ldapUser.dn,
                     },
                     include: {
                         roles: {
@@ -104,6 +138,31 @@ router.post(
                         department: true,
                     },
                 });
+            } else {
+                // Update LDAP-synced fields for existing user
+                try {
+                    user = await prisma.user.update({
+                        where: { id: user.id },
+                        data: {
+                            name: ldapUser.name || user.name,
+                            ldapDN: ldapUser.dn,
+                            externalId: ldapUser.dn,
+                            // Only update if LDAP provided these values
+                            ...(ldapUser.email && { email: ldapUser.email }),
+                        },
+                        include: {
+                            roles: {
+                                include: {
+                                    role: true,
+                                },
+                            },
+                            department: true,
+                        },
+                    });
+                    logger.info('LDAP user profile updated', { email, userId: user.id });
+                } catch (updateErr) {
+                    logger.warn('Failed to update LDAP user profile', { email, error: updateErr });
+                }
             }
 
             // Perform hybrid role sync: AD groups → admin panel → default REQUESTER
@@ -250,7 +309,6 @@ router.post(
                 data: {
                     email,
                     name: ldapUser.name || email,
-                    ldapDN: ldapUser.dn,
                 },
                 include: {
                     roles: {
@@ -264,7 +322,7 @@ router.post(
         }
 
         // Perform hybrid role sync: AD groups → admin panel → default REQUESTER
-        const syncResult = await syncLDAPUserToDatabase(ldapUser, user);
+        const syncResult = await syncLDAPUserToDatabase(ldapUser, user!);
 
         logger.info('LDAP user roles synced', {
             email,
@@ -344,7 +402,12 @@ router.get(
 
         const roles = user.roles.map((r) => r.role.name);
 
-        res.json({
+        console.log('=== /api/auth/me ENDPOINT ===');
+        console.log('User ID:', user.id);
+        console.log('User profileImage from DB:', user.profileImage);
+        console.log('Full user object keys:', Object.keys(user));
+
+        const responseData = {
             id: user.id,
             email: user.email,
             name: user.name,
@@ -356,7 +419,96 @@ router.get(
                       code: user.department.code,
                   }
                 : null,
+            profileImage: user.profileImage || null,
+            phone: user.phone || null,
+            jobTitle: user.jobTitle || null,
+        };
+
+        console.log('Response data being sent:', responseData);
+        res.json(responseData);
+    })
+);
+
+// Upload profile image
+router.post(
+    '/profile-image',
+    authMiddleware,
+    (req, res, next) => {
+        profileImageUpload.single('profileImage')(req, res, (err: any) => {
+            if (err) {
+                if (err.message === 'INVALID_FILE_TYPE') {
+                    return res.status(400).json({ success: false, message: 'Invalid file type. Please upload an image.' });
+                }
+                if (err.code === 'LIMIT_FILE_SIZE') {
+                    return res.status(400).json({ success: false, message: 'File too large. Max size is 5MB.' });
+                }
+                return res.status(400).json({ success: false, message: 'Upload failed. Please try again.' });
+            }
+            return next();
         });
+    },
+    asyncHandler(async (req, res) => {
+        const authReq = req as AuthenticatedRequest;
+        const userId = Number(authReq.user?.sub);
+
+        if (!Number.isFinite(userId)) {
+            throw new UnauthorizedError('Not authenticated');
+        }
+
+        if (!req.file) {
+            throw new BadRequestError('No file uploaded');
+        }
+
+        const relativePath = `/uploads/profiles/${req.file.filename}`;
+
+        try {
+            console.log('=== PROFILE IMAGE UPLOAD ===');
+            console.log('User ID:', userId);
+            console.log('File name:', req.file.filename);
+            console.log('File path:', relativePath);
+            console.log('Updating user record...');
+
+            const updateResult = await prisma.user.update({
+                where: { id: userId },
+                data: { profileImage: relativePath },
+            });
+
+            console.log('Update result:', updateResult);
+            console.log('Profile image saved to DB:', updateResult.profileImage);
+
+            logger.info('Profile image updated', {
+                userId,
+                path: relativePath,
+                mimetype: req.file.mimetype,
+                size: req.file.size,
+                filename: req.file.filename,
+            });
+
+            res.json({ success: true, profileImage: relativePath });
+        } catch (err: any) {
+            const errMsg = err?.message || String(err);
+            const errCode = err?.code;
+
+            console.error('=== PROFILE IMAGE UPLOAD ERROR ===');
+            console.error('Error:', errMsg);
+            console.error('Code:', errCode);
+            console.error('Full error:', err);
+
+            logger.warn('Profile image update failed', {
+                userId,
+                error: errMsg,
+                code: errCode,
+                mimetype: req.file.mimetype,
+                size: req.file.size,
+                filename: req.file.filename,
+            });
+
+            if (errCode === 'P2025') {
+                return res.status(404).json({ success: false, message: 'User not found' });
+            }
+
+            return res.status(400).json({ success: false, message: errMsg || 'Invalid data provided' });
+        }
     })
 );
 

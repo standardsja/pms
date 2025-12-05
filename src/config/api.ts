@@ -12,8 +12,10 @@ export function getApiBaseUrl(): string {
         return envUrl.replace(/\/$/, '');
     }
 
-    // Fallback to heron:4000 for production/development server
-    return 'http://heron:4000';
+    // Fallback: use localhost for development, heron for production
+    // Check if we're in development mode
+    const isDev = import.meta.env.DEV || import.meta.env.MODE === 'development';
+    return isDev ? 'http://localhost:4000' : 'http://heron:4000';
 }
 
 /**

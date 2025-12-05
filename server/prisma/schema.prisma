@@ -88,12 +88,71 @@ enum NotificationType {
 }
 
 enum AuditAction {
+  // Authentication & Authorization
+  USER_LOGIN
+  USER_LOGOUT
+  USER_LOGIN_FAILED
+  LDAP_LOGIN
+  PASSWORD_CHANGED
+  ROLE_ASSIGNED
+  ROLE_REMOVED
+  
+  // Procurement Requests
+  REQUEST_CREATED
+  REQUEST_UPDATED
+  REQUEST_DELETED
+  REQUEST_SUBMITTED
+  REQUEST_APPROVED
+  REQUEST_REJECTED
+  REQUEST_FORWARDED
+  REQUEST_RETURNED
+  REQUEST_STATUS_CHANGED
+  
+  // Purchase Orders
+  PO_CREATED
+  PO_UPDATED
+  PO_APPROVED
+  PO_CANCELLED
+  
+  // Approvals & Workflow
+  APPROVAL_GRANTED
+  APPROVAL_DENIED
+  APPROVAL_DELEGATED
+  WORKFLOW_STAGE_CHANGED
+  
+  // Budget & Finance
+  BUDGET_ALLOCATED
+  BUDGET_MODIFIED
+  PAYMENT_PROCESSED
+  
+  // Documents & Files
+  FILE_UPLOADED
+  FILE_DOWNLOADED
+  FILE_DELETED
+  
+  // Innovation Hub
   IDEA_CREATED
   IDEA_UPDATED
   IDEA_VOTED
+  IDEA_DELETED
   COMMENT_CREATED
+  COMMENT_DELETED
   STAGE_CHANGED
   TAGS_UPDATED
+  
+  // Suppliers
+  SUPPLIER_CREATED
+  SUPPLIER_UPDATED
+  SUPPLIER_APPROVED
+  SUPPLIER_SUSPENDED
+  
+  // System & Admin
+  USER_CREATED
+  USER_UPDATED
+  USER_DELETED
+  SETTINGS_CHANGED
+  REPORT_GENERATED
+  DATA_EXPORTED
 }
 
 enum LoadBalancingStrategy {
@@ -119,7 +178,17 @@ model User {
   email        String  @unique
   name         String?
   passwordHash String? // ← for local email/password testing
-  profileImage String? @db.LongText // Profile picture URL or base64
+  profileImage String? // User profile image path/URL
+  
+  // LDAP-synced fields
+  ldapDN       String? // LDAP Distinguished Name
+  employeeId   String? // Employee ID from LDAP
+  jobTitle     String? // Job title from LDAP
+  phone        String? // Phone number from LDAP
+  address      String? // Address from LDAP
+  city         String? // City from LDAP
+  country      String? // Country from LDAP
+  supervisor   String? // Supervisor DN from LDAP
 
   department   Department? @relation("userDepartment", fields: [departmentId], references: [id])
   departmentId Int?
@@ -168,25 +237,6 @@ model User {
 
   // Assignments back-relation
   evaluationAssignments EvaluationAssignment[]
-  
-  // Refresh tokens back-relation
-  refreshTokens RefreshToken[]
-}
-
-model RefreshToken {
-  id            Int      @id @default(autoincrement())
-  tokenHash     String   @unique
-  user          User     @relation(fields: [userId], references: [id])
-  userId        Int
-  revoked       Boolean  @default(false)
-  replacedById  Int?
-  replacedBy    RefreshToken? @relation("RefreshTokenReplacement", fields: [replacedById], references: [id])
-  // inverse side of the self-relation: tokens that were replaced by this token
-  replaced      RefreshToken[] @relation("RefreshTokenReplacement")
-  createdAt     DateTime @default(now())
-  expiresAt     DateTime
-
-  @@index([userId])
 }
 
 model Department {
@@ -566,18 +616,35 @@ model IdeaStageHistory {
 }
 
 model AuditLog {
-  id        Int         @id @default(autoincrement())
-  ideaId    Int?
-  idea      Idea?       @relation(fields: [ideaId], references: [id], onDelete: SetNull)
-  userId    Int?
-  user      User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
-  action    AuditAction
-  message   String
-  metadata  Json?
-  createdAt DateTime     @default(now())
+  id          Int         @id @default(autoincrement())
+  
+  // Actor (who performed the action)
+  userId      Int?
+  user        User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  // Action details
+  action      AuditAction
+  entity      String      // e.g., "ProcurementRequest", "PurchaseOrder", "User"
+  entityId    Int?        // ID of the affected entity
+  message     String      @db.Text
+  
+  // Context
+  ipAddress   String?
+  userAgent   String?     @db.Text
+  metadata    Json?       // Additional data (old values, new values, etc.)
+  
+  // Legacy relations (for backward compatibility)
+  ideaId      Int?
+  idea        Idea?       @relation(fields: [ideaId], references: [id], onDelete: SetNull)
+  
+  // Timestamps
+  createdAt   DateTime    @default(now())
 
-  @@index([ideaId])
   @@index([userId])
+  @@index([action])
+  @@index([entity, entityId])
+  @@index([createdAt])
+  @@index([ideaId])
 }
 
 model Notification {

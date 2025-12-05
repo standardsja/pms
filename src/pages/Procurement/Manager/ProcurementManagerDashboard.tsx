@@ -195,27 +195,39 @@ const ProcurementManagerDashboard = () => {
         <div className="space-y-6">
             {/* Header */}
             <div className="flex items-center justify-between">
-                <h1 className="text-2xl font-bold">Manager Overview</h1>
+                <div>
+                    <h1 className="text-3xl font-bold">Procurement Manager Dashboard</h1>
+                    <p className="text-gray-500 text-sm mt-1">Comprehensive procurement management overview</p>
+                </div>
             </div>
 
             {/* Summary cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="panel flex items-center justify-between">
-                    <div>
-                        <div className="text-sm text-white-dark">Requests awaiting approval</div>
-                        <div className="text-3xl font-bold text-primary">{stats.pendingApprovals}</div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="panel">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <p className="text-gray-500 text-sm mb-2">Pending Approvals</p>
+                            <p className="text-4xl font-bold text-primary">{stats.pendingApprovals}</p>
+                        </div>
+                        <div className="text-5xl text-blue-100">📋</div>
                     </div>
                 </div>
-                <div className="panel flex items-center justify-between">
-                    <div>
-                        <div className="text-sm text-white-dark">Evaluations to validate</div>
-                        <div className="text-3xl font-bold text-primary">{stats.evaluationsToValidate}</div>
+                <div className="panel">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <p className="text-gray-500 text-sm mb-2">Evaluations to Validate</p>
+                            <p className="text-4xl font-bold text-orange-500">{stats.evaluationsToValidate}</p>
+                        </div>
+                        <div className="text-5xl text-orange-100">✓</div>
                     </div>
                 </div>
-                <div className="panel flex items-center justify-between">
-                    <div>
-                        <div className="text-sm text-white-dark">Auto-assign queue</div>
-                        <div className="text-3xl font-bold text-primary">{stats.autoAssignQueue}</div>
+                <div className="panel">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <p className="text-gray-500 text-sm mb-2">Auto-assign Queue</p>
+                            <p className="text-4xl font-bold text-purple-500">{stats.autoAssignQueue}</p>
+                        </div>
+                        <div className="text-5xl text-purple-100">⚙️</div>
                     </div>
                 </div>
             </div>
@@ -376,6 +388,48 @@ const ProcurementManagerDashboard = () => {
                     </div>
                 </div>
             )}
+
+            {/* Quick Access Section */}
+            <div className="mt-8">
+                <h2 className="text-xl font-bold mb-4">Quick Access</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                    <Link to="/procurement/manager/requests" className="panel hover:shadow-lg transition-shadow cursor-pointer">
+                        <div className="text-center">
+                            <div className="text-4xl mb-2">📄</div>
+                            <p className="font-semibold">All Requests</p>
+                            <p className="text-sm text-gray-500">View all procurement requests</p>
+                        </div>
+                    </Link>
+                    <Link to="/procurement/manager/assign" className="panel hover:shadow-lg transition-shadow cursor-pointer">
+                        <div className="text-center">
+                            <div className="text-4xl mb-2">👥</div>
+                            <p className="font-semibold">Assign Requests</p>
+                            <p className="text-sm text-gray-500">Manage request assignments</p>
+                        </div>
+                    </Link>
+                    <Link to="/procurement/manager/settings" className="panel hover:shadow-lg transition-shadow cursor-pointer">
+                        <div className="text-center">
+                            <div className="text-4xl mb-2">⚖️</div>
+                            <p className="font-semibold">Load Balancing</p>
+                            <p className="text-sm text-gray-500">Configure auto-assignment</p>
+                        </div>
+                    </Link>
+                    <Link to="/procurement/evaluation" className="panel hover:shadow-lg transition-shadow cursor-pointer">
+                        <div className="text-center">
+                            <div className="text-4xl mb-2">📊</div>
+                            <p className="font-semibold">Evaluation</p>
+                            <p className="text-sm text-gray-500">Manage evaluations</p>
+                        </div>
+                    </Link>
+                    <Link to="/apps/requests/combine" className="panel hover:shadow-lg transition-shadow cursor-pointer">
+                        <div className="text-center">
+                            <div className="text-4xl mb-2">🔗</div>
+                            <p className="font-semibold">Combine Requests</p>
+                            <p className="text-sm text-gray-500">Combine multiple requests</p>
+                        </div>
+                    </Link>
+                </div>
+            </div>
         </div>
     );
 };

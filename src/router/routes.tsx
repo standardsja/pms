@@ -3,6 +3,7 @@ import OnboardingGuard from '../components/OnboardingGuard';
 import AdminRoute from '../components/AdminRoute';
 import CommitteeRoute from '../components/CommitteeRoute';
 import ProcurementRoute from '../components/ProcurementRoute';
+import RoleDashboardGuard from '../components/RoleDashboardGuard';
 
 // Main Pages
 const Index = lazy(() => import('../pages/Index'));
@@ -67,6 +68,13 @@ const CombineRequests = lazy(() => import('../pages/Procurement/Requests/Combine
 const CombinedRequestDetail = lazy(() => import('../pages/Procurement/Requests/CombinedRequestDetail'));
 const FinanceRequests = lazy(() => import('../pages/Procurement/Finance/Requests'));
 
+// Role-Specific Dashboards
+const RequesterDashboard = lazy(() => import('../pages/Procurement/Requester/RequesterDashboard'));
+const FinanceOfficerDashboard = lazy(() => import('../pages/Procurement/Finance/FinanceOfficerDashboard'));
+const AuditorDashboard = lazy(() => import('../pages/Procurement/Audit/AuditorDashboard'));
+const DepartmentHeadDashboardNew = lazy(() => import('../pages/Procurement/DepartmentHead/DepartmentHeadDashboardNew'));
+const DepartmentManagerDashboard = lazy(() => import('../pages/Procurement/DepartmentManager/DepartmentManagerDashboard'));
+
 // Department Head Pages
 const DepartmentHeadDashboard = lazy(() => import('../pages/Procurement/DepartmentHead/DepartmentHeadDashboard'));
 const DepartmentHeadEvaluationReview = lazy(() => import('../pages/Procurement/DepartmentHead/DepartmentHeadEvaluationReview'));
@@ -99,12 +107,20 @@ const CommitteeDashboard = lazy(() => import('../pages/Innovation/Committee/Comm
 const CommitteeReviewIdeas = lazy(() => import('../pages/Innovation/Committee/ReviewIdeas'));
 const InnovationAnalytics = lazy(() => import('../pages/Innovation/Ideas/Analytics'));
 
+// Admin Pages
+const AuditTrail = lazy(() => import('../pages/Admin/AuditTrail'));
+
 const routes = [
     // ============================================
     // AUTH ROUTES
     // ============================================
     {
         path: '/auth/login',
+        element: <Login />,
+        layout: 'blank',
+    },
+    {
+        path: '/auth/boxed-signin',
         element: <Login />,
         layout: 'blank',
     },
@@ -223,6 +239,50 @@ const routes = [
                 <CommitteeDashboard />
             </CommitteeRoute>
         ), // TODO: Create detailed review page
+    },
+
+    // ============================================
+    // ROLE-SPECIFIC DASHBOARDS
+    // ============================================
+    {
+        path: '/procurement/dashboard/requester',
+        element: (
+            <RoleDashboardGuard allowedRoles={['REQUESTER']} fallbackPath="/apps/requests">
+                <RequesterDashboard />
+            </RoleDashboardGuard>
+        ),
+    },
+    {
+        path: '/procurement/dashboard/finance-officer',
+        element: (
+            <RoleDashboardGuard allowedRoles={['FINANCE_OFFICER', 'FINANCE_PAYMENT_STAGE']} fallbackPath="/procurement/dashboard">
+                <FinanceOfficerDashboard />
+            </RoleDashboardGuard>
+        ),
+    },
+    {
+        path: '/procurement/dashboard/auditor',
+        element: (
+            <RoleDashboardGuard allowedRoles={['AUDITOR']} fallbackPath="/procurement/dashboard">
+                <AuditorDashboard />
+            </RoleDashboardGuard>
+        ),
+    },
+    {
+        path: '/procurement/dashboard/department-head',
+        element: (
+            <RoleDashboardGuard allowedRoles={['DEPARTMENT_HEAD']} fallbackPath="/procurement/dashboard">
+                <DepartmentHeadDashboardNew />
+            </RoleDashboardGuard>
+        ),
+    },
+    {
+        path: '/procurement/dashboard/department-manager',
+        element: (
+            <RoleDashboardGuard allowedRoles={['DEPT_MANAGER', 'DEPARTMENT_MANAGER']} fallbackPath="/apps/requests">
+                <DepartmentManagerDashboard />
+            </RoleDashboardGuard>
+        ),
     },
 
     // ============================================
@@ -517,6 +577,18 @@ const routes = [
         path: '/help',
         element: <HelpSupport />,
         layout: 'blank',
+    },
+
+    // ============================================
+    // ADMIN ROUTES
+    // ============================================
+    {
+        path: '/admin/audit-trail',
+        element: (
+            <AdminRoute>
+                <AuditTrail />
+            </AdminRoute>
+        ),
     },
 
     // ============================================

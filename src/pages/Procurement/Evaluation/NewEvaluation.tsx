@@ -73,7 +73,9 @@ const NewEvaluation = () => {
             return;
         }
         const roles = (u?.roles || (u?.role ? [u.role] : [])).map((r) => r.toUpperCase());
-        const hasAccess = roles.some((role) => role.includes('PROCUREMENT_OFFICER') || role.includes('PROCUREMENT_MANAGER') || role.includes('PROCUREMENT') || role.includes('MANAGER'));
+        const hasAccess = roles.some(
+            (role) => role.includes('PROCUREMENT_OFFICER') || role.includes('PROCUREMENT_MANAGER') || role.includes('PROCUREMENT') || role.includes('MANAGER') || role.includes('REQUESTER')
+        );
         if (!hasAccess) {
             navigate('/procurement/evaluation');
         }

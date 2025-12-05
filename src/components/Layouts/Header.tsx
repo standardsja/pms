@@ -34,10 +34,11 @@ import IconMenuForms from '../Icon/Menu/IconMenuForms';
 import IconMenuPages from '../Icon/Menu/IconMenuPages';
 import IconMenuMore from '../Icon/Menu/IconMenuMore';
 import IconRefresh from '../Icon/IconRefresh';
-import { getUser, clearAuth } from '../../utils/auth';
+import { getUser, getToken, clearAuth } from '../../utils/auth';
 import { heartbeatService } from '../../services/heartbeatService';
 import { fetchNotifications, deleteNotification, Notification } from '../../services/notificationApi';
 import { fetchMessages, deleteMessage, Message } from '../../services/messageApi';
+import { getApiUrl } from '../../config/api';
 
 const Header = () => {
     const location = useLocation();
@@ -46,6 +47,7 @@ const Header = () => {
 
     // Current user & role derivations (align with Sidebar logic)
     const currentUser = getUser();
+    const [profileImage, setProfileImage] = useState<string | null>(null);
     const userRoles = currentUser?.roles || (currentUser?.role ? [currentUser.role] : []);
     const isCommitteeMember = userRoles.includes('INNOVATION_COMMITTEE');
     const isProcurementManager = userRoles.includes('PROCUREMENT_MANAGER') || userRoles.includes('MANAGER') || userRoles.some((r: string) => r && r.toUpperCase().includes('MANAGER'));
@@ -149,8 +151,57 @@ const Header = () => {
 
     // Initial load and polling (60s interval, matching Innovation Hub pattern)
     useEffect(() => {
+        // Get fresh auth data on every effect run
+        const token = getToken();
+        const user = getUser();
+
+        if (!user || !token) {
+            console.log('[HEADER] No token or user, skipping profile image load');
+            return;
+        }
+
         loadNotifications();
         loadMessages();
+
+        // Fetch user profile image
+        const loadProfileImage = async () => {
+            try {
+                console.log('[HEADER] Fetching /api/auth/me for user:', user.id);
+                const response = await fetch(getApiUrl('/api/auth/me'), {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('[HEADER] /api/auth/me response:', data);
+                    if (data.profileImage) {
+                        // Add timestamp to bust cache on every load
+                        const imageWithTimestamp = `${data.profileImage}?t=${Date.now()}`;
+                        console.log('[HEADER] Loaded profileImage with timestamp:', imageWithTimestamp);
+                        setProfileImage(imageWithTimestamp);
+                    } else {
+                        console.log('[HEADER] No profileImage in response');
+                    }
+                } else {
+                    console.log('[HEADER] /api/auth/me failed:', response.status);
+                }
+            } catch (error) {
+                console.error('[HEADER] Error loading profile image:', error);
+            }
+        };
+
+        loadProfileImage();
+
+        // Listen for profile photo updates
+        const handleProfilePhotoUpdate = (event: CustomEvent) => {
+            if (event.detail?.profileImage) {
+                setProfileImage(event.detail.profileImage);
+            }
+        };
+
+        window.addEventListener('profilePhotoUpdated', handleProfilePhotoUpdate as EventListener);
 
         // Poll for new data every 60 seconds
         const pollInterval = setInterval(() => {
@@ -172,6 +223,7 @@ const Header = () => {
         return () => {
             clearInterval(pollInterval);
             document.removeEventListener('visibilitychange', handleVisibilityChange);
+            window.removeEventListener('profilePhotoUpdated', handleProfilePhotoUpdate as EventListener);
         };
     }, []);
     const removeNotification = async (id: number) => {
@@ -594,12 +646,22 @@ const Header = () => {
                                 offset={[0, 8]}
                                 placement={`${isRtl ? 'bottom-start' : 'bottom-end'}`}
                                 btnClassName="relative group block"
-                                button={<img className="w-9 h-9 rounded-full object-cover saturate-50 group-hover:saturate-100" src="/assets/images/user-profile.jpeg" alt="userProfile" />}
+                                button={
+                                    <img
+                                        className="w-9 h-9 rounded-full object-cover saturate-50 group-hover:saturate-100"
+                                        src={profileImage ? (profileImage.startsWith('http') ? profileImage : getApiUrl(profileImage)) : '/assets/images/user-profile.jpeg'}
+                                        alt="userProfile"
+                                    />
+                                }
                             >
                                 <ul className="text-dark dark:text-white-dark !py-0 w-[230px] font-semibold dark:text-white-light/90">
                                     <li>
                                         <div className="flex items-center px-4 py-4">
-                                            <img className="rounded-md w-10 h-10 object-cover" src="/assets/images/user-profile.jpeg" alt="userProfile" />
+                                            <img
+                                                className="rounded-md w-10 h-10 object-cover"
+                                                src={profileImage ? (profileImage.startsWith('http') ? profileImage : getApiUrl(profileImage)) : '/assets/images/user-profile.jpeg'}
+                                                alt="userProfile"
+                                            />
                                             <div className="ltr:pl-4 rtl:pr-4 truncate">
                                                 <h4 className="text-base">
                                                     {currentUser?.name || 'User'}

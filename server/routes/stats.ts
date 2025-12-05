@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '../prismaClient';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth';
+import { getHealthStatus, getMetrics } from '../services/monitoringService';
 
 const router = Router();
 
@@ -10,6 +11,9 @@ const SERVER_START_TIME = Date.now();
 // In-memory store for active sessions (module activity)
 // Key: userId, Value: { module: 'pms' | 'ih', lastSeen: Date }
 const activeSessions = new Map<number, { module: 'pms' | 'ih'; lastSeen: Date }>();
+
+// Export for real-time broadcasts
+export { activeSessions, SERVER_START_TIME };
 
 // Clean up stale sessions (inactive for more than 3 minutes)
 // Heartbeat interval is 45s, so 3 minutes allows for ~4 missed heartbeats before cleanup
@@ -332,12 +336,9 @@ router.get('/system', async (req: Request, res: Response) => {
         });
         console.log(`[Stats] Pending approvals: ${pendingApprovals}`);
 
-        // System uptime percentage (calculated from server start time)
-        const uptimeMs = Date.now() - SERVER_START_TIME;
-        const uptimeDays = uptimeMs / (1000 * 60 * 60 * 24);
-        // Assume 99.99% available outside of maintenance window
-        // For every day of uptime, subtract 0.01% (roughly 86 seconds of downtime per day)
-        const systemUptime = Math.round((Math.max(0, Math.min(100, 99.99 - uptimeDays * 0.01)) + Number.EPSILON) * 10) / 10;
+        // Get comprehensive health metrics from monitoring service
+        const healthMetrics = getHealthStatus();
+        const metrics = getMetrics();
 
         // Total processed requests (all time)
         console.log('[Stats] Counting total processed requests...');
@@ -350,12 +351,22 @@ router.get('/system', async (req: Request, res: Response) => {
         });
         console.log(`[Stats] Total processed: ${totalProcessedRequests}`);
 
+        const apiResponseTime =
+            metrics.requests.total > 0 ? Object.values(metrics.requests.byEndpoint).reduce((sum, e) => sum + e.avgDuration, 0) / Object.values(metrics.requests.byEndpoint).length : 0;
+        const requestSuccessRate = metrics.requests.total > 0 ? (metrics.requests.success / metrics.requests.total) * 100 : 0;
+        const serverHealthScore = healthMetrics.status === 'healthy' ? 100 : healthMetrics.status === 'degraded' ? 70 : 40;
+
         const result = {
             activeUsers,
             requestsThisMonth,
             innovationIdeas,
             pendingApprovals,
-            systemUptime,
+            systemUptime: metrics.uptimeSeconds,
+            apiResponseTime,
+            requestSuccessRate,
+            serverHealthScore,
+            cpuLoad: '0%',
+            memoryUsage: '0%',
             totalProcessedRequests,
             timestamp: now.toISOString(),
         };

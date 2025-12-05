@@ -53,6 +53,12 @@ const Sidebar = () => {
     const isCommitteeMember = userRoles.includes('INNOVATION_COMMITTEE');
     const isEvaluationCommittee = userRoles.includes('EVALUATION_COMMITTEE');
 
+    // Finance Manager or Budget Manager - limited access
+    const isFinanceManager = userRoles.some((r: string) => {
+        const upper = r?.toUpperCase() || '';
+        return upper === 'FINANCE_MANAGER' || upper === 'BUDGET_MANAGER' || upper.includes('FINANCE') || upper.includes('BUDGET');
+    });
+
     // Specific procurement manager role (must have PROCUREMENT in the name)
     const isProcurementManager = userRoles.some((r: string) => {
         const upper = r?.toUpperCase() || '';
@@ -86,6 +92,8 @@ const Sidebar = () => {
         ? '/innovation/committee/dashboard'
         : isInnovationHub
         ? '/innovation/dashboard'
+        : isFinanceManager
+        ? '/finance'
         : isProcurementManager
         ? '/procurement/manager'
         : isDepartmentManager
@@ -730,8 +738,64 @@ const Sidebar = () => {
                                 </>
                             )}
 
+                            {/* Show FINANCE_MANAGER or BUDGET_MANAGER section - limited access to USER and FINANCE only */}
+                            {isFinanceManager && !isAdmin && !isProcurementManager && !isInnovationHub && (
+                                <>
+                                    <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
+                                        <IconMinus className="w-4 h-5 flex-none hidden" />
+                                        <span>USER</span>
+                                    </h2>
+
+                                    <li className="nav-item">
+                                        <NavLink to="/apps/requests" className="group">
+                                            <div className="flex items-center">
+                                                <IconFile className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Requests</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+
+                                    <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1 mt-4">
+                                        <IconMinus className="w-4 h-5 flex-none hidden" />
+                                        <span>Finance</span>
+                                    </h2>
+                                    <li className="nav-item">
+                                        <NavLink to="/finance" className="group">
+                                            <div className="flex items-center">
+                                                <IconMenuDashboard className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Finance Dashboard</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+                                    <li className="nav-item list-none">
+                                        <NavLink to="/finance/requests" className="group">
+                                            <div className="flex items-center">
+                                                <IconMenuInvoice className="group-hover:!text-primary shrink-0 w-5 h-5" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Finance Requests</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+                                    <li className="nav-item list-none">
+                                        <NavLink to="/finance/awaiting-delivery" className="group">
+                                            <div className="flex items-center">
+                                                <IconInbox className="group-hover:!text-primary shrink-0 w-5 h-5" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Awaiting Delivery Confirmation</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+                                    <li className="nav-item list-none">
+                                        <NavLink to="/finance/payments-to-process" className="group">
+                                            <div className="flex items-center">
+                                                <IconCreditCard className="group-hover:!text-primary shrink-0 w-5 h-5" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Payments to Process</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+                                </>
+                            )}
+
                             {/* Show Budget Manager section if applicable - hide for admins and when in Innovation Hub */}
-                            {userRoles.some((r: string) => r?.toUpperCase()?.includes('BUDGET')) && !isAdmin && !isInnovationHub && (
+                            {userRoles.some((r: string) => r?.toUpperCase()?.includes('BUDGET')) && !isAdmin && !isFinanceManager && !isInnovationHub && (
                                 // Budget Manager Menu (Old fallback - kept for compatibility)
                                 <>
                                     <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">

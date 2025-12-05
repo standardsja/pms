@@ -12,6 +12,8 @@ import { Client } from 'ldapts';
 import { config } from '../config/environment';
 import { logger } from '../config/logger';
 import { BadRequestError, UnauthorizedError } from '../middleware/errorHandler';
+import path from 'path';
+import fs from 'fs';
 
 export interface LDAPUser {
     dn: string;
@@ -19,6 +21,7 @@ export interface LDAPUser {
     name?: string;
     department?: string;
     memberOf?: string[]; // AD group memberships
+    profileImage?: string; // Profile photo path
 }
 
 export interface LDAPUserWithGroups extends LDAPUser {
@@ -92,7 +95,7 @@ class LDAPService {
             const { searchEntries } = await this.client!.search(config.LDAP.searchDN, {
                 filter: `(userPrincipalName=${sanitizedEmail})`,
                 scope: 'sub',
-                attributes: ['dn', 'userPrincipalName', 'cn', 'displayName', 'mail', 'department', 'memberOf'],
+                attributes: ['dn', 'userPrincipalName', 'cn', 'displayName', 'mail', 'department', 'memberOf', 'thumbnailPhoto'],
             });
 
             if (searchEntries.length === 0) {
@@ -107,12 +110,23 @@ class LDAPService {
             // Extract group memberships
             const memberOf = Array.isArray(entry.memberOf) ? (entry.memberOf as string[]) : entry.memberOf ? [entry.memberOf as string] : [];
 
+            // Save profile photo from LDAP if available
+            let profileImage: string | undefined;
+            if (entry.thumbnailPhoto) {
+                try {
+                    profileImage = await this.saveLDAPPhoto(sanitizedEmail, entry.thumbnailPhoto as Buffer);
+                } catch (error: any) {
+                    logger.warn('Failed to save LDAP profile photo', { email: sanitizedEmail, error: error.message });
+                }
+            }
+
             ldapUser = {
                 dn: userDN,
                 email: (entry.mail as string) || sanitizedEmail,
                 name: (entry.displayName as string) || (entry.cn as string) || undefined,
                 department: entry.department as string | undefined,
                 memberOf,
+                profileImage,
             };
 
             logger.info('LDAP user found in directory', {
@@ -205,7 +219,7 @@ class LDAPService {
             const { searchEntries } = await this.client!.search(config.LDAP.searchDN, {
                 filter: `(userPrincipalName=${sanitizedEmail})`,
                 scope: 'sub',
-                attributes: ['dn', 'userPrincipalName', 'cn', 'displayName', 'mail', 'department', 'memberOf'],
+                attributes: ['dn', 'userPrincipalName', 'cn', 'displayName', 'mail', 'department', 'memberOf', 'thumbnailPhoto'],
             });
 
             if (searchEntries.length === 0) {
@@ -217,12 +231,23 @@ class LDAPService {
             // Extract group memberships
             const memberOf = Array.isArray(entry.memberOf) ? (entry.memberOf as string[]) : entry.memberOf ? [entry.memberOf as string] : [];
 
+            // Save profile photo from LDAP if available
+            let profileImage: string | undefined;
+            if (entry.thumbnailPhoto) {
+                try {
+                    profileImage = await this.saveLDAPPhoto(sanitizedEmail, entry.thumbnailPhoto as Buffer);
+                } catch (error: any) {
+                    logger.warn('Failed to save LDAP profile photo', { email: sanitizedEmail, error: error.message });
+                }
+            }
+
             return {
                 dn: entry.dn as string,
                 email: (entry.mail as string) || sanitizedEmail,
                 name: (entry.displayName as string) || (entry.cn as string) || undefined,
                 department: entry.department as string | undefined,
                 memberOf,
+                profileImage,
             };
         } catch (error: any) {
             logger.error('LDAP user search error', {
@@ -279,6 +304,34 @@ class LDAPService {
     private sanitizeInput(input: string): string {
         // Remove special LDAP characters that could be used for injection
         return input.replace(/[()\\*\x00]/g, '');
+    }
+
+    /**
+     * Save LDAP profile photo to disk
+     *
+     * @param email - User's email for filename generation
+     * @param photoBuffer - Binary photo data from LDAP
+     * @returns Relative path to saved photo
+     */
+    private async saveLDAPPhoto(email: string, photoBuffer: Buffer): Promise<string> {
+        const uploadDir = path.join(process.cwd(), 'uploads', 'profiles');
+
+        // Ensure directory exists
+        if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+        }
+
+        // Generate filename from email and timestamp
+        const sanitizedEmail = email.replace(/[^a-zA-Z0-9]/g, '-');
+        const filename = `ldap-${sanitizedEmail}-${Date.now()}.jpg`;
+        const filePath = path.join(uploadDir, filename);
+
+        // Write photo to disk
+        await fs.promises.writeFile(filePath, photoBuffer);
+
+        logger.info('LDAP profile photo saved', { email, filename });
+
+        return `/uploads/profiles/${filename}`;
     }
 }
 

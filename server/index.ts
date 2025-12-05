@@ -23,7 +23,7 @@ import { initTrendingScoreJob, updateIdeaTrendingScore } from './services/trendi
 import { findPotentialDuplicates } from './services/duplicateDetectionService';
 import { searchIdeas, getSearchSuggestions } from './services/searchService';
 import { batchUpdateIdeas, getCommitteeDashboardStats, getPendingIdeasForReview, getCommitteeMemberStats } from './services/committeeService';
-import { initWebSocket, emitIdeaCreated, emitIdeaStatusChanged, emitVoteUpdated, emitBatchApproval, emitCommentAdded } from './services/websocketService';
+import { initWebSocket, emitIdeaCreated, emitIdeaStatusChanged, emitVoteUpdated, emitBatchApproval, emitCommentAdded, broadcastSystemStats } from './services/websocketService';
 import { initAnalyticsJob, stopAnalyticsJob, getAnalytics, getCategoryAnalytics, getTimeBasedAnalytics } from './services/analyticsService';
 import { requestMonitoringMiddleware, trackCacheHit, trackCacheMiss, getMetrics, getHealthStatus, getSlowEndpoints, getErrorProneEndpoints } from './services/monitoringService';
 import { checkProcurementThresholds } from './services/thresholdService';
@@ -51,6 +51,8 @@ const PUBLIC_HOST = process.env.API_PUBLIC_HOST || (APP_ENV === 'local' ? 'local
 const JWT_SECRET = process.env.JWT_SECRET || 'devsecret-change-me';
 
 let trendingJobInterval: NodeJS.Timeout | null = null;
+let systemStatsInterval: NodeJS.Timeout | null = null;
+const SERVER_START_TIME = Date.now();
 
 // Initialize global RoleResolver early so middleware can use it
 try {
@@ -4411,6 +4413,102 @@ app.get('/api/auth/test-ldap', async (req, res) => {
     }
 });
 
+// GET /api/auth/me - Get current user profile (including LDAP-synced data)
+app.get('/api/auth/me', authMiddleware, async (req, res) => {
+    try {
+        const userObj = (req as any).user;
+        const userId = userObj?.sub || userObj?.id;
+        if (!userId) {
+            return res.status(401).json({ message: 'Unauthorized' });
+        }
+
+        const user = await prisma.user.findUnique({
+            where: { id: parseInt(String(userId), 10) },
+            include: {
+                department: { select: { id: true, name: true, code: true } },
+                roles: { include: { role: { select: { id: true, name: true } } } },
+            },
+        });
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        // Return user data (includes LDAP-synced fields like name, department, etc.)
+        return res.json({
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            jobTitle: user.jobTitle || null,
+            phone: user.phone || null,
+            address: user.address || null,
+            city: user.city || null,
+            country: user.country || null,
+            employeeId: user.employeeId || null,
+            supervisor: user.supervisor || null,
+            department: user.department,
+            roles: user.roles.map((ur) => ({ id: ur.role.id, name: ur.role.name })),
+            ldapDN: user.ldapDN || null,
+            createdAt: user.createdAt,
+            updatedAt: user.updatedAt,
+        });
+    } catch (e: any) {
+        console.error('GET /api/auth/me error:', e);
+        return res.status(500).json({ message: e?.message || 'Failed to fetch user profile' });
+    }
+});
+
+// PUT /api/auth/profile - Update user profile data
+app.put('/api/auth/profile', authMiddleware, async (req, res) => {
+    try {
+        const userObj = (req as any).user;
+        const userId = userObj?.sub || userObj?.id;
+        if (!userId) {
+            return res.status(401).json({ message: 'Unauthorized' });
+        }
+
+        const { name, jobTitle, phone, address, city, country, employeeId, supervisor } = req.body;
+
+        const updated = await prisma.user.update({
+            where: { id: parseInt(String(userId), 10) },
+            data: {
+                ...(name !== undefined && { name }),
+                ...(jobTitle !== undefined && { jobTitle }),
+                ...(phone !== undefined && { phone }),
+                ...(address !== undefined && { address }),
+                ...(city !== undefined && { city }),
+                ...(country !== undefined && { country }),
+                ...(employeeId !== undefined && { employeeId }),
+                ...(supervisor !== undefined && { supervisor }),
+            },
+            include: {
+                department: { select: { id: true, name: true, code: true } },
+                roles: { include: { role: { select: { id: true, name: true } } } },
+            },
+        });
+
+        // Return updated user data
+        return res.json({
+            id: updated.id,
+            email: updated.email,
+            name: updated.name,
+            jobTitle: updated.jobTitle || null,
+            phone: updated.phone || null,
+            address: updated.address || null,
+            city: updated.city || null,
+            country: updated.country || null,
+            employeeId: updated.employeeId || null,
+            supervisor: updated.supervisor || null,
+            department: updated.department,
+            roles: updated.roles.map((ur) => ({ id: ur.role.id, name: ur.role.name })),
+            ldapDN: updated.ldapDN || null,
+        });
+    } catch (e: any) {
+        console.error('PUT /api/auth/profile error:', e);
+        return res.status(500).json({ message: e?.message || 'Failed to update profile' });
+    }
+});
+
 // ============================================
 // EVALUATION ENDPOINTS
 // ============================================
@@ -5693,10 +5791,50 @@ app.use(errorHandler);
 async function start() {
     try {
         await ensureDbConnection();
+
+        // Initialize Role Resolver (CRITICAL - must be done before auth middleware is used)
+        // Load LDAP group mappings from config file
+        const ldapGroupMappingsPath = path.join(__dirname, 'config', 'ldap-group-mapping.json');
+        const ldapGroupMappings = JSON.parse(fs.readFileSync(ldapGroupMappingsPath, 'utf-8'));
+
+        initializeGlobalRoleResolver({
+            rolesPermissionsPath: path.join(__dirname, 'config', 'roles-permissions.json'),
+            ldapGroupMappings: ldapGroupMappings.groupMappings || {},
+            ldapAttributeMappings: ldapGroupMappings.attributeMappings || {},
+            enableDatabaseOverrides: true,
+            cacheTTL: 60 * 60 * 1000, // 1 hour
+            defaultRole: 'REQUESTER',
+        });
+
         await initRedis(); // Initialize Redis cache (non-blocking)
         trendingJobInterval = initTrendingScoreJob(); // Start trending score background job
         initAnalyticsJob(); // Start analytics aggregation job
         initWebSocket(httpServer); // Initialize WebSocket server
+
+        // Start real-time system stats broadcast (every 5 seconds)
+        const { activeSessions: sessions } = await import('./routes/stats');
+        systemStatsInterval = setInterval(async () => {
+            try {
+                const activeUsers = sessions.size;
+
+                // Get comprehensive health metrics from monitoring service
+                const healthMetrics = getHealthStatus();
+                const metrics = getMetrics();
+
+                broadcastSystemStats({
+                    activeUsers,
+                    systemUptime: metrics.uptimeSeconds,
+                    apiResponseTime:
+                        metrics.requests.total > 0 ? Object.values(metrics.requests.byEndpoint).reduce((sum, e) => sum + e.avgDuration, 0) / Object.values(metrics.requests.byEndpoint).length : 0,
+                    requestSuccessRate: metrics.requests.total > 0 ? (metrics.requests.success / metrics.requests.total) * 100 : 0,
+                    serverHealthScore: healthMetrics.status === 'healthy' ? 100 : healthMetrics.status === 'degraded' ? 70 : 40,
+                    cpuLoad: '0%',
+                    memoryUsage: '0%',
+                });
+            } catch (err) {
+                console.error('[SystemStats] Error broadcasting stats:', err);
+            }
+        }, 5000); // Broadcast every 5 seconds
 
         httpServer.listen(PORT, API_HOST, () => {
             console.log(`🚀 Environment: ${APP_ENV.toUpperCase()}`);
@@ -5718,6 +5856,12 @@ function gracefulShutdown(signal: string) {
     if (trendingJobInterval) {
         clearInterval(trendingJobInterval);
         trendingJobInterval = null;
+    }
+
+    // Clear system stats broadcast
+    if (systemStatsInterval) {
+        clearInterval(systemStatsInterval);
+        systemStatsInterval = null;
     }
 
     // Stop analytics job

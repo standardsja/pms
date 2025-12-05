@@ -39,10 +39,21 @@ const AccountSetting = () => {
     const [originalFormData, setOriginalFormData] = useState({ ...formData });
     const [profileImage, setProfileImage] = useState<string>('');
     const [isUploadingImage, setIsUploadingImage] = useState(false);
+    const [isLdapUser, setIsLdapUser] = useState(false);
+    const [useProfileImage, setUseProfileImage] = useState(false);
 
     useEffect(() => {
         dispatch(setPageTitle('Account Settings'));
     }, [dispatch]);
+
+    useEffect(() => {
+        // Restore avatar preference from localStorage ONLY if user doesn't have a profile image
+        // Once they upload an image, we'll auto-enable photo mode
+        const savedMode = typeof window !== 'undefined' ? localStorage.getItem('profileAvatarMode') : null;
+        if (savedMode === 'photo') {
+            setUseProfileImage(true);
+        }
+    }, []);
 
     useEffect(() => {
         const fetchProfileData = async () => {
@@ -55,8 +66,8 @@ const AccountSetting = () => {
                     return;
                 }
 
-                // Fetch user profile from API
-                const response = await fetch(getApiUrl('/auth/me'), {
+                // Fetch user profile from API (uses /api/auth/me)
+                const response = await fetch(getApiUrl('/api/auth/me'), {
                     headers: {
                         Authorization: `Bearer ${token}`,
                         'Content-Type': 'application/json',
@@ -65,8 +76,26 @@ const AccountSetting = () => {
 
                 if (response.ok) {
                     const data = await response.json();
+                    console.log('====== PROFILE DATA RESPONSE ======');
+                    console.log('Full response:', JSON.stringify(data, null, 2));
+                    console.log('profileImage field:', data.profileImage);
+                    console.log('Has profileImage key?', 'profileImage' in data);
+                    console.log('====== END ======');
+
                     setProfileData(data);
                     setProfileImage(data.profileImage || '');
+
+                    // CRITICAL: If user has a profileImage in database, always show it
+                    if (data.profileImage) {
+                        console.log('✅ Profile image found, enabling photo mode');
+                        setUseProfileImage(true);
+                    } else {
+                        console.log('❌ No profile image, keeping initials mode');
+                        setUseProfileImage(false);
+                    }
+
+                    // Detect if user is LDAP-synced (has ldapDN)
+                    setIsLdapUser(!!data.ldapDN);
                     const userData = {
                         fullName: data.name || '',
                         jobTitle: data.jobTitle || '',
@@ -79,6 +108,7 @@ const AccountSetting = () => {
                         employeeId: data.employeeId || '',
                         supervisor: data.supervisor || '',
                     };
+                    console.log('Form data set to:', userData);
                     setFormData(userData);
                     setOriginalFormData(userData);
                 }
@@ -90,7 +120,32 @@ const AccountSetting = () => {
         };
 
         fetchProfileData();
+        // Poll for updates every 30 seconds to catch LDAP changes from admin
+        const intervalId = setInterval(fetchProfileData, 30000);
+        return () => clearInterval(intervalId);
     }, []);
+
+    useEffect(() => {
+        // Persist avatar preference
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('profileAvatarMode', useProfileImage ? 'photo' : 'initials');
+        }
+    }, [useProfileImage]);
+
+    useEffect(() => {
+        // If no profile image is available, force initials mode
+        if (!profileImage) {
+            setUseProfileImage(false);
+        }
+    }, [profileImage]);
+
+    const shouldShowPhoto = useProfileImage && Boolean(profileImage);
+
+    const toggleAvatarMode = () => {
+        if (profileImage) {
+            setUseProfileImage((prev) => !prev);
+        }
+    };
 
     const toggleTabs = (name: string) => {
         setTabs(name);
@@ -118,21 +173,22 @@ const AccountSetting = () => {
                 return;
             }
 
-            // Send updated profile data to backend
-            const response = await fetch(`http://heron:4000/api/auth/profile`, {
+            // Send updated profile data to backend (excluding LDAP-managed fields)
+            const response = await fetch(getApiUrl('/api/auth/profile'), {
                 method: 'PUT',
                 headers: {
                     Authorization: `Bearer ${token}`,
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    name: formData.fullName,
-                    jobTitle: formData.jobTitle,
-                    department: formData.department,
+                    // For LDAP users, only send editable fields
+                    // LDAP-managed fields (name, email, jobTitle for LDAP users) are not sent
+                    name: isLdapUser ? undefined : formData.fullName,
+                    jobTitle: isLdapUser ? undefined : formData.jobTitle,
                     country: formData.country,
                     address: formData.address,
                     city: formData.city,
-                    phone: formData.phone,
+                    phone: isLdapUser ? undefined : formData.phone,
                     employeeId: formData.employeeId,
                     supervisor: formData.supervisor,
                 }),
@@ -212,7 +268,7 @@ const AccountSetting = () => {
             const formData = new FormData();
             formData.append('profileImage', file);
 
-            const response = await fetch(`http://heron:4000/api/auth/profile-image`, {
+            const response = await fetch(getApiUrl('/api/auth/profile-image'), {
                 method: 'POST',
                 headers: {
                     Authorization: `Bearer ${token}`,
@@ -223,6 +279,30 @@ const AccountSetting = () => {
             if (response.ok) {
                 const data = await response.json();
                 setProfileImage(data.profileImage);
+                setUseProfileImage(true);
+
+                // Dispatch custom event so Header component can update
+                window.dispatchEvent(new CustomEvent('profileImageUpdated', { detail: { profileImage: data.profileImage } }));
+
+                // Refetch full profile to ensure persistence
+                setTimeout(async () => {
+                    try {
+                        const token = getToken();
+                        const response = await fetch(getApiUrl('/api/auth/me'), {
+                            headers: {
+                                Authorization: `Bearer ${token}`,
+                                'Content-Type': 'application/json',
+                            },
+                        });
+                        if (response.ok) {
+                            const updatedData = await response.json();
+                            setProfileImage(updatedData.profileImage || '');
+                        }
+                    } catch (error) {
+                        console.error('Error refetching profile:', error);
+                    }
+                }, 500);
+
                 Swal.fire({
                     icon: 'success',
                     title: 'Upload Successful',
@@ -230,10 +310,19 @@ const AccountSetting = () => {
                     confirmButtonColor: '#3b82f6',
                 });
             } else {
+                let errorText = await response.text();
+                try {
+                    const parsed = JSON.parse(errorText);
+                    if (parsed?.message) {
+                        errorText = parsed.message;
+                    }
+                } catch (_e) {
+                    // keep raw text
+                }
                 Swal.fire({
                     icon: 'error',
                     title: 'Upload Failed',
-                    text: 'We were unable to upload your profile picture. Please try again.',
+                    text: errorText || 'We were unable to upload your profile picture. Please try again.',
                     confirmButtonColor: '#3b82f6',
                 });
             }
@@ -257,6 +346,18 @@ const AccountSetting = () => {
             return `${names[0][0]}${names[names.length - 1][0]}`.toUpperCase();
         }
         return name.substring(0, 2).toUpperCase();
+    };
+
+    const getImageUrl = (imagePath: string): string => {
+        if (!imagePath) return '';
+        // Remove existing timestamp if present
+        const cleanPath = imagePath.split('?')[0];
+        // Always add fresh timestamp to prevent caching
+        const timestamp = new Date().getTime();
+        if (cleanPath.startsWith('http://') || cleanPath.startsWith('https://')) {
+            return `${cleanPath}?t=${timestamp}`;
+        }
+        return `${getApiUrl(cleanPath)}?t=${timestamp}`;
     };
 
     return (
@@ -305,17 +406,86 @@ const AccountSetting = () => {
                         </div>
                         {tabs === 'home' ? (
                             <div>
+                                {isLdapUser && (
+                                    <div className="mb-5 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-md">
+                                        <p className="text-sm text-blue-800 dark:text-blue-200">
+                                            <strong>ℹ️ LDAP Integration:</strong> Your account is synchronized with LDAP. Some fields are read-only and managed by your directory administrator. You can
+                                            still edit local profile information below.
+                                        </p>
+                                    </div>
+                                )}
+                                {/* LDAP Profile Summary Header */}
+                                <div className="mb-5 p-5 bg-gradient-to-r from-primary/5 to-primary/10 dark:from-primary/10 dark:to-primary/5 border border-primary/20 dark:border-primary/30 rounded-lg">
+                                    <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+                                        {/* Profile Avatar */}
+                                        <div className="flex-shrink-0">
+                                            <div className="relative w-16 h-16 md:w-20 md:h-20">
+                                                {shouldShowPhoto ? (
+                                                    <img src={getImageUrl(profileImage)} alt="Profile" className="w-full h-full rounded-full object-cover border-2 border-primary" />
+                                                ) : (
+                                                    <div className="w-full h-full rounded-full bg-primary flex items-center justify-center text-white text-lg md:text-xl font-bold border-2 border-primary">
+                                                        {getInitials(profileData?.name || formData.fullName)}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            {profileImage && (
+                                                <button type="button" className="mt-2 text-xs text-primary hover:underline" onClick={toggleAvatarMode}>
+                                                    {shouldShowPhoto ? 'Use initials' : 'Use photo'}
+                                                </button>
+                                            )}
+                                        </div>
+                                        {/* Profile Information */}
+                                        <div className="flex-1">
+                                            <div className="mb-2">
+                                                <h5 className="text-lg font-semibold text-gray-800 dark:text-gray-100">{formData.fullName || 'User Profile'}</h5>
+                                                <p className="text-sm text-gray-600 dark:text-gray-400">{formData.email}</p>
+                                            </div>
+                                            <div className="flex flex-wrap gap-4 text-sm">
+                                                {formData.jobTitle && (
+                                                    <div>
+                                                        <span className="text-gray-600 dark:text-gray-400">Position:</span>{' '}
+                                                        <span className="font-medium text-gray-800 dark:text-gray-100">{formData.jobTitle}</span>
+                                                    </div>
+                                                )}
+                                                {formData.department && (
+                                                    <div>
+                                                        <span className="text-gray-600 dark:text-gray-400">Department:</span>{' '}
+                                                        <span className="font-medium text-gray-800 dark:text-gray-100">{formData.department}</span>
+                                                    </div>
+                                                )}
+                                                {formData.phone && (
+                                                    <div>
+                                                        <span className="text-gray-600 dark:text-gray-400">Phone:</span>{' '}
+                                                        <span className="font-medium text-gray-800 dark:text-gray-100">{formData.phone}</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            {isLdapUser && profileData?.ldapDN && (
+                                                <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">LDAP Account • Last updated: {new Date(profileData.updatedAt).toLocaleDateString()}</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
                                 <form className="border border-[#ebedf2] dark:border-[#191e3a] rounded-md p-4 mb-5 bg-white dark:bg-black">
                                     <h6 className="text-lg font-bold mb-5">General Information</h6>
                                     <div className="flex flex-col sm:flex-row">
                                         <div className="ltr:sm:mr-4 rtl:sm:ml-4 w-full sm:w-2/12 mb-5">
                                             <div className="relative w-20 h-20 md:w-32 md:h-32 mx-auto">
-                                                {profileImage ? (
-                                                    <img src={profileImage} alt="Profile" className="w-full h-full rounded-full object-cover" />
+                                                {shouldShowPhoto ? (
+                                                    <img src={getImageUrl(profileImage)} alt="Profile" className="w-full h-full rounded-full object-cover" />
                                                 ) : (
                                                     <div className="w-full h-full rounded-full bg-primary flex items-center justify-center text-white text-2xl md:text-4xl font-bold">
                                                         {getInitials(formData.fullName)}
                                                     </div>
+                                                )}
+                                                {profileImage && (
+                                                    <button
+                                                        type="button"
+                                                        className="absolute -bottom-7 left-1/2 -translate-x-1/2 text-xs text-primary hover:underline whitespace-nowrap"
+                                                        onClick={toggleAvatarMode}
+                                                    >
+                                                        {shouldShowPhoto ? 'Use initials' : 'Use photo'}
+                                                    </button>
                                                 )}
                                                 <label
                                                     htmlFor="profile-image-upload"
@@ -342,44 +512,83 @@ const AccountSetting = () => {
                                         </div>
                                         <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-5">
                                             <div>
-                                                <label htmlFor="fullName">Full Name</label>
-                                                <input id="fullName" type="text" placeholder="" className="form-input" value={formData.fullName} onChange={handleFormChange} />
+                                                <label htmlFor="fullName">Full Name {isLdapUser && <span className="text-xs text-gray-500">(LDAP)</span>}</label>
+                                                <input
+                                                    id="fullName"
+                                                    type="text"
+                                                    placeholder="Enter full name"
+                                                    className="form-input"
+                                                    value={formData.fullName}
+                                                    onChange={handleFormChange}
+                                                    disabled={isLdapUser}
+                                                />
                                             </div>
                                             <div>
-                                                <label htmlFor="jobTitle">Job Title</label>
-                                                <input id="jobTitle" type="text" placeholder="" className="form-input" value={formData.jobTitle} onChange={handleFormChange} />
+                                                <label htmlFor="jobTitle">Job Title {isLdapUser && <span className="text-xs text-gray-500">(LDAP)</span>}</label>
+                                                <input
+                                                    id="jobTitle"
+                                                    type="text"
+                                                    placeholder="Enter job title"
+                                                    className="form-input"
+                                                    value={formData.jobTitle}
+                                                    onChange={handleFormChange}
+                                                    disabled={isLdapUser}
+                                                />
                                             </div>
                                             <div>
-                                                <label htmlFor="department">Department</label>
-                                                <input id="department" type="text" placeholder="" className="form-input" value={formData.department} onChange={handleFormChange} />
+                                                <label htmlFor="email">Email {isLdapUser && <span className="text-xs text-gray-500">(LDAP)</span>}</label>
+                                                <input
+                                                    id="email"
+                                                    type="email"
+                                                    placeholder="Enter email address"
+                                                    className="form-input"
+                                                    value={formData.email}
+                                                    onChange={handleFormChange}
+                                                    disabled={isLdapUser}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label htmlFor="department">Department {isLdapUser && <span className="text-xs text-gray-500">(LDAP)</span>}</label>
+                                                <input id="department" type="text" placeholder="Department (read-only)" className="form-input" value={formData.department} disabled />
                                             </div>
                                             <div>
                                                 <label htmlFor="country">Country</label>
-                                                <input id="country" type="text" placeholder="" className="form-input" value={formData.country} onChange={handleFormChange} />
+                                                <input id="country" type="text" placeholder="Enter country" className="form-input" value={formData.country} onChange={handleFormChange} />
                                             </div>
                                             <div>
                                                 <label htmlFor="address">Office Address</label>
-                                                <input id="address" type="text" placeholder="" className="form-input" value={formData.address} onChange={handleFormChange} />
+                                                <input id="address" type="text" placeholder="Enter office address" className="form-input" value={formData.address} onChange={handleFormChange} />
                                             </div>
                                             <div>
                                                 <label htmlFor="city">City</label>
-                                                <input id="city" type="text" placeholder="" className="form-input" value={formData.city} onChange={handleFormChange} />
+                                                <input id="city" type="text" placeholder="Enter city" className="form-input" value={formData.city} onChange={handleFormChange} />
                                             </div>
                                             <div>
-                                                <label htmlFor="phone">Office Phone</label>
-                                                <input id="phone" type="text" placeholder="" className="form-input" value={formData.phone} onChange={handleFormChange} />
-                                            </div>
-                                            <div>
-                                                <label htmlFor="email">Work Email</label>
-                                                <input id="email" type="email" placeholder="" className="form-input" value={formData.email} onChange={handleFormChange} disabled />
+                                                <label htmlFor="phone">Phone</label>
+                                                <input
+                                                    id="phone"
+                                                    type="tel"
+                                                    placeholder="Enter phone number"
+                                                    className="form-input"
+                                                    value={formData.phone}
+                                                    onChange={handleFormChange}
+                                                    disabled={isLdapUser}
+                                                />
                                             </div>
                                             <div>
                                                 <label htmlFor="employeeId">Employee ID</label>
-                                                <input id="employeeId" type="text" placeholder="" className="form-input" value={formData.employeeId} onChange={handleFormChange} />
+                                                <input id="employeeId" type="text" placeholder="Enter employee ID" className="form-input" value={formData.employeeId} onChange={handleFormChange} />
                                             </div>
                                             <div>
                                                 <label htmlFor="supervisor">Reporting To</label>
-                                                <input id="supervisor" type="text" placeholder="" className="form-input" value={formData.supervisor} onChange={handleFormChange} />
+                                                <input
+                                                    id="supervisor"
+                                                    type="text"
+                                                    placeholder="Enter reporting manager name"
+                                                    className="form-input"
+                                                    value={formData.supervisor}
+                                                    onChange={handleFormChange}
+                                                />
                                             </div>
                                             <div className="sm:col-span-2 mt-3 flex gap-3">
                                                 <button type="button" className="btn btn-primary" onClick={handleSave} disabled={isSaving}>
