@@ -309,6 +309,14 @@ const AccountSetting = () => {
         return name.substring(0, 2).toUpperCase();
     };
 
+    const getImageUrl = (imagePath: string): string => {
+        if (!imagePath) return '';
+        if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+            return imagePath;
+        }
+        return getApiUrl(imagePath);
+    };
+
     return (
         <div>
             <ul className="flex space-x-2 rtl:space-x-reverse">
@@ -370,7 +378,7 @@ const AccountSetting = () => {
                                         <div className="flex-shrink-0">
                                             <div className="relative w-16 h-16 md:w-20 md:h-20">
                                                 {shouldShowPhoto ? (
-                                                    <img src={profileImage} alt="Profile" className="w-full h-full rounded-full object-cover border-2 border-primary" />
+                                                    <img src={getImageUrl(profileImage)} alt="Profile" className="w-full h-full rounded-full object-cover border-2 border-primary" />
                                                 ) : (
                                                     <div className="w-full h-full rounded-full bg-primary flex items-center justify-center text-white text-lg md:text-xl font-bold border-2 border-primary">
                                                         {getInitials(profileData?.name || formData.fullName)}
@@ -421,7 +429,7 @@ const AccountSetting = () => {
                                         <div className="ltr:sm:mr-4 rtl:sm:ml-4 w-full sm:w-2/12 mb-5">
                                             <div className="relative w-20 h-20 md:w-32 md:h-32 mx-auto">
                                                 {shouldShowPhoto ? (
-                                                    <img src={profileImage} alt="Profile" className="w-full h-full rounded-full object-cover" />
+                                                    <img src={getImageUrl(profileImage)} alt="Profile" className="w-full h-full rounded-full object-cover" />
                                                 ) : (
                                                     <div className="w-full h-full rounded-full bg-primary flex items-center justify-center text-white text-2xl md:text-4xl font-bold">
                                                         {getInitials(formData.fullName)}

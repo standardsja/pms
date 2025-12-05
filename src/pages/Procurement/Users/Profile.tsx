@@ -34,6 +34,7 @@ const Profile = () => {
         approvalsProcessed: 0,
         requestsCreated: 0,
     });
+    const [useProfileImage, setUseProfileImage] = useState(false);
 
     useEffect(() => {
         dispatch(setPageTitle('My Profile'));
@@ -102,6 +103,25 @@ const Profile = () => {
         // Cleanup interval on unmount
         return () => clearInterval(intervalId);
     }, [user]);
+
+    useEffect(() => {
+        const savedMode = typeof window !== 'undefined' ? localStorage.getItem('profileAvatarMode') : null;
+        if (savedMode === 'photo') {
+            setUseProfileImage(true);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('profileAvatarMode', useProfileImage ? 'photo' : 'initials');
+        }
+    }, [useProfileImage]);
+
+    useEffect(() => {
+        if (!profileData?.profileImage) {
+            setUseProfileImage(false);
+        }
+    }, [profileData]);
 
     const formatDate = (date: string) => {
         const now = new Date();
@@ -186,27 +206,7 @@ const Profile = () => {
     const userLocation = displayUser?.department?.code || 'Jamaica';
     const userPhone = displayUser?.phone || 'Not provided';
     const profileImage: string | undefined = displayUser?.profileImage;
-    const [useProfileImage, setUseProfileImage] = useState(false);
     const isLdapUser = !!displayUser?.ldapDN;
-
-    useEffect(() => {
-        const savedMode = typeof window !== 'undefined' ? localStorage.getItem('profileAvatarMode') : null;
-        if (savedMode === 'photo') {
-            setUseProfileImage(true);
-        }
-    }, []);
-
-    useEffect(() => {
-        if (typeof window !== 'undefined') {
-            localStorage.setItem('profileAvatarMode', useProfileImage ? 'photo' : 'initials');
-        }
-    }, [useProfileImage]);
-
-    useEffect(() => {
-        if (!profileImage) {
-            setUseProfileImage(false);
-        }
-    }, [profileImage]);
 
     const shouldShowPhoto = useProfileImage && Boolean(profileImage);
     return (
