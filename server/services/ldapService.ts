@@ -18,6 +18,11 @@ export interface LDAPUser {
     email: string;
     name?: string;
     department?: string;
+    memberOf?: string[]; // AD group memberships
+}
+
+export interface LDAPUserWithGroups extends LDAPUser {
+    memberOf: string[]; // List of AD group DNs
 }
 
 /**
@@ -30,9 +35,17 @@ class LDAPService {
         if (config.LDAP) {
             this.client = new Client({
                 url: config.LDAP.url,
-                timeout: 5000, // 5 second timeout
-                connectTimeout: 5000,
+                timeout: 10000, // 10 second timeout (increased)
+                connectTimeout: 10000,
+                strictDN: false, // More lenient DN parsing
             });
+
+            logger.info('LDAP Service initialized', {
+                url: config.LDAP.url,
+                searchDN: config.LDAP.searchDN,
+            });
+        } else {
+            logger.info('LDAP Service not configured - using database authentication only');
         }
     }
 
@@ -65,6 +78,12 @@ class LDAPService {
 
         try {
             // Step 1: Bind with admin credentials to search for user
+            logger.info('LDAP attempting admin bind', {
+                url: config.LDAP.url,
+                bindDN: config.LDAP.bindDN,
+                searchDN: config.LDAP.searchDN,
+            });
+
             await this.client!.bind(config.LDAP.bindDN, config.LDAP.bindPassword);
 
             logger.info('LDAP admin bind successful for user search', { email: sanitizedEmail });
@@ -73,7 +92,7 @@ class LDAPService {
             const { searchEntries } = await this.client!.search(config.LDAP.searchDN, {
                 filter: `(userPrincipalName=${sanitizedEmail})`,
                 scope: 'sub',
-                attributes: ['dn', 'userPrincipalName', 'cn', 'displayName', 'mail', 'department'],
+                attributes: ['dn', 'userPrincipalName', 'cn', 'displayName', 'mail', 'department', 'memberOf'],
             });
 
             if (searchEntries.length === 0) {
@@ -85,17 +104,22 @@ class LDAPService {
             const entry = searchEntries[0];
             userDN = entry.dn as string;
 
+            // Extract group memberships
+            const memberOf = Array.isArray(entry.memberOf) ? (entry.memberOf as string[]) : entry.memberOf ? [entry.memberOf as string] : [];
+
             ldapUser = {
                 dn: userDN,
                 email: (entry.mail as string) || sanitizedEmail,
                 name: (entry.displayName as string) || (entry.cn as string) || undefined,
                 department: entry.department as string | undefined,
+                memberOf,
             };
 
             logger.info('LDAP user found in directory', {
                 email: sanitizedEmail,
                 dn: userDN,
                 name: ldapUser.name,
+                groupCount: memberOf.length,
             });
 
             // Step 3: Unbind admin connection
@@ -116,15 +140,40 @@ class LDAPService {
                 email: sanitizedEmail,
                 error: error.message,
                 code: error.code,
+                errno: error.errno,
+                syscall: error.syscall,
+                stack: error.stack?.split('\n').slice(0, 3).join('\n'), // First 3 lines of stack
             });
 
             // Always try to unbind to clean up
             await this.safeUnbind();
 
-            // Determine error type
+            // Determine error type with better error messages
             if (error.code === 49 || error.message?.includes('Invalid credentials')) {
                 throw new UnauthorizedError('Invalid credentials');
             }
+
+            // Connection errors
+            if (error.errno === 'ETIMEDOUT' || error.message?.includes('timeout')) {
+                logger.error('LDAP connection timeout - server may be unreachable', {
+                    url: config.LDAP.url,
+                    suggestion: 'Check network connectivity and firewall rules',
+                });
+                throw new BadRequestError('LDAP server connection timeout. Please contact your system administrator.');
+            }
+
+            if (error.errno === 'ECONNREFUSED') {
+                logger.error('LDAP connection refused - server may be down', {
+                    url: config.LDAP.url,
+                });
+                throw new BadRequestError('LDAP server is not responding. Please contact your system administrator.');
+            }
+
+            if (error instanceof BadRequestError || error instanceof UnauthorizedError) {
+                throw error;
+            }
+
+            throw new BadRequestError('LDAP authentication failed');
 
             if (error instanceof BadRequestError || error instanceof UnauthorizedError) {
                 throw error;
@@ -156,7 +205,7 @@ class LDAPService {
             const { searchEntries } = await this.client!.search(config.LDAP.searchDN, {
                 filter: `(userPrincipalName=${sanitizedEmail})`,
                 scope: 'sub',
-                attributes: ['dn', 'userPrincipalName', 'cn', 'displayName', 'mail', 'department'],
+                attributes: ['dn', 'userPrincipalName', 'cn', 'displayName', 'mail', 'department', 'memberOf'],
             });
 
             if (searchEntries.length === 0) {
@@ -164,11 +213,16 @@ class LDAPService {
             }
 
             const entry = searchEntries[0];
+
+            // Extract group memberships
+            const memberOf = Array.isArray(entry.memberOf) ? (entry.memberOf as string[]) : entry.memberOf ? [entry.memberOf as string] : [];
+
             return {
                 dn: entry.dn as string,
                 email: (entry.mail as string) || sanitizedEmail,
                 name: (entry.displayName as string) || (entry.cn as string) || undefined,
                 department: entry.department as string | undefined,
+                memberOf,
             };
         } catch (error: any) {
             logger.error('LDAP user search error', {

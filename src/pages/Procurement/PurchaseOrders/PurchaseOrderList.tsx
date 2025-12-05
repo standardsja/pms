@@ -7,95 +7,74 @@ import IconEye from '../../../components/Icon/IconEye';
 import IconDownload from '../../../components/Icon/IconDownload';
 import IconPrinter from '../../../components/Icon/IconPrinter';
 import IconCreditCard from '../../../components/Icon/IconCreditCard';
+import { getApiUrl } from '../../../utils/api';
+
+interface PurchaseOrder {
+    id: number;
+    poNumber: string;
+    rfqNumber: string | null;
+    supplier: string;
+    description: string;
+    poDate: string;
+    deliveryDate: string | null;
+    amount: number;
+    currency: string;
+    status: string;
+    paymentStatus: string;
+    deliveryStatus: string;
+}
 
 const PurchaseOrderList = () => {
     const dispatch = useDispatch();
-    useEffect(() => {
-        dispatch(setPageTitle('Purchase Orders'));
-    });
-
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
+    const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
-    // Mock PO data
-    const purchaseOrders = [
-        {
-            id: 1,
-            poNumber: 'PO-2024-001',
-            rfqId: 1,
-            rfqNumber: 'RFQ-2024-045',
-            supplier: 'ABC Corporation',
-            description: 'Office Equipment - Desks and Chairs',
-            poDate: '2024-10-15',
-            deliveryDate: '2024-11-15',
-            amount: 12500,
-            status: 'Approved',
-            paymentStatus: 'Pending',
-            deliveryStatus: 'Not Started',
-        },
-        {
-            id: 2,
-            poNumber: 'PO-2024-002',
-            rfqId: 2,
-            rfqNumber: 'RFQ-2024-046',
-            supplier: 'Tech Solutions Inc',
-            description: 'IT Equipment - Laptops and Monitors',
-            poDate: '2024-10-18',
-            deliveryDate: '2024-11-20',
-            amount: 25000,
-            status: 'Issued',
-            paymentStatus: 'Partial',
-            deliveryStatus: 'In Transit',
-        },
-        {
-            id: 3,
-            poNumber: 'PO-2024-003',
-            rfqId: 1,
-            rfqNumber: 'RFQ-2024-047',
-            supplier: 'Office Pro Supply',
-            description: 'Office Supplies - Paper, Stationery',
-            poDate: '2024-10-20',
-            deliveryDate: '2024-11-10',
-            amount: 3500,
-            status: 'Issued',
-            paymentStatus: 'Pending',
-            deliveryStatus: 'Preparing',
-        },
-        {
-            id: 4,
-            poNumber: 'PO-2024-004',
-            rfqId: 2,
-            rfqNumber: 'RFQ-2024-048',
-            supplier: 'Clean Corp Ltd',
-            description: 'Cleaning Services - 6 Month Contract',
-            poDate: '2024-10-12',
-            deliveryDate: '2024-10-25',
-            amount: 8900,
-            status: 'Completed',
-            paymentStatus: 'Paid',
-            deliveryStatus: 'Delivered',
-        },
-        {
-            id: 5,
-            poNumber: 'PO-2024-005',
-            rfqId: 1,
-            rfqNumber: 'RFQ-2024-049',
-            supplier: 'XYZ Suppliers Ltd',
-            description: 'Security Equipment',
-            poDate: '2024-10-22',
-            deliveryDate: '2024-11-25',
-            amount: 18000,
-            status: 'Draft',
-            paymentStatus: 'Not Initiated',
-            deliveryStatus: 'Not Started',
-        },
-    ];
+    useEffect(() => {
+        dispatch(setPageTitle('Purchase Orders'));
+        fetchPurchaseOrders();
+    }, [dispatch, statusFilter]);
+
+    const fetchPurchaseOrders = async () => {
+        try {
+            setLoading(true);
+            setError(null);
+
+            const token = localStorage.getItem('token');
+            const userId = localStorage.getItem('userId');
+
+            const params = new URLSearchParams();
+            if (statusFilter !== 'all') {
+                params.append('status', statusFilter);
+            }
+
+            const response = await fetch(`${getApiUrl('/api/purchase-orders')}?${params}`, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`,
+                    'x-user-id': userId || '',
+                },
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch purchase orders');
+            }
+
+            const data = await response.json();
+            setPurchaseOrders(data);
+        } catch (err) {
+            console.error('Error fetching purchase orders:', err);
+            setError(err instanceof Error ? err.message : 'Failed to load purchase orders');
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const filteredPOs = purchaseOrders.filter((po) => {
         const matchesSearch =
-            po.poNumber.toLowerCase().includes(search.toLowerCase()) ||
-            po.supplier.toLowerCase().includes(search.toLowerCase()) ||
-            po.description.toLowerCase().includes(search.toLowerCase());
+            po.poNumber.toLowerCase().includes(search.toLowerCase()) || po.supplier.toLowerCase().includes(search.toLowerCase()) || po.description.toLowerCase().includes(search.toLowerCase());
         const matchesStatus = statusFilter === 'all' || po.status === statusFilter;
         return matchesSearch && matchesStatus;
     });
@@ -138,6 +117,31 @@ const PurchaseOrderList = () => {
         completed: purchaseOrders.filter((po) => po.status === 'Completed').length,
         totalValue: purchaseOrders.reduce((sum, po) => sum + po.amount, 0),
     };
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center min-h-screen">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary mx-auto mb-4"></div>
+                    <p className="text-white-dark">Loading purchase orders...</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="panel">
+                <div className="text-center py-8">
+                    <h3 className="mb-2 text-lg font-semibold text-danger">Error Loading Purchase Orders</h3>
+                    <p className="text-white-dark mb-4">{error}</p>
+                    <button onClick={fetchPurchaseOrders} className="btn btn-primary">
+                        Try Again
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div>
@@ -196,13 +200,7 @@ const PurchaseOrderList = () => {
             <div className="panel">
                 <div className="mb-5 flex flex-col gap-5 md:flex-row md:items-center">
                     <div className="flex-1">
-                        <input
-                            type="text"
-                            className="form-input w-full"
-                            placeholder="Search purchase orders..."
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                        />
+                        <input type="text" className="form-input w-full" placeholder="Search purchase orders..." value={search} onChange={(e) => setSearch(e.target.value)} />
                     </div>
                     <div className="flex gap-3">
                         <select className="form-select w-full md:w-auto" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
@@ -241,11 +239,7 @@ const PurchaseOrderList = () => {
                                             {po.poNumber}
                                         </Link>
                                     </td>
-                                    <td>
-                                        <Link to={`/procurement/rfq/${po.rfqId}`} className="text-info hover:underline">
-                                            {po.rfqNumber}
-                                        </Link>
-                                    </td>
+                                    <td>{po.rfqNumber ? <span className="text-info">{po.rfqNumber}</span> : <span className="text-white-dark">N/A</span>}</td>
                                     <td>{po.supplier}</td>
                                     <td>{po.description}</td>
                                     <td>{po.poDate}</td>

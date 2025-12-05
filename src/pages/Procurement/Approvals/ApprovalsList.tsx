@@ -7,83 +7,64 @@ import IconX from '../../../components/Icon/IconX';
 import IconEye from '../../../components/Icon/IconEye';
 import IconClock from '../../../components/Icon/IconClock';
 import IconInbox from '../../../components/Icon/IconInbox';
+import { getApiUrl } from '../../../utils/api';
+
+interface Approval {
+    id: number;
+    type: string;
+    number: string;
+    description: string;
+    requester: string;
+    department: string;
+    amount: number;
+    submittedDate: string;
+    dueDate: string | null;
+    priority: string;
+    documents: number;
+    status?: string;
+}
 
 const ApprovalsList = () => {
     const dispatch = useDispatch();
+    const [filter, setFilter] = useState('all');
+    const [approvals, setApprovals] = useState<Approval[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
     useEffect(() => {
         dispatch(setPageTitle('Pending Approvals'));
-    });
+        fetchApprovals();
+    }, [dispatch]);
 
-    const [filter, setFilter] = useState('all');
+    const fetchApprovals = async () => {
+        try {
+            setLoading(true);
+            setError(null);
 
-    // Mock approval data
-    const approvals = [
-        {
-            id: 1,
-            type: 'Request',
-            number: 'REQ-2024-008',
-            description: 'Office Equipment Purchase',
-            requester: 'John Doe',
-            department: 'IT',
-            amount: 8500,
-            submittedDate: '2024-10-22',
-            dueDate: '2024-10-27',
-            priority: 'High',
-            documents: 3,
-        },
-        {
-            id: 2,
-            type: 'Evaluation',
-            number: 'EVAL-2024-012',
-            description: 'IT Services Evaluation',
-            requester: 'Jane Smith',
-            department: 'Operations',
-            amount: 15000,
-            submittedDate: '2024-10-21',
-            dueDate: '2024-10-26',
-            priority: 'Medium',
-            documents: 5,
-        },
-        {
-            id: 3,
-            type: 'PO',
-            number: 'PO-2024-045',
-            description: 'Furniture for New Office',
-            requester: 'Bob Wilson',
-            department: 'Facilities',
-            amount: 22000,
-            submittedDate: '2024-10-23',
-            dueDate: '2024-10-28',
-            priority: 'Low',
-            documents: 2,
-        },
-        {
-            id: 4,
-            type: 'Payment',
-            number: 'PAY-2024-089',
-            description: 'Supplier Invoice - ABC Corp',
-            requester: 'Alice Brown',
-            department: 'Finance',
-            amount: 12500,
-            submittedDate: '2024-10-20',
-            dueDate: '2024-10-25',
-            priority: 'High',
-            documents: 4,
-        },
-        {
-            id: 5,
-            type: 'Request',
-            number: 'REQ-2024-009',
-            description: 'Software Licenses Renewal',
-            requester: 'Mike Johnson',
-            department: 'IT',
-            amount: 6800,
-            submittedDate: '2024-10-24',
-            dueDate: '2024-10-29',
-            priority: 'Medium',
-            documents: 1,
-        },
-    ];
+            const token = localStorage.getItem('token');
+            const userId = localStorage.getItem('userId');
+
+            const response = await fetch(getApiUrl('/api/approvals'), {
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`,
+                    'x-user-id': userId || '',
+                },
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch approvals');
+            }
+
+            const data = await response.json();
+            setApprovals(data);
+        } catch (err) {
+            console.error('Error fetching approvals:', err);
+            setError(err instanceof Error ? err.message : 'Failed to load approvals');
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const filteredApprovals = filter === 'all' ? approvals : approvals.filter((a) => a.type === filter);
 
@@ -106,19 +87,50 @@ const ApprovalsList = () => {
         return badges[priority] || 'bg-secondary';
     };
 
-    const isOverdue = (dueDate: string) => {
+    const isOverdue = (dueDate: string | null) => {
+        if (!dueDate) return false;
         return new Date(dueDate) < new Date();
     };
 
-    const handleApprove = (id: number) => {
+    const handleApprove = async (id: number) => {
         console.log('Approved:', id);
-        // Handle approval logic
+        // TODO: Implement approval logic
+        // After approval, refresh the list
+        await fetchApprovals();
     };
 
-    const handleReject = (id: number) => {
+    const handleReject = async (id: number) => {
         console.log('Rejected:', id);
-        // Handle rejection logic
+        // TODO: Implement rejection logic
+        // After rejection, refresh the list
+        await fetchApprovals();
     };
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center min-h-screen">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary mx-auto mb-4"></div>
+                    <p className="text-white-dark">Loading approvals...</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="panel">
+                <div className="text-center py-8">
+                    <IconX className="mx-auto mb-4 h-16 w-16 text-danger" />
+                    <h3 className="mb-2 text-lg font-semibold text-danger">Error Loading Approvals</h3>
+                    <p className="text-white-dark mb-4">{error}</p>
+                    <button onClick={fetchApprovals} className="btn btn-primary">
+                        Try Again
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div>
@@ -163,33 +175,17 @@ const ApprovalsList = () => {
             {/* Filter Tabs */}
             <div className="panel mb-6">
                 <div className="flex flex-wrap items-center gap-2">
-                    <button
-                        type="button"
-                        onClick={() => setFilter('all')}
-                        className={`btn btn-sm ${filter === 'all' ? 'btn-primary' : 'btn-outline-primary'}`}
-                    >
+                    <button type="button" onClick={() => setFilter('all')} className={`btn btn-sm ${filter === 'all' ? 'btn-primary' : 'btn-outline-primary'}`}>
                         All ({approvals.length})
                     </button>
-                    <button
-                        type="button"
-                        onClick={() => setFilter('Request')}
-                        className={`btn btn-sm ${filter === 'Request' ? 'btn-primary' : 'btn-outline-primary'}`}
-                    >
+                    <button type="button" onClick={() => setFilter('Request')} className={`btn btn-sm ${filter === 'Request' ? 'btn-primary' : 'btn-outline-primary'}`}>
                         Requests ({approvals.filter((a) => a.type === 'Request').length})
                     </button>
-                    
-                    <button
-                        type="button"
-                        onClick={() => setFilter('PO')}
-                        className={`btn btn-sm ${filter === 'PO' ? 'btn-success' : 'btn-outline-success'}`}
-                    >
+
+                    <button type="button" onClick={() => setFilter('PO')} className={`btn btn-sm ${filter === 'PO' ? 'btn-success' : 'btn-outline-success'}`}>
                         Purchase Orders ({approvals.filter((a) => a.type === 'PO').length})
                     </button>
-                    <button
-                        type="button"
-                        onClick={() => setFilter('Payment')}
-                        className={`btn btn-sm ${filter === 'Payment' ? 'btn-info' : 'btn-outline-info'}`}
-                    >
+                    <button type="button" onClick={() => setFilter('Payment')} className={`btn btn-sm ${filter === 'Payment' ? 'btn-info' : 'btn-outline-info'}`}>
                         Payments ({approvals.filter((a) => a.type === 'Payment').length})
                     </button>
                 </div>
@@ -220,17 +216,18 @@ const ApprovalsList = () => {
                                         <span className="font-semibold">Department:</span> {approval.department}
                                     </div>
                                     <div>
-                                        <span className="font-semibold">Amount:</span>{' '}
-                                        <span className="font-bold text-success">${approval.amount.toLocaleString()}</span>
+                                        <span className="font-semibold">Amount:</span> <span className="font-bold text-success">${approval.amount.toLocaleString()}</span>
                                     </div>
                                     <div>
                                         <span className="font-semibold">Submitted:</span> {approval.submittedDate}
                                     </div>
                                     <div>
                                         <span className="font-semibold">Due Date:</span>{' '}
-                                        <span className={isOverdue(approval.dueDate) ? 'text-danger font-semibold' : ''}>
-                                            {approval.dueDate}
-                                        </span>
+                                        {approval.dueDate ? (
+                                            <span className={isOverdue(approval.dueDate) ? 'text-danger font-semibold' : ''}>{approval.dueDate}</span>
+                                        ) : (
+                                            <span className="text-white-dark">N/A</span>
+                                        )}
                                     </div>
                                     <div>
                                         <span className="font-semibold">Documents:</span> {approval.documents}
@@ -240,26 +237,15 @@ const ApprovalsList = () => {
 
                             {/* Right Section - Actions */}
                             <div className="flex flex-wrap gap-2 lg:flex-col">
-                                <Link
-                                    to={`/procurement/approvals/${approval.id}`}
-                                    className="btn btn-outline-primary btn-sm flex items-center gap-2"
-                                >
+                                <Link to={`/procurement/approvals/${approval.id}`} className="btn btn-outline-primary btn-sm flex items-center gap-2">
                                     <IconEye className="h-4 w-4" />
                                     View Details
                                 </Link>
-                                <button
-                                    type="button"
-                                    onClick={() => handleApprove(approval.id)}
-                                    className="btn btn-success btn-sm flex items-center gap-2"
-                                >
+                                <button type="button" onClick={() => handleApprove(approval.id)} className="btn btn-success btn-sm flex items-center gap-2">
                                     <IconChecks className="h-4 w-4" />
                                     Approve
                                 </button>
-                                <button
-                                    type="button"
-                                    onClick={() => handleReject(approval.id)}
-                                    className="btn btn-danger btn-sm flex items-center gap-2"
-                                >
+                                <button type="button" onClick={() => handleReject(approval.id)} className="btn btn-danger btn-sm flex items-center gap-2">
                                     <IconX className="h-4 w-4" />
                                     Reject
                                 </button>
