@@ -119,6 +119,7 @@ model User {
   email        String  @unique
   name         String?
   passwordHash String? // ← for local email/password testing
+  profileImage String? @db.LongText // Profile picture URL or base64
 
   // LDAP-synced fields
   jobTitle     String?
