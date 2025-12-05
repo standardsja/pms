@@ -86,25 +86,26 @@ const Sidebar = () => {
     const isInnovationHub = location.pathname.startsWith('/innovation');
     // Compute dashboard path for logo/home
     // ADMIN takes priority over all other roles
-    const dashboardPath = isAdmin || isHeadOfDivision
-        ? '/procurement/admin'
-        : isEvaluationCommittee
-        ? '/evaluation/committee/dashboard'
-        : isCommitteeMember
-        ? '/innovation/committee/dashboard'
-        : isInnovationHub
-        ? '/innovation/dashboard'
-        : isFinanceManager
-        ? '/finance'
-        : isProcurementManager
-        ? '/procurement/manager'
-        : isDepartmentManager
-        ? '/apps/requests/pending-approval'
-        : isSupplier
-        ? '/supplier'
-        : isRequester
-        ? '/apps/requests'
-        : '/procurement/dashboard';
+    const dashboardPath =
+        isAdmin || isHeadOfDivision
+            ? '/procurement/admin'
+            : isEvaluationCommittee
+            ? '/evaluation/committee/dashboard'
+            : isCommitteeMember
+            ? '/innovation/committee/dashboard'
+            : isInnovationHub
+            ? '/innovation/dashboard'
+            : isFinanceManager
+            ? '/finance'
+            : isProcurementManager
+            ? '/procurement/manager'
+            : isDepartmentManager
+            ? '/apps/requests/pending-approval'
+            : isSupplier
+            ? '/supplier'
+            : isRequester
+            ? '/apps/requests'
+            : '/procurement/dashboard';
 
     // Debug logging for dashboard path
     console.log('[SIDEBAR] User roles:', userRoles);
