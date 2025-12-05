@@ -338,36 +338,42 @@ const AdminSettings = () => {
 
             {/* Users Tab (wired) */}
             {activeTab === 'users' && (
-                <div className="panel">
-                    <div className="mb-4 flex items-center justify-between">
-                        <h5 className="text-lg font-semibold">Users</h5>
-                        <button type="button" className="btn btn-outline-primary" onClick={loadUsers} disabled={usersLoading}>
-                            Refresh
-                        </button>
-                    </div>
-                    {usersError && <div className="mb-4 rounded border border-danger bg-danger-light p-3 text-danger">{usersError}</div>}
-                    {usersLoading ? (
-                        <div>Loading users…</div>
-                    ) : (
-                        <div className="table-responsive">
-                            <table className="table-hover">
-                                <thead>
-                                    <tr>
-                                        <th>Email</th>
-                                        <th>Name</th>
-                                        <th>Department</th>
-                                        <th>Roles</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {flatUsers.map((u) => (
-                                        <UserRow key={u.id} user={u} availableRoles={allRoles} availableDepartments={allDepartments} onSave={handleSaveRoles} />
-                                    ))}
-                                </tbody>
-                            </table>
+                <div className="space-y-6">
+                    {/* User Management Section */}
+                    <div className="panel">
+                        <div className="mb-4 flex items-center justify-between">
+                            <h5 className="text-lg font-semibold">User Management</h5>
+                            <button type="button" className="btn btn-outline-primary" onClick={loadUsers} disabled={usersLoading}>
+                                Refresh
+                            </button>
                         </div>
-                    )}
+                        {usersError && <div className="mb-4 rounded border border-danger bg-danger-light p-3 text-danger">{usersError}</div>}
+                        {usersLoading ? (
+                            <div>Loading users…</div>
+                        ) : (
+                            <div className="table-responsive">
+                                <table className="table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Email</th>
+                                            <th>Name</th>
+                                            <th>Department</th>
+                                            <th>Roles</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {flatUsers.map((u) => (
+                                            <UserRow key={u.id} user={u} availableRoles={allRoles} availableDepartments={allDepartments} onSave={handleSaveRoles} />
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Assign Requests to Users Section */}
+                    <AssignRequestsToUsersPanel users={flatUsers} />
                 </div>
             )}
 
@@ -790,102 +796,193 @@ const AdminSettings = () => {
 
 export default AdminSettings;
 
-// Reassign Requests Tab Component
-function ReassignRequestsTab() {
+// Assign Requests to Users Panel Component
+function AssignRequestsToUsersPanel({ users }: { users: FlatUser[] }) {
     const [requests, setRequests] = useState<any[]>([]);
-    const [users, setUsers] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
+    const [assigning, setAssigning] = useState(false);
     const [selectedRequest, setSelectedRequest] = useState<number | null>(null);
+    const [selectedUser, setSelectedUser] = useState<number | null>(null);
     const [selectedStatus, setSelectedStatus] = useState<string>('');
+    const [error, setError] = useState<string | null>(null);
+    const [success, setSuccess] = useState<string | null>(null);
 
     useEffect(() => {
-        loadData();
+        loadRequests();
     }, []);
 
-    async function loadData() {
+    async function loadRequests() {
         setLoading(true);
+        setError(null);
         try {
-            const [reqsRes, usersRes] = await Promise.all([fetch(getApiUrl('/requests')), fetch(getApiUrl('/admin/users'))]);
-            const reqs = await reqsRes.json();
-            const usrs = await usersRes.json();
-            setRequests(reqs);
-            setUsers(usrs);
-        } catch (e) {
-            console.error('Failed to load data:', e);
+            const res = await fetch(getApiUrl('/requests'));
+            if (!res.ok) {
+                throw new Error('Failed to fetch requests');
+            }
+            const data = await res.json();
+            setRequests(data);
+        } catch (e: any) {
+            console.error('Failed to load requests:', e);
+            setError(e?.message || 'Failed to load requests');
         } finally {
             setLoading(false);
         }
     }
 
-    async function reassignRequest(requestId: number, assigneeId: number | null) {
+    async function assignRequest(requestId: number, userId: number | null) {
         try {
+            setAssigning(true);
+            setError(null);
+            setSuccess(null);
+
             const userProfile = localStorage.getItem('auth_user') || sessionStorage.getItem('auth_user');
-            const user = userProfile ? JSON.parse(userProfile) : null;
+            const adminUser = userProfile ? JSON.parse(userProfile) : null;
+
+            if (!adminUser?.id) {
+                throw new Error('Admin authentication required');
+            }
 
             const res = await fetch(getApiUrl(`/admin/requests/${requestId}/reassign`), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'x-user-id': String(user?.id || ''),
+                    'x-user-id': String(adminUser.id),
                 },
-                body: JSON.stringify({ assigneeId, comment: 'Manually reassigned by admin', newStatus: selectedStatus || undefined }),
+                body: JSON.stringify({
+                    assigneeId: userId,
+                    comment: 'Assigned to user from User Management panel',
+                    newStatus: selectedStatus || undefined,
+                }),
             });
 
-            if (!res.ok) throw new Error('Failed to reassign');
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({}));
+                throw new Error(errorData?.message || 'Failed to assign request');
+            }
 
-            await loadData();
-            alert('Request reassigned successfully!');
+            const assigneeName = userId ? (users.find(u => u.id === userId)?.name || 'user') : 'unassigned';
+            setSuccess(`Request successfully assigned to ${assigneeName}${selectedStatus ? ` with status ${selectedStatus}` : ''}`);
+
+            // Reset and reload
+            setSelectedRequest(null);
+            setSelectedUser(null);
+            setSelectedStatus('');
+            setTimeout(() => loadRequests(), 1000);
         } catch (e: any) {
-            alert(e?.message || 'Failed to reassign request');
+            console.error('Assignment error:', e);
+            setError(e?.message || 'Failed to assign request');
+        } finally {
+            setAssigning(false);
         }
     }
 
-    if (loading) return <div className="panel">Loading...</div>;
+    if (loading) {
+        return (
+            <div className="panel">
+                <div className="flex items-center justify-center py-12">
+                    <div className="text-center">
+                        <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary/20 border-t-primary mx-auto mb-4"></div>
+                        <p className="text-gray-600 dark:text-gray-400">Loading requests...</p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="panel">
-            <h5 className="mb-4 text-lg font-semibold">Reassign Requests</h5>
-            <p className="mb-4 text-sm text-white-dark">Click on a request, then click on a user to reassign it</p>
+            <div className="mb-6 flex items-center justify-between">
+                <div>
+                    <h5 className="text-lg font-semibold">Assign Requests to Users</h5>
+                    <p className="text-sm text-white-dark mt-1">Quickly assign or reassign requests to team members</p>
+                </div>
+                <button 
+                    onClick={loadRequests} 
+                    disabled={loading}
+                    className="btn btn-outline-primary"
+                >
+                    Refresh
+                </button>
+            </div>
+
+            {/* Error Message */}
+            {error && (
+                <div className="mb-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-4 text-red-800 dark:text-red-200">
+                    <p className="font-semibold">Error</p>
+                    <p className="text-sm mt-1">{error}</p>
+                </div>
+            )}
+
+            {/* Success Message */}
+            {success && (
+                <div className="mb-4 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 p-4 text-green-800 dark:text-green-200">
+                    <p className="font-semibold">Success</p>
+                    <p className="text-sm mt-1">{success}</p>
+                </div>
+            )}
 
             <div className="grid gap-6 lg:grid-cols-2">
                 {/* Requests List */}
                 <div>
-                    <h6 className="mb-3 font-semibold">Requests</h6>
-                    <div className="space-y-2 max-h-96 overflow-y-auto">
-                        {requests.map((req) => (
-                            <div
-                                key={req.id}
-                                onClick={() => setSelectedRequest(req.id)}
-                                className={`cursor-pointer rounded border p-3 hover:bg-primary/10 ${
-                                    selectedRequest === req.id ? 'border-primary bg-primary/10' : 'border-white-light dark:border-dark'
-                                }`}
-                            >
-                                <div className="flex justify-between">
-                                    <div>
-                                        <div className="font-semibold">
-                                            REQ-{req.id}: {req.title}
+                    <h6 className="mb-3 font-semibold flex items-center gap-2">
+                        Requests
+                        <span className="badge bg-primary text-white text-xs">{requests.length}</span>
+                    </h6>
+                    {requests.length === 0 ? (
+                        <div className="rounded border border-dashed border-white-light dark:border-dark p-8 text-center text-gray-500">
+                            <p>No requests found</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-2 max-h-96 overflow-y-auto">
+                            {requests.map((req) => (
+                                <div
+                                    key={req.id}
+                                    onClick={() => setSelectedRequest(req.id)}
+                                    className={`cursor-pointer rounded border p-3 transition-all hover:bg-primary/10 ${
+                                        selectedRequest === req.id ? 'border-primary bg-primary/10 ring-2 ring-primary/50' : 'border-white-light dark:border-dark'
+                                    }`}
+                                >
+                                    <div className="flex justify-between items-start gap-3">
+                                        <div className="flex-1 min-w-0">
+                                            <div className="font-semibold text-sm">
+                                                REQ-{req.id}: {req.title}
+                                            </div>
+                                            <div className="text-xs text-white-dark mt-1">
+                                                <div>Status: <span className="font-medium">{req.status}</span></div>
+                                                <div className="truncate">Requester: <span className="font-medium">{req.requester?.name || 'Unknown'}</span></div>
+                                            </div>
                                         </div>
-                                        <div className="text-xs text-white-dark">
-                                            Status: {req.status} | Requester: {req.requester?.name}
+                                        <div className="text-xs flex-shrink-0">
+                                            {req.currentAssignee ? (
+                                                <span className="badge bg-success text-white">{req.currentAssignee.name}</span>
+                                            ) : (
+                                                <span className="badge bg-danger text-white">Unassigned</span>
+                                            )}
                                         </div>
-                                    </div>
-                                    <div className="text-xs">
-                                        {req.currentAssignee ? <span className="badge bg-success">{req.currentAssignee.name}</span> : <span className="badge bg-danger">Unassigned</span>}
                                     </div>
                                 </div>
-                            </div>
-                        ))}
-                    </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
 
-                {/* Users List */}
+                {/* Users List & Status */}
                 <div>
-                    <h6 className="mb-3 font-semibold">Users {selectedRequest ? '(Click to reassign)' : ''}</h6>
-                    {/* Optional status change during reassignment */}
-                    <div className="mb-3">
-                        <label className="block text-sm mb-1">Set Status (optional)</label>
-                        <select className="form-select" value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value)} disabled={!selectedRequest}>
-                            <option value="">— No change —</option>
+                    <h6 className="mb-3 font-semibold flex items-center gap-2">
+                        Team Members {selectedRequest && <span className="badge bg-warning text-white text-xs">Request Selected</span>}
+                        <span className="badge bg-primary text-white text-xs ml-auto">{users.length}</span>
+                    </h6>
+
+                    {/* Status Selector */}
+                    <div className="mb-4 p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50">
+                        <label className="block text-sm font-medium mb-2">Update Status (optional)</label>
+                        <select 
+                            className="form-select text-sm" 
+                            value={selectedStatus} 
+                            onChange={(e) => setSelectedStatus(e.target.value)} 
+                            disabled={!selectedRequest || assigning}
+                        >
+                            <option value="">— Keep current status —</option>
                             <option value="DRAFT">DRAFT</option>
                             <option value="SUBMITTED">SUBMITTED</option>
                             <option value="DEPARTMENT_REVIEW">DEPARTMENT_REVIEW</option>
@@ -902,32 +999,324 @@ function ReassignRequestsTab() {
                             <option value="REJECTED">REJECTED</option>
                         </select>
                     </div>
-                    <div className="space-y-2 max-h-96 overflow-y-auto">
-                        {users.map((user) => (
-                            <div
-                                key={user.id}
-                                onClick={() => selectedRequest && reassignRequest(selectedRequest, user.id)}
-                                className={`rounded border p-3 ${
-                                    selectedRequest ? 'cursor-pointer hover:bg-success/10 border-white-light dark:border-dark' : 'opacity-50 cursor-not-allowed border-white-light dark:border-dark'
-                                }`}
-                            >
-                                <div className="font-semibold">{user.name}</div>
-                                <div className="text-xs text-white-dark">{user.email}</div>
-                                <div className="mt-1 flex flex-wrap gap-1">
-                                    {user.roles?.map((role: string) => (
-                                        <span key={role} className="badge badge-outline-primary text-xs">
-                                            {role}
-                                        </span>
-                                    ))}
+
+                    {/* Users */}
+                    {users.length === 0 ? (
+                        <div className="rounded border border-dashed border-white-light dark:border-dark p-8 text-center text-gray-500">
+                            <p>No users found</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-2 max-h-96 overflow-y-auto">
+                            {users.map((user) => (
+                                <div
+                                    key={user.id}
+                                    onClick={() => !assigning && selectedRequest && assignRequest(selectedRequest, user.id)}
+                                    className={`rounded border p-3 transition-all ${
+                                        selectedRequest && !assigning
+                                            ? 'cursor-pointer hover:bg-success/10 border-white-light dark:border-dark hover:border-success/50'
+                                            : 'opacity-50 cursor-not-allowed border-white-light dark:border-dark'
+                                    } ${assigning ? 'pointer-events-none' : ''}`}
+                                >
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="flex-1 min-w-0">
+                                            <div className="font-semibold text-sm">{user.name}</div>
+                                            <div className="text-xs text-white-dark truncate">{user.email}</div>
+                                            {user.roles && user.roles.length > 0 && (
+                                                <div className="mt-2 flex flex-wrap gap-1">
+                                                    {user.roles.map((role: string) => (
+                                                        <span key={role} className="badge badge-outline-primary text-xs">
+                                                            {role}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                        {assigning && (
+                                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary/20 border-t-primary flex-shrink-0"></div>
+                                        )}
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
-                        {selectedRequest && (
-                            <div onClick={() => selectedRequest && reassignRequest(selectedRequest, null)} className="cursor-pointer rounded border border-danger p-3 hover:bg-danger/10">
-                                <div className="font-semibold text-danger">Unassign (Remove assignee)</div>
-                            </div>
-                        )}
+                            ))}
+
+                            {/* Unassign Button */}
+                            {selectedRequest && (
+                                <div 
+                                    onClick={() => !assigning && assignRequest(selectedRequest, null)}
+                                    className={`cursor-pointer rounded border border-danger p-3 transition-all hover:bg-danger/10 ${assigning ? 'pointer-events-none opacity-50' : ''}`}
+                                >
+                                    <div className="font-semibold text-danger text-sm flex items-center justify-between">
+                                        <span>Unassign (Remove assignee)</span>
+                                        {assigning && <div className="h-4 w-4 animate-spin rounded-full border-2 border-danger/20 border-t-danger"></div>}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// Reassign Requests Tab Component
+function ReassignRequestsTab() {
+    const [requests, setRequests] = useState<any[]>([]);
+    const [users, setUsers] = useState<any[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [reassigning, setReassigning] = useState(false);
+    const [selectedRequest, setSelectedRequest] = useState<number | null>(null);
+    const [selectedStatus, setSelectedStatus] = useState<string>('');
+    const [error, setError] = useState<string | null>(null);
+    const [success, setSuccess] = useState<string | null>(null);
+
+    useEffect(() => {
+        loadData();
+    }, []);
+
+    async function loadData() {
+        setLoading(true);
+        setError(null);
+        try {
+            const [reqsRes, usersRes] = await Promise.all([fetch(getApiUrl('/requests')), fetch(getApiUrl('/admin/users'))]);
+            
+            if (!reqsRes.ok || !usersRes.ok) {
+                throw new Error('Failed to fetch data from server');
+            }
+            
+            const reqs = await reqsRes.json();
+            const usrs = await usersRes.json();
+            setRequests(reqs);
+            setUsers(usrs);
+        } catch (e: any) {
+            console.error('Failed to load data:', e);
+            setError(e?.message || 'Failed to load requests and users');
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    async function reassignRequest(requestId: number, assigneeId: number | null) {
+        try {
+            setReassigning(true);
+            setError(null);
+            setSuccess(null);
+
+            const userProfile = localStorage.getItem('auth_user') || sessionStorage.getItem('auth_user');
+            const user = userProfile ? JSON.parse(userProfile) : null;
+
+            if (!user?.id) {
+                throw new Error('User authentication required');
+            }
+
+            const res = await fetch(getApiUrl(`/admin/requests/${requestId}/reassign`), {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-user-id': String(user.id),
+                },
+                body: JSON.stringify({ 
+                    assigneeId, 
+                    comment: 'Manually reassigned by admin', 
+                    newStatus: selectedStatus || undefined 
+                }),
+            });
+
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({}));
+                throw new Error(errorData?.message || 'Failed to reassign request');
+            }
+
+            const assigneeName = users.find(u => u.id === assigneeId)?.name || 'unassigned';
+            setSuccess(`Request successfully reassigned to ${assigneeName}${selectedStatus ? ` with status ${selectedStatus}` : ''}`);
+            
+            // Reset selections and reload data
+            setSelectedRequest(null);
+            setSelectedStatus('');
+            setTimeout(() => loadData(), 1000);
+        } catch (e: any) {
+            console.error('Reassignment error:', e);
+            setError(e?.message || 'Failed to reassign request');
+        } finally {
+            setReassigning(false);
+        }
+    }
+
+    if (loading) {
+        return (
+            <div className="panel">
+                <div className="flex items-center justify-center py-12">
+                    <div className="text-center">
+                        <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary/20 border-t-primary mx-auto mb-4"></div>
+                        <p className="text-gray-600 dark:text-gray-400">Loading requests and users...</p>
                     </div>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="panel">
+            <div className="mb-6 flex items-center justify-between">
+                <div>
+                    <h5 className="text-lg font-semibold">Reassign Requests</h5>
+                    <p className="text-sm text-white-dark mt-1">Select a request and click a user to reassign it</p>
+                </div>
+                <button 
+                    onClick={loadData} 
+                    disabled={loading}
+                    className="btn btn-outline-primary"
+                >
+                    Refresh
+                </button>
+            </div>
+
+            {/* Error Message */}
+            {error && (
+                <div className="mb-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-4 text-red-800 dark:text-red-200">
+                    <p className="font-semibold">Error</p>
+                    <p className="text-sm mt-1">{error}</p>
+                </div>
+            )}
+
+            {/* Success Message */}
+            {success && (
+                <div className="mb-4 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 p-4 text-green-800 dark:text-green-200">
+                    <p className="font-semibold">Success</p>
+                    <p className="text-sm mt-1">{success}</p>
+                </div>
+            )}
+
+            <div className="grid gap-6 lg:grid-cols-2">
+                {/* Requests List */}
+                <div>
+                    <h6 className="mb-3 font-semibold flex items-center gap-2">
+                        Requests
+                        <span className="badge bg-primary text-white text-xs">{requests.length}</span>
+                    </h6>
+                    {requests.length === 0 ? (
+                        <div className="rounded border border-dashed border-white-light dark:border-dark p-8 text-center text-gray-500">
+                            <p>No requests found</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-2 max-h-96 overflow-y-auto">
+                            {requests.map((req) => (
+                                <div
+                                    key={req.id}
+                                    onClick={() => setSelectedRequest(req.id)}
+                                    className={`cursor-pointer rounded border p-3 transition-all hover:bg-primary/10 ${
+                                        selectedRequest === req.id ? 'border-primary bg-primary/10 ring-2 ring-primary/50' : 'border-white-light dark:border-dark'
+                                    }`}
+                                >
+                                    <div className="flex justify-between items-start gap-3">
+                                        <div className="flex-1">
+                                            <div className="font-semibold text-sm">
+                                                REQ-{req.id}: {req.title}
+                                            </div>
+                                            <div className="text-xs text-white-dark mt-1">
+                                                <div>Status: <span className="font-medium">{req.status}</span></div>
+                                                <div>Requester: <span className="font-medium">{req.requester?.name || 'Unknown'}</span></div>
+                                            </div>
+                                        </div>
+                                        <div className="text-xs flex-shrink-0">
+                                            {req.currentAssignee ? (
+                                                <span className="badge bg-success text-white">{req.currentAssignee.name}</span>
+                                            ) : (
+                                                <span className="badge bg-danger text-white">Unassigned</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                {/* Users List */}
+                <div>
+                    <h6 className="mb-3 font-semibold flex items-center gap-2">
+                        Users {selectedRequest && <span className="badge bg-warning text-white text-xs">Request Selected</span>}
+                        <span className="badge bg-primary text-white text-xs ml-auto">{users.length}</span>
+                    </h6>
+                    
+                    {/* Status Selector */}
+                    <div className="mb-4 p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50">
+                        <label className="block text-sm font-medium mb-2">Update Status (optional)</label>
+                        <select 
+                            className="form-select text-sm" 
+                            value={selectedStatus} 
+                            onChange={(e) => setSelectedStatus(e.target.value)} 
+                            disabled={!selectedRequest || reassigning}
+                        >
+                            <option value="">— Keep current status —</option>
+                            <option value="DRAFT">DRAFT</option>
+                            <option value="SUBMITTED">SUBMITTED</option>
+                            <option value="DEPARTMENT_REVIEW">DEPARTMENT_REVIEW</option>
+                            <option value="DEPARTMENT_RETURNED">DEPARTMENT_RETURNED</option>
+                            <option value="DEPARTMENT_APPROVED">DEPARTMENT_APPROVED</option>
+                            <option value="HOD_REVIEW">HOD_REVIEW</option>
+                            <option value="PROCUREMENT_REVIEW">PROCUREMENT_REVIEW</option>
+                            <option value="FINANCE_REVIEW">FINANCE_REVIEW</option>
+                            <option value="BUDGET_MANAGER_REVIEW">BUDGET_MANAGER_REVIEW</option>
+                            <option value="FINANCE_RETURNED">FINANCE_RETURNED</option>
+                            <option value="FINANCE_APPROVED">FINANCE_APPROVED</option>
+                            <option value="SENT_TO_VENDOR">SENT_TO_VENDOR</option>
+                            <option value="CLOSED">CLOSED</option>
+                            <option value="REJECTED">REJECTED</option>
+                        </select>
+                    </div>
+
+                    {/* Users */}
+                    {users.length === 0 ? (
+                        <div className="rounded border border-dashed border-white-light dark:border-dark p-8 text-center text-gray-500">
+                            <p>No users found</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-2 max-h-96 overflow-y-auto">
+                            {users.map((user) => (
+                                <div
+                                    key={user.id}
+                                    onClick={() => !reassigning && selectedRequest && reassignRequest(selectedRequest, user.id)}
+                                    className={`rounded border p-3 transition-all ${
+                                        selectedRequest && !reassigning
+                                            ? 'cursor-pointer hover:bg-success/10 border-white-light dark:border-dark hover:border-success/50'
+                                            : 'opacity-50 cursor-not-allowed border-white-light dark:border-dark'
+                                    } ${reassigning ? 'pointer-events-none' : ''}`}
+                                >
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="flex-1 min-w-0">
+                                            <div className="font-semibold text-sm">{user.name}</div>
+                                            <div className="text-xs text-white-dark truncate">{user.email}</div>
+                                            {user.roles && user.roles.length > 0 && (
+                                                <div className="mt-2 flex flex-wrap gap-1">
+                                                    {user.roles.map((role: string) => (
+                                                        <span key={role} className="badge badge-outline-primary text-xs">
+                                                            {role}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                        {reassigning && (
+                                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary/20 border-t-primary flex-shrink-0"></div>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+
+                            {/* Unassign Button */}
+                            {selectedRequest && (
+                                <div 
+                                    onClick={() => !reassigning && reassignRequest(selectedRequest, null)}
+                                    className={`cursor-pointer rounded border border-danger p-3 transition-all hover:bg-danger/10 ${reassigning ? 'pointer-events-none opacity-50' : ''}`}
+                                >
+                                    <div className="font-semibold text-danger text-sm flex items-center justify-between">
+                                        <span>Unassign (Remove assignee)</span>
+                                        {reassigning && <div className="h-4 w-4 animate-spin rounded-full border-2 border-danger/20 border-t-danger"></div>}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

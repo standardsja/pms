@@ -271,10 +271,19 @@ const AccountSetting = () => {
                     confirmButtonColor: '#3b82f6',
                 });
             } else {
+                let errorText = await response.text();
+                try {
+                    const parsed = JSON.parse(errorText);
+                    if (parsed?.message) {
+                        errorText = parsed.message;
+                    }
+                } catch (_e) {
+                    // keep raw text
+                }
                 Swal.fire({
                     icon: 'error',
                     title: 'Upload Failed',
-                    text: 'We were unable to upload your profile picture. Please try again.',
+                    text: errorText || 'We were unable to upload your profile picture. Please try again.',
                     confirmButtonColor: '#3b82f6',
                 });
             }

@@ -511,8 +511,286 @@ const AdminDashboard = () => {
                     </div>
                 </div>
             )}
+
+            {/* Assign Requests Section */}
+            <div className="mt-8 pt-8 border-t border-gray-200 dark:border-gray-700">
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Assign Requests to Users</h2>
+                <p className="text-gray-600 dark:text-gray-400 mb-6">Quickly assign or reassign requests to team members</p>
+                <AssignRequestsPanel users={users} />
+            </div>
         </div>
     );
 };
+
+// Assign Requests Panel Component
+function AssignRequestsPanel({ users }: { users: AdminUser[] }) {
+    const [requests, setRequests] = useState<any[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [assigning, setAssigning] = useState(false);
+    const [selectedRequest, setSelectedRequest] = useState<number | null>(null);
+    const [selectedUser, setSelectedUser] = useState<number | null>(null);
+    const [selectedStatus, setSelectedStatus] = useState<string>('');
+    const [error, setError] = useState<string | null>(null);
+    const [success, setSuccess] = useState<string | null>(null);
+
+    useEffect(() => {
+        loadRequests();
+    }, []);
+
+    async function loadRequests() {
+        setLoading(true);
+        setError(null);
+        try {
+            const res = await fetch(getApiUrl('/requests'));
+            if (!res.ok) {
+                throw new Error('Failed to fetch requests');
+            }
+            const data = await res.json();
+            setRequests(data);
+        } catch (e: any) {
+            console.error('Failed to load requests:', e);
+            setError(e?.message || 'Failed to load requests');
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    async function assignRequest(requestId: number, userId: number | null) {
+        try {
+            setAssigning(true);
+            setError(null);
+            setSuccess(null);
+
+            const userProfile = localStorage.getItem('auth_user') || sessionStorage.getItem('auth_user');
+            const adminUser = userProfile ? JSON.parse(userProfile) : null;
+
+            if (!adminUser?.id) {
+                throw new Error('Admin authentication required');
+            }
+
+            const res = await fetch(getApiUrl(`/admin/requests/${requestId}/reassign`), {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-user-id': String(adminUser.id),
+                },
+                body: JSON.stringify({
+                    assigneeId: userId,
+                    comment: 'Assigned from User Management dashboard',
+                    newStatus: selectedStatus || undefined,
+                }),
+            });
+
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({}));
+                throw new Error(errorData?.message || 'Failed to assign request');
+            }
+
+            const assigneeName = userId ? (users.find(u => u.id === userId)?.name || 'user') : 'unassigned';
+            setSuccess(`Request successfully assigned to ${assigneeName}${selectedStatus ? ` with status ${selectedStatus}` : ''}`);
+
+            // Reset and reload
+            setSelectedRequest(null);
+            setSelectedUser(null);
+            setSelectedStatus('');
+            setTimeout(() => loadRequests(), 1000);
+        } catch (e: any) {
+            console.error('Assignment error:', e);
+            setError(e?.message || 'Failed to assign request');
+        } finally {
+            setAssigning(false);
+        }
+    }
+
+    if (loading) {
+        return (
+            <div className="panel">
+                <div className="flex items-center justify-center py-12">
+                    <div className="text-center">
+                        <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary/20 border-t-primary mx-auto mb-4"></div>
+                        <p className="text-gray-600 dark:text-gray-400">Loading requests...</p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="panel">
+            {/* Error Message */}
+            {error && (
+                <div className="mb-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-4 text-red-800 dark:text-red-200">
+                    <p className="font-semibold flex items-center gap-2">
+                        <IconInfoCircle className="w-5 h-5" />
+                        Error
+                    </p>
+                    <p className="text-sm mt-1">{error}</p>
+                </div>
+            )}
+
+            {/* Success Message */}
+            {success && (
+                <div className="mb-4 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 p-4 text-green-800 dark:text-green-200">
+                    <p className="font-semibold flex items-center gap-2">
+                        <IconSquareCheck className="w-5 h-5" />
+                        Success
+                    </p>
+                    <p className="text-sm mt-1">{success}</p>
+                </div>
+            )}
+
+            <div className="grid gap-6 lg:grid-cols-2">
+                {/* Requests List */}
+                <div>
+                    <div className="flex items-center justify-between mb-4">
+                        <h6 className="font-semibold flex items-center gap-2">
+                            Requests
+                            <span className="badge bg-primary text-white text-xs">{requests.length}</span>
+                        </h6>
+                        <button 
+                            onClick={loadRequests} 
+                            disabled={loading}
+                            className="btn btn-sm btn-outline-primary"
+                        >
+                            Refresh
+                        </button>
+                    </div>
+                    {requests.length === 0 ? (
+                        <div className="rounded border border-dashed border-white-light dark:border-dark p-8 text-center text-gray-500">
+                            <p>No requests found</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-2 max-h-96 overflow-y-auto">
+                            {requests.map((req) => (
+                                <div
+                                    key={req.id}
+                                    onClick={() => setSelectedRequest(req.id)}
+                                    className={`cursor-pointer rounded border p-3 transition-all hover:bg-primary/10 ${
+                                        selectedRequest === req.id ? 'border-primary bg-primary/10 ring-2 ring-primary/50' : 'border-white-light dark:border-dark'
+                                    }`}
+                                >
+                                    <div className="flex justify-between items-start gap-3">
+                                        <div className="flex-1 min-w-0">
+                                            <div className="font-semibold text-sm">
+                                                REQ-{req.id}: {req.title}
+                                            </div>
+                                            <div className="text-xs text-white-dark mt-1">
+                                                <div>Status: <span className="font-medium">{req.status}</span></div>
+                                                <div className="truncate">Requester: <span className="font-medium">{req.requester?.name || 'Unknown'}</span></div>
+                                            </div>
+                                        </div>
+                                        <div className="text-xs flex-shrink-0">
+                                            {req.currentAssignee ? (
+                                                <span className="badge bg-success text-white">{req.currentAssignee.name}</span>
+                                            ) : (
+                                                <span className="badge bg-danger text-white">Unassigned</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                {/* Users List & Status */}
+                <div>
+                    <h6 className="mb-3 font-semibold flex items-center gap-2">
+                        Team Members {selectedRequest && <span className="badge bg-warning text-white text-xs">Request Selected</span>}
+                        <span className="badge bg-primary text-white text-xs ml-auto">{users.length}</span>
+                    </h6>
+
+                    {/* Status Selector */}
+                    <div className="mb-4 p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50">
+                        <label className="block text-sm font-medium mb-2">Update Status (optional)</label>
+                        <select 
+                            className="form-select text-sm" 
+                            value={selectedStatus} 
+                            onChange={(e) => setSelectedStatus(e.target.value)} 
+                            disabled={!selectedRequest || assigning}
+                        >
+                            <option value="">— Keep current status —</option>
+                            <option value="DRAFT">DRAFT</option>
+                            <option value="SUBMITTED">SUBMITTED</option>
+                            <option value="DEPARTMENT_REVIEW">DEPARTMENT_REVIEW</option>
+                            <option value="DEPARTMENT_RETURNED">DEPARTMENT_RETURNED</option>
+                            <option value="DEPARTMENT_APPROVED">DEPARTMENT_APPROVED</option>
+                            <option value="HOD_REVIEW">HOD_REVIEW</option>
+                            <option value="PROCUREMENT_REVIEW">PROCUREMENT_REVIEW</option>
+                            <option value="FINANCE_REVIEW">FINANCE_REVIEW</option>
+                            <option value="BUDGET_MANAGER_REVIEW">BUDGET_MANAGER_REVIEW</option>
+                            <option value="FINANCE_RETURNED">FINANCE_RETURNED</option>
+                            <option value="FINANCE_APPROVED">FINANCE_APPROVED</option>
+                            <option value="SENT_TO_VENDOR">SENT_TO_VENDOR</option>
+                            <option value="CLOSED">CLOSED</option>
+                            <option value="REJECTED">REJECTED</option>
+                        </select>
+                    </div>
+
+                    {/* Users */}
+                    {users.length === 0 ? (
+                        <div className="rounded border border-dashed border-white-light dark:border-dark p-8 text-center text-gray-500">
+                            <p>No users found</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-2 max-h-96 overflow-y-auto">
+                            {users.map((user) => {
+                                const userRoles = (user.roles || []).map((r) => r.role?.name).filter(Boolean);
+                                return (
+                                    <div
+                                        key={user.id}
+                                        onClick={() => !assigning && selectedRequest && assignRequest(selectedRequest, user.id)}
+                                        className={`rounded border p-3 transition-all ${
+                                            selectedRequest && !assigning
+                                                ? 'cursor-pointer hover:bg-success/10 border-white-light dark:border-dark hover:border-success/50'
+                                                : 'opacity-50 cursor-not-allowed border-white-light dark:border-dark'
+                                        } ${assigning ? 'pointer-events-none' : ''}`}
+                                    >
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div className="flex-1 min-w-0">
+                                                <div className="font-semibold text-sm">{user.name || user.email}</div>
+                                                <div className="text-xs text-white-dark truncate">{user.email}</div>
+                                                {userRoles && userRoles.length > 0 && (
+                                                    <div className="mt-2 flex flex-wrap gap-1">
+                                                        {userRoles.slice(0, 2).map((role: string) => (
+                                                            <span key={role} className="badge badge-outline-primary text-xs">
+                                                                {role}
+                                                            </span>
+                                                        ))}
+                                                        {userRoles.length > 2 && (
+                                                            <span className="badge badge-outline-primary text-xs">
+                                                                +{userRoles.length - 2}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            {assigning && (
+                                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary/20 border-t-primary flex-shrink-0"></div>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+
+                            {/* Unassign Button */}
+                            {selectedRequest && (
+                                <div 
+                                    onClick={() => !assigning && assignRequest(selectedRequest, null)}
+                                    className={`cursor-pointer rounded border border-danger p-3 transition-all hover:bg-danger/10 ${assigning ? 'pointer-events-none opacity-50' : ''}`}
+                                >
+                                    <div className="font-semibold text-danger text-sm flex items-center justify-between">
+                                        <span>Unassign (Remove assignee)</span>
+                                        {assigning && <div className="h-4 w-4 animate-spin rounded-full border-2 border-danger/20 border-t-danger"></div>}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
 
 export default AdminDashboard;

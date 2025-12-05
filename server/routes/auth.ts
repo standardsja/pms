@@ -63,11 +63,11 @@ const profileImageUpload = multer({
     storage: profileImageStorage,
     limits: { fileSize: 5 * 1024 * 1024 },
     fileFilter: (_req, file, cb) => {
-        if (file.mimetype && file.mimetype.startsWith('image/')) {
-            cb(null, true);
-        } else {
-            cb(new BadRequestError('Invalid file type. Only images are allowed'));
+        // Accept common image uploads; defer strict validation to downstream processing if needed
+        if (!file.mimetype || !file.mimetype.startsWith('image/')) {
+            return cb(new Error('INVALID_FILE_TYPE'));
         }
+        cb(null, true);
     },
 });
 
@@ -425,12 +425,25 @@ router.get(
 router.post(
     '/profile-image',
     authMiddleware,
-    profileImageUpload.single('profileImage'),
+    (req, res, next) => {
+        profileImageUpload.single('profileImage')(req, res, (err: any) => {
+            if (err) {
+                if (err.message === 'INVALID_FILE_TYPE') {
+                    return res.status(400).json({ success: false, message: 'Invalid file type. Please upload an image.' });
+                }
+                if (err.code === 'LIMIT_FILE_SIZE') {
+                    return res.status(400).json({ success: false, message: 'File too large. Max size is 5MB.' });
+                }
+                return res.status(400).json({ success: false, message: 'Upload failed. Please try again.' });
+            }
+            return next();
+        });
+    },
     asyncHandler(async (req, res) => {
         const authReq = req as AuthenticatedRequest;
-        const userId = authReq.user?.sub;
+        const userId = Number(authReq.user?.sub);
 
-        if (!userId) {
+        if (!Number.isFinite(userId)) {
             throw new UnauthorizedError('Not authenticated');
         }
 
@@ -440,14 +453,40 @@ router.post(
 
         const relativePath = `/uploads/profiles/${req.file.filename}`;
 
-        await prisma.user.update({
-            where: { id: userId },
-            data: { profileImage: relativePath },
-        });
+        try {
+            await prisma.user.update({
+                where: { id: userId },
+                data: { profileImage: relativePath },
+            });
 
-        logger.info('Profile image updated', { userId, path: relativePath });
+            logger.info('Profile image updated', {
+                userId,
+                path: relativePath,
+                mimetype: req.file.mimetype,
+                size: req.file.size,
+                filename: req.file.filename,
+            });
 
-        res.json({ success: true, profileImage: relativePath });
+            res.json({ success: true, profileImage: relativePath });
+        } catch (err: any) {
+            const errMsg = err?.message || String(err);
+            const errCode = err?.code;
+
+            logger.warn('Profile image update failed', {
+                userId,
+                error: errMsg,
+                code: errCode,
+                mimetype: req.file.mimetype,
+                size: req.file.size,
+                filename: req.file.filename,
+            });
+
+            if (errCode === 'P2025') {
+                return res.status(404).json({ success: false, message: 'User not found' });
+            }
+
+            return res.status(400).json({ success: false, message: errMsg || 'Invalid data provided' });
+        }
     })
 );
 
