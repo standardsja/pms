@@ -95,9 +95,9 @@ const MyIdeas = () => {
             // Use mine=true parameter to filter server-side
             const response = await fetchIdeas({ includeAttachments: true, mine: true, limit: 100 });
             // Handle both paginated and legacy response formats
-            const myIdeas = response.ideas || response;
+            const myIdeas = Array.isArray(response) ? response : (response as any).ideas || response;
 
-            const formattedIdeas = myIdeas.map((idea) => ({
+            const formattedIdeas = myIdeas.map((idea: any) => ({
                 id: String(idea.id),
                 title: idea.title,
                 description: idea.description,
@@ -118,7 +118,7 @@ const MyIdeas = () => {
 
             // Preserve any comments already fetched locally to avoid them disappearing
             setIdeas((prev) =>
-                formattedIdeas.map((i) => {
+                formattedIdeas.map((i: any) => {
                     const existing = prev.find((p) => p.id === i.id);
                     return {
                         ...i,

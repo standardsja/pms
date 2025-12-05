@@ -44,9 +44,9 @@ const BrowseIdeas = () => {
             const sort = sortBy === 'popular' ? 'popularity' : 'recent';
             const response = await fetchIdeas({ sort, limit: 50 });
             // Handle both paginated and legacy response formats
-            const data = response.ideas || response;
+            const data = Array.isArray(response) ? response : (response as any).ideas || response;
             setIdeas(
-                data.map((idea) => ({
+                data.map((idea: any) => ({
                     id: String(idea.id),
                     title: idea.title,
                     description: idea.description,
@@ -87,15 +87,15 @@ const BrowseIdeas = () => {
                 await removeVote(ideaId);
                 // Refetch single idea for authoritative counts
                 const response = await fetchIdeas();
-                const updatedRaw = response.ideas || response;
-                const updatedList = Array.isArray(updatedRaw) ? updatedRaw : (updatedRaw as any).ideas || [];
+                const updatedRaw = Array.isArray(response) ? response : (response as any).ideas || response;
+                const updatedList = Array.isArray(updatedRaw) ? updatedRaw : [];
                 const fresh = updatedList.find((i: any) => String(i.id) === ideaId);
                 setIdeas((prev) => prev.map((i) => (i.id === ideaId && fresh ? { ...i, voteCount: fresh.voteCount, hasVoted: false } : i)));
             } else {
                 // Add vote
                 await voteForIdea(ideaId);
                 const response = await fetchIdeas();
-                const updatedRaw = response.ideas || response;
+                const updatedRaw = Array.isArray(response) ? response : (response as any).ideas || response;
                 const updatedList = Array.isArray(updatedRaw) ? updatedRaw : (updatedRaw as any).ideas || [];
                 const fresh = updatedList.find((i: any) => String(i.id) === ideaId);
                 setIdeas((prev) => prev.map((i) => (i.id === ideaId && fresh ? { ...i, voteCount: fresh.voteCount, hasVoted: true } : i)));

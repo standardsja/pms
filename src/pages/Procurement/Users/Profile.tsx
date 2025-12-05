@@ -5,6 +5,7 @@ import Dropdown from '../../../components/Dropdown';
 import { setPageTitle } from '../../../store/themeConfigSlice';
 import { useEffect, useState } from 'react';
 import { getToken, getUser } from '../../../utils/auth';
+import { getApiUrl } from '../../../config/api';
 import IconPencilPaper from '../../../components/Icon/IconPencilPaper';
 import IconCalendar from '../../../components/Icon/IconCalendar';
 import IconMapPin from '../../../components/Icon/IconMapPin';
@@ -50,7 +51,7 @@ const Profile = () => {
                 }
 
                 // Fetch user profile details from auth endpoint
-                const meResponse = await fetch(`http://heron:4000/api/auth/me`, {
+                const meResponse = await fetch(getApiUrl('/auth/me'), {
                     headers: {
                         Authorization: `Bearer ${token}`,
                         'Content-Type': 'application/json',
@@ -63,7 +64,7 @@ const Profile = () => {
                 }
 
                 // Fetch recent activities/requests
-                const activitiesResponse = await fetch(`http://heron:4000/api/requests?limit=7`, {
+                const activitiesResponse = await fetch(getApiUrl('/requests?limit=7'), {
                     headers: {
                         Authorization: `Bearer ${token}`,
                         'x-user-id': currentUser.id.toString(),
@@ -125,6 +126,12 @@ const Profile = () => {
 
     const getUserRoles = () => {
         if (!user?.roles || user.roles.length === 0) return 'User';
+
+        // If user is admin, show only Administrator
+        if (user.roles.includes('ADMIN') || user.roles.includes('ADMINISTRATOR')) {
+            return 'Administrator';
+        }
+
         const roleLabels: Record<string, string> = {
             PROCUREMENT_MANAGER: 'Procurement Manager',
             PROCUREMENT_OFFICER: 'Procurement Officer',

@@ -109,7 +109,7 @@ export default function ReviewIdeas() {
             try {
                 const response = await fetchIdeas(active === 'popular' ? { sort: 'popularity', limit: 100 } : { status: active, limit: 100 });
                 // Handle both paginated and legacy response formats
-                const data = response.ideas || response;
+                const data = Array.isArray(response) ? response : (response as any).ideas || response;
                 if (!cancelled) {
                     setIdeas(data);
                     setTotalCount(data.length);

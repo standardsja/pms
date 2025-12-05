@@ -4,6 +4,7 @@ import { setPageTitle } from '../../../store/themeConfigSlice';
 import { useDispatch, useSelector } from 'react-redux';
 import { IRootState } from '../../../store';
 import { getToken, getUser } from '../../../utils/auth';
+import { getApiUrl } from '../../../config/api';
 import Swal from 'sweetalert2';
 import IconHome from '../../../components/Icon/IconHome';
 import IconDollarSignCircle from '../../../components/Icon/IconDollarSignCircle';
@@ -55,7 +56,7 @@ const AccountSetting = () => {
                 }
 
                 // Fetch user profile from API
-                const response = await fetch(`http://heron:4000/api/auth/me`, {
+                const response = await fetch(getApiUrl('/auth/me'), {
                     headers: {
                         Authorization: `Bearer ${token}`,
                         'Content-Type': 'application/json',

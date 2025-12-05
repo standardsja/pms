@@ -17,6 +17,7 @@ export interface AuthenticatedRequest extends Request {
 /**
  * Middleware to check if user has at least one of the required roles
  * @param allowedRoles Array of role names that can access the route
+ * NOTE: Admin users automatically pass all role checks
  */
 export function requireRole(...allowedRoles: string[]) {
     return (req: Request, res: Response, next: NextFunction) => {
@@ -31,6 +32,13 @@ export function requireRole(...allowedRoles: string[]) {
         }
 
         const userRoles = user.roles || [];
+
+        // Admin users automatically have all roles
+        const isAdmin = userRoles.some((role) => role.toUpperCase() === 'ADMIN' || role.toUpperCase() === 'ADMINISTRATOR');
+        if (isAdmin) {
+            return next();
+        }
+
         const hasRole = allowedRoles.some((role) => userRoles.some((userRole) => userRole.toUpperCase() === role.toUpperCase()));
 
         if (!hasRole) {
@@ -48,6 +56,7 @@ export function requireRole(...allowedRoles: string[]) {
 
 /**
  * Middleware to check if user has ALL of the required roles
+ * NOTE: Admin users automatically pass all role checks
  */
 export function requireAllRoles(...requiredRoles: string[]) {
     return (req: Request, res: Response, next: NextFunction) => {
@@ -62,6 +71,13 @@ export function requireAllRoles(...requiredRoles: string[]) {
         }
 
         const userRoles = user.roles || [];
+
+        // Admin users automatically have all roles
+        const isAdmin = userRoles.some((role) => role.toUpperCase() === 'ADMIN' || role.toUpperCase() === 'ADMINISTRATOR');
+        if (isAdmin) {
+            return next();
+        }
+
         const hasAllRoles = requiredRoles.every((role) => userRoles.some((userRole) => userRole.toUpperCase() === role.toUpperCase()));
 
         if (!hasAllRoles) {

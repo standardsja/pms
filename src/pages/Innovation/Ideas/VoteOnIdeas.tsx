@@ -57,10 +57,10 @@ const VoteOnIdeas = () => {
                 });
 
                 // Handle both paginated and legacy response formats
-                const apiIdeas = response.ideas || response;
+                const apiIdeas = Array.isArray(response) ? response : (response as any).ideas || response;
 
                 setIdeas(
-                    apiIdeas.map((idea) => ({
+                    apiIdeas.map((idea: any) => ({
                         id: String(idea.id),
                         title: idea.title,
                         description: idea.description,

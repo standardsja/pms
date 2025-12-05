@@ -72,7 +72,7 @@ const ViewIdeas = () => {
                     limit: 50,
                 });
                 // Handle both paginated and legacy response formats
-                const apiIdeas = response.ideas || response;
+                const apiIdeas = Array.isArray(response) ? response : (response as any).ideas || response;
                 if (active) setIdeas(mapIdeas(apiIdeas));
             } catch (error) {
                 console.error('[ViewIdeas] Error loading ideas:', error);

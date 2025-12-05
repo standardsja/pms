@@ -161,6 +161,13 @@ enum LoadBalancingStrategy {
   RANDOM
 }
 
+enum RoleRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
 /**
  * ===== Models =====
  */
@@ -203,6 +210,10 @@ model User {
   sentMessages     Message[] @relation("MessagesSent")
   receivedMessages Message[] @relation("MessagesReceived")
   
+  // Role request relations
+  submittedRoleRequests RoleRequest[] @relation("RoleRequestSubmittedBy")
+  approvedRoleRequests  RoleRequest[] @relation("RoleRequestApprovedBy")
+  
   // Procurement Evaluation relations
   createdEvaluations   Evaluation[] @relation("EvaluationCreator")
   validatedEvaluations Evaluation[] @relation("EvaluationValidator")
@@ -226,8 +237,9 @@ model Department {
   manager   User? @relation("departmentManager", fields: [managerId], references: [id], onDelete: SetNull)
   managerId Int?  @unique // <-- make the FK unique
 
-  users    User[]    @relation("userDepartment")
-  requests Request[]
+  users        User[]         @relation("userDepartment")
+  requests     Request[]
+  roleRequests RoleRequest[]
 }
 
 model Role {
@@ -847,4 +859,30 @@ model RequestAssignmentLog {
 
   @@index([requestId])
   @@index([officerId])
+}
+
+/// Role request model for tracking user role assignment requests
+/// Users request access to modules like Procurement, admins approve/reject
+model RoleRequest {
+  id           Int               @id @default(autoincrement())
+  user         User              @relation("RoleRequestSubmittedBy", fields: [userId], references: [id])
+  userId       Int
+  department   Department?       @relation(fields: [departmentId], references: [id])
+  departmentId Int?
+  role         String            // Role name: PROCUREMENT_OFFICER, PROCUREMENT_MANAGER, etc.
+  module       String            // Module name: procurement, budgeting, etc.
+  status       RoleRequestStatus @default(PENDING)
+  reason       String?           @db.Text // Why they need this role
+  notes        String?           @db.Text // Admin notes on decision
+  approvedBy   User?             @relation("RoleRequestApprovedBy", fields: [approvedById], references: [id])
+  approvedById Int?
+  approvedAt   DateTime?
+  rejectedAt   DateTime?
+  expiresAt    DateTime? // Optional: when the approved role expires
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
 }

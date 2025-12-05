@@ -53,6 +53,13 @@ const AdminSettings = () => {
     const [usersLoading, setUsersLoading] = useState(false);
     const [usersError, setUsersError] = useState<string | null>(null);
 
+    const [allRoles, setAllRoles] = useState<Array<{ id: number; name: string; description?: string }>>([]);
+    const [rolesLoading, setRolesLoading] = useState(false);
+    const [rolesError, setRolesError] = useState<string | null>(null);
+
+    const [allDepartments, setAllDepartments] = useState<Array<{ id: number; name: string; code: string }>>([]);
+    const [departmentsLoading, setDepartmentsLoading] = useState(false);
+
     const [deptName, setDeptName] = useState('');
     const [deptCode, setDeptCode] = useState('');
     const [deptManagerId, setDeptManagerId] = useState<number | ''>('');
@@ -84,9 +91,46 @@ const AdminSettings = () => {
         }
     }
 
+    // Fetch all available roles
+    async function loadRoles() {
+        setRolesLoading(true);
+        setRolesError(null);
+        try {
+            const roles = await adminService.getAllRoles();
+            setAllRoles(roles);
+        } catch (e: any) {
+            console.warn('Failed to fetch roles from API, using fallback:', e?.message);
+            // Use fallback roles if API fails
+            setAllRoles(
+                ADMIN_ROLE_NAMES.map((name) => ({
+                    id: Math.random(), // Temporary ID for fallback
+                    name,
+                }))
+            );
+            setRolesError(null); // Don't show error if we have fallback
+        } finally {
+            setRolesLoading(false);
+        }
+    }
+
+    // Fetch all available departments
+    async function loadDepartments() {
+        setDepartmentsLoading(true);
+        try {
+            const depts = await fetch(getApiUrl('/api/departments')).then((r) => r.json());
+            setAllDepartments(depts);
+        } catch (e: any) {
+            console.warn('Failed to fetch departments:', e?.message);
+        } finally {
+            setDepartmentsLoading(false);
+        }
+    }
+
     useEffect(() => {
         if (activeTab === 'users' || activeTab === 'departments') {
             loadUsers();
+            loadRoles();
+            loadDepartments();
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeTab]);
@@ -318,7 +362,7 @@ const AdminSettings = () => {
                                 </thead>
                                 <tbody>
                                     {flatUsers.map((u) => (
-                                        <UserRow key={u.id} user={u} onSave={handleSaveRoles} />
+                                        <UserRow key={u.id} user={u} availableRoles={allRoles} availableDepartments={allDepartments} onSave={handleSaveRoles} />
                                     ))}
                                 </tbody>
                             </table>
@@ -893,9 +937,22 @@ function ReassignRequestsTab() {
 // Local sub-component: editable user row with role checkboxes
 type FlatUser = { id: number; email: string; name: string; dept: string; roles: string[] };
 
-function UserRow({ user, onSave }: { user: FlatUser; onSave: (userId: number, roles: string[]) => void }) {
+function UserRow({
+    user,
+    availableRoles,
+    availableDepartments,
+    onSave,
+}: {
+    user: FlatUser;
+    availableRoles: Array<{ id: number; name: string; description?: string }>;
+    availableDepartments: Array<{ id: number; name: string; code: string }>;
+    onSave: (userId: number, roles: string[]) => void;
+}) {
     const [localRoles, setLocalRoles] = useState<string[]>(user.roles);
+    const [localDeptId, setLocalDeptId] = useState<string>(user.dept ? String(user.dept) : '');
     const [saving, setSaving] = useState(false);
+    const [savingDept, setSavingDept] = useState(false);
+
     const changed = useMemo(() => {
         const a = [...localRoles].sort().join(',');
         const b = [...user.roles].sort().join(',');
@@ -915,17 +972,46 @@ function UserRow({ user, onSave }: { user: FlatUser; onSave: (userId: number, ro
         }
     }
 
+    async function handleSaveDept() {
+        setSavingDept(true);
+        try {
+            const deptId = localDeptId ? Number(localDeptId) : null;
+            await adminService.updateUserDepartment(user.id, deptId);
+            // Reload users to reflect changes
+            window.location.reload();
+        } catch (e: any) {
+            console.error('Failed to update department:', e);
+            alert('Failed to update department');
+        } finally {
+            setSavingDept(false);
+        }
+    }
+
     return (
         <tr>
             <td className="font-mono">{user.email}</td>
             <td>{user.name}</td>
-            <td>{user.dept}</td>
+            <td>
+                <select className="form-select text-xs" value={localDeptId} onChange={(e) => setLocalDeptId(e.target.value)} disabled={savingDept}>
+                    <option value="">No Department</option>
+                    {availableDepartments.map((dept) => (
+                        <option key={dept.id} value={dept.id}>
+                            {dept.name} ({dept.code})
+                        </option>
+                    ))}
+                </select>
+                {user.dept && localDeptId !== String(user.dept) && (
+                    <button className="btn btn-sm btn-warning ml-2" onClick={handleSaveDept} disabled={savingDept}>
+                        {savingDept ? 'Saving…' : 'Save Dept'}
+                    </button>
+                )}
+            </td>
             <td>
                 <div className="flex flex-wrap gap-2">
-                    {ADMIN_ROLE_NAMES.map((r) => (
-                        <label key={r} className="inline-flex items-center gap-1">
-                            <input type="checkbox" className="form-checkbox" checked={localRoles.includes(r)} onChange={() => toggleRole(r)} />
-                            <span className="text-xs">{r}</span>
+                    {availableRoles.map((role) => (
+                        <label key={role.name} className="inline-flex items-center gap-1 whitespace-nowrap" title={role.description || ''}>
+                            <input type="checkbox" className="form-checkbox" checked={localRoles.includes(role.name)} onChange={() => toggleRole(role.name)} />
+                            <span className="text-xs">{role.name}</span>
                         </label>
                     ))}
                 </div>
