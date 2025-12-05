@@ -1911,6 +1911,9 @@ app.get('/requests', async (_req, res) => {
                 procurementType: true,
                 createdAt: true,
                 updatedAt: true,
+                isCombined: true,
+                combinedRequestId: true,
+                lotNumber: true,
                 requester: { select: { id: true, name: true, email: true } },
                 department: { select: { id: true, name: true, code: true } },
                 currentAssignee: { select: { id: true, name: true, email: true } },
@@ -1944,6 +1947,9 @@ app.get('/requests', async (_req, res) => {
                             procurementType: true,
                             createdAt: true,
                             updatedAt: true,
+                            isCombined: true,
+                            combinedRequestId: true,
+                            lotNumber: true,
                             requester: { select: { id: true, name: true, email: true } },
                             department: { select: { id: true, name: true, code: true } },
                             currentAssignee: { select: { id: true, name: true, email: true } },
@@ -2538,7 +2544,7 @@ app.post('/requests/:id/submit', async (req, res) => {
         try {
             // Check if splintering detection is enabled in load balancing settings
             const lbSettings = await prisma.loadBalancingSettings.findFirst();
-            const splinteringEnabled = (lbSettings as any)?.splinteringEnabled ?? false;
+            const splinteringEnabled = lbSettings?.splinteringEnabled ?? false;
 
             if (splinteringEnabled) {
                 const windowDays = Number(process.env.SPLINTER_WINDOW_DAYS || 30);
@@ -2599,7 +2605,7 @@ app.post('/requests/:id/submit', async (req, res) => {
                     try {
                         await prisma.notification.create({
                             data: {
-                                userId: actingUser.id,
+                                user: { connect: { id: actingUser.id } },
                                 type: 'THRESHOLD_EXCEEDED',
                                 message: `⚠️ Splintering override: ${actingUser.name} (${actingUser.email}) bypassed splintering warning for request ${request.reference || request.id}`,
                                 data: {
@@ -2618,7 +2624,22 @@ app.post('/requests/:id/submit', async (req, res) => {
                             },
                         });
 
-                        // Splintering override logged in notification for audit trail
+                        // Also log to status history for permanent audit trail
+                        await prisma.request.update({
+                            where: { id: request.id },
+                            data: {
+                                statusHistory: {
+                                    create: {
+                                        status: 'DRAFT', // Still draft at this point
+                                        changedById: actingUser.id,
+                                        comment: `Manager override: Splintering warning bypassed. Combined value: ${spl.combined.toFixed(2)} JMD (threshold: ${spl.threshold} JMD, window: ${
+                                            spl.windowDays
+                                        } days)`,
+                                    },
+                                },
+                            },
+                        });
+
                         console.log(`[Audit] Splintering override by ${actingUser.name} (ID ${actingUser.id}) for request ${request.id}`);
                     } catch (auditErr) {
                         console.error('Failed to create splintering override audit log:', auditErr);
@@ -2846,7 +2867,7 @@ app.post('/requests/:id/action', async (req, res) => {
                 })();
                 const requestCurrency = request.currency || 'JMD';
 
-                const thresholdResult = checkProcurementThresholds(Number(totalValue), procurementTypes, requestCurrency);
+                const thresholdResult = checkProcurementThresholds(Number(totalValue || 0), procurementTypes, requestCurrency);
 
                 if (thresholdResult.requiresExecutiveApproval) {
                     // High-value request -> send to Executive Director for evaluation
@@ -2949,7 +2970,7 @@ app.post('/requests/:id/action', async (req, res) => {
                     await prisma.notification.create({
                         data: {
                             userId: Number(updated.currentAssigneeId),
-                            type: 'THRESHOLD_EXCEEDED',
+                            type: 'STAGE_CHANGED',
                             message: `High-value request ${updated.reference || updated.id} requires your evaluation`,
                             data: {
                                 requestId: updated.id,
@@ -3198,10 +3219,10 @@ app.post('/admin/requests/:id/override-splinter', requireAdmin, async (req, res)
         try {
             await prisma.notification.create({
                 data: {
-                    userId: parseInt(String(adminUserId), 10),
+                    user: { connect: { id: parseInt(String(adminUserId), 10) } },
                     type: 'THRESHOLD_EXCEEDED',
                     message: `Admin override applied to request ${updated.reference || updated.id} by user ${adminUserId}`,
-                    data: { requestId: updated.id, overriddenBy: adminUserId },
+                    data: { requestId: updated.id, overriddenBy: parseInt(String(adminUserId), 10) },
                 },
             });
         } catch (notifErr) {
@@ -3420,7 +3441,7 @@ app.post('/procurement/load-balancing-settings', async (req, res) => {
             prisma,
             {
                 enabled: enabled !== undefined ? enabled : undefined,
-                strategy: strategy as any,
+                strategy: strategy as 'LEAST_LOADED' | 'ROUND_ROBIN' | 'RANDOM' | undefined,
                 autoAssignOnApproval: autoAssignOnApproval !== undefined ? autoAssignOnApproval : undefined,
                 splinteringEnabled: splinteringEnabled !== undefined ? splinteringEnabled : undefined,
             },
@@ -3500,6 +3521,9 @@ app.get('/api/requests', async (_req, res) => {
                 status: true,
                 createdAt: true,
                 updatedAt: true,
+                isCombined: true,
+                combinedRequestId: true,
+                lotNumber: true,
                 requester: { select: { id: true, name: true, email: true } },
                 department: { select: { id: true, name: true, code: true } },
             },
@@ -3524,6 +3548,9 @@ app.get('/api/requests', async (_req, res) => {
                             status: true,
                             createdAt: true,
                             updatedAt: true,
+                            isCombined: true,
+                            combinedRequestId: true,
+                            lotNumber: true,
                             requester: { select: { id: true, name: true, email: true } },
                             department: { select: { id: true, name: true, code: true } },
                         },
@@ -5031,7 +5058,7 @@ app.patch(
                                   return [];
                               }
                           })();
-                    authorized = secs.map((s: any) => String(s).toUpperCase()).includes(sectionUpper);
+                    authorized = secs.map((s: string) => String(s).toUpperCase()).includes(sectionUpper);
                 } catch {
                     authorized = false;
                 }
