@@ -398,10 +398,17 @@ const AdminSettings = () => {
             {activeTab === 'users' && (
                 <div className="panel">
                     <div className="mb-4 flex items-center justify-between">
-                        <h5 className="text-lg font-semibold">Users</h5>
-                        <button type="button" className="btn btn-outline-primary" onClick={loadUsers} disabled={usersLoading}>
-                            Refresh
-                        </button>
+                        <div className="flex items-center gap-4">
+                            <h5 className="text-lg font-semibold">Users</h5>
+                            <button type="button" className="btn btn-sm btn-outline-primary" onClick={() => setActiveTab('reassign')}>
+                                Reassign Requests
+                            </button>
+                        </div>
+                        <div>
+                            <button type="button" className="btn btn-outline-primary mr-2" onClick={loadUsers} disabled={usersLoading}>
+                                Refresh
+                            </button>
+                        </div>
                     </div>
                     {usersError && <div className="mb-4 rounded border border-danger bg-danger-light p-3 text-danger">{usersError}</div>}
                     {usersLoading ? (
@@ -884,7 +891,7 @@ function ReassignRequestsTab() {
     const [loading, setLoading] = useState(false);
     const [selectedRequest, setSelectedRequest] = useState<number | null>(null);
     const [selectedStatus, setSelectedStatus] = useState<string>('');
-    const [reassigning, setReassigning] = useState<number | null>(null);
+    const [reassigning, setReassigning] = useState<{ requestId: number; userId: number | null } | null>(null);
 
     useEffect(() => {
         loadData();
@@ -906,6 +913,7 @@ function ReassignRequestsTab() {
     async function reassignRequest(requestId: number, assigneeId: number | null) {
         setReassigning(requestId);
         try {
+            setReassigning({ requestId, userId: assigneeId });
             await adminService.reassignRequest(requestId, { assigneeId, comment: 'Manually reassigned by admin', newStatus: selectedStatus || undefined });
             await loadData();
             alert('Request reassigned successfully!');
