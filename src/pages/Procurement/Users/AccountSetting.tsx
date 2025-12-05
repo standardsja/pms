@@ -264,6 +264,29 @@ const AccountSetting = () => {
                 const data = await response.json();
                 setProfileImage(data.profileImage);
                 setUseProfileImage(true);
+
+                // Dispatch custom event so Header component can update
+                window.dispatchEvent(new CustomEvent('profileImageUpdated', { detail: { profileImage: data.profileImage } }));
+
+                // Refetch full profile to ensure persistence
+                setTimeout(async () => {
+                    try {
+                        const token = getToken();
+                        const response = await fetch(getApiUrl('/api/auth/me'), {
+                            headers: {
+                                Authorization: `Bearer ${token}`,
+                                'Content-Type': 'application/json',
+                            },
+                        });
+                        if (response.ok) {
+                            const updatedData = await response.json();
+                            setProfileImage(updatedData.profileImage || '');
+                        }
+                    } catch (error) {
+                        console.error('Error refetching profile:', error);
+                    }
+                }, 500);
+
                 Swal.fire({
                     icon: 'success',
                     title: 'Upload Successful',

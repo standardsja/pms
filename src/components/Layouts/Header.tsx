@@ -34,7 +34,8 @@ import IconMenuForms from '../Icon/Menu/IconMenuForms';
 import IconMenuPages from '../Icon/Menu/IconMenuPages';
 import IconMenuMore from '../Icon/Menu/IconMenuMore';
 import IconRefresh from '../Icon/IconRefresh';
-import { getUser, clearAuth } from '../../utils/auth';
+import { getUser, clearAuth, getToken } from '../../utils/auth';
+import { getApiUrl } from '../../config/api';
 import { heartbeatService } from '../../services/heartbeatService';
 import { fetchNotifications, deleteNotification, Notification } from '../../services/notificationApi';
 import { fetchMessages, deleteMessage, Message } from '../../services/messageApi';
@@ -47,6 +48,55 @@ const Header = () => {
     // Current user & role derivations (align with Sidebar logic)
     const currentUser = getUser();
     const userRoles = currentUser?.roles || (currentUser?.role ? [currentUser.role] : []);
+    
+    // Profile image state
+    const [profileImage, setProfileImage] = useState<string>('');
+
+    // Fetch profile image on mount and listen for updates
+    useEffect(() => {
+        const fetchProfileImage = async () => {
+            try {
+                const token = getToken();
+                if (!token) return;
+                
+                const response = await fetch(getApiUrl('/api/auth/me'), {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.profileImage) {
+                        setProfileImage(data.profileImage);
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching profile image:', error);
+            }
+        };
+
+        fetchProfileImage();
+
+        // Listen for profile image updates from AccountSetting
+        const handleProfileImageUpdated = (event: any) => {
+            const { profileImage: newImage } = event.detail;
+            setProfileImage(newImage);
+        };
+
+        window.addEventListener('profileImageUpdated', handleProfileImageUpdated);
+        return () => window.removeEventListener('profileImageUpdated', handleProfileImageUpdated);
+    }, []);
+
+    const getImageUrl = (imagePath: string): string => {
+        if (!imagePath) return '/assets/images/user-profile.jpeg';
+        if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+            return imagePath;
+        }
+        return getApiUrl(imagePath);
+    };
+
     const isAdmin = userRoles.includes('ADMIN') || userRoles.includes('ADMINISTRATOR');
     const isCommitteeMember = userRoles.includes('INNOVATION_COMMITTEE');
     const isProcurementManager = userRoles.includes('PROCUREMENT_MANAGER') || userRoles.includes('MANAGER') || userRoles.some((r: string) => r && r.toUpperCase().includes('MANAGER'));
@@ -607,7 +657,7 @@ const Header = () => {
                                 offset={[0, 8]}
                                 placement={`${isRtl ? 'bottom-start' : 'bottom-end'}`}
                                 btnClassName="relative group block"
-                                button={<img className="w-9 h-9 rounded-full object-cover saturate-50 group-hover:saturate-100" src="/assets/images/user-profile.jpeg" alt="userProfile" />}
+                                button={<img className="w-9 h-9 rounded-full object-cover saturate-50 group-hover:saturate-100" src={getImageUrl(profileImage)} alt="userProfile" />}
                             >
                                 <ul className="text-dark dark:text-white-dark !py-0 w-[230px] font-semibold dark:text-white-light/90">
                                     <li>
