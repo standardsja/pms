@@ -2424,6 +2424,33 @@ app.patch('/requests/:id', async (req, res) => {
             return res.status(400).json({ message: 'Invalid numeric field in update' });
         }
 
+        // Coerce numeric fields sent as strings (e.g. headerSequence '005') to integers
+        try {
+            if ('headerSequence' in cleanUpdates) {
+                const v = cleanUpdates.headerSequence;
+                cleanUpdates.headerSequence = v === '' || v === null ? null : parseInt(String(v), 10);
+                if (cleanUpdates.headerSequence !== null && Number.isNaN(cleanUpdates.headerSequence)) {
+                    return res.status(400).json({ message: 'Invalid headerSequence; expected integer or null' });
+                }
+            }
+            if ('headerYear' in cleanUpdates) {
+                const v = cleanUpdates.headerYear;
+                cleanUpdates.headerYear = v === '' || v === null ? null : parseInt(String(v), 10);
+                if (cleanUpdates.headerYear !== null && Number.isNaN(cleanUpdates.headerYear)) {
+                    return res.status(400).json({ message: 'Invalid headerYear; expected integer or null' });
+                }
+            }
+            if ('lotNumber' in cleanUpdates) {
+                const v = cleanUpdates.lotNumber;
+                cleanUpdates.lotNumber = v === '' || v === null ? null : parseInt(String(v), 10);
+                if (cleanUpdates.lotNumber !== null && Number.isNaN(cleanUpdates.lotNumber)) {
+                    return res.status(400).json({ message: 'Invalid lotNumber; expected integer or null' });
+                }
+            }
+        } catch (e) {
+            return res.status(400).json({ message: 'Invalid numeric field in update' });
+        }
+
         const updated = await prisma.request.update({
             where: { id: parseInt(id, 10) },
             data: cleanUpdates,
