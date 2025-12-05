@@ -3807,7 +3807,7 @@ app.post('/api/admin/users/:userId/department', async (req, res) => {
                 id: updated.id,
                 email: updated.email,
                 name: updated.name,
-                roles: updated.roles.map((r) => r.role.name),
+                roles: (updated.roles || []).map((r) => ({ role: r.role })),
                 department: updated.department
                     ? {
                           id: updated.department.id,
@@ -3839,7 +3839,8 @@ app.get('/api/admin/users', async (req, res) => {
             email: u.email,
             name: u.name,
             department: u.department?.name || null,
-            roles: u.roles.map((r) => r.role.name),
+            // Return roles in the shape expected by the admin UI: array of objects with `role` property
+            roles: (u.roles || []).map((r) => ({ role: r.role })),
         }));
 
         res.json(formatted);
@@ -3926,7 +3927,7 @@ app.post('/api/admin/users/:userId/roles', async (req, res) => {
                       id: updatedUser.id,
                       email: updatedUser.email,
                       name: updatedUser.name,
-                      roles: updatedUser.roles.map((r) => r.role.name),
+                      roles: (updatedUser.roles || []).map((r) => ({ role: r.role })),
                       department: updatedUser.department
                           ? {
                                 id: updatedUser.department.id,
