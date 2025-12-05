@@ -29,6 +29,7 @@ const Profile = () => {
     const [profileData, setProfileData] = useState<any>(null);
     const [recentActivities, setRecentActivities] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [uploadingPhoto, setUploadingPhoto] = useState(false);
     const [stats, setStats] = useState<any>({
         evaluationsCompleted: 0,
         approvalsProcessed: 0,
@@ -51,7 +52,7 @@ const Profile = () => {
                 }
 
                 // Fetch user profile details from auth endpoint
-                const meResponse = await fetch(getApiUrl('/auth/me'), {
+                const meResponse = await fetch(getApiUrl('/api/auth/me'), {
                     headers: {
                         Authorization: `Bearer ${token}`,
                         'Content-Type': 'application/json',
@@ -96,6 +97,72 @@ const Profile = () => {
 
         fetchProfileData();
     }, [user]);
+
+    const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        // Validate file type
+        if (!file.type.startsWith('image/')) {
+            alert('Please select an image file');
+            return;
+        }
+
+        // Validate file size (5MB max)
+        if (file.size > 5 * 1024 * 1024) {
+            alert('Image size must be less than 5MB');
+            return;
+        }
+
+        setUploadingPhoto(true);
+
+        try {
+            const token = getToken();
+            const currentUser = getUser();
+
+            if (!token || !currentUser) {
+                throw new Error('Not authenticated');
+            }
+
+            const formData = new FormData();
+            formData.append('photo', file);
+
+            const response = await fetch(getApiUrl('/api/auth/upload-photo'), {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'x-user-id': currentUser.id.toString(),
+                },
+                body: formData,
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.message || 'Failed to upload photo');
+            }
+
+            const data = await response.json();
+            
+            // Update profile data with new photo (add timestamp to bust cache)
+            const newProfileImage = `${data.profileImage}?t=${Date.now()}`;
+            setProfileData((prev: any) => ({
+                ...prev,
+                profileImage: newProfileImage,
+            }));
+
+            // Trigger a custom event to notify Header component
+            window.dispatchEvent(new CustomEvent('profilePhotoUpdated', { 
+                detail: { profileImage: newProfileImage } 
+            }));
+
+            alert('Profile photo updated successfully!');
+        } catch (error: any) {
+            console.error('Error uploading photo:', error);
+            alert(error.message || 'Failed to upload photo');
+        } finally {
+            setUploadingPhoto(false);
+        }
+    };
 
     const formatDate = (date: string) => {
         const now = new Date();
@@ -191,7 +258,38 @@ const Profile = () => {
                         </div>
                         <div className="mb-5">
                             <div className="flex flex-col justify-center items-center">
-                                <img src="/assets/images/user-profile.jpeg" alt="profile" className="w-24 h-24 rounded-full object-cover mb-5 ring-2 ring-primary/20" />
+                                <div className="relative group">
+                                    <img 
+                                        src={
+                                            displayUser?.profileImage 
+                                                ? displayUser.profileImage.startsWith('http') 
+                                                    ? displayUser.profileImage 
+                                                    : getApiUrl(displayUser.profileImage)
+                                                : '/assets/images/user-profile.jpeg'
+                                        } 
+                                        alt="profile" 
+                                        className="w-24 h-24 rounded-full object-cover mb-5 ring-2 ring-primary/20" 
+                                    />
+                                    <label 
+                                        htmlFor="photo-upload" 
+                                        className="absolute bottom-5 right-0 bg-primary text-white p-2 rounded-full cursor-pointer hover:bg-primary-dark transition opacity-0 group-hover:opacity-100"
+                                        title="Upload photo"
+                                    >
+                                        {uploadingPhoto ? (
+                                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                                        ) : (
+                                            <IconPencilPaper className="w-4 h-4" />
+                                        )}
+                                    </label>
+                                    <input 
+                                        id="photo-upload" 
+                                        type="file" 
+                                        accept="image/*" 
+                                        onChange={handlePhotoUpload} 
+                                        className="hidden" 
+                                        disabled={uploadingPhoto}
+                                    />
+                                </div>
                                 <p className="font-semibold text-primary text-xl">{userName}</p>
                                 <p className="text-sm text-white-dark mt-1">{getUserRoles()}</p>
                             </div>

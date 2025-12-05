@@ -38,6 +38,7 @@ import { getUser, clearAuth } from '../../utils/auth';
 import { heartbeatService } from '../../services/heartbeatService';
 import { fetchNotifications, deleteNotification, Notification } from '../../services/notificationApi';
 import { fetchMessages, deleteMessage, Message } from '../../services/messageApi';
+import { getApiUrl } from '../../config/api';
 
 const Header = () => {
     const location = useLocation();
@@ -46,6 +47,7 @@ const Header = () => {
 
     // Current user & role derivations (align with Sidebar logic)
     const currentUser = getUser();
+    const [profileImage, setProfileImage] = useState<string | null>(null);
     const userRoles = currentUser?.roles || (currentUser?.role ? [currentUser.role] : []);
     const isCommitteeMember = userRoles.includes('INNOVATION_COMMITTEE');
     const isProcurementManager = userRoles.includes('PROCUREMENT_MANAGER') || userRoles.includes('MANAGER') || userRoles.some((r: string) => r && r.toUpperCase().includes('MANAGER'));
@@ -152,6 +154,40 @@ const Header = () => {
         loadNotifications();
         loadMessages();
 
+        // Fetch user profile image
+        const loadProfileImage = async () => {
+            try {
+                const token = localStorage.getItem('token');
+                if (!token || !currentUser) return;
+
+                const response = await fetch(getApiUrl('/api/auth/me'), {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.profileImage) {
+                        setProfileImage(data.profileImage);
+                    }
+                }
+            } catch (error) {
+                // Silently fail
+            }
+        };
+
+        loadProfileImage();
+
+        // Listen for profile photo updates
+        const handleProfilePhotoUpdate = (event: CustomEvent) => {
+            if (event.detail?.profileImage) {
+                setProfileImage(event.detail.profileImage);
+            }
+        };
+
+        window.addEventListener('profilePhotoUpdated', handleProfilePhotoUpdate as EventListener);
+
         // Poll for new data every 60 seconds
         const pollInterval = setInterval(() => {
             if (document.visibilityState === 'visible') {
@@ -172,6 +208,7 @@ const Header = () => {
         return () => {
             clearInterval(pollInterval);
             document.removeEventListener('visibilitychange', handleVisibilityChange);
+            window.removeEventListener('profilePhotoUpdated', handleProfilePhotoUpdate as EventListener);
         };
     }, []);
     const removeNotification = async (id: number) => {
@@ -594,12 +631,34 @@ const Header = () => {
                                 offset={[0, 8]}
                                 placement={`${isRtl ? 'bottom-start' : 'bottom-end'}`}
                                 btnClassName="relative group block"
-                                button={<img className="w-9 h-9 rounded-full object-cover saturate-50 group-hover:saturate-100" src="/assets/images/user-profile.jpeg" alt="userProfile" />}
+                                button={
+                                    <img 
+                                        className="w-9 h-9 rounded-full object-cover saturate-50 group-hover:saturate-100" 
+                                        src={
+                                            profileImage 
+                                                ? profileImage.startsWith('http') 
+                                                    ? profileImage 
+                                                    : getApiUrl(profileImage)
+                                                : '/assets/images/user-profile.jpeg'
+                                        } 
+                                        alt="userProfile" 
+                                    />
+                                }
                             >
                                 <ul className="text-dark dark:text-white-dark !py-0 w-[230px] font-semibold dark:text-white-light/90">
                                     <li>
                                         <div className="flex items-center px-4 py-4">
-                                            <img className="rounded-md w-10 h-10 object-cover" src="/assets/images/user-profile.jpeg" alt="userProfile" />
+                                            <img 
+                                                className="rounded-md w-10 h-10 object-cover" 
+                                                src={
+                                                    profileImage 
+                                                        ? profileImage.startsWith('http') 
+                                                            ? profileImage 
+                                                            : getApiUrl(profileImage)
+                                                        : '/assets/images/user-profile.jpeg'
+                                                } 
+                                                alt="userProfile" 
+                                            />
                                             <div className="ltr:pl-4 rtl:pr-4 truncate">
                                                 <h4 className="text-base">
                                                     {currentUser?.name || 'User'}

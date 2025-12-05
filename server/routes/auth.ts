@@ -12,15 +12,51 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import rateLimit from 'express-rate-limit';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 import { prisma } from '../prismaClient';
 import { config } from '../config/environment';
 import { logger } from '../config/logger';
 import { asyncHandler, BadRequestError, UnauthorizedError } from '../middleware/errorHandler';
+import { authMiddleware, AuthenticatedRequest } from '../middleware/auth';
 import { validate, loginSchema } from '../middleware/validation';
 import { ldapService } from '../services/ldapService';
 import { syncLDAPUserToDatabase, describeSyncResult } from '../services/ldapRoleSyncService';
 
 const router = Router();
+
+// Multer storage for profile photos
+const profilePhotoStorage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        const uploadDir = path.join(process.cwd(), 'uploads', 'profiles');
+        if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+        }
+        cb(null, uploadDir);
+    },
+    filename: (req, file, cb) => {
+        // Get user ID from authenticated request (set by authMiddleware)
+        const authenticatedReq = req as AuthenticatedRequest;
+        const userId = authenticatedReq.user?.sub || 'unknown';
+        const ext = path.extname(file.originalname);
+        cb(null, `user-${userId}-${Date.now()}${ext}`);
+    },
+});
+
+const uploadProfilePhoto = multer({
+    storage: profilePhotoStorage,
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max
+    fileFilter: (req, file, cb) => {
+        const allowedTypes = /jpeg|jpg|png|gif|webp/;
+        const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+        const mimetype = allowedTypes.test(file.mimetype);
+        if (mimetype && extname) {
+            return cb(null, true);
+        }
+        cb(new Error('Only image files are allowed (jpeg, jpg, png, gif, webp)'));
+    },
+});
 
 // Rate limiting for auth endpoints
 const authLimiter = rateLimit({
@@ -316,11 +352,13 @@ router.post(
 // Get current user profile
 router.get(
     '/me',
+    authMiddleware,
     asyncHandler(async (req, res) => {
-        const payload = (req as any).user as { sub: number };
+        const authenticatedReq = req as AuthenticatedRequest;
+        const userId = authenticatedReq.user.sub;
 
         const user = await prisma.user.findUnique({
-            where: { id: payload.sub },
+            where: { id: userId },
             include: {
                 roles: {
                     include: {
@@ -349,6 +387,53 @@ router.get(
                       code: user.department.code,
                   }
                 : null,
+            profileImage: user.profileImage,
+        });
+    })
+);
+
+// Upload profile photo
+router.post(
+    '/upload-photo',
+    authMiddleware,
+    uploadProfilePhoto.single('photo'),
+    asyncHandler(async (req, res) => {
+        const authenticatedReq = req as AuthenticatedRequest;
+        const userId = authenticatedReq.user.sub;
+
+        if (!req.file) {
+            throw new BadRequestError('No photo file provided');
+        }
+
+        // Delete old profile photo if it exists
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { profileImage: true },
+        });
+
+        if (user?.profileImage) {
+            const oldPhotoPath = path.join(process.cwd(), user.profileImage);
+            if (fs.existsSync(oldPhotoPath)) {
+                fs.unlinkSync(oldPhotoPath);
+            }
+        }
+
+        // Update user with new profile photo path
+        const relativePath = `/uploads/profiles/${req.file.filename}`;
+        const updatedUser = await prisma.user.update({
+            where: { id: userId },
+            data: { profileImage: relativePath },
+            select: { id: true, profileImage: true },
+        });
+
+        logger.info('Profile photo updated', {
+            userId: updatedUser.id,
+            photoPath: relativePath,
+        });
+
+        res.json({
+            success: true,
+            profileImage: updatedUser.profileImage,
         });
     })
 );
