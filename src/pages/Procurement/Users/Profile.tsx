@@ -61,7 +61,13 @@ const Profile = () => {
 
                 if (meResponse.ok) {
                     const data = await meResponse.json();
+                    // Add timestamp to profile image for cache busting
+                    if (data.profileImage) {
+                        data.profileImage = `${data.profileImage}?t=${Date.now()}`;
+                        console.log('[PROFILE] Loaded profileImage with timestamp:', data.profileImage);
+                    }
                     setProfileData(data);
+                    console.log('[PROFILE] Profile data set:', data);
                 }
 
                 // Fetch recent activities/requests
@@ -157,10 +163,27 @@ const Profile = () => {
                 })
             );
 
-            alert('Profile photo updated successfully!');
+            // Show success notification using Swal instead of alert
+            const Swal = (await import('sweetalert2')).default;
+            Swal.fire({
+                title: 'Success!',
+                text: 'Profile photo updated successfully',
+                icon: 'success',
+                timer: 2000,
+                showConfirmButton: false,
+                toast: true,
+                position: 'top-end',
+            });
         } catch (error: any) {
             console.error('Error uploading photo:', error);
-            alert(error.message || 'Failed to upload photo');
+            // Show error notification using Swal
+            const Swal = (await import('sweetalert2')).default;
+            Swal.fire({
+                title: 'Error!',
+                text: error.message || 'Failed to upload photo',
+                icon: 'error',
+                confirmButtonText: 'OK',
+            });
         } finally {
             setUploadingPhoto(false);
         }

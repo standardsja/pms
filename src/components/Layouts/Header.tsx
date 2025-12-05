@@ -34,7 +34,7 @@ import IconMenuForms from '../Icon/Menu/IconMenuForms';
 import IconMenuPages from '../Icon/Menu/IconMenuPages';
 import IconMenuMore from '../Icon/Menu/IconMenuMore';
 import IconRefresh from '../Icon/IconRefresh';
-import { getUser, clearAuth } from '../../utils/auth';
+import { getUser, getToken, clearAuth } from '../../utils/auth';
 import { heartbeatService } from '../../services/heartbeatService';
 import { fetchNotifications, deleteNotification, Notification } from '../../services/notificationApi';
 import { fetchMessages, deleteMessage, Message } from '../../services/messageApi';
@@ -151,15 +151,22 @@ const Header = () => {
 
     // Initial load and polling (60s interval, matching Innovation Hub pattern)
     useEffect(() => {
+        // Get fresh auth data on every effect run
+        const token = getToken();
+        const user = getUser();
+
+        if (!user || !token) {
+            console.log('[HEADER] No token or user, skipping profile image load');
+            return;
+        }
+
         loadNotifications();
         loadMessages();
 
         // Fetch user profile image
         const loadProfileImage = async () => {
             try {
-                const token = localStorage.getItem('token');
-                if (!token || !currentUser) return;
-
+                console.log('[HEADER] Fetching /api/auth/me for user:', user.id);
                 const response = await fetch(getApiUrl('/api/auth/me'), {
                     headers: {
                         Authorization: `Bearer ${token}`,
@@ -168,12 +175,20 @@ const Header = () => {
 
                 if (response.ok) {
                     const data = await response.json();
+                    console.log('[HEADER] /api/auth/me response:', data);
                     if (data.profileImage) {
-                        setProfileImage(data.profileImage);
+                        // Add timestamp to bust cache on every load
+                        const imageWithTimestamp = `${data.profileImage}?t=${Date.now()}`;
+                        console.log('[HEADER] Loaded profileImage with timestamp:', imageWithTimestamp);
+                        setProfileImage(imageWithTimestamp);
+                    } else {
+                        console.log('[HEADER] No profileImage in response');
                     }
+                } else {
+                    console.log('[HEADER] /api/auth/me failed:', response.status);
                 }
             } catch (error) {
-                // Silently fail
+                console.error('[HEADER] Error loading profile image:', error);
             }
         };
 
@@ -634,7 +649,13 @@ const Header = () => {
                                 button={
                                     <img
                                         className="w-9 h-9 rounded-full object-cover saturate-50 group-hover:saturate-100"
-                                        src={profileImage ? (profileImage.startsWith('http') ? profileImage : getApiUrl(profileImage)) : '/assets/images/user-profile.jpeg'}
+                                        src={
+                                            profileImage 
+                                                ? profileImage.startsWith('http') 
+                                                    ? profileImage 
+                                                    : getApiUrl(profileImage)
+                                                : '/assets/images/user-profile.jpeg'
+                                        }
                                         alt="userProfile"
                                     />
                                 }
@@ -644,7 +665,13 @@ const Header = () => {
                                         <div className="flex items-center px-4 py-4">
                                             <img
                                                 className="rounded-md w-10 h-10 object-cover"
-                                                src={profileImage ? (profileImage.startsWith('http') ? profileImage : getApiUrl(profileImage)) : '/assets/images/user-profile.jpeg'}
+                                                src={
+                                                    profileImage
+                                                        ? profileImage.startsWith('http')
+                                                            ? profileImage
+                                                            : getApiUrl(profileImage)
+                                                        : '/assets/images/user-profile.jpeg'
+                                                }
                                                 alt="userProfile"
                                             />
                                             <div className="ltr:pl-4 rtl:pr-4 truncate">
