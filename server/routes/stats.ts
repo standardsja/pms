@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '../prismaClient';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth';
-import { getSystemHealthMetrics } from '../services/monitoringService';
+import { getHealthStatus, getMetrics } from '../services/monitoringService';
 
 const router = Router();
 
@@ -337,7 +337,7 @@ router.get('/system', async (req: Request, res: Response) => {
         console.log(`[Stats] Pending approvals: ${pendingApprovals}`);
 
         // Get comprehensive health metrics from monitoring service
-        const healthMetrics = getSystemHealthMetrics();
+        const healthMetrics = getHealthStatus();
 
         // Total processed requests (all time)
         console.log('[Stats] Counting total processed requests...');
