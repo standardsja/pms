@@ -493,8 +493,8 @@ const RequestForm = () => {
                     // Header code fields
                     headerDeptCode,
                     headerMonth,
-                    headerYear,
-                    headerSequence,
+                    headerYear: headerYear ? Number(headerYear) : null,
+                    headerSequence: headerSequence ? Number(headerSequence) : null,
                     budgetOfficerApproved,
                     budgetManagerApproved,
                     procurementCaseNumber,
