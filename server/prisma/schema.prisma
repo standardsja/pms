@@ -170,6 +170,20 @@ model User {
   evaluationAssignments EvaluationAssignment[]
 }
 
+model RefreshToken {
+  id            Int      @id @default(autoincrement())
+  tokenHash     String   @unique
+  user          User     @relation(fields: [userId], references: [id])
+  userId        Int
+  revoked       Boolean  @default(false)
+  replacedById  Int?
+  replacedBy    RefreshToken? @relation("replacedBy", fields: [replacedById], references: [id])
+  createdAt     DateTime @default(now())
+  expiresAt     DateTime
+
+  @@index([userId])
+}
+
 model Department {
   id   Int     @id @default(autoincrement())
   name String
