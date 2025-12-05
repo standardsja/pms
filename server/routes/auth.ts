@@ -46,38 +46,13 @@ router.post(
         const { email, password } = req.body;
 
         logger.info('Auth login request received', {
-                try {
-                    const rotated = await verifyAndRotateRefreshToken(refreshToken);
-                    if (!rotated) {
-                        return res.status(401).json({ success: false, message: 'Invalid refresh token' });
-                    }
+            email,
+            hasPassword: Boolean(password),
+        });
 
-                    const user = await prisma.user.findUnique({ where: { id: rotated.userId }, include: { roles: { include: { role: true } } } });
-                    if (!user) return res.status(401).json({ success: false, message: 'Invalid refresh token' });
-
-                    const roles = user.roles.map((r) => r.role.name);
-                    const accessToken = generateAccessToken({ id: user.id, email: user.email, name: user.name, roles });
-
-                    return res.json({ token: accessToken, refreshToken: rotated.newRefreshToken });
-                } catch (err: any) {
-                    logger.warn('Refresh token rotation failed', { message: err?.message || String(err) });
-                    return res.status(401).json({ success: false, message: 'Invalid refresh token' });
-                }
-
-        // Try LDAP authentication first if enabled
-
-        // Logout (revoke a refresh token)
-        router.post(
-            '/logout',
-            asyncHandler(async (req, res) => {
-                const { refreshToken } = req.body;
-                if (!refreshToken) return res.status(400).json({ success: false, message: 'refreshToken required' });
-
-                const ok = await revokeRefreshToken(refreshToken);
-                if (!ok) return res.status(200).json({ success: true });
-                return res.json({ success: true });
-            })
-        );
+        let authMethod = 'DATABASE';
+        let ldapAuthenticated = false;
+        let ldapUser: any = null;
         if (ldapService.isEnabled()) {
             try {
                 logger.info('Attempting LDAP authentication', { email });
@@ -219,6 +194,18 @@ router.post(
                     : null,
             },
         });
+    })
+);
+
+// Logout (revoke a refresh token)
+router.post(
+    '/logout',
+    asyncHandler(async (req, res) => {
+        const { refreshToken } = req.body;
+        if (!refreshToken) return res.status(400).json({ success: false, message: 'refreshToken required' });
+
+        const ok = await revokeRefreshToken(refreshToken);
+        return res.json({ success: Boolean(ok) });
     })
 );
 
@@ -387,19 +374,20 @@ router.post(
         const refreshSecret = process.env.REFRESH_SECRET || config.JWT_SECRET;
 
         try {
-            const payload = jwt.verify(refreshToken, refreshSecret) as any;
-            const userId = payload.sub as number;
+            const rotated = await verifyAndRotateRefreshToken(refreshToken);
+            if (!rotated) {
+                return res.status(401).json({ success: false, message: 'Invalid refresh token' });
+            }
 
-            // Minimal validation: ensure user still exists
-            const user = await prisma.user.findUnique({ where: { id: userId }, include: { roles: { include: { role: true } } } });
+            const user = await prisma.user.findUnique({ where: { id: rotated.userId }, include: { roles: { include: { role: true } } } });
             if (!user) return res.status(401).json({ success: false, message: 'Invalid refresh token' });
 
             const roles = user.roles.map((r) => r.role.name);
-            const { accessToken, refreshToken: newRefreshToken } = generateTokens({ id: user.id, email: user.email, name: user.name, roles });
+            const accessToken = generateAccessToken({ id: user.id, email: user.email, name: user.name, roles });
 
-            return res.json({ token: accessToken, refreshToken: newRefreshToken });
+            return res.json({ token: accessToken, refreshToken: rotated.newRefreshToken });
         } catch (err: any) {
-            logger.warn('Refresh token verification failed', { message: err?.message || String(err) });
+            logger.warn('Refresh token rotation failed', { message: err?.message || String(err) });
             return res.status(401).json({ success: false, message: 'Invalid refresh token' });
         }
     })
