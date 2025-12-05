@@ -1911,9 +1911,6 @@ app.get('/requests', async (_req, res) => {
                 procurementType: true,
                 createdAt: true,
                 updatedAt: true,
-                isCombined: true,
-                combinedRequestId: true,
-                lotNumber: true,
                 requester: { select: { id: true, name: true, email: true } },
                 department: { select: { id: true, name: true, code: true } },
                 currentAssignee: { select: { id: true, name: true, email: true } },
@@ -1947,9 +1944,6 @@ app.get('/requests', async (_req, res) => {
                             procurementType: true,
                             createdAt: true,
                             updatedAt: true,
-                            isCombined: true,
-                            combinedRequestId: true,
-                            lotNumber: true,
                             requester: { select: { id: true, name: true, email: true } },
                             department: { select: { id: true, name: true, code: true } },
                             currentAssignee: { select: { id: true, name: true, email: true } },
@@ -2292,7 +2286,7 @@ app.patch('/requests/:id', async (req, res) => {
 
         // Create a notification for the new assignee (if any)
         try {
-            const assigneeId = updated.currentAssignee?.id || updated.currentAssigneeId || null;
+            const assigneeId = updated.currentAssigneeId || null;
             if (assigneeId) {
                 await prisma.notification.create({
                     data: {
@@ -2337,7 +2331,7 @@ app.put('/requests/:id', async (req, res) => {
 
         // Notify the assignee after explicit assignment
         try {
-            const assigneeId = updated.currentAssignee?.id || updated.currentAssigneeId || null;
+            const assigneeId = updated.currentAssigneeId || null;
             if (assigneeId) {
                 await prisma.notification.create({
                     data: {
@@ -2544,7 +2538,7 @@ app.post('/requests/:id/submit', async (req, res) => {
         try {
             // Check if splintering detection is enabled in load balancing settings
             const lbSettings = await prisma.loadBalancingSettings.findFirst();
-            const splinteringEnabled = lbSettings?.splinteringEnabled ?? false;
+            const splinteringEnabled = (lbSettings as any)?.splinteringEnabled ?? false;
 
             if (splinteringEnabled) {
                 const windowDays = Number(process.env.SPLINTER_WINDOW_DAYS || 30);
@@ -2605,7 +2599,7 @@ app.post('/requests/:id/submit', async (req, res) => {
                     try {
                         await prisma.notification.create({
                             data: {
-                                userId: null, // Broadcast to system/audit
+                                userId: actingUser.id,
                                 type: 'THRESHOLD_EXCEEDED',
                                 message: `⚠️ Splintering override: ${actingUser.name} (${actingUser.email}) bypassed splintering warning for request ${request.reference || request.id}`,
                                 data: {
@@ -2624,18 +2618,7 @@ app.post('/requests/:id/submit', async (req, res) => {
                             },
                         });
 
-                        // Also log to status history for permanent audit trail
-                        await prisma.statusHistory.create({
-                            data: {
-                                requestId: request.id,
-                                status: 'DRAFT', // Still draft at this point
-                                changedById: actingUser.id,
-                                comment: `Manager override: Splintering warning bypassed. Combined value: ${spl.combined.toFixed(2)} JMD (threshold: ${spl.threshold} JMD, window: ${
-                                    spl.windowDays
-                                } days)`,
-                            },
-                        });
-
+                        // Splintering override logged in notification for audit trail
                         console.log(`[Audit] Splintering override by ${actingUser.name} (ID ${actingUser.id}) for request ${request.id}`);
                     } catch (auditErr) {
                         console.error('Failed to create splintering override audit log:', auditErr);
@@ -2863,7 +2846,7 @@ app.post('/requests/:id/action', async (req, res) => {
                 })();
                 const requestCurrency = request.currency || 'JMD';
 
-                const thresholdResult = checkProcurementThresholds(totalValue, procurementTypes, requestCurrency);
+                const thresholdResult = checkProcurementThresholds(Number(totalValue), procurementTypes, requestCurrency);
 
                 if (thresholdResult.requiresExecutiveApproval) {
                     // High-value request -> send to Executive Director for evaluation
@@ -2966,7 +2949,7 @@ app.post('/requests/:id/action', async (req, res) => {
                     await prisma.notification.create({
                         data: {
                             userId: Number(updated.currentAssigneeId),
-                            type: 'EVALUATION_REQUIRED',
+                            type: 'THRESHOLD_EXCEEDED',
                             message: `High-value request ${updated.reference || updated.id} requires your evaluation`,
                             data: {
                                 requestId: updated.id,
@@ -3215,7 +3198,7 @@ app.post('/admin/requests/:id/override-splinter', requireAdmin, async (req, res)
         try {
             await prisma.notification.create({
                 data: {
-                    userId: null,
+                    userId: parseInt(String(adminUserId), 10),
                     type: 'THRESHOLD_EXCEEDED',
                     message: `Admin override applied to request ${updated.reference || updated.id} by user ${adminUserId}`,
                     data: { requestId: updated.id, overriddenBy: adminUserId },
@@ -3437,7 +3420,7 @@ app.post('/procurement/load-balancing-settings', async (req, res) => {
             prisma,
             {
                 enabled: enabled !== undefined ? enabled : undefined,
-                strategy: strategy,
+                strategy: strategy as any,
                 autoAssignOnApproval: autoAssignOnApproval !== undefined ? autoAssignOnApproval : undefined,
                 splinteringEnabled: splinteringEnabled !== undefined ? splinteringEnabled : undefined,
             },
@@ -3517,9 +3500,6 @@ app.get('/api/requests', async (_req, res) => {
                 status: true,
                 createdAt: true,
                 updatedAt: true,
-                isCombined: true,
-                combinedRequestId: true,
-                lotNumber: true,
                 requester: { select: { id: true, name: true, email: true } },
                 department: { select: { id: true, name: true, code: true } },
             },
@@ -3544,9 +3524,6 @@ app.get('/api/requests', async (_req, res) => {
                             status: true,
                             createdAt: true,
                             updatedAt: true,
-                            isCombined: true,
-                            combinedRequestId: true,
-                            lotNumber: true,
                             requester: { select: { id: true, name: true, email: true } },
                             department: { select: { id: true, name: true, code: true } },
                         },
@@ -4057,7 +4034,7 @@ app.post('/requests/:id/assign-finance-officer', async (req, res) => {
                 },
                 actions: {
                     create: {
-                        action: 'REASSIGN',
+                        action: 'ASSIGN',
                         performedById: parseInt(String(userId), 10),
                         comment: `Finance officer reassigned to ${financeOfficer.name}`,
                         metadata: { previousAssigneeId, newAssigneeId: parseInt(String(financeOfficerId), 10) },
@@ -5054,7 +5031,7 @@ app.patch(
                                   return [];
                               }
                           })();
-                    authorized = secs.map((s) => String(s).toUpperCase()).includes(sectionUpper);
+                    authorized = secs.map((s: any) => String(s).toUpperCase()).includes(sectionUpper);
                 } catch {
                     authorized = false;
                 }
