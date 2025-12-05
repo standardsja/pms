@@ -85,9 +85,11 @@ const DefaultLayout = ({ children }: PropsWithChildren) => {
         <>
             <AppInitializer />
             {/* BEGIN MAIN CONTAINER */}
-            <div className={`${themeConfig.sidebar && 'toggle-sidebar'} ${themeConfig.menu} ${themeConfig.layout} ${
-                themeConfig.rtlClass
-            } main-section antialiased relative font-nunito text-sm font-normal`}>
+            <div
+                className={`${themeConfig.sidebar && 'toggle-sidebar'} ${themeConfig.menu} ${themeConfig.layout} ${
+                    themeConfig.rtlClass
+                } main-section antialiased relative font-nunito text-sm font-normal`}
+            >
                 {/* sidebar menu overlay */}
                 <div className={`${(!themeConfig.sidebar && 'hidden') || ''} fixed inset-0 bg-[black]/60 z-50 lg:hidden`} onClick={() => dispatch(toggleSidebar())}></div>
                 {/* screen loader */}

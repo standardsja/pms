@@ -9,7 +9,9 @@ const BlankLayout = ({ children }: PropsWithChildren) => {
     return (
         <>
             <AppInitializer />
-            <div className={`${themeConfig.menu} ${themeConfig.layout} ${themeConfig.rtlClass} main-section antialiased relative font-nunito text-sm font-normal text-black dark:text-white-dark min-h-screen`}>
+            <div
+                className={`${themeConfig.menu} ${themeConfig.layout} ${themeConfig.rtlClass} main-section antialiased relative font-nunito text-sm font-normal text-black dark:text-white-dark min-h-screen`}
+            >
                 {children}
             </div>
         </>

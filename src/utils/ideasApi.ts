@@ -128,8 +128,7 @@ export async function fetchIdeas(params?: {
                 errorMessage = errorData.message || errorData.error || errorMessage;
             } catch {
                 // If JSON parsing fails, use status text
-                errorMessage =
-                    res.status === 404 ? 'Ideas not found' : res.status === 403 ? 'Access denied' : 'Unable to load ideas. Please try again later.';
+                errorMessage = res.status === 404 ? 'Ideas not found' : res.status === 403 ? 'Access denied' : 'Unable to load ideas. Please try again later.';
             }
             throw new Error(errorMessage);
         }
