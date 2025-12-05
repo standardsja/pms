@@ -142,7 +142,7 @@ const Profile = () => {
             }
 
             const data = await response.json();
-            
+
             // Update profile data with new photo (add timestamp to bust cache)
             const newProfileImage = `${data.profileImage}?t=${Date.now()}`;
             setProfileData((prev: any) => ({
@@ -151,9 +151,11 @@ const Profile = () => {
             }));
 
             // Trigger a custom event to notify Header component
-            window.dispatchEvent(new CustomEvent('profilePhotoUpdated', { 
-                detail: { profileImage: newProfileImage } 
-            }));
+            window.dispatchEvent(
+                new CustomEvent('profilePhotoUpdated', {
+                    detail: { profileImage: newProfileImage },
+                })
+            );
 
             alert('Profile photo updated successfully!');
         } catch (error: any) {
@@ -259,36 +261,25 @@ const Profile = () => {
                         <div className="mb-5">
                             <div className="flex flex-col justify-center items-center">
                                 <div className="relative group">
-                                    <img 
+                                    <img
                                         src={
-                                            displayUser?.profileImage 
-                                                ? displayUser.profileImage.startsWith('http') 
-                                                    ? displayUser.profileImage 
+                                            displayUser?.profileImage
+                                                ? displayUser.profileImage.startsWith('http')
+                                                    ? displayUser.profileImage
                                                     : getApiUrl(displayUser.profileImage)
                                                 : '/assets/images/user-profile.jpeg'
-                                        } 
-                                        alt="profile" 
-                                        className="w-24 h-24 rounded-full object-cover mb-5 ring-2 ring-primary/20" 
+                                        }
+                                        alt="profile"
+                                        className="w-24 h-24 rounded-full object-cover mb-5 ring-2 ring-primary/20"
                                     />
-                                    <label 
-                                        htmlFor="photo-upload" 
+                                    <label
+                                        htmlFor="photo-upload"
                                         className="absolute bottom-5 right-0 bg-primary text-white p-2 rounded-full cursor-pointer hover:bg-primary-dark transition opacity-0 group-hover:opacity-100"
                                         title="Upload photo"
                                     >
-                                        {uploadingPhoto ? (
-                                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                                        ) : (
-                                            <IconPencilPaper className="w-4 h-4" />
-                                        )}
+                                        {uploadingPhoto ? <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div> : <IconPencilPaper className="w-4 h-4" />}
                                     </label>
-                                    <input 
-                                        id="photo-upload" 
-                                        type="file" 
-                                        accept="image/*" 
-                                        onChange={handlePhotoUpload} 
-                                        className="hidden" 
-                                        disabled={uploadingPhoto}
-                                    />
+                                    <input id="photo-upload" type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" disabled={uploadingPhoto} />
                                 </div>
                                 <p className="font-semibold text-primary text-xl">{userName}</p>
                                 <p className="text-sm text-white-dark mt-1">{getUserRoles()}</p>

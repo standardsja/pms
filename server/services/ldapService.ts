@@ -315,7 +315,7 @@ class LDAPService {
      */
     private async saveLDAPPhoto(email: string, photoBuffer: Buffer): Promise<string> {
         const uploadDir = path.join(process.cwd(), 'uploads', 'profiles');
-        
+
         // Ensure directory exists
         if (!fs.existsSync(uploadDir)) {
             fs.mkdirSync(uploadDir, { recursive: true });
