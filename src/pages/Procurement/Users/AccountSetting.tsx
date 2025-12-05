@@ -47,7 +47,8 @@ const AccountSetting = () => {
     }, [dispatch]);
 
     useEffect(() => {
-        // Restore avatar preference from localStorage
+        // Restore avatar preference from localStorage ONLY if user doesn't have a profile image
+        // Once they upload an image, we'll auto-enable photo mode
         const savedMode = typeof window !== 'undefined' ? localStorage.getItem('profileAvatarMode') : null;
         if (savedMode === 'photo') {
             setUseProfileImage(true);
@@ -75,9 +76,24 @@ const AccountSetting = () => {
 
                 if (response.ok) {
                     const data = await response.json();
-                    console.log('Profile data fetched:', data);
+                    console.log('====== PROFILE DATA RESPONSE ======');
+                    console.log('Full response:', JSON.stringify(data, null, 2));
+                    console.log('profileImage field:', data.profileImage);
+                    console.log('Has profileImage key?', 'profileImage' in data);
+                    console.log('====== END ======');
+
                     setProfileData(data);
                     setProfileImage(data.profileImage || '');
+
+                    // CRITICAL: If user has a profileImage in database, always show it
+                    if (data.profileImage) {
+                        console.log('✅ Profile image found, enabling photo mode');
+                        setUseProfileImage(true);
+                    } else {
+                        console.log('❌ No profile image, keeping initials mode');
+                        setUseProfileImage(false);
+                    }
+
                     // Detect if user is LDAP-synced (has ldapDN)
                     setIsLdapUser(!!data.ldapDN);
                     const userData = {
@@ -334,10 +350,14 @@ const AccountSetting = () => {
 
     const getImageUrl = (imagePath: string): string => {
         if (!imagePath) return '';
-        if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
-            return imagePath;
+        // Remove existing timestamp if present
+        const cleanPath = imagePath.split('?')[0];
+        // Always add fresh timestamp to prevent caching
+        const timestamp = new Date().getTime();
+        if (cleanPath.startsWith('http://') || cleanPath.startsWith('https://')) {
+            return `${cleanPath}?t=${timestamp}`;
         }
-        return getApiUrl(imagePath);
+        return `${getApiUrl(cleanPath)}?t=${timestamp}`;
     };
 
     return (

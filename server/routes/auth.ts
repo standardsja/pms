@@ -402,7 +402,12 @@ router.get(
 
         const roles = user.roles.map((r) => r.role.name);
 
-        res.json({
+        console.log('=== /api/auth/me ENDPOINT ===');
+        console.log('User ID:', user.id);
+        console.log('User profileImage from DB:', user.profileImage);
+        console.log('Full user object keys:', Object.keys(user));
+
+        const responseData = {
             id: user.id,
             email: user.email,
             name: user.name,
@@ -417,7 +422,10 @@ router.get(
             profileImage: user.profileImage || null,
             phone: user.phone || null,
             jobTitle: user.jobTitle || null,
-        });
+        };
+
+        console.log('Response data being sent:', responseData);
+        res.json(responseData);
     })
 );
 
@@ -454,10 +462,19 @@ router.post(
         const relativePath = `/uploads/profiles/${req.file.filename}`;
 
         try {
-            await prisma.user.update({
+            console.log('=== PROFILE IMAGE UPLOAD ===');
+            console.log('User ID:', userId);
+            console.log('File name:', req.file.filename);
+            console.log('File path:', relativePath);
+            console.log('Updating user record...');
+
+            const updateResult = await prisma.user.update({
                 where: { id: userId },
                 data: { profileImage: relativePath },
             });
+
+            console.log('Update result:', updateResult);
+            console.log('Profile image saved to DB:', updateResult.profileImage);
 
             logger.info('Profile image updated', {
                 userId,
@@ -471,6 +488,11 @@ router.post(
         } catch (err: any) {
             const errMsg = err?.message || String(err);
             const errCode = err?.code;
+
+            console.error('=== PROFILE IMAGE UPLOAD ERROR ===');
+            console.error('Error:', errMsg);
+            console.error('Code:', errCode);
+            console.error('Full error:', err);
 
             logger.warn('Profile image update failed', {
                 userId,

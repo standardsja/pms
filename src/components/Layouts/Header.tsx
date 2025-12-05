@@ -91,10 +91,14 @@ const Header = () => {
 
     const getImageUrl = (imagePath: string): string => {
         if (!imagePath) return '/assets/images/user-profile.jpeg';
-        if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
-            return imagePath;
+        // Remove existing timestamp if present
+        const cleanPath = imagePath.split('?')[0];
+        // Always add fresh timestamp to prevent caching
+        const timestamp = new Date().getTime();
+        if (cleanPath.startsWith('http://') || cleanPath.startsWith('https://')) {
+            return `${cleanPath}?t=${timestamp}`;
         }
-        return getApiUrl(imagePath);
+        return `${getApiUrl(cleanPath)}?t=${timestamp}`;
     };
 
     const isAdmin = userRoles.includes('ADMIN') || userRoles.includes('ADMINISTRATOR');
