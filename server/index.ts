@@ -3088,9 +3088,22 @@ app.post('/requests/:id/action', async (req, res) => {
                 nextStatus = 'HOD_REVIEW';
                 nextAssigneeId = hod?.id || null;
             } else if (request.status === 'HOD_REVIEW') {
-                // HOD approved -> send to Finance Officer (auto-assigned based on load-balancing)
+                // HOD approved -> send to Finance Officer.
+                // Prefer explicit assignment to a finance officer so the workflow always advances
+                // even if load-balancing is disabled. If load-balancing is enabled it may
+                // reassign afterwards according to strategy.
                 nextStatus = 'FINANCE_REVIEW';
-                nextAssigneeId = null; // Will be auto-assigned via load-balancing strategy
+                try {
+                    const financeOfficer = await prisma.user.findFirst({
+                        where: { roles: { some: { role: { name: 'FINANCE' } } } },
+                        orderBy: { id: 'asc' },
+                    });
+                    nextAssigneeId = financeOfficer?.id || null;
+                    if (nextAssigneeId) console.log(`[Workflow] Assigned finance officer ${nextAssigneeId} for request ${id}`);
+                } catch (assignErr) {
+                    console.warn('[Workflow] Failed to find explicit finance officer, will rely on auto-assignment:', assignErr);
+                    nextAssigneeId = null;
+                }
             } else if (request.status === 'FINANCE_REVIEW') {
                 // Finance Officer approved -> MUST go to Budget Manager (required step)
                 const budgetManager = await prisma.user.findFirst({
