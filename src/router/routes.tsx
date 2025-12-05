@@ -98,6 +98,9 @@ const CommitteeDashboard = lazy(() => import('../pages/Innovation/Committee/Comm
 const CommitteeReviewIdeas = lazy(() => import('../pages/Innovation/Committee/ReviewIdeas'));
 const InnovationAnalytics = lazy(() => import('../pages/Innovation/Ideas/Analytics'));
 
+// Admin Pages
+const AuditTrail = lazy(() => import('../pages/Admin/AuditTrail'));
+
 const routes = [
     // ============================================
     // AUTH ROUTES
@@ -508,6 +511,18 @@ const routes = [
         path: '/help',
         element: <HelpSupport />,
         layout: 'blank',
+    },
+
+    // ============================================
+    // ADMIN ROUTES
+    // ============================================
+    {
+        path: '/admin/audit-trail',
+        element: (
+            <AdminRoute>
+                <AuditTrail />
+            </AdminRoute>
+        ),
     },
 
     // ============================================

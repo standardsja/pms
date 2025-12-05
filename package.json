@@ -69,6 +69,7 @@
         "body-parser": "^1.20.2",
         "caniuse-lite": "^1.0.30001752",
         "cors": "^2.8.5",
+        "date-fns": "^4.1.0",
         "easymde": "^2.18.0",
         "express": "^4.19.2",
         "express-rate-limit": "^8.2.1",

@@ -35,6 +35,7 @@ import { errorHandler, notFoundHandler, asyncHandler, NotFoundError, BadRequestE
 import statsRouter from './routes/stats';
 import combineRouter from './routes/combine';
 import { authRoutes } from './routes/auth';
+import { auditRoutes } from './routes/audit';
 
 const app = express();
 const httpServer = http.createServer(app);
@@ -1911,9 +1912,6 @@ app.get('/requests', async (_req, res) => {
                 procurementType: true,
                 createdAt: true,
                 updatedAt: true,
-                isCombined: true,
-                combinedRequestId: true,
-                lotNumber: true,
                 requester: { select: { id: true, name: true, email: true } },
                 department: { select: { id: true, name: true, code: true } },
                 currentAssignee: { select: { id: true, name: true, email: true } },
@@ -1947,9 +1945,6 @@ app.get('/requests', async (_req, res) => {
                             procurementType: true,
                             createdAt: true,
                             updatedAt: true,
-                            isCombined: true,
-                            combinedRequestId: true,
-                            lotNumber: true,
                             requester: { select: { id: true, name: true, email: true } },
                             department: { select: { id: true, name: true, code: true } },
                             currentAssignee: { select: { id: true, name: true, email: true } },
@@ -2544,7 +2539,7 @@ app.post('/requests/:id/submit', async (req, res) => {
         try {
             // Check if splintering detection is enabled in load balancing settings
             const lbSettings = await prisma.loadBalancingSettings.findFirst();
-            const splinteringEnabled = lbSettings?.splinteringEnabled ?? false;
+            const splinteringEnabled = (lbSettings as any)?.splinteringEnabled ?? false;
 
             if (splinteringEnabled) {
                 const windowDays = Number(process.env.SPLINTER_WINDOW_DAYS || 30);
@@ -3476,9 +3471,6 @@ app.get('/api/requests', async (_req, res) => {
                 status: true,
                 createdAt: true,
                 updatedAt: true,
-                isCombined: true,
-                combinedRequestId: true,
-                lotNumber: true,
                 requester: { select: { id: true, name: true, email: true } },
                 department: { select: { id: true, name: true, code: true } },
             },
@@ -3503,9 +3495,6 @@ app.get('/api/requests', async (_req, res) => {
                             status: true,
                             createdAt: true,
                             updatedAt: true,
-                            isCombined: true,
-                            combinedRequestId: true,
-                            lotNumber: true,
                             requester: { select: { id: true, name: true, email: true } },
                             department: { select: { id: true, name: true, code: true } },
                         },
@@ -3519,7 +3508,7 @@ app.get('/api/requests', async (_req, res) => {
         if (e?.code === 'P2022') {
             try {
                 const rows = await prisma.$queryRawUnsafe(
-                    'SELECT id, reference, title, requesterId, departmentId, status, createdAt, updatedAt, isCombined, combinedRequestId, lotNumber FROM Request ORDER BY createdAt DESC'
+                    'SELECT id, reference, title, requesterId, departmentId, status, createdAt, updatedAt FROM Request ORDER BY createdAt DESC'
                 );
                 // rows will not include requester/department objects; return as-is
                 return res.json(rows);
@@ -5128,6 +5117,9 @@ app.use('/api/requests/combine', combineRouter);
 
 // Auth API routes
 app.use('/api/auth', authRoutes);
+
+// Audit trail API routes (requires authentication)
+app.use('/api/audit', authMiddleware, auditRoutes);
 
 // DEBUG: List all registered routes (temporary; remove in production)
 app.get('/api/_routes', (req, res) => {
