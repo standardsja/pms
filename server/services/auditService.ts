@@ -1,6 +1,6 @@
 /**
  * Audit Trail Service
- * 
+ *
  * Provides comprehensive audit logging for all critical system operations.
  * Tracks who did what, when, and on which entity for compliance and security.
  */
@@ -114,15 +114,7 @@ class AuditService {
     /**
      * Log approval/rejection events
      */
-    async logApproval(params: {
-        userId: number;
-        requestId: number;
-        approved: boolean;
-        stage: string;
-        comment?: string;
-        ipAddress?: string;
-        userAgent?: string;
-    }): Promise<void> {
+    async logApproval(params: { userId: number; requestId: number; approved: boolean; stage: string; comment?: string; ipAddress?: string; userAgent?: string }): Promise<void> {
         const action = params.approved ? 'APPROVAL_GRANTED' : 'APPROVAL_DENIED';
         const message = `${params.approved ? 'Approved' : 'Rejected'} request at ${params.stage} stage${params.comment ? `: ${params.comment}` : ''}`;
 
@@ -229,13 +221,7 @@ class AuditService {
     /**
      * Log data export events (for compliance)
      */
-    async logDataExport(params: {
-        userId: number;
-        exportType: string;
-        recordCount?: number;
-        ipAddress?: string;
-        userAgent?: string;
-    }): Promise<void> {
+    async logDataExport(params: { userId: number; exportType: string; recordCount?: number; ipAddress?: string; userAgent?: string }): Promise<void> {
         const message = `Exported ${params.exportType} data${params.recordCount ? ` (${params.recordCount} records)` : ''}`;
 
         await this.log({
@@ -316,14 +302,7 @@ class AuditService {
     /**
      * Search audit logs
      */
-    async searchLogs(params: {
-        userId?: number;
-        action?: AuditAction;
-        entity?: string;
-        startDate?: Date;
-        endDate?: Date;
-        limit?: number;
-    }) {
+    async searchLogs(params: { userId?: number; action?: AuditAction; entity?: string; startDate?: Date; endDate?: Date; limit?: number }) {
         return await prisma.auditLog.findMany({
             where: {
                 userId: params.userId,

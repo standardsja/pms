@@ -144,7 +144,7 @@ router.post(
 
             if (!user) {
                 logger.warn('LDAP authenticated user not found in local database', { email });
-                
+
                 // Log failed login (user not in system)
                 await auditService.logAuth({
                     email,
@@ -154,7 +154,7 @@ router.post(
                     ipAddress,
                     userAgent,
                 });
-                
+
                 throw new UnauthorizedError('User account not found in system. Please contact your administrator.');
             }
 

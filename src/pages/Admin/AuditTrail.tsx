@@ -215,10 +215,7 @@ const AuditTrailPage: React.FC = () => {
                         </div>
 
                         <div className="flex gap-2">
-                            <button
-                                type="submit"
-                                className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-dark transition-colors"
-                            >
+                            <button type="submit" className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-dark transition-colors">
                                 Search
                             </button>
                             <button
@@ -254,32 +251,18 @@ const AuditTrailPage: React.FC = () => {
                             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                                 <thead className="bg-gray-50 dark:bg-gray-900">
                                     <tr>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                            Timestamp
-                                        </th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                            User
-                                        </th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                            Action
-                                        </th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                            Entity
-                                        </th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                            Message
-                                        </th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                            IP Address
-                                        </th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Timestamp</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">User</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Action</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Entity</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Message</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">IP Address</th>
                                     </tr>
                                 </thead>
                                 <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                                     {logs.map((log) => (
                                         <tr key={log.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
-                                                {format(new Date(log.createdAt), 'MMM dd, yyyy HH:mm:ss')}
-                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">{format(new Date(log.createdAt), 'MMM dd, yyyy HH:mm:ss')}</td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm">
                                                 {log.user ? (
                                                     <div>
@@ -299,12 +282,8 @@ const AuditTrailPage: React.FC = () => {
                                                 {log.entity}
                                                 {log.entityId && <span className="text-gray-500 dark:text-gray-400"> #{log.entityId}</span>}
                                             </td>
-                                            <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100 max-w-md truncate">
-                                                {log.message}
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                                                {log.ipAddress || 'N/A'}
-                                            </td>
+                                            <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100 max-w-md truncate">{log.message}</td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{log.ipAddress || 'N/A'}</td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -314,11 +293,7 @@ const AuditTrailPage: React.FC = () => {
                 </div>
 
                 {/* Summary */}
-                {logs.length > 0 && (
-                    <div className="mt-4 text-sm text-gray-600 dark:text-gray-400 text-center">
-                        Showing {logs.length} audit log entries
-                    </div>
-                )}
+                {logs.length > 0 && <div className="mt-4 text-sm text-gray-600 dark:text-gray-400 text-center">Showing {logs.length} audit log entries</div>}
             </div>
         </div>
     );

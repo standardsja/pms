@@ -17,7 +17,7 @@ router.get(
     '/recent',
     asyncHandler(async (req, res) => {
         const user = (req as any).user;
-        
+
         // Check if user has admin role
         if (!user?.roles?.includes('ADMIN')) {
             return res.status(403).json({ message: 'Forbidden: Admin access required' });
