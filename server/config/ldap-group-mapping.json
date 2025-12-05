@@ -1,0 +1,26 @@
+{
+    "groupMappings": {
+        "CN=Procurement_Managers,OU=Groups,DC=BOS,DC=local": "PROCUREMENT_MANAGER",
+        "CN=Procurement_Officers,OU=Groups,DC=BOS,DC=local": "PROCUREMENT_OFFICER",
+        "CN=Department_Heads,OU=Groups,DC=BOS,DC=local": "DEPARTMENT_HEAD",
+        "CN=Executive_Directors,OU=Groups,DC=BOS,DC=local": "EXECUTIVE_DIRECTOR",
+        "CN=Finance_Officers,OU=Groups,DC=BOS,DC=local": "FINANCE_OFFICER",
+        "CN=Budget_Managers,OU=Groups,DC=BOS,DC=local": "BUDGET_MANAGER",
+        "CN=Evaluation_Committee,OU=Groups,DC=BOS,DC=local": "EVALUATION_COMMITTEE_MEMBER",
+        "CN=Innovation_Committee,OU=Groups,DC=BOS,DC=local": "INNOVATION_COMMITTEE_MEMBER",
+        "CN=Admins,OU=Groups,DC=BOS,DC=local": "ADMIN",
+        "CN=Suppliers,OU=Groups,DC=BOS,DC=local": "SUPPLIER"
+    },
+    "attributeMappings": {
+        "department": {
+            "Finance": "FINANCE_OFFICER",
+            "Procurement": "PROCUREMENT_OFFICER",
+            "Budget": "BUDGET_MANAGER"
+        },
+        "title": {
+            "Department Head": "DEPARTMENT_HEAD",
+            "Executive Director": "EXECUTIVE_DIRECTOR",
+            "Procurement Manager": "PROCUREMENT_MANAGER"
+        }
+    }
+}

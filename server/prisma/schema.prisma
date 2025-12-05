@@ -178,6 +178,17 @@ model User {
   email        String  @unique
   name         String?
   passwordHash String? // ← for local email/password testing
+  profileImage String? // User profile image path/URL
+  
+  // LDAP-synced fields
+  ldapDN       String? // LDAP Distinguished Name
+  employeeId   String? // Employee ID from LDAP
+  jobTitle     String? // Job title from LDAP
+  phone        String? // Phone number from LDAP
+  address      String? // Address from LDAP
+  city         String? // City from LDAP
+  country      String? // Country from LDAP
+  supervisor   String? // Supervisor DN from LDAP
 
   department   Department? @relation("userDepartment", fields: [departmentId], references: [id])
   departmentId Int?

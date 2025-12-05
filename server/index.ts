@@ -32,6 +32,7 @@ import type { Prisma } from '@prisma/client';
 import { requireCommittee as requireCommitteeRole, requireEvaluationCommittee, requireAdmin, requireExecutive, requireRole } from './middleware/rbac';
 import { validate, createIdeaSchema, voteSchema, approveRejectIdeaSchema, promoteIdeaSchema, sanitizeInput as sanitize } from './middleware/validation';
 import { errorHandler, notFoundHandler, asyncHandler, NotFoundError, BadRequestError } from './middleware/errorHandler';
+import { initializeGlobalRoleResolver } from './services/roleResolver';
 import statsRouter from './routes/stats';
 import combineRouter from './routes/combine';
 import { authRoutes } from './routes/auth';
@@ -5513,6 +5514,21 @@ app.use(errorHandler);
 async function start() {
     try {
         await ensureDbConnection();
+
+        // Initialize Role Resolver (CRITICAL - must be done before auth middleware is used)
+        // Load LDAP group mappings from config file
+        const ldapGroupMappingsPath = path.join(__dirname, 'config', 'ldap-group-mapping.json');
+        const ldapGroupMappings = JSON.parse(fs.readFileSync(ldapGroupMappingsPath, 'utf-8'));
+
+        initializeGlobalRoleResolver({
+            rolesPermissionsPath: path.join(__dirname, 'config', 'roles-permissions.json'),
+            ldapGroupMappings: ldapGroupMappings.groupMappings || {},
+            ldapAttributeMappings: ldapGroupMappings.attributeMappings || {},
+            enableDatabaseOverrides: true,
+            cacheTTL: 60 * 60 * 1000, // 1 hour
+            defaultRole: 'REQUESTER',
+        });
+
         await initRedis(); // Initialize Redis cache (non-blocking)
         trendingJobInterval = initTrendingScoreJob(); // Start trending score background job
         initAnalyticsJob(); // Start analytics aggregation job

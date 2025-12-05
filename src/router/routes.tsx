@@ -112,6 +112,11 @@ const routes = [
         layout: 'blank',
     },
     {
+        path: '/auth/boxed-signin',
+        element: <Login />,
+        layout: 'blank',
+    },
+    {
         path: '/auth/forgot-password',
         element: <ForgotPassword />,
         layout: 'blank',

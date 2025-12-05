@@ -50,6 +50,11 @@ export type Idea = {
 function authHeaders(): Record<string, string> {
     const token = getToken();
     const user = getUser();
+
+    console.log('[ideasApi authHeaders] token:', token?.substring(0, 20) + '...', 'user:', user);
+    console.log('[ideasApi authHeaders] sessionStorage token:', sessionStorage.getItem('auth_token')?.substring(0, 20) + '...');
+    console.log('[ideasApi authHeaders] localStorage token:', localStorage.getItem('auth_token')?.substring(0, 20) + '...');
+
     const h: Record<string, string> = { 'Content-Type': 'application/json' };
 
     // Backend accepts either x-user-id or Authorization: Bearer <id>
@@ -114,11 +119,13 @@ export async function fetchIdeas(params?: {
         });
 
         if (!res.ok) {
-            // Handle 401 Unauthorized - clear auth and redirect to login
+            // Handle 401 Unauthorized - log error but don't auto-redirect
             if (res.status === 401) {
-                clearAuth();
-                window.location.href = '/auth/boxed-signin';
-                throw new Error('Session expired. Please log in again.');
+                console.error('401 Unauthorized on Innovation Hub API. Token:', localStorage.getItem('token')?.substring(0, 20) + '...');
+                // Temporarily disabled auto-logout to debug
+                // clearAuth();
+                // window.location.href = '/auth/login';
+                throw new Error('Unauthorized. Check if Innovation Hub token is valid.');
             }
 
             // Try to parse error response

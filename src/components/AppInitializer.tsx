@@ -39,7 +39,8 @@ export function AppInitializer() {
         }, 1000 * 60 * 60 * 24); // Check daily
 
         return () => clearInterval(holidayInterval);
-    }, [dispatch, themeConfig.theme, themeConfig.menu, themeConfig.layout, themeConfig.rtlClass, themeConfig.animation, themeConfig.navbar, themeConfig.locale, themeConfig.semidark]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [dispatch]);
 
     return null; // This component doesn't render anything
 }
