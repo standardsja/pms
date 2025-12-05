@@ -125,11 +125,16 @@ async function enrichUserWithRoles(userId: number, email: string, name: string |
             };
             const result = await resolver.resolveRolesAndPermissions(userId, email, ldapUser, { includeLDAPData: false });
 
+            // Ensure REQUESTER role is always present so every user can create requests
+            const requesterName = resolver.getRole('REQUESTER')?.name || 'REQUESTER';
+            const finalRoles = Array.isArray(result.finalRoles) ? [...result.finalRoles] : [];
+            if (!finalRoles.includes(requesterName)) finalRoles.push(requesterName);
+
             return {
                 sub: userId,
                 email,
                 name,
-                roles: result.finalRoles,
+                roles: finalRoles,
                 permissions: result.permissions,
                 ldapData: undefined,
             };
@@ -152,6 +157,11 @@ async function enrichUserWithRoles(userId: number, email: string, name: string |
             }
 
             const roles = user.roles.map((r) => r.role.name);
+
+            // Ensure REQUESTER role is always present
+            const requesterName = resolver.getRole('REQUESTER')?.name || 'REQUESTER';
+            if (!roles.includes(requesterName)) roles.push(requesterName);
+
             const permissions = await aggregatePermissionsForRoles(roles, resolver);
 
             return {
