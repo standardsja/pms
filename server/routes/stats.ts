@@ -338,6 +338,7 @@ router.get('/system', async (req: Request, res: Response) => {
 
         // Get comprehensive health metrics from monitoring service
         const healthMetrics = getHealthStatus();
+        const metrics = getMetrics();
 
         // Total processed requests (all time)
         console.log('[Stats] Counting total processed requests...');
@@ -350,17 +351,22 @@ router.get('/system', async (req: Request, res: Response) => {
         });
         console.log(`[Stats] Total processed: ${totalProcessedRequests}`);
 
+        const apiResponseTime =
+            metrics.requests.total > 0 ? Object.values(metrics.requests.byEndpoint).reduce((sum, e) => sum + e.avgDuration, 0) / Object.values(metrics.requests.byEndpoint).length : 0;
+        const requestSuccessRate = metrics.requests.total > 0 ? (metrics.requests.success / metrics.requests.total) * 100 : 0;
+        const serverHealthScore = healthMetrics.status === 'healthy' ? 100 : healthMetrics.status === 'degraded' ? 70 : 40;
+
         const result = {
             activeUsers,
             requestsThisMonth,
             innovationIdeas,
             pendingApprovals,
-            systemUptime: healthMetrics.systemUptime,
-            apiResponseTime: healthMetrics.apiResponseTime,
-            requestSuccessRate: healthMetrics.requestSuccessRate,
-            serverHealthScore: healthMetrics.serverHealthScore,
-            cpuLoad: healthMetrics.cpuLoad,
-            memoryUsage: healthMetrics.memoryUsage,
+            systemUptime: metrics.uptimeSeconds,
+            apiResponseTime,
+            requestSuccessRate,
+            serverHealthScore,
+            cpuLoad: '0%',
+            memoryUsage: '0%',
             totalProcessedRequests,
             timestamp: now.toISOString(),
         };

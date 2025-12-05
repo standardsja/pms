@@ -12,6 +12,9 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import rateLimit from 'express-rate-limit';
+import multer from 'multer';
+import fs from 'fs';
+import path from 'path';
 import { prisma } from '../prismaClient';
 import { config } from '../config/environment';
 import { logger } from '../config/logger';
@@ -20,6 +23,7 @@ import { validate, loginSchema } from '../middleware/validation';
 import { ldapService } from '../services/ldapService';
 import { syncLDAPUserToDatabase, describeSyncResult } from '../services/ldapRoleSyncService';
 import { createRefreshToken, verifyAndRotateRefreshToken, revokeRefreshToken } from '../services/tokenService';
+import { authMiddleware, AuthenticatedRequest } from '../middleware/auth';
 
 const router = Router();
 
@@ -36,6 +40,35 @@ const authLimiter = rateLimit({
     max: 10, // 10 attempts per window (increased from 5 for testing)
     message: 'Too many authentication attempts, please try again later.',
     skipSuccessfulRequests: true,
+});
+
+// Multer storage for profile images
+const profileUploadDir = path.resolve(process.cwd(), 'uploads', 'profiles');
+if (!fs.existsSync(profileUploadDir)) {
+    fs.mkdirSync(profileUploadDir, { recursive: true });
+}
+
+const profileImageStorage = multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, profileUploadDir),
+    filename: (req, file, cb) => {
+        const authReq = req as AuthenticatedRequest;
+        const userId = authReq.user?.sub || 'anon';
+        const ext = path.extname(file.originalname) || '.jpg';
+        const safeBase = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9-_]/g, '');
+        cb(null, `profile-${userId}-${Date.now()}-${safeBase}${ext}`);
+    },
+});
+
+const profileImageUpload = multer({
+    storage: profileImageStorage,
+    limits: { fileSize: 5 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+        if (file.mimetype && file.mimetype.startsWith('image/')) {
+            cb(null, true);
+        } else {
+            cb(new BadRequestError('Invalid file type. Only images are allowed'));
+        }
+    },
 });
 
 // Login endpoint - Unified LDAP + database authentication with hybrid role sync
@@ -94,6 +127,7 @@ router.post(
                         email,
                         name: ldapUser.name || email,
                         externalId: ldapUser.dn,
+                        ldapDN: ldapUser.dn,
                     },
                     include: {
                         roles: {
@@ -104,6 +138,31 @@ router.post(
                         department: true,
                     },
                 });
+            } else {
+                // Update LDAP-synced fields for existing user
+                try {
+                    user = await prisma.user.update({
+                        where: { id: user.id },
+                        data: {
+                            name: ldapUser.name || user.name,
+                            ldapDN: ldapUser.dn,
+                            externalId: ldapUser.dn,
+                            // Only update if LDAP provided these values
+                            ...(ldapUser.email && { email: ldapUser.email }),
+                        },
+                        include: {
+                            roles: {
+                                include: {
+                                    role: true,
+                                },
+                            },
+                            department: true,
+                        },
+                    });
+                    logger.info('LDAP user profile updated', { email, userId: user.id });
+                } catch (updateErr) {
+                    logger.warn('Failed to update LDAP user profile', { email, error: updateErr });
+                }
             }
 
             // Perform hybrid role sync: AD groups → admin panel → default REQUESTER
@@ -355,7 +414,40 @@ router.get(
                       code: user.department.code,
                   }
                 : null,
+            profileImage: user.profileImage || null,
+            phone: user.phone || null,
+            jobTitle: user.jobTitle || null,
         });
+    })
+);
+
+// Upload profile image
+router.post(
+    '/profile-image',
+    authMiddleware,
+    profileImageUpload.single('profileImage'),
+    asyncHandler(async (req, res) => {
+        const authReq = req as AuthenticatedRequest;
+        const userId = authReq.user?.sub;
+
+        if (!userId) {
+            throw new UnauthorizedError('Not authenticated');
+        }
+
+        if (!req.file) {
+            throw new BadRequestError('No file uploaded');
+        }
+
+        const relativePath = `/uploads/profiles/${req.file.filename}`;
+
+        await prisma.user.update({
+            where: { id: userId },
+            data: { profileImage: relativePath },
+        });
+
+        logger.info('Profile image updated', { userId, path: relativePath });
+
+        res.json({ success: true, profileImage: relativePath });
     })
 );
 

@@ -25,16 +25,7 @@ import { searchIdeas, getSearchSuggestions } from './services/searchService';
 import { batchUpdateIdeas, getCommitteeDashboardStats, getPendingIdeasForReview, getCommitteeMemberStats } from './services/committeeService';
 import { initWebSocket, emitIdeaCreated, emitIdeaStatusChanged, emitVoteUpdated, emitBatchApproval, emitCommentAdded, broadcastSystemStats } from './services/websocketService';
 import { initAnalyticsJob, stopAnalyticsJob, getAnalytics, getCategoryAnalytics, getTimeBasedAnalytics } from './services/analyticsService';
-import {
-    requestMonitoringMiddleware,
-    trackCacheHit,
-    trackCacheMiss,
-    getMetrics,
-    getHealthStatus,
-    getSlowEndpoints,
-    getErrorProneEndpoints,
-    getSystemHealthMetrics,
-} from './services/monitoringService';
+import { requestMonitoringMiddleware, trackCacheHit, trackCacheMiss, getMetrics, getHealthStatus, getSlowEndpoints, getErrorProneEndpoints } from './services/monitoringService';
 import { checkProcurementThresholds } from './services/thresholdService';
 import { checkSplintering } from './services/splinteringService';
 import { createThresholdNotifications } from './services/notificationService';
@@ -43,7 +34,6 @@ import type { Prisma } from '@prisma/client';
 import { requireCommittee as requireCommitteeRole, requireEvaluationCommittee, requireAdmin, requireExecutive, requireRole } from './middleware/rbac';
 import { validate, createIdeaSchema, voteSchema, approveRejectIdeaSchema, promoteIdeaSchema, sanitizeInput as sanitize } from './middleware/validation';
 import { errorHandler, notFoundHandler, asyncHandler, NotFoundError, BadRequestError } from './middleware/errorHandler';
-import { initializeGlobalRoleResolver } from './services/roleResolver';
 import statsRouter from './routes/stats';
 import combineRouter from './routes/combine';
 import { authRoutes } from './routes/auth';
@@ -5682,16 +5672,18 @@ async function start() {
                 const activeUsers = sessions.size;
 
                 // Get comprehensive health metrics from monitoring service
-                const healthMetrics = getSystemHealthMetrics();
+                const healthMetrics = getHealthStatus();
+                const metrics = getMetrics();
 
                 broadcastSystemStats({
                     activeUsers,
-                    systemUptime: healthMetrics.systemUptime,
-                    apiResponseTime: healthMetrics.apiResponseTime,
-                    requestSuccessRate: healthMetrics.requestSuccessRate,
-                    serverHealthScore: healthMetrics.serverHealthScore,
-                    cpuLoad: healthMetrics.cpuLoad,
-                    memoryUsage: healthMetrics.memoryUsage,
+                    systemUptime: metrics.uptimeSeconds,
+                    apiResponseTime:
+                        metrics.requests.total > 0 ? Object.values(metrics.requests.byEndpoint).reduce((sum, e) => sum + e.avgDuration, 0) / Object.values(metrics.requests.byEndpoint).length : 0,
+                    requestSuccessRate: metrics.requests.total > 0 ? (metrics.requests.success / metrics.requests.total) * 100 : 0,
+                    serverHealthScore: healthMetrics.status === 'healthy' ? 100 : healthMetrics.status === 'degraded' ? 70 : 40,
+                    cpuLoad: '0%',
+                    memoryUsage: '0%',
                 });
             } catch (err) {
                 console.error('[SystemStats] Error broadcasting stats:', err);

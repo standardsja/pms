@@ -50,8 +50,8 @@ const Profile = () => {
                     return;
                 }
 
-                // Fetch user profile details from auth endpoint
-                const meResponse = await fetch(getApiUrl('/auth/me'), {
+                // Fetch user profile details from auth endpoint (uses /api/auth/me)
+                const meResponse = await fetch(getApiUrl('/api/auth/me'), {
                     headers: {
                         Authorization: `Bearer ${token}`,
                         'Content-Type': 'application/json',
@@ -95,6 +95,12 @@ const Profile = () => {
         };
 
         fetchProfileData();
+
+        // Set up real-time polling - refresh every 30 seconds
+        const intervalId = setInterval(fetchProfileData, 30000);
+
+        // Cleanup interval on unmount
+        return () => clearInterval(intervalId);
     }, [user]);
 
     const formatDate = (date: string) => {
@@ -147,6 +153,15 @@ const Profile = () => {
         return user.roles.map((role: string) => roleLabels[role] || role).join(', ');
     };
 
+    const getInitials = (name: string): string => {
+        if (!name) return 'U';
+        const names = name.trim().split(' ');
+        if (names.length >= 2) {
+            return `${names[0][0]}${names[names.length - 1][0]}`.toUpperCase();
+        }
+        return name.substring(0, 2).toUpperCase();
+    };
+
     const isRtl = useSelector((state: IRootState) => state.themeConfig.rtlClass) === 'rtl';
 
     // Normalize user roles to CODE format (e.g., 'Procurement Manager' -> 'PROCUREMENT_MANAGER') for reliable checks
@@ -165,9 +180,35 @@ const Profile = () => {
     const userEmail = displayUser?.email || 'Not provided';
     const userName = displayUser?.name || displayUser?.full_name || 'User';
     const userDepartment = displayUser?.department?.name || 'Not assigned';
-    const joinDate = displayUser?.createdAt ? new Date(displayUser.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'Jan 2024';
+    const joinDate = displayUser?.createdAt
+        ? new Date(displayUser.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+        : new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
     const userLocation = displayUser?.department?.code || 'Jamaica';
-    const userPhone = displayUser?.phone || '+1 (876) 555-1234';
+    const userPhone = displayUser?.phone || 'Not provided';
+    const profileImage: string | undefined = displayUser?.profileImage;
+    const [useProfileImage, setUseProfileImage] = useState(false);
+    const isLdapUser = !!displayUser?.ldapDN;
+
+    useEffect(() => {
+        const savedMode = typeof window !== 'undefined' ? localStorage.getItem('profileAvatarMode') : null;
+        if (savedMode === 'photo') {
+            setUseProfileImage(true);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('profileAvatarMode', useProfileImage ? 'photo' : 'initials');
+        }
+    }, [useProfileImage]);
+
+    useEffect(() => {
+        if (!profileImage) {
+            setUseProfileImage(false);
+        }
+    }, [profileImage]);
+
+    const shouldShowPhoto = useProfileImage && Boolean(profileImage);
     return (
         <div>
             <ul className="flex space-x-2 rtl:space-x-reverse">
@@ -191,9 +232,23 @@ const Profile = () => {
                         </div>
                         <div className="mb-5">
                             <div className="flex flex-col justify-center items-center">
-                                <img src="/assets/images/user-profile.jpeg" alt="profile" className="w-24 h-24 rounded-full object-cover mb-5 ring-2 ring-primary/20" />
+                                {shouldShowPhoto ? (
+                                    <img src={profileImage} alt="Profile" className="w-24 h-24 rounded-full object-cover mb-5 ring-2 ring-primary/20" />
+                                ) : (
+                                    <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold text-4xl mb-5 ring-2 ring-primary/20">
+                                        {getInitials(userName)}
+                                    </div>
+                                )}
+                                {profileImage && (
+                                    <button type="button" className="-mt-3 mb-2 text-xs text-primary hover:underline" onClick={() => setUseProfileImage((prev) => !prev)}>
+                                        {shouldShowPhoto ? 'Use initials' : 'Use photo'}
+                                    </button>
+                                )}
                                 <p className="font-semibold text-primary text-xl">{userName}</p>
-                                <p className="text-sm text-white-dark mt-1">{getUserRoles()}</p>
+                                <div className="flex items-center gap-2 justify-center">
+                                    <p className="text-sm text-white-dark mt-1">{getUserRoles()}</p>
+                                    {isLdapUser && <span className="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-full font-medium">LDAP</span>}
+                                </div>
                             </div>
                             <ul className="mt-5 flex flex-col max-w-[200px] m-auto space-y-4 font-semibold text-white-dark text-sm">
                                 <li className="flex items-center gap-2">

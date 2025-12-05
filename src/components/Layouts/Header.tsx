@@ -47,6 +47,7 @@ const Header = () => {
     // Current user & role derivations (align with Sidebar logic)
     const currentUser = getUser();
     const userRoles = currentUser?.roles || (currentUser?.role ? [currentUser.role] : []);
+    const isAdmin = userRoles.includes('ADMIN') || userRoles.includes('ADMINISTRATOR');
     const isCommitteeMember = userRoles.includes('INNOVATION_COMMITTEE');
     const isProcurementManager = userRoles.includes('PROCUREMENT_MANAGER') || userRoles.includes('MANAGER') || userRoles.some((r: string) => r && r.toUpperCase().includes('MANAGER'));
     const isProcurementOfficer = !isProcurementManager && (userRoles.includes('PROCUREMENT_OFFICER') || userRoles.includes('PROCUREMENT'));
@@ -58,7 +59,9 @@ const Header = () => {
     const currentModule = isInnovationHub ? 'innovation' : 'procurement';
 
     // Set dashboard path based on user role (Manager takes precedence over Officer)
-    const dashboardPath = isCommitteeMember
+    const dashboardPath = isAdmin
+        ? '/procurement/admin'
+        : isCommitteeMember
         ? '/innovation/committee/dashboard'
         : isInnovationHub
         ? '/innovation/dashboard'
@@ -74,6 +77,16 @@ const Header = () => {
     console.log('[HEADER] User roles:', userRoles);
     console.log('[HEADER] isProcurementManager:', isProcurementManager);
     console.log('[HEADER] Calculated dashboardPath:', dashboardPath);
+
+    // Helper function to get user initials
+    const getInitials = (name: string): string => {
+        if (!name) return 'U';
+        const names = name.trim().split(' ');
+        if (names.length >= 2) {
+            return `${names[0][0]}${names[names.length - 1][0]}`.toUpperCase();
+        }
+        return name.substring(0, 2).toUpperCase();
+    };
 
     useEffect(() => {
         const selector = document.querySelector('ul.horizontal-menu a[href="' + window.location.pathname + '"]');
@@ -599,7 +612,9 @@ const Header = () => {
                                 <ul className="text-dark dark:text-white-dark !py-0 w-[230px] font-semibold dark:text-white-light/90">
                                     <li>
                                         <div className="flex items-center px-4 py-4">
-                                            <img className="rounded-md w-10 h-10 object-cover" src="/assets/images/user-profile.jpeg" alt="userProfile" />
+                                            <div className="rounded-md w-10 h-10 bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold text-sm">
+                                                {getInitials(currentUser?.name || 'U')}
+                                            </div>
                                             <div className="ltr:pl-4 rtl:pr-4 truncate">
                                                 <h4 className="text-base">
                                                     {currentUser?.name || 'User'}
