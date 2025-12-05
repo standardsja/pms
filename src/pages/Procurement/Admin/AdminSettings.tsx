@@ -860,7 +860,7 @@ function AssignRequestsToUsersPanel({ users }: { users: FlatUser[] }) {
                 throw new Error(errorData?.message || 'Failed to assign request');
             }
 
-            const assigneeName = userId ? (users.find(u => u.id === userId)?.name || 'user') : 'unassigned';
+            const assigneeName = userId ? users.find((u) => u.id === userId)?.name || 'user' : 'unassigned';
             setSuccess(`Request successfully assigned to ${assigneeName}${selectedStatus ? ` with status ${selectedStatus}` : ''}`);
 
             // Reset and reload
@@ -896,11 +896,7 @@ function AssignRequestsToUsersPanel({ users }: { users: FlatUser[] }) {
                     <h5 className="text-lg font-semibold">Assign Requests to Users</h5>
                     <p className="text-sm text-white-dark mt-1">Quickly assign or reassign requests to team members</p>
                 </div>
-                <button 
-                    onClick={loadRequests} 
-                    disabled={loading}
-                    className="btn btn-outline-primary"
-                >
+                <button onClick={loadRequests} disabled={loading} className="btn btn-outline-primary">
                     Refresh
                 </button>
             </div>
@@ -948,8 +944,12 @@ function AssignRequestsToUsersPanel({ users }: { users: FlatUser[] }) {
                                                 REQ-{req.id}: {req.title}
                                             </div>
                                             <div className="text-xs text-white-dark mt-1">
-                                                <div>Status: <span className="font-medium">{req.status}</span></div>
-                                                <div className="truncate">Requester: <span className="font-medium">{req.requester?.name || 'Unknown'}</span></div>
+                                                <div>
+                                                    Status: <span className="font-medium">{req.status}</span>
+                                                </div>
+                                                <div className="truncate">
+                                                    Requester: <span className="font-medium">{req.requester?.name || 'Unknown'}</span>
+                                                </div>
                                             </div>
                                         </div>
                                         <div className="text-xs flex-shrink-0">
@@ -976,12 +976,7 @@ function AssignRequestsToUsersPanel({ users }: { users: FlatUser[] }) {
                     {/* Status Selector */}
                     <div className="mb-4 p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50">
                         <label className="block text-sm font-medium mb-2">Update Status (optional)</label>
-                        <select 
-                            className="form-select text-sm" 
-                            value={selectedStatus} 
-                            onChange={(e) => setSelectedStatus(e.target.value)} 
-                            disabled={!selectedRequest || assigning}
-                        >
+                        <select className="form-select text-sm" value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value)} disabled={!selectedRequest || assigning}>
                             <option value="">— Keep current status —</option>
                             <option value="DRAFT">DRAFT</option>
                             <option value="SUBMITTED">SUBMITTED</option>
@@ -1031,16 +1026,14 @@ function AssignRequestsToUsersPanel({ users }: { users: FlatUser[] }) {
                                                 </div>
                                             )}
                                         </div>
-                                        {assigning && (
-                                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary/20 border-t-primary flex-shrink-0"></div>
-                                        )}
+                                        {assigning && <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary/20 border-t-primary flex-shrink-0"></div>}
                                     </div>
                                 </div>
                             ))}
 
                             {/* Unassign Button */}
                             {selectedRequest && (
-                                <div 
+                                <div
                                     onClick={() => !assigning && assignRequest(selectedRequest, null)}
                                     className={`cursor-pointer rounded border border-danger p-3 transition-all hover:bg-danger/10 ${assigning ? 'pointer-events-none opacity-50' : ''}`}
                                 >
@@ -1078,11 +1071,11 @@ function ReassignRequestsTab() {
         setError(null);
         try {
             const [reqsRes, usersRes] = await Promise.all([fetch(getApiUrl('/requests')), fetch(getApiUrl('/admin/users'))]);
-            
+
             if (!reqsRes.ok || !usersRes.ok) {
                 throw new Error('Failed to fetch data from server');
             }
-            
+
             const reqs = await reqsRes.json();
             const usrs = await usersRes.json();
             setRequests(reqs);
@@ -1114,10 +1107,10 @@ function ReassignRequestsTab() {
                     'Content-Type': 'application/json',
                     'x-user-id': String(user.id),
                 },
-                body: JSON.stringify({ 
-                    assigneeId, 
-                    comment: 'Manually reassigned by admin', 
-                    newStatus: selectedStatus || undefined 
+                body: JSON.stringify({
+                    assigneeId,
+                    comment: 'Manually reassigned by admin',
+                    newStatus: selectedStatus || undefined,
                 }),
             });
 
@@ -1126,9 +1119,9 @@ function ReassignRequestsTab() {
                 throw new Error(errorData?.message || 'Failed to reassign request');
             }
 
-            const assigneeName = users.find(u => u.id === assigneeId)?.name || 'unassigned';
+            const assigneeName = users.find((u) => u.id === assigneeId)?.name || 'unassigned';
             setSuccess(`Request successfully reassigned to ${assigneeName}${selectedStatus ? ` with status ${selectedStatus}` : ''}`);
-            
+
             // Reset selections and reload data
             setSelectedRequest(null);
             setSelectedStatus('');
@@ -1161,11 +1154,7 @@ function ReassignRequestsTab() {
                     <h5 className="text-lg font-semibold">Reassign Requests</h5>
                     <p className="text-sm text-white-dark mt-1">Select a request and click a user to reassign it</p>
                 </div>
-                <button 
-                    onClick={loadData} 
-                    disabled={loading}
-                    className="btn btn-outline-primary"
-                >
+                <button onClick={loadData} disabled={loading} className="btn btn-outline-primary">
                     Refresh
                 </button>
             </div>
@@ -1213,8 +1202,12 @@ function ReassignRequestsTab() {
                                                 REQ-{req.id}: {req.title}
                                             </div>
                                             <div className="text-xs text-white-dark mt-1">
-                                                <div>Status: <span className="font-medium">{req.status}</span></div>
-                                                <div>Requester: <span className="font-medium">{req.requester?.name || 'Unknown'}</span></div>
+                                                <div>
+                                                    Status: <span className="font-medium">{req.status}</span>
+                                                </div>
+                                                <div>
+                                                    Requester: <span className="font-medium">{req.requester?.name || 'Unknown'}</span>
+                                                </div>
                                             </div>
                                         </div>
                                         <div className="text-xs flex-shrink-0">
@@ -1237,16 +1230,11 @@ function ReassignRequestsTab() {
                         Users {selectedRequest && <span className="badge bg-warning text-white text-xs">Request Selected</span>}
                         <span className="badge bg-primary text-white text-xs ml-auto">{users.length}</span>
                     </h6>
-                    
+
                     {/* Status Selector */}
                     <div className="mb-4 p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50">
                         <label className="block text-sm font-medium mb-2">Update Status (optional)</label>
-                        <select 
-                            className="form-select text-sm" 
-                            value={selectedStatus} 
-                            onChange={(e) => setSelectedStatus(e.target.value)} 
-                            disabled={!selectedRequest || reassigning}
-                        >
+                        <select className="form-select text-sm" value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value)} disabled={!selectedRequest || reassigning}>
                             <option value="">— Keep current status —</option>
                             <option value="DRAFT">DRAFT</option>
                             <option value="SUBMITTED">SUBMITTED</option>
@@ -1296,16 +1284,14 @@ function ReassignRequestsTab() {
                                                 </div>
                                             )}
                                         </div>
-                                        {reassigning && (
-                                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary/20 border-t-primary flex-shrink-0"></div>
-                                        )}
+                                        {reassigning && <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary/20 border-t-primary flex-shrink-0"></div>}
                                     </div>
                                 </div>
                             ))}
 
                             {/* Unassign Button */}
                             {selectedRequest && (
-                                <div 
+                                <div
                                     onClick={() => !reassigning && reassignRequest(selectedRequest, null)}
                                     className={`cursor-pointer rounded border border-danger p-3 transition-all hover:bg-danger/10 ${reassigning ? 'pointer-events-none opacity-50' : ''}`}
                                 >

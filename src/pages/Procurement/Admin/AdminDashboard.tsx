@@ -586,7 +586,7 @@ function AssignRequestsPanel({ users }: { users: AdminUser[] }) {
                 throw new Error(errorData?.message || 'Failed to assign request');
             }
 
-            const assigneeName = userId ? (users.find(u => u.id === userId)?.name || 'user') : 'unassigned';
+            const assigneeName = userId ? users.find((u) => u.id === userId)?.name || 'user' : 'unassigned';
             setSuccess(`Request successfully assigned to ${assigneeName}${selectedStatus ? ` with status ${selectedStatus}` : ''}`);
 
             // Reset and reload
@@ -647,11 +647,7 @@ function AssignRequestsPanel({ users }: { users: AdminUser[] }) {
                             Requests
                             <span className="badge bg-primary text-white text-xs">{requests.length}</span>
                         </h6>
-                        <button 
-                            onClick={loadRequests} 
-                            disabled={loading}
-                            className="btn btn-sm btn-outline-primary"
-                        >
+                        <button onClick={loadRequests} disabled={loading} className="btn btn-sm btn-outline-primary">
                             Refresh
                         </button>
                     </div>
@@ -675,8 +671,12 @@ function AssignRequestsPanel({ users }: { users: AdminUser[] }) {
                                                 REQ-{req.id}: {req.title}
                                             </div>
                                             <div className="text-xs text-white-dark mt-1">
-                                                <div>Status: <span className="font-medium">{req.status}</span></div>
-                                                <div className="truncate">Requester: <span className="font-medium">{req.requester?.name || 'Unknown'}</span></div>
+                                                <div>
+                                                    Status: <span className="font-medium">{req.status}</span>
+                                                </div>
+                                                <div className="truncate">
+                                                    Requester: <span className="font-medium">{req.requester?.name || 'Unknown'}</span>
+                                                </div>
                                             </div>
                                         </div>
                                         <div className="text-xs flex-shrink-0">
@@ -703,12 +703,7 @@ function AssignRequestsPanel({ users }: { users: AdminUser[] }) {
                     {/* Status Selector */}
                     <div className="mb-4 p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50">
                         <label className="block text-sm font-medium mb-2">Update Status (optional)</label>
-                        <select 
-                            className="form-select text-sm" 
-                            value={selectedStatus} 
-                            onChange={(e) => setSelectedStatus(e.target.value)} 
-                            disabled={!selectedRequest || assigning}
-                        >
+                        <select className="form-select text-sm" value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value)} disabled={!selectedRequest || assigning}>
                             <option value="">— Keep current status —</option>
                             <option value="DRAFT">DRAFT</option>
                             <option value="SUBMITTED">SUBMITTED</option>
@@ -757,17 +752,11 @@ function AssignRequestsPanel({ users }: { users: AdminUser[] }) {
                                                                 {role}
                                                             </span>
                                                         ))}
-                                                        {userRoles.length > 2 && (
-                                                            <span className="badge badge-outline-primary text-xs">
-                                                                +{userRoles.length - 2}
-                                                            </span>
-                                                        )}
+                                                        {userRoles.length > 2 && <span className="badge badge-outline-primary text-xs">+{userRoles.length - 2}</span>}
                                                     </div>
                                                 )}
                                             </div>
-                                            {assigning && (
-                                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary/20 border-t-primary flex-shrink-0"></div>
-                                            )}
+                                            {assigning && <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary/20 border-t-primary flex-shrink-0"></div>}
                                         </div>
                                     </div>
                                 );
@@ -775,7 +764,7 @@ function AssignRequestsPanel({ users }: { users: AdminUser[] }) {
 
                             {/* Unassign Button */}
                             {selectedRequest && (
-                                <div 
+                                <div
                                     onClick={() => !assigning && assignRequest(selectedRequest, null)}
                                     className={`cursor-pointer rounded border border-danger p-3 transition-all hover:bg-danger/10 ${assigning ? 'pointer-events-none opacity-50' : ''}`}
                                 >
