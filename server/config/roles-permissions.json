@@ -19,6 +19,9 @@
                 "payment:read": false,
                 "payment:approve": false,
                 "audit:read": false,
+                "evaluation:read": true,
+                "evaluation:create": true,
+                "evaluation:manage": false,
                 "admin:manage_users": false,
                 "admin:manage_roles": false,
                 "admin:view_system": false
@@ -237,7 +240,8 @@
         "cn=department-heads,ou=roles,dc=company,dc=com": "DEPARTMENT_HEAD",
         "cn=executive-directors,ou=roles,dc=company,dc=com": "EXECUTIVE_DIRECTOR",
         "cn=senior-directors,ou=roles,dc=company,dc=com": "SENIOR_DIRECTOR",
-        "cn=auditors,ou=roles,dc=company,dc=com": "AUDITOR"
+        "cn=auditors,ou=roles,dc=company,dc=com": "AUDITOR",
+        "cn=requesters,ou=roles,dc=company,dc=com": "REQUESTER"
     },
     "ldapAttributeMappings": {
         "title": {
@@ -248,7 +252,8 @@
             "Department Head": "DEPARTMENT_HEAD",
             "Executive Director": "EXECUTIVE_DIRECTOR",
             "Senior Director": "SENIOR_DIRECTOR",
-            "Auditor": "AUDITOR"
+            "Auditor": "AUDITOR",
+            "Requester": "REQUESTER"
         },
         "departmentCode": {
             "FIN": "FINANCE_OFFICER"
