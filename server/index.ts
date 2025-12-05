@@ -17,6 +17,8 @@ const __dirname = path.dirname(__filename);
 import rateLimit from 'express-rate-limit';
 import { prisma, ensureDbConnection } from './prismaClient';
 import { initRedis, closeRedis, cacheGet, cacheSet, cacheDelete, cacheDeletePattern } from './config/redis';
+import { initializeGlobalRoleResolver } from './services/roleResolver';
+import { getGroupMappings } from './config/ldapGroupMapping';
 import { initTrendingScoreJob, updateIdeaTrendingScore } from './services/trendingService';
 import { findPotentialDuplicates } from './services/duplicateDetectionService';
 import { searchIdeas, getSearchSuggestions } from './services/searchService';
@@ -49,6 +51,38 @@ const PUBLIC_HOST = process.env.API_PUBLIC_HOST || (APP_ENV === 'local' ? 'local
 const JWT_SECRET = process.env.JWT_SECRET || 'devsecret-change-me';
 
 let trendingJobInterval: NodeJS.Timeout | null = null;
+
+// Initialize global RoleResolver early so middleware can use it
+try {
+    const rolesPermissionsPath = path.resolve(__dirname, './config/roles-permissions.json');
+
+    // Convert array group mappings to simple key->role mapping expected by RoleResolver
+    const groupArray = getGroupMappings();
+    const ldapGroupMappings: Record<string, string> = {};
+    for (const gm of groupArray) {
+        if (gm.adGroupName && Array.isArray(gm.roles) && gm.roles.length > 0) {
+            // Pick first role in mapping as the primary mapping
+            ldapGroupMappings[gm.adGroupName] = gm.roles[0];
+        }
+    }
+
+    const rbacConfig = {
+        rolesPermissionsPath,
+        ldapGroupMappings,
+        ldapAttributeMappings: {},
+        cacheTTL: 60 * 60 * 1000,
+        defaultRole: 'REQUESTER',
+        enableDatabaseOverrides: true,
+    } as any;
+
+    initializeGlobalRoleResolver(rbacConfig);
+} catch (err) {
+    // Do not crash server on RBAC init failure; log and continue
+    // Middleware falls back to DB roles when resolver is unavailable
+    // (see server/middleware/auth.ts for fallback behavior)
+    // eslint-disable-next-line no-console
+    console.warn('[RBAC] Failed to initialize global role resolver:', err);
+}
 
 // Rate limiting configurations
 const generalLimiter = rateLimit({
