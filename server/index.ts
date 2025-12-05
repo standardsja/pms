@@ -3599,6 +3599,43 @@ app.post('/procurement/load-balancing-settings', async (req, res) => {
     }
 });
 
+// --- ADMIN: Load Balancing Settings (allow admins to toggle splintering) ---
+app.get('/api/admin/load-balancing-settings', requireAdmin, async (req, res) => {
+    try {
+        const settings = await getLoadBalancingSettings(prisma);
+        if (!settings) {
+            return res.json({ enabled: false, strategy: 'LEAST_LOADED', autoAssignOnApproval: true, roundRobinCounter: 0, splinteringEnabled: false });
+        }
+        return res.json(settings);
+    } catch (e: any) {
+        console.error('GET /api/admin/load-balancing-settings error:', e);
+        return res.status(500).json({ message: e?.message || 'Failed to fetch settings' });
+    }
+});
+
+app.post('/api/admin/load-balancing-settings', requireAdmin, async (req, res) => {
+    try {
+        const adminId = req.headers['x-user-id'];
+        if (!adminId) return res.status(401).json({ message: 'User ID required' });
+
+        const { splinteringEnabled } = req.body as { splinteringEnabled?: boolean };
+
+        const settings = await updateLoadBalancingSettings(
+            prisma,
+            {
+                splinteringEnabled: splinteringEnabled !== undefined ? splinteringEnabled : undefined,
+            },
+            parseInt(String(adminId), 10)
+        );
+
+        console.log('[Admin] Load balancing settings updated by admin', adminId, settings);
+        return res.json(settings);
+    } catch (e: any) {
+        console.error('POST /api/admin/load-balancing-settings error:', e);
+        return res.status(500).json({ message: e?.message || 'Failed to update settings' });
+    }
+});
+
 // Backward-compat alias: underscore variant
 app.post('/procurement/load_balancing-settings', async (req, res) => {
     // Delegate to the canonical handler

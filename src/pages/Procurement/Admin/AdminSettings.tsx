@@ -9,6 +9,7 @@ import IconPlus from '../../../components/Icon/IconPlus';
 import IconPencil from '../../../components/Icon/IconPencil';
 import IconTrash from '../../../components/Icon/IconTrash';
 import adminService, { ADMIN_ROLE_NAMES, type AdminUser } from '../../../services/adminService';
+import SplinteringManagement from './SplinteringManagement';
 
 const AdminSettings = () => {
     const dispatch = useDispatch();
@@ -132,8 +133,50 @@ const AdminSettings = () => {
             loadRoles();
             loadDepartments();
         }
+        if (activeTab === 'splintering') {
+            // load splintering settings available to admins
+            loadSplinteringSettings();
+            // also ensure users/departments are available for manager selection if needed
+            loadUsers();
+            loadDepartments();
+        }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeTab]);
+
+    const [splinteringEnabled, setSplinteringEnabled] = useState<boolean | null>(null);
+    const [splinteringLoading, setSplinteringLoading] = useState(false);
+    const [splinteringError, setSplinteringError] = useState<string | null>(null);
+
+    async function loadSplinteringSettings() {
+        setSplinteringLoading(true);
+        setSplinteringError(null);
+        try {
+            const settings: any = await adminService.getLoadBalancingSettings();
+            setSplinteringEnabled(Boolean(settings?.splinteringEnabled));
+        } catch (e: any) {
+            console.warn('Failed to load splintering settings as admin:', e?.message || e);
+            setSplinteringError(e?.message || 'Failed to load settings');
+            setSplinteringEnabled(false);
+        } finally {
+            setSplinteringLoading(false);
+        }
+    }
+
+    async function saveSplinteringEnabled(enable: boolean) {
+        setSplinteringLoading(true);
+        setSplinteringError(null);
+        try {
+            const resp = await adminService.updateLoadBalancingSettings({ splinteringEnabled: enable });
+            setSplinteringEnabled(Boolean(resp?.splinteringEnabled));
+            openModal('success', 'Saved', `Splintering detection ${enable ? 'enabled' : 'disabled'}`);
+        } catch (e: any) {
+            console.error('Failed to save splintering setting:', e);
+            setSplinteringError(e?.message || 'Failed to save setting');
+            openModal('danger', 'Save Failed', e?.message || 'Failed to save setting');
+        } finally {
+            setSplinteringLoading(false);
+        }
+    }
 
     // Persist role changes
     async function handleSaveRoles(userId: number, roles: string[]) {
@@ -603,6 +646,35 @@ const AdminSettings = () => {
             {/* Reassign Requests Tab */}
             {activeTab === 'reassign' && <ReassignRequestsTab />}
 
+            {/* Splintering Tab (admin-facing global toggle + rule management) */}
+            {activeTab === 'splintering' && (
+                <div className="space-y-6">
+                    <div className="panel">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h5 className="text-lg font-semibold">Global Splintering Detection</h5>
+                                <p className="text-sm text-white-dark">Enable or disable global splintering checks for submitted requests.</p>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                {splinteringError && <div className="text-danger">{splinteringError}</div>}
+                                <label className="flex items-center gap-2">
+                                    <input
+                                        type="checkbox"
+                                        className="form-checkbox"
+                                        checked={Boolean(splinteringEnabled)}
+                                        disabled={splinteringLoading || splinteringEnabled === null}
+                                        onChange={(e) => saveSplinteringEnabled(e.target.checked)}
+                                    />
+                                    <span className="ml-1">Enabled</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <SplinteringManagement />
+                </div>
+            )}
+
             {/* General Settings Tab */}
             {activeTab === 'general' && (
                 <div className="grid gap-6 lg:grid-cols-2">
@@ -797,6 +869,7 @@ function ReassignRequestsTab() {
     const [loading, setLoading] = useState(false);
     const [selectedRequest, setSelectedRequest] = useState<number | null>(null);
     const [selectedStatus, setSelectedStatus] = useState<string>('');
+    const [reassigning, setReassigning] = useState<number | null>(null);
 
     useEffect(() => {
         loadData();
@@ -805,10 +878,8 @@ function ReassignRequestsTab() {
     async function loadData() {
         setLoading(true);
         try {
-            const [reqsRes, usersRes] = await Promise.all([fetch(getApiUrl('/requests')), fetch(getApiUrl('/admin/users'))]);
-            const reqs = await reqsRes.json();
-            const usrs = await usersRes.json();
-            setRequests(reqs);
+            const [reqsRes, usrs] = await Promise.all([fetch(getApiUrl('/requests')).then((r) => r.json()), adminService.getUsers()]);
+            setRequests(reqsRes);
             setUsers(usrs);
         } catch (e) {
             console.error('Failed to load data:', e);
@@ -818,25 +889,15 @@ function ReassignRequestsTab() {
     }
 
     async function reassignRequest(requestId: number, assigneeId: number | null) {
+        setReassigning(requestId);
         try {
-            const userProfile = localStorage.getItem('auth_user') || sessionStorage.getItem('auth_user');
-            const user = userProfile ? JSON.parse(userProfile) : null;
-
-            const res = await fetch(getApiUrl(`/admin/requests/${requestId}/reassign`), {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-user-id': String(user?.id || ''),
-                },
-                body: JSON.stringify({ assigneeId, comment: 'Manually reassigned by admin', newStatus: selectedStatus || undefined }),
-            });
-
-            if (!res.ok) throw new Error('Failed to reassign');
-
+            await adminService.reassignRequest(requestId, { assigneeId, comment: 'Manually reassigned by admin', newStatus: selectedStatus || undefined });
             await loadData();
             alert('Request reassigned successfully!');
         } catch (e: any) {
             alert(e?.message || 'Failed to reassign request');
+        } finally {
+            setReassigning(null);
         }
     }
 
@@ -903,25 +964,35 @@ function ReassignRequestsTab() {
                         </select>
                     </div>
                     <div className="space-y-2 max-h-96 overflow-y-auto">
-                        {users.map((user) => (
-                            <div
-                                key={user.id}
-                                onClick={() => selectedRequest && reassignRequest(selectedRequest, user.id)}
-                                className={`rounded border p-3 ${
-                                    selectedRequest ? 'cursor-pointer hover:bg-success/10 border-white-light dark:border-dark' : 'opacity-50 cursor-not-allowed border-white-light dark:border-dark'
-                                }`}
-                            >
-                                <div className="font-semibold">{user.name}</div>
-                                <div className="text-xs text-white-dark">{user.email}</div>
-                                <div className="mt-1 flex flex-wrap gap-1">
-                                    {user.roles?.map((role: string) => (
-                                        <span key={role} className="badge badge-outline-primary text-xs">
-                                            {role}
-                                        </span>
-                                    ))}
+                        {users.map((user) => {
+                            const roleNames: string[] = (user.roles || []).map((r: any) => {
+                                if (!r) return '';
+                                if (typeof r === 'string') return r;
+                                if (r.role && typeof r.role === 'object') return r.role.name || '';
+                                if (r.name) return r.name;
+                                return '';
+                            }).filter(Boolean);
+
+                            return (
+                                <div
+                                    key={user.id}
+                                    onClick={() => selectedRequest && reassignRequest(selectedRequest, user.id)}
+                                    className={`rounded border p-3 ${
+                                        selectedRequest ? 'cursor-pointer hover:bg-success/10 border-white-light dark:border-dark' : 'opacity-50 cursor-not-allowed border-white-light dark:border-dark'
+                                    }`}
+                                >
+                                    <div className="font-semibold">{user.name}</div>
+                                    <div className="text-xs text-white-dark">{user.email}</div>
+                                    <div className="mt-1 flex flex-wrap gap-1">
+                                        {roleNames.map((role) => (
+                                            <span key={role} className="badge badge-outline-primary text-xs">
+                                                {role}
+                                            </span>
+                                        ))}
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                         {selectedRequest && (
                             <div onClick={() => selectedRequest && reassignRequest(selectedRequest, null)} className="cursor-pointer rounded border border-danger p-3 hover:bg-danger/10">
                                 <div className="font-semibold text-danger">Unassign (Remove assignee)</div>
