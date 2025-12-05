@@ -1,4 +1,4 @@
-import { getToken, getUser } from './auth';
+import { getToken, getUser, clearAuth } from './auth';
 import { getApiUrl } from '../config/api';
 
 export type Idea = {
@@ -114,6 +114,13 @@ export async function fetchIdeas(params?: {
         });
 
         if (!res.ok) {
+            // Handle 401 Unauthorized - clear auth and redirect to login
+            if (res.status === 401) {
+                clearAuth();
+                window.location.href = '/auth/boxed-signin';
+                throw new Error('Session expired. Please log in again.');
+            }
+
             // Try to parse error response
             let errorMessage = 'Unable to load ideas. Please try again later.';
             try {
@@ -122,7 +129,7 @@ export async function fetchIdeas(params?: {
             } catch {
                 // If JSON parsing fails, use status text
                 errorMessage =
-                    res.status === 404 ? 'Ideas not found' : res.status === 403 ? 'Access denied' : res.status === 401 ? 'Please log in to continue' : 'Unable to load ideas. Please try again later.';
+                    res.status === 404 ? 'Ideas not found' : res.status === 403 ? 'Access denied' : 'Unable to load ideas. Please try again later.';
             }
             throw new Error(errorMessage);
         }

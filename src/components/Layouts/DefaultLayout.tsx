@@ -1,7 +1,6 @@
 import { PropsWithChildren, Suspense, useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import App from '../../App';
 import { IRootState } from '../../store';
 import { toggleSidebar } from '../../store/themeConfigSlice';
 import Footer from './Footer';
@@ -12,6 +11,7 @@ import Portals from '../../components/Portals';
 import ErrorBoundary from '../../components/ErrorBoundary';
 import { getToken, getUser, clearAuth } from '../../utils/auth';
 import { heartbeatService } from '../../services/heartbeatService';
+import { AppInitializer } from '../AppInitializer';
 
 const DefaultLayout = ({ children }: PropsWithChildren) => {
     const themeConfig = useSelector((state: IRootState) => state.themeConfig);
@@ -82,9 +82,12 @@ const DefaultLayout = ({ children }: PropsWithChildren) => {
     }
 
     return (
-        <App>
+        <>
+            <AppInitializer />
             {/* BEGIN MAIN CONTAINER */}
-            <div className="relative">
+            <div className={`${themeConfig.sidebar && 'toggle-sidebar'} ${themeConfig.menu} ${themeConfig.layout} ${
+                themeConfig.rtlClass
+            } main-section antialiased relative font-nunito text-sm font-normal`}>
                 {/* sidebar menu overlay */}
                 <div className={`${(!themeConfig.sidebar && 'hidden') || ''} fixed inset-0 bg-[black]/60 z-50 lg:hidden`} onClick={() => dispatch(toggleSidebar())}></div>
                 {/* screen loader */}
@@ -139,7 +142,7 @@ const DefaultLayout = ({ children }: PropsWithChildren) => {
                     </div>
                 </div>
             </div>
-        </App>
+        </>
     );
 };
 

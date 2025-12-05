@@ -30,7 +30,7 @@ const BSJProjects = () => {
         if (showLoader) setLoading(true);
         setError(null);
         try {
-            const response = await fetchIdeas({ status: 'promoted' });
+            const response = await fetchIdeas({ status: 'PROMOTED_TO_PROJECT' });
             const data = Array.isArray(response) ? response : (response as any).ideas || response;
             setProjects(data);
         } catch (e: any) {
