@@ -119,7 +119,7 @@ const AccountSetting = () => {
             }
 
             // Send updated profile data to backend
-            const response = await fetch(`http://heron:4000/api/auth/profile`, {
+            const response = await fetch(getApiUrl('/api/auth/profile'), {
                 method: 'PUT',
                 headers: {
                     Authorization: `Bearer ${token}`,
@@ -128,7 +128,6 @@ const AccountSetting = () => {
                 body: JSON.stringify({
                     name: formData.fullName,
                     jobTitle: formData.jobTitle,
-                    department: formData.department,
                     country: formData.country,
                     address: formData.address,
                     city: formData.city,

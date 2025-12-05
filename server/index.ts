@@ -4231,6 +4231,102 @@ app.get('/api/auth/test-ldap', async (req, res) => {
     }
 });
 
+// GET /api/auth/me - Get current user profile (including LDAP-synced data)
+app.get('/api/auth/me', authMiddleware, async (req, res) => {
+    try {
+        const userObj = (req as any).user;
+        const userId = userObj?.sub || userObj?.id;
+        if (!userId) {
+            return res.status(401).json({ message: 'Unauthorized' });
+        }
+
+        const user = await prisma.user.findUnique({
+            where: { id: parseInt(String(userId), 10) },
+            include: {
+                department: { select: { id: true, name: true, code: true } },
+                roles: { include: { role: { select: { id: true, name: true } } } },
+            },
+        });
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        // Return user data (includes LDAP-synced fields like name, department, etc.)
+        return res.json({
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            jobTitle: user.jobTitle || null,
+            phone: user.phone || null,
+            address: user.address || null,
+            city: user.city || null,
+            country: user.country || null,
+            employeeId: user.employeeId || null,
+            supervisor: user.supervisor || null,
+            department: user.department,
+            roles: user.roles.map((ur) => ({ id: ur.role.id, name: ur.role.name })),
+            ldapDN: user.ldapDN || null,
+            createdAt: user.createdAt,
+            updatedAt: user.updatedAt,
+        });
+    } catch (e: any) {
+        console.error('GET /api/auth/me error:', e);
+        return res.status(500).json({ message: e?.message || 'Failed to fetch user profile' });
+    }
+});
+
+// PUT /api/auth/profile - Update user profile data
+app.put('/api/auth/profile', authMiddleware, async (req, res) => {
+    try {
+        const userObj = (req as any).user;
+        const userId = userObj?.sub || userObj?.id;
+        if (!userId) {
+            return res.status(401).json({ message: 'Unauthorized' });
+        }
+
+        const { name, jobTitle, phone, address, city, country, employeeId, supervisor } = req.body;
+
+        const updated = await prisma.user.update({
+            where: { id: parseInt(String(userId), 10) },
+            data: {
+                ...(name !== undefined && { name }),
+                ...(jobTitle !== undefined && { jobTitle }),
+                ...(phone !== undefined && { phone }),
+                ...(address !== undefined && { address }),
+                ...(city !== undefined && { city }),
+                ...(country !== undefined && { country }),
+                ...(employeeId !== undefined && { employeeId }),
+                ...(supervisor !== undefined && { supervisor }),
+            },
+            include: {
+                department: { select: { id: true, name: true, code: true } },
+                roles: { include: { role: { select: { id: true, name: true } } } },
+            },
+        });
+
+        // Return updated user data
+        return res.json({
+            id: updated.id,
+            email: updated.email,
+            name: updated.name,
+            jobTitle: updated.jobTitle || null,
+            phone: updated.phone || null,
+            address: updated.address || null,
+            city: updated.city || null,
+            country: updated.country || null,
+            employeeId: updated.employeeId || null,
+            supervisor: updated.supervisor || null,
+            department: updated.department,
+            roles: updated.roles.map((ur) => ({ id: ur.role.id, name: ur.role.name })),
+            ldapDN: updated.ldapDN || null,
+        });
+    } catch (e: any) {
+        console.error('PUT /api/auth/profile error:', e);
+        return res.status(500).json({ message: e?.message || 'Failed to update profile' });
+    }
+});
+
 // ============================================
 // EVALUATION ENDPOINTS
 // ============================================

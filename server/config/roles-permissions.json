@@ -59,6 +59,7 @@
                 "request:approve": true,
                 "request:reject": true,
                 "request:reassign": false,
+                "request:combine": true,
                 "request:delete": false,
                 "vendor:read": true,
                 "vendor:create": true,
@@ -67,6 +68,11 @@
                 "payment:read": false,
                 "payment:approve": false,
                 "audit:read": true,
+                "evaluation:read": true,
+                "evaluation:create": true,
+                "evaluation:manage": false,
+                "load_balancing:read": false,
+                "load_balancing:manage": false,
                 "admin:manage_users": false,
                 "admin:manage_roles": false,
                 "admin:view_system": false
@@ -83,6 +89,7 @@
                 "request:approve": true,
                 "request:reject": true,
                 "request:reassign": true,
+                "request:combine": true,
                 "request:delete": false,
                 "vendor:read": true,
                 "vendor:create": true,
@@ -91,6 +98,11 @@
                 "payment:read": true,
                 "payment:approve": false,
                 "audit:read": true,
+                "evaluation:read": true,
+                "evaluation:create": true,
+                "evaluation:manage": true,
+                "load_balancing:read": true,
+                "load_balancing:manage": true,
                 "admin:manage_users": false,
                 "admin:manage_roles": false,
                 "admin:view_system": false
@@ -243,10 +255,23 @@
         }
     },
     "permissionCategories": {
-        "request": ["request:create", "request:read_own", "request:edit_own", "request:submit", "request:read_all", "request:approve", "request:reject", "request:reassign", "request:delete"],
+        "request": [
+            "request:create",
+            "request:read_own",
+            "request:edit_own",
+            "request:submit",
+            "request:read_all",
+            "request:approve",
+            "request:reject",
+            "request:reassign",
+            "request:combine",
+            "request:delete"
+        ],
         "vendor": ["vendor:read", "vendor:create"],
         "budget": ["budget:read_own", "budget:approve"],
         "payment": ["payment:read", "payment:approve"],
+        "evaluation": ["evaluation:read", "evaluation:create", "evaluation:manage"],
+        "load_balancing": ["load_balancing:read", "load_balancing:manage"],
         "audit": ["audit:read"],
         "admin": ["admin:manage_users", "admin:manage_roles", "admin:view_system"]
     }

@@ -120,6 +120,16 @@ model User {
   name         String?
   passwordHash String? // ← for local email/password testing
 
+  // LDAP-synced fields
+  jobTitle     String?
+  phone        String?
+  address      String?
+  city         String?
+  country      String?
+  employeeId   String?
+  supervisor   String?
+  ldapDN       String?
+
   department   Department? @relation("userDepartment", fields: [departmentId], references: [id])
   departmentId Int?
 
