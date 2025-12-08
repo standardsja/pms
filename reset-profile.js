@@ -3,7 +3,7 @@ const prisma = new PrismaClient();
 
 async function resetProfile() {
     const updated = await prisma.user.update({
-        where: { id: 31 },
+        where: { id: 35 },
         data: { profileImage: null },
         select: {
             id: true,
