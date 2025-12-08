@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { useDispatch } from 'react-redux';
 import { setPageTitle } from '../../../store/themeConfigSlice';
 import { getApiUrl } from '../../../config/api';
+import { getUser } from '../../../utils/auth';
 import IconPlus from '../../../components/Icon/IconPlus';
 import IconEdit from '../../../components/Icon/IconEdit';
 import IconTrash from '../../../components/Icon/IconTrash';
@@ -95,13 +96,23 @@ const DepartmentManagement = () => {
         }
 
         setSaving(true);
+        setError(null);
+        
         try {
-            const url = editingId ? `/api/departments/${editingId}` : '/api/departments';
+            const currentUser = getUser();
+            if (!currentUser?.id) {
+                throw new Error('User not authenticated');
+            }
+
+            const url = editingId ? `/api/admin/departments/${editingId}` : '/api/admin/departments';
             const method = editingId ? 'PUT' : 'POST';
 
             const res = await fetch(getApiUrl(url), {
                 method,
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'x-user-id': String(currentUser.id)
+                },
                 body: JSON.stringify({
                     name: formData.name,
                     code: formData.code,
@@ -111,7 +122,10 @@ const DepartmentManagement = () => {
                 }),
             });
 
-            if (!res.ok) throw new Error('Failed to save department');
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({}));
+                throw new Error(errorData.message || 'Failed to save department');
+            }
 
             setSuccessMessage(`Department ${editingId ? 'updated' : 'created'} successfully`);
             setShowSuccess(true);
@@ -129,8 +143,23 @@ const DepartmentManagement = () => {
         if (!confirm('Are you sure? This action cannot be undone.')) return;
 
         try {
-            const res = await fetch(getApiUrl(`/api/departments/${id}`), { method: 'DELETE' });
-            if (!res.ok) throw new Error('Failed to delete department');
+            const currentUser = getUser();
+            if (!currentUser?.id) {
+                throw new Error('User not authenticated');
+            }
+
+            const res = await fetch(getApiUrl(`/api/admin/departments/${id}`), { 
+                method: 'DELETE',
+                headers: {
+                    'x-user-id': String(currentUser.id)
+                }
+            });
+            
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({}));
+                throw new Error(errorData.message || 'Failed to delete department');
+            }
+            
             setSuccessMessage('Department deleted successfully');
             setShowSuccess(true);
             await loadDepartments();
