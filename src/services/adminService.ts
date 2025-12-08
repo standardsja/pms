@@ -41,6 +41,7 @@ function getCurrentUserId(): number | null {
 }
 
 import { getApiBaseUrl } from '../config/api';
+import { getToken } from '../utils/auth';
 
 const API_BASE = getApiBaseUrl();
 // Decide whether to prefix; if API_BASE provided and path is relative, join.
@@ -50,12 +51,14 @@ function buildUrl(path: string) {
     return path; // rely on Vite proxy if no base set
 }
 
-async function apiGet<T = any>(path: string): Promise<T> {
+async function apiGet<T>(path: string): Promise<T> {
     const uid = getCurrentUserId();
+    const token = getToken();
     const url = buildUrl(path);
     const res = await fetch(url, {
         headers: {
             'x-user-id': uid ? String(uid) : '',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
     });
     if (!res.ok) {
@@ -65,14 +68,16 @@ async function apiGet<T = any>(path: string): Promise<T> {
     return res.json();
 }
 
-async function apiPost<T = any>(path: string, body: any): Promise<T> {
+async function apiPost<T>(path: string, body: unknown): Promise<T> {
     const uid = getCurrentUserId();
+    const token = getToken();
     const url = buildUrl(path);
     const res = await fetch(url, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
             'x-user-id': uid ? String(uid) : '',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify(body ?? {}),
     });
@@ -107,7 +112,25 @@ const BACKEND = {
     },
     // Reassign a request to another user (admin action)
     reassignRequest: (requestId: number, payload: { assigneeId: number | null; comment?: string; newStatus?: string }) => apiPost(`/api/admin/requests/${requestId}/reassign`, payload),
+    getFeatureFlags: () => apiGet<{ success: boolean; flags: FeatureFlag[] }>('/api/admin/feature-flags'),
+    upsertFeatureFlag: (key: string, payload: FeatureFlagUpsertInput) => apiPost<{ success: boolean; flag: FeatureFlag }>(`/api/admin/feature-flags/${encodeURIComponent(key)}`, payload),
 };
+
+export interface FeatureFlag {
+    id: number;
+    key: string;
+    description: string | null;
+    enabled: boolean;
+    module: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface FeatureFlagUpsertInput {
+    enabled?: boolean;
+    description?: string | null;
+    module?: string;
+}
 
 // Fallback hardcoded roles if API fails
 export const ADMIN_ROLE_NAMES = [

@@ -239,6 +239,16 @@ model User {
   evaluationAssignments EvaluationAssignment[]
 }
 
+model FeatureFlag {
+  id          Int      @id @default(autoincrement())
+  key         String   @unique
+  description String?
+  enabled     Boolean  @default(false)
+  module      String   @default("global")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
 model Department {
   id   Int     @id @default(autoincrement())
   name String
