@@ -92,10 +92,13 @@ const Requests = () => {
                 setRequests(adapted);
 
                 // Fetch combined requests if user has procurement access (only after roles are loaded)
-                if (currentUserRoles.length > 0 && currentUserRoles.some((role: any) => {
-                    const roleName = typeof role === 'string' ? role : role?.name || '';
-                    return roleName.toUpperCase().includes('PROCUREMENT') || roleName.toUpperCase().includes('MANAGER');
-                })) {
+                if (
+                    currentUserRoles.length > 0 &&
+                    currentUserRoles.some((role: any) => {
+                        const roleName = typeof role === 'string' ? role : role?.name || '';
+                        return roleName.toUpperCase().includes('PROCUREMENT') || roleName.toUpperCase().includes('MANAGER');
+                    })
+                ) {
                     try {
                         const combinedRes = await fetch(getApiUrl('/api/requests/combine'), {
                             headers,
@@ -317,19 +320,20 @@ const Requests = () => {
                 {currentUserRoles.some((role: any) => {
                     const roleName = typeof role === 'string' ? role : role?.name || '';
                     return roleName.toUpperCase().includes('PROCUREMENT') || roleName.toUpperCase().includes('MANAGER');
-                }) && combinedRequests.length > 0 && (
-                    <button onClick={() => navigate('/apps/requests/combine')} className="btn btn-outline-primary gap-2" type="button">
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-                            />
-                        </svg>
-                        View Combined Requests ({combinedRequests.length})
-                    </button>
-                )}
+                }) &&
+                    combinedRequests.length > 0 && (
+                        <button onClick={() => navigate('/apps/requests/combine')} className="btn btn-outline-primary gap-2" type="button">
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                                />
+                            </svg>
+                            View Combined Requests ({combinedRequests.length})
+                        </button>
+                    )}
             </div>
 
             <div className="bg-white dark:bg-slate-800 shadow rounded overflow-hidden" aria-busy={isLoading}>
