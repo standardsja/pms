@@ -2,7 +2,9 @@
 
 ## Overview
 
-Users can now upload and manage their profile photos. The system also automatically syncs profile photos from Active Directory/LDAP when users authenticate.
+Users can now upload and manage their profile photos in two ways:
+1. **Manual Upload** - Upload custom photos from their device
+2. **Active Directory Sync** - Pull their official AD photo with one click
 
 ## Features Implemented
 
@@ -13,17 +15,38 @@ Users can now upload and manage their profile photos. The system also automatica
     -   Supported formats: JPEG, JPG, PNG, GIF, WebP
     -   Maximum file size: 5MB
     -   Images automatically validated on frontend and backend
--   **UI**: Hover over profile photo to reveal upload button with pencil icon
--   **Functionality**: Click pencil icon → select image → automatic upload and preview
+-   **UI**: Two dedicated buttons below profile photo:
+    -   **Upload Photo** (Blue) - Opens file picker for custom uploads
+    -   **Sync from AD** (Green) - Syncs photo from Active Directory
+-   **Functionality**: 
+    -   Upload: Click button → select image → automatic upload and preview
+    -   LDAP Sync: Click button → photo pulled from AD → automatic update
 
-### 2. LDAP Photo Sync
+### 2. LDAP Photo Sync (Enhanced)
 
--   **Automatic**: Profile photos retrieved from Active Directory's `thumbnailPhoto` attribute
--   **Sync Timing**: During login authentication
--   **Behavior**:
+**Automatic Sync (On Login):**
+-   Profile photos retrieved from Active Directory's `thumbnailPhoto` attribute
+-   Sync Timing: During login authentication
+-   Behavior:
     -   New users: Photo set from LDAP on first login
     -   Existing users: Photo synced from LDAP if they don't have a profile image
-    -   Manual uploads take precedence (not overwritten by LDAP)
+    -   Manual uploads take precedence (not overwritten by LDAP on login)
+
+**Manual Sync (New Feature):**
+-   **Button**: "Sync from AD" button on Profile page
+-   **Purpose**: Users can manually pull their latest AD photo anytime
+-   **Requirements**:
+    -   User must be linked to Active Directory (`ldapDN` exists)
+    -   LDAP must be configured on server
+    -   User must have a photo in AD (`thumbnailPhoto` attribute)
+-   **Behavior**:
+    -   Replaces current profile photo with AD photo
+    -   Deletes old custom uploads (keeps LDAP consistency)
+    -   Updates instantly across all UI components
+-   **Error Handling**:
+    -   Shows friendly messages if LDAP not configured
+    -   Shows friendly messages if user not linked to AD
+    -   Shows friendly messages if no photo in AD
 
 ### 3. Profile Image Display
 
@@ -65,6 +88,12 @@ model User {
     -   Validates file type and size
     -   Deletes old profile photo before saving new one
     -   Returns updated profile image path
+-   **New Endpoint**: `POST /auth/sync-ldap-photo` ⭐ NEW
+    -   Syncs user's profile photo from Active Directory
+    -   Requires user to be linked to AD (`ldapDN` exists)
+    -   Retrieves `thumbnailPhoto` from LDAP
+    -   Replaces current photo with AD photo
+    -   Returns updated profile image path
 -   **Updated Endpoint**: `GET /auth/me`
     -   Now includes `profileImage` field in response
 -   **Multer Configuration**:
@@ -82,15 +111,21 @@ model User {
 
 #### 1. Profile Page (`src/pages/Procurement/Users/Profile.tsx`)
 
--   **New State**: `uploadingPhoto` - loading indicator during upload
--   **New Handler**: `handlePhotoUpload()` - validates and uploads photo
+-   **New State**: 
+    -   `uploadingPhoto` - loading indicator during upload
+    -   `syncingLDAPPhoto` - loading indicator during LDAP sync ⭐ NEW
+-   **New Handlers**: 
+    -   `handlePhotoUpload()` - validates and uploads photo
+    -   `handleSyncLDAPPhoto()` - syncs photo from Active Directory ⭐ NEW
 -   **UI Updates**:
     -   Profile image displays from `profileImage` field
-    -   Hover overlay with pencil icon for upload
-    -   Hidden file input triggered by label click
-    -   Upload progress indicator (spinner)
-    -   Success/error alerts
+    -   Two action buttons below photo:
+        -   "Upload Photo" button (blue outline)
+        -   "Sync from AD" button (green outline) ⭐ NEW
+    -   Upload progress indicators (spinners)
+    -   SweetAlert2 toast notifications for success/error
 -   **Image Source**: Constructs full URL using `getApiUrl()` helper
+-   **Cache Busting**: Adds timestamp query param to force image reload
 
 #### 2. Header Component (`src/components/Layouts/Header.tsx`)
 
@@ -122,7 +157,7 @@ uploads/
 
 ## API Endpoints
 
-### Upload Profile Photo
+### 1. Upload Profile Photo
 
 ```
 POST /auth/upload-photo
@@ -139,7 +174,40 @@ Response:
 }
 ```
 
-### Get User Profile (includes photo)
+### 2. Sync Photo from Active Directory ⭐ NEW
+
+```
+POST /auth/sync-ldap-photo
+Authorization: Bearer {token}
+Content-Type: application/json
+
+Response (Success):
+{
+  "success": true,
+  "profileImage": "/uploads/profiles/ldap-user-email-1234567890.jpg",
+  "message": "Profile photo synced from Active Directory"
+}
+
+Response (Error - Not linked to AD):
+{
+  "success": false,
+  "message": "This account is not linked to Active Directory"
+}
+
+Response (Error - No AD photo):
+{
+  "success": false,
+  "message": "No profile photo found in Active Directory"
+}
+
+Response (Error - LDAP not configured):
+{
+  "success": false,
+  "message": "LDAP is not configured on this server"
+}
+```
+
+### 3. Get User Profile (includes photo)
 
 ```
 GET /auth/me
@@ -160,9 +228,15 @@ Response:
 
 -   [ ] Upload photo from profile page
 -   [ ] Verify photo appears in header immediately after upload
+-   [ ] Click "Sync from AD" button (if LDAP configured)
+-   [ ] Verify AD photo replaces custom photo
+-   [ ] Verify photo appears in header immediately after sync
 -   [ ] Login with LDAP account that has thumbnailPhoto
 -   [ ] Verify LDAP photo syncs on first login
 -   [ ] Verify manual upload overwrites LDAP photo
+-   [ ] Try syncing when not linked to AD (should show error)
+-   [ ] Try syncing when LDAP not configured (should show error)
+-   [ ] Try syncing when no AD photo exists (should show error)
 -   [ ] Test with different image formats (JPG, PNG, GIF, WebP)
 -   [ ] Test file size validation (>5MB should fail)
 -   [ ] Test invalid file types (PDF, TXT should fail)

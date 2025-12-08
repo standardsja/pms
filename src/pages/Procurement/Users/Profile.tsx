@@ -67,35 +67,27 @@ const Profile = () => {
                         console.log('[PROFILE] Loaded profileImage with timestamp:', data.profileImage);
                     }
                     setProfileData(data);
-                    console.log('[PROFILE] Profile data set:', data);
+                    console.log('[PROFILE] Profile data loaded successfully:', data);
+                } else {
+                    console.error('[PROFILE] Failed to fetch profile data:', meResponse.status);
                 }
 
-                // Fetch recent activities/requests
-                const activitiesResponse = await fetch(getApiUrl('/requests?limit=7'), {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        'x-user-id': currentUser.id.toString(),
-                        'Content-Type': 'application/json',
-                    },
-                });
-
-                if (activitiesResponse.ok) {
-                    const activitiesData = await activitiesResponse.json();
-                    setRecentActivities(activitiesData.slice(0, 7));
-                }
-
-                // Calculate stats based on user role
-                if (user?.roles?.includes('EVALUATION_COMMITTEE') || user?.roles?.includes('PROCUREMENT_MANAGER')) {
-                    // For committee members, count approvals in recent activities
-                    const approved = activitiesResponse.ok ? (await activitiesResponse.json()).filter((a: any) => a.status === 'APPROVED').length : 0;
-                    setStats((prev: any) => ({
-                        ...prev,
-                        evaluationsCompleted: Math.floor(Math.random() * 40) + 20,
-                        approvalsProcessed: approved || Math.floor(Math.random() * 60) + 40,
-                    }));
-                }
+                // Skip fetching activities for now - just set empty array
+                setRecentActivities([]);
             } catch (error) {
-                console.error('Error fetching profile data:', error);
+                console.error('[PROFILE] Error fetching profile data:', error);
+                // Show user-friendly error notification
+                const Swal = (await import('sweetalert2')).default;
+                Swal.fire({
+                    title: 'Notice',
+                    text: 'Some profile data could not be loaded. Your profile photo upload will still work.',
+                    icon: 'info',
+                    confirmButtonText: 'OK',
+                    toast: true,
+                    position: 'top-end',
+                    timer: 3000,
+                    showConfirmButton: false,
+                });
             } finally {
                 setIsLoading(false);
             }
@@ -108,15 +100,29 @@ const Profile = () => {
         const file = event.target.files?.[0];
         if (!file) return;
 
+        console.log('[PROFILE] Photo upload started:', { name: file.name, size: file.size, type: file.type });
+
         // Validate file type
         if (!file.type.startsWith('image/')) {
-            alert('Please select an image file');
+            const Swal = (await import('sweetalert2')).default;
+            Swal.fire({
+                title: 'Invalid File',
+                text: 'Please select an image file',
+                icon: 'error',
+                confirmButtonText: 'OK',
+            });
             return;
         }
 
         // Validate file size (5MB max)
         if (file.size > 5 * 1024 * 1024) {
-            alert('Image size must be less than 5MB');
+            const Swal = (await import('sweetalert2')).default;
+            Swal.fire({
+                title: 'File Too Large',
+                text: 'Image size must be less than 5MB',
+                icon: 'error',
+                confirmButtonText: 'OK',
+            });
             return;
         }
 
@@ -126,12 +132,16 @@ const Profile = () => {
             const token = getToken();
             const currentUser = getUser();
 
+            console.log('[PROFILE] Auth check:', { hasToken: !!token, hasUser: !!currentUser, userId: currentUser?.id });
+
             if (!token || !currentUser) {
                 throw new Error('Not authenticated');
             }
 
             const formData = new FormData();
             formData.append('photo', file);
+
+            console.log('[PROFILE] Uploading to:', getApiUrl('/api/auth/upload-photo'));
 
             const response = await fetch(getApiUrl('/api/auth/upload-photo'), {
                 method: 'POST',
@@ -142,12 +152,22 @@ const Profile = () => {
                 body: formData,
             });
 
+            console.log('[PROFILE] Upload response status:', response.status);
+
             if (!response.ok) {
-                const error = await response.json();
+                const errorText = await response.text();
+                console.error('[PROFILE] Upload failed:', errorText);
+                let error;
+                try {
+                    error = JSON.parse(errorText);
+                } catch {
+                    error = { message: errorText };
+                }
                 throw new Error(error.message || 'Failed to upload photo');
             }
 
             const data = await response.json();
+            console.log('[PROFILE] Upload successful:', data);
 
             // Update profile data with new photo (add timestamp to bust cache)
             const newProfileImage = `${data.profileImage}?t=${Date.now()}`;
@@ -175,11 +195,11 @@ const Profile = () => {
                 position: 'top-end',
             });
         } catch (error: any) {
-            console.error('Error uploading photo:', error);
+            console.error('[PROFILE] Error uploading photo:', error);
             // Show error notification using Swal
             const Swal = (await import('sweetalert2')).default;
             Swal.fire({
-                title: 'Error!',
+                title: 'Upload Failed',
                 text: error.message || 'Failed to upload photo',
                 icon: 'error',
                 confirmButtonText: 'OK',

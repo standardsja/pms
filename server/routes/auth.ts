@@ -23,6 +23,7 @@ import { authMiddleware, AuthenticatedRequest } from '../middleware/auth';
 import { validate, loginSchema } from '../middleware/validation';
 import { ldapService } from '../services/ldapService';
 import { syncLDAPUserToDatabase, describeSyncResult } from '../services/ldapRoleSyncService';
+import { bulkSyncADUsers, getSyncStatistics } from '../services/ldapBulkSyncService';
 
 const router = Router();
 
@@ -434,6 +435,180 @@ router.post(
         res.json({
             success: true,
             profileImage: updatedUser.profileImage,
+        });
+    })
+);
+
+/**
+ * POST /api/auth/sync-ldap-photo
+ * Sync profile photo from LDAP/Active Directory
+ * Pulls the user's thumbnailPhoto attribute from AD and saves it
+ */
+router.post(
+    '/sync-ldap-photo',
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+        const authenticatedReq = req as AuthenticatedRequest;
+        const userId = authenticatedReq.user.sub;
+
+        // Get current user from database
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { email: true, profileImage: true, ldapDN: true },
+        });
+
+        if (!user) {
+            throw new BadRequestError('User not found');
+        }
+
+        // Check if LDAP is enabled
+        if (!ldapService.isEnabled()) {
+            throw new BadRequestError('LDAP is not configured on this server');
+        }
+
+        // Check if user has LDAP DN (was synced from AD)
+        if (!user.ldapDN) {
+            throw new BadRequestError('This account is not linked to Active Directory');
+        }
+
+        logger.info('Syncing LDAP photo for user', { userId, email: user.email });
+
+        // Find user in LDAP to get their photo
+        const ldapUser = await ldapService.findUser(user.email);
+
+        if (!ldapUser) {
+            throw new BadRequestError('User not found in Active Directory');
+        }
+
+        if (!ldapUser.profileImage) {
+            throw new BadRequestError('No profile photo found in Active Directory');
+        }
+
+        // Delete old profile photo if it exists and is not from LDAP
+        if (user.profileImage && !user.profileImage.includes('ldap-')) {
+            const oldPhotoPath = path.join(process.cwd(), user.profileImage);
+            if (fs.existsSync(oldPhotoPath)) {
+                fs.unlinkSync(oldPhotoPath);
+                logger.info('Deleted old custom profile photo', { path: user.profileImage });
+            }
+        }
+
+        // Update user with LDAP profile photo
+        const updatedUser = await prisma.user.update({
+            where: { id: userId },
+            data: { profileImage: ldapUser.profileImage },
+            select: { id: true, profileImage: true },
+        });
+
+        logger.info('LDAP profile photo synced', {
+            userId: updatedUser.id,
+            photoPath: ldapUser.profileImage,
+        });
+
+        res.json({
+            success: true,
+            profileImage: updatedUser.profileImage,
+            message: 'Profile photo synced from Active Directory',
+        });
+    })
+);
+
+/**
+ * GET /api/auth/ldap/sync-stats
+ * Get LDAP synchronization statistics
+ * Shows how many AD users exist vs. how many are synced to database
+ */
+router.get(
+    '/ldap/sync-stats',
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+        // Type assertion after authMiddleware ensures user exists
+        const userId = (req as AuthenticatedRequest).user!.sub;
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            include: {
+                roles: {
+                    include: {
+                        role: true,
+                    },
+                },
+            },
+        });
+
+        const isAdmin = user?.roles.some((r) => r.role.name === 'ADMIN');
+        if (!isAdmin) {
+            throw new UnauthorizedError('Only administrators can view sync statistics');
+        }
+
+        const stats = await getSyncStatistics();
+
+        res.json({
+            success: true,
+            statistics: stats,
+        });
+    })
+);
+
+/**
+ * POST /api/auth/ldap/bulk-sync
+ * Bulk synchronize all users from Active Directory
+ * Imports all AD users and assigns roles based on group memberships
+ *
+ * ADMIN ONLY
+ */
+router.post(
+    '/ldap/bulk-sync',
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+        // Type assertion after authMiddleware ensures user exists
+        const userId = (req as AuthenticatedRequest).user!.sub;
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            include: {
+                roles: {
+                    include: {
+                        role: true,
+                    },
+                },
+            },
+        });
+
+        if (!user) {
+            throw new UnauthorizedError('User not found');
+        }
+
+        const isAdmin = user.roles.some((r) => r.role.name === 'ADMIN');
+        if (!isAdmin) {
+            throw new UnauthorizedError('Only administrators can perform bulk synchronization');
+        }
+
+        logger.info('LDAP Bulk Sync: Initiated by admin', {
+            adminId: userId,
+            adminEmail: user.email,
+        });
+
+        // Optional: custom LDAP filter from request body
+        const { filter } = req.body;
+
+        // Perform bulk sync
+        const result = await bulkSyncADUsers(filter);
+
+        logger.info('LDAP Bulk Sync: Completed', {
+            result,
+            adminId: userId,
+        });
+
+        res.json({
+            success: true,
+            message: 'Bulk synchronization completed',
+            result: {
+                totalUsersFound: result.totalUsersFound,
+                usersImported: result.usersImported,
+                usersUpdated: result.usersUpdated,
+                usersFailed: result.usersFailed,
+                duration: `${(result.duration / 1000).toFixed(2)}s`,
+                errors: result.errors.length > 0 ? result.errors.slice(0, 10) : undefined, // Show max 10 errors
+            },
         });
     })
 );
