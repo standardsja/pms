@@ -100,10 +100,7 @@ export class RoleRequestService {
                     roles: {
                         some: {
                             role: {
-                                OR: [
-                                    { name: { in: ['ADMIN', 'ADMINISTRATOR', 'SUPER_ADMIN'] } },
-                                    { name: { contains: 'ADMIN' } },
-                                ],
+                                OR: [{ name: { in: ['ADMIN', 'ADMINISTRATOR', 'SUPER_ADMIN'] } }, { name: { contains: 'ADMIN' } }],
                             },
                         },
                     },
