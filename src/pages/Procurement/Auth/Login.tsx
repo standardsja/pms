@@ -478,7 +478,7 @@ const Login = () => {
                                             value={email}
                                             onChange={(e) => setEmail(e.target.value)}
                                             className="form-input pl-11 w-full h-12 text-base border-2 focus:border-primary"
-                                            placeholder="your.email@bsj.gov.jm"
+                                            placeholder="youremail@bsj.org.jm"
                                             required
                                         />
                                     </div>

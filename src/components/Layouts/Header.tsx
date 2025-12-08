@@ -35,6 +35,7 @@ import IconMenuPages from '../Icon/Menu/IconMenuPages';
 import IconMenuMore from '../Icon/Menu/IconMenuMore';
 import IconRefresh from '../Icon/IconRefresh';
 import { getUser, getToken, clearAuth } from '../../utils/auth';
+import { detectUserRoles, getDashboardPath } from '../../utils/roleDetection';
 import { heartbeatService } from '../../services/heartbeatService';
 import { fetchNotifications, deleteNotification, Notification } from '../../services/notificationApi';
 import { fetchMessages, deleteMessage, Message } from '../../services/messageApi';
@@ -45,37 +46,41 @@ const Header = () => {
     const navigate = useNavigate();
     const dispatch = useDispatch();
 
-    // Current user & role derivations (align with Sidebar logic)
+    // Current user & role derivations
     const currentUser = getUser();
     const [profileImage, setProfileImage] = useState<string | null>(null);
     const userRoles = currentUser?.roles || (currentUser?.role ? [currentUser.role] : []);
-    const isCommitteeMember = userRoles.includes('INNOVATION_COMMITTEE');
-    const isProcurementManager = userRoles.includes('PROCUREMENT_MANAGER') || userRoles.includes('MANAGER') || userRoles.some((r: string) => r && r.toUpperCase().includes('MANAGER'));
-    const isProcurementOfficer = !isProcurementManager && (userRoles.includes('PROCUREMENT_OFFICER') || userRoles.includes('PROCUREMENT'));
-    const isSupplier = userRoles.includes('SUPPLIER') || userRoles.some((r) => r && r.toUpperCase().includes('SUPPLIER'));
-    const isRequester = !isProcurementManager && !isProcurementOfficer && !isCommitteeMember && !isSupplier && userRoles.some((r) => r && r.toUpperCase().includes('REQUEST'));
+
+    // Use centralized role detection utility
+    const detectedRoles = detectUserRoles(userRoles);
+
+    // Convenience aliases for clarity in this component
+    const {
+        isEvaluationCommittee,
+        isInnovationCommittee: isCommitteeMember,
+        isFinanceManager,
+        isProcurementManager,
+        isProcurementOfficer,
+        isSupplier,
+        isExecutiveDirector,
+        isSeniorDirector,
+        isDepartmentHead,
+        isFinancePaymentStage: isFinancePayment,
+        isAuditor,
+        isRequester,
+    } = detectedRoles;
 
     // Determine current module based on route
     const isInnovationHub = location.pathname.startsWith('/innovation');
     const currentModule = isInnovationHub ? 'innovation' : 'procurement';
 
-    // Set dashboard path based on user role (Manager takes precedence over Officer)
-    const dashboardPath = isCommitteeMember
-        ? '/innovation/committee/dashboard'
-        : isInnovationHub
-        ? '/innovation/dashboard'
-        : isProcurementManager
-        ? '/procurement/manager'
-        : isSupplier
-        ? '/supplier'
-        : isRequester
-        ? '/apps/requests'
-        : '/procurement/dashboard';
+    // Set dashboard path based on centralized role detection
+    const dashboardPath = getDashboardPath(detectedRoles, location.pathname);
 
-    // Debug logging for dashboard path
+    // Debug logging for role detection and routing
     console.log('[HEADER] User roles:', userRoles);
-    console.log('[HEADER] isProcurementManager:', isProcurementManager);
-    console.log('[HEADER] Calculated dashboardPath:', dashboardPath);
+    console.log('[HEADER] Detected roles:', detectedRoles);
+    console.log('[HEADER] Dashboard path:', dashboardPath);
 
     useEffect(() => {
         const selector = document.querySelector('ul.horizontal-menu a[href="' + window.location.pathname + '"]');

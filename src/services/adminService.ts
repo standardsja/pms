@@ -93,6 +93,9 @@ const BACKEND = {
     getUsers: (): Promise<AdminUser[]> => apiGet('/api/admin/users'),
     getAllRoles: (): Promise<RoleOption[]> => apiGet('/api/admin/roles'),
     createDepartment: (input: CreateDepartmentInput) => apiPost('/api/admin/departments', input),
+    // Admin load-balancing (splintering) endpoints
+    getLoadBalancingSettings: () => apiGet('/api/admin/load-balancing-settings'),
+    updateLoadBalancingSettings: (payload: { splinteringEnabled?: boolean }) => apiPost('/api/admin/load-balancing-settings', payload),
     updateUserRoles: (userId: number, roles: string[]) => apiPost(`/api/admin/users/${userId}/roles`, { roles }),
     updateUserDepartment: (userId: number, departmentId: number | null) => apiPost(`/api/admin/users/${userId}/department`, { departmentId }),
     getAuditLog: (q: AuditQuery) => {
@@ -102,6 +105,8 @@ const BACKEND = {
         if (q.userId) params.set('userId', String(q.userId));
         return apiGet(`/admin/audit-log?${params.toString()}`);
     },
+    // Reassign a request to another user (admin action)
+    reassignRequest: (requestId: number, payload: { assigneeId: number | null; comment?: string; newStatus?: string }) => apiPost(`/api/admin/requests/${requestId}/reassign`, payload),
 };
 
 // Fallback hardcoded roles if API fails

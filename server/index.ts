@@ -17,11 +17,13 @@ const __dirname = path.dirname(__filename);
 import rateLimit from 'express-rate-limit';
 import { prisma, ensureDbConnection } from './prismaClient';
 import { initRedis, closeRedis, cacheGet, cacheSet, cacheDelete, cacheDeletePattern } from './config/redis';
+import { initializeGlobalRoleResolver } from './services/roleResolver';
+import { getGroupMappings } from './config/ldapGroupMapping';
 import { initTrendingScoreJob, updateIdeaTrendingScore } from './services/trendingService';
 import { findPotentialDuplicates } from './services/duplicateDetectionService';
 import { searchIdeas, getSearchSuggestions } from './services/searchService';
 import { batchUpdateIdeas, getCommitteeDashboardStats, getPendingIdeasForReview, getCommitteeMemberStats } from './services/committeeService';
-import { initWebSocket, emitIdeaCreated, emitIdeaStatusChanged, emitVoteUpdated, emitBatchApproval, emitCommentAdded } from './services/websocketService';
+import { initWebSocket, emitIdeaCreated, emitIdeaStatusChanged, emitVoteUpdated, emitBatchApproval, emitCommentAdded, broadcastSystemStats } from './services/websocketService';
 import { initAnalyticsJob, stopAnalyticsJob, getAnalytics, getCategoryAnalytics, getTimeBasedAnalytics } from './services/analyticsService';
 import { requestMonitoringMiddleware, trackCacheHit, trackCacheMiss, getMetrics, getHealthStatus, getSlowEndpoints, getErrorProneEndpoints } from './services/monitoringService';
 import { checkProcurementThresholds } from './services/thresholdService';
@@ -32,7 +34,6 @@ import type { Prisma } from '@prisma/client';
 import { requireCommittee as requireCommitteeRole, requireEvaluationCommittee, requireAdmin, requireExecutive, requireRole } from './middleware/rbac';
 import { validate, createIdeaSchema, voteSchema, approveRejectIdeaSchema, promoteIdeaSchema, sanitizeInput as sanitize } from './middleware/validation';
 import { errorHandler, notFoundHandler, asyncHandler, NotFoundError, BadRequestError } from './middleware/errorHandler';
-import { initializeGlobalRoleResolver } from './services/roleResolver';
 import statsRouter from './routes/stats';
 import combineRouter from './routes/combine';
 import { authRoutes } from './routes/auth';
@@ -50,6 +51,40 @@ const PUBLIC_HOST = process.env.API_PUBLIC_HOST || (APP_ENV === 'local' ? 'local
 const JWT_SECRET = process.env.JWT_SECRET || 'devsecret-change-me';
 
 let trendingJobInterval: NodeJS.Timeout | null = null;
+let systemStatsInterval: NodeJS.Timeout | null = null;
+const SERVER_START_TIME = Date.now();
+
+// Initialize global RoleResolver early so middleware can use it
+try {
+    const rolesPermissionsPath = path.resolve(__dirname, './config/roles-permissions.json');
+
+    // Convert array group mappings to simple key->role mapping expected by RoleResolver
+    const groupArray = getGroupMappings();
+    const ldapGroupMappings: Record<string, string> = {};
+    for (const gm of groupArray) {
+        if (gm.adGroupName && Array.isArray(gm.roles) && gm.roles.length > 0) {
+            // Pick first role in mapping as the primary mapping
+            ldapGroupMappings[gm.adGroupName] = gm.roles[0];
+        }
+    }
+
+    const rbacConfig = {
+        rolesPermissionsPath,
+        ldapGroupMappings,
+        ldapAttributeMappings: {},
+        cacheTTL: 60 * 60 * 1000,
+        defaultRole: 'REQUESTER',
+        enableDatabaseOverrides: true,
+    } as any;
+
+    initializeGlobalRoleResolver(rbacConfig);
+} catch (err) {
+    // Do not crash server on RBAC init failure; log and continue
+    // Middleware falls back to DB roles when resolver is unavailable
+    // (see server/middleware/auth.ts for fallback behavior)
+    // eslint-disable-next-line no-console
+    console.warn('[RBAC] Failed to initialize global role resolver:', err);
+}
 
 // Rate limiting configurations
 const generalLimiter = rateLimit({
@@ -2281,6 +2316,218 @@ app.patch('/requests/:id', async (req, res) => {
         // Remove deprecated fields that no longer exist in schema
         const { budgetOfficerApproved, budgetManagerApproved, ...cleanUpdates } = updates;
 
+        // DEBUG: log incoming numeric fields before coercion to help diagnose why strings persist
+        try {
+            console.info(`[DEBUG] PUT /requests/${id} incoming types before coercion:`, {
+                headerSequence: cleanUpdates.headerSequence,
+                headerYear: cleanUpdates.headerYear,
+                lotNumber: cleanUpdates.lotNumber,
+                headerSequenceType: typeof cleanUpdates.headerSequence,
+                headerYearType: typeof cleanUpdates.headerYear,
+            });
+        } catch (logErr) {
+            // ignore logging errors
+        }
+
+        // Coerce numeric fields sent as strings (e.g. headerSequence '005') to integers
+        try {
+            if ('headerSequence' in cleanUpdates) {
+                const v = cleanUpdates.headerSequence;
+                cleanUpdates.headerSequence = v === '' || v === null ? null : parseInt(String(v), 10);
+                if (cleanUpdates.headerSequence !== null && Number.isNaN(cleanUpdates.headerSequence)) {
+                    return res.status(400).json({ message: 'Invalid headerSequence; expected integer or null' });
+                }
+            }
+            if ('headerYear' in cleanUpdates) {
+                const v = cleanUpdates.headerYear;
+                cleanUpdates.headerYear = v === '' || v === null ? null : parseInt(String(v), 10);
+                if (cleanUpdates.headerYear !== null && Number.isNaN(cleanUpdates.headerYear)) {
+                    return res.status(400).json({ message: 'Invalid headerYear; expected integer or null' });
+                }
+            }
+            if ('lotNumber' in cleanUpdates) {
+                const v = cleanUpdates.lotNumber;
+                cleanUpdates.lotNumber = v === '' || v === null ? null : parseInt(String(v), 10);
+                if (cleanUpdates.lotNumber !== null && Number.isNaN(cleanUpdates.lotNumber)) {
+                    return res.status(400).json({ message: 'Invalid lotNumber; expected integer or null' });
+                }
+            }
+        } catch (e) {
+            return res.status(400).json({ message: 'Invalid numeric field in update' });
+        }
+
+        try {
+            console.info(`[DEBUG] PUT /requests/${id} types after coercion:`, {
+                headerSequence: cleanUpdates.headerSequence,
+                headerYear: cleanUpdates.headerYear,
+                lotNumber: cleanUpdates.lotNumber,
+                headerSequenceType: typeof cleanUpdates.headerSequence,
+                headerYearType: typeof cleanUpdates.headerYear,
+            });
+        } catch (logErr) {}
+
+        // Coerce numeric fields sent as strings (e.g. headerSequence '005') to integers
+        try {
+            if ('headerSequence' in cleanUpdates) {
+                const v = cleanUpdates.headerSequence;
+                cleanUpdates.headerSequence = v === '' || v === null ? null : parseInt(String(v), 10);
+                if (cleanUpdates.headerSequence !== null && Number.isNaN(cleanUpdates.headerSequence)) {
+                    return res.status(400).json({ message: 'Invalid headerSequence; expected integer or null' });
+                }
+            }
+            if ('headerYear' in cleanUpdates) {
+                const v = cleanUpdates.headerYear;
+                cleanUpdates.headerYear = v === '' || v === null ? null : parseInt(String(v), 10);
+                if (cleanUpdates.headerYear !== null && Number.isNaN(cleanUpdates.headerYear)) {
+                    return res.status(400).json({ message: 'Invalid headerYear; expected integer or null' });
+                }
+            }
+            if ('lotNumber' in cleanUpdates) {
+                const v = cleanUpdates.lotNumber;
+                cleanUpdates.lotNumber = v === '' || v === null ? null : parseInt(String(v), 10);
+                if (cleanUpdates.lotNumber !== null && Number.isNaN(cleanUpdates.lotNumber)) {
+                    return res.status(400).json({ message: 'Invalid lotNumber; expected integer or null' });
+                }
+            }
+        } catch (e) {
+            return res.status(400).json({ message: 'Invalid numeric field in update' });
+        }
+
+        // Coerce numeric fields sent as strings (e.g. headerSequence '005') to integers
+        try {
+            if ('headerSequence' in cleanUpdates) {
+                const v = cleanUpdates.headerSequence;
+                cleanUpdates.headerSequence = v === '' || v === null ? null : parseInt(String(v), 10);
+                if (cleanUpdates.headerSequence !== null && Number.isNaN(cleanUpdates.headerSequence)) {
+                    return res.status(400).json({ message: 'Invalid headerSequence; expected integer or null' });
+                }
+            }
+            if ('headerYear' in cleanUpdates) {
+                const v = cleanUpdates.headerYear;
+                cleanUpdates.headerYear = v === '' || v === null ? null : parseInt(String(v), 10);
+                if (cleanUpdates.headerYear !== null && Number.isNaN(cleanUpdates.headerYear)) {
+                    return res.status(400).json({ message: 'Invalid headerYear; expected integer or null' });
+                }
+            }
+            if ('lotNumber' in cleanUpdates) {
+                const v = cleanUpdates.lotNumber;
+                cleanUpdates.lotNumber = v === '' || v === null ? null : parseInt(String(v), 10);
+                if (cleanUpdates.lotNumber !== null && Number.isNaN(cleanUpdates.lotNumber)) {
+                    return res.status(400).json({ message: 'Invalid lotNumber; expected integer or null' });
+                }
+            }
+        } catch (e) {
+            return res.status(400).json({ message: 'Invalid numeric field in update' });
+        }
+
+        // Coerce numeric fields sent as strings (e.g. headerSequence '005') to integers
+        try {
+            if ('headerSequence' in cleanUpdates) {
+                const v = cleanUpdates.headerSequence;
+                cleanUpdates.headerSequence = v === '' || v === null ? null : parseInt(String(v), 10);
+                if (cleanUpdates.headerSequence !== null && Number.isNaN(cleanUpdates.headerSequence)) {
+                    return res.status(400).json({ message: 'Invalid headerSequence; expected integer or null' });
+                }
+            }
+            if ('headerYear' in cleanUpdates) {
+                const v = cleanUpdates.headerYear;
+                cleanUpdates.headerYear = v === '' || v === null ? null : parseInt(String(v), 10);
+                if (cleanUpdates.headerYear !== null && Number.isNaN(cleanUpdates.headerYear)) {
+                    return res.status(400).json({ message: 'Invalid headerYear; expected integer or null' });
+                }
+            }
+            if ('lotNumber' in cleanUpdates) {
+                const v = cleanUpdates.lotNumber;
+                cleanUpdates.lotNumber = v === '' || v === null ? null : parseInt(String(v), 10);
+                if (cleanUpdates.lotNumber !== null && Number.isNaN(cleanUpdates.lotNumber)) {
+                    return res.status(400).json({ message: 'Invalid lotNumber; expected integer or null' });
+                }
+            }
+        } catch (e) {
+            return res.status(400).json({ message: 'Invalid numeric field in update' });
+        }
+
+        // Coerce numeric fields sent as strings (e.g. headerSequence '005') to integers
+        try {
+            if ('headerSequence' in cleanUpdates) {
+                const v = cleanUpdates.headerSequence;
+                cleanUpdates.headerSequence = v === '' || v === null ? null : parseInt(String(v), 10);
+                if (cleanUpdates.headerSequence !== null && Number.isNaN(cleanUpdates.headerSequence)) {
+                    return res.status(400).json({ message: 'Invalid headerSequence; expected integer or null' });
+                }
+            }
+            if ('headerYear' in cleanUpdates) {
+                const v = cleanUpdates.headerYear;
+                cleanUpdates.headerYear = v === '' || v === null ? null : parseInt(String(v), 10);
+                if (cleanUpdates.headerYear !== null && Number.isNaN(cleanUpdates.headerYear)) {
+                    return res.status(400).json({ message: 'Invalid headerYear; expected integer or null' });
+                }
+            }
+            if ('lotNumber' in cleanUpdates) {
+                const v = cleanUpdates.lotNumber;
+                cleanUpdates.lotNumber = v === '' || v === null ? null : parseInt(String(v), 10);
+                if (cleanUpdates.lotNumber !== null && Number.isNaN(cleanUpdates.lotNumber)) {
+                    return res.status(400).json({ message: 'Invalid lotNumber; expected integer or null' });
+                }
+            }
+        } catch (e) {
+            return res.status(400).json({ message: 'Invalid numeric field in update' });
+        }
+
+        // Coerce numeric fields sent as strings (e.g. headerSequence '005') to integers
+        try {
+            if ('headerSequence' in cleanUpdates) {
+                const v = cleanUpdates.headerSequence;
+                cleanUpdates.headerSequence = v === '' || v === null ? null : parseInt(String(v), 10);
+                if (cleanUpdates.headerSequence !== null && Number.isNaN(cleanUpdates.headerSequence)) {
+                    return res.status(400).json({ message: 'Invalid headerSequence; expected integer or null' });
+                }
+            }
+            if ('headerYear' in cleanUpdates) {
+                const v = cleanUpdates.headerYear;
+                cleanUpdates.headerYear = v === '' || v === null ? null : parseInt(String(v), 10);
+                if (cleanUpdates.headerYear !== null && Number.isNaN(cleanUpdates.headerYear)) {
+                    return res.status(400).json({ message: 'Invalid headerYear; expected integer or null' });
+                }
+            }
+            if ('lotNumber' in cleanUpdates) {
+                const v = cleanUpdates.lotNumber;
+                cleanUpdates.lotNumber = v === '' || v === null ? null : parseInt(String(v), 10);
+                if (cleanUpdates.lotNumber !== null && Number.isNaN(cleanUpdates.lotNumber)) {
+                    return res.status(400).json({ message: 'Invalid lotNumber; expected integer or null' });
+                }
+            }
+        } catch (e) {
+            return res.status(400).json({ message: 'Invalid numeric field in update' });
+        }
+
+        // Coerce numeric fields sent as strings (e.g. headerSequence '005') to integers
+        try {
+            if ('headerSequence' in cleanUpdates) {
+                const v = cleanUpdates.headerSequence;
+                cleanUpdates.headerSequence = v === '' || v === null ? null : parseInt(String(v), 10);
+                if (cleanUpdates.headerSequence !== null && Number.isNaN(cleanUpdates.headerSequence)) {
+                    return res.status(400).json({ message: 'Invalid headerSequence; expected integer or null' });
+                }
+            }
+            if ('headerYear' in cleanUpdates) {
+                const v = cleanUpdates.headerYear;
+                cleanUpdates.headerYear = v === '' || v === null ? null : parseInt(String(v), 10);
+                if (cleanUpdates.headerYear !== null && Number.isNaN(cleanUpdates.headerYear)) {
+                    return res.status(400).json({ message: 'Invalid headerYear; expected integer or null' });
+                }
+            }
+            if ('lotNumber' in cleanUpdates) {
+                const v = cleanUpdates.lotNumber;
+                cleanUpdates.lotNumber = v === '' || v === null ? null : parseInt(String(v), 10);
+                if (cleanUpdates.lotNumber !== null && Number.isNaN(cleanUpdates.lotNumber)) {
+                    return res.status(400).json({ message: 'Invalid lotNumber; expected integer or null' });
+                }
+            }
+        } catch (e) {
+            return res.status(400).json({ message: 'Invalid numeric field in update' });
+        }
+
         const updated = await prisma.request.update({
             where: { id: parseInt(id, 10) },
             data: cleanUpdates,
@@ -2841,9 +3088,22 @@ app.post('/requests/:id/action', async (req, res) => {
                 nextStatus = 'HOD_REVIEW';
                 nextAssigneeId = hod?.id || null;
             } else if (request.status === 'HOD_REVIEW') {
-                // HOD approved -> send to Finance Officer (auto-assigned based on load-balancing)
+                // HOD approved -> send to Finance Officer.
+                // Prefer explicit assignment to a finance officer so the workflow always advances
+                // even if load-balancing is disabled. If load-balancing is enabled it may
+                // reassign afterwards according to strategy.
                 nextStatus = 'FINANCE_REVIEW';
-                nextAssigneeId = null; // Will be auto-assigned via load-balancing strategy
+                try {
+                    const financeOfficer = await prisma.user.findFirst({
+                        where: { roles: { some: { role: { name: 'FINANCE' } } } },
+                        orderBy: { id: 'asc' },
+                    });
+                    nextAssigneeId = financeOfficer?.id || null;
+                    if (nextAssigneeId) console.log(`[Workflow] Assigned finance officer ${nextAssigneeId} for request ${id}`);
+                } catch (assignErr) {
+                    console.warn('[Workflow] Failed to find explicit finance officer, will rely on auto-assignment:', assignErr);
+                    nextAssigneeId = null;
+                }
             } else if (request.status === 'FINANCE_REVIEW') {
                 // Finance Officer approved -> MUST go to Budget Manager (required step)
                 const budgetManager = await prisma.user.findFirst({
@@ -3458,6 +3718,43 @@ app.post('/procurement/load-balancing-settings', async (req, res) => {
     }
 });
 
+// --- ADMIN: Load Balancing Settings (allow admins to toggle splintering) ---
+app.get('/api/admin/load-balancing-settings', requireAdmin, async (req, res) => {
+    try {
+        const settings = await getLoadBalancingSettings(prisma);
+        if (!settings) {
+            return res.json({ enabled: false, strategy: 'LEAST_LOADED', autoAssignOnApproval: true, roundRobinCounter: 0, splinteringEnabled: false });
+        }
+        return res.json(settings);
+    } catch (e: any) {
+        console.error('GET /api/admin/load-balancing-settings error:', e);
+        return res.status(500).json({ message: e?.message || 'Failed to fetch settings' });
+    }
+});
+
+app.post('/api/admin/load-balancing-settings', requireAdmin, async (req, res) => {
+    try {
+        const adminId = req.headers['x-user-id'];
+        if (!adminId) return res.status(401).json({ message: 'User ID required' });
+
+        const { splinteringEnabled } = req.body as { splinteringEnabled?: boolean };
+
+        const settings = await updateLoadBalancingSettings(
+            prisma,
+            {
+                splinteringEnabled: splinteringEnabled !== undefined ? splinteringEnabled : undefined,
+            },
+            parseInt(String(adminId), 10)
+        );
+
+        console.log('[Admin] Load balancing settings updated by admin', adminId, settings);
+        return res.json(settings);
+    } catch (e: any) {
+        console.error('POST /api/admin/load-balancing-settings error:', e);
+        return res.status(500).json({ message: e?.message || 'Failed to update settings' });
+    }
+});
+
 // Backward-compat alias: underscore variant
 app.post('/procurement/load_balancing-settings', async (req, res) => {
     // Delegate to the canonical handler
@@ -3774,7 +4071,7 @@ app.post('/api/admin/users/:userId/department', async (req, res) => {
                 id: updated.id,
                 email: updated.email,
                 name: updated.name,
-                roles: updated.roles.map((r) => r.role.name),
+                roles: (updated.roles || []).map((r) => ({ role: r.role })),
                 department: updated.department
                     ? {
                           id: updated.department.id,
@@ -3806,7 +4103,8 @@ app.get('/api/admin/users', async (req, res) => {
             email: u.email,
             name: u.name,
             department: u.department?.name || null,
-            roles: u.roles.map((r) => r.role.name),
+            // Return roles in the shape expected by the admin UI: array of objects with `role` property
+            roles: (u.roles || []).map((r) => ({ role: r.role })),
         }));
 
         res.json(formatted);
@@ -3893,7 +4191,7 @@ app.post('/api/admin/users/:userId/roles', async (req, res) => {
                       id: updatedUser.id,
                       email: updatedUser.email,
                       name: updatedUser.name,
-                      roles: updatedUser.roles.map((r) => r.role.name),
+                      roles: (updatedUser.roles || []).map((r) => ({ role: r.role })),
                       department: updatedUser.department
                           ? {
                                 id: updatedUser.department.id,
@@ -4229,6 +4527,102 @@ app.get('/api/auth/test-ldap', async (req, res) => {
             message: 'LDAP test failed',
             error: e.message,
         });
+    }
+});
+
+// GET /api/auth/me - Get current user profile (including LDAP-synced data)
+app.get('/api/auth/me', authMiddleware, async (req, res) => {
+    try {
+        const userObj = (req as any).user;
+        const userId = userObj?.sub || userObj?.id;
+        if (!userId) {
+            return res.status(401).json({ message: 'Unauthorized' });
+        }
+
+        const user = await prisma.user.findUnique({
+            where: { id: parseInt(String(userId), 10) },
+            include: {
+                department: { select: { id: true, name: true, code: true } },
+                roles: { include: { role: { select: { id: true, name: true } } } },
+            },
+        });
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        // Return user data (includes LDAP-synced fields like name, department, etc.)
+        return res.json({
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            jobTitle: user.jobTitle || null,
+            phone: user.phone || null,
+            address: user.address || null,
+            city: user.city || null,
+            country: user.country || null,
+            employeeId: user.employeeId || null,
+            supervisor: user.supervisor || null,
+            department: user.department,
+            roles: user.roles.map((ur) => ({ id: ur.role.id, name: ur.role.name })),
+            ldapDN: user.ldapDN || null,
+            createdAt: user.createdAt,
+            updatedAt: user.updatedAt,
+        });
+    } catch (e: any) {
+        console.error('GET /api/auth/me error:', e);
+        return res.status(500).json({ message: e?.message || 'Failed to fetch user profile' });
+    }
+});
+
+// PUT /api/auth/profile - Update user profile data
+app.put('/api/auth/profile', authMiddleware, async (req, res) => {
+    try {
+        const userObj = (req as any).user;
+        const userId = userObj?.sub || userObj?.id;
+        if (!userId) {
+            return res.status(401).json({ message: 'Unauthorized' });
+        }
+
+        const { name, jobTitle, phone, address, city, country, employeeId, supervisor } = req.body;
+
+        const updated = await prisma.user.update({
+            where: { id: parseInt(String(userId), 10) },
+            data: {
+                ...(name !== undefined && { name }),
+                ...(jobTitle !== undefined && { jobTitle }),
+                ...(phone !== undefined && { phone }),
+                ...(address !== undefined && { address }),
+                ...(city !== undefined && { city }),
+                ...(country !== undefined && { country }),
+                ...(employeeId !== undefined && { employeeId }),
+                ...(supervisor !== undefined && { supervisor }),
+            },
+            include: {
+                department: { select: { id: true, name: true, code: true } },
+                roles: { include: { role: { select: { id: true, name: true } } } },
+            },
+        });
+
+        // Return updated user data
+        return res.json({
+            id: updated.id,
+            email: updated.email,
+            name: updated.name,
+            jobTitle: updated.jobTitle || null,
+            phone: updated.phone || null,
+            address: updated.address || null,
+            city: updated.city || null,
+            country: updated.country || null,
+            employeeId: updated.employeeId || null,
+            supervisor: updated.supervisor || null,
+            department: updated.department,
+            roles: updated.roles.map((ur) => ({ id: ur.role.id, name: ur.role.name })),
+            ldapDN: updated.ldapDN || null,
+        });
+    } catch (e: any) {
+        console.error('PUT /api/auth/profile error:', e);
+        return res.status(500).json({ message: e?.message || 'Failed to update profile' });
     }
 });
 
@@ -5534,6 +5928,64 @@ async function start() {
         initAnalyticsJob(); // Start analytics aggregation job
         initWebSocket(httpServer); // Initialize WebSocket server
 
+        // Start real-time system stats broadcast (every 5 seconds)
+        const { activeSessions: sessions } = await import('./routes/stats');
+        systemStatsInterval = setInterval(async () => {
+            try {
+                const activeUsers = sessions.size;
+
+                // Get comprehensive health metrics from monitoring service
+                const healthMetrics = getHealthStatus();
+                const metrics = getMetrics();
+
+                const apiResponseTime =
+                    metrics.requests.total > 0 ? Object.values(metrics.requests.byEndpoint).reduce((sum, e) => sum + e.avgDuration, 0) / Object.values(metrics.requests.byEndpoint).length : 0;
+                const requestSuccessRate = metrics.requests.total > 0 ? (metrics.requests.success / metrics.requests.total) * 100 : 0;
+
+                // System uptime: Start at 100%, degrade based on performance issues
+                let systemUptime = 100;
+
+                // Degrade for slow response times
+                if (apiResponseTime > 1000) {
+                    systemUptime -= 30;
+                } else if (apiResponseTime > 500) {
+                    systemUptime -= 20;
+                } else if (apiResponseTime > 200) {
+                    systemUptime -= 10;
+                }
+
+                // Degrade for low success rate
+                if (requestSuccessRate < 80) {
+                    systemUptime -= 40;
+                } else if (requestSuccessRate < 90) {
+                    systemUptime -= 25;
+                } else if (requestSuccessRate < 95) {
+                    systemUptime -= 10;
+                }
+
+                // Degrade based on overall health status
+                if (healthMetrics.status === 'unhealthy') {
+                    systemUptime -= 30;
+                } else if (healthMetrics.status === 'degraded') {
+                    systemUptime -= 15;
+                }
+
+                systemUptime = Math.max(0, Math.min(100, systemUptime));
+
+                broadcastSystemStats({
+                    activeUsers,
+                    systemUptime: Math.round(systemUptime),
+                    apiResponseTime,
+                    requestSuccessRate,
+                    serverHealthScore: healthMetrics.status === 'healthy' ? 100 : healthMetrics.status === 'degraded' ? 70 : 40,
+                    cpuLoad: '0%',
+                    memoryUsage: '0%',
+                });
+            } catch (err) {
+                console.error('[SystemStats] Error broadcasting stats:', err);
+            }
+        }, 5000); // Broadcast every 5 seconds
+
         httpServer.listen(PORT, API_HOST, () => {
             console.log(`🚀 Environment: ${APP_ENV.toUpperCase()}`);
             console.log(`API server listening on http://${PUBLIC_HOST}:${PORT} (bind ${API_HOST})`);
@@ -5554,6 +6006,12 @@ function gracefulShutdown(signal: string) {
     if (trendingJobInterval) {
         clearInterval(trendingJobInterval);
         trendingJobInterval = null;
+    }
+
+    // Clear system stats broadcast
+    if (systemStatsInterval) {
+        clearInterval(systemStatsInterval);
+        systemStatsInterval = null;
     }
 
     // Stop analytics job

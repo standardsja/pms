@@ -28,7 +28,7 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
         const authHeader = req.headers.authorization;
         const userIdHeader = req.headers['x-user-id'];
 
-        console.log('[Auth] Headers:', {
+        logger.debug('[Auth] Headers', {
             hasAuth: !!authHeader,
             authPrefix: authHeader?.substring(0, 10),
             hasUserId: !!userIdHeader,
@@ -37,21 +37,32 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
         // Try Bearer token first
         if (authHeader?.startsWith('Bearer ')) {
             const token = authHeader.substring(7);
-            console.log('[Auth] Attempting JWT verification, token length:', token.length);
+            logger.debug('[Auth] Attempting JWT verification', { tokenLength: token.length });
             try {
                 const payload = jwt.verify(token, config.JWT_SECRET) as any;
-                console.log('[Auth] JWT verified successfully, payload:', { sub: payload.sub, email: payload.email });
+                logger.debug('[Auth] JWT verified successfully', { sub: payload.sub, email: payload.email });
 
                 // Resolve roles and permissions using RoleResolver
                 const userWithRoles = await enrichUserWithRoles(payload.sub, payload.email, payload.name, payload.ldapData);
 
                 (req as AuthenticatedRequest).user = userWithRoles;
                 return next();
-            } catch (error) {
-                console.error('[Auth] JWT verification failed:', error instanceof Error ? error.message : error);
-                // Token invalid, fall through to x-user-id if available
+            } catch (error: any) {
+                // Handle JWT errors explicitly and return concise JSON to callers
+                const errName = error && error.name ? String(error.name) : undefined;
+                const errMsg = error && error.message ? String(error.message) : String(error || 'Unknown error');
+
+                if (errName === 'TokenExpiredError') {
+                    logger.info('[Auth] JWT expired', { message: errMsg });
+                    return res.status(401).json({ success: false, message: 'Token expired' });
+                }
+
+                // Malformed / invalid signature / other JWT errors
+                logger.warn('[Auth] JWT verification failed', { name: errName, message: errMsg });
+
+                // Token invalid, fall back to x-user-id only if provided; otherwise respond 401
                 if (!userIdHeader) {
-                    throw new UnauthorizedError('Invalid token');
+                    return res.status(401).json({ success: false, message: 'Invalid token' });
                 }
             }
         }
@@ -114,11 +125,16 @@ async function enrichUserWithRoles(userId: number, email: string, name: string |
             };
             const result = await resolver.resolveRolesAndPermissions(userId, email, ldapUser, { includeLDAPData: false });
 
+            // Ensure REQUESTER role is always present so every user can create requests
+            const requesterName = resolver.getRole('REQUESTER')?.name || 'REQUESTER';
+            const finalRoles = Array.isArray(result.finalRoles) ? [...result.finalRoles] : [];
+            if (!finalRoles.includes(requesterName)) finalRoles.push(requesterName);
+
             return {
                 sub: userId,
                 email,
                 name,
-                roles: result.finalRoles,
+                roles: finalRoles,
                 permissions: result.permissions,
                 ldapData: undefined,
             };
@@ -141,6 +157,11 @@ async function enrichUserWithRoles(userId: number, email: string, name: string |
             }
 
             const roles = user.roles.map((r) => r.role.name);
+
+            // Ensure REQUESTER role is always present
+            const requesterName = resolver.getRole('REQUESTER')?.name || 'REQUESTER';
+            if (!roles.includes(requesterName)) roles.push(requesterName);
+
             const permissions = await aggregatePermissionsForRoles(roles, resolver);
 
             return {

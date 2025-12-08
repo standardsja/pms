@@ -211,3 +211,36 @@ export function broadcastNotification(message: string, type: 'info' | 'success' 
 
     console.log(`[WebSocket] Broadcast notification: ${type} - ${message}`);
 }
+
+/**
+ * Broadcast system stats update in real-time
+ * Includes comprehensive health metrics: API performance, load, uptime, and system resources
+ */
+export function broadcastSystemStats(stats: {
+    activeUsers: number;
+    systemUptime: number;
+    apiResponseTime?: number;
+    requestSuccessRate?: number;
+    serverHealthScore?: number;
+    cpuLoad?: string;
+    memoryUsage?: string;
+    requestsThisMonth?: number;
+    pendingApprovals?: number;
+}): void {
+    if (!io) return;
+
+    io.emit('system:stats', {
+        activeUsers: stats.activeUsers,
+        systemUptime: stats.systemUptime,
+        apiResponseTime: stats.apiResponseTime,
+        requestSuccessRate: stats.requestSuccessRate,
+        serverHealthScore: stats.serverHealthScore,
+        cpuLoad: stats.cpuLoad,
+        memoryUsage: stats.memoryUsage,
+        requestsThisMonth: stats.requestsThisMonth,
+        pendingApprovals: stats.pendingApprovals,
+        timestamp: new Date().toISOString(),
+    });
+
+    console.log(`[WebSocket] Broadcast system stats: ${stats.activeUsers} users, ${stats.systemUptime}% uptime, ${stats.apiResponseTime}ms response, ${stats.serverHealthScore}/100 health`);
+}

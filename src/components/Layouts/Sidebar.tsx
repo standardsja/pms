@@ -35,6 +35,7 @@ import IconPlusCircle from '../Icon/IconPlusCircle';
 import IconUser from '../Icon/IconUser';
 import IconStar from '../Icon/IconStar';
 import { getUser } from '../../utils/auth';
+import { detectUserRoles, getDashboardPath } from '../../utils/roleDetection';
 
 const Sidebar = () => {
     const [currentMenu, setCurrentMenu] = useState<string>('');
@@ -49,65 +50,38 @@ const Sidebar = () => {
     const currentUser = getUser();
     const userRoles = currentUser?.roles || (currentUser?.role ? [currentUser.role] : []);
 
-    const isAdmin = userRoles.includes('ADMIN');
-    const isCommitteeMember = userRoles.includes('INNOVATION_COMMITTEE');
-    const isEvaluationCommittee = userRoles.includes('EVALUATION_COMMITTEE');
+    // Use centralized role detection utility
+    const detectedRoles = detectUserRoles(userRoles);
 
-    // Finance Manager or Budget Manager - limited access
-    const isFinanceManager = userRoles.some((r: string) => {
-        const upper = r?.toUpperCase() || '';
-        return upper === 'FINANCE_MANAGER' || upper === 'BUDGET_MANAGER' || upper.includes('FINANCE') || upper.includes('BUDGET');
-    });
-
-    // Specific procurement manager role (must have PROCUREMENT in the name)
-    const isProcurementManager = userRoles.some((r: string) => {
-        const upper = r?.toUpperCase() || '';
-        return upper === 'PROCUREMENT_MANAGER' || (upper.includes('PROCUREMENT') && upper.includes('MANAGER'));
-    });
-
-    // Department managers (not procurement-specific)
-    const isDepartmentManager =
-        !isProcurementManager &&
-        userRoles.some((r: string) => {
-            const upper = r?.toUpperCase() || '';
-            return upper === 'DEPT_MANAGER' || upper === 'DEPARTMENT_MANAGER' || upper === 'MANAGER';
-        });
-
-    // Only check for Officer if not a Manager
-    const isProcurementOfficer = !isProcurementManager && (userRoles.includes('PROCUREMENT_OFFICER') || userRoles.includes('PROCUREMENT'));
-    // Supplier role
-    const isSupplier = userRoles.includes('SUPPLIER') || userRoles.some((r) => r && r.toUpperCase().includes('SUPPLIER'));
-    // Requester role (minimal access: Requests only)
-    const isRequester = !isProcurementManager && !isDepartmentManager && !isProcurementOfficer && !isCommitteeMember && !isSupplier && userRoles.some((r) => r.toUpperCase().includes('REQUEST')); // matches REQUESTER / REQUEST_USER etc.
+    // Convenience aliases for clarity in this component
+    const {
+        isAdmin,
+        isHeadOfDivision,
+        isCommitteeMember: isInnovationCommittee,
+        isEvaluationCommittee,
+        isExecutiveDirector,
+        isSeniorDirector,
+        isDepartmentHead,
+        isAuditor,
+        isFinanceManager,
+        isFinancePaymentStage,
+        isProcurementManager,
+        isDepartmentManager,
+        isProcurementOfficer,
+        isSupplier,
+        isRequester,
+    } = detectedRoles;
 
     // Determine if we're in Innovation Hub
     const isInnovationHub = location.pathname.startsWith('/innovation');
-    // Compute dashboard path for logo/home
-    // ADMIN takes priority over all other roles
-    const dashboardPath = isAdmin
-        ? '/procurement/admin'
-        : isEvaluationCommittee
-        ? '/evaluation/committee/dashboard'
-        : isCommitteeMember
-        ? '/innovation/committee/dashboard'
-        : isInnovationHub
-        ? '/innovation/dashboard'
-        : isFinanceManager
-        ? '/finance'
-        : isProcurementManager
-        ? '/procurement/manager'
-        : isDepartmentManager
-        ? '/apps/requests/pending-approval'
-        : isSupplier
-        ? '/supplier'
-        : isRequester
-        ? '/apps/requests'
-        : '/procurement/dashboard';
+
+    // Compute dashboard path for logo/home using centralized utility
+    const dashboardPath = getDashboardPath(detectedRoles, location.pathname);
 
     // Debug logging for dashboard path
     console.log('[SIDEBAR] User roles:', userRoles);
-    console.log('[SIDEBAR] isProcurementManager:', isProcurementManager);
-    console.log('[SIDEBAR] Calculated dashboardPath:', dashboardPath);
+    console.log('[SIDEBAR] Detected roles:', detectedRoles);
+    console.log('[SIDEBAR] Dashboard path:', dashboardPath);
 
     const toggleMenu = (value: string) => {
         setCurrentMenu((oldValue) => {
@@ -161,7 +135,7 @@ const Sidebar = () => {
                     </div>
                     <PerfectScrollbar className="h-[calc(100vh-80px)] relative">
                         <ul className="relative font-semibold space-y-0.5 p-4 py-0">
-                            {/* Show ADMIN section for admin users */}
+                            {/* Show ADMIN section for admin users only */}
                             {isAdmin && (
                                 <>
                                     <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
@@ -303,6 +277,57 @@ const Sidebar = () => {
                                 </>
                             )}
 
+                            {/* Show HEAD_OF_DIVISION section for HOD users */}
+                            {isHeadOfDivision && !isAdmin && (
+                                <>
+                                    <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
+                                        <IconMinus className="w-4 h-5 flex-none hidden" />
+                                        <span>Division Dashboard</span>
+                                    </h2>
+
+                                    <li className="nav-item">
+                                        <NavLink to="/procurement/hod" className="group">
+                                            <div className="flex items-center">
+                                                <IconMenuDashboard className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Dashboard</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+
+                                    <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1 mt-4">
+                                        <IconMinus className="w-4 h-5 flex-none hidden" />
+                                        <span>Management</span>
+                                    </h2>
+
+                                    <li className="nav-item">
+                                        <NavLink to="/procurement/hod/departments" className="group">
+                                            <div className="flex items-center">
+                                                <IconUsersGroup className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Departments</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+
+                                    <li className="nav-item">
+                                        <NavLink to="/procurement/hod/users" className="group">
+                                            <div className="flex items-center">
+                                                <IconUser className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">User Management</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+
+                                    <li className="nav-item">
+                                        <NavLink to="/procurement/hod/reports" className="group">
+                                            <div className="flex items-center">
+                                                <IconBarChart className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Reports</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+                                </>
+                            )}
+
                             {/* Show EVALUATION_COMMITTEE section */}
                             {isEvaluationCommittee && (
                                 // Evaluation Committee Menu
@@ -323,7 +348,7 @@ const Sidebar = () => {
                             )}
 
                             {/* Show INNOVATION_COMMITTEE section */}
-                            {isCommitteeMember && (
+                            {isInnovationCommittee && (
                                 // Innovation Committee Menu
                                 <>
                                     <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
@@ -379,7 +404,7 @@ const Sidebar = () => {
                             )}
 
                             {/* Show INNOVATION_HUB section when in innovation context and not a committee member */}
-                            {!isCommitteeMember && !isEvaluationCommittee && isInnovationHub && (
+                            {!isInnovationCommittee && !isEvaluationCommittee && isInnovationHub && (
                                 // Innovation Hub Menu
                                 <>
                                     <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
