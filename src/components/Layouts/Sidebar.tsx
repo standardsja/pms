@@ -55,11 +55,19 @@ const Sidebar = () => {
     const isCommitteeMember = userRoles.includes('INNOVATION_COMMITTEE');
     const isEvaluationCommittee = userRoles.includes('EVALUATION_COMMITTEE');
 
+    // Executive and Director roles
+    const isExecutiveDirector = userRoles.includes('EXECUTIVE_DIRECTOR');
+    const isSeniorDirector = userRoles.includes('SENIOR_DIRECTOR');
+    const isDepartmentHead = userRoles.includes('DEPARTMENT_HEAD');
+    const isAuditor = userRoles.includes('AUDITOR');
+
     // Finance Manager or Budget Manager - limited access
     const isFinanceManager = userRoles.some((r: string) => {
         const upper = r?.toUpperCase() || '';
         return upper === 'FINANCE_MANAGER' || upper === 'BUDGET_MANAGER' || upper.includes('FINANCE') || upper.includes('BUDGET');
     });
+
+    const isFinancePayment = userRoles.includes('FINANCE_PAYMENT_STAGE');
 
     // Specific procurement manager role (must have PROCUREMENT in the name)
     const isProcurementManager = userRoles.some((r: string) => {
@@ -84,8 +92,7 @@ const Sidebar = () => {
 
     // Determine if we're in Innovation Hub
     const isInnovationHub = location.pathname.startsWith('/innovation');
-    // Compute dashboard path for logo/home
-    // ADMIN takes priority over all other roles
+    // Compute dashboard path for logo/home with proper role precedence
     const dashboardPath =
         isAdmin || isHeadOfDivision
             ? '/procurement/admin'
@@ -95,6 +102,16 @@ const Sidebar = () => {
             ? '/innovation/committee/dashboard'
             : isInnovationHub
             ? '/innovation/dashboard'
+            : isExecutiveDirector
+            ? '/executive/dashboard'
+            : isSeniorDirector
+            ? '/director/dashboard'
+            : isDepartmentHead
+            ? '/department-head/dashboard'
+            : isAuditor
+            ? '/audit/dashboard'
+            : isFinancePayment
+            ? '/payments/dashboard'
             : isFinanceManager
             ? '/finance'
             : isProcurementManager

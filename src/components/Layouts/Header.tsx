@@ -52,21 +52,57 @@ const Header = () => {
     const currentUser = getUser();
     const [profileImage, setProfileImage] = useState<string | null>(null);
     const userRoles = currentUser?.roles || (currentUser?.role ? [currentUser.role] : []);
+
+    // Role checks
     const isCommitteeMember = userRoles.includes('INNOVATION_COMMITTEE');
-    const isProcurementManager = userRoles.includes('PROCUREMENT_MANAGER') || userRoles.includes('MANAGER') || userRoles.some((r: string) => r && r.toUpperCase().includes('MANAGER'));
-    const isProcurementOfficer = !isProcurementManager && (userRoles.includes('PROCUREMENT_OFFICER') || userRoles.includes('PROCUREMENT'));
+    const isEvaluationCommittee = userRoles.includes('EVALUATION_COMMITTEE');
+
+    // Finance Manager or Budget Manager - limited access (check BEFORE generic MANAGER)
+    const isFinanceManager = userRoles.some((r: string) => {
+        const upper = r?.toUpperCase() || '';
+        return upper === 'FINANCE_MANAGER' || upper === 'BUDGET_MANAGER' || upper.includes('FINANCE') || upper.includes('BUDGET');
+    });
+
+    // Specific procurement manager role (must have PROCUREMENT in the name)
+    const isProcurementManager =
+        !isFinanceManager &&
+        userRoles.some((r: string) => {
+            const upper = r?.toUpperCase() || '';
+            return upper === 'PROCUREMENT_MANAGER' || (upper.includes('PROCUREMENT') && upper.includes('MANAGER'));
+        });
+
+    const isProcurementOfficer = !isProcurementManager && !isFinanceManager && (userRoles.includes('PROCUREMENT_OFFICER') || userRoles.includes('PROCUREMENT'));
     const isSupplier = userRoles.includes('SUPPLIER') || userRoles.some((r) => r && r.toUpperCase().includes('SUPPLIER'));
+    const isExecutiveDirector = userRoles.includes('EXECUTIVE_DIRECTOR');
+    const isSeniorDirector = userRoles.includes('SENIOR_DIRECTOR');
+    const isDepartmentHead = userRoles.includes('DEPARTMENT_HEAD') || userRoles.includes('HEAD_OF_DIVISION') || userRoles.includes('HOD');
+    const isFinancePayment = userRoles.includes('FINANCE_PAYMENT_STAGE');
+    const isAuditor = userRoles.includes('AUDITOR');
     const isRequester = !isProcurementManager && !isProcurementOfficer && !isCommitteeMember && !isSupplier && userRoles.some((r) => r && r.toUpperCase().includes('REQUEST'));
 
     // Determine current module based on route
     const isInnovationHub = location.pathname.startsWith('/innovation');
     const currentModule = isInnovationHub ? 'innovation' : 'procurement';
 
-    // Set dashboard path based on user role (Manager takes precedence over Officer)
-    const dashboardPath = isCommitteeMember
+    // Set dashboard path based on user role with proper precedence
+    const dashboardPath = isEvaluationCommittee
+        ? '/evaluation/committee/dashboard'
+        : isCommitteeMember
         ? '/innovation/committee/dashboard'
         : isInnovationHub
         ? '/innovation/dashboard'
+        : isExecutiveDirector
+        ? '/executive/dashboard'
+        : isSeniorDirector
+        ? '/director/dashboard'
+        : isDepartmentHead
+        ? '/department-head/dashboard'
+        : isFinancePayment
+        ? '/payments/dashboard'
+        : isAuditor
+        ? '/audit/dashboard'
+        : isFinanceManager
+        ? '/finance'
         : isProcurementManager
         ? '/procurement/manager'
         : isSupplier
