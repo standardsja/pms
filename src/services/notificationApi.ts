@@ -33,15 +33,8 @@ export interface NotificationResponse {
     data: Notification[];
     message?: string;
 }
+
 function authHeaders(): Record<string, string> {
-    data?: {
-        requestId?: number;
-        ideaId?: number;
-        status?: string;
-        action?: string;
-        url?: string;
-        [key: string]: any;
-    };
     const token = getToken();
     const user = getUser();
     const h: Record<string, string> = { 'Content-Type': 'application/json' };

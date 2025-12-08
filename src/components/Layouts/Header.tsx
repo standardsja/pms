@@ -36,18 +36,15 @@ import IconMenuMore from '../Icon/Menu/IconMenuMore';
 import IconRefresh from '../Icon/IconRefresh';
 import { getUser, getToken, clearAuth } from '../../utils/auth';
 import { heartbeatService } from '../../services/heartbeatService';
-import { fetchNotifications, deleteNotification, markNotificationAsRead, Notification } from '../../services/notificationApi';
+import { fetchNotifications, deleteNotification, Notification } from '../../services/notificationApi';
 import { fetchMessages, deleteMessage, Message } from '../../services/messageApi';
 import { getApiUrl } from '../../config/api';
 
-import { useNotificationNavigation } from '../../utils/notificationNavigation';
 const Header = () => {
     const location = useLocation();
     const navigate = useNavigate();
     const dispatch = useDispatch();
 
-    // Initialize notification navigation hook
-    const { handleNotificationClick } = useNotificationNavigation();
     // Current user & role derivations (align with Sidebar logic)
     const currentUser = getUser();
     const [profileImage, setProfileImage] = useState<string | null>(null);
@@ -692,36 +689,10 @@ const Header = () => {
                                         alt="userProfile"
                                     />
                                 }
+                            >
+                                <ul className="text-dark dark:text-white-dark !py-0 w-[230px] font-semibold dark:text-white-light/90">
+                                    <li>
                                         <div className="flex items-center px-4 py-4">
-                                                                                return (
-                                                                                    <li
-                                                                                        key={notification.id}
-                                                                                        className={`dark:text-white-light/90 ${isUnread ? 'bg-primary/5' : ''} cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors`}
-                                                                                        onClick={(e) => {
-                                                                                            e.stopPropagation();
-                                                                                            // Navigate immediately
-                                                                                            handleNotificationClick(notification);
-
-                                                                                            // Mark as read on backend and update UI optimistically
-                                                                                            (async () => {
-                                                                                                try {
-                                                                                                    const ok = await markNotificationAsRead(notification.id);
-                                                                                                    if (ok) {
-                                                                                                        setNotifications((prev) =>
-                                                                                                            prev.map((n) => (n.id === notification.id ? { ...n, readAt: new Date().toISOString() } : n))
-                                                                                                        );
-                                                                                                    } else {
-                                                                                                        // still mark locally to avoid repeated UI churn
-                                                                                                        setNotifications((prev) => prev.map((n) => (n.id === notification.id ? { ...n, readAt: new Date().toISOString() } : n)));
-                                                                                                    }
-                                                                                                } catch (err) {
-                                                                                                    // tolerate errors; mark locally
-                                                                                                    setNotifications((prev) => prev.map((n) => (n.id === notification.id ? { ...n, readAt: new Date().toISOString() } : n)));
-                                                                                                }
-                                                                                            })();
-                                                                                        }}
-                                                                                    >
-                                                                                        <div className="group flex items-center px-4 py-2">
                                             <img
                                                 className="rounded-md w-10 h-10 object-cover"
                                                 src={profileImage ? (profileImage.startsWith('http') ? profileImage : getApiUrl(profileImage)) : '/assets/images/user-profile.jpeg'}
