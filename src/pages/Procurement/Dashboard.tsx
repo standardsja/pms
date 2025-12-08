@@ -18,26 +18,18 @@ import IconBell from '../../components/Icon/IconBell';
 import IconClock from '../../components/Icon/IconClock';
 import IconTrendingUp from '../../components/Icon/IconTrendingUp';
 import { getUser } from '../../utils/auth';
+import { detectUserRoles } from '../../utils/roleDetection';
 
 const ProcurementOfficerDashboard = () => {
     const dispatch = useDispatch();
 
-    // Check if user is Finance Manager and redirect them
+    // Use centralized role detection so logic matches other guards
     const currentUser = getUser();
     const userRoles = currentUser?.roles || (currentUser?.role ? [currentUser.role] : []);
-    const isFinanceManager = userRoles.some((r: any) => {
-        const roleName = typeof r === 'string' ? r : r?.name || '';
-        const upper = roleName.toUpperCase();
-        return upper === 'FINANCE_MANAGER' || upper === 'BUDGET_MANAGER' || upper.includes('FINANCE') || upper.includes('BUDGET');
-    });
-    const isProcurementRole = userRoles.some((r: any) => {
-        const roleName = typeof r === 'string' ? r : r?.name || '';
-        const upper = roleName.toUpperCase();
-        return upper.includes('PROCUREMENT') || upper === 'ADMIN';
-    });
+    const detected = detectUserRoles(userRoles);
 
-    // Redirect Finance/Budget Managers to Finance Dashboard
-    if (isFinanceManager && !isProcurementRole) {
+    // Redirect Finance Managers (as detected by centralized utility) to Finance Dashboard
+    if (detected.isFinanceManager && !detected.isProcurementManager) {
         return <Navigate to="/finance" replace />;
     }
 

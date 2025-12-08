@@ -96,13 +96,21 @@ export function detectUserRoles(userRoles: (string | { name: string } | any)[] =
     const isFinanceManager =
         hasRole(['FINANCE_MANAGER', 'BUDGET_MANAGER']) || (containsAll(['FINANCE', 'MANAGER']) && !isProcurementManager) || (containsAll(['BUDGET', 'MANAGER']) && !isProcurementManager);
 
-    const isFinanceOfficer = hasRole(['FINANCE_OFFICER']) && !isFinanceManager;
+    // Treat generic 'FINANCE' role as a Finance Officer for compatibility with legacy role names
+    const isFinanceOfficer = hasRole(['FINANCE_OFFICER', 'FINANCE']) && !isFinanceManager;
     const isFinancePaymentStage = hasRole('FINANCE_PAYMENT_STAGE') && !isFinanceManager && !isFinanceOfficer;
 
     // 5. DEPARTMENT ROLES
     const isDepartmentHead = hasRole('DEPARTMENT_HEAD') && !isAdmin && !isHeadOfDivision && !isExecutiveDirector;
     const isDepartmentManager =
         !isProcurementManager && !isFinanceManager && (hasRole(['DEPT_MANAGER', 'DEPARTMENT_MANAGER']) || (hasRole('MANAGER') && !containsAny(['PROCUREMENT', 'FINANCE', 'BUDGET'])));
+    // Also treat compound role names that include both department and procurement keywords
+    // e.g. 'PROCUREMENT_DEPT_MANAGER', 'DEPT_MANAGER_PROCUREMENT', etc.
+    const isCompoundDeptProcurement = normalizedRoles.some((role) => {
+        return (role.includes('DEPT') || role.includes('DEPARTMENT')) && role.includes('PROCUREMENT');
+    });
+
+    const finalIsDepartmentManager = isDepartmentManager || isCompoundDeptProcurement;
 
     // 6. COMMITTEE ROLES
     const isInnovationCommittee = hasRole('INNOVATION_COMMITTEE');

@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { useDispatch } from 'react-redux';
 import { setPageTitle } from '../../../store/themeConfigSlice';
 import { getApiUrl } from '../../../config/api';
+import { getToken } from '../../../utils/auth';
 import IconPlus from '../../../components/Icon/IconPlus';
 import IconEdit from '../../../components/Icon/IconEdit';
 import IconTrash from '../../../components/Icon/IconTrash';
@@ -53,7 +54,8 @@ const DepartmentManagement = () => {
     const loadDepartments = async () => {
         setLoading(true);
         try {
-            const res = await fetch(getApiUrl('/api/departments'));
+            const token = getToken();
+            const res = await fetch(getApiUrl('/api/departments'), { headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) } });
             if (!res.ok) throw new Error('Failed to fetch departments');
             const data = await res.json();
             setDepartments(data);
@@ -99,9 +101,10 @@ const DepartmentManagement = () => {
             const url = editingId ? `/api/departments/${editingId}` : '/api/departments';
             const method = editingId ? 'PUT' : 'POST';
 
+            const token = getToken();
             const res = await fetch(getApiUrl(url), {
                 method,
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
                 body: JSON.stringify({
                     name: formData.name,
                     code: formData.code,
@@ -129,7 +132,8 @@ const DepartmentManagement = () => {
         if (!confirm('Are you sure? This action cannot be undone.')) return;
 
         try {
-            const res = await fetch(getApiUrl(`/api/departments/${id}`), { method: 'DELETE' });
+            const token = getToken();
+            const res = await fetch(getApiUrl(`/api/departments/${id}`), { method: 'DELETE', headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) } });
             if (!res.ok) throw new Error('Failed to delete department');
             setSuccessMessage('Department deleted successfully');
             setShowSuccess(true);
