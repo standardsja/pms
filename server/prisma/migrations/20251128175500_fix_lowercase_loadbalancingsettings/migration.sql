@@ -2,13 +2,41 @@
 -- Purpose: Some environments created table `loadbalancingsettings` (lowercase) instead of `LoadBalancingSettings`.
 --          Add missing columns on that lowercase table to resolve runtime P2022 column errors.
 
--- Add columns if the lowercase table exists
-SET @tbl := (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'loadbalancingsettings');
+-- Add columns if the lowercase table exists using compatible MySQL syntax
+SET @dbname = DATABASE();
+SET @tablename = "loadbalancingsettings";
 
--- Only proceed if table exists
--- Note: MySQL doesn't support IF statements in plain SQL; use dynamic SQL via prepared statements
--- We'll attempt ALTER and ignore errors if table doesn't exist
+-- Check if the lowercase table exists and add roundRobinCounter if needed
+SET @columnname = "roundRobinCounter";
+SET @preparedStatement = (SELECT IF(
+  (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
+    WHERE table_name = @tablename AND table_schema = @dbname
+  ) > 0 AND (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE table_name = @tablename AND table_schema = @dbname AND column_name = @columnname
+  ) = 0,
+  CONCAT("ALTER TABLE ", @tablename, " ADD COLUMN ", @columnname, " INTEGER NOT NULL DEFAULT 0"),
+  "SELECT 1"
+));
+PREPARE alterIfNotExists FROM @preparedStatement;
+EXECUTE alterIfNotExists;
+DEALLOCATE PREPARE alterIfNotExists;
 
-ALTER TABLE `loadbalancingsettings`
-  ADD COLUMN IF NOT EXISTS `roundRobinCounter` INTEGER NOT NULL DEFAULT 0,
-  ADD COLUMN IF NOT EXISTS `autoAssignOnApproval` BOOLEAN NOT NULL DEFAULT true;
+-- Add autoAssignOnApproval if the lowercase table exists and column doesn't
+SET @columnname = "autoAssignOnApproval";
+SET @preparedStatement = (SELECT IF(
+  (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
+    WHERE table_name = @tablename AND table_schema = @dbname
+  ) > 0 AND (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE table_name = @tablename AND table_schema = @dbname AND column_name = @columnname
+  ) = 0,
+  CONCAT("ALTER TABLE ", @tablename, " ADD COLUMN ", @columnname, " BOOLEAN NOT NULL DEFAULT true"),
+  "SELECT 1"
+));
+PREPARE alterIfNotExists FROM @preparedStatement;
+EXECUTE alterIfNotExists;
+DEALLOCATE PREPARE alterIfNotExists;
+
