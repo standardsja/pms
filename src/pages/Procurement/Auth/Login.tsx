@@ -10,6 +10,7 @@ import IconEye from '../../../components/Icon/IconEye';
 import packageInfo from '../../../../package.json';
 import { setAuth } from '../../../utils/auth';
 import { loginWithMicrosoft, initializeMsal, isMsalConfigured } from '../../../auth/msal';
+import { detectUserRoles, getDashboardPath } from '../../../utils/roleDetection';
 
 const Login = () => {
     const dispatch = useDispatch();
@@ -124,24 +125,24 @@ const Login = () => {
             const hasCompletedOnboarding = localStorage.getItem(`onboardingComplete:${userSuffix}`) === 'true';
             const hasLastModule = localStorage.getItem(`lastModule:${userSuffix}`) !== null;
 
-            // Role-based redirect after login (evaluation committee overrides onboarding)
+            // Role-based redirect after login (use centralized detection)
             const userRoles: string[] = user.roles || (user.role ? [user.role] : []);
-            const normalizedRoles = userRoles.map((r) => String(r).toUpperCase());
+            const detected = detectUserRoles(userRoles);
 
             // Admin users go straight to admin dashboard regardless of onboarding state
-            if (normalizedRoles.includes('ADMIN')) {
+            if (detected.isAdmin) {
                 navigate('/procurement/admin');
                 return;
             }
 
             // Evaluation Committee members go straight to their committee dashboard regardless of onboarding state
-            if (normalizedRoles.includes('EVALUATION_COMMITTEE')) {
+            if (detected.isEvaluationCommittee) {
                 navigate('/evaluation/committee/dashboard');
                 return;
             }
 
             // Innovation committee members with ONLY committee role go directly to committee dashboard
-            const isInnovationCommitteeOnly = normalizedRoles.includes('INNOVATION_COMMITTEE') && normalizedRoles.length === 1;
+            const isInnovationCommitteeOnly = detected.isInnovationCommittee && userRoles.length === 1;
 
             if (isInnovationCommitteeOnly) {
                 navigate('/innovation/committee/dashboard');
@@ -149,15 +150,9 @@ const Login = () => {
                 // Returning users with saved preference - go to their last module
                 const lastMod = localStorage.getItem(`lastModule:${userSuffix}`);
                 if (lastMod === 'pms') {
-                    if (normalizedRoles.includes('PROCUREMENT_MANAGER') || normalizedRoles.includes('MANAGER') || normalizedRoles.some((r) => r.includes('MANAGER'))) {
-                        navigate('/procurement/manager');
-                    } else if (normalizedRoles.includes('PROCUREMENT_OFFICER') || normalizedRoles.includes('PROCUREMENT')) {
-                        navigate('/procurement/dashboard');
-                    } else if (normalizedRoles.some((r) => r.includes('REQUEST'))) {
-                        navigate('/apps/requests');
-                    } else {
-                        navigate('/procurement/dashboard');
-                    }
+                    // Use centralized dashboard path so finance roles go to /finance or finance-officer dashboard
+                    const dashboard = getDashboardPath(detected, '/procurement');
+                    navigate(dashboard);
                 } else if (lastMod === 'ih') {
                     navigate('/innovation/dashboard');
                 } else if (lastMod === 'committee') {

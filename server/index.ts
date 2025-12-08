@@ -3982,6 +3982,87 @@ app.get('/api/departments', async (req, res) => {
     }
 });
 
+// POST /api/departments - Create a new department (compat endpoint for frontend)
+// Protected: accepts either Bearer token or x-user-id (authMiddleware) and requires ADMIN role
+app.post('/api/departments', authMiddleware, requireAdmin, async (req, res) => {
+    try {
+        const { name, code, managerId } = req.body;
+        if (!name || !code) return res.status(400).json({ message: 'Department name and code are required' });
+
+        // Check for existing code
+        const existing = await prisma.department.findUnique({ where: { code } });
+        if (existing) return res.status(400).json({ message: 'Department code already exists' });
+
+        // Verify manager exists if provided
+        if (managerId) {
+            const manager = await prisma.user.findUnique({ where: { id: Number(managerId) } });
+            if (!manager) return res.status(404).json({ message: 'Manager user not found' });
+        }
+
+        const created = await prisma.department.create({
+            data: { name, code, managerId: managerId || null },
+            select: { id: true, name: true, code: true },
+        });
+
+        res.status(201).json({ message: 'Department created', department: created });
+    } catch (e: any) {
+        console.error('POST /api/departments error:', e);
+        res.status(500).json({ message: 'Failed to create department' });
+    }
+});
+
+// PUT /api/departments/:id - Update a department (compat endpoint)
+app.put('/api/departments/:id', authMiddleware, requireAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { name, code, managerId } = req.body;
+        if (!name || !code) return res.status(400).json({ message: 'Department name and code are required' });
+
+        // Ensure department exists
+        const deptId = parseInt(String(id), 10);
+        const existing = await prisma.department.findUnique({ where: { id: deptId } });
+        if (!existing) return res.status(404).json({ message: 'Department not found' });
+
+        // If code changed, check uniqueness
+        if (code !== existing.code) {
+            const codeTaken = await prisma.department.findUnique({ where: { code } });
+            if (codeTaken) return res.status(400).json({ message: 'Department code already exists' });
+        }
+
+        if (managerId) {
+            const manager = await prisma.user.findUnique({ where: { id: Number(managerId) } });
+            if (!manager) return res.status(404).json({ message: 'Manager user not found' });
+        }
+
+        const updated = await prisma.department.update({
+            where: { id: deptId },
+            data: { name, code, managerId: managerId || null },
+            select: { id: true, name: true, code: true },
+        });
+
+        res.json({ message: 'Department updated', department: updated });
+    } catch (e: any) {
+        console.error('PUT /api/departments/:id error:', e);
+        res.status(500).json({ message: 'Failed to update department' });
+    }
+});
+
+// DELETE /api/departments/:id - Delete a department (compat endpoint)
+app.delete('/api/departments/:id', authMiddleware, requireAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const deptId = parseInt(String(id), 10);
+
+        // Optionally: check for dependent records (users/requests) before deleting
+        await prisma.department.delete({ where: { id: deptId } });
+
+        res.json({ message: 'Department deleted' });
+    } catch (e: any) {
+        console.error('DELETE /api/departments/:id error:', e);
+        res.status(500).json({ message: 'Failed to delete department' });
+    }
+});
+
 // POST /api/admin/departments - Create a new department (admin only)
 app.post('/api/admin/departments', async (req, res) => {
     try {
@@ -4081,6 +4162,23 @@ app.post('/api/admin/users/:userId/department', async (req, res) => {
         });
 
         console.log(`[Admin] Updated department for user ${parsedUserId} to department ${departmentId || 'none'}`);
+
+        // If this user has DEPT_MANAGER role, set the new department.managerId to this user.
+        // Also, if the user was manager of a previous department, clear that previous department.managerId.
+        try {
+            const userRoles = (updated.roles || []).map((r) => r.role?.name).filter(Boolean) as string[];
+            const isDeptManager = userRoles.map((r) => String(r).toUpperCase()).includes('DEPT_MANAGER');
+
+            // Clear this user's managerId from any other department that referenced them but is not the current one
+            await prisma.department.updateMany({ where: { managerId: parsedUserId, id: { not: updated.departmentId } }, data: { managerId: null } });
+
+            if (isDeptManager && updated.departmentId) {
+                await prisma.department.update({ where: { id: updated.departmentId }, data: { managerId: parsedUserId } });
+                console.log(`[Admin] Assigned user ${parsedUserId} as manager for department ${updated.departmentId}`);
+            }
+        } catch (err) {
+            console.warn('Failed to sync department.managerId after department update:', err);
+        }
 
         // Check if this user is currently logged in (same as admin making the change)
         const isCurrentUser = parseInt(String(adminId), 10) === parsedUserId;
@@ -4200,6 +4298,21 @@ app.post('/api/admin/users/:userId/roles', async (req, res) => {
                 department: true,
             },
         });
+
+        // If the user now has DEPT_MANAGER role, ensure the department's managerId points to this user
+        try {
+            const hasDeptManagerRole = roles.map((r: string) => String(r).toUpperCase()).includes('DEPT_MANAGER');
+            if (hasDeptManagerRole && updatedUser?.department?.id) {
+                await prisma.department.update({ where: { id: updatedUser.department.id }, data: { managerId: parsedUserId } });
+                console.log(`[Admin] Set department ${updatedUser.department.id} managerId -> ${parsedUserId}`);
+            } else if (!hasDeptManagerRole) {
+                // If user no longer has DEPT_MANAGER role, clear any department.managerId that references them
+                await prisma.department.updateMany({ where: { managerId: parsedUserId }, data: { managerId: null } });
+                console.log(`[Admin] Cleared managerId references for user ${parsedUserId}`);
+            }
+        } catch (err) {
+            console.warn('Failed to sync department.managerId after role update:', err);
+        }
 
         // Check if this user is currently logged in (same as admin making the change)
         const isCurrentUser = parseInt(String(adminId), 10) === parsedUserId;
@@ -4574,6 +4687,11 @@ app.get('/api/auth/me', authMiddleware, async (req, res) => {
             return res.status(404).json({ message: 'User not found' });
         }
 
+        // Compute permissions and dept manager claims
+        const { computePermissionsForUser, computeDeptManagerForUser } = await import('./utils/permissionUtils.js');
+        const permissions = computePermissionsForUser(user as any);
+        const deptManagerFor = computeDeptManagerForUser(user as any);
+
         // Return user data (includes LDAP-synced fields like name, department, etc.)
         return res.json({
             id: user.id,
@@ -4588,6 +4706,8 @@ app.get('/api/auth/me', authMiddleware, async (req, res) => {
             supervisor: user.supervisor || null,
             department: user.department,
             roles: user.roles.map((ur) => ({ id: ur.role.id, name: ur.role.name })),
+            permissions,
+            deptManagerFor,
             ldapDN: user.ldapDN || null,
             createdAt: user.createdAt,
             updatedAt: user.updatedAt,

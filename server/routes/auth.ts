@@ -22,6 +22,7 @@ import { asyncHandler, BadRequestError, UnauthorizedError } from '../middleware/
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth';
 import { validate, loginSchema } from '../middleware/validation';
 import { ldapService } from '../services/ldapService';
+import { computePermissionsForUser, computeDeptManagerForUser } from '../utils/permissionUtils';
 import { syncLDAPUserToDatabase, describeSyncResult } from '../services/ldapRoleSyncService';
 import { bulkSyncADUsers, getSyncStatistics } from '../services/ldapBulkSyncService';
 
@@ -172,7 +173,9 @@ router.post(
             }
 
             const roles = user.roles.map((r) => r.role.name);
-            const token = jwt.sign({ sub: user.id, email: user.email, roles, name: user.name }, config.JWT_SECRET, { expiresIn: '24h' });
+            const permissions = computePermissionsForUser(user);
+            const deptManagerFor = computeDeptManagerForUser(user);
+            const token = jwt.sign({ sub: user.id, email: user.email, roles, name: user.name, permissions, deptManagerFor }, config.JWT_SECRET, { expiresIn: '24h' });
 
             logger.info('User logged in via LDAP with role sync', {
                 userId: user.id,
@@ -188,6 +191,8 @@ router.post(
                     email: user.email,
                     name: user.name,
                     roles,
+                    permissions,
+                    deptManagerFor,
                     department: user.department
                         ? {
                               id: user.department.id,
@@ -210,7 +215,9 @@ router.post(
         }
 
         const roles = user.roles.map((r) => r.role.name);
-        const token = jwt.sign({ sub: user.id, email: user.email, roles, name: user.name }, config.JWT_SECRET, { expiresIn: '24h' });
+        const permissions = computePermissionsForUser(user);
+        const deptManagerFor = computeDeptManagerForUser(user);
+        const token = jwt.sign({ sub: user.id, email: user.email, roles, name: user.name, permissions, deptManagerFor }, config.JWT_SECRET, { expiresIn: '24h' });
 
         logger.info('User logged in via database successfully', { userId: user.id, email: user.email });
 
@@ -221,6 +228,8 @@ router.post(
                 email: user.email,
                 name: user.name,
                 roles,
+                permissions,
+                deptManagerFor,
                 department: user.department
                     ? {
                           id: user.department.id,
@@ -312,12 +321,16 @@ router.post(
         }
 
         const roles = user.roles.map((r) => r.role.name);
+        const permissions = computePermissionsForUser(user);
+        const deptManagerFor = computeDeptManagerForUser(user);
         const token = jwt.sign(
             {
                 sub: user.id,
                 email: user.email,
                 roles,
                 name: user.name,
+                permissions,
+                deptManagerFor,
             },
             config.JWT_SECRET,
             { expiresIn: '24h' }
@@ -338,6 +351,8 @@ router.post(
                 email: user.email,
                 name: user.name,
                 roles,
+                permissions,
+                deptManagerFor,
                 department: user.department
                     ? {
                           id: user.department.id,
@@ -375,12 +390,16 @@ router.get(
         }
 
         const roles = user.roles.map((r) => r.role.name);
+        const permissions = computePermissionsForUser(user);
+        const deptManagerFor = computeDeptManagerForUser(user);
 
         res.json({
             id: user.id,
             email: user.email,
             name: user.name,
             roles,
+            permissions,
+            deptManagerFor,
             department: user.department
                 ? {
                       id: user.department.id,
@@ -390,6 +409,20 @@ router.get(
                 : null,
             profileImage: user.profileImage,
         });
+    })
+);
+
+// Simple LDAP test endpoint (development helper) - reports LDAP enabled and connection status
+router.get(
+    '/test-connection',
+    asyncHandler(async (_req, res) => {
+        try {
+            const enabled = ldapService.isEnabled();
+            const connected = enabled ? await ldapService.testConnection() : false;
+            return res.json({ enabled, connected, ldapConfig: enabled ? { url: config.LDAP?.url, searchDN: config.LDAP?.searchDN } : null });
+        } catch (err: any) {
+            return res.status(500).json({ enabled: ldapService.isEnabled(), connected: false, error: err?.message || String(err) });
+        }
     })
 );
 

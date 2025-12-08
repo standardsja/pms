@@ -92,6 +92,50 @@ export class RoleRequestService {
             },
         });
 
+        // Create notifications for administrators so they can review the request
+        try {
+            // Find admin users (ADMIN, ADMINISTRATOR, SUPER_ADMIN)
+            const admins = await prisma.user.findMany({
+                where: {
+                    roles: {
+                        some: {
+                            role: {
+                                OR: [{ name: { in: ['ADMIN', 'ADMINISTRATOR', 'SUPER_ADMIN'] } }, { name: { contains: 'ADMIN' } }],
+                            },
+                        },
+                    },
+                },
+                select: { id: true, email: true, name: true },
+            });
+
+            if (admins.length > 0) {
+                const message = `${roleRequest.user?.name || roleRequest.user.email} requested access: ${roleRequest.role} (${roleRequest.module})`;
+
+                const notifications = admins.map((a) => ({
+                    userId: a.id,
+                    type: 'ROLE_REQUEST' as any,
+                    message,
+                    data: JSON.stringify({
+                        roleRequestId: roleRequest.id,
+                        requesterId: roleRequest.user?.id,
+                        requesterName: roleRequest.user?.name,
+                        role: roleRequest.role,
+                        module: roleRequest.module,
+                        department: roleRequest.department?.name || null,
+                        reason: roleRequest.reason || null,
+                    }),
+                }));
+
+                await prisma.notification.createMany({ data: notifications });
+            } else {
+                // No admins found - log a warning
+                console.warn('No admin users found to notify about role request', { roleRequestId: roleRequest.id });
+            }
+        } catch (notifErr) {
+            console.error('Failed to create admin notifications for role request:', notifErr);
+            // Do not fail role request creation if notifications fail
+        }
+
         return roleRequest;
     }
 
