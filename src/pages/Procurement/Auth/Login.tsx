@@ -139,6 +139,12 @@ const Login = () => {
             const userRoles: string[] = user.roles || (user.role ? [user.role] : []);
             const normalizedRoles = userRoles.map((r) => String(r).toUpperCase());
 
+            // Admin users go straight to admin dashboard regardless of onboarding state
+            if (normalizedRoles.includes('ADMIN')) {
+                navigate('/procurement/admin');
+                return;
+            }
+
             // Evaluation Committee members go straight to their committee dashboard regardless of onboarding state
             if (normalizedRoles.includes('EVALUATION_COMMITTEE')) {
                 navigate('/evaluation/committee/dashboard');

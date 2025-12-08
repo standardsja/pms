@@ -38,6 +38,14 @@ import { getUser } from '../../utils/auth';
 import { detectUserRoles, getDashboardPath } from '../../utils/roleDetection';
 import IconLock from '../Icon/IconLock';
 import { getModuleLocks, type ModuleLockState } from '../../utils/moduleLocks';
+import IconBuilding from '../Icon/IconBuilding';
+import IconShield from '../Icon/IconShield';
+import IconHistory from '../Icon/IconHistory';
+import IconDollar from '../Icon/IconDollar';
+import IconUsers from '../Icon/IconUsers';
+import IconKey from '../Icon/IconKey';
+import IconUpload from '../Icon/IconUpload';
+import IconGear from '../Icon/IconGear';
 
 const Sidebar = () => {
     const [currentMenu, setCurrentMenu] = useState<string>('');
@@ -174,6 +182,97 @@ const Sidebar = () => {
                                             </div>
                                         </NavLink>
                                     </li>
+
+                                    <li className="nav-item">
+                                        <NavLink to="/procurement/admin/modules" className="group">
+                                            <div className="flex items-center">
+                                                <IconLock className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Module Access Control</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+
+                                    <li className="nav-item">
+                                        <NavLink to="/procurement/admin/assign-requests" className="group">
+                                            <div className="flex items-center">
+                                                <IconUsersGroup className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Assign Requests</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+
+                                    <li className="nav-item">
+                                        <NavLink to="/procurement/admin/system-dashboard" className="group">
+                                            <div className="flex items-center">
+                                                <IconBarChart className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">System Dashboard</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+
+                                    <li className="nav-item">
+                                        <NavLink to="/procurement/admin/departments" className="group">
+                                            <div className="flex items-center">
+                                                <IconBuilding className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Departments</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+
+                                    <li className="nav-item">
+                                        <NavLink to="/procurement/admin/user-security" className="group">
+                                            <div className="flex items-center">
+                                                <IconShield className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">User Security</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+
+                                    <li className="nav-item">
+                                        <NavLink to="/procurement/admin/audit-logs" className="group">
+                                            <div className="flex items-center">
+                                                <IconHistory className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Audit & Compliance</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+
+                                    <li className="nav-item">
+                                        <NavLink to="/procurement/admin/workflow-config" className="group">
+                                            <div className="flex items-center">
+                                                <IconSettings className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Workflow Config</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+
+                                    <li className="nav-item">
+                                        <NavLink to="/procurement/admin/roles-permissions" className="group">
+                                            <div className="flex items-center">
+                                                <IconKey className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Roles & Permissions</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+
+                                    <li className="nav-item">
+                                        <NavLink to="/procurement/admin/bulk-users" className="group">
+                                            <div className="flex items-center">
+                                                <IconUpload className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Bulk Users</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+
+                                    <li className="nav-item">
+                                        <NavLink to="/procurement/admin/system-config" className="group">
+                                            <div className="flex items-center">
+                                                <IconGear className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">System Config</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+
                                     {procurementLocked ? (
                                         renderLockNotice('Procurement module', moduleLocks.procurement.reason)
                                     ) : (

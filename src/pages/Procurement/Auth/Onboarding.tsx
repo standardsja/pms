@@ -240,6 +240,8 @@ const Onboarding = () => {
                 features: ['Audit planning', 'Issue tracking', 'Evidence repository'],
                 comingSoon: true,
                 cta: 'Coming Soon',
+                locked: moduleLocks.audit.locked,
+                lockedReason: moduleLocks.audit.reason,
             },
             {
                 id: 'prime',
@@ -251,6 +253,8 @@ const Onboarding = () => {
                 features: ['Policy registry', 'Risk matrix', 'Control library'],
                 comingSoon: true,
                 cta: 'Coming Soon',
+                locked: moduleLocks.prime.locked,
+                lockedReason: moduleLocks.prime.reason,
             },
             {
                 id: 'datapoint',
@@ -262,6 +266,8 @@ const Onboarding = () => {
                 features: ['Self-service dashboards', 'KPIs & drilldowns', 'Data exports'],
                 comingSoon: true,
                 cta: 'Coming Soon',
+                locked: moduleLocks.datapoint.locked,
+                lockedReason: moduleLocks.datapoint.reason,
             },
             {
                 id: 'maintenance',
@@ -273,6 +279,8 @@ const Onboarding = () => {
                 features: ['Work orders', 'Preventive schedules', 'SLA tracking'],
                 comingSoon: true,
                 cta: 'Coming Soon',
+                locked: moduleLocks.maintenance.locked,
+                lockedReason: moduleLocks.maintenance.reason,
             },
             {
                 id: 'asset',
@@ -284,6 +292,8 @@ const Onboarding = () => {
                 features: ['Asset registry', 'Depreciation', 'Stock control'],
                 comingSoon: true,
                 cta: 'Coming Soon',
+                locked: moduleLocks.asset.locked,
+                lockedReason: moduleLocks.asset.reason,
             },
             {
                 id: 'ppm',
@@ -295,6 +305,8 @@ const Onboarding = () => {
                 features: ['Roadmaps', 'Resource planning', 'Issue tracking'],
                 comingSoon: true,
                 cta: 'Coming Soon',
+                locked: moduleLocks.project.locked,
+                lockedReason: moduleLocks.project.reason,
             },
             {
                 id: 'kb',
@@ -306,6 +318,8 @@ const Onboarding = () => {
                 features: ['Rich authoring', 'Structured taxonomy', 'Approvals & versioning'],
                 comingSoon: true,
                 cta: 'Coming Soon',
+                locked: moduleLocks.knowledge.locked,
+                lockedReason: moduleLocks.knowledge.reason,
             },
         ];
         // Only expose Committee module to committee members

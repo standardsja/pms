@@ -64,6 +64,18 @@ const AwaitingDelivery = lazy(() => import('../pages/Procurement/Payments/Awaiti
 const PaymentsToProcess = lazy(() => import('../pages/Procurement/Payments/PaymentsToProcess'));
 const AdminDashboard = lazy(() => import('../pages/Procurement/Admin/AdminDashboard'));
 const AdminSettings = lazy(() => import('../pages/Procurement/Admin/AdminSettings'));
+const ModuleAccessControl = lazy(() => import('../pages/Procurement/Admin/ModuleAccessControl'));
+const AssignRequestsToUsers = lazy(() => import('../pages/Procurement/Admin/AssignRequestsToUsers'));
+const SystemDashboard = lazy(() => import('../pages/Procurement/Admin/SystemDashboard'));
+const DepartmentManagement = lazy(() => import('../pages/Procurement/Admin/DepartmentManagement'));
+const UserSecurityAccess = lazy(() => import('../pages/Procurement/Admin/UserSecurityAccess'));
+const AuditCompliance = lazy(() => import('../pages/Procurement/Admin/AuditCompliance'));
+const RequestWorkflowConfiguration = lazy(() => import('../pages/Procurement/Admin/RequestWorkflowConfiguration'));
+const FinancialManagement = lazy(() => import('../pages/Procurement/Admin/FinancialManagement'));
+const VendorManagement = lazy(() => import('../pages/Procurement/Admin/VendorManagement'));
+const RolePermissionManagement = lazy(() => import('../pages/Procurement/Admin/RolePermissionManagement'));
+const BulkUserManagement = lazy(() => import('../pages/Procurement/Admin/BulkUserManagement'));
+const SystemConfiguration = lazy(() => import('../pages/Procurement/Admin/SystemConfiguration'));
 
 // Request Pages
 const Requests = lazy(() => import('../pages/Procurement/Requests/Requests'));
@@ -647,6 +659,102 @@ const routes = [
         element: (
             <AdminRoute>
                 <AdminSettings />
+            </AdminRoute>
+        ),
+    },
+    {
+        path: '/procurement/admin/modules',
+        element: (
+            <AdminRoute>
+                <ModuleAccessControl />
+            </AdminRoute>
+        ),
+    },
+    {
+        path: '/procurement/admin/assign-requests',
+        element: (
+            <AdminRoute>
+                <AssignRequestsToUsers />
+            </AdminRoute>
+        ),
+    },
+    {
+        path: '/procurement/admin/system-dashboard',
+        element: (
+            <AdminRoute>
+                <SystemDashboard />
+            </AdminRoute>
+        ),
+    },
+    {
+        path: '/procurement/admin/departments',
+        element: (
+            <AdminRoute>
+                <DepartmentManagement />
+            </AdminRoute>
+        ),
+    },
+    {
+        path: '/procurement/admin/user-security',
+        element: (
+            <AdminRoute>
+                <UserSecurityAccess />
+            </AdminRoute>
+        ),
+    },
+    {
+        path: '/procurement/admin/audit-logs',
+        element: (
+            <AdminRoute>
+                <AuditCompliance />
+            </AdminRoute>
+        ),
+    },
+    {
+        path: '/procurement/admin/workflow-config',
+        element: (
+            <AdminRoute>
+                <RequestWorkflowConfiguration />
+            </AdminRoute>
+        ),
+    },
+    {
+        path: '/procurement/admin/financial',
+        element: (
+            <AdminRoute>
+                <FinancialManagement />
+            </AdminRoute>
+        ),
+    },
+    {
+        path: '/procurement/admin/vendors',
+        element: (
+            <AdminRoute>
+                <VendorManagement />
+            </AdminRoute>
+        ),
+    },
+    {
+        path: '/procurement/admin/roles-permissions',
+        element: (
+            <AdminRoute>
+                <RolePermissionManagement />
+            </AdminRoute>
+        ),
+    },
+    {
+        path: '/procurement/admin/bulk-users',
+        element: (
+            <AdminRoute>
+                <BulkUserManagement />
+            </AdminRoute>
+        ),
+    },
+    {
+        path: '/procurement/admin/system-config',
+        element: (
+            <AdminRoute>
+                <SystemConfiguration />
             </AdminRoute>
         ),
     },

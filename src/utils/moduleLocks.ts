@@ -1,6 +1,6 @@
 import { getUser } from './auth';
 
-export type LockableModuleKey = 'procurement' | 'innovation' | 'committee' | 'budgeting';
+export type LockableModuleKey = 'procurement' | 'innovation' | 'committee' | 'budgeting' | 'audit' | 'prime' | 'datapoint' | 'maintenance' | 'asset' | 'project' | 'knowledge';
 
 export interface ModuleLockEntry {
     locked: boolean;
@@ -17,7 +17,14 @@ const defaultState: ModuleLockState = {
     procurement: { locked: false, updatedAt: '' },
     innovation: { locked: false, updatedAt: '' },
     committee: { locked: false, updatedAt: '' },
-    budgeting: { locked: true, reason: 'Module not yet released', updatedAt: '' },
+    budgeting: { locked: true, reason: 'Coming soon', updatedAt: '' },
+    audit: { locked: true, reason: 'Coming soon', updatedAt: '' },
+    prime: { locked: true, reason: 'Coming soon', updatedAt: '' },
+    datapoint: { locked: true, reason: 'Coming soon', updatedAt: '' },
+    maintenance: { locked: true, reason: 'Coming soon', updatedAt: '' },
+    asset: { locked: true, reason: 'Coming soon', updatedAt: '' },
+    project: { locked: true, reason: 'Coming soon', updatedAt: '' },
+    knowledge: { locked: true, reason: 'Coming soon', updatedAt: '' },
 };
 
 export const LOCKABLE_MODULES: Array<{ key: LockableModuleKey; label: string; description: string }> = [
@@ -25,6 +32,13 @@ export const LOCKABLE_MODULES: Array<{ key: LockableModuleKey; label: string; de
     { key: 'innovation', label: 'Innovation Hub', description: 'Idea submissions, reviews, and committee workflows' },
     { key: 'committee', label: 'Committees', description: 'Innovation and evaluation committee workspaces' },
     { key: 'budgeting', label: 'Budgeting', description: 'Budgeting and financial planning (coming soon)' },
+    { key: 'audit', label: 'Audit Management System', description: 'Plan audits, track findings, and manage remediation' },
+    { key: 'prime', label: 'PRIME – Policy, Risk, Integrated Management Engine', description: 'Centralize policies and risk with integrated controls' },
+    { key: 'datapoint', label: 'Data Point – Analytics & BI Centre', description: 'Dashboards and insights across all modules' },
+    { key: 'maintenance', label: 'Maintenance & Service Management', description: 'Work orders, schedules, and vendor SLAs' },
+    { key: 'asset', label: 'Asset & Inventory Management', description: 'Track assets, lifecycle, and inventory levels' },
+    { key: 'project', label: 'Project & Portfolio Management', description: 'Deliver projects with timelines and governance' },
+    { key: 'knowledge', label: 'Knowledge Base & Policy Repository', description: 'Author, search, and version policies and SOPs' },
 ];
 
 const mergeWithDefaults = (state: Partial<ModuleLockState> | null): ModuleLockState => {
