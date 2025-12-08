@@ -64,59 +64,61 @@ const AssignRequests = () => {
         dispatch(setPageTitle('Assign Requests'));
     }, [dispatch]);
 
-    useEffect(() => {
-        const fetchData = async () => {
-            setLoading(true);
-            setError(null);
+    // Fetch data function (can be called to refresh inbox/officers)
+    const fetchData = async () => {
+        setLoading(true);
+        setError(null);
 
-            try {
-                const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
-                const currentUserId = userProfile?.id || userProfile?.userId || null;
+        try {
+            const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
+            const currentUserId = userProfile?.id || userProfile?.userId || null;
 
-                // Fetch procurement officers
-                const officersRes = await fetch(getApiUrl('/api/users/procurement-officers'), {
-                    headers: {
-                        'x-user-id': String(currentUserId || ''),
-                    },
-                });
-                if (!officersRes.ok) throw new Error('Failed to fetch procurement officers');
-                const officersData = await officersRes.json();
-                setOfficers(officersData);
+            // Fetch procurement officers
+            const officersRes = await fetch(getApiUrl('/api/users/procurement-officers'), {
+                headers: {
+                    'x-user-id': String(currentUserId || ''),
+                },
+            });
+            if (!officersRes.ok) throw new Error('Failed to fetch procurement officers');
+            const officersData = await officersRes.json();
+            setOfficers(officersData);
 
-                // detect if current user is a procurement manager
-                const roles = (userProfile?.roles || []).map((r: any) => {
-                    if (typeof r === 'string') return r;
-                    return r?.role?.name || r?.name || '';
-                });
-                setIsProcurementManager(roles.includes('PROCUREMENT_MANAGER') || roles.includes('Procurement Manager') || roles.includes('PROCUREMENT'));
+            // detect if current user is a procurement manager
+            const roles = (userProfile?.roles || []).map((r: any) => {
+                if (typeof r === 'string') return r;
+                return r?.role?.name || r?.name || '';
+            });
+            setIsProcurementManager(roles.includes('PROCUREMENT_MANAGER') || roles.includes('Procurement Manager') || roles.includes('PROCUREMENT'));
 
-                // Fetch requests at PROCUREMENT_REVIEW status
-                const requestsRes = await fetch(getApiUrl('/requests'), {
-                    headers: {
-                        'x-user-id': String(currentUserId || ''),
-                    },
-                });
-                if (!requestsRes.ok) throw new Error('Failed to fetch requests');
-                const requestsData = await requestsRes.json();
-                const procurementRequests = Array.isArray(requestsData) ? requestsData.filter((r: any) => r && r.status === 'PROCUREMENT_REVIEW') : [];
-                // keep full list
-                setAllRequests(procurementRequests);
-                // For procurement managers, show ALL procurement requests (they should see everything and delegate)
-                if (userProfile && (roles.includes('PROCUREMENT_MANAGER') || roles.includes('Procurement Manager') || roles.includes('PROCUREMENT'))) {
-                    setRequests(procurementRequests);
-                } else {
-                    // normal view: show unassigned requests
-                    setRequests(procurementRequests.filter((r: any) => !r.currentAssigneeId));
-                }
-            } catch (err: any) {
-                console.error('Error fetching data:', err);
-                setError(err.message || 'Failed to load data');
-            } finally {
-                setLoading(false);
+            // Fetch requests at PROCUREMENT_REVIEW status
+            const requestsRes = await fetch(getApiUrl('/requests'), {
+                headers: {
+                    'x-user-id': String(currentUserId || ''),
+                },
+            });
+            if (!requestsRes.ok) throw new Error('Failed to fetch requests');
+            const requestsData = await requestsRes.json();
+            const procurementRequests = Array.isArray(requestsData) ? requestsData.filter((r: any) => r && r.status === 'PROCUREMENT_REVIEW') : [];
+            // keep full list
+            setAllRequests(procurementRequests);
+            // For procurement managers, show ALL procurement requests (they should see everything and delegate)
+            if (userProfile && (roles.includes('PROCUREMENT_MANAGER') || roles.includes('Procurement Manager') || roles.includes('PROCUREMENT'))) {
+                setRequests(procurementRequests);
+            } else {
+                // normal view: show unassigned requests
+                setRequests(procurementRequests.filter((r: any) => !r.currentAssigneeId));
             }
-        };
+        } catch (err: any) {
+            console.error('Error fetching data:', err);
+            setError(err.message || 'Failed to load data');
+        } finally {
+            setLoading(false);
+        }
+    };
 
+    useEffect(() => {
         fetchData();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     // Filter and sort requests
@@ -325,7 +327,7 @@ const AssignRequests = () => {
                             <p className="text-sm text-white/90 mt-0.5">Intelligent workload distribution & real-time assignment management</p>
                         </div>
                     </div>
-                    <button onClick={() => window.location.reload()} className="btn bg-white/20 backdrop-blur-sm border-white/30 text-white hover:bg-white/30 gap-2">
+                    <button onClick={fetchData} disabled={loading} className="btn bg-white/20 backdrop-blur-sm border-white/30 text-white hover:bg-white/30 gap-2 disabled:opacity-50">
                         <IconRefresh className="h-4 w-4" />
                         Refresh Data
                     </button>
@@ -405,20 +407,27 @@ const AssignRequests = () => {
                                 {displayRequests.length} of {viewingOfficerRequests !== null ? officerRequests.length : requests.length}
                             </span>
                         </div>
-                        <div className="relative">
-                            <input
-                                type="text"
-                                placeholder="Search by reference, title, requester, or department..."
-                                value={requestSearch}
-                                onChange={(e) => setRequestSearch(e.target.value)}
-                                className="form-input pl-10 pr-10"
-                            />
-                            <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                            {requestSearch && (
-                                <button onClick={() => setRequestSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                                    <IconX className="h-4 w-4" />
-                                </button>
-                            )}
+                        <div className="flex items-center gap-2">
+                            <div className="relative flex-1">
+                                <input
+                                    type="text"
+                                    placeholder="Search by reference, title, requester, or department..."
+                                    value={requestSearch}
+                                    onChange={(e) => setRequestSearch(e.target.value)}
+                                    className="form-input pl-10 pr-10 w-full"
+                                />
+                                <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                                {requestSearch && (
+                                    <button onClick={() => setRequestSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                                        <IconX className="h-4 w-4" />
+                                    </button>
+                                )}
+                            </div>
+
+                            <button onClick={fetchData} disabled={loading} className="btn btn-outline-primary btn-sm flex items-center gap-2 disabled:opacity-50">
+                                <IconRefresh className="h-4 w-4" />
+                                Refresh Inbox
+                            </button>
                         </div>
                     </div>
 

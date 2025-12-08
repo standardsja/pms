@@ -143,6 +143,14 @@ app.use('/uploads', express.static(UPLOAD_DIR));
 // Covers NULL/empty and common legacy statuses not present in current enum
 async function fixInvalidRequestStatuses(): Promise<number | null> {
     try {
+        // Ensure certain core roles exist so admins can assign them without running full seed
+        try {
+            const { ensureCoreRoles } = await import('./utils/ensureRoles.js');
+            await ensureCoreRoles();
+            console.log('[Startup] Ensured core roles exist');
+        } catch (err) {
+            console.warn('[Startup] ensureCoreRoles failed:', err);
+        }
         let total = 0;
 
         // 1) NULL or empty -> DRAFT
