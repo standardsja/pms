@@ -50,6 +50,8 @@ const Sidebar = () => {
     const userRoles = currentUser?.roles || (currentUser?.role ? [currentUser.role] : []);
 
     const isAdmin = userRoles.includes('ADMIN');
+    // Head of Division (HOD) should see admin sidebar items
+    const isHeadOfDivision = userRoles.includes('HEAD_OF_DIVISION') || userRoles.includes('HOD') || userRoles.includes('HEAD_OF_DEPARTMENT');
     const isCommitteeMember = userRoles.includes('INNOVATION_COMMITTEE');
     const isEvaluationCommittee = userRoles.includes('EVALUATION_COMMITTEE');
 
@@ -84,25 +86,26 @@ const Sidebar = () => {
     const isInnovationHub = location.pathname.startsWith('/innovation');
     // Compute dashboard path for logo/home
     // ADMIN takes priority over all other roles
-    const dashboardPath = isAdmin
-        ? '/procurement/admin'
-        : isEvaluationCommittee
-        ? '/evaluation/committee/dashboard'
-        : isCommitteeMember
-        ? '/innovation/committee/dashboard'
-        : isInnovationHub
-        ? '/innovation/dashboard'
-        : isFinanceManager
-        ? '/finance'
-        : isProcurementManager
-        ? '/procurement/manager'
-        : isDepartmentManager
-        ? '/apps/requests/pending-approval'
-        : isSupplier
-        ? '/supplier'
-        : isRequester
-        ? '/apps/requests'
-        : '/procurement/dashboard';
+    const dashboardPath =
+        isAdmin || isHeadOfDivision
+            ? '/procurement/admin'
+            : isEvaluationCommittee
+            ? '/evaluation/committee/dashboard'
+            : isCommitteeMember
+            ? '/innovation/committee/dashboard'
+            : isInnovationHub
+            ? '/innovation/dashboard'
+            : isFinanceManager
+            ? '/finance'
+            : isProcurementManager
+            ? '/procurement/manager'
+            : isDepartmentManager
+            ? '/apps/requests/pending-approval'
+            : isSupplier
+            ? '/supplier'
+            : isRequester
+            ? '/apps/requests'
+            : '/procurement/dashboard';
 
     // Debug logging for dashboard path
     console.log('[SIDEBAR] User roles:', userRoles);
@@ -161,8 +164,8 @@ const Sidebar = () => {
                     </div>
                     <PerfectScrollbar className="h-[calc(100vh-80px)] relative">
                         <ul className="relative font-semibold space-y-0.5 p-4 py-0">
-                            {/* Show ADMIN section for admin users */}
-                            {isAdmin && (
+                            {/* Show ADMIN section for admin users (also visible to Head of Division/HOD) */}
+                            {(isAdmin || isHeadOfDivision) && (
                                 <>
                                     <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
                                         <IconMinus className="w-4 h-5 flex-none hidden" />
