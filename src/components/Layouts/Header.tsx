@@ -40,6 +40,8 @@ import { heartbeatService } from '../../services/heartbeatService';
 import { fetchNotifications, deleteNotification, Notification } from '../../services/notificationApi';
 import { fetchMessages, deleteMessage, Message } from '../../services/messageApi';
 import { getApiUrl } from '../../config/api';
+import IconLock from '../Icon/IconLock';
+import { getModuleLocks, type ModuleLockState } from '../../utils/moduleLocks';
 
 const Header = () => {
     const location = useLocation();
@@ -49,6 +51,7 @@ const Header = () => {
     // Current user & role derivations
     const currentUser = getUser();
     const [profileImage, setProfileImage] = useState<string | null>(null);
+    const [moduleLocks, setModuleLocks] = useState<ModuleLockState>(getModuleLocks());
     const userRoles = currentUser?.roles || (currentUser?.role ? [currentUser.role] : []);
 
     // Use centralized role detection utility
@@ -73,6 +76,8 @@ const Header = () => {
     // Determine current module based on route
     const isInnovationHub = location.pathname.startsWith('/innovation');
     const currentModule = isInnovationHub ? 'innovation' : 'procurement';
+    const procurementLocked = moduleLocks.procurement.locked;
+    const innovationLocked = moduleLocks.innovation.locked;
 
     // Set dashboard path based on centralized role detection
     const dashboardPath = getDashboardPath(detectedRoles, location.pathname);
@@ -102,6 +107,12 @@ const Header = () => {
             }
         }
     }, [location]);
+
+    useEffect(() => {
+        const syncLocks = () => setModuleLocks(getModuleLocks());
+        window.addEventListener('storage', syncLocks);
+        return () => window.removeEventListener('storage', syncLocks);
+    }, []);
 
     const isRtl = useSelector((state: IRootState) => state.themeConfig.rtlClass) === 'rtl' ? true : false;
 
@@ -289,7 +300,7 @@ const Header = () => {
                         </button>
                     </div>
 
-                    {!isInnovationHub && !isSupplier && (
+                    {!isInnovationHub && !isSupplier && !procurementLocked && (
                         <div className="ltr:mr-2 rtl:ml-2 hidden sm:block">
                             <ul className="flex items-center space-x-2 rtl:space-x-reverse dark:text-[#d0d2d6]">
                                 <li>
@@ -352,16 +363,29 @@ const Header = () => {
                                         <li>
                                             <button
                                                 type="button"
-                                                className={`w-full !py-3 hover:bg-gray-100 dark:hover:bg-gray-800 ${!isInnovationHub ? 'bg-primary/10 text-primary' : ''}`}
-                                                onClick={() => navigate(isProcurementManager ? '/procurement/manager' : isRequester ? '/apps/requests' : '/procurement/dashboard')}
+                                                className={`w-full !py-3 hover:bg-gray-100 dark:hover:bg-gray-800 ${!isInnovationHub ? 'bg-primary/10 text-primary' : ''} ${
+                                                    procurementLocked ? 'cursor-not-allowed opacity-60' : ''
+                                                }`}
+                                                disabled={procurementLocked}
+                                                aria-disabled={procurementLocked}
+                                                onClick={() => {
+                                                    if (procurementLocked) return;
+                                                    navigate(isProcurementManager ? '/procurement/manager' : isRequester ? '/apps/requests' : '/procurement/dashboard');
+                                                }}
                                             >
                                                 <div className="flex items-center gap-3 px-4">
                                                     <span className="text-2xl">📦</span>
                                                     <div className="text-left flex-1">
                                                         <div className="font-semibold">Procurement System</div>
                                                         <div className="text-xs text-gray-500 dark:text-gray-400">Manage RFQs & Suppliers</div>
+                                                        {procurementLocked && (
+                                                            <div className="flex items-center gap-1 text-red-600 dark:text-red-300 mt-1">
+                                                                <IconLock className="w-4 h-4" />
+                                                                <span className="text-[11px]">Locked by Admin{moduleLocks.procurement.reason ? `: ${moduleLocks.procurement.reason}` : ''}</span>
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                    {!isInnovationHub && (
+                                                    {!isInnovationHub && !procurementLocked && (
                                                         <svg className="w-4 h-4 text-primary" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                                                             <path
                                                                 d="M9 12L11 14L15 10M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z"
@@ -378,16 +402,29 @@ const Header = () => {
                                         <li>
                                             <button
                                                 type="button"
-                                                className={`w-full !py-3 hover:bg-gray-100 dark:hover:bg-gray-800 ${isInnovationHub ? 'bg-primary/10 text-primary' : ''}`}
-                                                onClick={() => navigate('/innovation/dashboard')}
+                                                className={`w-full !py-3 hover:bg-gray-100 dark:hover:bg-gray-800 ${isInnovationHub ? 'bg-primary/10 text-primary' : ''} ${
+                                                    innovationLocked ? 'cursor-not-allowed opacity-60' : ''
+                                                }`}
+                                                disabled={innovationLocked}
+                                                aria-disabled={innovationLocked}
+                                                onClick={() => {
+                                                    if (innovationLocked) return;
+                                                    navigate('/innovation/dashboard');
+                                                }}
                                             >
                                                 <div className="flex items-center gap-3 px-4">
                                                     <span className="text-2xl">💡</span>
                                                     <div className="text-left flex-1">
                                                         <div className="font-semibold">Innovation Hub</div>
                                                         <div className="text-xs text-gray-500 dark:text-gray-400">Submit & Vote on Ideas</div>
+                                                        {innovationLocked && (
+                                                            <div className="flex items-center gap-1 text-red-600 dark:text-red-300 mt-1">
+                                                                <IconLock className="w-4 h-4" />
+                                                                <span className="text-[11px]">Locked by Admin{moduleLocks.innovation.reason ? `: ${moduleLocks.innovation.reason}` : ''}</span>
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                    {isInnovationHub && (
+                                                    {isInnovationHub && !innovationLocked && (
                                                         <svg className="w-4 h-4 text-primary" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                                                             <path
                                                                 d="M9 12L11 14L15 10M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z"
@@ -754,60 +791,62 @@ const Header = () => {
                             </div>
                         </NavLink>
                     </li>
-                    <li className="menu nav-item relative">
-                        <button type="button" className="nav-link">
-                            <div className="flex items-center">
-                                <svg className="shrink-0" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                    <path
-                                        d="M2 3L2 21M22 3V21M11.8 20H12.2C13.8802 20 14.7202 20 15.362 19.673C15.9265 19.3854 16.3854 18.9265 16.673 18.362C17 17.7202 17 16.8802 17 15.2V8.8C17 7.11984 17 6.27976 16.673 5.63803C16.3854 5.07354 15.9265 4.6146 15.362 4.32698C14.7202 4 13.8802 4 12.2 4H11.8C10.1198 4 9.27976 4 8.63803 4.32698C8.07354 4.6146 7.6146 5.07354 7.32698 5.63803C7 6.27976 7 7.11984 7 8.8V15.2C7 16.8802 7 17.7202 7.32698 18.362C7.6146 18.9265 8.07354 19.3854 8.63803 19.673C9.27976 20 10.1198 20 11.8 20Z"
-                                        stroke="currentColor"
-                                        strokeWidth="1.5"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                    />
-                                </svg>
-                                <span className="px-1">Procurement</span>
-                            </div>
-                            <div className="right_arrow">
-                                <IconCaretDown />
-                            </div>
-                        </button>
-                        <ul className="sub-menu">
-                            <li>
-                                <NavLink to="/procurement/rfq/list">RFQ Management</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/procurement/quotes">Quotes</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/procurement/evaluation">Evaluation</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/procurement/review">Review</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/procurement/approvals">Approvals</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/procurement/purchase-orders">Purchase Orders</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/procurement/suppliers">Suppliers</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/procurement/catalog">Catalog</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/procurement/reports">Reports</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/procurement/payments">Payments</NavLink>
-                            </li>
-                            <li>
-                                <NavLink to="/procurement/admin">Settings</NavLink>
-                            </li>
-                        </ul>
-                    </li>
+                    {!procurementLocked && (
+                        <li className="menu nav-item relative">
+                            <button type="button" className="nav-link">
+                                <div className="flex items-center">
+                                    <svg className="shrink-0" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path
+                                            d="M2 3L2 21M22 3V21M11.8 20H12.2C13.8802 20 14.7202 20 15.362 19.673C15.9265 19.3854 16.3854 18.9265 16.673 18.362C17 17.7202 17 16.8802 17 15.2V8.8C17 7.11984 17 6.27976 16.673 5.63803C16.3854 5.07354 15.9265 4.6146 15.362 4.32698C14.7202 4 13.8802 4 12.2 4H11.8C10.1198 4 9.27976 4 8.63803 4.32698C8.07354 4.6146 7.6146 5.07354 7.32698 5.63803C7 6.27976 7 7.11984 7 8.8V15.2C7 16.8802 7 17.7202 7.32698 18.362C7.6146 18.9265 8.07354 19.3854 8.63803 19.673C9.27976 20 10.1198 20 11.8 20Z"
+                                            stroke="currentColor"
+                                            strokeWidth="1.5"
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                        />
+                                    </svg>
+                                    <span className="px-1">Procurement</span>
+                                </div>
+                                <div className="right_arrow">
+                                    <IconCaretDown />
+                                </div>
+                            </button>
+                            <ul className="sub-menu">
+                                <li>
+                                    <NavLink to="/procurement/rfq/list">RFQ Management</NavLink>
+                                </li>
+                                <li>
+                                    <NavLink to="/procurement/quotes">Quotes</NavLink>
+                                </li>
+                                <li>
+                                    <NavLink to="/procurement/evaluation">Evaluation</NavLink>
+                                </li>
+                                <li>
+                                    <NavLink to="/procurement/review">Review</NavLink>
+                                </li>
+                                <li>
+                                    <NavLink to="/procurement/approvals">Approvals</NavLink>
+                                </li>
+                                <li>
+                                    <NavLink to="/procurement/purchase-orders">Purchase Orders</NavLink>
+                                </li>
+                                <li>
+                                    <NavLink to="/procurement/suppliers">Suppliers</NavLink>
+                                </li>
+                                <li>
+                                    <NavLink to="/procurement/catalog">Catalog</NavLink>
+                                </li>
+                                <li>
+                                    <NavLink to="/procurement/reports">Reports</NavLink>
+                                </li>
+                                <li>
+                                    <NavLink to="/procurement/payments">Payments</NavLink>
+                                </li>
+                                <li>
+                                    <NavLink to="/procurement/admin">Settings</NavLink>
+                                </li>
+                            </ul>
+                        </li>
+                    )}
                     <li className="menu nav-item relative">
                         <NavLink to="/charts" className="nav-link">
                             <div className="flex items-center">
