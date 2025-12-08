@@ -66,25 +66,14 @@ const Login = () => {
             // Get API URL from environment
             const apiUrl = import.meta.env.VITE_API_URL || '';
 
-            // Try standard password login first
-            let res = await fetch(`${apiUrl}/api/auth/login`, {
+            // Call unified login endpoint which handles both database and LDAP authentication
+            const res = await fetch(`${apiUrl}/api/auth/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password }),
             });
 
-            let data = await res.json().catch(() => null);
-
-            // If standard login fails with 401, try LDAP login
-            if (res.status === 401) {
-                console.log('Standard login failed, trying LDAP...');
-                res = await fetch(`${apiUrl}/api/auth/ldap-login`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email, password }),
-                });
-                data = await res.json().catch(() => null);
-            }
+            const data = await res.json().catch(() => null);
 
             if (!res.ok) {
                 const msg = (data && (data.message || data.error)) || 'Login failed';

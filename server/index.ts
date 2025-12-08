@@ -3043,7 +3043,7 @@ app.post('/requests/:id/action', async (req, res) => {
             return res.status(404).json({ message: 'Request not found' });
         }
 
-        // Verify user is the current assignee, but allow a limited override for Procurement Managers
+        // Verify user is the current assignee OR has the appropriate role for this workflow stage
         const actingUserId = parseInt(String(userId), 10);
         let isAuthorized = request.currentAssigneeId === actingUserId;
 
@@ -3055,16 +3055,36 @@ app.post('/requests/:id/action', async (req, res) => {
                 });
                 const roleNames = (actingUser?.roles || []).map((r: any) => String(r.role?.name || '').toUpperCase());
 
-                const isProcurementManager = roleNames.includes('PROCUREMENT_MANAGER') || roleNames.includes('MANAGER') || roleNames.includes('PROCUREMENT');
+                // Check if user has the required role for the current workflow stage
+                // This allows users with appropriate roles to approve even if not explicitly assigned
+                let hasRequiredRole = false;
 
-                // Allow procurement managers to act as an override when the request is at the PROCUREMENT_REVIEW stage.
-                // This is a narrow exception to support managerial reviews; keep it conservative to avoid bypassing workflow.
-                if (isProcurementManager && request.status === 'PROCUREMENT_REVIEW') {
+                if (request.status === 'DEPARTMENT_REVIEW') {
+                    hasRequiredRole = roleNames.includes('DEPT_MANAGER');
+                } else if (request.status === 'HOD_REVIEW') {
+                    hasRequiredRole = roleNames.includes('HEAD_OF_DIVISION') || roleNames.includes('HOD');
+                } else if (request.status === 'FINANCE_REVIEW') {
+                    hasRequiredRole = roleNames.includes('FINANCE') || roleNames.includes('FINANCE_OFFICER');
+                } else if (request.status === 'BUDGET_MANAGER_REVIEW') {
+                    hasRequiredRole = roleNames.includes('BUDGET_MANAGER');
+                } else if (request.status === 'PROCUREMENT_REVIEW') {
+                    hasRequiredRole = roleNames.includes('PROCUREMENT') || roleNames.includes('PROCUREMENT_MANAGER') || roleNames.includes('PROCUREMENT_OFFICER');
+                }
+
+                // Allow approval if user has the required role for this stage
+                if (hasRequiredRole) {
+                    isAuthorized = true;
+                    console.log(`Authorization by role: user ${actingUserId} (${roleNames.join(', ')}) acting on request ${id} at stage ${request.status}`);
+                }
+
+                // Also maintain backward compatibility: allow procurement managers to override at PROCUREMENT_REVIEW stage
+                const isProcurementManager = roleNames.includes('PROCUREMENT_MANAGER') || roleNames.includes('MANAGER') || roleNames.includes('PROCUREMENT');
+                if (!isAuthorized && isProcurementManager && request.status === 'PROCUREMENT_REVIEW') {
                     isAuthorized = true;
                     console.log(`Authorization override: user ${actingUserId} (procurement manager) acting on request ${id}`);
                 }
             } catch (roleErr) {
-                console.warn('Failed to evaluate acting user roles for authorization override:', roleErr);
+                console.warn('Failed to evaluate acting user roles for authorization:', roleErr);
             }
         }
 
