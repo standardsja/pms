@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { logEvent } from '../../../utils/analytics';
 import { getApiUrl } from '../../../config/api';
 import { statsService, SystemStats } from '../../../services/statsService';
+import { getModuleLocks, type ModuleLockState } from '../../../utils/moduleLocks';
 
 type ModuleKey = 'pms' | 'ih' | 'committee' | 'budgeting' | 'audit' | 'prime' | 'datapoint' | 'maintenance' | 'asset' | 'ppm' | 'kb';
 
@@ -21,6 +22,8 @@ type ModuleDef = {
     features: string[];
     comingSoon?: boolean;
     cta?: string;
+    locked?: boolean;
+    lockedReason?: string;
 };
 
 const Onboarding = () => {
@@ -79,6 +82,7 @@ const Onboarding = () => {
         pms: { totalUsers: 0, activeNow: 0, today: 0 },
         ih: { totalUsers: 0, activeNow: 0, today: 0 },
     });
+    const [moduleLocks, setModuleLocks] = useState<ModuleLockState>(getModuleLocks());
 
     useEffect(() => {
         // Fetch real-time system statistics
@@ -183,6 +187,12 @@ const Onboarding = () => {
         logEvent('onboarding_viewed', { role: (userRoles && userRoles[0]) || 'unknown', force: forceOnboarding, hasLast: !!last, done });
     }, [dispatch, isCommittee, navigate, query, forceOnboarding, t, userRoles]);
 
+    useEffect(() => {
+        const syncLocks = () => setModuleLocks(getModuleLocks());
+        window.addEventListener('storage', syncLocks);
+        return () => window.removeEventListener('storage', syncLocks);
+    }, []);
+
     const modules = useMemo<ModuleDef[]>(() => {
         const base: ModuleDef[] = [
             {
@@ -193,6 +203,8 @@ const Onboarding = () => {
                 gradient: 'from-blue-500 to-blue-700',
                 path: isProcurementManager ? '/procurement/manager' : isRequester ? '/apps/requests' : '/procurement/dashboard',
                 features: [t('onboarding.modules.pms.features.0'), t('onboarding.modules.pms.features.1'), t('onboarding.modules.pms.features.2')],
+                locked: moduleLocks.procurement.locked,
+                lockedReason: moduleLocks.procurement.reason,
             },
             {
                 id: 'ih' as ModuleKey,
@@ -202,6 +214,8 @@ const Onboarding = () => {
                 gradient: 'from-purple-500 to-pink-600',
                 path: '/innovation/dashboard',
                 features: [t('onboarding.modules.ih.features.0'), t('onboarding.modules.ih.features.1'), t('onboarding.modules.ih.features.2')],
+                locked: moduleLocks.innovation.locked,
+                lockedReason: moduleLocks.innovation.reason,
             },
             {
                 id: 'budgeting',
@@ -213,6 +227,8 @@ const Onboarding = () => {
                 features: ['Scenarios & forecasting', 'Approvals & headroom checks', 'Variance tracking'],
                 comingSoon: true,
                 cta: 'Coming Soon',
+                locked: moduleLocks.budgeting.locked,
+                lockedReason: moduleLocks.budgeting.reason,
             },
             {
                 id: 'audit',
@@ -302,10 +318,12 @@ const Onboarding = () => {
                 gradient: 'from-violet-600 to-fuchsia-600',
                 path: '/innovation/committee/dashboard',
                 features: [t('onboarding.modules.committee.features.0'), t('onboarding.modules.committee.features.1'), t('onboarding.modules.committee.features.2')],
+                locked: moduleLocks.committee.locked,
+                lockedReason: moduleLocks.committee.reason,
             });
         }
         return base;
-    }, [isCommittee, t]);
+    }, [isCommittee, isProcurementManager, isRequester, moduleLocks, t]);
 
     // Map for quick lookups after render
     const modulesMap = useRef<{ [k in ModuleKey]?: { path: string; title: string; comingSoon?: boolean; cta?: string } }>({});
@@ -336,6 +354,10 @@ const Onboarding = () => {
         }
         // Block coming soon modules
         const selDef = modules.find((m) => m.id === selected);
+        if (selDef?.locked) {
+            setError(selDef.lockedReason || 'This module has been locked by an administrator.');
+            return;
+        }
         if (selDef && selDef.comingSoon) {
             setError('This module is coming soon.');
             return;
@@ -656,14 +678,20 @@ const Onboarding = () => {
                         <div ref={radiosRef} role="radiogroup" aria-labelledby="onboarding-title" className="flex gap-6 min-w-max px-2" onKeyDown={onKeyDownRadios} tabIndex={0}>
                             {modules.map((m, index) => {
                                 const isActive = selected === m.id;
+                                const isLocked = m.locked === true;
                                 return (
                                     <button
                                         role="radio"
                                         aria-checked={isActive}
+                                        aria-disabled={isLocked || m.comingSoon}
                                         tabIndex={isActive ? 0 : -1}
                                         key={m.id}
                                         type="button"
                                         onClick={() => {
+                                            if (isLocked) {
+                                                setError(m.lockedReason || 'This module has been locked by an administrator.');
+                                                return;
+                                            }
                                             setSelected(m.id);
                                             logEvent('onboarding_selected', { selected: m.id });
                                         }}
@@ -674,7 +702,7 @@ const Onboarding = () => {
                                                 : selected
                                                 ? 'border-gray-200 dark:border-gray-700 hover:border-primary/60 opacity-50 hover:opacity-70 scale-95 translate-y-2'
                                                 : 'border-gray-200 dark:border-gray-700 hover:border-primary/60 opacity-100 hover:scale-105 hover:-translate-y-1'
-                                        } ${m.comingSoon ? 'opacity-80' : ''}`}
+                                        } ${m.comingSoon ? 'opacity-80' : ''} ${isLocked ? 'cursor-not-allowed opacity-60' : ''}`}
                                     >
                                         {/* Gradient Header */}
                                         <div className={`bg-gradient-to-br ${m.gradient} p-6 text-white relative overflow-hidden flex-shrink-0`}>
@@ -690,6 +718,11 @@ const Onboarding = () => {
                                                 {m.comingSoon && (
                                                     <span className="bg-white/30 backdrop-blur-md text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg border border-white/20">
                                                         Coming Soon
+                                                    </span>
+                                                )}
+                                                {m.locked && (
+                                                    <span className="bg-red-500/80 backdrop-blur-md text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg border border-red-100/30">
+                                                        Locked by Admin
                                                     </span>
                                                 )}
                                                 {isActive && !m.comingSoon && (
@@ -764,6 +797,19 @@ const Onboarding = () => {
 
                                             {/* Selected Indicator */}
                                             <div className="mt-auto pt-6 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
+                                                {m.locked && (
+                                                    <div className="mb-3 flex items-center gap-2 text-xs text-red-600 dark:text-red-300">
+                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path
+                                                                strokeLinecap="round"
+                                                                strokeLinejoin="round"
+                                                                strokeWidth={2}
+                                                                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                                                            />
+                                                        </svg>
+                                                        <span>{m.lockedReason || 'Locked by administrator'}</span>
+                                                    </div>
+                                                )}
                                                 {!m.comingSoon && (m.id === 'pms' || m.id === 'ih') && (
                                                     <div className="mb-4 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                                                         <div className="flex items-center gap-1">
@@ -797,6 +843,15 @@ const Onboarding = () => {
                                                                 onClick={(e) => e.stopPropagation()}
                                                             >
                                                                 {m.cta || 'Coming Soon'}
+                                                            </div>
+                                                        ) : m.locked ? (
+                                                            <div
+                                                                className="btn btn-sm px-4 py-2 bg-red-50 dark:bg-red-900/40 text-red-700 dark:text-red-200 cursor-not-allowed rounded-lg font-semibold text-xs"
+                                                                role="button"
+                                                                tabIndex={-1}
+                                                                onClick={(e) => e.stopPropagation()}
+                                                            >
+                                                                Locked
                                                             </div>
                                                         ) : (
                                                             <div

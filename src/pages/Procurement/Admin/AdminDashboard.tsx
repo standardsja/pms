@@ -11,7 +11,10 @@ import IconSave from '../../../components/Icon/IconSave';
 import IconLoader from '../../../components/Icon/IconLoader';
 import IconSquareCheck from '../../../components/Icon/IconSquareCheck';
 import IconInfoCircle from '../../../components/Icon/IconInfoCircle';
+import IconLock from '../../../components/Icon/IconLock';
 import adminService, { type AdminUser } from '../../../services/adminService';
+import { getUser } from '../../../utils/auth';
+import { getModuleLocks, LOCKABLE_MODULES, setModuleLock, type LockableModuleKey, type ModuleLockState } from '../../../utils/moduleLocks';
 
 const AdminDashboard = () => {
     const dispatch = useDispatch();
@@ -36,10 +39,22 @@ const AdminDashboard = () => {
 
     const [showSuccess, setShowSuccess] = useState(false);
     const [successMessage, setSuccessMessage] = useState('');
+    const [moduleLocks, setModuleLocks] = useState<ModuleLockState>(getModuleLocks());
+
+    const adminIdentity = useMemo(() => {
+        const user = getUser();
+        return user?.name || user?.email || 'Admin';
+    }, []);
 
     // Load initial data
     useEffect(() => {
         loadAllData();
+    }, []);
+
+    useEffect(() => {
+        const syncLocks = () => setModuleLocks(getModuleLocks());
+        window.addEventListener('storage', syncLocks);
+        return () => window.removeEventListener('storage', syncLocks);
     }, []);
 
     const loadAllData = async () => {
@@ -54,6 +69,15 @@ const AdminDashboard = () => {
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleToggleModuleLock = (key: LockableModuleKey) => {
+        const nextState = setModuleLock(key, !(moduleLocks[key]?.locked ?? false), { updatedBy: adminIdentity });
+        setModuleLocks(nextState);
+        const label = LOCKABLE_MODULES.find((m) => m.key === key)?.label || key;
+        setSuccessMessage(`${label} ${nextState[key].locked ? 'locked' : 'unlocked'}`);
+        setShowSuccess(true);
+        setTimeout(() => setShowSuccess(false), 2200);
     };
 
     // Filter and search users
@@ -242,6 +266,69 @@ const AdminDashboard = () => {
                         <span className="font-semibold">{filteredUsers.length}</span>
                         <span>Users</span>
                     </div>
+                </div>
+            </div>
+
+            {/* Module Locks */}
+            <div className="panel p-5">
+                <div className="flex items-start justify-between gap-3 mb-4">
+                    <div>
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Module Access Control</h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">Lock a module without code changes. Locked modules hide navigation and onboarding entry points.</p>
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 text-right">
+                        Changes persist in this environment and are attributed to <span className="font-semibold text-gray-700 dark:text-gray-200">{adminIdentity}</span>.
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    {LOCKABLE_MODULES.map((mod) => {
+                        const entry = moduleLocks[mod.key];
+                        const locked = entry?.locked ?? false;
+                        const label = mod.label;
+                        return (
+                            <div
+                                key={mod.key}
+                                className={`border rounded-xl p-4 flex flex-col gap-3 ${
+                                    locked ? 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-700/60' : 'bg-gray-50 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700'
+                                }`}
+                            >
+                                <div className="flex items-start justify-between gap-2">
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <IconLock className={`w-4 h-4 ${locked ? 'text-red-600' : 'text-gray-400'}`} />
+                                            <span className="font-semibold text-gray-900 dark:text-white">{label}</span>
+                                        </div>
+                                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">{mod.description}</p>
+                                    </div>
+                                    <button type="button" onClick={() => handleToggleModuleLock(mod.key)} className={`btn btn-sm whitespace-nowrap ${locked ? 'btn-danger' : 'btn-success'}`}>
+                                        {locked ? 'Unlock' : 'Lock'}
+                                    </button>
+                                </div>
+                                <div className="text-xs text-gray-500 dark:text-gray-400">
+                                    <div className="flex items-center gap-2">
+                                        <span
+                                            className={`px-2 py-1 rounded-full text-[11px] font-semibold ${
+                                                locked ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-200' : 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-200'
+                                            }`}
+                                        >
+                                            {locked ? 'Locked' : 'Unlocked'}
+                                        </span>
+                                        {entry?.reason && (
+                                            <span className="truncate" title={entry.reason}>
+                                                {entry.reason}
+                                            </span>
+                                        )}
+                                    </div>
+                                    {entry?.updatedAt && (
+                                        <div className="mt-1">
+                                            Updated {new Date(entry.updatedAt).toLocaleString()} {entry?.updatedBy ? `by ${entry.updatedBy}` : ''}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })}
                 </div>
             </div>
 

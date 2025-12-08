@@ -24,11 +24,11 @@ export interface AuditLogData {
  */
 class AuditService {
     /**
-     * Create an audit log entry
+     * Create an audit log entry and return the created record
      */
-    async log(data: AuditLogData): Promise<void> {
+    async createAuditLog(data: AuditLogData): Promise<any> {
         try {
-            await prisma.auditLog.create({
+            const auditLog = await prisma.auditLog.create({
                 data: {
                     userId: data.userId,
                     action: data.action as any,
@@ -46,14 +46,25 @@ class AuditService {
                 entity: data.entity,
                 entityId: data.entityId,
                 userId: data.userId,
+                auditLogId: auditLog.id,
             });
+
+            return auditLog;
         } catch (error: any) {
             // Never let audit logging crash the application
             logger.error('Failed to create audit log', {
                 error: error.message,
                 data,
             });
+            return null;
         }
+    }
+
+    /**
+     * Create an audit log entry (legacy method name - calls createAuditLog)
+     */
+    async log(data: AuditLogData): Promise<void> {
+        await this.createAuditLog(data);
     }
 
     /**
