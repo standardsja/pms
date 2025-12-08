@@ -355,15 +355,44 @@ router.get('/system', async (req: Request, res: Response) => {
             metrics.requests.total > 0 ? Object.values(metrics.requests.byEndpoint).reduce((sum, e) => sum + e.avgDuration, 0) / Object.values(metrics.requests.byEndpoint).length : 0;
         const requestSuccessRate = metrics.requests.total > 0 ? (metrics.requests.success / metrics.requests.total) * 100 : 0;
         const serverHealthScore = healthMetrics.status === 'healthy' ? 100 : healthMetrics.status === 'degraded' ? 70 : 40;
-        // System uptime as a percentage of healthy status (capped at 100%)
-        const systemUptimePercentage = Math.min(100, (metrics.uptimeSeconds / 60) * 10); // Scale: 600 seconds = 100%
+
+        // System uptime: Start at 100%, degrade based on performance issues
+        let systemUptime = 100;
+
+        // Degrade for slow response times (deduct up to 30%)
+        if (apiResponseTime > 1000) {
+            systemUptime -= 30; // Very slow (>1s)
+        } else if (apiResponseTime > 500) {
+            systemUptime -= 20; // Slow (>500ms)
+        } else if (apiResponseTime > 200) {
+            systemUptime -= 10; // Acceptable but not great (>200ms)
+        }
+
+        // Degrade for low success rate (deduct up to 40%)
+        if (requestSuccessRate < 80) {
+            systemUptime -= 40; // Many failures
+        } else if (requestSuccessRate < 90) {
+            systemUptime -= 25; // Some failures
+        } else if (requestSuccessRate < 95) {
+            systemUptime -= 10; // Few failures
+        }
+
+        // Degrade based on overall health status (deduct up to 30%)
+        if (healthMetrics.status === 'unhealthy') {
+            systemUptime -= 30;
+        } else if (healthMetrics.status === 'degraded') {
+            systemUptime -= 15;
+        }
+
+        // Ensure uptime stays within 0-100%
+        systemUptime = Math.max(0, Math.min(100, systemUptime));
 
         const result = {
             activeUsers,
             requestsThisMonth,
             innovationIdeas,
             pendingApprovals,
-            systemUptime: Math.round(systemUptimePercentage),
+            systemUptime: Math.round(systemUptime),
             apiResponseTime,
             requestSuccessRate,
             serverHealthScore,

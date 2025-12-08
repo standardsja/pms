@@ -5938,15 +5938,45 @@ async function start() {
                 const healthMetrics = getHealthStatus();
                 const metrics = getMetrics();
 
-                // System uptime as a percentage (capped at 100%)
-                const systemUptimePercentage = Math.min(100, (metrics.uptimeSeconds / 60) * 10); // Scale: 600 seconds = 100%
+                const apiResponseTime =
+                    metrics.requests.total > 0 ? Object.values(metrics.requests.byEndpoint).reduce((sum, e) => sum + e.avgDuration, 0) / Object.values(metrics.requests.byEndpoint).length : 0;
+                const requestSuccessRate = metrics.requests.total > 0 ? (metrics.requests.success / metrics.requests.total) * 100 : 0;
+
+                // System uptime: Start at 100%, degrade based on performance issues
+                let systemUptime = 100;
+
+                // Degrade for slow response times
+                if (apiResponseTime > 1000) {
+                    systemUptime -= 30;
+                } else if (apiResponseTime > 500) {
+                    systemUptime -= 20;
+                } else if (apiResponseTime > 200) {
+                    systemUptime -= 10;
+                }
+
+                // Degrade for low success rate
+                if (requestSuccessRate < 80) {
+                    systemUptime -= 40;
+                } else if (requestSuccessRate < 90) {
+                    systemUptime -= 25;
+                } else if (requestSuccessRate < 95) {
+                    systemUptime -= 10;
+                }
+
+                // Degrade based on overall health status
+                if (healthMetrics.status === 'unhealthy') {
+                    systemUptime -= 30;
+                } else if (healthMetrics.status === 'degraded') {
+                    systemUptime -= 15;
+                }
+
+                systemUptime = Math.max(0, Math.min(100, systemUptime));
 
                 broadcastSystemStats({
                     activeUsers,
-                    systemUptime: Math.round(systemUptimePercentage),
-                    apiResponseTime:
-                        metrics.requests.total > 0 ? Object.values(metrics.requests.byEndpoint).reduce((sum, e) => sum + e.avgDuration, 0) / Object.values(metrics.requests.byEndpoint).length : 0,
-                    requestSuccessRate: metrics.requests.total > 0 ? (metrics.requests.success / metrics.requests.total) * 100 : 0,
+                    systemUptime: Math.round(systemUptime),
+                    apiResponseTime,
+                    requestSuccessRate,
                     serverHealthScore: healthMetrics.status === 'healthy' ? 100 : healthMetrics.status === 'degraded' ? 70 : 40,
                     cpuLoad: '0%',
                     memoryUsage: '0%',
