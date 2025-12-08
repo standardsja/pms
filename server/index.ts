@@ -5821,9 +5821,12 @@ async function start() {
                 const healthMetrics = getHealthStatus();
                 const metrics = getMetrics();
 
+                // System uptime as a percentage (capped at 100%)
+                const systemUptimePercentage = Math.min(100, (metrics.uptimeSeconds / 60) * 10); // Scale: 600 seconds = 100%
+
                 broadcastSystemStats({
                     activeUsers,
-                    systemUptime: metrics.uptimeSeconds,
+                    systemUptime: Math.round(systemUptimePercentage),
                     apiResponseTime:
                         metrics.requests.total > 0 ? Object.values(metrics.requests.byEndpoint).reduce((sum, e) => sum + e.avgDuration, 0) / Object.values(metrics.requests.byEndpoint).length : 0,
                     requestSuccessRate: metrics.requests.total > 0 ? (metrics.requests.success / metrics.requests.total) * 100 : 0,

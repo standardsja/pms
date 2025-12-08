@@ -355,13 +355,15 @@ router.get('/system', async (req: Request, res: Response) => {
             metrics.requests.total > 0 ? Object.values(metrics.requests.byEndpoint).reduce((sum, e) => sum + e.avgDuration, 0) / Object.values(metrics.requests.byEndpoint).length : 0;
         const requestSuccessRate = metrics.requests.total > 0 ? (metrics.requests.success / metrics.requests.total) * 100 : 0;
         const serverHealthScore = healthMetrics.status === 'healthy' ? 100 : healthMetrics.status === 'degraded' ? 70 : 40;
+        // System uptime as a percentage of healthy status (capped at 100%)
+        const systemUptimePercentage = Math.min(100, (metrics.uptimeSeconds / 60) * 10); // Scale: 600 seconds = 100%
 
         const result = {
             activeUsers,
             requestsThisMonth,
             innovationIdeas,
             pendingApprovals,
-            systemUptime: metrics.uptimeSeconds,
+            systemUptime: Math.round(systemUptimePercentage),
             apiResponseTime,
             requestSuccessRate,
             serverHealthScore,
