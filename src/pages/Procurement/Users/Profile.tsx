@@ -68,7 +68,7 @@ const Profile = () => {
                 if (meResponse.ok) {
                     const data = await meResponse.json();
                     console.log('[PROFILE] API returned data:', data);
-                    
+
                     // Add timestamp to profile image for cache busting
                     if (data.profileImage) {
                         data.profileImage = `${data.profileImage}?t=${Date.now()}`;
@@ -290,10 +290,10 @@ const Profile = () => {
     const joinDate = displayUser?.createdAt ? new Date(displayUser.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'Jan 2024';
     const userLocation = displayUser?.department?.code || 'Jamaica';
     const userPhone = displayUser?.phone || '+1 (876) 555-1234';
-    
+
     console.log('[PROFILE RENDER] displayUser:', displayUser);
     console.log('[PROFILE RENDER] profileImage:', displayUser?.profileImage);
-    
+
     return (
         <div>
             <ul className="flex space-x-2 rtl:space-x-reverse">
@@ -320,19 +320,13 @@ const Profile = () => {
                                 <div className="relative group">
                                     {displayUser?.profileImage ? (
                                         <img
-                                            src={
-                                                displayUser.profileImage.startsWith('http')
-                                                    ? displayUser.profileImage
-                                                    : getApiUrl(displayUser.profileImage)
-                                            }
+                                            src={displayUser.profileImage.startsWith('http') ? displayUser.profileImage : getApiUrl(displayUser.profileImage)}
                                             alt="profile"
                                             className="w-24 h-24 rounded-full object-cover mb-5 ring-2 ring-primary/20"
                                         />
                                     ) : (
                                         <div className="w-24 h-24 rounded-full bg-gray-200 dark:bg-gray-700 mb-5 ring-2 ring-primary/20 flex items-center justify-center">
-                                            <span className="text-4xl text-gray-400 dark:text-gray-500">
-                                                {userName?.charAt(0)?.toUpperCase() || '?'}
-                                            </span>
+                                            <span className="text-4xl text-gray-400 dark:text-gray-500">{userName?.charAt(0)?.toUpperCase() || '?'}</span>
                                         </div>
                                     )}
                                     <label

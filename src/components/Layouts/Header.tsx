@@ -661,9 +661,7 @@ const Header = () => {
                                         />
                                     ) : (
                                         <div className="w-9 h-9 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center saturate-50 group-hover:saturate-100">
-                                            <span className="text-sm text-gray-600 dark:text-gray-300 font-semibold">
-                                                {currentUser?.name?.charAt(0)?.toUpperCase() || '?'}
-                                            </span>
+                                            <span className="text-sm text-gray-600 dark:text-gray-300 font-semibold">{currentUser?.name?.charAt(0)?.toUpperCase() || '?'}</span>
                                         </div>
                                     )
                                 }
@@ -672,16 +670,10 @@ const Header = () => {
                                     <li>
                                         <div className="flex items-center px-4 py-4">
                                             {profileImage ? (
-                                                <img
-                                                    className="rounded-md w-10 h-10 object-cover"
-                                                    src={profileImage.startsWith('http') ? profileImage : getApiUrl(profileImage)}
-                                                    alt="userProfile"
-                                                />
+                                                <img className="rounded-md w-10 h-10 object-cover" src={profileImage.startsWith('http') ? profileImage : getApiUrl(profileImage)} alt="userProfile" />
                                             ) : (
                                                 <div className="rounded-md w-10 h-10 bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
-                                                    <span className="text-lg text-gray-600 dark:text-gray-300 font-semibold">
-                                                        {currentUser?.name?.charAt(0)?.toUpperCase() || '?'}
-                                                    </span>
+                                                    <span className="text-lg text-gray-600 dark:text-gray-300 font-semibold">{currentUser?.name?.charAt(0)?.toUpperCase() || '?'}</span>
                                                 </div>
                                             )}
                                             <div className="ltr:pl-4 rtl:pr-4 truncate">
