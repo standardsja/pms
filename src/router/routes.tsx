@@ -19,6 +19,10 @@ const Onboarding = lazy(() => import('../pages/Procurement/Auth/Onboarding'));
 // Procurement Pages
 const ProcurementDashboard = lazy(() => import('../pages/Procurement/Dashboard'));
 const ProcurementManagerDashboard = lazy(() => import('../pages/Procurement/Manager/ProcurementManagerDashboard'));
+const HeadOfDivisionDashboard = lazy(() => import('../pages/Procurement/HeadOfDivision/HeadOfDivisionDashboard'));
+const HODDepartments = lazy(() => import('../pages/Procurement/HeadOfDivision/pages/Departments'));
+const HODUserManagement = lazy(() => import('../pages/Procurement/HeadOfDivision/pages/UserManagement'));
+const HODReports = lazy(() => import('../pages/Procurement/HeadOfDivision/pages/Reports'));
 const ProcurementManagerRequests = lazy(() => import('../pages/Procurement/Manager/Requests'));
 const ProcurementManagerAssignRequests = lazy(() => import('../pages/Procurement/Manager/AssignRequests'));
 const ProcurementManagerLoadBalancingSettings = lazy(() => import('../pages/Procurement/Manager/LoadBalancingSettings'));
@@ -312,6 +316,38 @@ const routes = [
     {
         path: '/procurement/dashboard',
         element: <ProcurementDashboard />,
+    },
+    {
+        path: '/procurement/hod',
+        element: (
+            <RoleDashboardGuard allowedRoles={['HEAD_OF_DIVISION']}>
+                <HeadOfDivisionDashboard />
+            </RoleDashboardGuard>
+        ),
+    },
+    {
+        path: '/procurement/hod/departments',
+        element: (
+            <RoleDashboardGuard allowedRoles={['HEAD_OF_DIVISION']}>
+                <HODDepartments />
+            </RoleDashboardGuard>
+        ),
+    },
+    {
+        path: '/procurement/hod/users',
+        element: (
+            <RoleDashboardGuard allowedRoles={['HEAD_OF_DIVISION']}>
+                <HODUserManagement />
+            </RoleDashboardGuard>
+        ),
+    },
+    {
+        path: '/procurement/hod/reports',
+        element: (
+            <RoleDashboardGuard allowedRoles={['HEAD_OF_DIVISION']}>
+                <HODReports />
+            </RoleDashboardGuard>
+        ),
     },
     {
         path: '/procurement/manager',

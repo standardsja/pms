@@ -254,9 +254,40 @@
                 "admin:manage_roles": false,
                 "admin:view_system": false
             }
+        },
+        "HEAD_OF_DIVISION": {
+            "description": "Head of Division with administrative oversight of procurement processes",
+            "permissions": {
+                "request:create": false,
+                "request:read_own": false,
+                "request:edit_own": false,
+                "request:submit": false,
+                "request:read_all": true,
+                "request:approve": true,
+                "request:reject": true,
+                "request:reassign": true,
+                "request:combine": true,
+                "request:delete": false,
+                "vendor:read": true,
+                "vendor:create": true,
+                "budget:read_own": false,
+                "budget:approve": true,
+                "payment:read": true,
+                "payment:approve": true,
+                "audit:read": true,
+                "evaluation:read": true,
+                "evaluation:create": true,
+                "evaluation:manage": true,
+                "load_balancing:read": true,
+                "load_balancing:manage": false,
+                "admin:manage_users": true,
+                "admin:manage_roles": false,
+                "admin:view_system": true
+            }
         }
     },
     "ldapGroupMappings": {
+        "cn=head-of-division,ou=roles,dc=company,dc=com": "HEAD_OF_DIVISION",
         "cn=procurement-officers,ou=roles,dc=company,dc=com": "PROCUREMENT_OFFICER",
         "cn=procurement-managers,ou=roles,dc=company,dc=com": "PROCUREMENT_MANAGER",
         "cn=finance-officers,ou=roles,dc=company,dc=com": "FINANCE_OFFICER",
@@ -269,8 +300,12 @@
     },
     "ldapAttributeMappings": {
         "title": {
+            "Head of Division": "HEAD_OF_DIVISION",
+            "Head of Department": "HEAD_OF_DIVISION",
+            "HOD": "HEAD_OF_DIVISION",
             "Procurement Officer": "PROCUREMENT_OFFICER",
             "Procurement Manager": "PROCUREMENT_MANAGER",
+            "Head of Procurement": "PROCUREMENT_MANAGER",
             "Finance Officer": "FINANCE_OFFICER",
             "Finance Manager": "BUDGET_MANAGER",
             "Budget Manager": "BUDGET_MANAGER",
