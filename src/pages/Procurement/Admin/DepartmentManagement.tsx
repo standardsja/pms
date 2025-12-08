@@ -97,7 +97,7 @@ const DepartmentManagement = () => {
 
         setSaving(true);
         setError(null);
-        
+
         try {
             const currentUser = getUser();
             if (!currentUser?.id) {
@@ -109,9 +109,9 @@ const DepartmentManagement = () => {
 
             const res = await fetch(getApiUrl(url), {
                 method,
-                headers: { 
+                headers: {
                     'Content-Type': 'application/json',
-                    'x-user-id': String(currentUser.id)
+                    'x-user-id': String(currentUser.id),
                 },
                 body: JSON.stringify({
                     name: formData.name,
@@ -148,18 +148,18 @@ const DepartmentManagement = () => {
                 throw new Error('User not authenticated');
             }
 
-            const res = await fetch(getApiUrl(`/api/admin/departments/${id}`), { 
+            const res = await fetch(getApiUrl(`/api/admin/departments/${id}`), {
                 method: 'DELETE',
                 headers: {
-                    'x-user-id': String(currentUser.id)
-                }
+                    'x-user-id': String(currentUser.id),
+                },
             });
-            
+
             if (!res.ok) {
                 const errorData = await res.json().catch(() => ({}));
                 throw new Error(errorData.message || 'Failed to delete department');
             }
-            
+
             setSuccessMessage('Department deleted successfully');
             setShowSuccess(true);
             await loadDepartments();
