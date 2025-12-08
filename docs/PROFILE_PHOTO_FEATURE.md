@@ -3,6 +3,7 @@
 ## Overview
 
 Users can now upload and manage their profile photos in two ways:
+
 1. **Manual Upload** - Upload custom photos from their device
 2. **Active Directory Sync** - Pull their official AD photo with one click
 
@@ -18,13 +19,14 @@ Users can now upload and manage their profile photos in two ways:
 -   **UI**: Two dedicated buttons below profile photo:
     -   **Upload Photo** (Blue) - Opens file picker for custom uploads
     -   **Sync from AD** (Green) - Syncs photo from Active Directory
--   **Functionality**: 
+-   **Functionality**:
     -   Upload: Click button → select image → automatic upload and preview
     -   LDAP Sync: Click button → photo pulled from AD → automatic update
 
 ### 2. LDAP Photo Sync (Enhanced)
 
 **Automatic Sync (On Login):**
+
 -   Profile photos retrieved from Active Directory's `thumbnailPhoto` attribute
 -   Sync Timing: During login authentication
 -   Behavior:
@@ -33,6 +35,7 @@ Users can now upload and manage their profile photos in two ways:
     -   Manual uploads take precedence (not overwritten by LDAP on login)
 
 **Manual Sync (New Feature):**
+
 -   **Button**: "Sync from AD" button on Profile page
 -   **Purpose**: Users can manually pull their latest AD photo anytime
 -   **Requirements**:
@@ -111,10 +114,10 @@ model User {
 
 #### 1. Profile Page (`src/pages/Procurement/Users/Profile.tsx`)
 
--   **New State**: 
+-   **New State**:
     -   `uploadingPhoto` - loading indicator during upload
     -   `syncingLDAPPhoto` - loading indicator during LDAP sync ⭐ NEW
--   **New Handlers**: 
+-   **New Handlers**:
     -   `handlePhotoUpload()` - validates and uploads photo
     -   `handleSyncLDAPPhoto()` - syncs photo from Active Directory ⭐ NEW
 -   **UI Updates**:
