@@ -198,7 +198,8 @@ const Header = () => {
                         console.log('[HEADER] Loaded profileImage with timestamp:', imageWithTimestamp);
                         setProfileImage(imageWithTimestamp);
                     } else {
-                        console.log('[HEADER] No profileImage in response');
+                        console.log('[HEADER] No profileImage in response, clearing state');
+                        setProfileImage(null);
                     }
                 } else {
                     console.log('[HEADER] /api/auth/me failed:', response.status);
@@ -689,21 +690,29 @@ const Header = () => {
                                 placement={`${isRtl ? 'bottom-start' : 'bottom-end'}`}
                                 btnClassName="relative group block"
                                 button={
-                                    <img
-                                        className="w-9 h-9 rounded-full object-cover saturate-50 group-hover:saturate-100"
-                                        src={profileImage ? (profileImage.startsWith('http') ? profileImage : getApiUrl(profileImage)) : '/assets/images/user-profile.jpeg'}
-                                        alt="userProfile"
-                                    />
+                                    profileImage ? (
+                                        <img
+                                            className="w-9 h-9 rounded-full object-cover saturate-50 group-hover:saturate-100"
+                                            src={profileImage.startsWith('http') ? profileImage : getApiUrl(profileImage)}
+                                            alt="userProfile"
+                                        />
+                                    ) : (
+                                        <div className="w-9 h-9 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center saturate-50 group-hover:saturate-100">
+                                            <span className="text-sm text-gray-600 dark:text-gray-300 font-semibold">{currentUser?.name?.charAt(0)?.toUpperCase() || '?'}</span>
+                                        </div>
+                                    )
                                 }
                             >
                                 <ul className="text-dark dark:text-white-dark !py-0 w-[230px] font-semibold dark:text-white-light/90">
                                     <li>
                                         <div className="flex items-center px-4 py-4">
-                                            <img
-                                                className="rounded-md w-10 h-10 object-cover"
-                                                src={profileImage ? (profileImage.startsWith('http') ? profileImage : getApiUrl(profileImage)) : '/assets/images/user-profile.jpeg'}
-                                                alt="userProfile"
-                                            />
+                                            {profileImage ? (
+                                                <img className="rounded-md w-10 h-10 object-cover" src={profileImage.startsWith('http') ? profileImage : getApiUrl(profileImage)} alt="userProfile" />
+                                            ) : (
+                                                <div className="rounded-md w-10 h-10 bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                                                    <span className="text-lg text-gray-600 dark:text-gray-300 font-semibold">{currentUser?.name?.charAt(0)?.toUpperCase() || '?'}</span>
+                                                </div>
+                                            )}
                                             <div className="ltr:pl-4 rtl:pr-4 truncate">
                                                 <h4 className="text-base">
                                                     {currentUser?.name || 'User'}

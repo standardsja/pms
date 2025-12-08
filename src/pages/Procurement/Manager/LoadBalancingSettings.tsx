@@ -9,30 +9,9 @@ import IconX from '../../../components/Icon/IconX';
 import IconRefresh from '../../../components/Icon/IconRefresh';
 import IconInfoCircle from '../../../components/Icon/IconInfoCircle';
 import { getApiUrl } from '../../../config/api';
+import { getUser } from '../../../utils/auth';
 
 const MySwal = withReactContent(Swal);
-
-// Helper to get current user ID consistently
-function getCurrentUserId(): number | null {
-    try {
-        // Try modern storage first
-        const authRaw = localStorage.getItem('auth_user') || sessionStorage.getItem('auth_user');
-        if (authRaw) {
-            const u = JSON.parse(authRaw);
-            if (u?.id) return Number(u.id);
-        }
-        // Fallback to legacy userProfile
-        const legacy = localStorage.getItem('userProfile');
-        if (legacy) {
-            const u = JSON.parse(legacy);
-            if (u?.id) return Number(u.id);
-            if (u?.userId) return Number(u.userId);
-        }
-    } catch (err) {
-        console.error('[Auth] Error retrieving user ID:', err);
-    }
-    return null;
-}
 
 interface LoadBalancingSettings {
     enabled: boolean;
@@ -63,20 +42,20 @@ const LoadBalancingSettings = () => {
             setError(null);
 
             try {
-                const currentUserId = getCurrentUserId();
+                const currentUser = getUser();
                 const apiUrl = getApiUrl('/procurement/load-balancing-settings');
 
                 console.log('[LoadBalancing] Fetching settings...');
-                console.log('[LoadBalancing] User ID:', currentUserId);
+                console.log('[LoadBalancing] User ID:', currentUser?.id);
                 console.log('[LoadBalancing] API URL:', apiUrl);
 
-                if (!currentUserId) {
+                if (!currentUser?.id) {
                     throw new Error('User not authenticated. Please log in again.');
                 }
 
                 const res = await fetch(apiUrl, {
                     headers: {
-                        'x-user-id': String(currentUserId),
+                        'x-user-id': String(currentUser.id),
                     },
                 });
 
@@ -131,10 +110,10 @@ const LoadBalancingSettings = () => {
         setSaving(true);
 
         try {
-            const currentUserId = getCurrentUserId();
+            const currentUser = getUser();
             const apiUrl = getApiUrl('/procurement/load-balancing-settings');
 
-            if (!currentUserId) {
+            if (!currentUser?.id) {
                 throw new Error('User not authenticated. Please log in again.');
             }
 
@@ -144,7 +123,7 @@ const LoadBalancingSettings = () => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'x-user-id': String(currentUserId),
+                    'x-user-id': String(currentUser.id),
                 },
                 body: JSON.stringify(settings),
             });

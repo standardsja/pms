@@ -35,6 +35,7 @@ import { ideasRoutes } from './routes/ideas';
 import { requestsRoutes } from './routes/requests';
 import roleRequestsRouter from './routes/roleRequests';
 import hodRouter from './routes/hod';
+import { adminRoutes } from './routes/admin';
 
 // Initialize Express app
 const app = express();
@@ -120,6 +121,7 @@ app.use('/api/ideas', ideasRoutes);
 app.use('/api/v1', hodRouter);
 app.use('/requests', requestsRoutes);
 app.use('/api/role-requests', roleRequestsRouter);
+app.use('/api/admin', adminRoutes);
 
 // Error handling - must be last
 app.use(notFoundHandler);

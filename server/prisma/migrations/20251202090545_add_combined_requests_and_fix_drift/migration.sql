@@ -1,5 +1,21 @@
--- AlterTable LoadBalancingSettings - Fix drift from manual change
-ALTER TABLE `loadbalancingsettings` ADD COLUMN IF NOT EXISTS `splinteringEnabled` BOOLEAN NOT NULL DEFAULT false;
+-- AlterTable LoadBalancingSettings - Fix drift from manual change using compatible MySQL syntax
+SET @dbname = DATABASE();
+SET @tablename = "loadbalancingsettings";
+SET @columnname = "splinteringEnabled";
+SET @preparedStatement = (SELECT IF(
+  (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
+    WHERE table_name = @tablename AND table_schema = @dbname
+  ) > 0 AND (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE table_name = @tablename AND table_schema = @dbname AND column_name = @columnname
+  ) = 0,
+  CONCAT("ALTER TABLE ", @tablename, " ADD COLUMN ", @columnname, " BOOLEAN NOT NULL DEFAULT false"),
+  "SELECT 1"
+));
+PREPARE alterIfNotExists FROM @preparedStatement;
+EXECUTE alterIfNotExists;
+DEALLOCATE PREPARE alterIfNotExists;
 
 -- CreateTable CombinedRequest
 CREATE TABLE `CombinedRequest` (

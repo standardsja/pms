@@ -92,7 +92,10 @@ const Requests = () => {
                 setRequests(adapted);
 
                 // Fetch combined requests if user has procurement access (only after roles are loaded)
-                if (currentUserRoles.length > 0 && currentUserRoles.some((role) => role.toUpperCase().includes('PROCUREMENT') || role.toUpperCase().includes('MANAGER'))) {
+                if (currentUserRoles.length > 0 && currentUserRoles.some((role: any) => {
+                    const roleName = typeof role === 'string' ? role : role?.name || '';
+                    return roleName.toUpperCase().includes('PROCUREMENT') || roleName.toUpperCase().includes('MANAGER');
+                })) {
                     try {
                         const combinedRes = await fetch(getApiUrl('/api/requests/combine'), {
                             headers,
@@ -311,7 +314,10 @@ const Requests = () => {
                 </div>
 
                 {/* Combined Requests Button */}
-                {currentUserRoles.some((role) => role.toUpperCase().includes('PROCUREMENT') || role.toUpperCase().includes('MANAGER')) && combinedRequests.length > 0 && (
+                {currentUserRoles.some((role: any) => {
+                    const roleName = typeof role === 'string' ? role : role?.name || '';
+                    return roleName.toUpperCase().includes('PROCUREMENT') || roleName.toUpperCase().includes('MANAGER');
+                }) && combinedRequests.length > 0 && (
                     <button onClick={() => navigate('/apps/requests/combine')} className="btn btn-outline-primary gap-2" type="button">
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path
