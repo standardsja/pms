@@ -49,12 +49,18 @@ export interface DetectedRoles {
 
 /**
  * Detects and normalizes user roles
- * @param userRoles Array of role names from user
+ * @param userRoles Array of role names from user (can be strings or objects with 'name' property)
  * @returns Normalized role detection object
  */
-export function detectUserRoles(userRoles: string[] = []): DetectedRoles {
+export function detectUserRoles(userRoles: (string | { name: string } | any)[] = []): DetectedRoles {
     // Normalize all role names to uppercase for comparison
-    const normalizedRoles = userRoles.map((r) => (r ? r.toUpperCase() : ''));
+    // Handle both string arrays and objects with 'name' property
+    const normalizedRoles = userRoles.map((r) => {
+        if (!r) return '';
+        if (typeof r === 'string') return r.toUpperCase();
+        if (typeof r === 'object' && r.name) return r.name.toUpperCase();
+        return '';
+    }).filter(Boolean); // Remove empty strings
 
     // Helper function for role matching
     const hasRole = (roleNames: string | string[]): boolean => {

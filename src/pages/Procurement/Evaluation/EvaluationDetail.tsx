@@ -80,7 +80,10 @@ const EvaluationDetail = () => {
     useEffect(() => {
         const u = getUser();
         if (u) {
-            const roles = (u?.roles || (u?.role ? [u.role] : [])).map((r) => r.toUpperCase());
+            const roles = (u?.roles || (u?.role ? [u.role] : [])).map((r: any) => {
+                const roleName = typeof r === 'string' ? r : r?.name || '';
+                return roleName.toUpperCase();
+            });
             setIsProcurement(roles.some((role) => role.includes('PROCUREMENT_OFFICER') || role.includes('PROCUREMENT_MANAGER') || role.includes('PROCUREMENT')));
             setIsCommittee(roles.some((role) => role.includes('COMMITTEE') || role.includes('EVALUATION_COMMITTEE')));
         }

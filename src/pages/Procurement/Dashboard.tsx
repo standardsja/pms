@@ -25,12 +25,14 @@ const ProcurementOfficerDashboard = () => {
     // Check if user is Finance Manager and redirect them
     const currentUser = getUser();
     const userRoles = currentUser?.roles || (currentUser?.role ? [currentUser.role] : []);
-    const isFinanceManager = userRoles.some((r: string) => {
-        const upper = r?.toUpperCase() || '';
+    const isFinanceManager = userRoles.some((r: any) => {
+        const roleName = typeof r === 'string' ? r : r?.name || '';
+        const upper = roleName.toUpperCase();
         return upper === 'FINANCE_MANAGER' || upper === 'BUDGET_MANAGER' || upper.includes('FINANCE') || upper.includes('BUDGET');
     });
-    const isProcurementRole = userRoles.some((r: string) => {
-        const upper = r?.toUpperCase() || '';
+    const isProcurementRole = userRoles.some((r: any) => {
+        const roleName = typeof r === 'string' ? r : r?.name || '';
+        const upper = roleName.toUpperCase();
         return upper.includes('PROCUREMENT') || upper === 'ADMIN';
     });
 
