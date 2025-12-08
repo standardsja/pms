@@ -71,9 +71,14 @@ const FinanceRequests = lazy(() => import('../pages/Procurement/Finance/Requests
 // Role-Specific Dashboards
 const RequesterDashboard = lazy(() => import('../pages/Procurement/Requester/RequesterDashboard'));
 const FinanceOfficerDashboard = lazy(() => import('../pages/Procurement/Finance/FinanceOfficerDashboard'));
+const FinanceManagerDashboard = lazy(() => import('../pages/Procurement/Finance/FinanceManagerDashboard'));
 const AuditorDashboard = lazy(() => import('../pages/Procurement/Audit/AuditorDashboard'));
 const DepartmentHeadDashboardNew = lazy(() => import('../pages/Procurement/DepartmentHead/DepartmentHeadDashboardNew'));
 const DepartmentManagerDashboard = lazy(() => import('../pages/Procurement/DepartmentManager/DepartmentManagerDashboard'));
+const ExecutiveDashboard = lazy(() => import('../pages/Procurement/Executive/ExecutiveDashboard'));
+const SeniorDirectorDashboard = lazy(() => import('../pages/Procurement/Director/SeniorDirectorDashboard'));
+const DepartmentHeadDashboard2 = lazy(() => import('../pages/Procurement/Department/DepartmentHeadDashboard'));
+const PaymentStageDashboard = lazy(() => import('../pages/Procurement/Payments/PaymentStageDashboard'));
 
 // Department Head Pages
 const DepartmentHeadDashboard = lazy(() => import('../pages/Procurement/DepartmentHead/DepartmentHeadDashboard'));
@@ -257,6 +262,14 @@ const routes = [
         element: (
             <RoleDashboardGuard allowedRoles={['FINANCE_OFFICER', 'FINANCE_PAYMENT_STAGE']} fallbackPath="/procurement/dashboard">
                 <FinanceOfficerDashboard />
+            </RoleDashboardGuard>
+        ),
+    },
+    {
+        path: '/finance',
+        element: (
+            <RoleDashboardGuard allowedRoles={['FINANCE_MANAGER', 'BUDGET_MANAGER']} fallbackPath="/procurement/dashboard">
+                <FinanceManagerDashboard />
             </RoleDashboardGuard>
         ),
     },
@@ -535,6 +548,50 @@ const routes = [
             <ProcurementRoute>
                 <CombinedRequestDetail />
             </ProcurementRoute>
+        ),
+    },
+
+    // ============================================
+    // ROLE-SPECIFIC DASHBOARD ROUTES
+    // ============================================
+    {
+        path: '/executive/dashboard',
+        element: (
+            <RoleDashboardGuard allowedRoles={['EXECUTIVE_DIRECTOR']} fallbackPath="/procurement/dashboard">
+                <ExecutiveDashboard />
+            </RoleDashboardGuard>
+        ),
+    },
+    {
+        path: '/director/dashboard',
+        element: (
+            <RoleDashboardGuard allowedRoles={['SENIOR_DIRECTOR']} fallbackPath="/procurement/dashboard">
+                <SeniorDirectorDashboard />
+            </RoleDashboardGuard>
+        ),
+    },
+    {
+        path: '/department-head/dashboard',
+        element: (
+            <RoleDashboardGuard allowedRoles={['DEPARTMENT_HEAD']} fallbackPath="/procurement/dashboard">
+                <DepartmentHeadDashboard2 />
+            </RoleDashboardGuard>
+        ),
+    },
+    {
+        path: '/payments/dashboard',
+        element: (
+            <RoleDashboardGuard allowedRoles={['FINANCE_PAYMENT_STAGE', 'SENIOR_DIRECTOR']} fallbackPath="/procurement/dashboard">
+                <PaymentStageDashboard />
+            </RoleDashboardGuard>
+        ),
+    },
+    {
+        path: '/audit/dashboard',
+        element: (
+            <RoleDashboardGuard allowedRoles={['AUDITOR']} fallbackPath="/procurement/dashboard">
+                <AuditorDashboard />
+            </RoleDashboardGuard>
         ),
     },
 

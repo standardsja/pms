@@ -230,6 +230,30 @@
                 "admin:manage_roles": false,
                 "admin:view_system": false
             }
+        },
+        "BUDGET_MANAGER": {
+            "description": "Budget manager responsible for budget approval and financial oversight",
+            "permissions": {
+                "request:create": false,
+                "request:read_own": false,
+                "request:edit_own": false,
+                "request:submit": false,
+                "request:read_all": true,
+                "request:approve": true,
+                "request:reject": true,
+                "request:reassign": false,
+                "request:delete": false,
+                "vendor:read": true,
+                "vendor:create": false,
+                "budget:read_own": false,
+                "budget:approve": true,
+                "payment:read": true,
+                "payment:approve": false,
+                "audit:read": true,
+                "admin:manage_users": false,
+                "admin:manage_roles": false,
+                "admin:view_system": false
+            }
         }
     },
     "ldapGroupMappings": {
@@ -248,6 +272,8 @@
             "Procurement Officer": "PROCUREMENT_OFFICER",
             "Procurement Manager": "PROCUREMENT_MANAGER",
             "Finance Officer": "FINANCE_OFFICER",
+            "Finance Manager": "BUDGET_MANAGER",
+            "Budget Manager": "BUDGET_MANAGER",
             "Finance Payment Officer": "FINANCE_PAYMENT_STAGE",
             "Department Head": "DEPARTMENT_HEAD",
             "Executive Director": "EXECUTIVE_DIRECTOR",
