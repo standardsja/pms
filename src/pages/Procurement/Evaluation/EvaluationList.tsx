@@ -53,7 +53,10 @@ const EvaluationList = () => {
     useEffect(() => {
         const u = getUser();
         if (u) {
-            const roles = (u?.roles || (u?.role ? [u.role] : [])).map((r) => r.toUpperCase());
+            const roles = (u?.roles || (u?.role ? [u.role] : [])).map((r: any) => {
+                const roleName = typeof r === 'string' ? r : r?.name || '';
+                return roleName.toUpperCase();
+            });
             const hasCommitteeRole = roles.some((role) => role.includes('COMMITTEE') || role.includes('EVALUATION_COMMITTEE'));
             const hasProcurementRole = roles.some((role) => role.includes('PROCUREMENT_OFFICER') || role.includes('PROCUREMENT_MANAGER') || role.includes('PROCUREMENT'));
             const hasExecutiveRole = roles.some((role) => role.includes('EXECUTIVE_DIRECTOR'));

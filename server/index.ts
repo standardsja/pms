@@ -3391,10 +3391,11 @@ app.get('/api/users/procurement-officers', async (req, res) => {
         }
 
         const roleNames = user.roles.map((ur) => ur.role.name.toUpperCase());
+        const isAdmin = roleNames.includes('ADMIN');
         const isProcurementManager = roleNames.some((r) => r === 'PROCUREMENT_MANAGER' || (r.includes('PROCUREMENT') && r.includes('MANAGER')));
         const isProcDeptManager = roleNames.includes('DEPT_MANAGER') && user.department?.code === 'PROC';
-        if (!isProcurementManager && !isProcDeptManager) {
-            return res.status(403).json({ message: 'Only Procurement Managers can view procurement officers' });
+        if (!isAdmin && !isProcurementManager && !isProcDeptManager) {
+            return res.status(403).json({ message: 'Only Admins or Procurement Managers can view procurement officers' });
         }
 
         // Get all procurement officers and managers
@@ -3622,10 +3623,11 @@ app.get('/procurement/load-balancing-settings', async (req, res) => {
             return res.status(404).json({ message: 'User not found' });
         }
 
+        const isAdmin = user.roles.some((ur) => ur.role.name === 'ADMIN');
         const isProcurementManager = user.roles.some((ur) => ur.role.name === 'PROCUREMENT_MANAGER');
         const isDeptManager = user.roles.some((ur) => ur.role.name === 'DEPT_MANAGER');
-        if (!isProcurementManager && !isDeptManager) {
-            return res.status(403).json({ message: 'Only Procurement Managers or Department Managers can view settings' });
+        if (!isAdmin && !isProcurementManager && !isDeptManager) {
+            return res.status(403).json({ message: 'Only Admins, Procurement Managers or Department Managers can view settings' });
         }
 
         // Fetch settings from database using service
@@ -3677,11 +3679,12 @@ app.post('/procurement/load-balancing-settings', async (req, res) => {
         }
 
         const roleNames = user.roles.map((ur) => ur.role.name.toUpperCase());
+        const isAdmin = roleNames.includes('ADMIN');
         const isProcurementManager = roleNames.some((r) => r === 'PROCUREMENT_MANAGER' || (r.includes('PROCUREMENT') && r.includes('MANAGER')));
         // Allow a department manager of the Procurement & Supply Chain department to update if they manage that department
         const isProcDeptManager = roleNames.includes('DEPT_MANAGER') && user.department?.code === 'PROC';
-        if (!isProcurementManager && !isProcDeptManager) {
-            return res.status(403).json({ message: 'Only Procurement Managers can update settings', roles: roleNames });
+        if (!isAdmin && !isProcurementManager && !isProcDeptManager) {
+            return res.status(403).json({ message: 'Only Admins or Procurement Managers can update settings', roles: roleNames });
         }
 
         const { enabled, strategy, autoAssignOnApproval, splinteringEnabled } = req.body as {

@@ -274,18 +274,21 @@ export function checkCombinePermissions(
     let requiresApproval = false;
 
     // Only allow procurement officers, procurement managers, and admins to combine requests
-    const isProcurementOfficer = userRoles.some((role) => {
-        const roleUpper = role.toUpperCase();
+    const isProcurementOfficer = userRoles.some((role: any) => {
+        const roleName = typeof role === 'string' ? role : role?.name || '';
+        const roleUpper = roleName.toUpperCase();
         return ['PROCUREMENT_OFFICER', 'PROCUREMENT OFFICER', 'PROCUREMENT'].includes(roleUpper) || (roleUpper.includes('PROCUREMENT') && roleUpper.includes('OFFICER'));
     });
 
-    const isProcurementManager = userRoles.some((role) => {
-        const roleUpper = role.toUpperCase();
+    const isProcurementManager = userRoles.some((role: any) => {
+        const roleName = typeof role === 'string' ? role : role?.name || '';
+        const roleUpper = roleName.toUpperCase();
         return ['PROCUREMENT_MANAGER', 'PROCUREMENT MANAGER'].includes(roleUpper) || (roleUpper.includes('PROCUREMENT') && roleUpper.includes('MANAGER'));
     });
 
-    const isAdmin = userRoles.some((role) => {
-        const roleUpper = role.toUpperCase();
+    const isAdmin = userRoles.some((role: any) => {
+        const roleName = typeof role === 'string' ? role : role?.name || '';
+        const roleUpper = roleName.toUpperCase();
         return ['ADMIN', 'ADMINISTRATOR', 'SUPER_ADMIN'].includes(roleUpper);
     });
 

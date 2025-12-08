@@ -40,7 +40,10 @@ const EvaluationCommittee = () => {
             navigate('/evaluation/committee/dashboard');
             return;
         }
-        const roles = (u?.roles || (u?.role ? [u.role] : [])).map((r) => r.toUpperCase());
+        const roles = (u?.roles || (u?.role ? [u.role] : [])).map((r: any) => {
+            const roleName = typeof r === 'string' ? r : r?.name || '';
+            return roleName.toUpperCase();
+        });
         const isCommitteeMember = roles.some((role) => role.includes('COMMITTEE') || role.includes('EVALUATION_COMMITTEE'));
 
         if (!isCommitteeMember) {

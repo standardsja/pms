@@ -959,7 +959,10 @@ const Sidebar = () => {
                             )}
 
                             {/* Show Budget Manager section if applicable - hide for admins and when in Innovation Hub */}
-                            {userRoles.some((r: string) => r?.toUpperCase()?.includes('BUDGET')) && !isAdmin && !isFinanceManager && !isInnovationHub && !procurementLocked && (
+                            {userRoles.some((r: any) => {
+                                const roleName = typeof r === 'string' ? r : r?.name || '';
+                                return roleName.toUpperCase().includes('BUDGET');
+                            }) && !isAdmin && !isFinanceManager && !isInnovationHub && !procurementLocked && (
                                 // Budget Manager Menu (Old fallback - kept for compatibility)
                                 <>
                                     <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
