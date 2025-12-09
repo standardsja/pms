@@ -1257,17 +1257,13 @@ const RequestForm = () => {
                             <div>
                                 <label className="block text-sm font-medium mb-2">
                                     Procurement Type
-                                    {!isEditMode && procurementType.length === 0 && (
-                                        <span className="ml-2 inline-block px-2 py-0.5 text-xs bg-amber-100 text-amber-800 rounded-full">
-                                            Required
-                                        </span>
-                                    )}
+                                    {!isEditMode && procurementType.length === 0 && <span className="ml-2 inline-block px-2 py-0.5 text-xs bg-amber-100 text-amber-800 rounded-full">Required</span>}
                                 </label>
-                                <div className={`flex gap-4 flex-wrap items-center h-[42px] transition-all ${
-                                    !isEditMode && procurementType.length === 0
-                                        ? 'ring-2 ring-amber-300 ring-opacity-50 rounded p-2'
-                                        : ''
-                                }`}>
+                                <div
+                                    className={`flex gap-4 flex-wrap items-center h-[42px] transition-all ${
+                                        !isEditMode && procurementType.length === 0 ? 'ring-2 ring-amber-300 ring-opacity-50 rounded p-2' : ''
+                                    }`}
+                                >
                                     <label className="flex items-center gap-2">
                                         <input
                                             type="checkbox"
@@ -1317,17 +1313,9 @@ const RequestForm = () => {
                         <div className="mb-4">
                             <label className="block text-sm font-medium mb-2">
                                 Priority
-                                {!isEditMode && !priority && (
-                                    <span className="ml-2 inline-block px-2 py-0.5 text-xs bg-amber-100 text-amber-800 rounded-full">
-                                        Required
-                                    </span>
-                                )}
+                                {!isEditMode && !priority && <span className="ml-2 inline-block px-2 py-0.5 text-xs bg-amber-100 text-amber-800 rounded-full">Required</span>}
                             </label>
-                            <div className={`flex gap-6 transition-all ${
-                                !isEditMode && !priority
-                                    ? 'ring-2 ring-amber-300 ring-opacity-50 rounded p-2'
-                                    : ''
-                            }`}>
+                            <div className={`flex gap-6 transition-all ${!isEditMode && !priority ? 'ring-2 ring-amber-300 ring-opacity-50 rounded p-2' : ''}`}>
                                 <label className="flex items-center gap-2">
                                     <input
                                         type="radio"
@@ -1500,20 +1488,14 @@ const RequestForm = () => {
                                 <div>
                                     <label className="block text-sm font-medium mb-2">
                                         Manager of Division's Name:
-                                        {canEditManagerFields && !managerName && (
-                                            <span className="ml-2 inline-block px-2 py-0.5 text-xs bg-amber-100 text-amber-800 rounded-full">
-                                                Required
-                                            </span>
-                                        )}
+                                        {canEditManagerFields && !managerName && <span className="ml-2 inline-block px-2 py-0.5 text-xs bg-amber-100 text-amber-800 rounded-full">Required</span>}
                                     </label>
                                     <input
                                         type="text"
                                         value={managerName}
                                         onChange={(e) => setManagerName(e.target.value)}
                                         className={`form-input w-full mb-3 transition-all ${
-                                            canEditManagerFields && !managerName
-                                                ? 'ring-2 ring-amber-300 ring-opacity-50 focus:ring-amber-400 focus:ring-opacity-100'
-                                                : ''
+                                            canEditManagerFields && !managerName ? 'ring-2 ring-amber-300 ring-opacity-50 focus:ring-amber-400 focus:ring-opacity-100' : ''
                                         }`}
                                         placeholder="Enter name of head of department"
                                         disabled={!canEditManagerFields}
@@ -1539,20 +1521,14 @@ const RequestForm = () => {
                                 <div>
                                     <label className="block text-sm font-medium mb-2">
                                         Head of Division's Name:
-                                        {canEditHodFields && !headName && (
-                                            <span className="ml-2 inline-block px-2 py-0.5 text-xs bg-amber-100 text-amber-800 rounded-full">
-                                                Required
-                                            </span>
-                                        )}
+                                        {canEditHodFields && !headName && <span className="ml-2 inline-block px-2 py-0.5 text-xs bg-amber-100 text-amber-800 rounded-full">Required</span>}
                                     </label>
                                     <input
                                         type="text"
                                         value={headName}
                                         onChange={(e) => setHeadName(e.target.value)}
                                         className={`form-input w-full mb-3 transition-all ${
-                                            canEditHodFields && !headName
-                                                ? 'ring-2 ring-amber-300 ring-opacity-50 focus:ring-amber-400 focus:ring-opacity-100'
-                                                : ''
+                                            canEditHodFields && !headName ? 'ring-2 ring-amber-300 ring-opacity-50 focus:ring-amber-400 focus:ring-opacity-100' : ''
                                         }`}
                                         placeholder="Enter name of head of department"
                                         disabled={!canEditHodFields}
@@ -1586,20 +1562,14 @@ const RequestForm = () => {
                             <div>
                                 <label className="block text-sm font-medium mb-2">
                                     Commitment Number:
-                                    {canEditBudgetSection && !commitmentNumber && (
-                                        <span className="ml-2 inline-block px-2 py-0.5 text-xs bg-amber-100 text-amber-800 rounded-full">
-                                            Required
-                                        </span>
-                                    )}
+                                    {canEditBudgetSection && !commitmentNumber && <span className="ml-2 inline-block px-2 py-0.5 text-xs bg-amber-100 text-amber-800 rounded-full">Required</span>}
                                 </label>
                                 <input
                                     type="text"
                                     value={commitmentNumber}
                                     onChange={(e) => setCommitmentNumber(e.target.value)}
                                     className={`form-input w-full transition-all ${
-                                        canEditBudgetSection && !commitmentNumber
-                                            ? 'ring-2 ring-amber-300 ring-opacity-50 focus:ring-amber-400 focus:ring-opacity-100'
-                                            : ''
+                                        canEditBudgetSection && !commitmentNumber ? 'ring-2 ring-amber-300 ring-opacity-50 focus:ring-amber-400 focus:ring-opacity-100' : ''
                                     }`}
                                     placeholder=""
                                     disabled={!canEditBudgetSection}
@@ -1608,20 +1578,14 @@ const RequestForm = () => {
                             <div>
                                 <label className="block text-sm font-medium mb-2">
                                     Accounting Code:
-                                    {canEditBudgetSection && !accountingCode && (
-                                        <span className="ml-2 inline-block px-2 py-0.5 text-xs bg-amber-100 text-amber-800 rounded-full">
-                                            Required
-                                        </span>
-                                    )}
+                                    {canEditBudgetSection && !accountingCode && <span className="ml-2 inline-block px-2 py-0.5 text-xs bg-amber-100 text-amber-800 rounded-full">Required</span>}
                                 </label>
                                 <input
                                     type="text"
                                     value={accountingCode}
                                     onChange={(e) => setAccountingCode(e.target.value)}
                                     className={`form-input w-full transition-all ${
-                                        canEditBudgetSection && !accountingCode
-                                            ? 'ring-2 ring-amber-300 ring-opacity-50 focus:ring-amber-400 focus:ring-opacity-100'
-                                            : ''
+                                        canEditBudgetSection && !accountingCode ? 'ring-2 ring-amber-300 ring-opacity-50 focus:ring-amber-400 focus:ring-opacity-100' : ''
                                     }`}
                                     placeholder=""
                                     disabled={!canEditBudgetSection}
@@ -1645,20 +1609,14 @@ const RequestForm = () => {
                             <div>
                                 <label className="block text-sm font-medium mb-2">
                                     Budget Officer's Name:
-                                    {canApproveBudgetOfficer && !budgetOfficerName && (
-                                        <span className="ml-2 inline-block px-2 py-0.5 text-xs bg-amber-100 text-amber-800 rounded-full">
-                                            Required
-                                        </span>
-                                    )}
+                                    {canApproveBudgetOfficer && !budgetOfficerName && <span className="ml-2 inline-block px-2 py-0.5 text-xs bg-amber-100 text-amber-800 rounded-full">Required</span>}
                                 </label>
                                 <input
                                     type="text"
                                     value={budgetOfficerName}
                                     onChange={(e) => setBudgetOfficerName(e.target.value)}
                                     className={`form-input w-full mb-3 transition-all ${
-                                        canApproveBudgetOfficer && !budgetOfficerName
-                                            ? 'ring-2 ring-amber-300 ring-opacity-50 focus:ring-amber-400 focus:ring-opacity-100'
-                                            : ''
+                                        canApproveBudgetOfficer && !budgetOfficerName ? 'ring-2 ring-amber-300 ring-opacity-50 focus:ring-amber-400 focus:ring-opacity-100' : ''
                                     }`}
                                     placeholder={canApproveBudgetOfficer ? 'Your name will be auto-filled' : ''}
                                     disabled={!canApproveBudgetOfficer}
@@ -1689,20 +1647,14 @@ const RequestForm = () => {
                             <div>
                                 <label className="block text-sm font-medium mb-2">
                                     Budget Manager's Name:
-                                    {canApproveBudgetManager && !budgetManagerName && (
-                                        <span className="ml-2 inline-block px-2 py-0.5 text-xs bg-amber-100 text-amber-800 rounded-full">
-                                            Required
-                                        </span>
-                                    )}
+                                    {canApproveBudgetManager && !budgetManagerName && <span className="ml-2 inline-block px-2 py-0.5 text-xs bg-amber-100 text-amber-800 rounded-full">Required</span>}
                                 </label>
                                 <input
                                     type="text"
                                     value={budgetManagerName}
                                     onChange={(e) => setBudgetManagerName(e.target.value)}
                                     className={`form-input w-full mb-3 transition-all ${
-                                        canApproveBudgetManager && !budgetManagerName
-                                            ? 'ring-2 ring-amber-300 ring-opacity-50 focus:ring-amber-400 focus:ring-opacity-100'
-                                            : ''
+                                        canApproveBudgetManager && !budgetManagerName ? 'ring-2 ring-amber-300 ring-opacity-50 focus:ring-amber-400 focus:ring-opacity-100' : ''
                                     }`}
                                     placeholder={canApproveBudgetManager ? 'Your name will be auto-filled' : ''}
                                     disabled={!canApproveBudgetManager}
@@ -1781,20 +1733,14 @@ const RequestForm = () => {
                                 <div>
                                     <label className="block text-sm font-medium mb-2">
                                         Rec'd By:
-                                        {canEditProcurementSection && !receivedBy && (
-                                            <span className="ml-2 inline-block px-2 py-0.5 text-xs bg-amber-100 text-amber-800 rounded-full">
-                                                Required
-                                            </span>
-                                        )}
+                                        {canEditProcurementSection && !receivedBy && <span className="ml-2 inline-block px-2 py-0.5 text-xs bg-amber-100 text-amber-800 rounded-full">Required</span>}
                                     </label>
                                     <input
                                         type="text"
                                         value={receivedBy}
                                         onChange={(e) => setReceivedBy(e.target.value)}
                                         className={`form-input w-full transition-all ${
-                                            canEditProcurementSection && !receivedBy
-                                                ? 'ring-2 ring-amber-300 ring-opacity-50 focus:ring-amber-400 focus:ring-opacity-100'
-                                                : ''
+                                            canEditProcurementSection && !receivedBy ? 'ring-2 ring-amber-300 ring-opacity-50 focus:ring-amber-400 focus:ring-opacity-100' : ''
                                         }`}
                                         placeholder=""
                                         disabled={!canEditProcurementSection}
@@ -1804,9 +1750,7 @@ const RequestForm = () => {
                                     <label className="block text-sm font-medium mb-2">
                                         Procurement Case Number:
                                         {canEditProcurementSection && !procurementCaseNumber && (
-                                            <span className="ml-2 inline-block px-2 py-0.5 text-xs bg-amber-100 text-amber-800 rounded-full">
-                                                Required
-                                            </span>
+                                            <span className="ml-2 inline-block px-2 py-0.5 text-xs bg-amber-100 text-amber-800 rounded-full">Required</span>
                                         )}
                                     </label>
                                     <input
@@ -1814,9 +1758,7 @@ const RequestForm = () => {
                                         value={procurementCaseNumber}
                                         onChange={(e) => setProcurementCaseNumber(e.target.value)}
                                         className={`form-input w-full transition-all ${
-                                            canEditProcurementSection && !procurementCaseNumber
-                                                ? 'ring-2 ring-amber-300 ring-opacity-50 focus:ring-amber-400 focus:ring-opacity-100'
-                                                : ''
+                                            canEditProcurementSection && !procurementCaseNumber ? 'ring-2 ring-amber-300 ring-opacity-50 focus:ring-amber-400 focus:ring-opacity-100' : ''
                                         }`}
                                         placeholder=""
                                         disabled={!canEditProcurementSection}
@@ -1825,20 +1767,14 @@ const RequestForm = () => {
                                 <div>
                                     <label className="block text-sm font-medium mb-2">
                                         Date Rec'd:
-                                        {canEditProcurementSection && !dateReceived && (
-                                            <span className="ml-2 inline-block px-2 py-0.5 text-xs bg-amber-100 text-amber-800 rounded-full">
-                                                Required
-                                            </span>
-                                        )}
+                                        {canEditProcurementSection && !dateReceived && <span className="ml-2 inline-block px-2 py-0.5 text-xs bg-amber-100 text-amber-800 rounded-full">Required</span>}
                                     </label>
                                     <input
                                         type="date"
                                         value={dateReceived || ''}
                                         onChange={(e) => setDateReceived(e.target.value)}
                                         className={`form-input w-full transition-all ${
-                                            canEditProcurementSection && !dateReceived
-                                                ? 'ring-2 ring-amber-300 ring-opacity-50 focus:ring-amber-400 focus:ring-opacity-100'
-                                                : ''
+                                            canEditProcurementSection && !dateReceived ? 'ring-2 ring-amber-300 ring-opacity-50 focus:ring-amber-400 focus:ring-opacity-100' : ''
                                         }`}
                                         disabled={!canEditProcurementSection}
                                     />
@@ -1846,20 +1782,14 @@ const RequestForm = () => {
                                 <div>
                                     <label className="block text-sm font-medium mb-2">
                                         Action Date:
-                                        {canEditProcurementSection && !actionDate && (
-                                            <span className="ml-2 inline-block px-2 py-0.5 text-xs bg-amber-100 text-amber-800 rounded-full">
-                                                Required
-                                            </span>
-                                        )}
+                                        {canEditProcurementSection && !actionDate && <span className="ml-2 inline-block px-2 py-0.5 text-xs bg-amber-100 text-amber-800 rounded-full">Required</span>}
                                     </label>
                                     <input
                                         type="date"
                                         value={actionDate || ''}
                                         onChange={(e) => setActionDate(e.target.value)}
                                         className={`form-input w-full transition-all ${
-                                            canEditProcurementSection && !actionDate
-                                                ? 'ring-2 ring-amber-300 ring-opacity-50 focus:ring-amber-400 focus:ring-opacity-100'
-                                                : ''
+                                            canEditProcurementSection && !actionDate ? 'ring-2 ring-amber-300 ring-opacity-50 focus:ring-amber-400 focus:ring-opacity-100' : ''
                                         }`}
                                         disabled={!canEditProcurementSection}
                                     />
