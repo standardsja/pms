@@ -33,7 +33,9 @@ const Onboarding = () => {
     const { search } = useLocation();
     const query = useMemo(() => new URLSearchParams(search), [search]);
     const forceOnboarding = query.get('force') === '1' || query.get('reset') === '1';
-    const currentUser = getUser();
+
+    // Memoize currentUser to prevent infinite loops
+    const currentUser = useMemo(() => getUser(), []);
 
     // Safely extract roles - handle both string arrays and object arrays
     const userRoles: string[] = useMemo(() => {
@@ -82,7 +84,7 @@ const Onboarding = () => {
         pms: { totalUsers: 0, activeNow: 0, today: 0 },
         ih: { totalUsers: 0, activeNow: 0, today: 0 },
     });
-    const [moduleLocks, setModuleLocks] = useState<ModuleLockState>(getModuleLocks());
+    const [moduleLocks, setModuleLocks] = useState<ModuleLockState>(() => getModuleLocks());
 
     useEffect(() => {
         const fetchSystemStats = async () => {
@@ -131,7 +133,13 @@ const Onboarding = () => {
         return () => clearInterval(interval);
     }, []);
 
+    // Use ref to track if initial setup has run to prevent infinite loops
+    const hasInitialized = useRef(false);
+
     useEffect(() => {
+        if (hasInitialized.current) return;
+        hasInitialized.current = true;
+
         dispatch(setPageTitle(t('onboarding.title')));
 
         // If a committee-ONLY member lands here, redirect them to their dashboard
@@ -184,7 +192,8 @@ const Onboarding = () => {
 
         // analytics: page viewed
         logEvent('onboarding_viewed', { role: (userRoles && userRoles[0]) || 'unknown', force: forceOnboarding, hasLast: !!last, done });
-    }, [dispatch, isCommittee, navigate, query, forceOnboarding, t, userRoles]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const modules = useMemo<ModuleDef[]>(() => {
         const base: ModuleDef[] = [
@@ -330,7 +339,9 @@ const Onboarding = () => {
             });
         }
         return base;
-    }, [isCommittee, isProcurementManager, isRequester, moduleLocks, t]);
+        // Use JSON stringify to ensure stable comparison
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isCommittee, isProcurementManager, isRequester, JSON.stringify(moduleLocks), t]);
 
     // Map for quick lookups after render
     const modulesMap = useRef<{ [k in ModuleKey]?: { path: string; title: string; comingSoon?: boolean; cta?: string } }>({});
