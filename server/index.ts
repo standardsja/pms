@@ -38,6 +38,8 @@ import statsRouter from './routes/stats';
 import combineRouter from './routes/combine';
 import { authRoutes } from './routes/auth';
 import { adminRoutes as adminRouter } from './routes/admin';
+import { ideasRoutes } from './routes/ideas';
+import { innovationRoutes } from './routes/innovation';
 
 const app = express();
 const httpServer = http.createServer(app);
@@ -6027,6 +6029,12 @@ app.use('/api/requests/combine', combineRouter);
 
 // Auth API routes
 app.use('/api/auth', authRoutes);
+
+// Ideas API routes (Innovation Hub)
+app.use('/api/ideas', ideasRoutes);
+
+// Innovation Hub API routes
+app.use('/api/innovation', innovationRoutes);
 
 // Admin API routes
 app.use('/api/admin', adminRouter);
