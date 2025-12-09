@@ -174,6 +174,14 @@ const Header = () => {
         loadNotifications();
         loadMessages();
 
+        // Normalize profile image URL with API base and cache buster
+        const resolveProfileImageUrl = (raw?: string | null) => {
+            if (!raw) return null;
+            const absolute = raw.startsWith('http') ? raw : getApiUrl(raw);
+            const separator = absolute.includes('?') ? '&' : '?';
+            return `${absolute}${separator}t=${Date.now()}`;
+        };
+
         // Fetch user profile image
         const loadProfileImage = async () => {
             try {
@@ -185,17 +193,10 @@ const Header = () => {
 
                 if (response.ok) {
                     const data = await response.json();
-                    if (data.profileImage) {
-                        // Add timestamp to bust cache on every load
-                        const imageWithTimestamp = `${data.profileImage}?t=${Date.now()}`;
-                        setProfileImage(imageWithTimestamp);
-                    } else {
-                        setProfileImage(null);
-                    }
+                    setProfileImage(resolveProfileImageUrl(data.profileImage));
                 } else {
                 }
-            } catch (error) {
-            }
+            } catch (error) {}
         };
 
         loadProfileImage();
@@ -203,7 +204,7 @@ const Header = () => {
         // Listen for profile photo updates
         const handleProfilePhotoUpdate = (event: CustomEvent) => {
             if (event.detail?.profileImage) {
-                setProfileImage(event.detail.profileImage);
+                setProfileImage(resolveProfileImageUrl(event.detail.profileImage));
             }
         };
 
@@ -867,4 +868,3 @@ const Header = () => {
 };
 
 export default Header;
-

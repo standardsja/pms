@@ -50,6 +50,13 @@ const Profile = () => {
         isCommittee: false,
     });
 
+    const resolveProfileImageUrl = (raw?: string | null) => {
+        if (!raw) return null;
+        const absolute = raw.startsWith('http') ? raw : getApiUrl(raw);
+        const separator = absolute.includes('?') ? '&' : '?';
+        return `${absolute}${separator}t=${Date.now()}`;
+    };
+
     useEffect(() => {
         dispatch(setPageTitle('My Profile'));
     }, [dispatch]);
@@ -76,8 +83,7 @@ const Profile = () => {
                     const data = await meResponse.json();
                     // Add timestamp to profile image for cache busting
                     if (data.profileImage) {
-                        data.profileImage = `${data.profileImage}?t=${Date.now()}`;
-                    } else {
+                        data.profileImage = resolveProfileImageUrl(data.profileImage);
                     }
                     setProfileData(data);
                     // Fetch Innovation Hub stats
@@ -192,7 +198,7 @@ const Profile = () => {
 
             const data = await response.json();
             // Update profile data with new photo (add timestamp to bust cache)
-            const newProfileImage = `${data.profileImage}?t=${Date.now()}`;
+            const newProfileImage = resolveProfileImageUrl(data.profileImage);
             setProfileData((prev: any) => ({
                 ...prev,
                 profileImage: newProfileImage,
