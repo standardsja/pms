@@ -2,7 +2,6 @@
  * Admin Routes - System management and configuration
  */
 import express, { Router, Request, Response } from 'express';
-import { Prisma } from '@prisma/client';
 import { prisma } from '../prismaClient';
 import { authMiddleware } from '../middleware/auth';
 import { logger } from '../config/logger';
@@ -114,64 +113,6 @@ router.get('/permissions', adminOnly, async (req: Request, res: Response) => {
     } catch (error) {
         logger.error('Failed to fetch permissions', { error });
         res.status(500).json({ success: false, message: 'Failed to fetch permissions' });
-    }
-});
-
-/**
- * GET /api/admin/feature-flags - List feature flags
- */
-router.get('/feature-flags', adminOnly, async (_req: Request, res: Response) => {
-    try {
-        const flags = await prisma.featureFlag.findMany({
-            orderBy: { key: 'asc' },
-        });
-
-        res.json({ success: true, flags });
-    } catch (error) {
-        logger.error('Failed to fetch feature flags', { error });
-        res.status(500).json({ success: false, message: 'Failed to fetch feature flags' });
-    }
-});
-
-/**
- * PUT /api/admin/feature-flags/:key - Create or update a feature flag
- */
-router.put('/feature-flags/:key', adminOnly, async (req: Request, res: Response) => {
-    const flagKey = req.params.key?.trim();
-    const { enabled, description, module } = req.body as { enabled?: boolean; description?: string; module?: string };
-
-    if (!flagKey) {
-        return res.status(400).json({ success: false, message: 'Feature flag key is required' });
-    }
-
-    if (enabled !== undefined && typeof enabled !== 'boolean') {
-        return res.status(400).json({ success: false, message: 'enabled must be a boolean' });
-    }
-
-    const flagModule = module && typeof module === 'string' && module.trim().length > 0 ? module.trim() : 'global';
-    const safeDescription = description && typeof description === 'string' ? description.trim() : null;
-
-    try {
-        const upsertArgs: Prisma.FeatureFlagUpsertArgs = {
-            where: { key: flagKey },
-            create: {
-                key: flagKey,
-                description: safeDescription,
-                enabled: enabled ?? false,
-                module: flagModule,
-            },
-            update: {
-                description: safeDescription,
-                enabled: enabled ?? undefined,
-                module: flagModule,
-            },
-        };
-
-        const flag = await prisma.featureFlag.upsert(upsertArgs);
-        res.json({ success: true, flag });
-    } catch (error) {
-        logger.error('Failed to upsert feature flag', { error, flagKey, enabled, module: flagModule });
-        res.status(500).json({ success: false, message: 'Failed to save feature flag' });
     }
 });
 

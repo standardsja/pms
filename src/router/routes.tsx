@@ -67,7 +67,6 @@ const AdminSettings = lazy(() => import('../pages/Procurement/Admin/AdminSetting
 const ModuleAccessControl = lazy(() => import('../pages/Procurement/Admin/ModuleAccessControl'));
 const AssignRequestsToUsers = lazy(() => import('../pages/Procurement/Admin/AssignRequestsToUsers'));
 const SystemDashboard = lazy(() => import('../pages/Procurement/Admin/SystemDashboard'));
-const FeatureFlags = lazy(() => import('../pages/Procurement/Admin/FeatureFlags'));
 const DepartmentManagement = lazy(() => import('../pages/Procurement/Admin/DepartmentManagement'));
 const UserSecurityAccess = lazy(() => import('../pages/Procurement/Admin/UserSecurityAccess'));
 const AuditCompliance = lazy(() => import('../pages/Procurement/Admin/AuditCompliance'));
@@ -668,14 +667,6 @@ const routes = [
         element: (
             <AdminRoute>
                 <ModuleAccessControl />
-            </AdminRoute>
-        ),
-    },
-    {
-        path: '/procurement/admin/feature-flags',
-        element: (
-            <AdminRoute>
-                <FeatureFlags />
             </AdminRoute>
         ),
     },
