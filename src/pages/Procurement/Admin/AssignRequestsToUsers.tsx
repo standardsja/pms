@@ -102,17 +102,24 @@ const AssignRequestsToUsers = () => {
         );
     }
 
-        // compute filtered users by search term
-        const filteredUsers = users.filter((u) => {
-            const q = userSearch.trim().toLowerCase();
-            if (!q) return true;
-            const rolesStr = (u.roles || []).map((r) => r.role?.name || '').join(' ').toLowerCase();
-            return (
-                String(u.name || u.email || '')?.toLowerCase().includes(q) ||
-                String(u.email || '')?.toLowerCase().includes(q) ||
-                rolesStr.includes(q)
-            );
-        });
+    // compute filtered users by search term
+    const filteredUsers = users.filter((u) => {
+        const q = userSearch.trim().toLowerCase();
+        if (!q) return true;
+        const rolesStr = (u.roles || [])
+            .map((r) => r.role?.name || '')
+            .join(' ')
+            .toLowerCase();
+        return (
+            String(u.name || u.email || '')
+                ?.toLowerCase()
+                .includes(q) ||
+            String(u.email || '')
+                ?.toLowerCase()
+                .includes(q) ||
+            rolesStr.includes(q)
+        );
+    });
 
     return (
         <div className="space-y-6">
