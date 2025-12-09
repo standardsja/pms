@@ -190,9 +190,6 @@ const Onboarding = () => {
     }, [dispatch, isCommittee, navigate, query, forceOnboarding, t, userRoles]);
 
     const modules = useMemo<ModuleDef[]>(() => {
-        // Return empty array while locks are loading
-        if (!moduleLocks) return [];
-
         const base: ModuleDef[] = [
             {
                 id: 'pms' as ModuleKey,
@@ -206,8 +203,11 @@ const Onboarding = () => {
                 lockedReason: moduleLocks.procurement.reason,
             },
             {
-    const modules = useMemo<ModuleDef[]>(() => {
-        const base: ModuleDef[] = [ple-500 to-pink-600',
+                id: 'ih' as ModuleKey,
+                title: t('onboarding.modules.ih.title'),
+                description: t('onboarding.modules.ih.description'),
+                icon: '💡',
+                gradient: 'from-pink-500 to-pink-600',
                 path: '/innovation/dashboard',
                 features: [t('onboarding.modules.ih.features.0'), t('onboarding.modules.ih.features.1'), t('onboarding.modules.ih.features.2')],
                 locked: moduleLocks.innovation.locked,
