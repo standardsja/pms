@@ -36,6 +36,7 @@ import IconUser from '../Icon/IconUser';
 import IconStar from '../Icon/IconStar';
 import { getUser } from '../../utils/auth';
 import { detectUserRoles, getDashboardPath } from '../../utils/roleDetection';
+import { can, isDeptManagerFor } from '../../utils/permissions';
 import IconLock from '../Icon/IconLock';
 import { getModuleLocks, type ModuleLockState } from '../../utils/moduleLocks';
 import IconBuilding from '../Icon/IconBuilding';
@@ -75,6 +76,7 @@ const Sidebar = () => {
         isDepartmentHead,
         isAuditor,
         isFinanceManager,
+        isFinanceOfficer,
         isFinancePaymentStage,
         isProcurementManager,
         isDepartmentManager,
@@ -82,6 +84,8 @@ const Sidebar = () => {
         isSupplier,
         isRequester,
     } = detectedRoles;
+
+    const isDeptManagerHere = isDeptManagerFor((currentUser as any)?.department?.code || '');
 
     // Determine if we're in Innovation Hub
     const isInnovationHub = location.pathname.startsWith('/innovation');
@@ -188,6 +192,15 @@ const Sidebar = () => {
                                             <div className="flex items-center">
                                                 <IconLock className="group-hover:!text-primary shrink-0" />
                                                 <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Module Access Control</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+
+                                    <li className="nav-item">
+                                        <NavLink to="/procurement/admin/feature-flags" className="group">
+                                            <div className="flex items-center">
+                                                <IconStar className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Feature Flags</span>
                                             </div>
                                         </NavLink>
                                     </li>
@@ -433,6 +446,15 @@ const Sidebar = () => {
                                         </NavLink>
                                     </li>
 
+                                    <li className="nav-item">
+                                        <NavLink to="/apps/requests" className="group">
+                                            <div className="flex items-center">
+                                                <IconFile className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Requests</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+
                                     <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1 mt-4">
                                         <IconMinus className="w-4 h-5 flex-none hidden" />
                                         <span>Management</span>
@@ -654,7 +676,7 @@ const Sidebar = () => {
                             )}
 
                             {/* Show DEPARTMENT_MANAGER section - hide for admins */}
-                            {isDepartmentManager && !isAdmin && !isInnovationHub && !procurementLocked && (
+                            {(isDepartmentManager || isDeptManagerHere) && !isAdmin && !isInnovationHub && !procurementLocked && (
                                 // Department Manager Menu
                                 <>
                                     <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
@@ -903,7 +925,52 @@ const Sidebar = () => {
                             )}
 
                             {/* Show FINANCE_MANAGER or BUDGET_MANAGER section - limited access to USER and FINANCE only */}
-                            {isFinanceManager && !isAdmin && !isProcurementManager && !isInnovationHub && !procurementLocked && (
+                            {/* Show FINANCE_OFFICER section - limited access to USER and FINANCE only */}
+                            {can('VIEW_FINANCE') && !isAdmin && !isProcurementManager && !isInnovationHub && !procurementLocked && (
+                                // Finance Menu (permission-based)
+                                <>
+                                    <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
+                                        <IconMinus className="w-4 h-5 flex-none hidden" />
+                                        <span>USER</span>
+                                    </h2>
+
+                                    <li className="nav-item">
+                                        <NavLink to="/apps/requests" className="group">
+                                            <div className="flex items-center">
+                                                <IconFile className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Requests</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+
+                                    <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1 mt-4">
+                                        <IconMinus className="w-4 h-5 flex-none hidden" />
+                                        <span>Finance</span>
+                                    </h2>
+
+                                    <li className="nav-item list-none">
+                                        <NavLink to="/finance/requests" className="group">
+                                            <div className="flex items-center">
+                                                <IconMenuInvoice className="group-hover:!text-primary shrink-0 w-5 h-5" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Finance Requests</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+
+                                    {can('APPROVE_PAYMENTS') && (
+                                        <li className="nav-item list-none">
+                                            <NavLink to="/finance/payments-to-process" className="group">
+                                                <div className="flex items-center">
+                                                    <IconCreditCard className="group-hover:!text-primary shrink-0 w-5 h-5" />
+                                                    <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Payments to Process</span>
+                                                </div>
+                                            </NavLink>
+                                        </li>
+                                    )}
+                                </>
+                            )}
+
+                            {can('VIEW_FINANCE') && can('APPROVE_PAYMENTS') && !isAdmin && !isProcurementManager && !isInnovationHub && !procurementLocked && (
                                 <>
                                     <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
                                         <IconMinus className="w-4 h-5 flex-none hidden" />

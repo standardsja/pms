@@ -48,7 +48,7 @@ const Header = () => {
     const navigate = useNavigate();
     const dispatch = useDispatch();
 
-    // Current user & role derivations
+    // Current user & role derivations (align with Sidebar logic)
     const currentUser = getUser();
     const [profileImage, setProfileImage] = useState<string | null>(null);
     const [moduleLocks, setModuleLocks] = useState<ModuleLockState>(getModuleLocks());
@@ -82,11 +82,6 @@ const Header = () => {
     // Set dashboard path based on centralized role detection
     const dashboardPath = getDashboardPath(detectedRoles, location.pathname);
 
-    // Debug logging for role detection and routing
-    console.log('[HEADER] User roles:', userRoles);
-    console.log('[HEADER] Detected roles:', detectedRoles);
-    console.log('[HEADER] Dashboard path:', dashboardPath);
-
     useEffect(() => {
         const selector = document.querySelector('ul.horizontal-menu a[href="' + window.location.pathname + '"]');
         if (selector) {
@@ -114,7 +109,7 @@ const Header = () => {
         return () => window.removeEventListener('storage', syncLocks);
     }, []);
 
-    const isRtl = useSelector((state: IRootState) => state.themeConfig.rtlClass) === 'rtl' ? true : false;
+    const isRtl = useSelector((state: IRootState) => state.themeConfig.rtlClass) === 'rtl';
 
     const themeConfig = useSelector((state: IRootState) => state.themeConfig);
 

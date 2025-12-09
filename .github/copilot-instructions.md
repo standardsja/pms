@@ -24,11 +24,7 @@
 
 -   **Runtime:** Node.js + Express.js (ES Modules)
 -   **Language:** TypeScript (strict mode)
-<<<<<<< HEAD
 -   **Database:** MySQL using Prisma ORM (no raw SQL unless documented)
-=======
--   **Database:** MYSQL using Prisma ORM (no raw SQL unless documented)
->>>>>>> 4ac2a94f79bfef70a5ee973b2ad49425876fec76
 -   **Auth:** JWT (access + refresh), bcrypt password hashing
 -   **Security:** Helmet, strict CORS, validation + sanitization layers
 -   **Logging:** Winston structured logs (no console logs)

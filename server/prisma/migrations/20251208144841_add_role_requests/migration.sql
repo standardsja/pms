@@ -1,0 +1,3 @@
+-- Placeholder migration to align local history with production-applied migration 20251208144841.
+-- No-op because the schema changes already exist in the database.
+-- This file must remain empty of DDL to avoid duplicate column/table errors in shadow databases.
