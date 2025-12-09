@@ -825,8 +825,8 @@ const Profile = () => {
                             </div>
                         </div>
                         <div className="space-y-2.5">
-                            {/* Innovation Hub Actions */}
-                            {!roleCodes.includes('PROCUREMENT_MANAGER') && !roleCodes.includes('PROCUREMENT_OFFICER') && (
+                            {/* Innovation Hub Actions - For regular contributors (not committee) */}
+                            {!roleCodes.includes('PROCUREMENT_MANAGER') && !roleCodes.includes('PROCUREMENT_OFFICER') && !roleCodes.includes('INNOVATION_COMMITTEE') && (
                                 <>
                                     <Link
                                         to="/innovation/ideas/new"
@@ -865,6 +865,22 @@ const Profile = () => {
                                         </div>
                                     </Link>
                                 </>
+                            )}
+
+                            {/* Committee Browse Action - Committee members can only browse and access dashboard */}
+                            {roleCodes.includes('INNOVATION_COMMITTEE') && (
+                                <Link
+                                    to="/innovation/ideas/browse"
+                                    className="flex items-center gap-3 px-4 py-3 bg-blue-500/10 dark:bg-blue-500/20 border border-blue-500/20 dark:border-blue-500/30 rounded-lg hover:bg-blue-500/20 dark:hover:bg-blue-500/30 transition-all group cursor-pointer"
+                                >
+                                    <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-blue-500/30 group-hover:bg-blue-500/40 transition-colors">
+                                        <IconSearch className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                                    </div>
+                                    <div className="flex-1">
+                                        <p className="text-sm font-semibold text-[#515365] dark:text-white-light">Browse Ideas</p>
+                                        <p className="text-xs text-white-dark mt-0.5">Explore ideas to review</p>
+                                    </div>
+                                </Link>
                             )}
 
                             {/* Committee Actions */}

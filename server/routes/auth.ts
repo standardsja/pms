@@ -730,4 +730,185 @@ router.post(
     })
 );
 
+/**
+ * PUT /api/auth/profile
+ * Update user profile information
+ * Respects LDAP field restrictions for LDAP-synced users
+ */
+router.put(
+    '/profile',
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+        const authenticatedReq = req as AuthenticatedRequest;
+        const userId = authenticatedReq.user.sub;
+
+        // Get current user to check if LDAP
+        const currentUser = await prisma.user.findUnique({
+            where: { id: userId },
+            select: {
+                id: true,
+                ldapDN: true,
+                email: true,
+                name: true,
+            },
+        });
+
+        if (!currentUser) {
+            throw new BadRequestError('User not found');
+        }
+
+        const isLdapUser = !!currentUser.ldapDN;
+
+        // Extract fields from request body
+        const { name, jobTitle, country, address, city, phone, employeeId, supervisor } = req.body;
+
+        // Build update object - exclude LDAP-managed fields for LDAP users
+        const updateData: any = {};
+
+        // Only allow updates for non-LDAP users or for non-LDAP-managed fields
+        if (!isLdapUser) {
+            if (name !== undefined) updateData.name = name;
+            if (jobTitle !== undefined) updateData.jobTitle = jobTitle;
+            if (phone !== undefined) updateData.phone = phone;
+        }
+
+        // These fields can always be updated (not LDAP-managed)
+        if (country !== undefined) updateData.country = country;
+        if (address !== undefined) updateData.address = address;
+        if (city !== undefined) updateData.city = city;
+        if (employeeId !== undefined) updateData.employeeId = employeeId;
+        if (supervisor !== undefined) updateData.supervisor = supervisor;
+
+        // If no fields to update, return current data
+        if (Object.keys(updateData).length === 0) {
+            const user = await prisma.user.findUnique({
+                where: { id: userId },
+                select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                    jobTitle: true,
+                    country: true,
+                    address: true,
+                    city: true,
+                    phone: true,
+                    employeeId: true,
+                    supervisor: true,
+                    profileImage: true,
+                    department: { select: { name: true } },
+                },
+            });
+            return res.json({ success: true, user });
+        }
+
+        // Update user
+        const updatedUser = await prisma.user.update({
+            where: { id: userId },
+            data: updateData,
+            select: {
+                id: true,
+                name: true,
+                email: true,
+                jobTitle: true,
+                country: true,
+                address: true,
+                city: true,
+                phone: true,
+                employeeId: true,
+                supervisor: true,
+                profileImage: true,
+                department: { select: { name: true } },
+                updatedAt: true,
+            },
+        });
+
+        logger.info('User profile updated', {
+            userId: updatedUser.id,
+            fields: Object.keys(updateData),
+        });
+
+        res.json({
+            success: true,
+            message: 'Profile updated successfully',
+            user: updatedUser,
+        });
+    })
+);
+
+/**
+ * POST /api/auth/profile-image
+ * Upload and update user profile image
+ */
+router.post(
+    '/profile-image',
+    authMiddleware,
+    uploadProfilePhoto.single('profileImage'),
+    asyncHandler(async (req, res) => {
+        const authenticatedReq = req as AuthenticatedRequest;
+        const userId = authenticatedReq.user.sub;
+
+        if (!req.file) {
+            throw new BadRequestError('No image file provided');
+        }
+
+        // Validate file type (frontend does this too, but always validate on backend)
+        const allowedMimes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+        if (!allowedMimes.includes(req.file.mimetype)) {
+            // Delete uploaded file since it's invalid
+            fs.unlinkSync(req.file.path);
+            throw new BadRequestError(`Invalid file type. Allowed types: ${allowedMimes.join(', ')}`);
+        }
+
+        // Validate file size (max 5MB)
+        if (req.file.size > 5 * 1024 * 1024) {
+            // Delete uploaded file since it's too large
+            fs.unlinkSync(req.file.path);
+            throw new BadRequestError('File is too large. Maximum size is 5MB');
+        }
+
+        // Get current user to find old profile image
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { profileImage: true },
+        });
+
+        // Delete old profile image if it exists
+        if (user?.profileImage) {
+            const oldPhotoPath = path.join(process.cwd(), user.profileImage);
+            if (fs.existsSync(oldPhotoPath)) {
+                try {
+                    fs.unlinkSync(oldPhotoPath);
+                } catch (err) {
+                    logger.warn('Failed to delete old profile image', { path: oldPhotoPath, error: err });
+                }
+            }
+        }
+
+        // Update user with new profile image path
+        const relativePath = `/uploads/profiles/${req.file.filename}`;
+        const updatedUser = await prisma.user.update({
+            where: { id: userId },
+            data: { profileImage: relativePath },
+            select: {
+                id: true,
+                name: true,
+                email: true,
+                profileImage: true,
+            },
+        });
+
+        logger.info('Profile image uploaded', {
+            userId: updatedUser.id,
+            imagePath: relativePath,
+            fileSize: req.file.size,
+        });
+
+        res.json({
+            success: true,
+            message: 'Profile image uploaded successfully',
+            profileImage: updatedUser.profileImage,
+        });
+    })
+);
+
 export { router as authRoutes };

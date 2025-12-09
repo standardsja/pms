@@ -76,21 +76,14 @@ const AccountSetting = () => {
 
                 if (response.ok) {
                     const data = await response.json();
-                    console.log('====== PROFILE DATA RESPONSE ======');
-                    console.log('Full response:', JSON.stringify(data, null, 2));
-                    console.log('profileImage field:', data.profileImage);
-                    console.log('Has profileImage key?', 'profileImage' in data);
-                    console.log('====== END ======');
 
                     setProfileData(data);
                     setProfileImage(data.profileImage || '');
 
                     // CRITICAL: If user has a profileImage in database, always show it
                     if (data.profileImage) {
-                        console.log('✅ Profile image found, enabling photo mode');
                         setUseProfileImage(true);
                     } else {
-                        console.log('❌ No profile image, keeping initials mode');
                         setUseProfileImage(false);
                     }
 
@@ -108,7 +101,6 @@ const AccountSetting = () => {
                         employeeId: data.employeeId || '',
                         supervisor: data.supervisor || '',
                     };
-                    console.log('Form data set to:', userData);
                     setFormData(userData);
                     setOriginalFormData(userData);
                 }
