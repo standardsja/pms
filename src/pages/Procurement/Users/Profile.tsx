@@ -22,6 +22,10 @@ import IconPlus from '../../../components/Icon/IconPlus';
 import IconUsers from '../../../components/Icon/IconUsers';
 import IconSettings from '../../../components/Icon/IconSettings';
 import IconLayoutGrid from '../../../components/Icon/IconLayoutGrid';
+import IconBulb from '../../../components/Icon/IconOpenBook';
+import IconThumbUp from '../../../components/Icon/IconThumbUp';
+import IconStar from '../../../components/Icon/IconStar';
+import IconSearch from '../../../components/Icon/IconSearch';
 
 const Profile = () => {
     const dispatch = useDispatch();
@@ -31,9 +35,14 @@ const Profile = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [uploadingPhoto, setUploadingPhoto] = useState(false);
     const [stats, setStats] = useState<any>({
+        // Procurement stats
         evaluationsCompleted: 0,
         approvalsProcessed: 0,
         requestsCreated: 0,
+        // Innovation Hub stats
+        ideasSubmitted: 0,
+        ideasApproved: 0,
+        votesReceived: 0,
     });
 
     useEffect(() => {
@@ -404,7 +413,13 @@ const Profile = () => {
                     </div>
                     <div className="panel lg:col-span-2 xl:col-span-3">
                         <div className="mb-5">
-                            <h5 className="font-semibold text-lg dark:text-white-light">Recent Procurement Activities</h5>
+                            <h5 className="font-semibold text-lg dark:text-white-light">
+                                {roleCodes.includes('INNOVATION_COMMITTEE')
+                                    ? 'Recent Ideas Under Review'
+                                    : roleCodes.some((role) => role.includes('PROCUREMENT') || role.includes('BUDGET') || role.includes('EVALUATION'))
+                                    ? 'Recent Procurement Activities'
+                                    : 'Recent Activities'}
+                            </h5>
                         </div>
                         <div className="mb-5">
                             <div className="table-responsive text-[#515365] dark:text-white-light font-semibold">
@@ -462,8 +477,14 @@ const Profile = () => {
                                                 <td colSpan={4} className="text-center py-8">
                                                     <div className="flex flex-col items-center justify-center">
                                                         <IconFile className="w-12 h-12 text-gray-300 dark:text-gray-600 mb-3" />
-                                                        <p className="text-sm font-medium text-white-dark">No recent procurement activities</p>
-                                                        <p className="text-xs text-white-dark/70 mt-1">Your activities and requests will appear here</p>
+                                                        <p className="text-sm font-medium text-white-dark">
+                                                            {roleCodes.includes('INNOVATION_COMMITTEE') ? 'No ideas pending review' : 'No recent activities'}
+                                                        </p>
+                                                        <p className="text-xs text-white-dark/70 mt-1">
+                                                            {roleCodes.includes('INNOVATION_COMMITTEE')
+                                                                ? 'Ideas submitted for review will appear here'
+                                                                : 'Your activities and requests will appear here'}
+                                                        </p>
                                                     </div>
                                                 </td>
                                             </tr>
@@ -480,7 +501,48 @@ const Profile = () => {
                             <h5 className="font-semibold text-lg dark:text-white-light">Performance Summary</h5>
                         </div>
                         <div className="space-y-3">
-                            {roleCodes.includes('EVALUATION_COMMITTEE') || roleCodes.includes('PROCUREMENT_MANAGER') ? (
+                            {roleCodes.includes('INNOVATION_COMMITTEE') ? (
+                                <>
+                                    <div className="border border-[#ebedf2] rounded-lg dark:bg-[#1b2e4b] dark:border-[#3b5998] hover:shadow-lg transition-all duration-200 cursor-default bg-gradient-to-br from-purple-50/50 to-transparent dark:from-purple-900/20">
+                                        <div className="flex items-center justify-between p-5">
+                                            <div className="flex items-center gap-4">
+                                                <div className="grid place-content-center w-12 h-12 rounded-lg bg-purple-500/20 dark:bg-purple-500/30 text-purple-600 dark:text-purple-400">
+                                                    <IconBulb className="w-6 h-6" />
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs font-medium text-white-dark uppercase tracking-wide">Ideas Under Review</p>
+                                                    <p className="text-2xl font-bold text-[#515365] dark:text-white-light mt-1">8</p>
+                                                    <p className="text-xs text-white-dark mt-0.5">Pending evaluation</p>
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-purple-500/10 dark:bg-purple-500/20">
+                                                    <span className="text-lg font-bold text-purple-600 dark:text-purple-400">↑</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="border border-[#ebedf2] rounded-lg dark:bg-[#1b2e4b] dark:border-[#3b5998] hover:shadow-lg transition-all duration-200 cursor-default bg-gradient-to-br from-green-50/50 to-transparent dark:from-green-900/20">
+                                        <div className="flex items-center justify-between p-5">
+                                            <div className="flex items-center gap-4">
+                                                <div className="grid place-content-center w-12 h-12 rounded-lg bg-success/20 dark:bg-success/30 text-success">
+                                                    <IconThumbUp className="w-6 h-6" />
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs font-medium text-white-dark uppercase tracking-wide">Ideas Approved</p>
+                                                    <p className="text-2xl font-bold text-[#515365] dark:text-white-light mt-1">{stats.ideasApproved}</p>
+                                                    <p className="text-xs text-white-dark mt-0.5">This quarter</p>
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-success/10 dark:bg-success/20">
+                                                    <span className="text-lg font-bold text-success">87%</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </>
+                            ) : roleCodes.some((role) => role.includes('PROCUREMENT') || role.includes('BUDGET') || role.includes('EVALUATION')) ? (
                                 <>
                                     <div className="border border-[#ebedf2] rounded-lg dark:bg-[#1b2e4b] dark:border-[#3b5998] hover:shadow-lg transition-all duration-200 cursor-default">
                                         <div className="flex items-center justify-between p-5">
@@ -522,18 +584,32 @@ const Profile = () => {
                                     </div>
                                 </>
                             ) : (
-                                <div className="border border-[#ebedf2] rounded-lg dark:bg-[#1b2e4b] dark:border-[#3b5998] hover:shadow-lg transition-all duration-200 p-5">
-                                    <div className="flex items-center gap-4">
-                                        <div className="grid place-content-center w-12 h-12 rounded-lg bg-primary/20 dark:bg-primary/30 text-primary">
-                                            <IconClipboardText className="w-6 h-6" />
-                                        </div>
-                                        <div className="flex-1">
-                                            <p className="text-xs font-medium text-white-dark uppercase tracking-wide">Requests Submitted</p>
-                                            <p className="text-lg font-bold text-[#515365] dark:text-white-light mt-1">{recentActivities.length}</p>
-                                            <p className="text-xs text-white-dark mt-0.5">Active requests</p>
+                                <>
+                                    <div className="border border-[#ebedf2] rounded-lg dark:bg-[#1b2e4b] dark:border-[#3b5998] hover:shadow-lg transition-all duration-200 p-5 bg-gradient-to-br from-purple-50/50 to-transparent dark:from-purple-900/20">
+                                        <div className="flex items-center gap-4">
+                                            <div className="grid place-content-center w-12 h-12 rounded-lg bg-purple-500/20 dark:bg-purple-500/30 text-purple-600 dark:text-purple-400">
+                                                <IconBulb className="w-6 h-6" />
+                                            </div>
+                                            <div className="flex-1">
+                                                <p className="text-xs font-medium text-white-dark uppercase tracking-wide">Ideas Submitted</p>
+                                                <p className="text-lg font-bold text-[#515365] dark:text-white-light mt-1">{stats.ideasSubmitted}</p>
+                                                <p className="text-xs text-white-dark mt-0.5">Active ideas</p>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
+                                    <div className="border border-[#ebedf2] rounded-lg dark:bg-[#1b2e4b] dark:border-[#3b5998] hover:shadow-lg transition-all duration-200 p-5">
+                                        <div className="flex items-center gap-4">
+                                            <div className="grid place-content-center w-12 h-12 rounded-lg bg-primary/20 dark:bg-primary/30 text-primary">
+                                                <IconClipboardText className="w-6 h-6" />
+                                            </div>
+                                            <div className="flex-1">
+                                                <p className="text-xs font-medium text-white-dark uppercase tracking-wide">Requests Submitted</p>
+                                                <p className="text-lg font-bold text-[#515365] dark:text-white-light mt-1">{recentActivities.length}</p>
+                                                <p className="text-xs text-white-dark mt-0.5">Active requests</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </>
                             )}
                         </div>
                     </div>
@@ -615,11 +691,9 @@ const Profile = () => {
                                                 </ul>
                                             </div>
                                         )}
-                                        {(roleCodes.includes('EVALUATION_COMMITTEE') || roleCodes.includes('INNOVATION_COMMITTEE')) && (
+                                        {roleCodes.includes('EVALUATION_COMMITTEE') && (
                                             <div className="border border-[#ebedf2] dark:border-[#3b5998] rounded-lg p-4 hover:shadow-md transition-shadow">
-                                                <h6 className="text-sm font-semibold text-[#515365] dark:text-white-light mb-2">
-                                                    {roleCodes.includes('EVALUATION_COMMITTEE') ? 'Evaluation Committee' : 'Innovation Committee'}
-                                                </h6>
+                                                <h6 className="text-sm font-semibold text-[#515365] dark:text-white-light mb-2">Evaluation Committee</h6>
                                                 <ul className="space-y-1.5 text-xs text-white-dark">
                                                     <li className="flex items-center gap-2">
                                                         <span className="w-1.5 h-1.5 rounded-full bg-info"></span>
@@ -632,6 +706,29 @@ const Profile = () => {
                                                     <li className="flex items-center gap-2">
                                                         <span className="w-1.5 h-1.5 rounded-full bg-info"></span>
                                                         Recommendations
+                                                    </li>
+                                                </ul>
+                                            </div>
+                                        )}
+
+                                        {roleCodes.includes('INNOVATION_COMMITTEE') && (
+                                            <div className="border border-[#ebedf2] dark:border-[#3b5998] rounded-lg p-4 hover:shadow-md transition-shadow bg-gradient-to-br from-purple-50/50 to-pink-50/50 dark:from-purple-900/20 dark:to-pink-900/20">
+                                                <h6 className="text-sm font-semibold text-[#515365] dark:text-white-light mb-2 flex items-center gap-2">
+                                                    <IconBulb className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                                                    Innovation Committee
+                                                </h6>
+                                                <ul className="space-y-1.5 text-xs text-white-dark">
+                                                    <li className="flex items-center gap-2">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
+                                                        Review Submitted Ideas
+                                                    </li>
+                                                    <li className="flex items-center gap-2">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
+                                                        Approve/Reject Ideas
+                                                    </li>
+                                                    <li className="flex items-center gap-2">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
+                                                        Promote to Projects
                                                     </li>
                                                 </ul>
                                             </div>
@@ -689,8 +786,8 @@ const Profile = () => {
                                 </>
                             ) : (
                                 <div className="p-4 bg-info/10 dark:bg-info/20 rounded-lg border border-info/20 dark:border-info/30">
-                                    <p className="text-sm font-medium text-[#515365] dark:text-white-light">Request Submission Access</p>
-                                    <p className="text-xs text-white-dark mt-2">You have access to submit procurement requests. Contact an administrator to request additional permissions.</p>
+                                    <p className="text-sm font-medium text-[#515365] dark:text-white-light">Standard User Access</p>
+                                    <p className="text-xs text-white-dark mt-2">You have access to submit ideas and requests. Contact an administrator to request additional permissions.</p>
                                 </div>
                             )}
                         </div>
@@ -703,21 +800,80 @@ const Profile = () => {
                             </div>
                         </div>
                         <div className="space-y-2.5">
-                            <Link
-                                to="/apps/requests/new"
-                                className="flex items-center gap-3 px-4 py-3 bg-primary/10 dark:bg-primary/20 border border-primary/20 dark:border-primary/30 rounded-lg hover:bg-primary/20 dark:hover:bg-primary/30 transition-all group cursor-pointer"
-                            >
-                                <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary/30 group-hover:bg-primary/40 transition-colors">
-                                    <IconPlus className="w-5 h-5 text-primary" />
-                                </div>
-                                <div className="flex-1">
-                                    <p className="text-sm font-semibold text-[#515365] dark:text-white-light">Create New Request</p>
-                                    <p className="text-xs text-white-dark mt-0.5">Start a new procurement request</p>
-                                </div>
-                            </Link>
+                            {/* Innovation Hub Actions */}
+                            {!roleCodes.includes('PROCUREMENT_MANAGER') && !roleCodes.includes('PROCUREMENT_OFFICER') && (
+                                <>
+                                    <Link
+                                        to="/innovation-hub/submit-idea"
+                                        className="flex items-center gap-3 px-4 py-3 bg-purple-500/10 dark:bg-purple-500/20 border border-purple-500/20 dark:border-purple-500/30 rounded-lg hover:bg-purple-500/20 dark:hover:bg-purple-500/30 transition-all group cursor-pointer"
+                                    >
+                                        <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-purple-500/30 group-hover:bg-purple-500/40 transition-colors">
+                                            <IconBulb className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="text-sm font-semibold text-[#515365] dark:text-white-light">Submit an Idea</p>
+                                            <p className="text-xs text-white-dark mt-0.5">Share your innovative ideas</p>
+                                        </div>
+                                    </Link>
+                                    <Link
+                                        to="/innovation-hub/browse-ideas"
+                                        className="flex items-center gap-3 px-4 py-3 bg-blue-500/10 dark:bg-blue-500/20 border border-blue-500/20 dark:border-blue-500/30 rounded-lg hover:bg-blue-500/20 dark:hover:bg-blue-500/30 transition-all group cursor-pointer"
+                                    >
+                                        <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-blue-500/30 group-hover:bg-blue-500/40 transition-colors">
+                                            <IconSearch className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="text-sm font-semibold text-[#515365] dark:text-white-light">Browse Ideas</p>
+                                            <p className="text-xs text-white-dark mt-0.5">Explore and vote on ideas</p>
+                                        </div>
+                                    </Link>
+                                    <Link
+                                        to="/innovation-hub/my-ideas"
+                                        className="flex items-center gap-3 px-4 py-3 bg-green-500/10 dark:bg-green-500/20 border border-green-500/20 dark:border-green-500/30 rounded-lg hover:bg-green-500/20 dark:hover:bg-green-500/30 transition-all group cursor-pointer"
+                                    >
+                                        <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-green-500/30 group-hover:bg-green-500/40 transition-colors">
+                                            <IconStar className="w-5 h-5 text-green-600 dark:text-green-400" />
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="text-sm font-semibold text-[#515365] dark:text-white-light">My Ideas</p>
+                                            <p className="text-xs text-white-dark mt-0.5">View your submitted ideas</p>
+                                        </div>
+                                    </Link>
+                                </>
+                            )}
 
+                            {/* Committee Actions */}
+                            {roleCodes.includes('INNOVATION_COMMITTEE') && (
+                                <Link
+                                    to="/innovation-hub/committee-dashboard"
+                                    className="flex items-center gap-3 px-4 py-3 bg-orange-500/10 dark:bg-orange-500/20 border border-orange-500/20 dark:border-orange-500/30 rounded-lg hover:bg-orange-500/20 dark:hover:bg-orange-500/30 transition-all group cursor-pointer"
+                                >
+                                    <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-orange-500/30 group-hover:bg-orange-500/40 transition-colors">
+                                        <IconClipboardText className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+                                    </div>
+                                    <div className="flex-1">
+                                        <p className="text-sm font-semibold text-[#515365] dark:text-white-light">Committee Dashboard</p>
+                                        <p className="text-xs text-white-dark mt-0.5">Review ideas and make decisions</p>
+                                    </div>
+                                </Link>
+                            )}
+
+                            {/* Procurement Actions */}
                             {(roleCodes.includes('PROCUREMENT_MANAGER') || roleCodes.includes('PROCUREMENT_OFFICER')) && (
                                 <>
+                                    <Link
+                                        to="/apps/requests/new"
+                                        className="flex items-center gap-3 px-4 py-3 bg-primary/10 dark:bg-primary/20 border border-primary/20 dark:border-primary/30 rounded-lg hover:bg-primary/20 dark:hover:bg-primary/30 transition-all group cursor-pointer"
+                                    >
+                                        <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary/30 group-hover:bg-primary/40 transition-colors">
+                                            <IconPlus className="w-5 h-5 text-primary" />
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="text-sm font-semibold text-[#515365] dark:text-white-light">Create New Request</p>
+                                            <p className="text-xs text-white-dark mt-0.5">Start a new procurement request</p>
+                                        </div>
+                                    </Link>
+
                                     <Link
                                         to="/apps/procurement-manager/assign-requests"
                                         className="flex items-center gap-3 px-4 py-3 bg-success/10 dark:bg-success/20 border border-success/20 dark:border-success/30 rounded-lg hover:bg-success/20 dark:hover:bg-success/30 transition-all group cursor-pointer"
@@ -745,6 +901,7 @@ const Profile = () => {
                                 </>
                             )}
 
+                            {/* Evaluation Committee Actions */}
                             {roleCodes.includes('EVALUATION_COMMITTEE') && (
                                 <Link
                                     to="/apps/procurement-manager/evaluations"
@@ -756,6 +913,22 @@ const Profile = () => {
                                     <div className="flex-1">
                                         <p className="text-sm font-semibold text-[#515365] dark:text-white-light">Evaluations Pending</p>
                                         <p className="text-xs text-white-dark mt-0.5">Review quotes to evaluate</p>
+                                    </div>
+                                </Link>
+                            )}
+
+                            {/* Common Request Action */}
+                            {!roleCodes.includes('PROCUREMENT_MANAGER') && !roleCodes.includes('PROCUREMENT_OFFICER') && (
+                                <Link
+                                    to="/apps/requests/new"
+                                    className="flex items-center gap-3 px-4 py-3 bg-primary/10 dark:bg-primary/20 border border-primary/20 dark:border-primary/30 rounded-lg hover:bg-primary/20 dark:hover:bg-primary/30 transition-all group cursor-pointer"
+                                >
+                                    <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary/30 group-hover:bg-primary/40 transition-colors">
+                                        <IconPlus className="w-5 h-5 text-primary" />
+                                    </div>
+                                    <div className="flex-1">
+                                        <p className="text-sm font-semibold text-[#515365] dark:text-white-light">Create Request</p>
+                                        <p className="text-xs text-white-dark mt-0.5">Submit a procurement request</p>
                                     </div>
                                 </Link>
                             )}
