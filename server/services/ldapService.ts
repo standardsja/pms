@@ -9,6 +9,7 @@
  * - Use parameterized queries to prevent LDAP injection
  */
 import { Client } from 'ldapts';
+import { URL } from 'url';
 import { config } from '../config/environment';
 import { logger } from '../config/logger';
 import { BadRequestError, UnauthorizedError } from '../middleware/errorHandler';
@@ -79,125 +80,192 @@ class LDAPService {
         let userDN = '';
         let ldapUser: LDAPUser | null = null;
 
-        try {
-            // Step 1: Bind with admin credentials to search for user
-            logger.info('LDAP attempting admin bind', {
-                url: config.LDAP.url,
-                bindDN: config.LDAP.bindDN,
-                searchDN: config.LDAP.searchDN,
-            });
+        // Attempt the LDAP flow, with a single fallback attempt if DNS fails and a fallback IP is provided
+        let attemptedFallback = false;
+        for (let attempt = 0; attempt < 2; attempt++) {
+            try {
+                // Step 1: Bind with admin credentials to search for user
+                logger.info('LDAP attempting admin bind', {
+                    url: config.LDAP.url,
+                    bindDN: config.LDAP.bindDN,
+                    searchDN: config.LDAP.searchDN,
+                });
 
-            await this.client!.bind(config.LDAP.bindDN, config.LDAP.bindPassword);
+                await this.client!.bind(config.LDAP.bindDN, config.LDAP.bindPassword);
 
-            logger.info('LDAP admin bind successful for user search', { email: sanitizedEmail });
+                logger.info('LDAP admin bind successful for user search', { email: sanitizedEmail });
 
-            // Step 2: Search for the user
-            const { searchEntries } = await this.client!.search(config.LDAP.searchDN, {
-                filter: `(userPrincipalName=${sanitizedEmail})`,
-                scope: 'sub',
-                attributes: ['dn', 'userPrincipalName', 'cn', 'displayName', 'mail', 'department', 'memberOf', 'thumbnailPhoto'],
-            });
+                // Step 2: Search for the user
+                const { searchEntries } = await this.client!.search(config.LDAP.searchDN, {
+                    filter: `(userPrincipalName=${sanitizedEmail})`,
+                    scope: 'sub',
+                    // Include sAMAccountName and userPrincipalName to support bind fallbacks
+                    attributes: ['dn', 'userPrincipalName', 'sAMAccountName', 'cn', 'displayName', 'mail', 'department', 'memberOf', 'thumbnailPhoto'],
+                });
 
-            if (searchEntries.length === 0) {
-                logger.warn('LDAP user not found in directory', { email: sanitizedEmail });
-                throw new BadRequestError('User not found in directory');
-            }
-
-            // Get user DN and info
-            const entry = searchEntries[0];
-            userDN = entry.dn as string;
-
-            // Extract group memberships
-            const memberOf = Array.isArray(entry.memberOf) ? (entry.memberOf as string[]) : entry.memberOf ? [entry.memberOf as string] : [];
-
-            // Save profile photo from LDAP if available
-            let profileImage: string | undefined;
-            if (entry.thumbnailPhoto) {
-                try {
-                    profileImage = await this.saveLDAPPhoto(sanitizedEmail, entry.thumbnailPhoto as Buffer);
-                } catch (error: any) {
-                    logger.warn('Failed to save LDAP profile photo', { email: sanitizedEmail, error: error.message });
+                if (searchEntries.length === 0) {
+                    logger.warn('LDAP user not found in directory', { email: sanitizedEmail });
+                    throw new BadRequestError('User not found in directory');
                 }
-            }
 
-            ldapUser = {
-                dn: userDN,
-                email: (entry.mail as string) || sanitizedEmail,
-                name: (entry.displayName as string) || (entry.cn as string) || undefined,
-                department: entry.department as string | undefined,
-                memberOf,
-                profileImage,
-            };
+                // Get user DN and info
+                const entry = searchEntries[0];
+                userDN = entry.dn as string;
 
-            logger.info('LDAP user found in directory', {
-                email: sanitizedEmail,
-                dn: userDN,
-                name: ldapUser.name,
-                groupCount: memberOf.length,
-            });
+                // Extract group memberships
+                const memberOf = Array.isArray(entry.memberOf) ? (entry.memberOf as string[]) : entry.memberOf ? [entry.memberOf as string] : [];
 
-            // Step 3: Unbind admin connection
-            await this.client!.unbind();
+                // Save profile photo from LDAP if available
+                let profileImage: string | undefined;
+                if (entry.thumbnailPhoto) {
+                    try {
+                        profileImage = await this.saveLDAPPhoto(sanitizedEmail, entry.thumbnailPhoto as Buffer);
+                    } catch (error: any) {
+                        logger.warn('Failed to save LDAP profile photo', { email: sanitizedEmail, error: error.message });
+                    }
+                }
 
-            // Step 4: Try to bind as the user to verify password
-            await this.client!.bind(userDN, password);
+                ldapUser = {
+                    dn: userDN,
+                    email: (entry.mail as string) || sanitizedEmail,
+                    name: (entry.displayName as string) || (entry.cn as string) || undefined,
+                    department: entry.department as string | undefined,
+                    memberOf,
+                    profileImage,
+                };
 
-            logger.info('LDAP user authenticated successfully', {
-                email: sanitizedEmail,
-                dn: userDN,
-            });
-
-            // Successfully authenticated
-            return ldapUser;
-        } catch (error: any) {
-            logger.error('LDAP authentication error', {
-                email: sanitizedEmail,
-                error: error.message,
-                code: error.code,
-                errno: error.errno,
-                syscall: error.syscall,
-                stack: error.stack?.split('\n').slice(0, 3).join('\n'), // First 3 lines of stack
-            });
-
-            // Always try to unbind to clean up
-            await this.safeUnbind();
-
-            // Determine error type with better error messages
-            if (error.code === 49 || error.message?.includes('Invalid credentials')) {
-                throw new UnauthorizedError('Invalid credentials');
-            }
-
-            // Connection errors
-            if (error.errno === 'ETIMEDOUT' || error.message?.includes('timeout')) {
-                logger.error('LDAP connection timeout - server may be unreachable', {
-                    url: config.LDAP.url,
-                    suggestion: 'Check network connectivity and firewall rules',
+                logger.info('LDAP user found in directory', {
+                    email: sanitizedEmail,
+                    dn: userDN,
+                    name: ldapUser.name,
+                    groupCount: memberOf.length,
                 });
-                throw new BadRequestError('LDAP server connection timeout. Please contact your system administrator.');
-            }
 
-            if (error.errno === 'ECONNREFUSED') {
-                logger.error('LDAP connection refused - server may be down', {
-                    url: config.LDAP.url,
+                // Step 3: Unbind admin connection
+                await this.client!.unbind();
+
+                // Step 4: Try to bind as the user to verify password
+                // Some AD deployments disallow binding with DN; attempt fallbacks:
+                // 1) bind with user DN
+                // 2) bind with userPrincipalName (UPN / email)
+                // 3) bind with sAMAccountName (if available)
+                const upn = (entry.userPrincipalName as string) || (entry.mail as string) || sanitizedEmail;
+                const sam = entry.sAMAccountName as string | undefined;
+
+                let bindSucceeded = false;
+                const bindErrors: string[] = [];
+
+                try {
+                    await this.client!.bind(userDN, password);
+                    bindSucceeded = true;
+                    logger.info('LDAP user authenticated by DN bind', { email: sanitizedEmail, dn: userDN });
+                } catch (e: any) {
+                    bindErrors.push(`DN bind failed: ${e.message}`);
+                }
+
+                if (!bindSucceeded) {
+                    try {
+                        await this.client!.bind(upn, password);
+                        bindSucceeded = true;
+                        logger.info('LDAP user authenticated by UPN bind', { email: sanitizedEmail, upn });
+                    } catch (e: any) {
+                        bindErrors.push(`UPN bind failed: ${e.message}`);
+                    }
+                }
+
+                if (!bindSucceeded && sam) {
+                    try {
+                        await this.client!.bind(sam, password);
+                        bindSucceeded = true;
+                        logger.info('LDAP user authenticated by sAMAccountName bind', { email: sanitizedEmail, sAMAccountName: sam });
+                    } catch (e: any) {
+                        bindErrors.push(`sAMAccountName bind failed: ${e.message}`);
+                    }
+                }
+
+                if (!bindSucceeded) {
+                    logger.warn('LDAP bind attempts failed', { email: sanitizedEmail, attempts: bindErrors });
+                    throw new UnauthorizedError('Invalid credentials');
+                }
+
+                logger.info('LDAP user authenticated successfully', {
+                    email: sanitizedEmail,
+                    dn: userDN,
                 });
-                throw new BadRequestError('LDAP server is not responding. Please contact your system administrator.');
+
+                // Successfully authenticated
+                return ldapUser;
+            } catch (error: any) {
+                logger.error('LDAP authentication error', {
+                    email: sanitizedEmail,
+                    error: error.message,
+                    code: error.code,
+                    errno: error.errno,
+                    syscall: error.syscall,
+                    stack: error.stack?.split('\n').slice(0, 3).join('\n'), // First 3 lines of stack
+                });
+
+                // Always try to unbind to clean up
+                await this.safeUnbind();
+
+                // If DNS resolution failed and a fallback IP is provided, recreate client and retry once
+                const dnsFailed = error.code === 'ENOTFOUND' || (error.message && error.message.includes('getaddrinfo'));
+                const fallbackIp = process.env.LDAP_FALLBACK_IP;
+                if (!attemptedFallback && dnsFailed && fallbackIp) {
+                    attemptedFallback = true;
+                    try {
+                        const orig = new URL(config.LDAP.url);
+                        const port = orig.port || (orig.protocol === 'ldaps:' ? '636' : '389');
+                        const newUrl = `${orig.protocol}//${fallbackIp}:${port}`;
+                        logger.warn('LDAP DNS lookup failed; retrying using fallback IP', { orig: config.LDAP.url, newUrl });
+                        this.client = new Client({
+                            url: newUrl,
+                            timeout: 10000,
+                            connectTimeout: 10000,
+                            strictDN: false,
+                        });
+                        // Retry the loop
+                        continue;
+                    } catch (e: any) {
+                        logger.error('Failed to create LDAP client for fallback IP', { error: e.message });
+                        // fall through to error handling below
+                    }
+                }
+
+                // Determine error type with better error messages
+                if (error.code === 49 || error.message?.includes('Invalid credentials')) {
+                    throw new UnauthorizedError('Invalid credentials');
+                }
+
+                // Connection errors
+                if (error.errno === 'ETIMEDOUT' || error.message?.includes('timeout')) {
+                    logger.error('LDAP connection timeout - server may be unreachable', {
+                        url: config.LDAP.url,
+                        suggestion: 'Check network connectivity and firewall rules',
+                    });
+                    throw new BadRequestError('LDAP server connection timeout. Please contact your system administrator.');
+                }
+
+                if (error.errno === 'ECONNREFUSED') {
+                    logger.error('LDAP connection refused - server may be down', {
+                        url: config.LDAP.url,
+                    });
+                    throw new BadRequestError('LDAP server is not responding. Please contact your system administrator.');
+                }
+
+                if (error instanceof BadRequestError || error instanceof UnauthorizedError) {
+                    throw error;
+                }
+
+                throw new BadRequestError('LDAP authentication failed');
+            } finally {
+                // Always ensure unbind
+                await this.safeUnbind();
             }
-
-            if (error instanceof BadRequestError || error instanceof UnauthorizedError) {
-                throw error;
-            }
-
-            throw new BadRequestError('LDAP authentication failed');
-
-            if (error instanceof BadRequestError || error instanceof UnauthorizedError) {
-                throw error;
-            }
-
-            throw new BadRequestError('LDAP authentication failed');
-        } finally {
-            // Always ensure unbind
-            await this.safeUnbind();
         }
+
+        // If we reach here something unexpected happened
+        throw new BadRequestError('LDAP authentication failed');
     }
 
     /**
