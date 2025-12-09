@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { logEvent } from '../../../utils/analytics';
 import { getApiUrl } from '../../../config/api';
 import { statsService, SystemStats } from '../../../services/statsService';
-import { fetchModuleLocks, type ModuleLockState } from '../../../utils/moduleLocks';
+import { fetchModuleLocks as getModuleLocks, type ModuleLockState } from '../../../utils/moduleLocks';
 
 type ModuleKey = 'pms' | 'ih' | 'committee' | 'budgeting' | 'audit' | 'prime' | 'datapoint' | 'maintenance' | 'asset' | 'ppm' | 'kb';
 
@@ -82,10 +82,9 @@ const Onboarding = () => {
         pms: { totalUsers: 0, activeNow: 0, today: 0 },
         ih: { totalUsers: 0, activeNow: 0, today: 0 },
     });
-    const [moduleLocks, setModuleLocks] = useState<ModuleLockState | null>(null);
+    const [moduleLocks, setModuleLocks] = useState<ModuleLockState>(getModuleLocks());
 
     useEffect(() => {
-        // Fetch real-time system statistics
         const fetchSystemStats = async () => {
             try {
                 const data = await statsService.getSystemStats();
@@ -185,27 +184,10 @@ const Onboarding = () => {
 
         // analytics: page viewed
         logEvent('onboarding_viewed', { role: (userRoles && userRoles[0]) || 'unknown', force: forceOnboarding, hasLast: !!last, done });
+
+        // Sync locks from localStorage
+        setModuleLocks(getModuleLocks());
     }, [dispatch, isCommittee, navigate, query, forceOnboarding, t, userRoles]);
-
-    useEffect(() => {
-        // Load module locks from API on mount
-        const loadModuleLocks = async () => {
-            try {
-                const locks = await fetchModuleLocks();
-                setModuleLocks(locks);
-            } catch (error) {
-                console.error('Failed to load module locks:', error);
-                setModuleLocks(null);
-            }
-        };
-
-        loadModuleLocks();
-
-        // Refresh locks periodically to catch cross-user updates
-        const interval = setInterval(loadModuleLocks, 30000);
-
-        return () => clearInterval(interval);
-    }, []);
 
     const modules = useMemo<ModuleDef[]>(() => {
         // Return empty array while locks are loading
@@ -224,11 +206,8 @@ const Onboarding = () => {
                 lockedReason: moduleLocks.procurement.reason,
             },
             {
-                id: 'ih' as ModuleKey,
-                title: t('onboarding.modules.ih.title'),
-                description: t('onboarding.modules.ih.description'),
-                icon: '💡',
-                gradient: 'from-purple-500 to-pink-600',
+    const modules = useMemo<ModuleDef[]>(() => {
+        const base: ModuleDef[] = [ple-500 to-pink-600',
                 path: '/innovation/dashboard',
                 features: [t('onboarding.modules.ih.features.0'), t('onboarding.modules.ih.features.1'), t('onboarding.modules.ih.features.2')],
                 locked: moduleLocks.innovation.locked,

@@ -1,12 +1,11 @@
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { setPageTitle } from '../../../store/themeConfigSlice';
 import IconLock from '../../../components/Icon/IconLock';
 import IconLockOpen from '../../../components/Icon/IconLockOpen';
 import IconChevronRight from '../../../components/Icon/IconChevronRight';
 import IconInfoCircle from '../../../components/Icon/IconInfoCircle';
-import IconLoader from '../../../components/Icon/IconLoader';
-import { fetchModuleLocks, LOCKABLE_MODULES, updateModuleLock, type LockableModuleKey, type ModuleLockState } from '../../../utils/moduleLocks';
+import { getModuleLocks, LOCKABLE_MODULES, setModuleLock, type LockableModuleKey, type ModuleLockState } from '../../../utils/moduleLocks';
 import { getUser } from '../../../utils/auth';
 
 // Pre-made reason templates
@@ -29,12 +28,9 @@ const ModuleAccessControl = () => {
         dispatch(setPageTitle('Module Access Control'));
     }, [dispatch]);
 
-    const [moduleLocks, setModuleLocks] = useState<ModuleLockState | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
+    const [moduleLocks, setModuleLocks] = useState<ModuleLockState>(getModuleLocks());
     const [showSuccess, setShowSuccess] = useState(false);
     const [successMessage, setSuccessMessage] = useState('');
-    const [showError, setShowError] = useState(false);
-    const [errorMessage, setErrorMessage] = useState('');
     const [transitioningModule, setTransitioningModule] = useState<LockableModuleKey | null>(null);
     const [showReasonModal, setShowReasonModal] = useState(false);
     const [reasonModalModule, setReasonModalModule] = useState<LockableModuleKey | null>(null);
@@ -47,65 +43,15 @@ const ModuleAccessControl = () => {
         return user?.name || user?.email || 'Admin';
     }, []);
 
-    // Load locks from API on mount and set up polling
-    useEffect(() => {
-        const loadLocks = async () => {
-            try {
-                setIsLoading(true);
-                const locks = await fetchModuleLocks();
-                setModuleLocks(locks);
-            } catch (error) {
-                console.error('Failed to load module locks:', error);
-                setErrorMessage('Failed to load module locks');
-                setShowError(true);
-                setTimeout(() => setShowError(false), 3000);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
-        loadLocks();
-
-        // Refresh locks every 30 seconds for cross-user updates
-        const interval = setInterval(loadLocks, 30000);
-
-        return () => clearInterval(interval);
-    }, []);
-
-    // Refresh locks from API
-    const refreshLocks = useCallback(async () => {
-        try {
-            const locks = await fetchModuleLocks();
-            setModuleLocks(locks);
-        } catch (error) {
-            console.error('Failed to refresh module locks:', error);
-            setErrorMessage('Failed to refresh module locks');
-            setShowError(true);
-            setTimeout(() => setShowError(false), 3000);
-        }
-    }, []);
-
-    // Sync lock state across tabs and refresh periodically
+    // Sync lock state across tabs
     useEffect(() => {
         const handleStorageChange = () => {
-            // Storage change detected from another tab, refresh locks
-            refreshLocks();
+            setModuleLocks(getModuleLocks());
         };
 
         window.addEventListener('storage', handleStorageChange);
-
-        // Also refresh on visibility change (when tab comes back into focus)
-        document.addEventListener('visibilitychange', () => {
-            if (!document.hidden) {
-                refreshLocks();
-            }
-        });
-
-        return () => {
-            window.removeEventListener('storage', handleStorageChange);
-            document.removeEventListener('visibilitychange', handleStorageChange);
-        };
-    }, [refreshLocks]);
+        return () => window.removeEventListener('storage', handleStorageChange);
+    }, []);
 
     const openReasonModal = (key: LockableModuleKey) => {
         setReasonModalModule(key);
@@ -158,58 +104,30 @@ const ModuleAccessControl = () => {
         }
     };
 
-    const handleToggleLock = async (key: LockableModuleKey) => {
-        const currentState = moduleLocks?.[key]?.locked ?? false;
+    const handleToggleLock = (key: LockableModuleKey) => {
+        const currentState = moduleLocks[key]?.locked ?? false;
 
         // If unlocking, just toggle
         if (currentState) {
             // Module is currently locked, so unlock without asking for reason
-            try {
-                setTransitioningModule(key);
-
-                try {
-                    const updatedLocks = await updateModuleLock(key, false);
-                    setModuleLocks(updatedLocks);
-
-                    const label = LOCKABLE_MODULES.find((m) => m.key === key)?.label || key;
-                    setSuccessMessage(`${label} successfully unlocked`);
-                    setShowSuccess(true);
-
-                    setTimeout(() => setShowSuccess(false), 2200);
-                } catch (error) {
-                    console.error('Failed to update module lock:', error);
-                    setErrorMessage('Failed to update module lock. Please try again.');
-                    setShowError(true);
-                    setTimeout(() => setShowError(false), 3000);
-                } finally {
-                    setTransitioningModule(null);
-                }
-            } catch (error) {
-                console.error('Error toggling lock:', error);
+            setTransitioningModule(key);
+            setTimeout(() => {
+                const updatedLocks = setModuleLock(key, false, { updatedBy: adminIdentity });
+                setModuleLocks(updatedLocks);
                 setTransitioningModule(null);
-                setErrorMessage('An error occurred. Please try again.');
-                setShowError(true);
-                setTimeout(() => setShowError(false), 3000);
-            }
+
+                const label = LOCKABLE_MODULES.find((m) => m.key === key)?.label || key;
+                setSuccessMessage(`${label} successfully unlocked`);
+                setShowSuccess(true);
+
+                setTimeout(() => setShowSuccess(false), 2200);
+            }, 300);
         } else {
             // Module is currently unlocked, show reason modal before locking
             openReasonModal(key);
         }
-    };
-
-    const getStatusColor = (locked: boolean) => {
-        return locked ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400';
-    };
-
-    const getStatusBgColor = (locked: boolean) => {
-        return locked ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700/40' : 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700/40';
-    };
-
-    return (
-        <div>
-            <div className="mb-6">
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Module Access Control</h1>
-                <p className="text-gray-600 dark:text-gray-400">Manage which modules are available to users. Lock modules to prevent access without code deployment.</p>
+    };  }, 300);
+    };          <p className="text-gray-600 dark:text-gray-400">Manage which modules are available to users. Lock modules to prevent access without code deployment.</p>
             </div>
 
             {/* Loading State */}
@@ -240,33 +158,7 @@ const ModuleAccessControl = () => {
 
             {/* Success Toast */}
             {showSuccess && (
-                <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700/40 rounded-lg">
-                    <div className="flex items-center gap-2">
-                        <svg className="w-5 h-5 text-green-600 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20">
-                            <path
-                                fillRule="evenodd"
-                                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                                clipRule="evenodd"
-                            />
-                        </svg>
-                        <span className="text-green-800 dark:text-green-200 font-semibold">{successMessage}</span>
-                    </div>
-                </div>
-            )}
-
-            {/* Module Cards Grid */}
-            {!isLoading && moduleLocks && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {LOCKABLE_MODULES.map((module) => {
-                        const lockState = moduleLocks[module.key];
-                        const isLocked = lockState?.locked ?? false;
-                        const isTransitioning = transitioningModule === module.key;
-
-                        return (
-                            <div
-                                key={module.key}
-                                className={`border rounded-lg p-6 transition-all duration-300 ${getStatusBgColor(isLocked)} ${isTransitioning ? 'opacity-60 pointer-events-none' : ''}`}
-                            >
+            {/* Success Toast */}
                                 <div className="flex items-start justify-between mb-4">
                                     <div className="flex-1">
                                         <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">{module.label}</h3>

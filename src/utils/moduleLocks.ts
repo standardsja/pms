@@ -1,5 +1,4 @@
 import { getUser } from './auth';
-import { getApiUrl } from '../config/api';
 
 export type LockableModuleKey = 'procurement' | 'innovation' | 'committee' | 'budgeting' | 'audit' | 'prime' | 'datapoint' | 'maintenance' | 'asset' | 'project' | 'knowledge';
 
@@ -52,70 +51,6 @@ const mergeWithDefaults = (state: Partial<ModuleLockState> | null): ModuleLockSt
     return merged as ModuleLockState;
 };
 
-// Cache locks in memory with TTL
-let locksCache: ModuleLockState | null = null;
-let lastFetchTime = 0;
-const CACHE_TTL_MS = 30000; // 30 second cache
-
-/**
- * Fetch module locks from backend API
- */
-export const fetchModuleLocks = async (): Promise<ModuleLockState> => {
-    const now = Date.now();
-
-    // Return cached value if fresh
-    if (locksCache && now - lastFetchTime < CACHE_TTL_MS) {
-        console.log('[ModuleLocks] Returning cached locks');
-        return locksCache;
-    }
-
-    try {
-        const token = localStorage.getItem('token');
-        const url = getApiUrl('/api/admin/module-locks');
-        console.log('[ModuleLocks] Fetching from:', url);
-
-        const response = await fetch(url, {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-                ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
-        });
-
-        console.log('[ModuleLocks] Response status:', response.status);
-
-        if (response.ok) {
-            const result = await response.json();
-            console.log('[ModuleLocks] Received locks from API:', result.data);
-            locksCache = result.data ? mergeWithDefaults(result.data) : mergeWithDefaults(null);
-            lastFetchTime = now;
-            return locksCache;
-        } else {
-            const errorText = await response.text();
-            console.error('[ModuleLocks] API error:', response.status, errorText);
-        }
-    } catch (error) {
-        console.error('[ModuleLocks] Failed to fetch module locks from API, using local cache', error);
-    }
-
-    // Fallback to localStorage if API fails
-    try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (raw) {
-            const parsed = JSON.parse(raw) as Partial<ModuleLockState>;
-            locksCache = mergeWithDefaults(parsed);
-            console.log('[ModuleLocks] Using localStorage fallback');
-            return locksCache;
-        }
-    } catch {
-        /* ignore */
-    }
-
-    console.log('[ModuleLocks] Using default locks');
-    locksCache = mergeWithDefaults(null);
-    return locksCache;
-};
-
 export const getModuleLocks = (): ModuleLockState => {
     try {
         const raw = localStorage.getItem(STORAGE_KEY);
@@ -136,47 +71,6 @@ const persistModuleLocks = (next: ModuleLockState): ModuleLockState => {
     return next;
 };
 
-/**
- * Update module lock on backend
- */
-export const updateModuleLock = async (key: LockableModuleKey, locked: boolean, meta?: { reason?: string }): Promise<ModuleLockState> => {
-    try {
-        const token = localStorage.getItem('token');
-        const url = getApiUrl(`/api/admin/module-locks/${key}`);
-        console.log('[ModuleLocks] Updating lock:', { key, locked, reason: meta?.reason, url });
-
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
-            body: JSON.stringify({ locked, reason: meta?.reason }),
-        });
-
-        console.log('[ModuleLocks] Update response status:', response.status);
-
-        if (response.ok) {
-            // Invalidate cache to force fresh fetch
-            locksCache = null;
-            lastFetchTime = 0;
-
-            // Return updated locks
-            const updatedLocks = await fetchModuleLocks();
-            console.log('[ModuleLocks] Lock updated successfully:', updatedLocks);
-            return updatedLocks;
-        } else {
-            const errorText = await response.text();
-            console.error('[ModuleLocks] Update failed:', response.status, errorText);
-        }
-    } catch (error) {
-        console.error('[ModuleLocks] Failed to update module lock on backend', error);
-    }
-
-    // Fallback to local update
-    console.log('[ModuleLocks] Using local fallback for update');
-    return setModuleLock(key, locked, meta);
-};
 export const setModuleLock = (key: LockableModuleKey, locked: boolean, meta?: { reason?: string; updatedBy?: string }): ModuleLockState => {
     const current = getModuleLocks();
     const next: ModuleLockState = {
