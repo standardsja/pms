@@ -37,9 +37,10 @@ module.exports = {
         },
         {
             name: 'pms-frontend',
-            script: './serve-frontend.mjs',
+            script: 'npm',
+            args: 'run dev',
             env: {
-                NODE_ENV: 'production',
+                NODE_ENV: 'development',
                 PORT: 5173,
             },
             // Process management
