@@ -63,8 +63,8 @@ router.get('/users', adminOnly, async (req: Request, res: Response) => {
 
         res.json(users);
     } catch (error) {
-        logger.error('Failed to fetch users', { error });
-        res.status(500).json({ success: false, message: 'Failed to fetch users' });
+        logger.error('Please try again later', { error });
+        res.status(500).json({ success: false, message: 'Please try again later' });
     }
 });
 
