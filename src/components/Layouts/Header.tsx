@@ -82,7 +82,6 @@ const Header = () => {
     // Set dashboard path based on centralized role detection
     const dashboardPath = getDashboardPath(detectedRoles, location.pathname);
 
-
     useEffect(() => {
         const selector = document.querySelector('ul.horizontal-menu a[href="' + window.location.pathname + '"]');
         if (selector) {
@@ -110,7 +109,7 @@ const Header = () => {
         return () => window.removeEventListener('storage', syncLocks);
     }, []);
 
-    const isRtl = useSelector((state: IRootState) => state.themeConfig.rtlClass) === 'rtl' ? true : false;
+    const isRtl = useSelector((state: IRootState) => state.themeConfig.rtlClass) === 'rtl';
 
     const themeConfig = useSelector((state: IRootState) => state.themeConfig);
 
