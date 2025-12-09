@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { logEvent } from '../../../utils/analytics';
 import { getApiUrl } from '../../../config/api';
 import { statsService, SystemStats } from '../../../services/statsService';
-import { fetchModuleLocks as getModuleLocks, type ModuleLockState } from '../../../utils/moduleLocks';
+import { getModuleLocks, type ModuleLockState } from '../../../utils/moduleLocks';
 
 type ModuleKey = 'pms' | 'ih' | 'committee' | 'budgeting' | 'audit' | 'prime' | 'datapoint' | 'maintenance' | 'asset' | 'ppm' | 'kb';
 
@@ -184,9 +184,6 @@ const Onboarding = () => {
 
         // analytics: page viewed
         logEvent('onboarding_viewed', { role: (userRoles && userRoles[0]) || 'unknown', force: forceOnboarding, hasLast: !!last, done });
-
-        // Sync locks from localStorage
-        setModuleLocks(getModuleLocks());
     }, [dispatch, isCommittee, navigate, query, forceOnboarding, t, userRoles]);
 
     const modules = useMemo<ModuleDef[]>(() => {
