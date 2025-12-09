@@ -484,8 +484,9 @@ router.get('/audit-log', adminOnly, async (req: Request, res: Response) => {
 
 /**
  * GET /api/admin/module-locks - Get all module lock states
+ * Available to all authenticated users (not just admins) so they can see current lock states
  */
-router.get('/module-locks', adminOnly, async (req: Request, res: Response) => {
+router.get('/module-locks', authenticate, async (req: Request, res: Response) => {
     try {
         const locks = await prisma.systemConfig.findUnique({
             where: { key: 'MODULE_LOCKS' },

@@ -65,12 +65,16 @@ export const fetchModuleLocks = async (): Promise<ModuleLockState> => {
 
     // Return cached value if fresh
     if (locksCache && now - lastFetchTime < CACHE_TTL_MS) {
+        console.log('[ModuleLocks] Returning cached locks');
         return locksCache;
     }
 
     try {
         const token = localStorage.getItem('token');
-        const response = await fetch(getApiUrl('/api/admin/module-locks'), {
+        const url = getApiUrl('/api/admin/module-locks');
+        console.log('[ModuleLocks] Fetching from:', url);
+
+        const response = await fetch(url, {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
@@ -78,14 +82,20 @@ export const fetchModuleLocks = async (): Promise<ModuleLockState> => {
             },
         });
 
+        console.log('[ModuleLocks] Response status:', response.status);
+
         if (response.ok) {
             const result = await response.json();
+            console.log('[ModuleLocks] Received locks from API:', result.data);
             locksCache = result.data ? mergeWithDefaults(result.data) : mergeWithDefaults(null);
             lastFetchTime = now;
             return locksCache;
+        } else {
+            const errorText = await response.text();
+            console.error('[ModuleLocks] API error:', response.status, errorText);
         }
     } catch (error) {
-        console.warn('Failed to fetch module locks from API, using local cache', error);
+        console.error('[ModuleLocks] Failed to fetch module locks from API, using local cache', error);
     }
 
     // Fallback to localStorage if API fails
@@ -94,12 +104,14 @@ export const fetchModuleLocks = async (): Promise<ModuleLockState> => {
         if (raw) {
             const parsed = JSON.parse(raw) as Partial<ModuleLockState>;
             locksCache = mergeWithDefaults(parsed);
+            console.log('[ModuleLocks] Using localStorage fallback');
             return locksCache;
         }
     } catch {
         /* ignore */
     }
 
+    console.log('[ModuleLocks] Using default locks');
     locksCache = mergeWithDefaults(null);
     return locksCache;
 };
@@ -130,7 +142,10 @@ const persistModuleLocks = (next: ModuleLockState): ModuleLockState => {
 export const updateModuleLock = async (key: LockableModuleKey, locked: boolean, meta?: { reason?: string }): Promise<ModuleLockState> => {
     try {
         const token = localStorage.getItem('token');
-        const response = await fetch(getApiUrl(`/api/admin/module-locks/${key}`), {
+        const url = getApiUrl(`/api/admin/module-locks/${key}`);
+        console.log('[ModuleLocks] Updating lock:', { key, locked, reason: meta?.reason, url });
+
+        const response = await fetch(url, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -139,22 +154,29 @@ export const updateModuleLock = async (key: LockableModuleKey, locked: boolean, 
             body: JSON.stringify({ locked, reason: meta?.reason }),
         });
 
+        console.log('[ModuleLocks] Update response status:', response.status);
+
         if (response.ok) {
             // Invalidate cache to force fresh fetch
             locksCache = null;
             lastFetchTime = 0;
 
             // Return updated locks
-            return await fetchModuleLocks();
+            const updatedLocks = await fetchModuleLocks();
+            console.log('[ModuleLocks] Lock updated successfully:', updatedLocks);
+            return updatedLocks;
+        } else {
+            const errorText = await response.text();
+            console.error('[ModuleLocks] Update failed:', response.status, errorText);
         }
     } catch (error) {
-        console.error('Failed to update module lock on backend', error);
+        console.error('[ModuleLocks] Failed to update module lock on backend', error);
     }
 
     // Fallback to local update
+    console.log('[ModuleLocks] Using local fallback for update');
     return setModuleLock(key, locked, meta);
 };
-
 export const setModuleLock = (key: LockableModuleKey, locked: boolean, meta?: { reason?: string; updatedBy?: string }): ModuleLockState => {
     const current = getModuleLocks();
     const next: ModuleLockState = {
