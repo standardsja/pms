@@ -443,56 +443,69 @@ router.get(
         const authenticatedReq = req as AuthenticatedRequest;
         const userId = authenticatedReq.user.sub;
 
-        // Get user's submitted ideas count
-        const ideasSubmitted = await prisma.idea.count({
-            where: { submittedBy: userId },
-        });
+        try {
+            // Get user's submitted ideas count
+            const ideasSubmitted = await prisma.idea.count({
+                where: { submittedBy: userId },
+            });
 
-        // Get user's approved ideas count
-        const ideasApproved = await prisma.idea.count({
-            where: {
-                submittedBy: userId,
-                status: { in: ['APPROVED', 'PROMOTED_TO_PROJECT'] },
-            },
-        });
-
-        // Get user's total votes received
-        const votesData = await prisma.vote.aggregate({
-            where: {
-                idea: {
+            // Get user's approved ideas count
+            const ideasApproved = await prisma.idea.count({
+                where: {
                     submittedBy: userId,
+                    status: { in: ['APPROVED', 'PROMOTED_TO_PROJECT'] },
                 },
-            },
-            _count: true,
-            _sum: {
-                voteType: true,
-            },
-        });
+            });
 
-        // Get user's ideas under review (for committee members)
-        const isCommittee = authenticatedReq.user.roles?.includes('INNOVATION_COMMITTEE');
-        const ideasUnderReview = isCommittee
-            ? await prisma.idea.count({
-                  where: { status: 'PENDING_REVIEW' },
-              })
-            : 0;
+            // Get user's total votes received
+            const votesData = await prisma.vote.aggregate({
+                where: {
+                    idea: {
+                        submittedBy: userId,
+                    },
+                },
+                _count: true,
+                _sum: {
+                    voteType: true,
+                },
+            });
 
-        // Get user's promoted ideas count
-        const ideasPromoted = await prisma.idea.count({
-            where: {
-                submittedBy: userId,
-                status: 'PROMOTED_TO_PROJECT',
-            },
-        });
+            // Get user's ideas under review (for committee members)
+            const isCommittee = authenticatedReq.user.roles?.includes('INNOVATION_COMMITTEE');
+            const ideasUnderReview = isCommittee
+                ? await prisma.idea.count({
+                      where: { status: 'PENDING_REVIEW' },
+                  })
+                : 0;
 
-        res.json({
-            ideasSubmitted,
-            ideasApproved,
-            votesReceived: votesData._count || 0,
-            ideasUnderReview,
-            ideasPromoted,
-            isCommittee,
-        });
+            // Get user's promoted ideas count
+            const ideasPromoted = await prisma.idea.count({
+                where: {
+                    submittedBy: userId,
+                    status: 'PROMOTED_TO_PROJECT',
+                },
+            });
+
+            res.json({
+                ideasSubmitted,
+                ideasApproved,
+                votesReceived: votesData._count || 0,
+                ideasUnderReview,
+                ideasPromoted,
+                isCommittee,
+            });
+        } catch (error) {
+            logger.error('[Innovation Stats] Error fetching stats:', error);
+            // Return graceful empty stats instead of error
+            res.json({
+                ideasSubmitted: 0,
+                ideasApproved: 0,
+                votesReceived: 0,
+                ideasUnderReview: 0,
+                ideasPromoted: 0,
+                isCommittee: false,
+            });
+        }
     })
 );
 
