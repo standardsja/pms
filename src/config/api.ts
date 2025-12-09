@@ -1,6 +1,6 @@
 /**
  * Centralized API configuration
- * Reads from VITE_API_URL environment variable, falls back to heron:4000
+ * Uses relative paths in development to leverage Vite proxy
  */
 
 export function getApiBaseUrl(): string {
@@ -15,9 +15,9 @@ export function getApiBaseUrl(): string {
     // Check if we're in development mode
     const isDev = import.meta.env.DEV || import.meta.env.MODE === 'development';
 
-    // In development, default to local API
+    // In development, use empty string for relative paths (Vite proxy will handle it)
     if (isDev) {
-        return 'http://localhost:4000';
+        return '';
     }
 
     // In browsers, prefer same-origin to play nicely with reverse proxies
@@ -26,16 +26,22 @@ export function getApiBaseUrl(): string {
     }
 
     // Last-resort production fallback
-    return 'http://heron:4000';
+    return '';
 }
 
 /**
  * Build full API URL for a given path
  * @param path - API path (e.g., '/api/ideas')
- * @returns Full URL
+ * @returns Full URL or relative path (in dev mode)
  */
 export function getApiUrl(path: string): string {
     const base = getApiBaseUrl();
     const cleanPath = path.startsWith('/') ? path : `/${path}`;
+
+    // If base is empty, return just the path (relative URL)
+    if (!base) {
+        return cleanPath;
+    }
+
     return `${base}${cleanPath}`;
 }
