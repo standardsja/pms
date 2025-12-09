@@ -61,11 +61,34 @@ const uploadProfilePhoto = multer({
 });
 
 // Rate limiting for auth endpoints
+// Configurable via environment variables:
+// - AUTH_RATE_LIMIT_MAX: number of allowed attempts (default: 10)
+// - AUTH_RATE_LIMIT_WINDOW_MS: window in ms (default: 15 minutes)
+// - AUTH_RATE_LIMIT_WHITELIST: comma-separated list of IPs to skip limiting (dev/admin)
+const authRateMax = parseInt(process.env.AUTH_RATE_LIMIT_MAX || '10', 10);
+const authRateWindow = parseInt(process.env.AUTH_RATE_LIMIT_WINDOW_MS || String(15 * 60 * 1000), 10);
+const authWhitelist = (process.env.AUTH_RATE_LIMIT_WHITELIST || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+
 const authLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 10, // 10 attempts per window (increased from 5 for testing)
+    windowMs: authRateWindow,
+    max: authRateMax,
     message: 'Too many authentication attempts, please try again later.',
     skipSuccessfulRequests: true,
+    standardHeaders: true,
+    legacyHeaders: false,
+    // Allow skipping for whitelisted IPs (useful for dev/admin hosts)
+    skip: (req) => {
+        try {
+            const ip = req.ip || (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim();
+            if (!ip) return false;
+            return authWhitelist.includes(ip);
+        } catch {
+            return false;
+        }
+    },
 });
 
 // Login endpoint - Unified LDAP + database authentication with hybrid role sync

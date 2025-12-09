@@ -95,7 +95,8 @@ class LDAPService {
             const { searchEntries } = await this.client!.search(config.LDAP.searchDN, {
                 filter: `(userPrincipalName=${sanitizedEmail})`,
                 scope: 'sub',
-                attributes: ['dn', 'userPrincipalName', 'cn', 'displayName', 'mail', 'department', 'memberOf', 'thumbnailPhoto'],
+                // Include sAMAccountName and userPrincipalName to support bind fallbacks
+                attributes: ['dn', 'userPrincipalName', 'sAMAccountName', 'cn', 'displayName', 'mail', 'department', 'memberOf', 'thumbnailPhoto'],
             });
 
             if (searchEntries.length === 0) {
@@ -140,7 +141,48 @@ class LDAPService {
             await this.client!.unbind();
 
             // Step 4: Try to bind as the user to verify password
-            await this.client!.bind(userDN, password);
+            // Some AD deployments disallow binding with DN; attempt fallbacks:
+            // 1) bind with user DN
+            // 2) bind with userPrincipalName (UPN / email)
+            // 3) bind with sAMAccountName (if available)
+            const upn = (entry.userPrincipalName as string) || (entry.mail as string) || sanitizedEmail;
+            const sam = entry.sAMAccountName as string | undefined;
+
+            let bindSucceeded = false;
+            const bindErrors: string[] = [];
+
+            try {
+                await this.client!.bind(userDN, password);
+                bindSucceeded = true;
+                logger.info('LDAP user authenticated by DN bind', { email: sanitizedEmail, dn: userDN });
+            } catch (e: any) {
+                bindErrors.push(`DN bind failed: ${e.message}`);
+            }
+
+            if (!bindSucceeded) {
+                try {
+                    await this.client!.bind(upn, password);
+                    bindSucceeded = true;
+                    logger.info('LDAP user authenticated by UPN bind', { email: sanitizedEmail, upn });
+                } catch (e: any) {
+                    bindErrors.push(`UPN bind failed: ${e.message}`);
+                }
+            }
+
+            if (!bindSucceeded && sam) {
+                try {
+                    await this.client!.bind(sam, password);
+                    bindSucceeded = true;
+                    logger.info('LDAP user authenticated by sAMAccountName bind', { email: sanitizedEmail, sAMAccountName: sam });
+                } catch (e: any) {
+                    bindErrors.push(`sAMAccountName bind failed: ${e.message}`);
+                }
+            }
+
+            if (!bindSucceeded) {
+                logger.warn('LDAP bind attempts failed', { email: sanitizedEmail, attempts: bindErrors });
+                throw new UnauthorizedError('Invalid credentials');
+            }
 
             logger.info('LDAP user authenticated successfully', {
                 email: sanitizedEmail,
