@@ -87,6 +87,31 @@ const Profile = () => {
                     }
                     setProfileData(data);
                     console.log('[PROFILE] Profile state updated');
+
+                    // Fetch Innovation Hub stats
+                    try {
+                        const statsResponse = await fetch(getApiUrl('/api/auth/me/innovation-stats'), {
+                            headers: {
+                                Authorization: `Bearer ${token}`,
+                                'Content-Type': 'application/json',
+                            },
+                            cache: 'no-store',
+                        });
+
+                        if (statsResponse.ok) {
+                            const statsData = await statsResponse.json();
+                            console.log('[PROFILE] Innovation stats loaded:', statsData);
+                            setStats((prev: any) => ({
+                                ...prev,
+                                ...statsData,
+                            }));
+                        } else {
+                            console.warn('[PROFILE] Could not fetch innovation stats:', statsResponse.status);
+                        }
+                    } catch (statsError) {
+                        console.warn('[PROFILE] Error fetching innovation stats:', statsError);
+                        // Continue without stats - not a critical error
+                    }
                 } else {
                     console.error('[PROFILE] Failed to fetch profile data:', meResponse.status);
                 }
@@ -804,7 +829,7 @@ const Profile = () => {
                             {!roleCodes.includes('PROCUREMENT_MANAGER') && !roleCodes.includes('PROCUREMENT_OFFICER') && (
                                 <>
                                     <Link
-                                        to="/innovation-hub/submit-idea"
+                                        to="/innovation/ideas/new"
                                         className="flex items-center gap-3 px-4 py-3 bg-purple-500/10 dark:bg-purple-500/20 border border-purple-500/20 dark:border-purple-500/30 rounded-lg hover:bg-purple-500/20 dark:hover:bg-purple-500/30 transition-all group cursor-pointer"
                                     >
                                         <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-purple-500/30 group-hover:bg-purple-500/40 transition-colors">
@@ -816,7 +841,7 @@ const Profile = () => {
                                         </div>
                                     </Link>
                                     <Link
-                                        to="/innovation-hub/browse-ideas"
+                                        to="/innovation/ideas/browse"
                                         className="flex items-center gap-3 px-4 py-3 bg-blue-500/10 dark:bg-blue-500/20 border border-blue-500/20 dark:border-blue-500/30 rounded-lg hover:bg-blue-500/20 dark:hover:bg-blue-500/30 transition-all group cursor-pointer"
                                     >
                                         <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-blue-500/30 group-hover:bg-blue-500/40 transition-colors">
@@ -828,7 +853,7 @@ const Profile = () => {
                                         </div>
                                     </Link>
                                     <Link
-                                        to="/innovation-hub/my-ideas"
+                                        to="/innovation/ideas/mine"
                                         className="flex items-center gap-3 px-4 py-3 bg-green-500/10 dark:bg-green-500/20 border border-green-500/20 dark:border-green-500/30 rounded-lg hover:bg-green-500/20 dark:hover:bg-green-500/30 transition-all group cursor-pointer"
                                     >
                                         <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-green-500/30 group-hover:bg-green-500/40 transition-colors">
@@ -845,7 +870,7 @@ const Profile = () => {
                             {/* Committee Actions */}
                             {roleCodes.includes('INNOVATION_COMMITTEE') && (
                                 <Link
-                                    to="/innovation-hub/committee-dashboard"
+                                    to="/innovation/committee/dashboard"
                                     className="flex items-center gap-3 px-4 py-3 bg-orange-500/10 dark:bg-orange-500/20 border border-orange-500/20 dark:border-orange-500/30 rounded-lg hover:bg-orange-500/20 dark:hover:bg-orange-500/30 transition-all group cursor-pointer"
                                 >
                                     <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-orange-500/30 group-hover:bg-orange-500/40 transition-colors">
@@ -875,7 +900,7 @@ const Profile = () => {
                                     </Link>
 
                                     <Link
-                                        to="/apps/procurement-manager/assign-requests"
+                                        to="/procurement/manager/assign"
                                         className="flex items-center gap-3 px-4 py-3 bg-success/10 dark:bg-success/20 border border-success/20 dark:border-success/30 rounded-lg hover:bg-success/20 dark:hover:bg-success/30 transition-all group cursor-pointer"
                                     >
                                         <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-success/30 group-hover:bg-success/40 transition-colors">
@@ -887,7 +912,7 @@ const Profile = () => {
                                         </div>
                                     </Link>
                                     <Link
-                                        to="/apps/procurement-manager/load-balancing"
+                                        to="/procurement/manager/settings"
                                         className="flex items-center gap-3 px-4 py-3 bg-warning/10 dark:bg-warning/20 border border-warning/20 dark:border-warning/30 rounded-lg hover:bg-warning/20 dark:hover:bg-warning/30 transition-all group cursor-pointer"
                                     >
                                         <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-warning/30 group-hover:bg-warning/40 transition-colors">
@@ -904,7 +929,7 @@ const Profile = () => {
                             {/* Evaluation Committee Actions */}
                             {roleCodes.includes('EVALUATION_COMMITTEE') && (
                                 <Link
-                                    to="/apps/procurement-manager/evaluations"
+                                    to="/procurement/manager/evaluations-to-validate"
                                     className="flex items-center gap-3 px-4 py-3 bg-secondary/10 dark:bg-secondary/20 border border-secondary/20 dark:border-secondary/30 rounded-lg hover:bg-secondary/20 dark:hover:bg-secondary/30 transition-all group cursor-pointer"
                                 >
                                     <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-secondary/30 group-hover:bg-secondary/40 transition-colors">
@@ -917,21 +942,23 @@ const Profile = () => {
                                 </Link>
                             )}
 
-                            {/* Common Request Action */}
-                            {!roleCodes.includes('PROCUREMENT_MANAGER') && !roleCodes.includes('PROCUREMENT_OFFICER') && (
-                                <Link
-                                    to="/apps/requests/new"
-                                    className="flex items-center gap-3 px-4 py-3 bg-primary/10 dark:bg-primary/20 border border-primary/20 dark:border-primary/30 rounded-lg hover:bg-primary/20 dark:hover:bg-primary/30 transition-all group cursor-pointer"
-                                >
-                                    <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary/30 group-hover:bg-primary/40 transition-colors">
-                                        <IconPlus className="w-5 h-5 text-primary" />
-                                    </div>
-                                    <div className="flex-1">
-                                        <p className="text-sm font-semibold text-[#515365] dark:text-white-light">Create Request</p>
-                                        <p className="text-xs text-white-dark mt-0.5">Submit a procurement request</p>
-                                    </div>
-                                </Link>
-                            )}
+                            {/* Common Request Action - Only for users with actual procurement role */}
+                            {(roleCodes.includes('DEPARTMENT_HEAD') || roleCodes.includes('EXECUTIVE_DIRECTOR')) &&
+                                !roleCodes.includes('INNOVATION_COMMITTEE') &&
+                                !roleCodes.includes('EVALUATION_COMMITTEE') && (
+                                    <Link
+                                        to="/apps/requests/new"
+                                        className="flex items-center gap-3 px-4 py-3 bg-primary/10 dark:bg-primary/20 border border-primary/20 dark:border-primary/30 rounded-lg hover:bg-primary/20 dark:hover:bg-primary/30 transition-all group cursor-pointer"
+                                    >
+                                        <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary/30 group-hover:bg-primary/40 transition-colors">
+                                            <IconPlus className="w-5 h-5 text-primary" />
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="text-sm font-semibold text-[#515365] dark:text-white-light">Create Request</p>
+                                            <p className="text-xs text-white-dark mt-0.5">Submit a procurement request</p>
+                                        </div>
+                                    </Link>
+                                )}
 
                             <div className="h-px bg-[#ebedf2] dark:bg-[#3b5998] my-3"></div>
 

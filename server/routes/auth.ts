@@ -435,6 +435,67 @@ router.get(
     })
 );
 
+// Get user's Innovation Hub profile stats
+router.get(
+    '/me/innovation-stats',
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+        const authenticatedReq = req as AuthenticatedRequest;
+        const userId = authenticatedReq.user.sub;
+
+        // Get user's submitted ideas count
+        const ideasSubmitted = await prisma.idea.count({
+            where: { submittedBy: userId },
+        });
+
+        // Get user's approved ideas count
+        const ideasApproved = await prisma.idea.count({
+            where: {
+                submittedBy: userId,
+                status: { in: ['APPROVED', 'PROMOTED_TO_PROJECT'] },
+            },
+        });
+
+        // Get user's total votes received
+        const votesData = await prisma.vote.aggregate({
+            where: {
+                idea: {
+                    submittedBy: userId,
+                },
+            },
+            _count: true,
+            _sum: {
+                voteType: true,
+            },
+        });
+
+        // Get user's ideas under review (for committee members)
+        const isCommittee = authenticatedReq.user.roles?.includes('INNOVATION_COMMITTEE');
+        const ideasUnderReview = isCommittee
+            ? await prisma.idea.count({
+                  where: { status: 'PENDING_REVIEW' },
+              })
+            : 0;
+
+        // Get user's promoted ideas count
+        const ideasPromoted = await prisma.idea.count({
+            where: {
+                submittedBy: userId,
+                status: 'PROMOTED_TO_PROJECT',
+            },
+        });
+
+        res.json({
+            ideasSubmitted,
+            ideasApproved,
+            votesReceived: votesData._count || 0,
+            ideasUnderReview,
+            ideasPromoted,
+            isCommittee,
+        });
+    })
+);
+
 // Simple LDAP test endpoint (development helper) - reports LDAP enabled and connection status
 router.get(
     '/test-connection',
