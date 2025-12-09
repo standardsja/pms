@@ -85,6 +85,10 @@ const Sidebar = () => {
         isRequester,
     } = detectedRoles;
 
+    // Force committee sidebar if route matches /innovation/committee/*
+    const isCommitteeRoute = location.pathname.startsWith('/innovation/committee/');
+    const showCommitteeSidebar = isInnovationCommittee || isCommitteeRoute;
+
     const isDeptManagerHere = isDeptManagerFor((currentUser as any)?.department?.code || '');
 
     // Determine if we're in Innovation Hub
@@ -499,8 +503,8 @@ const Sidebar = () => {
                                 </>
                             )}
 
-                            {/* Show INNOVATION_COMMITTEE section */}
-                            {isInnovationCommittee && !committeeLocked && (
+                            {/* Show INNOVATION_COMMITTEE section (forced by route or role) */}
+                            {showCommitteeSidebar && !committeeLocked && (
                                 // Innovation Committee Menu
                                 <>
                                     <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
@@ -556,7 +560,7 @@ const Sidebar = () => {
                             )}
 
                             {/* Show INNOVATION_HUB section when in innovation context and not a committee member */}
-                            {!isInnovationCommittee && !isEvaluationCommittee && isInnovationHub && !innovationLocked && (
+                            {!showCommitteeSidebar && !isEvaluationCommittee && isInnovationHub && !innovationLocked && (
                                 // Innovation Hub Menu
                                 <>
                                     <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
