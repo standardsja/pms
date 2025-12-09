@@ -5,7 +5,7 @@ module.exports = {
             script: 'npm',
             args: 'run server:dev',
             env: {
-                NODE_ENV: 'production',
+                NODE_ENV: 'development',
                 PORT: 4000,
             },
             env_production: {
