@@ -119,24 +119,33 @@ export default function IdeaDetails() {
     }
 
     if (error || !idea) {
+        const is404 = error?.includes('404') || error?.includes('not found');
         return (
             <div className="panel text-center py-16">
-                <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-red-100 dark:bg-red-900/20 mb-4">
-                    <svg className="w-10 h-10 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className={`inline-flex items-center justify-center w-20 h-20 rounded-full mb-4 ${is404 ? 'bg-gray-100 dark:bg-gray-800' : 'bg-red-100 dark:bg-red-900/20'}`}>
+                    <svg className={`w-10 h-10 ${is404 ? 'text-gray-400' : 'text-red-600 dark:text-red-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path
                             strokeLinecap="round"
                             strokeLinejoin="round"
                             strokeWidth={2}
-                            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                            d={
+                                is404
+                                    ? 'M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z'
+                                    : 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z'
+                            }
                         />
                     </svg>
                 </div>
-                <h2 className="text-2xl font-bold mb-2 text-gray-900 dark:text-white">{error ? 'Unable to Load Idea' : t('innovation.view.empty.title')}</h2>
+                <h2 className="text-2xl font-bold mb-2 text-gray-900 dark:text-white">{is404 ? 'Idea Not Found' : error ? 'Unable to Load Idea' : t('innovation.view.empty.title')}</h2>
                 <p className="mb-6 text-gray-600 dark:text-gray-400 max-w-md mx-auto">
-                    {error ? 'We encountered a problem loading this idea. It may not exist or there may be a connection issue.' : t('innovation.view.empty.message')}
+                    {is404
+                        ? "This idea doesn't exist or may have been removed. It might have been deleted or you may not have permission to view it."
+                        : error
+                        ? 'We encountered a problem loading this idea. Please check your connection and try again.'
+                        : t('innovation.view.empty.message')}
                 </p>
                 <div className="flex items-center justify-center gap-3">
-                    {error && (
+                    {error && !is404 && (
                         <button onClick={() => loadIdea()} className="btn btn-primary">
                             <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path
@@ -150,7 +159,10 @@ export default function IdeaDetails() {
                         </button>
                     )}
                     <Link to="/innovation/ideas/browse" className="btn btn-outline-primary">
-                        {t('innovation.browse.viewDetails', { defaultValue: 'Back to Ideas' })}
+                        <svg className="w-5 h-5 ltr:mr-2 rtl:ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                        </svg>
+                        Browse All Ideas
                     </Link>
                 </div>
             </div>

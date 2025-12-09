@@ -66,7 +66,8 @@ const InnovationDashboard = () => {
             setRecentIdeas(ideas.slice(0, 3));
         } catch (error) {
             console.error('[InnovationDashboard] Error loading data:', error);
-            // Keep default zeros on error - don't show error message for dashboard stats
+            // Keep default zeros on error - silent fail for dashboard stats
+            // User can still access all features, stats just show 0
         } finally {
             setIsLoading(false);
         }

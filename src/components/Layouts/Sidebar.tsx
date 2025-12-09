@@ -5,7 +5,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { toggleSidebar } from '../../store/themeConfigSlice';
 import AnimateHeight from 'react-animate-height';
 import { IRootState } from '../../store';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import IconCaretsDown from '../Icon/IconCaretsDown';
 import IconCaretDown from '../Icon/IconCaretDown';
 import IconMenuDashboard from '../Icon/Menu/IconMenuDashboard';
@@ -51,7 +51,7 @@ import IconGear from '../Icon/IconGear';
 const Sidebar = () => {
     const [currentMenu, setCurrentMenu] = useState<string>('');
     const [errorSubMenu, setErrorSubMenu] = useState(false);
-    const [moduleLocks, setModuleLocks] = useState<ModuleLockState>(getModuleLocks());
+    const [moduleLocks, setModuleLocks] = useState<ModuleLockState>(() => getModuleLocks());
     const themeConfig = useSelector((state: IRootState) => state.themeConfig);
     const semidark = useSelector((state: IRootState) => state.themeConfig.semidark);
     const location = useLocation();
@@ -59,7 +59,8 @@ const Sidebar = () => {
     const { t } = useTranslation();
 
     // Get current user to check role
-    const currentUser = getUser();
+    // Memoize to prevent infinite render loops
+    const currentUser = useMemo(() => getUser(), []);
     const userRoles = currentUser?.roles || (currentUser?.role ? [currentUser.role] : []);
 
     // Use centralized role detection utility

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { IRootState } from '../../store';
@@ -49,9 +49,10 @@ const Header = () => {
     const dispatch = useDispatch();
 
     // Current user & role derivations (align with Sidebar logic)
-    const currentUser = getUser();
+    // Memoize to prevent infinite render loops
+    const currentUser = useMemo(() => getUser(), []);
     const [profileImage, setProfileImage] = useState<string | null>(null);
-    const [moduleLocks, setModuleLocks] = useState<ModuleLockState>(getModuleLocks());
+    const [moduleLocks, setModuleLocks] = useState<ModuleLockState>(() => getModuleLocks());
     const userRoles = currentUser?.roles || (currentUser?.role ? [currentUser.role] : []);
 
     // Use centralized role detection utility

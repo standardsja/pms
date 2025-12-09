@@ -77,18 +77,22 @@ const VoteOnIdeas = () => {
                         attachmentsCount: (idea as any).attachments?.length || 0,
                     }))
                 );
-            } catch (error) {
+            } catch (error: any) {
                 console.error('[VoteOnIdeas] Error loading ideas:', error);
                 // Only show error on first load, not background polling
                 if (!ideas.length) {
+                    const errorMessage = error?.message || 'Unknown error';
+                    const isNetworkError = errorMessage.toLowerCase().includes('network') || errorMessage.toLowerCase().includes('fetch');
+
                     Swal.fire({
                         icon: 'error',
-                        title: 'Unable to Load Ideas',
-                        text: 'We encountered a problem loading ideas. Please check your connection and try again.',
+                        title: isNetworkError ? 'Connection Problem' : 'Unable to Load Ideas',
+                        text: isNetworkError ? 'Please check your internet connection and try again.' : 'We encountered a problem loading voting options. Please try refreshing the page.',
                         toast: true,
                         position: 'bottom-end',
                         showConfirmButton: false,
-                        timer: 3500,
+                        timer: 4000,
+                        timerProgressBar: true,
                     });
                 }
             }

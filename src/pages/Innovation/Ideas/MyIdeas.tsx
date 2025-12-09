@@ -126,18 +126,22 @@ const MyIdeas = () => {
                     };
                 })
             );
-        } catch (error) {
+        } catch (error: any) {
             console.error('[MyIdeas] Error loading ideas:', error);
             // Only show error on initial load, not silent background refreshes
             if (!silent && !ideas.length) {
+                const errorMessage = error?.message || 'Unknown error';
+                const isNetworkError = errorMessage.toLowerCase().includes('network') || errorMessage.toLowerCase().includes('fetch');
+
                 Swal.fire({
                     icon: 'error',
-                    title: 'Unable to Load Ideas',
-                    text: 'We encountered a problem loading your ideas. Please try again.',
+                    title: isNetworkError ? 'Connection Problem' : 'Unable to Load Ideas',
+                    text: isNetworkError ? 'Please check your internet connection and try again.' : 'We encountered a problem loading your ideas. Please try again.',
                     toast: true,
                     position: 'bottom-end',
-                    timer: 3500,
+                    timer: 4000,
                     showConfirmButton: false,
+                    timerProgressBar: true,
                 });
             }
         } finally {
