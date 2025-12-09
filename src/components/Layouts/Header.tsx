@@ -48,7 +48,7 @@ const Header = () => {
     const navigate = useNavigate();
     const dispatch = useDispatch();
 
-    // Current user & role derivations
+    // Current user & role derivations (align with Sidebar logic)
     const currentUser = getUser();
     const [profileImage, setProfileImage] = useState<string | null>(null);
     const [moduleLocks, setModuleLocks] = useState<ModuleLockState>(getModuleLocks());
