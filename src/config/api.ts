@@ -12,10 +12,21 @@ export function getApiBaseUrl(): string {
         return envUrl.replace(/\/$/, '');
     }
 
-    // Fallback: use localhost for development, heron for production
     // Check if we're in development mode
     const isDev = import.meta.env.DEV || import.meta.env.MODE === 'development';
-    return isDev ? 'http://localhost:4000' : 'http://heron:4000';
+
+    // In development, default to local API
+    if (isDev) {
+        return 'http://localhost:4000';
+    }
+
+    // In browsers, prefer same-origin to play nicely with reverse proxies
+    if (typeof window !== 'undefined' && window.location?.origin) {
+        return window.location.origin.replace(/\/$/, '');
+    }
+
+    // Last-resort production fallback
+    return 'http://heron:4000';
 }
 
 /**
