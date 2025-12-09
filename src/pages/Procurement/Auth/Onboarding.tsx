@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { logEvent } from '../../../utils/analytics';
 import { getApiUrl } from '../../../config/api';
 import { statsService, SystemStats } from '../../../services/statsService';
-import { fetchModuleLocks as getModuleLocks, type ModuleLockState } from '../../../utils/moduleLocks';
+import { getModuleLocks, type ModuleLockState } from '../../../utils/moduleLocks';
 
 type ModuleKey = 'pms' | 'ih' | 'committee' | 'budgeting' | 'audit' | 'prime' | 'datapoint' | 'maintenance' | 'asset' | 'ppm' | 'kb';
 
