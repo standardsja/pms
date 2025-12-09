@@ -37,7 +37,7 @@ import { errorHandler, notFoundHandler, asyncHandler, NotFoundError, BadRequestE
 import statsRouter from './routes/stats';
 import combineRouter from './routes/combine';
 import { authRoutes } from './routes/auth';
-import adminRouter from './routes/admin';
+import { adminRoutes as adminRouter } from './routes/admin';
 
 const app = express();
 const httpServer = http.createServer(app);
