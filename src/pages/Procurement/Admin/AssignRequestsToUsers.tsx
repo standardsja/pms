@@ -23,6 +23,7 @@ const AssignRequestsToUsers = () => {
     const [selectedStatus, setSelectedStatus] = useState<string>('');
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
+    const [userSearch, setUserSearch] = useState<string>('');
 
     useEffect(() => {
         loadInitialData();
@@ -100,6 +101,25 @@ const AssignRequestsToUsers = () => {
             </div>
         );
     }
+
+    // compute filtered users by search term
+    const filteredUsers = users.filter((u) => {
+        const q = userSearch.trim().toLowerCase();
+        if (!q) return true;
+        const rolesStr = (u.roles || [])
+            .map((r) => r.role?.name || '')
+            .join(' ')
+            .toLowerCase();
+        return (
+            String(u.name || u.email || '')
+                ?.toLowerCase()
+                .includes(q) ||
+            String(u.email || '')
+                ?.toLowerCase()
+                .includes(q) ||
+            rolesStr.includes(q)
+        );
+    });
 
     return (
         <div className="space-y-6">
@@ -199,6 +219,29 @@ const AssignRequestsToUsers = () => {
                             <span className="badge bg-primary text-white text-xs">{users.length}</span>
                         </div>
 
+                        {/* Search + Status Selector */}
+                        <div className="mb-4">
+                            <div className="relative mb-3">
+                                <input
+                                    type="text"
+                                    placeholder="Search team members by name, email or role..."
+                                    value={userSearch}
+                                    onChange={(e) => setUserSearch(e.target.value)}
+                                    className="form-input w-full pr-10"
+                                />
+                                {userSearch && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setUserSearch('')}
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                                        aria-label="Clear search"
+                                    >
+                                        ✕
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
                         {/* Status Selector */}
                         {selectedRequest && (
                             <div className="mb-4 p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/40">
@@ -224,14 +267,14 @@ const AssignRequestsToUsers = () => {
                         )}
 
                         {/* Users */}
-                        {users.length === 0 ? (
+                        {filteredUsers.length === 0 ? (
                             <div className="rounded border border-dashed border-white-light dark:border-dark p-12 text-center text-gray-500 dark:text-gray-400">
                                 <div className="text-4xl mb-2">👥</div>
                                 <p className="font-semibold">No users found</p>
                             </div>
                         ) : (
                             <div className="space-y-2 max-h-[350px] overflow-y-auto pr-2">
-                                {users.map((user) => {
+                                {filteredUsers.map((user) => {
                                     const userRoles = (user.roles || []).map((r) => r.role?.name).filter(Boolean);
                                     const canAssign = selectedRequest && !assigning;
 
