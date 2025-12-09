@@ -6,6 +6,7 @@ import { setPageTitle } from '../../../store/themeConfigSlice';
 import { useEffect, useState } from 'react';
 import { getToken, getUser } from '../../../utils/auth';
 import { getApiUrl } from '../../../config/api';
+import { computeRoleContext, ProfilePageVisibility, getPerformanceMetrics, getRoleSpecificAccess } from '../../../utils/roleVisibilityHelper';
 import IconPencilPaper from '../../../components/Icon/IconPencilPaper';
 import IconCalendar from '../../../components/Icon/IconCalendar';
 import IconMapPin from '../../../components/Icon/IconMapPin';
@@ -34,6 +35,7 @@ const Profile = () => {
     const [recentActivities, setRecentActivities] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [uploadingPhoto, setUploadingPhoto] = useState(false);
+    const [roleContext, setRoleContext] = useState<any>(null);
     const [stats, setStats] = useState<any>({
         // Procurement stats
         evaluationsCompleted: 0,
@@ -43,6 +45,9 @@ const Profile = () => {
         ideasSubmitted: 0,
         ideasApproved: 0,
         votesReceived: 0,
+        ideasUnderReview: 0,
+        ideasPromoted: 0,
+        isCommittee: false,
     });
 
     useEffect(() => {
@@ -112,6 +117,10 @@ const Profile = () => {
                         console.warn('[PROFILE] Error fetching innovation stats:', statsError);
                         // Continue without stats - not a critical error
                     }
+
+                    // Compute role context for visibility rules
+                    const context = computeRoleContext(data.roles);
+                    setRoleContext(context);
                 } else {
                     console.error('[PROFILE] Failed to fetch profile data:', meResponse.status);
                 }
