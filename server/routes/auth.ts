@@ -71,7 +71,7 @@ const authLimiter = rateLimit({
 // Login endpoint - Unified LDAP + database authentication with hybrid role sync
 router.post(
     '/login',
-    // authLimiter, // TEMPORARILY DISABLED FOR TESTING
+    authLimiter,
     asyncHandler(async (req, res) => {
         const { email, password } = req.body;
 
