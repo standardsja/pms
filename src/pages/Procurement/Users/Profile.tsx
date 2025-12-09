@@ -60,10 +60,7 @@ const Profile = () => {
                 const token = getToken();
                 const currentUser = getUser();
 
-                console.log('[PROFILE] Starting profile fetch, current user:', currentUser?.id);
-
                 if (!token || !currentUser) {
-                    console.error('[PROFILE] No auth found');
                     setIsLoading(false);
                     return;
                 }
@@ -75,23 +72,17 @@ const Profile = () => {
                         'Content-Type': 'application/json',
                     },
                     cache: 'no-store', // Force fresh fetch, no cache
+                    cache: 'no-store', // Force fresh fetch, no cache
                 });
-
-                console.log('[PROFILE] API response status:', meResponse.status);
 
                 if (meResponse.ok) {
                     const data = await meResponse.json();
-                    console.log('[PROFILE] API returned data:', data);
 
                     // Add timestamp to profile image for cache busting
                     if (data.profileImage) {
                         data.profileImage = `${data.profileImage}?t=${Date.now()}`;
-                        console.log('[PROFILE] Loaded profileImage with timestamp:', data.profileImage);
-                    } else {
-                        console.log('[PROFILE] No profileImage in API response');
                     }
                     setProfileData(data);
-                    console.log('[PROFILE] Profile state updated');
 
                     // Fetch Innovation Hub stats
                     try {
@@ -105,30 +96,23 @@ const Profile = () => {
 
                         if (statsResponse.ok) {
                             const statsData = await statsResponse.json();
-                            console.log('[PROFILE] Innovation stats loaded:', statsData);
                             setStats((prev: any) => ({
                                 ...prev,
                                 ...statsData,
                             }));
-                        } else {
-                            console.warn('[PROFILE] Could not fetch innovation stats:', statsResponse.status);
                         }
                     } catch (statsError) {
-                        console.warn('[PROFILE] Error fetching innovation stats:', statsError);
                         // Continue without stats - not a critical error
                     }
 
                     // Compute role context for visibility rules
                     const context = computeRoleContext(data.roles);
                     setRoleContext(context);
-                } else {
-                    console.error('[PROFILE] Failed to fetch profile data:', meResponse.status);
                 }
 
                 // Skip fetching activities for now - just set empty array
                 setRecentActivities([]);
             } catch (error) {
-                console.error('[PROFILE] Error fetching profile data:', error);
                 // Show user-friendly error notification
                 const Swal = (await import('sweetalert2')).default;
                 Swal.fire({
@@ -152,8 +136,6 @@ const Profile = () => {
     const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (!file) return;
-
-        console.log('[PROFILE] Photo upload started:', { name: file.name, size: file.size, type: file.type });
 
         // Validate file type
         if (!file.type.startsWith('image/')) {
@@ -183,38 +165,31 @@ const Profile = () => {
 
         try {
             const token = getToken();
+        try {
+            const token = getToken();
             const currentUser = getUser();
 
-            console.log('[PROFILE] Auth check:', { hasToken: !!token, hasUser: !!currentUser, userId: currentUser?.id });
-
             if (!token || !currentUser) {
-                throw new Error('Not authenticated');
-            }
 
             const formData = new FormData();
             formData.append('photo', file);
-
-            console.log('[PROFILE] Uploading to:', getApiUrl('/api/auth/upload-photo'));
+            const formData = new FormData();
+            formData.append('photo', file);
 
             const response = await fetch(getApiUrl('/api/auth/upload-photo'), {
-                method: 'POST',
-                headers: {
                     Authorization: `Bearer ${token}`,
                     'x-user-id': currentUser.id.toString(),
                 },
                 body: formData,
             });
+                body: formData,
+            });
 
-            console.log('[PROFILE] Upload response status:', response.status);
-
+            if (!response.ok) {[PROFILE] Upload failed:', errorText);
+                let error;
             if (!response.ok) {
                 const errorText = await response.text();
-                console.error('[PROFILE] Upload failed:', errorText);
-                let error;
-                try {
-                    error = JSON.parse(errorText);
-                } catch {
-                    error = { message: errorText };
+                let error;= { message: errorText };
                 }
                 throw new Error(error.message || 'Failed to upload photo');
             }
@@ -222,10 +197,9 @@ const Profile = () => {
             const data = await response.json();
             console.log('[PROFILE] Upload successful:', data);
 
+            const data = await response.json();
+
             // Update profile data with new photo (add timestamp to bust cache)
-            const newProfileImage = `${data.profileImage}?t=${Date.now()}`;
-            setProfileData((prev: any) => ({
-                ...prev,
                 profileImage: newProfileImage,
             }));
 
@@ -251,9 +225,8 @@ const Profile = () => {
             console.error('[PROFILE] Error uploading photo:', error);
             // Show error notification using Swal
             const Swal = (await import('sweetalert2')).default;
-            Swal.fire({
-                title: 'Upload Failed',
-                text: error.message || 'Failed to upload photo',
+        } catch (error: any) {
+            // Show error notification using Swal upload photo',
                 icon: 'error',
                 confirmButtonText: 'OK',
             });
@@ -349,12 +322,9 @@ const Profile = () => {
     const userPhone = displayUser?.phone || '+1 (876) 555-1234';
 
     console.log('[PROFILE RENDER] displayUser:', displayUser);
-    console.log('[PROFILE RENDER] profileImage:', displayUser?.profileImage);
+    const userPhone = displayUser?.phone || '+1 (876) 555-1234';
 
-    return (
-        <div>
-            <ul className="flex space-x-2 rtl:space-x-reverse">
-                <li>
+    return (    <li>
                     <Link to="/" className="text-primary hover:underline">
                         Dashboard
                     </Link>

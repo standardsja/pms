@@ -102,11 +102,6 @@ const Sidebar = () => {
     // Compute dashboard path for logo/home using centralized utility
     const dashboardPath = getDashboardPath(detectedRoles, location.pathname);
 
-    // Debug logging for dashboard path
-    console.log('[SIDEBAR] User roles:', userRoles);
-    console.log('[SIDEBAR] Detected roles:', detectedRoles);
-    console.log('[SIDEBAR] Dashboard path:', dashboardPath);
-
     const toggleMenu = (value: string) => {
         setCurrentMenu((oldValue) => {
             return oldValue === value ? '' : value;

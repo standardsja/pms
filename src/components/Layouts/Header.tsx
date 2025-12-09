@@ -168,7 +168,6 @@ const Header = () => {
         const user = getUser();
 
         if (!user || !token) {
-            console.log('[HEADER] No token or user, skipping profile image load');
             return;
         }
 
@@ -178,7 +177,6 @@ const Header = () => {
         // Fetch user profile image
         const loadProfileImage = async () => {
             try {
-                console.log('[HEADER] Fetching /api/auth/me for user:', user.id);
                 const response = await fetch(getApiUrl('/api/auth/me'), {
                     headers: {
                         Authorization: `Bearer ${token}`,
@@ -187,21 +185,16 @@ const Header = () => {
 
                 if (response.ok) {
                     const data = await response.json();
-                    console.log('[HEADER] /api/auth/me response:', data);
                     if (data.profileImage) {
                         // Add timestamp to bust cache on every load
                         const imageWithTimestamp = `${data.profileImage}?t=${Date.now()}`;
-                        console.log('[HEADER] Loaded profileImage with timestamp:', imageWithTimestamp);
                         setProfileImage(imageWithTimestamp);
                     } else {
-                        console.log('[HEADER] No profileImage in response, clearing state');
                         setProfileImage(null);
                     }
-                } else {
-                    console.log('[HEADER] /api/auth/me failed:', response.status);
                 }
             } catch (error) {
-                console.error('[HEADER] Error loading profile image:', error);
+                // Error loading profile image - continue without it
             }
         };
 
