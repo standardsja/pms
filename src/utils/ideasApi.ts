@@ -590,4 +590,3 @@ export async function checkIfVoted(id: string | number): Promise<boolean> {
         return false;
     }
 }
-

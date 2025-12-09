@@ -59,7 +59,8 @@ const Profile = () => {
             try {
                 const token = getToken();
                 const currentUser = getUser();
-                if (!token || !currentUser) {                    setIsLoading(false);
+                if (!token || !currentUser) {
+                    setIsLoading(false);
                     return;
                 }
 
@@ -75,7 +76,9 @@ const Profile = () => {
                     const data = await meResponse.json();
                     // Add timestamp to profile image for cache busting
                     if (data.profileImage) {
-                        data.profileImage = `${data.profileImage}?t=${Date.now()}`;                    } else {                    }
+                        data.profileImage = `${data.profileImage}?t=${Date.now()}`;
+                    } else {
+                    }
                     setProfileData(data);
                     // Fetch Innovation Hub stats
                     try {
@@ -88,7 +91,8 @@ const Profile = () => {
                         });
 
                         if (statsResponse.ok) {
-                            const statsData = await statsResponse.json();                            setStats((prev: any) => ({
+                            const statsData = await statsResponse.json();
+                            setStats((prev: any) => ({
                                 ...prev,
                                 ...statsData,
                             }));
@@ -102,11 +106,13 @@ const Profile = () => {
                     // Compute role context for visibility rules
                     const context = computeRoleContext(data.roles);
                     setRoleContext(context);
-                } else {                }
+                } else {
+                }
 
                 // Skip fetching activities for now - just set empty array
                 setRecentActivities([]);
-            } catch (error) {                // Show user-friendly error notification
+            } catch (error) {
+                // Show user-friendly error notification
                 const Swal = (await import('sweetalert2')).default;
                 Swal.fire({
                     title: 'Notice',
@@ -174,7 +180,8 @@ const Profile = () => {
                 body: formData,
             });
             if (!response.ok) {
-                const errorText = await response.text();                let error;
+                const errorText = await response.text();
+                let error;
                 try {
                     error = JSON.parse(errorText);
                 } catch {
@@ -209,7 +216,8 @@ const Profile = () => {
                 toast: true,
                 position: 'top-end',
             });
-        } catch (error: any) {            // Show error notification using Swal
+        } catch (error: any) {
+            // Show error notification using Swal
             const Swal = (await import('sweetalert2')).default;
             Swal.fire({
                 title: 'Upload Failed',
@@ -964,4 +972,3 @@ const Profile = () => {
 };
 
 export default Profile;
-
