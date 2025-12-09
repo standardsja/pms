@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { logEvent } from '../../../utils/analytics';
 import { getApiUrl } from '../../../config/api';
 import { statsService, SystemStats } from '../../../services/statsService';
-import { getModuleLocks, type ModuleLockState } from '../../../utils/moduleLocks';
+import { fetchModuleLocks, type ModuleLockState } from '../../../utils/moduleLocks';
 
 type ModuleKey = 'pms' | 'ih' | 'committee' | 'budgeting' | 'audit' | 'prime' | 'datapoint' | 'maintenance' | 'asset' | 'ppm' | 'kb';
 
@@ -82,7 +82,7 @@ const Onboarding = () => {
         pms: { totalUsers: 0, activeNow: 0, today: 0 },
         ih: { totalUsers: 0, activeNow: 0, today: 0 },
     });
-    const [moduleLocks, setModuleLocks] = useState<ModuleLockState>(getModuleLocks());
+    const [moduleLocks, setModuleLocks] = useState<ModuleLockState | null>(null);
 
     useEffect(() => {
         // Fetch real-time system statistics
@@ -188,12 +188,29 @@ const Onboarding = () => {
     }, [dispatch, isCommittee, navigate, query, forceOnboarding, t, userRoles]);
 
     useEffect(() => {
-        const syncLocks = () => setModuleLocks(getModuleLocks());
-        window.addEventListener('storage', syncLocks);
-        return () => window.removeEventListener('storage', syncLocks);
+        // Load module locks from API on mount
+        const loadModuleLocks = async () => {
+            try {
+                const locks = await fetchModuleLocks();
+                setModuleLocks(locks);
+            } catch (error) {
+                console.error('Failed to load module locks:', error);
+                setModuleLocks(null);
+            }
+        };
+
+        loadModuleLocks();
+
+        // Refresh locks periodically to catch cross-user updates
+        const interval = setInterval(loadModuleLocks, 30000);
+
+        return () => clearInterval(interval);
     }, []);
 
     const modules = useMemo<ModuleDef[]>(() => {
+        // Return empty array while locks are loading
+        if (!moduleLocks) return [];
+
         const base: ModuleDef[] = [
             {
                 id: 'pms' as ModuleKey,

@@ -1,4 +1,5 @@
 import { getUser } from './auth';
+import { getApiUrl } from '../config/api';
 
 export type LockableModuleKey = 'procurement' | 'innovation' | 'committee' | 'budgeting' | 'audit' | 'prime' | 'datapoint' | 'maintenance' | 'asset' | 'project' | 'knowledge';
 
@@ -51,6 +52,58 @@ const mergeWithDefaults = (state: Partial<ModuleLockState> | null): ModuleLockSt
     return merged as ModuleLockState;
 };
 
+// Cache locks in memory with TTL
+let locksCache: ModuleLockState | null = null;
+let lastFetchTime = 0;
+const CACHE_TTL_MS = 30000; // 30 second cache
+
+/**
+ * Fetch module locks from backend API
+ */
+export const fetchModuleLocks = async (): Promise<ModuleLockState> => {
+    const now = Date.now();
+
+    // Return cached value if fresh
+    if (locksCache && now - lastFetchTime < CACHE_TTL_MS) {
+        return locksCache;
+    }
+
+    try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(getApiUrl('/api/admin/module-locks'), {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+        });
+
+        if (response.ok) {
+            const result = await response.json();
+            locksCache = result.data ? mergeWithDefaults(result.data) : mergeWithDefaults(null);
+            lastFetchTime = now;
+            return locksCache;
+        }
+    } catch (error) {
+        console.warn('Failed to fetch module locks from API, using local cache', error);
+    }
+
+    // Fallback to localStorage if API fails
+    try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+            const parsed = JSON.parse(raw) as Partial<ModuleLockState>;
+            locksCache = mergeWithDefaults(parsed);
+            return locksCache;
+        }
+    } catch {
+        /* ignore */
+    }
+
+    locksCache = mergeWithDefaults(null);
+    return locksCache;
+};
+
 export const getModuleLocks = (): ModuleLockState => {
     try {
         const raw = localStorage.getItem(STORAGE_KEY);
@@ -69,6 +122,37 @@ const persistModuleLocks = (next: ModuleLockState): ModuleLockState => {
         /* ignore write failures */
     }
     return next;
+};
+
+/**
+ * Update module lock on backend
+ */
+export const updateModuleLock = async (key: LockableModuleKey, locked: boolean, meta?: { reason?: string }): Promise<ModuleLockState> => {
+    try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(getApiUrl(`/api/admin/module-locks/${key}`), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({ locked, reason: meta?.reason }),
+        });
+
+        if (response.ok) {
+            // Invalidate cache to force fresh fetch
+            locksCache = null;
+            lastFetchTime = 0;
+
+            // Return updated locks
+            return await fetchModuleLocks();
+        }
+    } catch (error) {
+        console.error('Failed to update module lock on backend', error);
+    }
+
+    // Fallback to local update
+    return setModuleLock(key, locked, meta);
 };
 
 export const setModuleLock = (key: LockableModuleKey, locked: boolean, meta?: { reason?: string; updatedBy?: string }): ModuleLockState => {

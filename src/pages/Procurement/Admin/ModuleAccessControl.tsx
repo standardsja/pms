@@ -6,7 +6,7 @@ import IconLockOpen from '../../../components/Icon/IconLockOpen';
 import IconChevronRight from '../../../components/Icon/IconChevronRight';
 import IconInfoCircle from '../../../components/Icon/IconInfoCircle';
 import IconLoader from '../../../components/Icon/IconLoader';
-import { getModuleLocks, LOCKABLE_MODULES, setModuleLock, type LockableModuleKey, type ModuleLockState } from '../../../utils/moduleLocks';
+import { fetchModuleLocks, LOCKABLE_MODULES, updateModuleLock, type LockableModuleKey, type ModuleLockState } from '../../../utils/moduleLocks';
 import { getUser } from '../../../utils/auth';
 
 // Pre-made reason templates
@@ -29,7 +29,8 @@ const ModuleAccessControl = () => {
         dispatch(setPageTitle('Module Access Control'));
     }, [dispatch]);
 
-    const [moduleLocks, setModuleLocks] = useState<ModuleLockState>(getModuleLocks());
+    const [moduleLocks, setModuleLocks] = useState<ModuleLockState | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
     const [showSuccess, setShowSuccess] = useState(false);
     const [successMessage, setSuccessMessage] = useState('');
     const [showError, setShowError] = useState(false);
@@ -46,11 +47,36 @@ const ModuleAccessControl = () => {
         return user?.name || user?.email || 'Admin';
     }, []);
 
-    // Refresh locks from storage
-    const refreshLocks = useCallback(() => {
+    // Load locks from API on mount and set up polling
+    useEffect(() => {
+        const loadLocks = async () => {
+            try {
+                setIsLoading(true);
+                const locks = await fetchModuleLocks();
+                setModuleLocks(locks);
+            } catch (error) {
+                console.error('Failed to load module locks:', error);
+                setErrorMessage('Failed to load module locks');
+                setShowError(true);
+                setTimeout(() => setShowError(false), 3000);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        loadLocks();
+
+        // Refresh locks every 30 seconds for cross-user updates
+        const interval = setInterval(loadLocks, 30000);
+
+        return () => clearInterval(interval);
+    }, []);
+
+    // Refresh locks from API
+    const refreshLocks = useCallback(async () => {
         try {
-            const freshLocks = getModuleLocks();
-            setModuleLocks(freshLocks);
+            const locks = await fetchModuleLocks();
+            setModuleLocks(locks);
         } catch (error) {
             console.error('Failed to refresh module locks:', error);
             setErrorMessage('Failed to refresh module locks');
@@ -59,9 +85,10 @@ const ModuleAccessControl = () => {
         }
     }, []);
 
-    // Sync lock state across tabs in real-time
+    // Sync lock state across tabs and refresh periodically
     useEffect(() => {
         const handleStorageChange = () => {
+            // Storage change detected from another tab, refresh locks
             refreshLocks();
         };
 
@@ -88,7 +115,7 @@ const ModuleAccessControl = () => {
         setShowReasonModal(true);
     };
 
-    const handleLockWithReason = () => {
+    const handleLockWithReason = async () => {
         if (!reasonModalModule) return;
 
         try {
@@ -104,13 +131,48 @@ const ModuleAccessControl = () => {
             setTransitioningModule(reasonModalModule);
             setShowReasonModal(false);
 
-            setTimeout(() => {
-                try {
-                    const nextState = setModuleLock(reasonModalModule, true, { reason, updatedBy: adminIdentity });
-                    setModuleLocks(nextState);
+            try {
+                const updatedLocks = await updateModuleLock(reasonModalModule, true, { reason });
+                setModuleLocks(updatedLocks);
 
-                    const label = LOCKABLE_MODULES.find((m) => m.key === reasonModalModule)?.label || reasonModalModule;
-                    setSuccessMessage(`${label} locked with reason: "${reason}"`);
+                const label = LOCKABLE_MODULES.find((m) => m.key === reasonModalModule)?.label || reasonModalModule;
+                setSuccessMessage(`${label} locked with reason: "${reason}"`);
+                setShowSuccess(true);
+
+                setTimeout(() => setShowSuccess(false), 2200);
+            } catch (error) {
+                console.error('Failed to update module lock:', error);
+                setErrorMessage('Failed to update module lock. Please try again.');
+                setShowError(true);
+                setTimeout(() => setShowError(false), 3000);
+            } finally {
+                setTransitioningModule(null);
+                setReasonModalModule(null);
+            }
+        } catch (error) {
+            console.error('Error locking module with reason:', error);
+            setTransitioningModule(null);
+            setErrorMessage('An error occurred. Please try again.');
+            setShowError(true);
+            setTimeout(() => setShowError(false), 3000);
+        }
+    };
+
+    const handleToggleLock = async (key: LockableModuleKey) => {
+        const currentState = moduleLocks?.[key]?.locked ?? false;
+
+        // If unlocking, just toggle
+        if (currentState) {
+            // Module is currently locked, so unlock without asking for reason
+            try {
+                setTransitioningModule(key);
+
+                try {
+                    const updatedLocks = await updateModuleLock(key, false);
+                    setModuleLocks(updatedLocks);
+
+                    const label = LOCKABLE_MODULES.find((m) => m.key === key)?.label || key;
+                    setSuccessMessage(`${label} successfully unlocked`);
                     setShowSuccess(true);
 
                     setTimeout(() => setShowSuccess(false), 2200);
@@ -121,46 +183,7 @@ const ModuleAccessControl = () => {
                     setTimeout(() => setShowError(false), 3000);
                 } finally {
                     setTransitioningModule(null);
-                    setReasonModalModule(null);
                 }
-            }, 200);
-        } catch (error) {
-            console.error('Error locking module with reason:', error);
-            setTransitioningModule(null);
-            setErrorMessage('An error occurred. Please try again.');
-            setShowError(true);
-            setTimeout(() => setShowError(false), 3000);
-        }
-    };
-
-    const handleToggleLock = (key: LockableModuleKey) => {
-        const currentState = moduleLocks[key]?.locked ?? false;
-
-        // If unlocking, just toggle
-        if (currentState) {
-            // Module is currently locked, so unlock without asking for reason
-            try {
-                setTransitioningModule(key);
-
-                setTimeout(() => {
-                    try {
-                        const nextState = setModuleLock(key, false, { updatedBy: adminIdentity });
-                        setModuleLocks(nextState);
-
-                        const label = LOCKABLE_MODULES.find((m) => m.key === key)?.label || key;
-                        setSuccessMessage(`${label} successfully unlocked`);
-                        setShowSuccess(true);
-
-                        setTimeout(() => setShowSuccess(false), 2200);
-                    } catch (error) {
-                        console.error('Failed to update module lock:', error);
-                        setErrorMessage('Failed to update module lock. Please try again.');
-                        setShowError(true);
-                        setTimeout(() => setShowError(false), 3000);
-                    } finally {
-                        setTransitioningModule(null);
-                    }
-                }, 200);
             } catch (error) {
                 console.error('Error toggling lock:', error);
                 setTransitioningModule(null);
@@ -188,6 +211,16 @@ const ModuleAccessControl = () => {
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Module Access Control</h1>
                 <p className="text-gray-600 dark:text-gray-400">Manage which modules are available to users. Lock modules to prevent access without code deployment.</p>
             </div>
+
+            {/* Loading State */}
+            {isLoading && (
+                <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/40 rounded-lg">
+                    <div className="flex items-center gap-2">
+                        <IconLoader className="w-5 h-5 text-blue-600 dark:text-blue-400 animate-spin" />
+                        <span className="text-blue-800 dark:text-blue-200 font-semibold">Loading module lock states...</span>
+                    </div>
+                </div>
+            )}
 
             {/* Error Toast */}
             {showError && (
@@ -222,75 +255,80 @@ const ModuleAccessControl = () => {
             )}
 
             {/* Module Cards Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {LOCKABLE_MODULES.map((module) => {
-                    const lockState = moduleLocks[module.key];
-                    const isLocked = lockState?.locked ?? false;
-                    const isTransitioning = transitioningModule === module.key;
+            {!isLoading && moduleLocks && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {LOCKABLE_MODULES.map((module) => {
+                        const lockState = moduleLocks[module.key];
+                        const isLocked = lockState?.locked ?? false;
+                        const isTransitioning = transitioningModule === module.key;
 
-                    return (
-                        <div key={module.key} className={`border rounded-lg p-6 transition-all duration-300 ${getStatusBgColor(isLocked)} ${isTransitioning ? 'opacity-60 pointer-events-none' : ''}`}>
-                            <div className="flex items-start justify-between mb-4">
-                                <div className="flex-1">
-                                    <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">{module.label}</h3>
-                                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">{module.description}</p>
+                        return (
+                            <div
+                                key={module.key}
+                                className={`border rounded-lg p-6 transition-all duration-300 ${getStatusBgColor(isLocked)} ${isTransitioning ? 'opacity-60 pointer-events-none' : ''}`}
+                            >
+                                <div className="flex items-start justify-between mb-4">
+                                    <div className="flex-1">
+                                        <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">{module.label}</h3>
+                                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">{module.description}</p>
 
-                                    {/* Status Badge */}
-                                    <div className="flex items-center gap-2 mb-3">
-                                        {isLocked ? (
-                                            <>
-                                                <IconLock className={`w-4 h-4 ${getStatusColor(true)}`} />
-                                                <span className={`text-sm font-semibold ${getStatusColor(true)}`}>Locked</span>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <IconLockOpen className={`w-4 h-4 ${getStatusColor(false)}`} />
-                                                <span className={`text-sm font-semibold ${getStatusColor(false)}`}>Unlocked</span>
-                                            </>
+                                        {/* Status Badge */}
+                                        <div className="flex items-center gap-2 mb-3">
+                                            {isLocked ? (
+                                                <>
+                                                    <IconLock className={`w-4 h-4 ${getStatusColor(true)}`} />
+                                                    <span className={`text-sm font-semibold ${getStatusColor(true)}`}>Locked</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <IconLockOpen className={`w-4 h-4 ${getStatusColor(false)}`} />
+                                                    <span className={`text-sm font-semibold ${getStatusColor(false)}`}>Unlocked</span>
+                                                </>
+                                            )}
+                                        </div>
+
+                                        {/* Metadata */}
+                                        {lockState?.updatedAt && <div className="text-xs text-gray-500 dark:text-gray-500 mb-2">Last changed: {new Date(lockState.updatedAt).toLocaleString()}</div>}
+                                        {lockState?.updatedBy && <div className="text-xs text-gray-500 dark:text-gray-500 mb-2">By: {lockState.updatedBy}</div>}
+                                        {lockState?.reason && (
+                                            <div className="text-xs text-gray-700 dark:text-gray-300 italic bg-white/50 dark:bg-black/20 px-2 py-1 rounded">Reason: {lockState.reason}</div>
                                         )}
                                     </div>
-
-                                    {/* Metadata */}
-                                    {lockState?.updatedAt && <div className="text-xs text-gray-500 dark:text-gray-500 mb-2">Last changed: {new Date(lockState.updatedAt).toLocaleString()}</div>}
-                                    {lockState?.updatedBy && <div className="text-xs text-gray-500 dark:text-gray-500 mb-2">By: {lockState.updatedBy}</div>}
-                                    {lockState?.reason && (
-                                        <div className="text-xs text-gray-700 dark:text-gray-300 italic bg-white/50 dark:bg-black/20 px-2 py-1 rounded">Reason: {lockState.reason}</div>
-                                    )}
                                 </div>
-                            </div>
 
-                            {/* Toggle Button */}
-                            <button
-                                type="button"
-                                onClick={() => handleToggleLock(module.key)}
-                                disabled={isTransitioning}
-                                className={`w-full py-2 px-4 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 ${
-                                    isLocked
-                                        ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50'
-                                        : 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-900/50'
-                                } ${isTransitioning ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            >
-                                {isTransitioning ? (
-                                    <>
-                                        <IconLoader className="w-4 h-4 animate-spin" />
-                                        <span>Updating...</span>
-                                    </>
-                                ) : isLocked ? (
-                                    <>
-                                        <IconLockOpen className="w-4 h-4" />
-                                        <span>Unlock Module</span>
-                                    </>
-                                ) : (
-                                    <>
-                                        <IconLock className="w-4 h-4" />
-                                        <span>Lock Module</span>
-                                    </>
-                                )}
-                            </button>
-                        </div>
-                    );
-                })}
-            </div>
+                                {/* Toggle Button */}
+                                <button
+                                    type="button"
+                                    onClick={() => handleToggleLock(module.key)}
+                                    disabled={isTransitioning}
+                                    className={`w-full py-2 px-4 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 ${
+                                        isLocked
+                                            ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50'
+                                            : 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-900/50'
+                                    } ${isTransitioning ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                >
+                                    {isTransitioning ? (
+                                        <>
+                                            <IconLoader className="w-4 h-4 animate-spin" />
+                                            <span>Updating...</span>
+                                        </>
+                                    ) : isLocked ? (
+                                        <>
+                                            <IconLockOpen className="w-4 h-4" />
+                                            <span>Unlock Module</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <IconLock className="w-4 h-4" />
+                                            <span>Lock Module</span>
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
 
             {/* Info Section */}
             <div className="mt-8 p-6 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/40 rounded-lg">

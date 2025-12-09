@@ -482,4 +482,102 @@ router.get('/audit-log', adminOnly, async (req: Request, res: Response) => {
     }
 });
 
+/**
+ * GET /api/admin/module-locks - Get all module lock states
+ */
+router.get('/module-locks', adminOnly, async (req: Request, res: Response) => {
+    try {
+        const locks = await prisma.systemConfig.findUnique({
+            where: { key: 'MODULE_LOCKS' },
+        });
+
+        const defaultLocks = {
+            procurement: { locked: false, updatedAt: new Date().toISOString() },
+            innovation: { locked: false, updatedAt: new Date().toISOString() },
+            committee: { locked: false, updatedAt: new Date().toISOString() },
+            budgeting: { locked: true, reason: 'Coming soon', updatedAt: new Date().toISOString() },
+            audit: { locked: true, reason: 'Coming soon', updatedAt: new Date().toISOString() },
+            prime: { locked: true, reason: 'Coming soon', updatedAt: new Date().toISOString() },
+            datapoint: { locked: true, reason: 'Coming soon', updatedAt: new Date().toISOString() },
+            maintenance: { locked: true, reason: 'Coming soon', updatedAt: new Date().toISOString() },
+            asset: { locked: true, reason: 'Coming soon', updatedAt: new Date().toISOString() },
+            project: { locked: true, reason: 'Coming soon', updatedAt: new Date().toISOString() },
+            knowledge: { locked: true, reason: 'Coming soon', updatedAt: new Date().toISOString() },
+        };
+
+        const data = locks ? JSON.parse(locks.value) : defaultLocks;
+        res.status(200).json({ success: true, data });
+    } catch (error) {
+        logger.error('Failed to fetch module locks', { error });
+        res.status(500).json({ success: false, message: 'Failed to fetch module locks', data: {} });
+    }
+});
+
+/**
+ * POST /api/admin/module-locks/:key - Update a module lock
+ */
+router.post('/module-locks/:key', adminOnly, async (req: Request, res: Response) => {
+    try {
+        const { key } = req.params;
+        const { locked, reason } = req.body;
+        const user = (req as any).user;
+
+        // Validate module key
+        const validKeys = ['procurement', 'innovation', 'committee', 'budgeting', 'audit', 'prime', 'datapoint', 'maintenance', 'asset', 'project', 'knowledge'];
+        if (!validKeys.includes(key)) {
+            return res.status(400).json({ success: false, message: 'Invalid module key' });
+        }
+
+        // Get current locks
+        let locksConfig = await prisma.systemConfig.findUnique({
+            where: { key: 'MODULE_LOCKS' },
+        });
+
+        const defaultLocks = {
+            procurement: { locked: false, updatedAt: new Date().toISOString() },
+            innovation: { locked: false, updatedAt: new Date().toISOString() },
+            committee: { locked: false, updatedAt: new Date().toISOString() },
+            budgeting: { locked: true, reason: 'Coming soon', updatedAt: new Date().toISOString() },
+            audit: { locked: true, reason: 'Coming soon', updatedAt: new Date().toISOString() },
+            prime: { locked: true, reason: 'Coming soon', updatedAt: new Date().toISOString() },
+            datapoint: { locked: true, reason: 'Coming soon', updatedAt: new Date().toISOString() },
+            maintenance: { locked: true, reason: 'Coming soon', updatedAt: new Date().toISOString() },
+            asset: { locked: true, reason: 'Coming soon', updatedAt: new Date().toISOString() },
+            project: { locked: true, reason: 'Coming soon', updatedAt: new Date().toISOString() },
+            knowledge: { locked: true, reason: 'Coming soon', updatedAt: new Date().toISOString() },
+        };
+
+        const currentLocks = locksConfig ? JSON.parse(locksConfig.value) : defaultLocks;
+
+        // Update the specific lock
+        currentLocks[key] = {
+            locked: locked ?? currentLocks[key].locked,
+            reason: reason ?? currentLocks[key].reason,
+            updatedAt: new Date().toISOString(),
+            updatedBy: user?.name ?? user?.email ?? 'Admin',
+        };
+
+        // Save or update in database
+        if (locksConfig) {
+            await prisma.systemConfig.update({
+                where: { key: 'MODULE_LOCKS' },
+                data: { value: JSON.stringify(currentLocks) },
+            });
+        } else {
+            await prisma.systemConfig.create({
+                data: {
+                    key: 'MODULE_LOCKS',
+                    value: JSON.stringify(currentLocks),
+                },
+            });
+        }
+
+        logger.info(`Module lock updated: ${key} -> ${locked}`, { user: user?.id, module: key });
+        res.status(200).json({ success: true, message: 'Module lock updated', data: currentLocks[key] });
+    } catch (error) {
+        logger.error('Failed to update module lock', { error });
+        res.status(500).json({ success: false, message: 'Failed to update module lock' });
+    }
+});
+
 export { router as adminRoutes };
