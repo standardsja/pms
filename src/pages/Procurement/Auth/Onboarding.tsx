@@ -33,7 +33,7 @@ const Onboarding = () => {
     const { search } = useLocation();
     const query = useMemo(() => new URLSearchParams(search), [search]);
     const forceOnboarding = query.get('force') === '1' || query.get('reset') === '1';
-    
+
     // Memoize currentUser to prevent infinite loops
     const currentUser = useMemo(() => getUser(), []);
 
@@ -136,11 +136,11 @@ const Onboarding = () => {
 
     // Use ref to track if initial setup has run to prevent infinite loops
     const hasInitialized = useRef(false);
-    
+
     useEffect(() => {
         if (hasInitialized.current) return;
         hasInitialized.current = true;
-        
+
         dispatch(setPageTitle(t('onboarding.title')));
 
         // If a committee-ONLY member lands here, redirect them to their dashboard
