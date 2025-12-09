@@ -13,7 +13,7 @@ import { logger } from '../config/logger';
 import { cacheGet, cacheSet, cacheDeletePattern } from '../config/redis';
 import { asyncHandler, BadRequestError, NotFoundError } from '../middleware/errorHandler';
 import { authMiddleware, requireCommittee } from '../middleware/auth';
-import { validate, createIdeaSchema, voteSchema, approveRejectIdeaSchema } from '../middleware/validation';
+import { validate, createIdeaSchema, voteSchema, approveRejectIdeaSchema, promoteIdeaSchema } from '../middleware/validation';
 import { updateIdeaTrendingScore } from '../services/trendingService';
 import { searchIdeas, getSearchSuggestions } from '../services/searchService';
 import { findPotentialDuplicates } from '../services/duplicateDetectionService';
@@ -271,6 +271,71 @@ router.get(
     })
 );
 
+// Get single idea by ID
+router.get(
+    '/:id',
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+        const { id } = req.params;
+        const ideaId = parseInt(id, 10);
+
+        if (isNaN(ideaId)) {
+            throw new BadRequestError('Invalid idea ID');
+        }
+
+        const idea = await prisma.idea.findUnique({
+            where: { id: ideaId },
+            include: {
+                attachments: true,
+                submitter: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                    },
+                },
+                tags: {
+                    include: { tag: true },
+                },
+                _count: {
+                    select: {
+                        comments: true,
+                        votes: true,
+                    },
+                },
+            },
+        });
+
+        if (!idea) {
+            throw new NotFoundError('Idea not found');
+        }
+
+        // Check user's vote if authenticated
+        const user = (req as any).user as { sub?: number };
+        let hasVoted: 'up' | 'down' | null = null;
+
+        if (user?.sub) {
+            const userVote = await prisma.vote.findFirst({
+                where: {
+                    ideaId,
+                    userId: user.sub,
+                },
+            });
+            if (userVote) {
+                hasVoted = userVote.voteType === 'UPVOTE' ? 'up' : 'down';
+            }
+        }
+
+        res.json({
+            ...idea,
+            commentCount: idea._count?.comments || 0,
+            hasVoted,
+            submittedBy: idea.isAnonymous ? 'Anonymous' : idea.submitter?.name || idea.submitter?.email || 'Unknown',
+            tags: Array.isArray(idea.tags) ? idea.tags.map((it: any) => it.tag?.name).filter(Boolean) : [],
+        });
+    })
+);
+
 // Create new idea
 router.post(
     '/',
@@ -431,6 +496,77 @@ router.post(
     })
 );
 
+// Remove vote from idea
+router.delete(
+    '/:id/vote',
+    authMiddleware,
+    voteLimiter,
+    asyncHandler(async (req, res) => {
+        const { id } = req.params;
+        const user = (req as any).user as { sub: number };
+
+        const ideaId = parseInt(id, 10);
+        const userId = user.sub;
+
+        const idea = await prisma.idea.findUnique({ where: { id: ideaId } });
+        if (!idea) {
+            throw new NotFoundError('Idea not found');
+        }
+
+        // Atomic vote removal transaction
+        const result = await prisma.$transaction(async (tx) => {
+            const existing = await tx.vote.findFirst({
+                where: { ideaId, userId },
+            });
+
+            if (!existing) {
+                // No vote to remove
+                return { idea, hasVoted: null };
+            }
+
+            // Remove the vote
+            await tx.vote.delete({
+                where: { id: existing.id },
+            });
+
+            // Update vote counts
+            let voteCountDelta = 0;
+            let upvoteCountDelta = 0;
+            let downvoteCountDelta = 0;
+
+            if (existing.voteType === 'UPVOTE') {
+                voteCountDelta = -1;
+                upvoteCountDelta = -1;
+            } else {
+                voteCountDelta = 1; // downvote removal increases net vote
+                downvoteCountDelta = -1;
+            }
+
+            const updated = await tx.idea.update({
+                where: { id: ideaId },
+                data: {
+                    voteCount: { increment: voteCountDelta },
+                    upvoteCount: { increment: upvoteCountDelta },
+                    downvoteCount: { increment: downvoteCountDelta },
+                },
+            });
+
+            return { idea: updated, hasVoted: null };
+        });
+
+        await cacheDeletePattern('ideas:*');
+
+        // Update trending score asynchronously
+        updateIdeaTrendingScore(ideaId).catch((err) => logger.error('Failed to update trending score', { ideaId, error: err }));
+
+        emitVoteUpdated(ideaId, result.idea.voteCount, result.idea.trendingScore);
+
+        logger.info('Vote removed', { ideaId, userId });
+
+        res.json({ ...result.idea, hasVoted: result.hasVoted });
+    })
+);
+
 // Committee: Approve idea
 router.post(
     '/:id/approve',
@@ -482,9 +618,39 @@ router.post(
             },
         });
 
+        emitIdeaStatusChanged(updated.id, 'PENDING_REVIEW', 'REJECTED');
         await cacheDeletePattern('ideas:*');
 
         logger.info('Idea rejected', { ideaId: updated.id, reviewerId: user.sub });
+
+        res.json(updated);
+    })
+);
+
+// Committee: Promote idea to project
+router.post(
+    '/:id/promote',
+    authMiddleware,
+    requireCommittee,
+    validate(promoteIdeaSchema),
+    asyncHandler(async (req, res) => {
+        const { id } = req.params;
+        const { projectCode } = req.body;
+        const user = (req as any).user as { sub: number };
+
+        const updated = await prisma.idea.update({
+            where: { id: parseInt(id, 10) },
+            data: {
+                status: 'PROMOTED_TO_PROJECT',
+                promotedAt: new Date(),
+                projectCode: projectCode || null,
+            },
+        });
+
+        emitIdeaStatusChanged(updated.id, 'APPROVED', 'PROMOTED_TO_PROJECT');
+        await cacheDeletePattern('ideas:*');
+
+        logger.info('Idea promoted to project', { ideaId: updated.id, projectCode, promotedBy: user.sub });
 
         res.json(updated);
     })
