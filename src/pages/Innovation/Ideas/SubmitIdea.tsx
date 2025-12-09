@@ -239,12 +239,23 @@ const SubmitIdea = () => {
             previews.forEach((p) => URL.revokeObjectURL(p));
             setPreviews([]);
             setFiles([]);
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error submitting idea:', error);
+            const errorMessage = error?.message || 'Unknown error occurred';
+            const isNetworkError = errorMessage.toLowerCase().includes('network') || errorMessage.toLowerCase().includes('fetch');
+            const isValidationError = errorMessage.toLowerCase().includes('validation') || errorMessage.toLowerCase().includes('invalid');
+
             Swal.fire({
                 icon: 'error',
-                title: t('innovation.submit.error.title'),
-                text: error instanceof Error ? error.message : t('innovation.submit.error.message'),
+                title: isNetworkError ? 'Connection Problem' : isValidationError ? 'Validation Error' : t('innovation.submit.error.title'),
+                text: isNetworkError
+                    ? 'Unable to submit your idea due to a connection problem. Please check your internet and try again.'
+                    : isValidationError
+                    ? errorMessage
+                    : error instanceof Error
+                    ? error.message
+                    : t('innovation.submit.error.message'),
+                confirmButtonText: 'OK',
             });
         } finally {
             setIsLoading(false);

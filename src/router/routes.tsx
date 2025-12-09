@@ -127,6 +127,7 @@ const BSJProjects = lazy(() => import('../pages/Innovation/Projects/BSJProjects'
 const CommitteeDashboard = lazy(() => import('../pages/Innovation/Committee/CommitteeDashboard'));
 const CommitteeReviewIdeas = lazy(() => import('../pages/Innovation/Committee/ReviewIdeas'));
 const InnovationAnalytics = lazy(() => import('../pages/Innovation/Ideas/Analytics'));
+const InnovationNotFound = lazy(() => import('../pages/Innovation/NotFound'));
 
 // Admin Pages
 const AuditTrail = lazy(() => import('../pages/Admin/AuditTrail'));
@@ -260,6 +261,11 @@ const routes = [
                 <CommitteeDashboard />
             </CommitteeRoute>
         ), // TODO: Create detailed review page
+    },
+    // Innovation 404 catch-all (must be after all specific innovation routes)
+    {
+        path: '/innovation/*',
+        element: <InnovationNotFound />,
     },
 
     // ============================================

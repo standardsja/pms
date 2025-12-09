@@ -83,8 +83,10 @@ const CommitteeDashboard = () => {
                 rejected: counts.rejected || 0,
                 promoted: counts.promoted || 0,
             });
-        } catch (e) {
+        } catch (e: any) {
             console.error('Failed to load counts:', e);
+            // Silent fail for counts - don't disrupt user experience
+            // Stats will show last known values or zeros
         }
     }, []);
 
@@ -121,20 +123,22 @@ const CommitteeDashboard = () => {
                     const data = Array.isArray(response) ? response : (response as any).ideas || response;
                     setPromotedIdeas(data);
                 }
-            } catch (e) {
+            } catch (e: any) {
                 const errorMessage = e instanceof Error ? e.message : 'Unable to load ideas';
+                const isNetworkError = errorMessage.toLowerCase().includes('network') || errorMessage.toLowerCase().includes('fetch');
                 setError(errorMessage);
 
                 // Only show toast for foreground loads, not background polling
                 if (showLoader) {
                     Swal.fire({
                         icon: 'error',
-                        title: 'Unable to Load Ideas',
-                        text: 'We encountered a problem loading the ideas. Please try refreshing the page.',
+                        title: isNetworkError ? 'Connection Problem' : 'Unable to Load Ideas',
+                        text: isNetworkError ? 'Please check your internet connection and try again.' : 'We encountered a problem loading the ideas. Please try refreshing the page.',
                         toast: true,
                         position: 'bottom-end',
-                        timer: 3500,
+                        timer: 4000,
                         showConfirmButton: false,
+                        timerProgressBar: true,
                     });
                 }
             } finally {
