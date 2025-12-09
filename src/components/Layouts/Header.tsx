@@ -82,10 +82,6 @@ const Header = () => {
     // Set dashboard path based on centralized role detection
     const dashboardPath = getDashboardPath(detectedRoles, location.pathname);
 
-    // Debug logging for role detection and routing
-    console.log('[HEADER] User roles:', userRoles);
-    console.log('[HEADER] Detected roles:', detectedRoles);
-    console.log('[HEADER] Dashboard path:', dashboardPath);
 
     useEffect(() => {
         const selector = document.querySelector('ul.horizontal-menu a[href="' + window.location.pathname + '"]');
