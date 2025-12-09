@@ -2579,8 +2579,23 @@ app.put('/requests/:id', async (req, res) => {
         const actorUserIdRaw = req.headers['x-user-id'];
         const actingUserId = actorUserIdRaw ? parseInt(String(actorUserIdRaw), 10) : null;
 
+        // Debug log incoming dates BEFORE cleanup
+        console.log(`[PUT /requests/${id}] Incoming updates:`, {
+            dateReceived: updates.dateReceived,
+            actionDate: updates.actionDate,
+            receivedBy: updates.receivedBy,
+            procurementCaseNumber: updates.procurementCaseNumber,
+            dateReceivedType: typeof updates.dateReceived,
+            actionDateType: typeof updates.actionDate,
+        });
+
         // Remove deprecated fields that no longer exist in schema
         const { budgetOfficerApproved, budgetManagerApproved, ...cleanUpdates } = updates;
+
+        console.log(`[PUT /requests/${id}] After cleaning:`, {
+            dateReceived: cleanUpdates.dateReceived,
+            actionDate: cleanUpdates.actionDate,
+        });
 
         const updated = await prisma.request.update({
             where: { id: parseInt(id, 10) },
@@ -2590,6 +2605,14 @@ app.put('/requests/:id', async (req, res) => {
                 requester: { select: { id: true, name: true, email: true } },
                 department: { select: { id: true, name: true, code: true } },
             },
+        });
+
+        // Debug log saved dates AFTER update
+        console.log(`[PUT /requests/${id}] After Prisma update:`, {
+            dateReceived: updated.dateReceived,
+            actionDate: updated.actionDate,
+            dateReceivedChanged: updated.dateReceived !== cleanUpdates.dateReceived,
+            actionDateChanged: updated.actionDate !== cleanUpdates.actionDate,
         });
 
         // Notify the assignee after explicit assignment
@@ -2638,10 +2661,29 @@ app.get('/requests/:id/pdf', async (req, res) => {
         const templatePath = path.join(process.cwd(), 'server', 'templates', 'request-pdf.html');
         let html = fs.readFileSync(templatePath, 'utf-8');
 
-        // Helper to format date
-        const formatDate = (date: Date | null | undefined) => {
+        // Helper to format date - handles Date objects and ISO/YYYY-MM-DD strings
+        const formatDate = (date: Date | string | null | undefined) => {
             if (!date) return '—';
-            return new Date(date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+            try {
+                let d: Date;
+                if (typeof date === 'string') {
+                    // For YYYY-MM-DD format dates, parse as local date to avoid timezone shift
+                    const dateParts = date.match(/^(\d{4})-(\d{2})-(\d{2})/);
+                    if (dateParts) {
+                        // Parse as local date: new Date(year, month-1, day)
+                        d = new Date(parseInt(dateParts[1]), parseInt(dateParts[2]) - 1, parseInt(dateParts[3]));
+                    } else {
+                        // For ISO strings or other formats, use standard parsing
+                        d = new Date(date);
+                    }
+                } else {
+                    d = date;
+                }
+                if (isNaN(d.getTime())) return '—'; // Invalid date
+                return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+            } catch {
+                return '—';
+            }
         };
 
         // Helper to format currency
@@ -2663,6 +2705,13 @@ app.get('/requests/:id/pdf', async (req, res) => {
         </tr>`
             )
             .join('');
+
+        // Debug log date values
+        console.log(`[PDF] Request ${request.reference} dates:`, {
+            dateReceived: request.dateReceived,
+            actionDate: request.actionDate,
+            submittedAt: request.submittedAt,
+        });
 
         // Replace placeholders
         html = html
