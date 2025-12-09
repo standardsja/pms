@@ -69,7 +69,7 @@ const Sidebar = () => {
     const {
         isAdmin,
         isHeadOfDivision,
-        isCommitteeMember: isInnovationCommittee,
+        isInnovationCommittee,
         isEvaluationCommittee,
         isExecutiveDirector,
         isSeniorDirector,
