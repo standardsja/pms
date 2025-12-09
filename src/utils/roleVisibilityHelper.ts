@@ -14,7 +14,6 @@ export interface RoleContext {
     isRequester: boolean;
     isAdmin: boolean;
     hasMultipleRoles: boolean;
-    roles?: string[]; // Added for getRoleSpecificAccess function
 }
 
 export function computeRoleContext(roles?: string[]): RoleContext {
@@ -30,7 +29,6 @@ export function computeRoleContext(roles?: string[]): RoleContext {
             isRequester: false,
             isAdmin: false,
             hasMultipleRoles: false,
-            roles: [],
         };
     }
 
@@ -47,7 +45,6 @@ export function computeRoleContext(roles?: string[]): RoleContext {
         isRequester: roleSet.has('REQUESTER'),
         isAdmin: roleSet.has('ADMIN') || roleSet.has('SUPER_ADMIN'),
         hasMultipleRoles: roles.length > 1,
-        roles: roles,
     };
 }
 
@@ -188,20 +185,16 @@ export const getRoleSpecificAccess = (context: RoleContext) => {
     }
 
     if (context.isProcurementUser) {
-        if (context.roles?.includes('PROCUREMENT_MANAGER')) {
-            access.push({
-                role: 'Procurement Manager',
-                description: 'Full procurement management access',
-                color: 'bg-blue-500',
-            });
-        }
-        if (context.roles?.includes('PROCUREMENT_OFFICER')) {
-            access.push({
-                role: 'Procurement Officer',
-                description: 'Procurement operations and vendor management',
-                color: 'bg-cyan-500',
-            });
-        }
+        access.push({
+            role: 'Procurement Manager',
+            description: 'Full procurement management access',
+            color: 'bg-blue-500',
+        });
+        access.push({
+            role: 'Procurement Officer',
+            description: 'Procurement operations and vendor management',
+            color: 'bg-cyan-500',
+        });
     }
 
     if (context.isDepartmentHead) {
