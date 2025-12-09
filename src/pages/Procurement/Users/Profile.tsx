@@ -59,9 +59,7 @@ const Profile = () => {
             try {
                 const token = getToken();
                 const currentUser = getUser();
-
-                if (!token || !currentUser) {
-                    setIsLoading(false);
+                if (!token || !currentUser) {                    setIsLoading(false);
                     return;
                 }
 
@@ -72,18 +70,13 @@ const Profile = () => {
                         'Content-Type': 'application/json',
                     },
                     cache: 'no-store', // Force fresh fetch, no cache
-                    cache: 'no-store', // Force fresh fetch, no cache
                 });
-
                 if (meResponse.ok) {
                     const data = await meResponse.json();
-
                     // Add timestamp to profile image for cache busting
                     if (data.profileImage) {
-                        data.profileImage = `${data.profileImage}?t=${Date.now()}`;
-                    }
+                        data.profileImage = `${data.profileImage}?t=${Date.now()}`;                    } else {                    }
                     setProfileData(data);
-
                     // Fetch Innovation Hub stats
                     try {
                         const statsResponse = await fetch(getApiUrl('/api/auth/me/innovation-stats'), {
@@ -95,11 +88,12 @@ const Profile = () => {
                         });
 
                         if (statsResponse.ok) {
-                            const statsData = await statsResponse.json();
-                            setStats((prev: any) => ({
+                            const statsData = await statsResponse.json();                            setStats((prev: any) => ({
                                 ...prev,
                                 ...statsData,
                             }));
+                        } else {
+                            // Continue without stats - not a critical error
                         }
                     } catch (statsError) {
                         // Continue without stats - not a critical error
@@ -108,12 +102,11 @@ const Profile = () => {
                     // Compute role context for visibility rules
                     const context = computeRoleContext(data.roles);
                     setRoleContext(context);
-                }
+                } else {                }
 
                 // Skip fetching activities for now - just set empty array
                 setRecentActivities([]);
-            } catch (error) {
-                // Show user-friendly error notification
+            } catch (error) {                // Show user-friendly error notification
                 const Swal = (await import('sweetalert2')).default;
                 Swal.fire({
                     title: 'Notice',
@@ -136,7 +129,6 @@ const Profile = () => {
     const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (!file) return;
-
         // Validate file type
         if (!file.type.startsWith('image/')) {
             const Swal = (await import('sweetalert2')).default;
@@ -165,41 +157,37 @@ const Profile = () => {
 
         try {
             const token = getToken();
-        try {
-            const token = getToken();
             const currentUser = getUser();
-
             if (!token || !currentUser) {
+                throw new Error('Not authenticated');
+            }
 
-            const formData = new FormData();
-            formData.append('photo', file);
             const formData = new FormData();
             formData.append('photo', file);
 
             const response = await fetch(getApiUrl('/api/auth/upload-photo'), {
+                method: 'POST',
+                headers: {
                     Authorization: `Bearer ${token}`,
                     'x-user-id': currentUser.id.toString(),
                 },
                 body: formData,
             });
-                body: formData,
-            });
-
-            if (!response.ok) {[PROFILE] Upload failed:', errorText);
-                let error;
             if (!response.ok) {
-                const errorText = await response.text();
-                let error;= { message: errorText };
+                const errorText = await response.text();                let error;
+                try {
+                    error = JSON.parse(errorText);
+                } catch {
+                    error = { message: errorText };
                 }
                 throw new Error(error.message || 'Failed to upload photo');
             }
 
             const data = await response.json();
-            console.log('[PROFILE] Upload successful:', data);
-
-            const data = await response.json();
-
             // Update profile data with new photo (add timestamp to bust cache)
+            const newProfileImage = `${data.profileImage}?t=${Date.now()}`;
+            setProfileData((prev: any) => ({
+                ...prev,
                 profileImage: newProfileImage,
             }));
 
@@ -221,12 +209,11 @@ const Profile = () => {
                 toast: true,
                 position: 'top-end',
             });
-        } catch (error: any) {
-            console.error('[PROFILE] Error uploading photo:', error);
-            // Show error notification using Swal
+        } catch (error: any) {            // Show error notification using Swal
             const Swal = (await import('sweetalert2')).default;
-        } catch (error: any) {
-            // Show error notification using Swal upload photo',
+            Swal.fire({
+                title: 'Upload Failed',
+                text: error.message || 'Failed to upload photo',
                 icon: 'error',
                 confirmButtonText: 'OK',
             });
@@ -320,11 +307,10 @@ const Profile = () => {
     const joinDate = displayUser?.createdAt ? new Date(displayUser.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'Jan 2024';
     const userLocation = displayUser?.department?.code || 'Jamaica';
     const userPhone = displayUser?.phone || '+1 (876) 555-1234';
-
-    console.log('[PROFILE RENDER] displayUser:', displayUser);
-    const userPhone = displayUser?.phone || '+1 (876) 555-1234';
-
-    return (    <li>
+    return (
+        <div>
+            <ul className="flex space-x-2 rtl:space-x-reverse">
+                <li>
                     <Link to="/" className="text-primary hover:underline">
                         Dashboard
                     </Link>
@@ -978,3 +964,4 @@ const Profile = () => {
 };
 
 export default Profile;
+

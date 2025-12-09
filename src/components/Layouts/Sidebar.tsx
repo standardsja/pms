@@ -102,6 +102,10 @@ const Sidebar = () => {
     // Compute dashboard path for logo/home using centralized utility
     const dashboardPath = getDashboardPath(detectedRoles, location.pathname);
 
+    // Debug logging for dashboard path
+
+
+
     const toggleMenu = (value: string) => {
         setCurrentMenu((oldValue) => {
             return oldValue === value ? '' : value;
@@ -1338,3 +1342,4 @@ const Sidebar = () => {
 };
 
 export default Sidebar;
+

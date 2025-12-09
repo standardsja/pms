@@ -192,9 +192,9 @@ const Header = () => {
                     } else {
                         setProfileImage(null);
                     }
+                } else {
                 }
             } catch (error) {
-                // Error loading profile image - continue without it
             }
         };
 
@@ -867,3 +867,4 @@ const Header = () => {
 };
 
 export default Header;
+
