@@ -11,6 +11,7 @@ import packageInfo from '../../../../package.json';
 import { setAuth } from '../../../utils/auth';
 import { loginWithMicrosoft, initializeMsal, isMsalConfigured } from '../../../auth/msal';
 import { detectUserRoles, getDashboardPath } from '../../../utils/roleDetection';
+import { getApiUrl } from '../../../config/api';
 
 const Login = () => {
     const dispatch = useDispatch();
@@ -38,8 +39,8 @@ const Login = () => {
     useEffect(() => {
         const fetchStats = async () => {
             try {
-                const apiUrl = import.meta.env.VITE_API_URL || '';
-                const response = await fetch(`${apiUrl}/api/stats/system`);
+                const url = import.meta.env.DEV ? '/api/stats/system' : getApiUrl('/api/stats/system');
+                const response = await fetch(url);
                 if (response.ok) {
                     const data = await response.json();
                     setSystemStats({
@@ -64,11 +65,9 @@ const Login = () => {
         setIsLoading(true);
 
         try {
-            // Get API URL from environment
-            const apiUrl = import.meta.env.VITE_API_URL || '';
-
             // Call unified login endpoint which handles both database and LDAP authentication
-            const res = await fetch(`${apiUrl}/api/auth/login`, {
+            const url = import.meta.env.DEV ? '/api/auth/login' : getApiUrl('/api/auth/login');
+            const res = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password }),
