@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { setPageTitle } from '../../../store/themeConfigSlice';
 import { getApiUrl } from '../../../config/api';
+import { getAuthHeaders } from '../../../utils/api';
 import IconLoader from '../../../components/Icon/IconLoader';
 import IconSquareCheck from '../../../components/Icon/IconSquareCheck';
 import IconAlertCircle from '../../../components/Icon/IconAlertCircle';
@@ -56,7 +57,12 @@ const RolePermissionManagement = () => {
     const loadData = async () => {
         setLoading(true);
         try {
-            const [rolesRes, permsRes] = await Promise.all([fetch(getApiUrl('/api/admin/roles')).catch(() => null), fetch(getApiUrl('/api/admin/permissions')).catch(() => null)]);
+            const authHeaders = getAuthHeaders();
+
+            const [rolesRes, permsRes] = await Promise.all([
+                fetch(getApiUrl('/api/admin/roles'), { headers: authHeaders }).catch(() => null),
+                fetch(getApiUrl('/api/admin/permissions'), { headers: authHeaders }).catch(() => null),
+            ]);
 
             if (rolesRes?.ok) {
                 const data = await rolesRes.json();

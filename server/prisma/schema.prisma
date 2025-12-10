@@ -263,10 +263,11 @@ model Department {
 }
 
 model Role {
-  id          Int        @id @default(autoincrement())
-  name        String     @unique
+  id          Int               @id @default(autoincrement())
+  name        String            @unique
   description String?
   users       UserRole[]
+  permissions RolePermission[]
 }
 
 // Common role names used by the application (for reference):
@@ -278,6 +279,29 @@ model Role {
 // - PROCUREMENT
 // - FINANCE
 // - INNOVATION_COMMITTEE
+
+model Permission {
+  id          Int               @id @default(autoincrement())
+  name        String            @unique
+  description String?
+  module      String? // e.g., "procurement", "innovation", "admin"
+  roles       RolePermission[]
+  createdAt   DateTime          @default(now())
+
+  @@index([module])
+}
+
+model RolePermission {
+  id           Int        @id @default(autoincrement())
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  roleId       Int
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  permissionId Int
+
+  @@unique([roleId, permissionId])
+  @@index([roleId])
+  @@index([permissionId])
+}
 
 model UserRole {
   id     Int  @id @default(autoincrement())

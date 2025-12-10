@@ -114,19 +114,38 @@ router.get('/roles', adminOnly, async (req: Request, res: Response) => {
  */
 router.get('/permissions', adminOnly, async (req: Request, res: Response) => {
     try {
-        // Return predefined permissions list since there's no Permission model
-        const permissions = [
-            { id: '1', name: 'CREATE_REQUEST', description: 'Create procurement requests' },
-            { id: '2', name: 'APPROVE_REQUEST', description: 'Approve procurement requests' },
-            { id: '3', name: 'REJECT_REQUEST', description: 'Reject procurement requests' },
-            { id: '4', name: 'VIEW_REPORTS', description: 'View system reports' },
-            { id: '5', name: 'MANAGE_USERS', description: 'Manage system users' },
-            { id: '6', name: 'MANAGE_ROLES', description: 'Manage roles' },
-            { id: '7', name: 'SYSTEM_CONFIG', description: 'Configure system settings' },
-            { id: '8', name: 'VIEW_AUDIT_LOGS', description: 'View audit logs' },
-        ];
+        // Fetch permissions from database
+        const permissions = await prisma.permission.findMany({
+            orderBy: { module: 'asc' },
+        });
 
-        res.json(permissions);
+        // If no permissions exist, seed them
+        if (permissions.length === 0) {
+            const defaultPermissions = [
+                { name: 'CREATE_REQUEST', description: 'Create procurement requests', module: 'procurement' },
+                { name: 'APPROVE_REQUEST', description: 'Approve procurement requests', module: 'procurement' },
+                { name: 'REJECT_REQUEST', description: 'Reject procurement requests', module: 'procurement' },
+                { name: 'VIEW_REPORTS', description: 'View system reports', module: 'admin' },
+                { name: 'MANAGE_USERS', description: 'Manage system users', module: 'admin' },
+                { name: 'MANAGE_ROLES', description: 'Manage roles and permissions', module: 'admin' },
+                { name: 'SYSTEM_CONFIG', description: 'Configure system settings', module: 'admin' },
+                { name: 'VIEW_AUDIT_LOGS', description: 'View audit logs', module: 'admin' },
+                { name: 'CREATE_IDEA', description: 'Submit ideas to innovation hub', module: 'innovation' },
+                { name: 'EVALUATE_IDEA', description: 'Evaluate and vote on ideas', module: 'innovation' },
+            ];
+
+            const created = await Promise.all(
+                defaultPermissions.map((perm) =>
+                    prisma.permission.create({
+                        data: perm,
+                    })
+                )
+            );
+
+            res.json(created);
+        } else {
+            res.json(permissions);
+        }
     } catch (error) {
         logger.error('Failed to fetch permissions', { error });
         res.status(500).json({ success: false, message: 'Failed to fetch permissions' });
@@ -394,6 +413,77 @@ router.delete('/roles/:id', adminOnly, async (req: Request, res: Response) => {
     } catch (error) {
         logger.error('Failed to delete role', { error });
         res.status(500).json({ success: false, message: 'Failed to delete role' });
+    }
+});
+
+/**
+ * GET /api/admin/roles/:id/permissions - Get permissions for a specific role
+ */
+router.get('/roles/:id/permissions', adminOnly, async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const roleId = parseInt(id);
+
+        const rolePermissions = await prisma.rolePermission.findMany({
+            where: { roleId },
+            include: {
+                permission: true,
+            },
+        });
+
+        const permissionIds = rolePermissions.map((rp) => rp.permission.id);
+
+        // Get all permissions for reference
+        const allPermissions = await prisma.permission.findMany({
+            orderBy: { module: 'asc' },
+        });
+
+        res.json({
+            roleId,
+            assignedPermissions: permissionIds,
+            allPermissions,
+            rolePermissions: rolePermissions.map((rp) => rp.permission),
+        });
+    } catch (error) {
+        logger.error('Failed to fetch role permissions', { error });
+        res.status(500).json({ success: false, message: 'Failed to fetch role permissions' });
+    }
+});
+
+/**
+ * POST /api/admin/roles/:id/permissions - Assign permissions to a role
+ */
+router.post('/roles/:id/permissions', adminOnly, async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { permissionIds } = req.body;
+        const roleId = parseInt(id);
+
+        if (!Array.isArray(permissionIds)) {
+            return res.status(400).json({ success: false, message: 'permissionIds must be an array' });
+        }
+
+        // Delete existing permissions
+        await prisma.rolePermission.deleteMany({
+            where: { roleId },
+        });
+
+        // Create new permissions
+        const assigned = await Promise.all(
+            permissionIds.map((permissionId: number) =>
+                prisma.rolePermission.create({
+                    data: {
+                        roleId,
+                        permissionId,
+                    },
+                })
+            )
+        );
+
+        res.json({ success: true, message: 'Permissions assigned', count: assigned.length });
+    } catch (error) {
+        logger.error('Failed to assign permissions to role', { error });
+        res.status(500).json({ success: false, message: 'Failed to assign permissions' });
     }
 });
 
