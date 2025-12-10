@@ -4,16 +4,14 @@ const TEST_URL = 'http://localhost:4000/api/test/my-photo';
 
 async function testPhotoEndpoint() {
     try {
-        // You'll need to replace this with a valid JWT token from your app
-        const token = process.env.TEST_JWT_TOKEN || 'YOUR_JWT_TOKEN_HERE';
-
         console.log('Testing NEW endpoint:', TEST_URL);
         console.log('Making request...\n');
 
         const response = await fetch(TEST_URL, {
             method: 'GET',
             headers: {
-                Authorization: `Bearer ${token}`,
+                'x-user-id': '30',
+                Authorization: 'Bearer dummy-token-for-testing',
                 'Content-Type': 'application/json',
             },
         });

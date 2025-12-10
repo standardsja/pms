@@ -489,19 +489,48 @@ router.get(
 
         const user = await prisma.user.findUnique({
             where: { id: userId },
-            include: {
+            select: {
+                id: true,
+                email: true,
+                name: true,
+                jobTitle: true,
+                phone: true,
+                address: true,
+                city: true,
+                country: true,
+                employeeId: true,
+                supervisor: true,
+                ldapDN: true,
+                profileImage: true,
+                createdAt: true,
+                updatedAt: true,
                 roles: {
-                    include: {
-                        role: true,
+                    select: {
+                        role: {
+                            select: {
+                                id: true,
+                                name: true,
+                            },
+                        },
                     },
                 },
-                department: true,
+                department: {
+                    select: {
+                        id: true,
+                        name: true,
+                        code: true,
+                    },
+                },
             },
         });
 
         if (!user) {
             throw new BadRequestError('User not found');
         }
+
+        const roles = user.roles.map((r) => r.role.name);
+        const permissions = computePermissionsForUser(user);
+        const deptManagerFor = computeDeptManagerForUser(user);
 
         const roles = user.roles.map((r) => r.role.name);
         const permissions = computePermissionsForUser(user);

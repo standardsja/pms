@@ -81,6 +81,28 @@ const Profile = () => {
                 });
                 if (meResponse.ok) {
                     const data = await meResponse.json();
+                    
+                    // Fallback: if profileImage is missing from /api/auth/me, fetch from /api/test/my-photo
+                    if (!data.profileImage) {
+                        try {
+                            const photoResponse = await fetch(getApiUrl('/api/test/my-photo'), {
+                                headers: {
+                                    Authorization: `Bearer ${token}`,
+                                    'Content-Type': 'application/json',
+                                },
+                                cache: 'no-store',
+                            });
+                            if (photoResponse.ok) {
+                                const photoData = await photoResponse.json();
+                                if (photoData.success && photoData.data?.profileImage) {
+                                    data.profileImage = photoData.data.profileImage;
+                                }
+                            }
+                        } catch (error) {
+                            console.warn('Could not fetch photo from test endpoint:', error);
+                        }
+                    }
+                    
                     // Add timestamp to profile image for cache busting
                     if (data.profileImage) {
                         data.profileImage = resolveProfileImageUrl(data.profileImage);
