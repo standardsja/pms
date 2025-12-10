@@ -80,7 +80,57 @@ async function apiPost<T = any>(path: string, body: any): Promise<T> {
     });
     if (!res.ok) {
         const text = await res.text();
-        throw new Error(text || `POST ${url} failed: ${res.status}`);
+        let errorMessage = `POST ${url} failed: ${res.status}`;
+        try {
+            const errorData = JSON.parse(text);
+            errorMessage = errorData.message || errorData.error || errorMessage;
+        } catch {
+            errorMessage = text || errorMessage;
+        }
+        throw new Error(errorMessage);
+    }
+    return res.json();
+}
+
+async function apiPut<T = any>(path: string, body: any): Promise<T> {
+    const url = buildUrl(path);
+    const headers = getAuthHeaders();
+    const res = await fetch(url, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(body ?? {}),
+    });
+    if (!res.ok) {
+        const text = await res.text();
+        let errorMessage = `PUT ${url} failed: ${res.status}`;
+        try {
+            const errorData = JSON.parse(text);
+            errorMessage = errorData.message || errorData.error || errorMessage;
+        } catch {
+            errorMessage = text || errorMessage;
+        }
+        throw new Error(errorMessage);
+    }
+    return res.json();
+}
+
+async function apiDelete<T = any>(path: string): Promise<T> {
+    const url = buildUrl(path);
+    const headers = getAuthHeaders();
+    const res = await fetch(url, {
+        method: 'DELETE',
+        headers,
+    });
+    if (!res.ok) {
+        const text = await res.text();
+        let errorMessage = `DELETE ${url} failed: ${res.status}`;
+        try {
+            const errorData = JSON.parse(text);
+            errorMessage = errorData.message || errorData.error || errorMessage;
+        } catch {
+            errorMessage = text || errorMessage;
+        }
+        throw new Error(errorMessage);
     }
     return res.json();
 }
@@ -92,17 +142,57 @@ export interface RoleOption {
 }
 
 const BACKEND = {
+    // User Management
     getUsers: (): Promise<AdminUser[]> => apiGet('/api/admin/users'),
-    getAllRoles: (): Promise<RoleOption[]> => apiGet('/api/admin/roles'),
-    createDepartment: (input: CreateDepartmentInput) => apiPost('/api/admin/departments', input),
-    // Admin load-balancing (splintering) endpoints
-    getLoadBalancingSettings: () => apiGet('/api/admin/load-balancing-settings'),
-    updateLoadBalancingSettings: (payload: { splinteringEnabled?: boolean }) => apiPost('/api/admin/load-balancing-settings', payload),
     updateUserRoles: (userId: number, roles: string[]) => apiPost(`/api/admin/users/${userId}/roles`, { roles }),
     updateUserDepartment: (userId: number, departmentId: number | null) => apiPost(`/api/admin/users/${userId}/department`, { departmentId }),
-    // User Security endpoints
+
+    // User Security
     blockUser: (userId: number, reason: string) => apiPost(`/api/admin/users/${userId}/block`, { reason }),
     unblockUser: (userId: number) => apiPost(`/api/admin/users/${userId}/unblock`, {}),
+
+    // Role Management
+    getAllRoles: (): Promise<RoleOption[]> => apiGet('/api/admin/roles'),
+    createRole: (data: { name: string; description?: string }) => apiPost('/api/admin/roles', data),
+    updateRole: (roleId: number, data: { name: string; description?: string }) => apiPut(`/api/admin/roles/${roleId}`, data),
+    deleteRole: (roleId: number) => apiDelete(`/api/admin/roles/${roleId}`),
+    getRolePermissions: (roleId: number) => apiGet(`/api/admin/roles/${roleId}/permissions`),
+    assignPermissionsToRole: (roleId: number, permissionNames: string[]) => apiPost(`/api/admin/roles/${roleId}/permissions`, { permissionNames }),
+
+    // Department Management
+    getDepartments: () => apiGet('/api/admin/departments'),
+    createDepartment: (input: CreateDepartmentInput) => apiPost('/api/admin/departments', input),
+
+    // Permission Management
+    getPermissions: () => apiGet('/api/admin/permissions'),
+
+    // Workflow Configuration
+    getWorkflowStatuses: () => apiGet('/api/admin/workflow-statuses'),
+    getWorkflowSLAs: () => apiGet('/api/admin/workflow-slas'),
+
+    // System Configuration
+    getSystemConfig: () => apiGet('/api/admin/system-config'),
+    updateSystemConfig: (data: any) => apiPost('/api/admin/system-config', data),
+
+    // Module Locks
+    getModuleLocks: () => apiGet('/api/admin/module-locks'),
+    updateModuleLock: (moduleKey: string, data: { locked: boolean; reason?: string }) => apiPost(`/api/admin/module-locks/${moduleKey}`, data),
+
+    // Bulk Operations
+    bulkImportUsers: (csvContent: string) => apiPost('/api/admin/bulk-import', { csvContent }),
+    bulkAssignRole: (userIds: number[], roleId: number) => apiPost('/api/admin/bulk-role-assignment', { userIds, roleId }),
+    bulkChangeDepartment: (userIds: number[], departmentId: number) => apiPost('/api/admin/bulk-department-change', { userIds, departmentId }),
+    bulkDeactivateUsers: (userIds: number[], reason?: string) => apiPost('/api/admin/bulk-deactivate', { userIds, reason }),
+    bulkPasswordReset: (userIds: number[]) => apiPost('/api/admin/bulk-password-reset', { userIds }),
+
+    // Splintering Rules
+    getSplinteringRules: () => apiGet('/api/admin/splintering-rules'),
+    createSplinteringRule: (data: any) => apiPost('/api/admin/splintering-rules', data),
+    updateSplinteringRule: (ruleId: number, data: any) => apiPut(`/api/admin/splintering-rules/${ruleId}`, data),
+    deleteSplinteringRule: (ruleId: number) => apiDelete(`/api/admin/splintering-rules/${ruleId}`),
+    toggleSplinteringRule: (ruleId: number) => apiPost(`/api/admin/splintering-rules/${ruleId}/toggle`, {}),
+
+    // Audit & Monitoring
     getAuditLog: (q: AuditQuery) => {
         const params = new URLSearchParams();
         if (q.startDate) params.set('startDate', q.startDate);
@@ -111,7 +201,12 @@ const BACKEND = {
         const suffix = params.toString();
         return apiGet(`/api/admin/audit-log${suffix ? `?${suffix}` : ''}`);
     },
-    // Reassign a request to another user (admin action)
+
+    // Load Balancing
+    getLoadBalancingSettings: () => apiGet('/api/admin/load-balancing-settings'),
+    updateLoadBalancingSettings: (payload: { splinteringEnabled?: boolean }) => apiPost('/api/admin/load-balancing-settings', payload),
+
+    // Request Management
     reassignRequest: (requestId: number, payload: { assigneeId: number | null; comment?: string; newStatus?: string }) => apiPost(`/api/admin/requests/${requestId}/reassign`, payload),
 };
 

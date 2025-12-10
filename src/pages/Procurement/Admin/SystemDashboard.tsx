@@ -47,12 +47,35 @@ const SystemDashboard = () => {
     const loadMetrics = async () => {
         setLoading(true);
         try {
+            // Get auth token
+            const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+            const headers: HeadersInit = {
+                'Content-Type': 'application/json',
+            };
+
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
+
+            // Get user ID for x-user-id header
+            const authUser = localStorage.getItem('auth_user') || sessionStorage.getItem('auth_user');
+            if (authUser) {
+                try {
+                    const user = JSON.parse(authUser);
+                    if (user.id) {
+                        headers['x-user-id'] = String(user.id);
+                    }
+                } catch (e) {
+                    console.warn('Failed to parse auth_user:', e);
+                }
+            }
+
             // Fetch metrics from various endpoints
             const [usersRes, requestsRes, deptsRes, vendorsRes] = await Promise.all([
-                fetch(getApiUrl('/api/admin/users')).catch(() => null),
-                fetch(getApiUrl('/requests')).catch(() => null),
-                fetch(getApiUrl('/api/departments')).catch(() => null),
-                fetch(getApiUrl('/api/suppliers')).catch(() => null),
+                fetch(getApiUrl('/api/admin/users'), { headers }).catch(() => null),
+                fetch(getApiUrl('/requests'), { headers }).catch(() => null),
+                fetch(getApiUrl('/api/departments'), { headers }).catch(() => null),
+                fetch(getApiUrl('/api/suppliers'), { headers }).catch(() => null),
             ]);
 
             let totalUsers = 0;

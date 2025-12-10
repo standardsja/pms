@@ -960,6 +960,195 @@ router.post('/users/:id/unblock', adminOnly, async (req: Request, res: Response)
 });
 
 /**
+ * POST /api/admin/users/:id/roles - Update user roles
+ */
+router.post('/users/:id/roles', adminOnly, async (req: Request, res: Response) => {
+    try {
+        const userId = parseInt(req.params.id);
+        const { roles } = req.body;
+        const adminUser = (req as any).user;
+
+        if (!Array.isArray(roles)) {
+            return res.status(400).json({ success: false, message: 'Roles must be an array' });
+        }
+
+        // Check if user exists
+        const userToUpdate = await prisma.user.findUnique({
+            where: { id: userId },
+            include: {
+                roles: {
+                    include: {
+                        role: true,
+                    },
+                },
+            },
+        });
+
+        if (!userToUpdate) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        // Get all role records from database
+        const allRoles = await prisma.role.findMany();
+        const roleMap = new Map(allRoles.map((r) => [r.name, r.id]));
+
+        // Convert role names to role IDs
+        const roleIds = roles.map((roleName: string) => {
+            const roleId = roleMap.get(roleName);
+            if (!roleId) {
+                throw new Error(`Role not found: ${roleName}`);
+            }
+            return roleId;
+        });
+
+        // Delete existing roles
+        await prisma.userRole.deleteMany({
+            where: { userId },
+        });
+
+        // Add new roles
+        if (roleIds.length > 0) {
+            await prisma.userRole.createMany({
+                data: roleIds.map((roleId) => ({
+                    userId,
+                    roleId,
+                })),
+            });
+        }
+
+        // Fetch updated user data
+        const updatedUser = await prisma.user.findUnique({
+            where: { id: userId },
+            include: {
+                department: true,
+                roles: {
+                    include: {
+                        role: true,
+                    },
+                },
+            },
+        });
+
+        // Create audit log
+        await prisma.auditLog.create({
+            data: {
+                userId: adminUser.sub,
+                action: 'USER_UPDATED',
+                entity: 'User',
+                entityId: userId,
+                message: `User ${userToUpdate.email} roles updated by admin`,
+                ipAddress: (req.headers['x-forwarded-for'] as string) || req.ip || req.socket.remoteAddress || null,
+                metadata: {
+                    action: 'update_roles',
+                    roles: roles,
+                    updatedUser: userToUpdate.email,
+                    updatedBy: adminUser.email,
+                    status: 'success',
+                },
+            },
+        });
+
+        logger.info('User roles updated', {
+            userId,
+            email: userToUpdate.email,
+            updatedBy: adminUser.sub,
+            roles,
+        });
+
+        // Check if updating current user
+        const isCurrentUser = userId === adminUser.sub;
+
+        res.json({
+            success: true,
+            message: 'User roles updated successfully',
+            updatedUser,
+            isCurrentUser,
+        });
+    } catch (error: any) {
+        logger.error('Failed to update user roles', { error, userId: req.params.id });
+        res.status(500).json({ success: false, message: error?.message || 'Failed to update user roles' });
+    }
+});
+
+/**
+ * POST /api/admin/users/:id/department - Update user department
+ */
+router.post('/users/:id/department', adminOnly, async (req: Request, res: Response) => {
+    try {
+        const userId = parseInt(req.params.id);
+        const { departmentId } = req.body;
+        const adminUser = (req as any).user;
+
+        // Check if user exists
+        const userToUpdate = await prisma.user.findUnique({ where: { id: userId } });
+        if (!userToUpdate) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        // Validate department if provided
+        if (departmentId !== null) {
+            const dept = await prisma.department.findUnique({ where: { id: parseInt(departmentId) } });
+            if (!dept) {
+                return res.status(404).json({ success: false, message: 'Department not found' });
+            }
+        }
+
+        // Update user department
+        const updatedUser = await prisma.user.update({
+            where: { id: userId },
+            data: { departmentId: departmentId ? parseInt(departmentId) : null },
+            include: {
+                department: true,
+                roles: {
+                    include: {
+                        role: true,
+                    },
+                },
+            },
+        });
+
+        // Create audit log
+        await prisma.auditLog.create({
+            data: {
+                userId: adminUser.sub,
+                action: 'USER_UPDATED',
+                entity: 'User',
+                entityId: userId,
+                message: `User ${userToUpdate.email} department updated by admin`,
+                ipAddress: (req.headers['x-forwarded-for'] as string) || req.ip || req.socket.remoteAddress || null,
+                metadata: {
+                    action: 'update_department',
+                    departmentId: departmentId,
+                    updatedUser: userToUpdate.email,
+                    updatedBy: adminUser.email,
+                    status: 'success',
+                },
+            },
+        });
+
+        logger.info('User department updated', {
+            userId,
+            email: userToUpdate.email,
+            updatedBy: adminUser.sub,
+            departmentId,
+        });
+
+        // Check if updating current user
+        const isCurrentUser = userId === adminUser.sub;
+
+        res.json({
+            success: true,
+            message: 'User department updated successfully',
+            updatedUser,
+            isCurrentUser,
+        });
+    } catch (error) {
+        logger.error('Failed to update user department', { error, userId: req.params.id });
+        res.status(500).json({ success: false, message: 'Failed to update user department' });
+    }
+});
+
+/**
  * POST /api/admin/bulk-role-assignment - Assign roles to multiple users
  */
 router.post('/bulk-role-assignment', adminOnly, async (req: Request, res: Response) => {
