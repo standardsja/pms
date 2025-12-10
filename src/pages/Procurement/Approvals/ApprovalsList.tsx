@@ -53,14 +53,23 @@ const ApprovalsList = () => {
             });
 
             if (!response.ok) {
-                throw new Error('Failed to fetch approvals');
+                // Gracefully handle missing endpoint
+                if (response.status === 404) {
+                    setApprovals([]);
+                    setError(null);
+                } else {
+                    throw new Error('Failed to fetch approvals');
+                }
+                return;
             }
 
             const data = await response.json();
-            setApprovals(data);
+            setApprovals(Array.isArray(data) ? data : []);
         } catch (err) {
             console.error('Error fetching approvals:', err);
-            setError(err instanceof Error ? err.message : 'Failed to load approvals');
+            // Set empty approvals instead of showing error
+            setApprovals([]);
+            setError(null);
         } finally {
             setLoading(false);
         }

@@ -314,28 +314,6 @@ const Header = () => {
                                         <IconMenuDashboard />
                                     </Link>
                                 </li>
-                                {!isRequester && (
-                                    <>
-                                        <li>
-                                            <Link
-                                                to="/procurement/rfq/list"
-                                                className="block p-2 rounded-full bg-white-light/40 dark:bg-dark/40 hover:text-primary hover:bg-white-light/90 dark:hover:bg-dark/60"
-                                                title="RFQ Management"
-                                            >
-                                                <IconEdit />
-                                            </Link>
-                                        </li>
-                                        <li>
-                                            <Link
-                                                to="/procurement/approvals"
-                                                className="block p-2 rounded-full bg-white-light/40 dark:bg-dark/40 hover:text-primary hover:bg-white-light/90 dark:hover:bg-dark/60"
-                                                title="Approvals"
-                                            >
-                                                <IconCalendar />
-                                            </Link>
-                                        </li>
-                                    </>
-                                )}
                             </ul>
                         </div>
                     )}
@@ -813,9 +791,6 @@ const Header = () => {
                             </button>
                             <ul className="sub-menu">
                                 <li>
-                                    <NavLink to="/procurement/rfq/list">RFQ Management</NavLink>
-                                </li>
-                                <li>
                                     <NavLink to="/procurement/quotes">Quotes</NavLink>
                                 </li>
                                 <li>
@@ -823,9 +798,6 @@ const Header = () => {
                                 </li>
                                 <li>
                                     <NavLink to="/procurement/review">Review</NavLink>
-                                </li>
-                                <li>
-                                    <NavLink to="/procurement/approvals">Approvals</NavLink>
                                 </li>
                                 <li>
                                     <NavLink to="/procurement/purchase-orders">Purchase Orders</NavLink>
