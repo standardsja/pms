@@ -416,6 +416,38 @@ router.get(
         const permissions = computePermissionsForUser(user);
         const deptManagerFor = computeDeptManagerForUser(user);
 
+        // Validate profile image exists and has content
+        let validProfileImage = user.profileImage;
+        if (validProfileImage) {
+            const imagePath = path.join(process.cwd(), validProfileImage);
+            try {
+                const stats = await fs.promises.stat(imagePath);
+                if (stats.size === 0) {
+                    // Image file is empty, clear it from database
+                    logger.warn('Profile image file is empty, clearing from database', {
+                        userId,
+                        profileImage: validProfileImage,
+                    });
+                    await prisma.user.update({
+                        where: { id: userId },
+                        data: { profileImage: null },
+                    });
+                    validProfileImage = null;
+                }
+            } catch (error) {
+                // File doesn't exist, clear from database
+                logger.warn('Profile image file not found, clearing from database', {
+                    userId,
+                    profileImage: validProfileImage,
+                });
+                await prisma.user.update({
+                    where: { id: userId },
+                    data: { profileImage: null },
+                });
+                validProfileImage = null;
+            }
+        }
+
         res.json({
             id: user.id,
             email: user.email,
@@ -430,7 +462,7 @@ router.get(
                       code: user.department.code,
                   }
                 : null,
-            profileImage: user.profileImage,
+            profileImage: validProfileImage,
         });
     })
 );
@@ -536,6 +568,11 @@ router.post(
             throw new BadRequestError('No photo file provided');
         }
 
+        // Validate uploaded file has content
+        if (req.file.size === 0) {
+            throw new BadRequestError('Uploaded file is empty');
+        }
+
         // Delete old profile photo if it exists
         const user = await prisma.user.findUnique({
             where: { id: userId },
@@ -546,6 +583,7 @@ router.post(
             const oldPhotoPath = path.join(process.cwd(), user.profileImage);
             if (fs.existsSync(oldPhotoPath)) {
                 fs.unlinkSync(oldPhotoPath);
+                logger.info('Deleted old profile photo', { userId, oldPath: user.profileImage });
             }
         }
 
@@ -560,6 +598,8 @@ router.post(
         logger.info('Profile photo updated', {
             userId: updatedUser.id,
             photoPath: relativePath,
+            fileSize: req.file.size,
+            mimeType: req.file.mimetype,
         });
 
         res.json({
