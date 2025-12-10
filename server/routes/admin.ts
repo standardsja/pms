@@ -1618,4 +1618,136 @@ router.post('/splintering-rules/:id/toggle', adminOnly, async (req: Request, res
     }
 });
 
+/**
+ * Navigation Menu Management
+ */
+
+/**
+ * GET /api/admin/navigation-menus - Get all navigation menu items
+ */
+router.get('/navigation-menus', adminOnly, async (req: Request, res: Response) => {
+    try {
+        const menus = await prisma.navigationMenu.findMany({
+            where: { isActive: true },
+            orderBy: { displayOrder: 'asc' },
+        });
+
+        logger.info(`GET /api/admin/navigation-menus returned ${menus.length} items`);
+        res.json(menus);
+    } catch (error) {
+        logger.error('Failed to fetch navigation menus', { error });
+        res.status(500).json({ success: false, message: 'Failed to fetch menus' });
+    }
+});
+
+/**
+ * POST /api/admin/navigation-menus - Create new navigation menu item
+ */
+router.post('/navigation-menus', adminOnly, async (req: Request, res: Response) => {
+    try {
+        const { menuId, label, icon, path, description, displayOrder } = req.body;
+
+        // Validate required fields
+        if (!menuId || !label || !path) {
+            return res.status(400).json({
+                success: false,
+                message: 'Missing required fields: menuId, label, path',
+            });
+        }
+
+        // Check for duplicate menuId
+        const existing = await prisma.navigationMenu.findUnique({
+            where: { menuId },
+        });
+
+        if (existing) {
+            return res.status(409).json({
+                success: false,
+                message: `Menu item with ID "${menuId}" already exists`,
+            });
+        }
+
+        const menu = await prisma.navigationMenu.create({
+            data: {
+                menuId,
+                label,
+                icon: icon || null,
+                path,
+                description: description || null,
+                displayOrder: displayOrder || 0,
+                isActive: true,
+            },
+        });
+
+        logger.info('Created navigation menu item', { menuId, label });
+        res.status(201).json({ success: true, data: menu, message: 'Menu item created' });
+    } catch (error) {
+        logger.error('Failed to create navigation menu', { error });
+        res.status(500).json({ success: false, message: 'Failed to create menu item' });
+    }
+});
+
+/**
+ * PUT /api/admin/navigation-menus/:id - Update navigation menu item
+ */
+router.put('/navigation-menus/:id', adminOnly, async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { label, icon, path, description, displayOrder, isActive } = req.body;
+
+        const menu = await prisma.navigationMenu.findUnique({
+            where: { id: parseInt(id) },
+        });
+
+        if (!menu) {
+            return res.status(404).json({ success: false, message: 'Menu item not found' });
+        }
+
+        const updated = await prisma.navigationMenu.update({
+            where: { id: parseInt(id) },
+            data: {
+                label: label !== undefined ? label : menu.label,
+                icon: icon !== undefined ? icon : menu.icon,
+                path: path !== undefined ? path : menu.path,
+                description: description !== undefined ? description : menu.description,
+                displayOrder: displayOrder !== undefined ? displayOrder : menu.displayOrder,
+                isActive: isActive !== undefined ? isActive : menu.isActive,
+            },
+        });
+
+        logger.info('Updated navigation menu item', { id: parseInt(id), label: updated.label });
+        res.json({ success: true, data: updated, message: 'Menu item updated' });
+    } catch (error) {
+        logger.error('Failed to update navigation menu', { error });
+        res.status(500).json({ success: false, message: 'Failed to update menu item' });
+    }
+});
+
+/**
+ * DELETE /api/admin/navigation-menus/:id - Delete navigation menu item
+ */
+router.delete('/navigation-menus/:id', adminOnly, async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+
+        const menu = await prisma.navigationMenu.findUnique({
+            where: { id: parseInt(id) },
+        });
+
+        if (!menu) {
+            return res.status(404).json({ success: false, message: 'Menu item not found' });
+        }
+
+        await prisma.navigationMenu.delete({
+            where: { id: parseInt(id) },
+        });
+
+        logger.info('Deleted navigation menu item', { id: parseInt(id), label: menu.label });
+        res.json({ success: true, message: 'Menu item deleted' });
+    } catch (error) {
+        logger.error('Failed to delete navigation menu', { error });
+        res.status(500).json({ success: false, message: 'Failed to delete menu item' });
+    }
+});
+
 export { router as adminRoutes };

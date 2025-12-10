@@ -1033,3 +1033,23 @@ model WorkflowSLA {
   @@unique([fromStatus, toStatus])
   @@index([isActive])
 }
+
+/**
+ * Navigation Menu
+ * Stores menu items displayed in application headers/sidebars
+ */
+model NavigationMenu {
+  id            Int      @id @default(autoincrement())
+  menuId        String   @unique // e.g., "my-profile", "account-settings"
+  label         String   // Display label
+  icon          String?  // Icon name or SVG identifier
+  path          String   // Route path
+  description   String?  @db.Text
+  displayOrder  Int      @default(0)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([displayOrder])
+}

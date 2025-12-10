@@ -215,6 +215,12 @@ const BACKEND = {
     getLoadBalancingSettings: () => apiGet('/api/admin/load-balancing-settings'),
     updateLoadBalancingSettings: (payload: { splinteringEnabled?: boolean }) => apiPost('/api/admin/load-balancing-settings', payload),
 
+    // Navigation Menu Management
+    getNavigationMenus: () => apiGet('/api/admin/navigation-menus'),
+    createNavigationMenu: (data: any) => apiPost('/api/admin/navigation-menus', data),
+    updateNavigationMenu: (id: number, data: any) => apiPut(`/api/admin/navigation-menus/${id}`, data),
+    deleteNavigationMenu: (id: number) => apiDelete(`/api/admin/navigation-menus/${id}`),
+
     // Request Management
     reassignRequest: (requestId: number, payload: { assigneeId: number | null; comment?: string; newStatus?: string }) => apiPost(`/api/admin/requests/${requestId}/reassign`, payload),
 };
