@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { setPageTitle } from '../../../store/themeConfigSlice';
-import { getApiUrl } from '../../../config/api';
-import { getAuthHeaders } from '../../../utils/api';
+import adminService from '../../../services/adminService';
 import IconLoader from '../../../components/Icon/IconLoader';
 import IconSquareCheck from '../../../components/Icon/IconSquareCheck';
 import IconAlertCircle from '../../../components/Icon/IconAlertCircle';
@@ -40,17 +39,12 @@ const SystemConfiguration = () => {
     const loadConfig = async () => {
         setLoading(true);
         try {
-            const response = await fetch(getApiUrl('/api/admin/system-config'), {
-                headers: getAuthHeaders(),
-            });
-            if (response.ok) {
-                const data = await response.json();
-                setConfig(data);
-            } else {
-                console.warn('Failed to load system config:', response.status);
-            }
+            const data = await adminService.getSystemConfig();
+            setConfig(data);
+            setError('');
         } catch (e: any) {
             console.warn('Error loading config:', e.message);
+            setError(e.message || 'Failed to load configuration');
         } finally {
             setLoading(false);
         }
@@ -58,21 +52,14 @@ const SystemConfiguration = () => {
 
     const handleSave = async () => {
         setSaving(true);
+        setError('');
         try {
-            const response = await fetch(getApiUrl('/api/admin/system-config'), {
-                method: 'POST',
-                headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-                body: JSON.stringify(config),
-            });
-
-            if (!response.ok) {
-                throw new Error('Failed to save configuration');
-            }
-
+            await adminService.updateSystemConfig(config);
             setSuccess('Configuration saved successfully');
             setTimeout(() => setSuccess(''), 3000);
         } catch (e: any) {
-            setError(e.message);
+            setError(e.message || 'Failed to save configuration');
+            setTimeout(() => setError(''), 5000);
         } finally {
             setSaving(false);
         }

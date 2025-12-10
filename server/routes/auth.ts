@@ -280,11 +280,26 @@ router.post(
         if (!isValid) {
             // Increment failed login counter
             const failedAttempts = (user.failedLogins || 0) + 1;
+
+            // Get MAX_LOGIN_ATTEMPTS from system config (default to 5)
+            const maxAttemptsConfig = await prisma.systemConfig.findUnique({
+                where: { key: 'MAX_LOGIN_ATTEMPTS' },
+            });
+            const maxAttempts = maxAttemptsConfig ? parseInt(maxAttemptsConfig.value) : 5;
+
+            // Check if user should be blocked
+            const shouldBlock = failedAttempts >= maxAttempts;
+
             await prisma.user.update({
                 where: { id: user.id },
                 data: {
                     failedLogins: failedAttempts,
                     lastFailedLogin: new Date(),
+                    ...(shouldBlock && {
+                        blocked: true,
+                        blockedAt: new Date(),
+                        blockedReason: `Account automatically blocked after ${failedAttempts} failed login attempts`,
+                    }),
                 },
             });
 
@@ -292,7 +307,13 @@ router.post(
                 userId: user.id,
                 email: user.email,
                 failedAttempts,
+                maxAttempts,
+                blocked: shouldBlock,
             });
+
+            if (shouldBlock) {
+                throw new UnauthorizedError(`Account blocked after ${maxAttempts} failed login attempts. Please contact an administrator.`);
+            }
 
             throw new UnauthorizedError('Invalid credentials');
         }
