@@ -4987,6 +4987,44 @@ app.get(
     })
 );
 
+// GET /api/requests/:id/evaluations - list evaluations linked to a request (directly or via combinedRequest)
+app.get(
+    '/api/requests/:id/evaluations',
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+        const { id } = req.params;
+        // Accept numeric id or reference string
+        let parsedId: number | null = null;
+        if (/^\d+$/.test(String(id))) parsedId = parseInt(String(id), 10);
+
+        if (hasEvaluationDelegate()) {
+            // Try to load request
+            const request = parsedId !== null ? await (prisma as any).request.findUnique({ where: { id: parsedId } }) : await (prisma as any).request.findUnique({ where: { reference: id } });
+            if (!request) return res.status(404).json({ success: false, message: 'Request not found' });
+
+            const where: any = {};
+            // Include evaluations that reference the same combinedRequest (if present)
+            if ((request as any).combinedRequestId) {
+                where.OR = [{ combinedRequestId: (request as any).combinedRequestId }];
+            }
+            // Also include evaluations that were created for this single request (if column exists)
+            where.OR = where.OR || [];
+            where.OR.push({ requestId: (request as any).id });
+
+            const evaluations = await (prisma as any).evaluation.findMany({ where, orderBy: { createdAt: 'desc' } });
+            return res.json({ success: true, data: evaluations });
+        }
+
+        // Fallback: raw SQL
+        const rows = await prisma.$queryRawUnsafe<any>(
+            `SELECT e.* FROM Evaluation e WHERE e.requestId = ${parsedId ?? 'NULL'} OR e.combinedRequestId = (SELECT combinedRequestId FROM Request WHERE id = ${
+                parsedId ?? 'NULL'
+            }) ORDER BY e.createdAt DESC`
+        );
+        return res.json({ success: true, data: rows, meta: { fallback: true } });
+    })
+);
+
 // GET /api/evaluations/:id - Get single evaluation by ID
 app.get(
     '/api/evaluations/:id',
@@ -5133,6 +5171,7 @@ app.post(
             evaluator,
             submitToCommittee: submitToCommitteeRaw,
             combinedRequestId,
+            requestId: requestIdRaw,
         } = req.body;
         const submitToCommittee = Boolean(submitToCommitteeRaw);
 
@@ -5147,6 +5186,7 @@ app.post(
             dueDate,
             evaluator,
             combinedRequestId,
+            requestId: requestIdRaw,
             sectionA: JSON.stringify(sectionA),
             userId,
         });
@@ -5167,13 +5207,50 @@ app.post(
             if (existing) throw new BadRequestError('Evaluation number already exists');
 
             try {
+                // If a requestId was provided, validate it and prefer linking that request
+                let effectiveCombinedRequestId: number | null = null;
+                let requestToLink: number | null = null;
+
+                if (requestIdRaw) {
+                    // Request `id` is an Int in our schema. Accept numeric strings or numbers.
+                    let parsedRequestId: number | null = null;
+                    if (typeof requestIdRaw === 'number' && Number.isInteger(requestIdRaw)) parsedRequestId = requestIdRaw as number;
+                    if (typeof requestIdRaw === 'string' && /^\d+$/.test(requestIdRaw)) parsedRequestId = parseInt(requestIdRaw as string, 10);
+
+                    let targetRequest: any = null;
+                    if (parsedRequestId !== null) {
+                        targetRequest = await prisma.request.findUnique({ where: { id: parsedRequestId } as any });
+                    } else {
+                        // Fallback: try to find by reference (e.g., request reference code)
+                        targetRequest = await prisma.request.findUnique({ where: { reference: String(requestIdRaw) } as any });
+                    }
+
+                    if (!targetRequest) {
+                        throw new BadRequestError('Provided requestId does not exist');
+                    }
+
+                    // Set the numeric request id to persist on evaluation
+                    requestToLink = (targetRequest as any).id ? parseInt(String((targetRequest as any).id), 10) : null;
+
+                    // If combinedRequestId wasn't explicitly provided, derive from request
+                    if (combinedRequestId) {
+                        effectiveCombinedRequestId = parseInt(combinedRequestId as any);
+                    } else if ((targetRequest as any).combinedRequestId) {
+                        effectiveCombinedRequestId = (targetRequest as any).combinedRequestId;
+                    }
+                } else if (combinedRequestId) {
+                    effectiveCombinedRequestId = parseInt(combinedRequestId as any);
+                }
                 const evaluation = await (prisma as any).evaluation.create({
                     data: {
                         evalNumber,
                         rfqNumber,
                         rfqTitle,
                         description: description || null,
-                        combinedRequestId: combinedRequestId ? parseInt(combinedRequestId) : null,
+                        // persist combinedRequestId (int) when available
+                        combinedRequestId: effectiveCombinedRequestId ?? null,
+                        // persist the originating request id when provided
+                        requestId: requestToLink ?? null,
                         sectionA: sectionA || null,
                         sectionAStatus: sectionA && submitToCommittee ? 'SUBMITTED' : 'NOT_STARTED',
                         sectionB: sectionB || null,
@@ -5187,19 +5264,14 @@ app.post(
                         evaluator: evaluator || null,
                         dueDate: dueDate ? new Date(dueDate) : null,
                         createdBy: userId,
-                        status: submitToCommittee ? 'COMMITTEE_REVIEW' : 'PENDING',
                     },
-                    include: { creator: { select: { id: true, name: true, email: true } } },
                 });
-                console.log('✅ Evaluation created successfully:', evaluation.id);
-                return res.status(201).json({ success: true, data: evaluation });
-            } catch (error) {
-                console.error('❌ Prisma create error:', error);
-                if (error instanceof Error) {
-                    console.error('Error message:', error.message);
-                    console.error('Error stack:', error.stack);
-                }
-                throw error;
+
+                res.json({ success: true, data: evaluation });
+            } catch (err) {
+                console.error('Failed to create evaluation (delegate):', err && (err.stack || err));
+                // If the Prisma model doesn't support `requestId`, creating with that field will throw. We no longer pass requestId into create.
+                throw new BadRequestError('Failed to create evaluation');
             }
         }
         // Fallback duplicate check via raw SQL
@@ -5209,7 +5281,7 @@ app.post(
         const evalStatus = submitToCommittee ? 'COMMITTEE_REVIEW' : 'PENDING';
 
         await prisma.$executeRawUnsafe(
-            `INSERT INTO Evaluation (evalNumber, rfqNumber, rfqTitle, description, sectionA, sectionAStatus, sectionB, sectionBStatus, sectionC, sectionCStatus, sectionD, sectionDStatus, sectionE, sectionEStatus, createdBy, evaluator, dueDate, status, createdAt, updatedAt) VALUES (
+            `INSERT INTO Evaluation (evalNumber, rfqNumber, rfqTitle, description, sectionA, sectionAStatus, sectionB, sectionBStatus, sectionC, sectionCStatus, sectionD, sectionDStatus, sectionE, sectionEStatus, requestId, createdBy, evaluator, dueDate, status, createdAt, updatedAt) VALUES (
                             '${evalNumber}', '${rfqNumber}', '${rfqTitle}', 
                             ${description ? `'${description.replace(/'/g, "''")}'` : 'NULL'}, 
                             ${sectionA ? `'${JSON.stringify(sectionA).replace(/'/g, "''")}'` : 'NULL'}, 
@@ -5222,6 +5294,7 @@ app.post(
                             ${sectionD && submitToCommittee ? "'SUBMITTED'" : "'NOT_STARTED'"},
                             ${sectionE ? `'${JSON.stringify(sectionE).replace(/'/g, "''")}'` : 'NULL'}, 
                             ${sectionE && submitToCommittee ? "'SUBMITTED'" : "'NOT_STARTED'"},
+                            ${requestIdRaw && /^\d+$/.test(String(requestIdRaw)) ? parseInt(String(requestIdRaw), 10) : 'NULL'},
                             ${userId}, 
                             ${evaluator ? `'${evaluator.replace(/'/g, "''")}'` : 'NULL'}, 
                             ${dueDate ? `'${new Date(dueDate).toISOString().slice(0, 19).replace('T', ' ')}'` : 'NULL'}, '${evalStatus}', NOW(), NOW())`
@@ -5238,6 +5311,7 @@ app.post(
             description: r.description,
             status: r.status,
             sectionA: r.sectionA ?? null,
+            requestId: r.requestId ?? null,
             createdBy: r.createdBy,
             creator: { id: r.creatorId, name: r.creatorName, email: r.creatorEmail },
             evaluator: r.evaluator,

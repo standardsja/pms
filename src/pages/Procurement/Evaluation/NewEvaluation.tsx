@@ -16,7 +16,11 @@ const NewEvaluation = () => {
     const navigate = useNavigate();
     const { t } = useTranslation();
     const [searchParams] = useSearchParams();
-    const combinedRequestId = searchParams.get('combinedRequestId');
+    const combinedRequestIdParam = searchParams.get('combinedRequestId');
+    const requestIdParam = searchParams.get('requestId');
+
+    const [combinedRequestIdState, setCombinedRequestIdState] = useState<string | null>(combinedRequestIdParam || null);
+    const [prefilledRequest, setPrefilledRequest] = useState<any>(null);
 
     // Combined request data
     const [combinedRequest, setCombinedRequest] = useState<any>(null);
@@ -29,12 +33,12 @@ const NewEvaluation = () => {
     // Fetch combined request if ID provided
     useEffect(() => {
         const fetchCombinedRequest = async () => {
-            if (!combinedRequestId) return;
+            if (!combinedRequestIdState) return;
 
             try {
                 setLoadingCombinedRequest(true);
                 const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
-                const response = await fetch(getApiUrl(`/api/requests/combine/${combinedRequestId}`), {
+                const response = await fetch(getApiUrl(`/api/requests/combine/${combinedRequestIdState}`), {
                     headers: {
                         Authorization: `Bearer ${token}`,
                         'Content-Type': 'application/json',
@@ -63,7 +67,45 @@ const NewEvaluation = () => {
         };
 
         fetchCombinedRequest();
-    }, [combinedRequestId]);
+    }, [combinedRequestIdState]);
+
+    // Fetch single request if requestId provided (prefill form and derive combinedRequestId)
+    useEffect(() => {
+        const fetchRequest = async () => {
+            if (!requestIdParam) return;
+            try {
+                const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
+                const response = await fetch(getApiUrl(`/api/requests/${requestIdParam}`), {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                });
+
+                if (!response.ok) throw new Error('Failed to fetch request');
+
+                const data = await response.json();
+                setPrefilledRequest(data);
+
+                // Prefill basic evaluation fields from the request
+                setFormData((prev) => ({
+                    ...prev,
+                    rfqNumber: data.reference || data.code || '',
+                    rfqTitle: data.title || '',
+                    description: data.description || data.justification || '',
+                }));
+
+                // If the request belongs to a combinedRequest, use that for linking
+                if (!combinedRequestIdState && data.combinedRequestId) {
+                    setCombinedRequestIdState(String(data.combinedRequestId));
+                }
+            } catch (err) {
+                console.error('Error fetching request for evaluation prefill:', err);
+            }
+        };
+
+        fetchRequest();
+    }, [requestIdParam]);
 
     // Role guard (Officer / Manager only)
     useEffect(() => {
@@ -419,7 +461,8 @@ const NewEvaluation = () => {
                 description: formData.background || undefined,
                 evaluator: formData.evaluator || undefined,
                 dueDate: formData.bidValidityExpiration || undefined,
-                combinedRequestId: combinedRequestId ? parseInt(combinedRequestId) : undefined, // Link to combined request
+                combinedRequestId: combinedRequestIdState ? parseInt(combinedRequestIdState) : undefined, // Link to combined request
+                requestId: requestIdParam || undefined,
                 sectionA: {
                     comparableEstimate: safeParseFloat(formData.comparableEstimate),
                     fundedBy: formData.fundedBy || '',

@@ -163,6 +163,7 @@ export interface CreateEvaluationDTO {
     rfqTitle: string;
     description?: string;
     combinedRequestId?: number; // Link to combined request with lots
+    requestId?: string; // Optional link to a single Request (cuid)
     sectionA?: SectionA;
     sectionB?: SectionB;
     sectionC?: SectionC;
