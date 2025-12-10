@@ -40,6 +40,7 @@ import { authRoutes } from './routes/auth';
 import { adminRoutes as adminRouter } from './routes/admin';
 import { ideasRoutes } from './routes/ideas';
 import { innovationRoutes } from './routes/innovation';
+import suppliersRouter from './routes/suppliers';
 
 const app = express();
 const httpServer = http.createServer(app);
@@ -6048,6 +6049,9 @@ app.use('/api/ideas', ideasRoutes);
 
 // Innovation Hub API routes
 app.use('/api/innovation', innovationRoutes);
+
+// Supplier management routes
+app.use('/api/suppliers', suppliersRouter);
 
 // Admin API routes
 app.use('/api/admin', adminRouter);
