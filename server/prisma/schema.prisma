@@ -190,6 +190,15 @@ model User {
   country      String? // Country from LDAP
   supervisor   String? // Supervisor DN from LDAP
 
+  // User Security & Access Control
+  blocked        Boolean?  @default(false)
+  blockedAt      DateTime?
+  blockedReason  String?   @db.Text
+  blockedBy      Int?      // Admin who blocked the user
+  lastLogin      DateTime?
+  failedLogins   Int?      @default(0)
+  lastFailedLogin DateTime?
+
   department   Department? @relation("userDepartment", fields: [departmentId], references: [id])
   departmentId Int?
 
@@ -366,6 +375,9 @@ model Request {
 
   // Load balancing assignment logs back-relations
   assignmentLogs RequestAssignmentLog[]
+  
+  // Splintering alerts back-relation
+  splinteringAlerts SplinteringAlert[]
   
   // Combined Request tracking
   isCombined              Boolean? @default(false)
@@ -896,4 +908,27 @@ model RoleRequest {
   @@index([userId])
   @@index([status])
   @@index([createdAt])
+}
+
+/// Splintering Detection Alert - tracks potential procurement splitting attempts
+model SplinteringAlert {
+  id          Int      @id @default(autoincrement())
+  requestId   Int?
+  request     Request? @relation(fields: [requestId], references: [id])
+  alertType   String   // e.g., "THRESHOLD_SPLIT", "VENDOR_PATTERN", "TIME_CLUSTER"
+  severity    String   // e.g., "LOW", "MEDIUM", "HIGH", "CRITICAL"
+  message     String   @db.Text
+  details     Json?    // Additional context about the alert
+  userId      Int?     // User who triggered the alert
+  wasBlocked  Boolean  @default(false) // Whether the request was auto-blocked
+  reviewedBy  Int?     // Admin who reviewed the alert
+  reviewedAt  DateTime?
+  resolution  String?  @db.Text // Admin's notes on resolution
+  createdAt   DateTime @default(now())
+
+  @@index([requestId])
+  @@index([alertType])
+  @@index([severity])
+  @@index([createdAt])
+  @@index([wasBlocked])
 }

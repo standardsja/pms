@@ -170,6 +170,23 @@ router.post(
                 });
             }
 
+            // Check if user is blocked
+            if (user.blocked) {
+                logger.warn('Blocked user attempted login', {
+                    userId: user.id,
+                    email: user.email,
+                    blockedAt: user.blockedAt,
+                    blockedReason: user.blockedReason,
+                });
+                return res.status(403).json({
+                    error: 'Account Blocked',
+                    message: 'Your account has been blocked. Please contact an administrator.',
+                    statusCode: 403,
+                    timestamp: new Date().toISOString(),
+                    path: '/api/auth/login',
+                });
+            }
+
             // Perform hybrid role sync: AD groups → admin panel → default REQUESTER
             const syncResult = await syncLDAPUserToDatabase(ldapUser, user);
 
@@ -199,6 +216,16 @@ router.post(
             const permissions = computePermissionsForUser(user);
             const deptManagerFor = computeDeptManagerForUser(user);
             const token = jwt.sign({ sub: user.id, email: user.email, roles, name: user.name, permissions, deptManagerFor }, config.JWT_SECRET, { expiresIn: '24h' });
+
+            // Update last login and reset failed login counter
+            await prisma.user.update({
+                where: { id: user.id },
+                data: {
+                    lastLogin: new Date(),
+                    failedLogins: 0,
+                    lastFailedLogin: null,
+                },
+            });
 
             logger.info('User logged in via LDAP with role sync', {
                 userId: user.id,
@@ -232,8 +259,41 @@ router.post(
             throw new UnauthorizedError('Invalid credentials');
         }
 
+        // Check if user is blocked BEFORE checking password
+        if (user.blocked) {
+            logger.warn('Blocked user attempted login', {
+                userId: user.id,
+                email: user.email,
+                blockedAt: user.blockedAt,
+                blockedReason: user.blockedReason,
+            });
+            return res.status(403).json({
+                error: 'Account Blocked',
+                message: 'Your account has been blocked. Please contact an administrator.',
+                statusCode: 403,
+                timestamp: new Date().toISOString(),
+                path: '/api/auth/login',
+            });
+        }
+
         const isValid = await bcrypt.compare(password, user.passwordHash);
         if (!isValid) {
+            // Increment failed login counter
+            const failedAttempts = (user.failedLogins || 0) + 1;
+            await prisma.user.update({
+                where: { id: user.id },
+                data: {
+                    failedLogins: failedAttempts,
+                    lastFailedLogin: new Date(),
+                },
+            });
+
+            logger.warn('Failed login attempt', {
+                userId: user.id,
+                email: user.email,
+                failedAttempts,
+            });
+
             throw new UnauthorizedError('Invalid credentials');
         }
 
@@ -241,6 +301,16 @@ router.post(
         const permissions = computePermissionsForUser(user);
         const deptManagerFor = computeDeptManagerForUser(user);
         const token = jwt.sign({ sub: user.id, email: user.email, roles, name: user.name, permissions, deptManagerFor }, config.JWT_SECRET, { expiresIn: '24h' });
+
+        // Update last login and reset failed login counter on successful login
+        await prisma.user.update({
+            where: { id: user.id },
+            data: {
+                lastLogin: new Date(),
+                failedLogins: 0,
+                lastFailedLogin: null,
+            },
+        });
 
         logger.info('User logged in via database successfully', { userId: user.id, email: user.email });
 

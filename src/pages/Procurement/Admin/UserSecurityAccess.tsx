@@ -13,11 +13,11 @@ import IconX from '../../../components/Icon/IconX';
 import IconHistory from '../../../components/Icon/IconHistory';
 
 interface UserSecurityData extends AdminUser {
-    blocked?: boolean;
-    blockedAt?: string;
-    blockedReason?: string;
-    lastLogin?: string;
-    failedLogins?: number;
+    blocked?: boolean | null;
+    blockedAt?: string | null;
+    blockedReason?: string | null;
+    lastLogin?: string | null;
+    failedLogins?: number | null;
 }
 
 const UserSecurityAccess = () => {
@@ -46,7 +46,7 @@ const UserSecurityAccess = () => {
         setLoading(true);
         try {
             const data = await adminService.getUsers();
-            setUsers(data);
+            setUsers(data as UserSecurityData[]);
             setError(null);
         } catch (e: any) {
             setError(e.message);
@@ -77,11 +77,14 @@ const UserSecurityAccess = () => {
 
         setProcessing(true);
         try {
-            // Simulated API call
-            await new Promise((resolve) => setTimeout(resolve, 800));
+            // Call real API endpoint
+            await adminService.blockUser(selectedUser.id, blockReason.trim());
 
-            const updatedUsers = users.map((user) => (user.id === selectedUser.id ? { ...user, blocked: true, blockedAt: new Date().toISOString(), blockedReason: blockReason } : user));
-            setUsers(updatedUsers);
+            // Small delay to ensure database write completes
+            await new Promise((resolve) => setTimeout(resolve, 300));
+
+            // Reload users to get updated data
+            await loadUsers();
 
             setSuccessMessage(`User ${selectedUser.name || selectedUser.email} has been blocked`);
             setShowSuccess(true);
@@ -89,7 +92,7 @@ const UserSecurityAccess = () => {
             setSelectedUser(null);
             setTimeout(() => setShowSuccess(false), 2000);
         } catch (e: any) {
-            setError(e.message);
+            setError(e.message || 'Failed to block user');
         } finally {
             setProcessing(false);
         }
@@ -100,16 +103,20 @@ const UserSecurityAccess = () => {
 
         setProcessing(true);
         try {
-            await new Promise((resolve) => setTimeout(resolve, 800));
+            // Call real API endpoint
+            await adminService.unblockUser(user.id);
 
-            const updatedUsers = users.map((u) => (u.id === user.id ? { ...u, blocked: false, blockedAt: undefined, blockedReason: undefined } : u));
-            setUsers(updatedUsers);
+            // Small delay to ensure database write completes
+            await new Promise((resolve) => setTimeout(resolve, 300));
+
+            // Reload users to get updated data
+            await loadUsers();
 
             setSuccessMessage(`User ${user.name || user.email} has been unblocked`);
             setShowSuccess(true);
             setTimeout(() => setShowSuccess(false), 2000);
         } catch (e: any) {
-            setError(e.message);
+            setError(e.message || 'Failed to unblock user');
         } finally {
             setProcessing(false);
         }
@@ -206,6 +213,9 @@ const UserSecurityAccess = () => {
                     <option value="active">Active</option>
                     <option value="blocked">Blocked</option>
                 </select>
+                <button onClick={loadUsers} disabled={loading} className="btn btn-sm btn-primary">
+                    {loading ? 'Loading...' : 'Refresh'}
+                </button>
             </div>
 
             {/* User List */}

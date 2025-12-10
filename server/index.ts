@@ -4219,7 +4219,7 @@ app.post('/api/admin/users/:userId/department', async (req, res) => {
     }
 });
 
-// GET /api/admin/users - Get all users with their roles and departments
+// GET /api/admin/users - Get all users with their roles, departments, and security flags
 app.get('/api/admin/users', async (req, res) => {
     try {
         const users = await prisma.user.findMany({
@@ -4234,9 +4234,22 @@ app.get('/api/admin/users', async (req, res) => {
             id: u.id,
             email: u.email,
             name: u.name,
-            department: u.department?.name || null,
+            department: u.department
+                ? {
+                      id: u.department.id,
+                      name: u.department.name,
+                      code: u.department.code,
+                  }
+                : null,
             // Return roles in the shape expected by the admin UI: array of objects with `role` property
             roles: (u.roles || []).map((r) => ({ role: r.role })),
+            blocked: u.blocked,
+            blockedAt: u.blockedAt,
+            blockedReason: u.blockedReason,
+            blockedBy: u.blockedBy,
+            lastLogin: u.lastLogin,
+            failedLogins: u.failedLogins,
+            lastFailedLogin: u.lastFailedLogin,
         }));
 
         res.json(formatted);

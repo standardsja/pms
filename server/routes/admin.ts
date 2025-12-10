@@ -18,7 +18,7 @@ const adminOnly = async (req: Request, res: Response, next: Function) => {
 
         // Check if user has ADMIN role
         const userWithRoles = await prisma.user.findUnique({
-            where: { id: user.id },
+            where: { id: user.sub }, // Use user.sub from JWT payload
             include: {
                 roles: {
                     include: {
@@ -49,15 +49,32 @@ router.use(authMiddleware);
 router.get('/users', adminOnly, async (req: Request, res: Response) => {
     try {
         const users = await prisma.user.findMany({
-            include: {
+            select: {
+                id: true,
+                email: true,
+                name: true,
+                department: true,
                 roles: {
                     include: {
                         role: true,
                     },
                 },
-                department: true,
+                // Include security fields
+                blocked: true,
+                blockedAt: true,
+                blockedReason: true,
+                blockedBy: true,
+                lastLogin: true,
+                failedLogins: true,
+                lastFailedLogin: true,
             },
             orderBy: { createdAt: 'desc' },
+        });
+
+        logger.info(`GET /api/admin/users returned ${users.length} users`, {
+            firstUser: users[0]?.id,
+            hasBlockedUser: users.some((u) => u.blocked === true),
+            blockedCount: users.filter((u) => u.blocked === true).length,
         });
 
         res.json(users);
@@ -519,6 +536,149 @@ router.post('/module-locks/:key', adminOnly, async (req: Request, res: Response)
     } catch (error) {
         logger.error('Failed to update module lock', { error });
         res.status(500).json({ success: false, message: 'Failed to update module lock' });
+    }
+});
+
+/**
+ * POST /api/admin/users/:id/block - Block a user from accessing the system
+ */
+router.post('/users/:id/block', adminOnly, async (req: Request, res: Response) => {
+    try {
+        const userId = parseInt(req.params.id);
+        const { reason } = req.body;
+        const adminUser = (req as any).user;
+
+        if (!reason || typeof reason !== 'string' || reason.trim().length === 0) {
+            return res.status(400).json({ success: false, message: 'Block reason is required' });
+        }
+
+        // Check if user exists
+        const userToBlock = await prisma.user.findUnique({ where: { id: userId } });
+        if (!userToBlock) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        // Prevent blocking self
+        if (userId === adminUser.sub) {
+            return res.status(400).json({ success: false, message: 'You cannot block yourself' });
+        }
+
+        // Block the user
+        const updatedUser = await prisma.user.update({
+            where: { id: userId },
+            data: {
+                blocked: true,
+                blockedAt: new Date(),
+                blockedReason: reason.trim(),
+                blockedBy: adminUser.sub,
+            },
+        });
+
+        // Create audit log
+        await prisma.auditLog.create({
+            data: {
+                userId: adminUser.sub,
+                action: 'USER_UPDATED',
+                entity: 'User',
+                entityId: userId,
+                message: `User ${userToBlock.email} was blocked by admin`,
+                ipAddress: (req.headers['x-forwarded-for'] as string) || req.ip || req.socket.remoteAddress || null,
+                metadata: {
+                    action: 'block',
+                    reason: reason.trim(),
+                    blockedUser: userToBlock.email,
+                    blockedBy: adminUser.email,
+                    status: 'success',
+                },
+            },
+        });
+
+        logger.info('User blocked', {
+            userId,
+            email: userToBlock.email,
+            blockedBy: adminUser.sub,
+            reason: reason.trim(),
+        });
+
+        res.json({
+            success: true,
+            message: 'User has been blocked successfully',
+            user: {
+                id: updatedUser.id,
+                email: updatedUser.email,
+                blocked: updatedUser.blocked,
+                blockedAt: updatedUser.blockedAt,
+                blockedReason: updatedUser.blockedReason,
+            },
+        });
+    } catch (error) {
+        logger.error('Failed to block user', { error, userId: req.params.id });
+        res.status(500).json({ success: false, message: 'Failed to block user' });
+    }
+});
+
+/**
+ * POST /api/admin/users/:id/unblock - Unblock a user
+ */
+router.post('/users/:id/unblock', adminOnly, async (req: Request, res: Response) => {
+    try {
+        const userId = parseInt(req.params.id);
+        const adminUser = (req as any).user;
+
+        // Check if user exists
+        const userToUnblock = await prisma.user.findUnique({ where: { id: userId } });
+        if (!userToUnblock) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        // Unblock the user
+        const updatedUser = await prisma.user.update({
+            where: { id: userId },
+            data: {
+                blocked: false,
+                blockedAt: null,
+                blockedReason: null,
+                blockedBy: null,
+                failedLogins: 0, // Reset failed login counter
+            },
+        });
+
+        // Create audit log
+        await prisma.auditLog.create({
+            data: {
+                userId: adminUser.sub,
+                action: 'USER_UPDATED',
+                entity: 'User',
+                entityId: userId,
+                message: `User ${userToUnblock.email} was unblocked by admin`,
+                ipAddress: (req.headers['x-forwarded-for'] as string) || req.ip || req.socket.remoteAddress || null,
+                metadata: {
+                    action: 'unblock',
+                    unblockedUser: userToUnblock.email,
+                    unblockedBy: adminUser.email,
+                    status: 'success',
+                },
+            },
+        });
+
+        logger.info('User unblocked', {
+            userId,
+            email: userToUnblock.email,
+            unblockedBy: adminUser.sub,
+        });
+
+        res.json({
+            success: true,
+            message: 'User has been unblocked successfully',
+            user: {
+                id: updatedUser.id,
+                email: updatedUser.email,
+                blocked: updatedUser.blocked,
+            },
+        });
+    } catch (error) {
+        logger.error('Failed to unblock user', { error, userId: req.params.id });
+        res.status(500).json({ success: false, message: 'Failed to unblock user' });
     }
 });
 
