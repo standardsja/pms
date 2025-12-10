@@ -178,63 +178,15 @@ router.get('/permissions', adminOnly, async (req: Request, res: Response) => {
 });
 
 /**
- * GET /api/admin/workflow-statuses - Get workflow statuses
+/**
+ * GET /api/admin/workflow-statuses - Get all workflow statuses from database
  */
 router.get('/workflow-statuses', adminOnly, async (req: Request, res: Response) => {
     try {
-        // Return default workflow statuses if not in database
-        const statuses = [
-            {
-                id: '1',
-                name: 'Draft',
-                code: 'DRAFT',
-                description: 'Initial request draft',
-                color: 'gray',
-                order: 1,
-                requiresApproval: false,
-                allowsTransition: ['SUBMITTED', 'REJECTED'],
-            },
-            {
-                id: '2',
-                name: 'Submitted',
-                code: 'SUBMITTED',
-                description: 'Submitted for review',
-                color: 'blue',
-                order: 2,
-                requiresApproval: true,
-                allowsTransition: ['APPROVED', 'REJECTED', 'PROCESSING'],
-            },
-            {
-                id: '3',
-                name: 'Processing',
-                code: 'PROCESSING',
-                description: 'Being processed',
-                color: 'yellow',
-                order: 3,
-                requiresApproval: false,
-                allowsTransition: ['APPROVED', 'CANCELLED'],
-            },
-            {
-                id: '4',
-                name: 'Approved',
-                code: 'APPROVED',
-                description: 'Approved by reviewer',
-                color: 'green',
-                order: 4,
-                requiresApproval: false,
-                allowsTransition: [],
-            },
-            {
-                id: '5',
-                name: 'Rejected',
-                code: 'REJECTED',
-                description: 'Rejected by reviewer',
-                color: 'red',
-                order: 5,
-                requiresApproval: false,
-                allowsTransition: ['DRAFT'],
-            },
-        ];
+        const statuses = await prisma.workflowStatus.findMany({
+            orderBy: { displayOrder: 'asc' },
+            where: { isActive: true },
+        });
 
         res.json(statuses);
     } catch (error) {
@@ -244,21 +196,190 @@ router.get('/workflow-statuses', adminOnly, async (req: Request, res: Response) 
 });
 
 /**
- * GET /api/admin/workflow-slas - Get workflow SLAs
+ * POST /api/admin/workflow-statuses - Create new workflow status
+ */
+router.post('/workflow-statuses', adminOnly, async (req: Request, res: Response) => {
+    try {
+        const { statusId, name, description, color, icon, displayOrder } = req.body;
+
+        if (!statusId || !name) {
+            return res.status(400).json({ success: false, message: 'statusId and name are required' });
+        }
+
+        const newStatus = await prisma.workflowStatus.create({
+            data: {
+                statusId: statusId.toUpperCase(),
+                name,
+                description: description || null,
+                color: color || '#3B82F6',
+                icon: icon || null,
+                displayOrder: displayOrder || 0,
+                isActive: true,
+            },
+        });
+
+        logger.info('Workflow status created', { statusId: newStatus.statusId, userId: res.locals.userId });
+
+        res.status(201).json({ success: true, data: newStatus });
+    } catch (error: any) {
+        if (error.code === 'P2002') {
+            return res.status(409).json({ success: false, message: 'Workflow status already exists' });
+        }
+        logger.error('Failed to create workflow status', { error });
+        res.status(500).json({ success: false, message: 'Failed to create workflow status' });
+    }
+});
+
+/**
+ * PUT /api/admin/workflow-statuses/:id - Update workflow status
+ */
+router.put('/workflow-statuses/:id', adminOnly, async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { name, description, color, icon, displayOrder, isActive } = req.body;
+
+        const updatedStatus = await prisma.workflowStatus.update({
+            where: { id: parseInt(id) },
+            data: {
+                name: name || undefined,
+                description: description || undefined,
+                color: color || undefined,
+                icon: icon || undefined,
+                displayOrder: displayOrder !== undefined ? displayOrder : undefined,
+                isActive: isActive !== undefined ? isActive : undefined,
+            },
+        });
+
+        logger.info('Workflow status updated', { id, userId: res.locals.userId });
+
+        res.json({ success: true, data: updatedStatus });
+    } catch (error) {
+        logger.error('Failed to update workflow status', { error });
+        res.status(500).json({ success: false, message: 'Failed to update workflow status' });
+    }
+});
+
+/**
+ * DELETE /api/admin/workflow-statuses/:id - Delete workflow status
+ */
+router.delete('/workflow-statuses/:id', adminOnly, async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+
+        await prisma.workflowStatus.delete({
+            where: { id: parseInt(id) },
+        });
+
+        logger.info('Workflow status deleted', { id, userId: res.locals.userId });
+
+        res.json({ success: true, message: 'Workflow status deleted' });
+    } catch (error) {
+        logger.error('Failed to delete workflow status', { error });
+        res.status(500).json({ success: false, message: 'Failed to delete workflow status' });
+    }
+});
+
+/**
+ * GET /api/admin/workflow-slas - Get all workflow SLAs from database
  */
 router.get('/workflow-slas', adminOnly, async (req: Request, res: Response) => {
     try {
-        // Return default SLAs
-        const slas = [
-            { fromStatus: 'SUBMITTED', toStatus: 'APPROVED', hours: 48 },
-            { fromStatus: 'DRAFT', toStatus: 'SUBMITTED', hours: 72 },
-            { fromStatus: 'PROCESSING', toStatus: 'APPROVED', hours: 24 },
-        ];
+        const slas = await prisma.workflowSLA.findMany({
+            where: { isActive: true },
+            orderBy: { fromStatus: 'asc' },
+        });
 
         res.json(slas);
     } catch (error) {
         logger.error('Failed to fetch workflow SLAs', { error });
         res.status(500).json({ success: false, message: 'Failed to fetch workflow SLAs' });
+    }
+});
+
+/**
+ * POST /api/admin/workflow-slas - Create new workflow SLA
+ */
+router.post('/workflow-slas', adminOnly, async (req: Request, res: Response) => {
+    try {
+        const { slaId, name, description, fromStatus, toStatus, slaHours } = req.body;
+
+        if (!slaId || !name || !fromStatus || !toStatus || !slaHours) {
+            return res.status(400).json({
+                success: false,
+                message: 'slaId, name, fromStatus, toStatus, and slaHours are required',
+            });
+        }
+
+        const newSla = await prisma.workflowSLA.create({
+            data: {
+                slaId: slaId.toUpperCase(),
+                name,
+                description: description || null,
+                fromStatus,
+                toStatus,
+                slaHours: parseInt(slaHours),
+                isActive: true,
+            },
+        });
+
+        logger.info('Workflow SLA created', { slaId: newSla.slaId, userId: res.locals.userId });
+
+        res.status(201).json({ success: true, data: newSla });
+    } catch (error: any) {
+        if (error.code === 'P2002') {
+            return res.status(409).json({ success: false, message: 'Workflow SLA already exists or duplicate transition' });
+        }
+        logger.error('Failed to create workflow SLA', { error });
+        res.status(500).json({ success: false, message: 'Failed to create workflow SLA' });
+    }
+});
+
+/**
+ * PUT /api/admin/workflow-slas/:id - Update workflow SLA
+ */
+router.put('/workflow-slas/:id', adminOnly, async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { name, description, fromStatus, toStatus, slaHours, isActive } = req.body;
+
+        const updatedSla = await prisma.workflowSLA.update({
+            where: { id: parseInt(id) },
+            data: {
+                name: name || undefined,
+                description: description || undefined,
+                fromStatus: fromStatus || undefined,
+                toStatus: toStatus || undefined,
+                slaHours: slaHours !== undefined ? parseInt(slaHours) : undefined,
+                isActive: isActive !== undefined ? isActive : undefined,
+            },
+        });
+
+        logger.info('Workflow SLA updated', { id, userId: res.locals.userId });
+
+        res.json({ success: true, data: updatedSla });
+    } catch (error) {
+        logger.error('Failed to update workflow SLA', { error });
+        res.status(500).json({ success: false, message: 'Failed to update workflow SLA' });
+    }
+});
+
+/**
+ * DELETE /api/admin/workflow-slas/:id - Delete workflow SLA
+ */
+router.delete('/workflow-slas/:id', adminOnly, async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+
+        await prisma.workflowSLA.delete({
+            where: { id: parseInt(id) },
+        });
+
+        logger.info('Workflow SLA deleted', { id, userId: res.locals.userId });
+
+        res.json({ success: true, message: 'Workflow SLA deleted' });
+    } catch (error) {
+        logger.error('Failed to delete workflow SLA', { error });
+        res.status(500).json({ success: false, message: 'Failed to delete workflow SLA' });
     }
 });
 

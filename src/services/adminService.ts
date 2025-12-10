@@ -168,7 +168,16 @@ const BACKEND = {
 
     // Workflow Configuration
     getWorkflowStatuses: () => apiGet('/api/admin/workflow-statuses'),
+    createWorkflowStatus: (data: { statusId: string; name: string; description?: string; color?: string; icon?: string; displayOrder?: number }) => apiPost('/api/admin/workflow-statuses', data),
+    updateWorkflowStatus: (id: number, data: Partial<{ name: string; description: string; color: string; icon: string; displayOrder: number; isActive: boolean }>) =>
+        apiPut(`/api/admin/workflow-statuses/${id}`, data),
+    deleteWorkflowStatus: (id: number) => apiDelete(`/api/admin/workflow-statuses/${id}`),
+
     getWorkflowSLAs: () => apiGet('/api/admin/workflow-slas'),
+    createWorkflowSLA: (data: { slaId: string; name: string; description?: string; fromStatus: string; toStatus: string; slaHours: number }) => apiPost('/api/admin/workflow-slas', data),
+    updateWorkflowSLA: (id: number, data: Partial<{ name: string; description: string; fromStatus: string; toStatus: string; slaHours: number; isActive: boolean }>) =>
+        apiPut(`/api/admin/workflow-slas/${id}`, data),
+    deleteWorkflowSLA: (id: number) => apiDelete(`/api/admin/workflow-slas/${id}`),
 
     // System Configuration
     getSystemConfig: () => apiGet('/api/admin/system-config'),

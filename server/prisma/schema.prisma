@@ -993,3 +993,43 @@ model SplinteringRule {
   @@index([enabled])
   @@index([ruleId])
 }
+
+/**
+ * Workflow Status
+ * Defines possible workflow states in the procurement process
+ */
+model WorkflowStatus {
+  id          Int      @id @default(autoincrement())
+  statusId    String   @unique // e.g., "submitted", "approved", "rejected"
+  name        String   // Display name
+  description String?  @db.Text
+  color       String   @default("#3B82F6") // Badge color (hex)
+  icon        String?  // Icon name or emoji
+  isActive    Boolean  @default(true)
+  displayOrder Int     @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([displayOrder])
+}
+
+/**
+ * Workflow SLA
+ * Service Level Agreements for workflow transitions
+ */
+model WorkflowSLA {
+  id            Int      @id @default(autoincrement())
+  slaId         String   @unique // e.g., "submitted-approval", "approval-review"
+  name          String
+  description   String?  @db.Text
+  fromStatus    String   // From status ID
+  toStatus      String   // To status ID
+  slaHours      Int      // SLA time in hours
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([fromStatus, toStatus])
+  @@index([isActive])
+}
