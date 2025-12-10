@@ -53,7 +53,7 @@ const ModuleRoute: React.FC<ModuleRouteProps> = ({ children, module, requiredRol
 
                 const normalizedRoles = userRoles.map((r: any) => (typeof r === 'string' ? r : r?.name || '')).map((s: string) => String(s).toUpperCase());
 
-                hasRequiredRole = requiredRoles.some((reqRole) => normalizedRoles.some((userRole) => userRole.includes(reqRole.toUpperCase())));
+                hasRequiredRole = requiredRoles.some((reqRole) => normalizedRoles.some((userRole: string) => userRole.includes(reqRole.toUpperCase())));
             } else {
                 hasRequiredRole = false;
             }
