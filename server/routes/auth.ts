@@ -543,9 +543,13 @@ router.get(
             id: user.id,
             email: user.email,
             name: user.name,
-            roles,
-            permissions,
-            deptManagerFor,
+            jobTitle: user.jobTitle,
+            phone: user.phone,
+            address: user.address,
+            city: user.city,
+            country: user.country,
+            employeeId: user.employeeId,
+            supervisor: user.supervisor,
             department: user.department
                 ? {
                       id: user.department.id,
@@ -553,7 +557,13 @@ router.get(
                       code: user.department.code,
                   }
                 : null,
+            roles: user.roles.map((r) => ({ id: r.role.id, name: r.role.name })),
+            permissions,
+            deptManagerFor,
+            ldapDN: user.ldapDN,
             profileImage: validProfileImage,
+            createdAt: user.createdAt,
+            updatedAt: user.updatedAt,
         });
     })
 );
