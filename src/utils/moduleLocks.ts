@@ -1,4 +1,6 @@
 import { getUser } from './auth';
+import { getApiUrl } from '../config/api';
+import { getAuthHeaders } from './api';
 
 export type LockableModuleKey = 'procurement' | 'innovation' | 'committee' | 'budgeting' | 'audit' | 'prime' | 'datapoint' | 'maintenance' | 'asset' | 'project' | 'knowledge';
 
@@ -13,7 +15,7 @@ export type ModuleLockState = Record<LockableModuleKey, ModuleLockEntry>;
 
 const STORAGE_KEY = 'spinx_module_locks';
 
-const defaultState: ModuleLockState = {
+export const defaultModuleLockState: ModuleLockState = {
     procurement: { locked: false, updatedAt: '' },
     innovation: { locked: false, updatedAt: '' },
     committee: { locked: false, updatedAt: '' },
@@ -42,10 +44,10 @@ export const LOCKABLE_MODULES: Array<{ key: LockableModuleKey; label: string; de
 ];
 
 const mergeWithDefaults = (state: Partial<ModuleLockState> | null): ModuleLockState => {
-    const merged: Partial<ModuleLockState> = { ...defaultState };
+    const merged: Partial<ModuleLockState> = { ...defaultModuleLockState };
     if (state) {
-        for (const key of Object.keys(defaultState) as LockableModuleKey[]) {
-            merged[key] = { ...defaultState[key], ...(state[key] ?? {}) };
+        for (const key of Object.keys(defaultModuleLockState) as LockableModuleKey[]) {
+            merged[key] = { ...defaultModuleLockState[key], ...(state[key] ?? {}) };
         }
     }
     return merged as ModuleLockState;
@@ -54,11 +56,11 @@ const mergeWithDefaults = (state: Partial<ModuleLockState> | null): ModuleLockSt
 export const getModuleLocks = (): ModuleLockState => {
     try {
         const raw = localStorage.getItem(STORAGE_KEY);
-        if (!raw) return { ...defaultState };
+        if (!raw) return { ...defaultModuleLockState };
         const parsed = JSON.parse(raw) as Partial<ModuleLockState>;
         return mergeWithDefaults(parsed);
     } catch {
-        return { ...defaultState };
+        return { ...defaultModuleLockState };
     }
 };
 
@@ -88,4 +90,26 @@ export const setModuleLock = (key: LockableModuleKey, locked: boolean, meta?: { 
 
 export const isModuleLocked = (key: LockableModuleKey): boolean => {
     return getModuleLocks()[key]?.locked ?? false;
+};
+
+/**
+ * Fetch module locks from API (database)
+ * This is the source of truth for module lock state
+ */
+export const fetchModuleLocks = async (): Promise<ModuleLockState> => {
+    try {
+        const response = await fetch(getApiUrl('/api/admin/module-locks'), {
+            headers: getAuthHeaders(),
+        });
+
+        if (response.ok) {
+            const result = await response.json();
+            return result.data || defaultModuleLockState;
+        }
+
+        return defaultModuleLockState;
+    } catch (error) {
+        console.error('Failed to fetch module locks:', error);
+        return defaultModuleLockState;
+    }
 };
