@@ -41,7 +41,7 @@ import { fetchNotifications, deleteNotification, Notification } from '../../serv
 import { fetchMessages, deleteMessage, Message } from '../../services/messageApi';
 import { getApiUrl } from '../../config/api';
 import IconLock from '../Icon/IconLock';
-import { getModuleLocks, type ModuleLockState } from '../../utils/moduleLocks';
+import { fetchModuleLocks, defaultModuleLockState, type ModuleLockState } from '../../utils/moduleLocks';
 
 const Header = () => {
     const location = useLocation();
@@ -52,7 +52,7 @@ const Header = () => {
     // Memoize to prevent infinite render loops
     const currentUser = useMemo(() => getUser(), []);
     const [profileImage, setProfileImage] = useState<string | null>(null);
-    const [moduleLocks, setModuleLocks] = useState<ModuleLockState>(() => getModuleLocks());
+    const [moduleLocks, setModuleLocks] = useState<ModuleLockState>(defaultModuleLockState);
     const userRoles = currentUser?.roles || (currentUser?.role ? [currentUser.role] : []);
 
     // Use centralized role detection utility
@@ -161,6 +161,16 @@ const Header = () => {
         }
     };
 
+    // Fetch module locks from API
+    const loadModuleLocks = async () => {
+        try {
+            const locks = await fetchModuleLocks();
+            setModuleLocks(locks);
+        } catch (error) {
+            console.error('Failed to fetch module locks:', error);
+        }
+    };
+
     // Initial load and polling (60s interval, matching Innovation Hub pattern)
     useEffect(() => {
         // Get fresh auth data on every effect run
@@ -173,6 +183,7 @@ const Header = () => {
 
         loadNotifications();
         loadMessages();
+        loadModuleLocks();
 
         // Normalize profile image URL with API base and cache buster
         const resolveProfileImageUrl = (raw?: string | null) => {

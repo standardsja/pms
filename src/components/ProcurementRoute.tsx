@@ -1,8 +1,9 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { selectIsAuthenticated, selectUserRoles } from '../store/authSlice';
 import { UserRole } from '../types/auth';
+import { fetchModuleLocks } from '../utils/moduleLocks';
 
 interface ProcurementRouteProps {
     children: React.ReactNode;
@@ -12,10 +13,29 @@ interface ProcurementRouteProps {
 // Behavior:
 // - If not authenticated: redirect to /auth/login
 // - If authenticated but not procurement staff/admin: redirect to /
+// - If module is locked: redirect to module selection with lock message
 // - Else: render children
 const ProcurementRoute: React.FC<ProcurementRouteProps> = ({ children }) => {
     const isAuthenticated = useSelector(selectIsAuthenticated);
     const roles = useSelector(selectUserRoles);
+    const [isModuleLocked, setIsModuleLocked] = useState(false);
+    const [checkingLock, setCheckingLock] = useState(true);
+
+    // Check if procurement module is locked
+    useEffect(() => {
+        const checkModuleLock = async () => {
+            try {
+                const locks = await fetchModuleLocks();
+                setIsModuleLocked(locks.procurement?.locked ?? false);
+            } catch (error) {
+                console.error('Failed to check module lock:', error);
+                setIsModuleLocked(false);
+            } finally {
+                setCheckingLock(false);
+            }
+        };
+        checkModuleLock();
+    }, []);
 
     // Storage fallbacks to avoid redirect loops before Redux hydration completes
     const { hasToken, rolesFromStorage, isProcurementFromStorage } = useMemo(() => {
@@ -61,6 +81,16 @@ const ProcurementRoute: React.FC<ProcurementRouteProps> = ({ children }) => {
     if (!allow) {
         // Authenticated but not procurement staff -> home
         return <Navigate to="/" replace />;
+    }
+
+    // Show loading while checking lock status
+    if (checkingLock) {
+        return null;
+    }
+
+    // Redirect if module is locked
+    if (isModuleLocked) {
+        return <Navigate to="/?locked=procurement" replace />;
     }
 
     return <>{children}</>;

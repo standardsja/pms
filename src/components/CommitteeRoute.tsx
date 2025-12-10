@@ -1,7 +1,8 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { selectIsAuthenticated, selectUserRoles } from '../store/authSlice';
+import { fetchModuleLocks } from '../utils/moduleLocks';
 
 interface CommitteeRouteProps {
     children: React.ReactNode;
@@ -11,10 +12,29 @@ interface CommitteeRouteProps {
 // Behavior:
 // - If not authenticated: redirect to /auth/login
 // - If authenticated but missing INNOVATION_COMMITTEE: redirect to /innovation/dashboard
+// - If committee module is locked: redirect to module selection with lock message
 // - Else: render children
 const CommitteeRoute: React.FC<CommitteeRouteProps> = ({ children }) => {
     const isAuthenticated = useSelector(selectIsAuthenticated);
     const roles = useSelector(selectUserRoles);
+    const [isModuleLocked, setIsModuleLocked] = useState(false);
+    const [checkingLock, setCheckingLock] = useState(true);
+
+    // Check if committee module is locked
+    useEffect(() => {
+        const checkModuleLock = async () => {
+            try {
+                const locks = await fetchModuleLocks();
+                setIsModuleLocked(locks.committee?.locked ?? false);
+            } catch (error) {
+                console.error('Failed to check module lock:', error);
+                setIsModuleLocked(false);
+            } finally {
+                setCheckingLock(false);
+            }
+        };
+        checkModuleLock();
+    }, []);
 
     // Storage fallback to avoid redirect loops before Redux hydration completes
     const { hasToken, isCommitteeFromStorage } = useMemo(() => {
@@ -49,6 +69,16 @@ const CommitteeRoute: React.FC<CommitteeRouteProps> = ({ children }) => {
 
     if (!allow) {
         return <Navigate to="/innovation/dashboard" replace />;
+    }
+
+    // Show loading while checking lock status
+    if (checkingLock) {
+        return null;
+    }
+
+    // Redirect if module is locked
+    if (isModuleLocked) {
+        return <Navigate to="/?locked=committee" replace />;
     }
 
     return <>{children}</>;
