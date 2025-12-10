@@ -267,22 +267,55 @@ router.get('/workflow-slas', adminOnly, async (req: Request, res: Response) => {
  */
 router.get('/system-config', adminOnly, async (req: Request, res: Response) => {
     try {
-        // Return default system config
-        const config = {
-            smtpHost: process.env.SMTP_HOST || 'smtp.example.com',
-            smtpPort: parseInt(process.env.SMTP_PORT || '587'),
-            smtpUser: process.env.SMTP_USER || '',
-            smtpPassword: process.env.SMTP_PASSWORD || '',
-            fromEmail: process.env.FROM_EMAIL || 'noreply@example.com',
-            maxLoginAttempts: 5,
-            sessionTimeout: 30,
-            passwordMinLength: 8,
-            requireSpecialChars: true,
-            logoUrl: '/logo.png',
-            systemName: 'Procurement Management System',
-        };
+        // Fetch all config from database
+        const configs = await prisma.systemConfig.findMany({
+            orderBy: { key: 'asc' },
+        });
 
-        res.json(config);
+        // Convert to object format for easier use
+        const configObj: Record<string, any> = {};
+        configs.forEach((cfg) => {
+            let value: any = cfg.value;
+            if (cfg.valueType === 'number') value = parseInt(cfg.value);
+            else if (cfg.valueType === 'boolean') value = cfg.value === 'true';
+            else if (cfg.valueType === 'json') value = JSON.parse(cfg.value);
+            configObj[cfg.key] = value;
+        });
+
+        // If no configs exist, seed defaults
+        if (configs.length === 0) {
+            const defaults = [
+                { key: 'SMTP_HOST', value: process.env.SMTP_HOST || 'smtp.example.com', valueType: 'string', description: 'SMTP server hostname' },
+                { key: 'SMTP_PORT', value: process.env.SMTP_PORT || '587', valueType: 'number', description: 'SMTP server port' },
+                { key: 'SMTP_USER', value: process.env.SMTP_USER || '', valueType: 'string', description: 'SMTP username' },
+                { key: 'FROM_EMAIL', value: process.env.FROM_EMAIL || 'noreply@example.com', valueType: 'string', description: 'Default from email address' },
+                { key: 'MAX_LOGIN_ATTEMPTS', value: '5', valueType: 'number', description: 'Maximum login attempts before account lock' },
+                { key: 'SESSION_TIMEOUT', value: '30', valueType: 'number', description: 'Session timeout in minutes' },
+                { key: 'PASSWORD_MIN_LENGTH', value: '8', valueType: 'number', description: 'Minimum password length' },
+                { key: 'REQUIRE_SPECIAL_CHARS', value: 'true', valueType: 'boolean', description: 'Require special characters in passwords' },
+                { key: 'LOGO_URL', value: '/logo.png', valueType: 'string', description: 'System logo URL' },
+                { key: 'SYSTEM_NAME', value: 'Procurement Management System', valueType: 'string', description: 'System display name' },
+            ];
+
+            const created = await Promise.all(
+                defaults.map((cfg) =>
+                    prisma.systemConfig.create({
+                        data: cfg,
+                    })
+                )
+            );
+
+            // Convert created configs to object
+            created.forEach((cfg) => {
+                let value: any = cfg.value;
+                if (cfg.valueType === 'number') value = parseInt(cfg.value);
+                else if (cfg.valueType === 'boolean') value = cfg.value === 'true';
+                else if (cfg.valueType === 'json') value = JSON.parse(cfg.value);
+                configObj[cfg.key] = value;
+            });
+        }
+
+        res.json(configObj);
     } catch (error) {
         logger.error('Failed to fetch system config', { error });
         res.status(500).json({ success: false, message: 'Failed to fetch system config' });
@@ -294,33 +327,42 @@ router.get('/system-config', adminOnly, async (req: Request, res: Response) => {
  */
 router.post('/system-config', adminOnly, async (req: Request, res: Response) => {
     try {
-        const { smtpHost, smtpPort, smtpUser, fromEmail, maxLoginAttempts, sessionTimeout, passwordMinLength, requireSpecialChars, logoUrl, systemName } = req.body;
+        const user = (req as any).user;
+        const userId = user?.sub;
+        const configData = req.body;
 
-        // In a real implementation, this would save to database
-        // For now, just validate and return success
-        logger.info('System config updated', {
-            smtpHost,
-            smtpPort,
-            fromEmail,
-            maxLoginAttempts,
-            sessionTimeout,
+        // Update each config value in database
+        for (const [key, value] of Object.entries(configData)) {
+            let valueStr = String(value);
+            let valueType = 'string';
+
+            if (typeof value === 'number') {
+                valueType = 'number';
+                valueStr = String(value);
+            } else if (typeof value === 'boolean') {
+                valueType = 'boolean';
+                valueStr = value ? 'true' : 'false';
+            } else if (typeof value === 'object') {
+                valueType = 'json';
+                valueStr = JSON.stringify(value);
+            }
+
+            await prisma.systemConfig.upsert({
+                where: { key },
+                create: { key, value: valueStr, valueType, updatedBy: userId },
+                update: { value: valueStr, valueType, updatedBy: userId },
+            });
+        }
+
+        logger.info('System config updated by admin', {
+            userId,
+            configKeys: Object.keys(configData),
         });
 
         res.json({
             success: true,
             message: 'System configuration updated',
-            config: {
-                smtpHost,
-                smtpPort,
-                smtpUser,
-                fromEmail,
-                maxLoginAttempts,
-                sessionTimeout,
-                passwordMinLength,
-                requireSpecialChars,
-                logoUrl,
-                systemName,
-            },
+            config: configData,
         });
     } catch (error) {
         logger.error('Failed to update system config', { error });
@@ -1073,6 +1115,154 @@ router.post('/bulk-password-reset', adminOnly, async (req: Request, res: Respons
     } catch (error) {
         logger.error('Failed to bulk reset passwords', { error });
         res.status(500).json({ success: false, message: 'Failed to bulk reset passwords' });
+    }
+});
+
+/**
+ * GET /api/admin/splintering-rules - Get all splintering rules
+ */
+router.get('/splintering-rules', adminOnly, async (req: Request, res: Response) => {
+    try {
+        const rules = await prisma.splinteringRule.findMany({
+            orderBy: { createdAt: 'asc' },
+        });
+
+        // If no rules exist, seed with defaults
+        if (rules.length === 0) {
+            const defaultRules = [
+                {
+                    ruleId: 'vendor-threshold',
+                    name: 'Vendor Spending Threshold',
+                    description: 'Flags multiple requests to same vendor within time period',
+                    thresholdAmount: 25000,
+                    timeWindowDays: 90,
+                    enabled: true,
+                },
+                {
+                    ruleId: 'category-threshold',
+                    name: 'Category Spending Threshold',
+                    description: 'Flags multiple requests in same category within time period',
+                    thresholdAmount: 50000,
+                    timeWindowDays: 180,
+                    enabled: true,
+                },
+            ];
+
+            await prisma.splinteringRule.createMany({
+                data: defaultRules,
+            });
+
+            const seededRules = await prisma.splinteringRule.findMany({
+                orderBy: { createdAt: 'asc' },
+            });
+
+            return res.json({ success: true, data: seededRules });
+        }
+
+        res.json({ success: true, data: rules });
+    } catch (error) {
+        logger.error('Failed to fetch splintering rules', { error });
+        res.status(500).json({ success: false, message: 'Failed to fetch splintering rules' });
+    }
+});
+
+/**
+ * POST /api/admin/splintering-rules - Create a new splintering rule
+ */
+router.post('/splintering-rules', adminOnly, async (req: Request, res: Response) => {
+    try {
+        const { ruleId, name, description, thresholdAmount, timeWindowDays, enabled } = req.body;
+
+        if (!ruleId || !name || thresholdAmount == null || timeWindowDays == null) {
+            return res.status(400).json({ success: false, message: 'Missing required fields' });
+        }
+
+        const rule = await prisma.splinteringRule.create({
+            data: {
+                ruleId,
+                name,
+                description,
+                thresholdAmount,
+                timeWindowDays,
+                enabled: enabled ?? true,
+            },
+        });
+
+        res.json({ success: true, data: rule, message: 'Splintering rule created successfully' });
+    } catch (error) {
+        logger.error('Failed to create splintering rule', { error });
+        res.status(500).json({ success: false, message: 'Failed to create splintering rule' });
+    }
+});
+
+/**
+ * PUT /api/admin/splintering-rules/:id - Update a splintering rule
+ */
+router.put('/splintering-rules/:id', adminOnly, async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { name, description, thresholdAmount, timeWindowDays, enabled } = req.body;
+
+        const rule = await prisma.splinteringRule.update({
+            where: { id: parseInt(id) },
+            data: {
+                name,
+                description,
+                thresholdAmount,
+                timeWindowDays,
+                enabled,
+            },
+        });
+
+        res.json({ success: true, data: rule, message: 'Splintering rule updated successfully' });
+    } catch (error) {
+        logger.error('Failed to update splintering rule', { error });
+        res.status(500).json({ success: false, message: 'Failed to update splintering rule' });
+    }
+});
+
+/**
+ * DELETE /api/admin/splintering-rules/:id - Delete a splintering rule
+ */
+router.delete('/splintering-rules/:id', adminOnly, async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+
+        await prisma.splinteringRule.delete({
+            where: { id: parseInt(id) },
+        });
+
+        res.json({ success: true, message: 'Splintering rule deleted successfully' });
+    } catch (error) {
+        logger.error('Failed to delete splintering rule', { error });
+        res.status(500).json({ success: false, message: 'Failed to delete splintering rule' });
+    }
+});
+
+/**
+ * POST /api/admin/splintering-rules/:id/toggle - Toggle rule enabled status
+ */
+router.post('/splintering-rules/:id/toggle', adminOnly, async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+
+        const rule = await prisma.splinteringRule.findUnique({
+            where: { id: parseInt(id) },
+        });
+
+        if (!rule) {
+            return res.status(404).json({ success: false, message: 'Rule not found' });
+        }
+
+        const updated = await prisma.splinteringRule.update({
+            where: { id: parseInt(id) },
+            data: { enabled: !rule.enabled },
+        });
+
+        res.json({ success: true, data: updated, message: `Rule ${updated.enabled ? 'enabled' : 'disabled'}` });
+    } catch (error) {
+        logger.error('Failed to toggle splintering rule', { error });
+        res.status(500).json({ success: false, message: 'Failed to toggle rule' });
     }
 });
 

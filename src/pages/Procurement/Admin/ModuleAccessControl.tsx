@@ -5,8 +5,10 @@ import IconLock from '../../../components/Icon/IconLock';
 import IconLockOpen from '../../../components/Icon/IconLockOpen';
 import IconChevronRight from '../../../components/Icon/IconChevronRight';
 import IconInfoCircle from '../../../components/Icon/IconInfoCircle';
-import { getModuleLocks, LOCKABLE_MODULES, setModuleLock, type LockableModuleKey, type ModuleLockState } from '../../../utils/moduleLocks';
+import { LOCKABLE_MODULES, type LockableModuleKey, type ModuleLockState } from '../../../utils/moduleLocks';
 import { getUser } from '../../../utils/auth';
+import { getApiUrl } from '../../../config/api';
+import { getAuthHeaders } from '../../../utils/api';
 
 // Pre-made reason templates
 const PRESET_REASONS = [
@@ -28,7 +30,8 @@ const ModuleAccessControl = () => {
         dispatch(setPageTitle('Module Access Control'));
     }, [dispatch]);
 
-    const [moduleLocks, setModuleLocks] = useState<ModuleLockState>(getModuleLocks());
+    const [moduleLocks, setModuleLocks] = useState<ModuleLockState>({} as ModuleLockState);
+    const [loading, setLoading] = useState(true);
     const [showSuccess, setShowSuccess] = useState(false);
     const [successMessage, setSuccessMessage] = useState('');
     const [transitioningModule, setTransitioningModule] = useState<LockableModuleKey | null>(null);
@@ -43,15 +46,27 @@ const ModuleAccessControl = () => {
         return user?.name || user?.email || 'Admin';
     }, []);
 
-    // Sync lock state across tabs
+    // Load module locks from API
     useEffect(() => {
-        const handleStorageChange = () => {
-            setModuleLocks(getModuleLocks());
-        };
-
-        window.addEventListener('storage', handleStorageChange);
-        return () => window.removeEventListener('storage', handleStorageChange);
+        loadModuleLocks();
     }, []);
+
+    const loadModuleLocks = async () => {
+        setLoading(true);
+        try {
+            const response = await fetch(getApiUrl('/api/admin/module-locks'), {
+                headers: getAuthHeaders(),
+            });
+            if (response.ok) {
+                const result = await response.json();
+                setModuleLocks(result.data);
+            }
+        } catch (e) {
+            console.error('Failed to load module locks:', e);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const openReasonModal = (key: LockableModuleKey) => {
         setReasonModalModule(key);
@@ -61,7 +76,7 @@ const ModuleAccessControl = () => {
         setShowReasonModal(true);
     };
 
-    const handleLockWithReason = () => {
+    const handleLockWithReason = async () => {
         if (!reasonModalModule) return;
 
         const reason = reasonType === 'preset' ? selectedPreset : customReason.trim();
@@ -74,41 +89,58 @@ const ModuleAccessControl = () => {
         setTransitioningModule(reasonModalModule);
         setShowReasonModal(false);
 
-        setTimeout(() => {
-            const updatedLocks = setModuleLock(reasonModalModule, true, {
-                reason,
-                updatedBy: adminIdentity,
+        try {
+            const response = await fetch(getApiUrl(`/api/admin/module-locks/${reasonModalModule}`), {
+                method: 'POST',
+                headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+                body: JSON.stringify({ locked: true, reason }),
             });
-            setModuleLocks(updatedLocks);
+
+            if (response.ok) {
+                await loadModuleLocks();
+                setTransitioningModule(null);
+
+                const label = LOCKABLE_MODULES.find((m) => m.key === reasonModalModule)?.label || reasonModalModule;
+                setSuccessMessage(`${label} locked with reason: "${reason}"`);
+                setShowSuccess(true);
+
+                setTimeout(() => setShowSuccess(false), 2200);
+                setReasonModalModule(null);
+            }
+        } catch (e) {
+            console.error('Failed to lock module:', e);
             setTransitioningModule(null);
-
-            const label = LOCKABLE_MODULES.find((m) => m.key === reasonModalModule)?.label || reasonModalModule;
-            setSuccessMessage(`${label} locked with reason: "${reason}"`);
-            setShowSuccess(true);
-
-            setTimeout(() => setShowSuccess(false), 2200);
-            setReasonModalModule(null);
-        }, 300);
+        }
     };
 
-    const handleToggleLock = (key: LockableModuleKey) => {
+    const handleToggleLock = async (key: LockableModuleKey) => {
         const currentState = moduleLocks[key]?.locked ?? false;
 
         // If unlocking, just toggle
         if (currentState) {
             // Module is currently locked, so unlock without asking for reason
             setTransitioningModule(key);
-            setTimeout(() => {
-                const updatedLocks = setModuleLock(key, false, { updatedBy: adminIdentity });
-                setModuleLocks(updatedLocks);
+            try {
+                const response = await fetch(getApiUrl(`/api/admin/module-locks/${key}`), {
+                    method: 'POST',
+                    headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ locked: false }),
+                });
+
+                if (response.ok) {
+                    await loadModuleLocks();
+                    setTransitioningModule(null);
+
+                    const label = LOCKABLE_MODULES.find((m) => m.key === key)?.label || key;
+                    setSuccessMessage(`${label} successfully unlocked`);
+                    setShowSuccess(true);
+
+                    setTimeout(() => setShowSuccess(false), 2200);
+                }
+            } catch (e) {
+                console.error('Failed to unlock module:', e);
                 setTransitioningModule(null);
-
-                const label = LOCKABLE_MODULES.find((m) => m.key === key)?.label || key;
-                setSuccessMessage(`${label} successfully unlocked`);
-                setShowSuccess(true);
-
-                setTimeout(() => setShowSuccess(false), 2200);
-            }, 300);
+            }
         } else {
             // Module is currently unlocked, show reason modal before locking
             openReasonModal(key);
@@ -122,6 +154,14 @@ const ModuleAccessControl = () => {
     const getStatusBgColor = (locked: boolean) => {
         return locked ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700/40' : 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700/40';
     };
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center min-h-screen">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+            </div>
+        );
+    }
 
     return (
         <div>

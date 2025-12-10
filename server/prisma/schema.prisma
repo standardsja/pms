@@ -956,3 +956,40 @@ model SplinteringAlert {
   @@index([createdAt])
   @@index([wasBlocked])
 }
+
+/**
+ * System Configuration
+ * Stores system-wide settings and configuration
+ */
+model SystemConfig {
+  id                    Int      @id @default(autoincrement())
+  key                   String   @unique // e.g., "SMTP_HOST", "MAX_LOGIN_ATTEMPTS"
+  value                 String   @db.Text
+  valueType            String   @default("string") // "string", "number", "boolean", "json"
+  description          String?  @db.Text
+  updatedBy            Int?     // Admin user who updated this config
+  updatedAt            DateTime @updatedAt
+  createdAt            DateTime @default(now())
+
+  @@index([key])
+  @@index([updatedAt])
+}
+
+/**
+ * Anti-Splintering Rules
+ * Defines rules for detecting procurement splintering attempts
+ */
+model SplinteringRule {
+  id                Int      @id @default(autoincrement())
+  ruleId            String   @unique // e.g., "vendor-threshold", "category-threshold"
+  name              String
+  description       String?  @db.Text
+  thresholdAmount   Decimal  @db.Decimal(12, 2)
+  timeWindowDays    Int      @default(90)
+  enabled           Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([enabled])
+  @@index([ruleId])
+}
