@@ -507,38 +507,7 @@ router.get(
         const permissions = computePermissionsForUser(user);
         const deptManagerFor = computeDeptManagerForUser(user);
 
-        // Validate profile image exists and has content
-        let validProfileImage = user.profileImage;
-        if (validProfileImage) {
-            const imagePath = path.join(process.cwd(), validProfileImage);
-            try {
-                const stats = await fs.promises.stat(imagePath);
-                if (stats.size === 0) {
-                    // Image file is empty, clear it from database
-                    logger.warn('Profile image file is empty, clearing from database', {
-                        userId,
-                        profileImage: validProfileImage,
-                    });
-                    await prisma.user.update({
-                        where: { id: userId },
-                        data: { profileImage: null },
-                    });
-                    validProfileImage = null;
-                }
-            } catch (error) {
-                // File doesn't exist, clear from database
-                logger.warn('Profile image file not found, clearing from database', {
-                    userId,
-                    profileImage: validProfileImage,
-                });
-                await prisma.user.update({
-                    where: { id: userId },
-                    data: { profileImage: null },
-                });
-                validProfileImage = null;
-            }
-        }
-
+        // Return user profile data including profileImage
         res.json({
             id: user.id,
             email: user.email,
@@ -561,7 +530,7 @@ router.get(
             permissions,
             deptManagerFor,
             ldapDN: user.ldapDN,
-            profileImage: validProfileImage,
+            profileImage: user.profileImage,
             createdAt: user.createdAt,
             updatedAt: user.updatedAt,
         });

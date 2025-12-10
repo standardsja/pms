@@ -41,6 +41,7 @@ import { adminRoutes as adminRouter } from './routes/admin';
 import { ideasRoutes } from './routes/ideas';
 import { innovationRoutes } from './routes/innovation';
 import suppliersRouter from './routes/suppliers';
+import testPhotoRouter from './routes/test-photo';
 
 const app = express();
 const httpServer = http.createServer(app);
@@ -6055,6 +6056,9 @@ app.use('/api/suppliers', suppliersRouter);
 
 // Admin API routes
 app.use('/api/admin', adminRouter);
+
+// TEST: Photo endpoint to verify code changes
+app.use(testPhotoRouter);
 
 // DEBUG: List all registered routes (temporary; remove in production)
 app.get('/api/_routes', (req, res) => {
