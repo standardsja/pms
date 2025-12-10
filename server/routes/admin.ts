@@ -85,6 +85,48 @@ router.get('/users', adminOnly, async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/admin/users/:id - Get a specific user by ID
+ */
+router.get('/users/:id', adminOnly, async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const userId = parseInt(id);
+
+        if (isNaN(userId)) {
+            return res.status(400).json({ success: false, message: 'Invalid user ID' });
+        }
+
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            include: {
+                roles: {
+                    include: {
+                        role: {
+                            include: {
+                                permissions: true,
+                            },
+                        },
+                    },
+                },
+                department: true,
+            },
+            omit: {
+                passwordHash: true,
+            },
+        });
+
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        res.json(user);
+    } catch (error) {
+        logger.error('Failed to fetch user', { error });
+        res.status(500).json({ success: false, message: 'Failed to fetch user' });
+    }
+});
+
+/**
  * GET /api/admin/roles - Get all roles
  */
 router.get('/roles', adminOnly, async (req: Request, res: Response) => {
