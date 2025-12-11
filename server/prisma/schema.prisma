@@ -178,7 +178,10 @@ model User {
   name         String?
   passwordHash String? // ← for local email/password testing
   profileImage String? // User profile image path/URL
-
+  
+  // UI Preferences
+  pinnedModule String?  @default("procurement") // Sidebar module selection: 'procurement' or 'innovation'
+  
   // LDAP-synced fields
   ldapDN       String? // LDAP Distinguished Name
   employeeId   String? // Employee ID from LDAP

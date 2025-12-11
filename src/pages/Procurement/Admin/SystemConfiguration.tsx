@@ -106,7 +106,15 @@ const SystemConfiguration = () => {
                         </div>
                         <div>
                             <label className="block text-sm font-semibold mb-2">SMTP Port</label>
-                            <input type="number" value={config.SMTP_PORT} onChange={(e) => setConfig({ ...config, SMTP_PORT: parseInt(e.target.value) })} className="form-input w-full" />
+                            <input
+                                type="number"
+                                value={config.SMTP_PORT ?? ''}
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    setConfig({ ...config, SMTP_PORT: val === '' ? '' : Number(val) });
+                                }}
+                                className="form-input w-full"
+                            />
                         </div>
                         <div>
                             <label className="block text-sm font-semibold mb-2">SMTP User</label>
@@ -137,21 +145,35 @@ const SystemConfiguration = () => {
                             <label className="block text-sm font-semibold mb-2">Max Login Attempts</label>
                             <input
                                 type="number"
-                                value={config.MAX_LOGIN_ATTEMPTS}
-                                onChange={(e) => setConfig({ ...config, MAX_LOGIN_ATTEMPTS: parseInt(e.target.value) })}
+                                value={config.MAX_LOGIN_ATTEMPTS ?? ''}
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    setConfig({ ...config, MAX_LOGIN_ATTEMPTS: val === '' ? '' : Number(val) });
+                                }}
                                 className="form-input w-full"
                             />
                         </div>
                         <div>
                             <label className="block text-sm font-semibold mb-2">Session Timeout (minutes)</label>
-                            <input type="number" value={config.SESSION_TIMEOUT} onChange={(e) => setConfig({ ...config, SESSION_TIMEOUT: parseInt(e.target.value) })} className="form-input w-full" />
+                            <input
+                                type="number"
+                                value={config.SESSION_TIMEOUT ?? ''}
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    setConfig({ ...config, SESSION_TIMEOUT: val === '' ? '' : Number(val) });
+                                }}
+                                className="form-input w-full"
+                            />
                         </div>
                         <div>
                             <label className="block text-sm font-semibold mb-2">Password Min Length</label>
                             <input
                                 type="number"
-                                value={config.PASSWORD_MIN_LENGTH}
-                                onChange={(e) => setConfig({ ...config, PASSWORD_MIN_LENGTH: parseInt(e.target.value) })}
+                                value={config.PASSWORD_MIN_LENGTH ?? ''}
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    setConfig({ ...config, PASSWORD_MIN_LENGTH: val === '' ? '' : Number(val) });
+                                }}
                                 className="form-input w-full"
                             />
                         </div>

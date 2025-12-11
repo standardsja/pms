@@ -55,21 +55,38 @@ export async function syncLDAPUserToDatabase(ldapUser: LDAPUser, existingUser?: 
                     email: ldapUser.email,
                     name: ldapUser.name || ldapUser.email,
                     ldapDN: ldapUser.dn,
+                    phone: ldapUser.phone,
                     profileImage: ldapUser.profileImage,
                 },
                 include: { roles: true },
             });
         } else {
+            // Sync LDAP data to database
+            const updateData: any = {};
+
+            // Sync phone number from AD
+            logger.info('LDAP: Phone sync check', {
+                email: ldapUser.email,
+                ldapPhone: ldapUser.phone,
+                dbPhone: dbUser.phone,
+                shouldUpdate: !!(ldapUser.phone && ldapUser.phone !== dbUser.phone),
+            });
+            if (ldapUser.phone && ldapUser.phone !== dbUser.phone) {
+                updateData.phone = ldapUser.phone;
+                logger.info('LDAP: Phone number will be synced', {
+                    email: ldapUser.email,
+                    oldPhone: dbUser.phone,
+                    newPhone: ldapUser.phone,
+                });
+            }
+
             // Handle profile image sync logic:
             // 1. If LDAP has a photo, use it (LDAP is source of truth)
             // 2. If LDAP doesn't have a photo but user uploaded one, keep user's photo
             // 3. If neither exist, no photo
             if (ldapUser.profileImage) {
                 // LDAP has a photo - sync it to database (overwrites user upload)
-                await prisma.user.update({
-                    where: { id: dbUser.id },
-                    data: { profileImage: ldapUser.profileImage },
-                });
+                updateData.profileImage = ldapUser.profileImage;
                 logger.info('LDAP: Profile image synced from LDAP', {
                     email: ldapUser.email,
                     profileImage: ldapUser.profileImage,
@@ -85,6 +102,18 @@ export async function syncLDAPUserToDatabase(ldapUser: LDAPUser, existingUser?: 
                 logger.info('LDAP: No LDAP photo found, keeping user-uploaded photo', {
                     email: ldapUser.email,
                     profileImage: dbUser.profileImage,
+                });
+            }
+
+            // Update user if there are changes
+            if (Object.keys(updateData).length > 0) {
+                await prisma.user.update({
+                    where: { id: dbUser.id },
+                    data: updateData,
+                });
+                logger.info('LDAP: User data synced from LDAP', {
+                    email: ldapUser.email,
+                    updatedFields: Object.keys(updateData),
                 });
             }
         }

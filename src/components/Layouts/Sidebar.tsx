@@ -47,12 +47,21 @@ import IconUsers from '../Icon/IconUsers';
 import IconKey from '../Icon/IconKey';
 import IconUpload from '../Icon/IconUpload';
 import IconGear from '../Icon/IconGear';
-
+import { getApiUrl } from '../../config/api';
+import { getToken } from '../../utils/auth';
 const Sidebar = () => {
     const [currentMenu, setCurrentMenu] = useState<string>('');
     const [errorSubMenu, setErrorSubMenu] = useState(false);
     const [moduleLocks, setModuleLocks] = useState<ModuleLockState>(() => getModuleLocks());
-    const [pinnedModule, setPinnedModule] = useState<string | null>(null); // Track which module should be shown in sidebar
+    // Initialize pinnedModule based on module lock status
+    const [pinnedModule, setPinnedModule] = useState<string | null>(() => {
+        const locks = getModuleLocks();
+        // Default to innovation if procurement is locked, otherwise procurement
+        if (locks.procurement.locked && !locks.innovation.locked) {
+            return 'innovation';
+        }
+        return 'procurement';
+    });
     const themeConfig = useSelector((state: IRootState) => state.themeConfig);
     const semidark = useSelector((state: IRootState) => state.themeConfig.semidark);
     const location = useLocation();
@@ -101,8 +110,21 @@ const Sidebar = () => {
     const innovationLocked = moduleLocks.innovation.locked;
     const committeeLocked = moduleLocks.committee.locked;
 
-    // Compute dashboard path for logo/home using centralized utility
-    const dashboardPath = getDashboardPath(detectedRoles, location.pathname);
+    // Only show procurement menus when procurement is the active module and not locked
+    // Also hide when the pinned module is innovation (even if on non-module routes like /profile)
+    const showProcurementMenus = useMemo(() => {
+        return pinnedModule === 'procurement' && !procurementLocked && !isInnovationHub;
+    }, [pinnedModule, procurementLocked, isInnovationHub]);
+
+    // Compute dashboard path for logo/home based on pinnedModule
+    const dashboardPath = useMemo(() => {
+        // If user has explicitly pinned Innovation Hub, always go there
+        if (pinnedModule === 'innovation' && !innovationLocked) {
+            return '/innovation/dashboard';
+        }
+        // Otherwise use role-based detection
+        return getDashboardPath(detectedRoles, location.pathname);
+    }, [pinnedModule, innovationLocked, detectedRoles, location.pathname]);
 
     // Debug logging for dashboard path
 
@@ -148,6 +170,76 @@ const Sidebar = () => {
         return () => window.removeEventListener('storage', syncLocks);
     }, []);
 
+    // Check if pinned module is locked and auto-switch to available module
+    useEffect(() => {
+        if (!pinnedModule) return;
+
+        const procAvailable = !procurementLocked;
+        const innovAvailable = !innovationLocked;
+
+        // If pinned module is locked, switch to available one
+        if (pinnedModule === 'procurement' && procurementLocked) {
+            if (innovAvailable) {
+                setPinnedModule('innovation');
+            }
+        } else if (pinnedModule === 'innovation' && innovationLocked) {
+            if (procAvailable) {
+                setPinnedModule('procurement');
+            }
+        }
+    }, [procurementLocked, innovationLocked, pinnedModule]);
+
+    // Fetch pinnedModule from API on component mount
+    useEffect(() => {
+        const fetchPinnedModule = async () => {
+            try {
+                const token = getToken();
+                const response = await fetch(getApiUrl('/api/auth/me'), {
+                    headers: token ? { Authorization: `Bearer ${token}` } : {},
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    let moduleToSet = data.pinnedModule || 'procurement';
+
+                    // Validate the fetched module against current lock state
+                    const locks = getModuleLocks();
+                    if (moduleToSet === 'procurement' && locks.procurement.locked && !locks.innovation.locked) {
+                        moduleToSet = 'innovation';
+                    } else if (moduleToSet === 'innovation' && locks.innovation.locked && !locks.procurement.locked) {
+                        moduleToSet = 'procurement';
+                    }
+
+                    setPinnedModule(moduleToSet);
+                }
+            } catch (error) {
+                // Silently fail - use initialized default
+            }
+        };
+        fetchPinnedModule();
+    }, []);
+
+    // Save pinnedModule to API whenever it changes
+    useEffect(() => {
+        if (pinnedModule) {
+            const savePinnedModule = async () => {
+                try {
+                    const token = getToken();
+                    await fetch(getApiUrl('/api/auth/me/pinned-module'), {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                        },
+                        body: JSON.stringify({ pinnedModule }),
+                    });
+                } catch (error) {
+                    // Silently fail - user experience not impacted
+                }
+            };
+            savePinnedModule();
+        }
+    }, [pinnedModule]);
+
     useEffect(() => {
         if (window.innerWidth < 1024 && themeConfig.sidebar) {
             dispatch(toggleSidebar());
@@ -160,32 +252,23 @@ const Sidebar = () => {
     useEffect(() => {
         const path = location.pathname;
 
-        // Determine which module the current path belongs to
+        // Only update pinnedModule when explicitly navigating TO a module route
         if (path.startsWith('/procurement') || path.startsWith('/apps/requests')) {
-            setPinnedModule('procurement');
-        } else if (path.startsWith('/innovation')) {
-            setPinnedModule('innovation');
-        } else if (path.startsWith('/apps') || path === '/') {
-            // Generic apps route or home
-            // If only one module is available (not locked), default to showing it
-            const procAvailable = !procurementLocked;
-            const innovAvailable = !innovationLocked;
-
-            if (procAvailable && !innovAvailable) {
+            // Only switch to procurement if it's not locked
+            if (!procurementLocked) {
                 setPinnedModule('procurement');
-            } else if (!procAvailable && innovAvailable) {
-                setPinnedModule('innovation');
-            } else if (procAvailable && innovAvailable) {
-                // Both available - default to procurement if no pinnedModule yet
-                if (!pinnedModule) {
-                    setPinnedModule('procurement');
-                }
-                // Otherwise keep current pinnedModule
             }
+            // If procurement is locked, don't change pinnedModule - keep current module
+        } else if (path.startsWith('/innovation')) {
+            // Only switch to innovation if it's not locked
+            if (!innovationLocked) {
+                setPinnedModule('innovation');
+            }
+            // If innovation is locked, don't change pinnedModule - keep current module
         }
-        // For non-module routes (/profile, /settings, etc.), don't change pinnedModule
-        // It will remain set to whichever module is currently active or the only available one
-    }, [location.pathname, procurementLocked, innovationLocked, pinnedModule]);
+        // For all other routes (/profile, /settings, /apps, home, etc.), don't change pinnedModule
+        // It will remain set to whichever module user is currently viewing
+    }, [location.pathname, procurementLocked, innovationLocked]);
     return (
         <div className={semidark ? 'dark' : ''}>
             <nav
@@ -677,8 +760,8 @@ const Sidebar = () => {
                                 </>
                             )}
 
-                            {/* Show REQUESTER section - hide for admins */}
-                            {isRequester && !isAdmin && !procurementLocked && (
+                            {/* Show REQUESTER section - hide for admins; only when procurement is active and unlocked */}
+                            {isRequester && !isAdmin && showProcurementMenus && (
                                 // Requester Only Menu
                                 <>
                                     <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
@@ -704,8 +787,8 @@ const Sidebar = () => {
                                 </>
                             )}
 
-                            {/* Show DEPARTMENT_MANAGER section - hide for admins */}
-                            {(isDepartmentManager || isDeptManagerHere) && !isAdmin && !isInnovationHub && !procurementLocked && (
+                            {/* Show DEPARTMENT_MANAGER section - only when procurement module is active and unlocked */}
+                            {(isDepartmentManager || isDeptManagerHere) && !isAdmin && showProcurementMenus && (
                                 // Department Manager Menu
                                 <>
                                     <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
@@ -742,8 +825,8 @@ const Sidebar = () => {
                                 </>
                             )}
 
-                            {/* Show PROCUREMENT_OFFICER section - hide for admins and when in Innovation Hub */}
-                            {isProcurementOfficer && !isAdmin && !isInnovationHub && !procurementLocked && (
+                            {/* Show PROCUREMENT_OFFICER section - only when procurement module is active and unlocked */}
+                            {isProcurementOfficer && !isAdmin && showProcurementMenus && (
                                 // Procurement Officer Only Menu
                                 <>
                                     <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">

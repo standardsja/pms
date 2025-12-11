@@ -81,8 +81,35 @@ const Header = () => {
     const procurementLocked = moduleLocks.procurement.locked;
     const innovationLocked = moduleLocks.innovation.locked;
 
-    // Set dashboard path based on centralized role detection
-    const dashboardPath = getDashboardPath(detectedRoles, location.pathname);
+    // Set dashboard path based on pinnedModule if available, otherwise role detection
+    const [pinnedModule, setPinnedModule] = useState<string | null>(null);
+
+    useEffect(() => {
+        const fetchPinnedModule = async () => {
+            try {
+                const token = getToken();
+                const response = await fetch(getApiUrl('/api/auth/me'), {
+                    headers: token ? { Authorization: `Bearer ${token}` } : {},
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    setPinnedModule(data.pinnedModule || 'procurement');
+                }
+            } catch (error) {
+                // Silently fail
+            }
+        };
+        fetchPinnedModule();
+    }, []);
+
+    const dashboardPath = useMemo(() => {
+        // If user has explicitly pinned Innovation Hub, always go there
+        if (pinnedModule === 'innovation' && !innovationLocked) {
+            return '/innovation/dashboard';
+        }
+        // Otherwise use role-based detection
+        return getDashboardPath(detectedRoles, location.pathname);
+    }, [pinnedModule, innovationLocked, detectedRoles, location.pathname]);
 
     useEffect(() => {
         const selector = document.querySelector('ul.horizontal-menu a[href="' + window.location.pathname + '"]');
@@ -364,108 +391,7 @@ const Header = () => {
                     )}
                     <div className="sm:flex-1 ltr:sm:ml-0 ltr:ml-auto sm:rtl:mr-0 rtl:mr-auto flex items-center space-x-1.5 lg:space-x-2 rtl:space-x-reverse dark:text-[#d0d2d6]">
                         <div className="sm:ltr:mr-auto sm:rtl:ml-auto">{/* Hidden search bar to maintain spacing */}</div>
-                        {!isCommitteeMember && !isSupplier && (
-                            <div className="dropdown shrink-0">
-                                <Dropdown
-                                    offset={[0, 8]}
-                                    placement={`${isRtl ? 'bottom-start' : 'bottom-end'}`}
-                                    btnClassName="flex items-center gap-2 p-2 rounded-full bg-white-light/40 dark:bg-dark/40 hover:text-primary hover:bg-white-light/90 dark:hover:bg-dark/60"
-                                    button={
-                                        <div className="flex items-center gap-2">
-                                            <IconRefresh className="w-4.5 h-4.5" />
-                                            <span className="text-sm font-semibold hidden md:inline">{isInnovationHub ? 'Innovation Hub' : 'PMS'}</span>
-                                        </div>
-                                    }
-                                >
-                                    <ul className="text-dark dark:text-white-dark !py-0 w-[280px] font-semibold">
-                                        <li>
-                                            <div className="px-4 py-3 border-b border-white-light dark:border-white-light/10">
-                                                <h4 className="text-base font-bold">Switch Module</h4>
-                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Choose which system to use</p>
-                                            </div>
-                                        </li>
-                                        <li>
-                                            <button
-                                                type="button"
-                                                className={`w-full !py-3 hover:bg-gray-100 dark:hover:bg-gray-800 ${!isInnovationHub ? 'bg-primary/10 text-primary' : ''} ${
-                                                    procurementLocked ? 'cursor-not-allowed opacity-60' : ''
-                                                }`}
-                                                disabled={procurementLocked}
-                                                aria-disabled={procurementLocked}
-                                                onClick={() => {
-                                                    if (procurementLocked) return;
-                                                    navigate(isProcurementManager ? '/procurement/manager' : isRequester ? '/apps/requests' : '/procurement/dashboard');
-                                                }}
-                                            >
-                                                <div className="flex items-center gap-3 px-4">
-                                                    <span className="text-2xl">📦</span>
-                                                    <div className="text-left flex-1">
-                                                        <div className="font-semibold">Procurement System</div>
-                                                        <div className="text-xs text-gray-500 dark:text-gray-400">Manage RFQs & Suppliers</div>
-                                                        {procurementLocked && (
-                                                            <div className="flex items-center gap-1 text-red-600 dark:text-red-300 mt-1">
-                                                                <IconLock className="w-4 h-4" />
-                                                                <span className="text-[11px]">Locked by Admin{moduleLocks.procurement.reason ? `: ${moduleLocks.procurement.reason}` : ''}</span>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    {!isInnovationHub && !procurementLocked && (
-                                                        <svg className="w-4 h-4 text-primary" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                                            <path
-                                                                d="M9 12L11 14L15 10M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z"
-                                                                stroke="currentColor"
-                                                                strokeWidth="2"
-                                                                strokeLinecap="round"
-                                                                strokeLinejoin="round"
-                                                            />
-                                                        </svg>
-                                                    )}
-                                                </div>
-                                            </button>
-                                        </li>
-                                        <li>
-                                            <button
-                                                type="button"
-                                                className={`w-full !py-3 hover:bg-gray-100 dark:hover:bg-gray-800 ${isInnovationHub ? 'bg-primary/10 text-primary' : ''} ${
-                                                    innovationLocked ? 'cursor-not-allowed opacity-60' : ''
-                                                }`}
-                                                disabled={innovationLocked}
-                                                aria-disabled={innovationLocked}
-                                                onClick={() => {
-                                                    if (innovationLocked) return;
-                                                    navigate('/innovation/dashboard');
-                                                }}
-                                            >
-                                                <div className="flex items-center gap-3 px-4">
-                                                    <span className="text-2xl">💡</span>
-                                                    <div className="text-left flex-1">
-                                                        <div className="font-semibold">Innovation Hub</div>
-                                                        <div className="text-xs text-gray-500 dark:text-gray-400">Submit & Vote on Ideas</div>
-                                                        {innovationLocked && (
-                                                            <div className="flex items-center gap-1 text-red-600 dark:text-red-300 mt-1">
-                                                                <IconLock className="w-4 h-4" />
-                                                                <span className="text-[11px]">Locked by Admin{moduleLocks.innovation.reason ? `: ${moduleLocks.innovation.reason}` : ''}</span>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    {isInnovationHub && !innovationLocked && (
-                                                        <svg className="w-4 h-4 text-primary" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                                            <path
-                                                                d="M9 12L11 14L15 10M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z"
-                                                                stroke="currentColor"
-                                                                strokeWidth="2"
-                                                                strokeLinecap="round"
-                                                                strokeLinejoin="round"
-                                                            />
-                                                        </svg>
-                                                    )}
-                                                </div>
-                                            </button>
-                                        </li>
-                                    </ul>
-                                </Dropdown>
-                            </div>
-                        )}
+                        {/* Module switch removed: header reflects current module only */}
                         <div>
                             {themeConfig.theme === 'light' ? (
                                 <button
