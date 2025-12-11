@@ -42,11 +42,11 @@ const AssignRequestsToUsers = () => {
                     },
                 }),
             ]);
-            
+
             if (!requestsResponse.ok) {
                 throw new Error(`Failed to fetch requests: ${requestsResponse.statusText}`);
             }
-            
+
             const requestsData = await requestsResponse.json();
             setUsers(usersData);
             setRequests(requestsData);

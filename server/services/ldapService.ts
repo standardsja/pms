@@ -144,7 +144,7 @@ class LDAPService {
                         phoneNumber = entry.telephoneNumber;
                     }
                 }
-                
+
                 ldapUser = {
                     dn: userDN,
                     email: (entry.mail as string) || sanitizedEmail,

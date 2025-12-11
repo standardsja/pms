@@ -63,12 +63,12 @@ export async function syncLDAPUserToDatabase(ldapUser: LDAPUser, existingUser?: 
         } else {
             // Sync LDAP data to database
             const updateData: any = {};
-            
+
             // Sync phone number from AD
             if (ldapUser.phone && ldapUser.phone !== dbUser.phone) {
                 updateData.phone = ldapUser.phone;
             }
-            
+
             // Handle profile image sync logic:
             // 1. If LDAP has a photo, use it (LDAP is source of truth)
             // 2. If LDAP doesn't have a photo but user uploaded one, keep user's photo
@@ -93,7 +93,7 @@ export async function syncLDAPUserToDatabase(ldapUser: LDAPUser, existingUser?: 
                     profileImage: dbUser.profileImage,
                 });
             }
-            
+
             // Update user if there are changes
             if (Object.keys(updateData).length > 0) {
                 await prisma.user.update({
