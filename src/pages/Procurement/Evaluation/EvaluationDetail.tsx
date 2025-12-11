@@ -5,7 +5,9 @@ import { setPageTitle } from '../../../store/themeConfigSlice';
 import IconArrowLeft from '../../../components/Icon/IconArrowLeft';
 import IconChecks from '../../../components/Icon/IconChecks';
 import IconEdit from '../../../components/Icon/IconEdit';
+import IconTxtFile from '../../../components/Icon/IconTxtFile';
 import { getUser } from '../../../utils/auth';
+import Swal from 'sweetalert2';
 import { evaluationService, type Evaluation, type SectionVerificationStatus } from '../../../services/evaluationService';
 import EvaluationForm from '../../../components/EvaluationForm';
 
@@ -242,6 +244,51 @@ const EvaluationDetail = () => {
 
     return (
         <div>
+            {/* Page Header with Linked Request Info */}
+            {evaluation && (
+                <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+                    <div className="flex-1">
+                        <h2 className="text-2xl font-bold">Evaluation Details</h2>
+                        <p className="text-white-dark">
+                            {evaluation.evalNumber} • {evaluation.rfqNumber} • {evaluation.rfqTitle}
+                        </p>
+                        {(evaluation.requestId || evaluation.combinedRequestId) && (
+                            <div className="mt-2 inline-flex items-center gap-2 text-sm">
+                                <span className="px-2 py-1 rounded bg-primary/10 text-primary font-medium">📎 Linked to Request</span>
+                                {evaluation.requestId && <span className="text-white-dark">Request ID: {evaluation.requestId}</span>}
+                                {evaluation.combinedRequestId && <span className="text-white-dark">Combined Request #{evaluation.combinedRequestId}</span>}
+                            </div>
+                        )}
+                    </div>
+                    <div className="flex gap-2">
+                        {(evaluation.requestId || evaluation.combinedRequestId) && (
+                            <button
+                                onClick={() => {
+                                    if (evaluation.requestId) {
+                                        navigate(`/apps/requests/edit/${evaluation.requestId}`);
+                                    } else if (evaluation.combinedRequestId) {
+                                        Swal.fire({
+                                            icon: 'info',
+                                            title: 'Combined Request',
+                                            text: `This evaluation is linked to Combined Request #${evaluation.combinedRequestId}`,
+                                            customClass: { popup: 'sweet-alerts' },
+                                        });
+                                    }
+                                }}
+                                className="btn btn-success gap-2"
+                            >
+                                <IconTxtFile />
+                                View Request
+                            </button>
+                        )}
+                        <Link to="/procurement/evaluation" className="btn btn-outline-info gap-2">
+                            <IconArrowLeft />
+                            Back to List
+                        </Link>
+                    </div>
+                </div>
+            )}
+
             {/* Procurement Officer: Show completed assignments */}
             {isProcurement && currentAssignments.length > 0 && (
                 <div className="panel mb-4 no-print">

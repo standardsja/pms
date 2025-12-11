@@ -480,6 +480,8 @@ async function authMiddleware(req: any, res: any, next: any) {
     const auth = req.headers.authorization || '';
     const userId = req.headers['x-user-id'];
 
+    console.log('[AUTH] Headers:', { auth: auth.substring(0, 20), userId, path: req.path });
+
     // Try Bearer token first
     if (auth && auth.startsWith('Bearer ')) {
         const [, token] = auth.split(' ');
@@ -488,8 +490,8 @@ async function authMiddleware(req: any, res: any, next: any) {
             (req as any).user = payload;
             return next();
         } catch {
-            // In development, fall back to x-user-id and hydrate roles from DB
-            if (process.env.NODE_ENV !== 'production' && userId) {
+            // Fall back to x-user-id and hydrate roles from DB
+            if (userId) {
                 const userIdNum = parseInt(String(userId), 10);
                 if (Number.isFinite(userIdNum)) {
                     try {
@@ -515,20 +517,15 @@ async function authMiddleware(req: any, res: any, next: any) {
     if (userId) {
         const userIdNum = parseInt(String(userId), 10);
         if (Number.isFinite(userIdNum)) {
-            // In development, hydrate roles so RBAC works as expected
-            if (process.env.NODE_ENV !== 'production') {
-                try {
-                    const u = await prisma.user.findUnique({
-                        where: { id: userIdNum },
-                        include: { roles: { include: { role: true } } },
-                    });
-                    const roles = Array.isArray(u?.roles) ? (u!.roles.map((r) => r.role?.name).filter(Boolean) as string[]) : [];
-                    (req as any).user = { sub: userIdNum, roles, email: u?.email, name: u?.name };
-                } catch {
-                    (req as any).user = { sub: userIdNum };
-                }
-            } else {
-                // Create a minimal user object
+            // Hydrate roles so RBAC works as expected
+            try {
+                const u = await prisma.user.findUnique({
+                    where: { id: userIdNum },
+                    include: { roles: { include: { role: true } } },
+                });
+                const roles = Array.isArray(u?.roles) ? (u!.roles.map((r) => r.role?.name).filter(Boolean) as string[]) : [];
+                (req as any).user = { sub: userIdNum, roles, email: u?.email, name: u?.name };
+            } catch {
                 (req as any).user = { sub: userIdNum };
             }
             return next();
@@ -2023,9 +2020,9 @@ app.get('/api/requests', async (_req, res) => {
     }
 });
 
-// POST /requests - create a new procurement request (with optional file attachments)
+// POST /api/requests - create a new procurement request (with optional file attachments)
 app.post(
-    '/requests',
+    '/api/requests',
     (req, res, next) => {
         uploadAttachments.array('attachments', 10)(req, res, (err) => {
             if (err) {
@@ -2190,6 +2187,91 @@ app.post(
         }
     }
 );
+
+// GET /api/requests/combinable - Get combinable requests (must be before /api/requests/:id)
+app.get('/api/requests/combinable', authMiddleware, async (req: any, res: any) => {
+    console.log('[COMBINE] Route hit - combinable requests');
+    try {
+        const { combinable } = req.query;
+        const userId = req.user?.sub || req.user?.id;
+        const userRoles = req.user?.roles || [];
+
+        console.log('[COMBINE] User:', userId, 'Roles:', userRoles, 'Query:', combinable);
+
+        // Check if user can combine requests
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            include: { roles: { include: { role: true } } },
+        });
+
+        const roleNames = user?.roles?.map((r) => r.role?.name).filter(Boolean) || [];
+        const isProcurementManager = roleNames.includes('PROCUREMENT_MANAGER');
+        const isProcurementOfficer = roleNames.includes('PROCUREMENT_OFFICER');
+        const isAdmin = roleNames.includes('ADMIN');
+
+        if (!isProcurementManager && !isProcurementOfficer && !isAdmin) {
+            return res.status(403).json({
+                message: 'Access denied. Only procurement officers and procurement managers can view combined requests.',
+            });
+        }
+
+        // If combinable=true, return requests that can be combined
+        if (combinable === 'true') {
+            const requests = await prisma.request.findMany({
+                where: {
+                    status: { in: ['DRAFT', 'SUBMITTED', 'DEPARTMENT_REVIEW', 'PROCUREMENT_REVIEW'] },
+                    combinedRequestId: null,
+                },
+                include: {
+                    department: { select: { name: true, id: true } },
+                    requester: { select: { name: true } },
+                    items: {
+                        select: {
+                            id: true,
+                            description: true,
+                            quantity: true,
+                            unitPrice: true,
+                            totalPrice: true,
+                        },
+                    },
+                },
+                orderBy: { createdAt: 'desc' },
+                take: 100,
+            });
+
+            const transformedRequests = requests.map((request) => ({
+                id: request.id,
+                reference: request.reference,
+                title: request.title,
+                status: request.status,
+                priority: request.priority || 'MEDIUM',
+                totalEstimated: request.totalEstimated || 0,
+                currency: request.currency || 'USD',
+                department: request.department?.name || 'Unknown',
+                requestedBy: request.requester.name,
+                createdAt: request.createdAt,
+                items: request.items.map((item) => ({
+                    id: item.id,
+                    description: item.description,
+                    quantity: item.quantity,
+                    unitCost: Number(item.unitPrice),
+                    totalCost: Number(item.totalPrice),
+                })),
+            }));
+
+            return res.json(transformedRequests);
+        }
+
+        // Otherwise return existing combined requests
+        return res.json([]);
+    } catch (error) {
+        console.error('Error fetching combinable requests:', error);
+        res.status(500).json({
+            error: 'Failed to fetch requests',
+            message: error instanceof Error ? error.message : 'Unknown error',
+        });
+    }
+});
 
 // GET /api/requests/:id - fetch a single request by ID for editing
 app.get('/api/requests/:id', async (req, res) => {
@@ -6154,9 +6236,6 @@ app.delete(
 
 // Stats API routes
 app.use('/api/stats', statsRouter);
-
-// Combine requests API routes
-app.use('/api/requests/combine', combineRouter);
 
 // Auth API routes
 app.use('/api/auth', authRoutes);

@@ -69,7 +69,7 @@ const CombineRequests = () => {
                 const userId = localStorage.getItem('userId');
 
                 // Fetch combinable requests
-                const response = await fetch(getApiUrl('/api/requests/combine?combinable=true'), {
+                const response = await fetch(getApiUrl('/api/requests/combinable?combinable=true'), {
                     headers: {
                         Authorization: `Bearer ${token}`,
                         'x-user-id': userId || '',

@@ -36,6 +36,7 @@ import { requestsRoutes } from './routes/requests';
 import roleRequestsRouter from './routes/roleRequests';
 import hodRouter from './routes/hod';
 import { adminRoutes } from './routes/admin';
+import combineRoutes from './routes/combine';
 
 // Initialize Express app
 const app = express();
@@ -119,6 +120,7 @@ app.get('/health', async (_req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/ideas', ideasRoutes);
 app.use('/api/v1', hodRouter);
+app.use('/api/requests/combinable', combineRoutes);
 app.use('/api/requests', requestsRoutes);
 app.use('/api/role-requests', roleRequestsRouter);
 app.use('/api/admin', adminRoutes);
