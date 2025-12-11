@@ -7,7 +7,7 @@ async function updatePinnedModule() {
         // Get the current user (ID 3 based on your profile)
         const user = await prisma.user.findUnique({
             where: { id: 3 },
-            select: { id: true, name: true, email: true, pinnedModule: true }
+            select: { id: true, name: true, email: true, pinnedModule: true },
         });
 
         if (!user) {
@@ -21,7 +21,7 @@ async function updatePinnedModule() {
         // Update pinnedModule to 'innovation'
         const updated = await prisma.user.update({
             where: { id: 3 },
-            data: { pinnedModule: 'innovation' }
+            data: { pinnedModule: 'innovation' },
         });
 
         console.log('✅ Updated pinnedModule to:', updated.pinnedModule);

@@ -83,7 +83,7 @@ const Header = () => {
 
     // Set dashboard path based on pinnedModule if available, otherwise role detection
     const [pinnedModule, setPinnedModule] = useState<string | null>(null);
-    
+
     useEffect(() => {
         const fetchPinnedModule = async () => {
             try {
