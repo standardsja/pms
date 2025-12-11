@@ -1623,9 +1623,9 @@ router.post('/splintering-rules/:id/toggle', adminOnly, async (req: Request, res
  */
 
 /**
- * GET /api/admin/navigation-menus - Get all navigation menu items
+ * GET /api/admin/navigation-menus - Get all navigation menu items (accessible to all authenticated users)
  */
-router.get('/navigation-menus', adminOnly, async (req: Request, res: Response) => {
+router.get('/navigation-menus', authMiddleware, async (req: Request, res: Response) => {
     try {
         const menus = await prisma.navigationMenu.findMany({
             where: { isActive: true },

@@ -41,7 +41,7 @@ import { fetchNotifications, deleteNotification, Notification } from '../../serv
 import { fetchMessages, deleteMessage, Message } from '../../services/messageApi';
 import { getApiUrl } from '../../config/api';
 import IconLock from '../Icon/IconLock';
-import { fetchModuleLocks, defaultModuleLockState, type ModuleLockState } from '../../utils/moduleLocks';
+import { fetchModuleLocks, getModuleLocks, defaultModuleLockState, type ModuleLockState } from '../../utils/moduleLocks';
 import BACKEND from '../../services/adminService';
 
 const Header = () => {
