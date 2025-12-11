@@ -82,10 +82,10 @@ const Profile = () => {
                 if (meResponse.ok) {
                     const data = await meResponse.json();
 
-                    // Fallback: if profileImage is missing from /api/auth/me, fetch from /api/test/my-photo
+                    // Fallback: if profileImage is missing from /api/auth/me, fetch from /api/auth/profile-photo
                     if (!data.profileImage) {
                         try {
-                            const photoResponse = await fetch(getApiUrl('/api/test/my-photo'), {
+                            const photoResponse = await fetch(getApiUrl('/api/auth/profile-photo'), {
                                 headers: {
                                     Authorization: `Bearer ${token}`,
                                     'Content-Type': 'application/json',
@@ -99,7 +99,7 @@ const Profile = () => {
                                 }
                             }
                         } catch (error) {
-                            console.warn('Could not fetch photo from test endpoint:', error);
+                            console.warn('Could not fetch photo from profile endpoint:', error);
                         }
                     }
 

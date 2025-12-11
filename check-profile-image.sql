@@ -1,1 +1,0 @@
-SELECT id, name, email, profileImage FROM User WHERE id = 30;

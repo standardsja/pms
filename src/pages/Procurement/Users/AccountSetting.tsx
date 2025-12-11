@@ -79,6 +79,26 @@ const AccountSetting = () => {
                 if (response.ok) {
                     const data = await response.json();
 
+                    // Fallback: if profileImage is missing, fetch from dedicated endpoint
+                    if (!data.profileImage) {
+                        try {
+                            const photoResponse = await fetch(getApiUrl('/api/auth/profile-photo'), {
+                                headers: {
+                                    Authorization: `Bearer ${token}`,
+                                    'Content-Type': 'application/json',
+                                },
+                            });
+                            if (photoResponse.ok) {
+                                const photoData = await photoResponse.json();
+                                if (photoData.success && photoData.data?.profileImage) {
+                                    data.profileImage = photoData.data.profileImage;
+                                }
+                            }
+                        } catch (error) {
+                            console.warn('Could not fetch profile photo:', error);
+                        }
+                    }
+
                     setProfileData(data);
                     setProfileImage(data.profileImage || '');
 
@@ -294,6 +314,27 @@ const AccountSetting = () => {
                         });
                         if (response.ok) {
                             const updatedData = await response.json();
+
+                            // Fallback: if profileImage is missing, fetch from dedicated endpoint
+                            if (!updatedData.profileImage) {
+                                try {
+                                    const photoResponse = await fetch(getApiUrl('/api/auth/profile-photo'), {
+                                        headers: {
+                                            Authorization: `Bearer ${token}`,
+                                            'Content-Type': 'application/json',
+                                        },
+                                    });
+                                    if (photoResponse.ok) {
+                                        const photoData = await photoResponse.json();
+                                        if (photoData.success && photoData.data?.profileImage) {
+                                            updatedData.profileImage = photoData.data.profileImage;
+                                        }
+                                    }
+                                } catch (error) {
+                                    console.warn('Could not fetch profile photo:', error);
+                                }
+                            }
+
                             setProfileImage(updatedData.profileImage || '');
                         }
                     } catch (error) {

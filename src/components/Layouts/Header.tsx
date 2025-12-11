@@ -206,6 +206,26 @@ const Header = () => {
 
                 if (response.ok) {
                     const data = await response.json();
+
+                    // Fallback: if profileImage is missing, fetch from dedicated endpoint
+                    if (!data.profileImage) {
+                        try {
+                            const photoResponse = await fetch(getApiUrl('/api/auth/profile-photo'), {
+                                headers: {
+                                    Authorization: `Bearer ${token}`,
+                                },
+                            });
+                            if (photoResponse.ok) {
+                                const photoData = await photoResponse.json();
+                                if (photoData.success && photoData.data?.profileImage) {
+                                    data.profileImage = photoData.data.profileImage;
+                                }
+                            }
+                        } catch (error) {
+                            console.warn('Could not fetch profile photo:', error);
+                        }
+                    }
+
                     setProfileImage(resolveProfileImageUrl(data.profileImage));
                 } else {
                 }

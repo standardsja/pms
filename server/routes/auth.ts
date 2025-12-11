@@ -532,10 +532,6 @@ router.get(
         const permissions = computePermissionsForUser(user);
         const deptManagerFor = computeDeptManagerForUser(user);
 
-        const roles = user.roles.map((r) => r.role.name);
-        const permissions = computePermissionsForUser(user);
-        const deptManagerFor = computeDeptManagerForUser(user);
-
         // Return user profile data including profileImage
         res.json({
             id: user.id,

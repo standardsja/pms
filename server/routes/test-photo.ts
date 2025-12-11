@@ -6,10 +6,10 @@ const router = Router();
 const prisma = new PrismaClient();
 
 /**
- * TEST ENDPOINT: Get profile image for current user
- * This is a clean test to see if code changes are being picked up
+ * Get profile image for current user
+ * Used as fallback when /api/auth/me doesn't return profileImage
  */
-router.get('/api/test/my-photo', authMiddleware, async (req: Request, res: Response) => {
+router.get('/api/auth/profile-photo', authMiddleware, async (req: Request, res: Response) => {
     try {
         const userId = (req as AuthenticatedRequest).user?.sub;
 
@@ -38,12 +38,10 @@ router.get('/api/test/my-photo', authMiddleware, async (req: Request, res: Respo
                 name: user.name,
                 email: user.email,
                 profileImage: user.profileImage,
-                timestamp: new Date().toISOString(),
-                testMessage: 'This is from the NEW test-photo.ts endpoint',
             },
         });
     } catch (error) {
-        console.error('Test photo endpoint error:', error);
+        console.error('Profile photo endpoint error:', error);
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
 });
