@@ -70,7 +70,7 @@ const FinanceRequests = () => {
                     throw new Error('User not logged in');
                 }
 
-                const res = await fetch(getApiUrl('/requests'), {
+                const res = await fetch(getApiUrl('/api/requests'), {
                     headers: {
                         'x-user-id': String(currentUserId),
                         'Content-Type': 'application/json',
@@ -170,7 +170,7 @@ const FinanceRequests = () => {
             try {
                 // Call backend API to approve or reject
                 const apiAction = action === 'approve' ? 'APPROVE' : 'REJECT';
-                const res = await fetch(getApiUrl(`/requests/${req.id}/action`), {
+                const res = await fetch(getApiUrl(`/api/requests/${req.id}/action`), {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',

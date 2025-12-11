@@ -57,7 +57,22 @@ const AssignRequests = () => {
     const [sortBy, setSortBy] = useState<'workload' | 'name'>('workload');
     const [viewingOfficerRequests, setViewingOfficerRequests] = useState<number | null>(null);
     const [isProcurementManager, setIsProcurementManager] = useState<boolean>(false);
-    const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
+
+    // Get current user from modern auth storage
+    const getUserProfile = () => {
+        try {
+            const authUserStr = sessionStorage.getItem('auth_user') || localStorage.getItem('auth_user');
+            if (authUserStr) return JSON.parse(authUserStr);
+            // Fallback to legacy
+            const legacyStr = localStorage.getItem('userProfile');
+            if (legacyStr) return JSON.parse(legacyStr);
+        } catch (err) {
+            console.error('Error parsing user profile:', err);
+        }
+        return {};
+    };
+
+    const userProfile = getUserProfile();
     const currentUserId = userProfile?.id || userProfile?.userId || null;
 
     useEffect(() => {
@@ -91,7 +106,7 @@ const AssignRequests = () => {
             setIsProcurementManager(roles.includes('PROCUREMENT_MANAGER') || roles.includes('Procurement Manager') || roles.includes('PROCUREMENT'));
 
             // Fetch requests at PROCUREMENT_REVIEW status
-            const requestsRes = await fetch(getApiUrl('/requests'), {
+            const requestsRes = await fetch(getApiUrl('/api/requests'), {
                 headers: {
                     'x-user-id': String(currentUserId || ''),
                 },
@@ -235,7 +250,7 @@ const AssignRequests = () => {
                 const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
                 const currentUserId = userProfile?.id || userProfile?.userId || null;
 
-                const res = await fetch(getApiUrl(`/requests/${reqId}/assign`), {
+                const res = await fetch(getApiUrl(`/api/requests/${reqId}/assign`), {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',

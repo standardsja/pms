@@ -8,6 +8,7 @@ import IconX from '../../../components/Icon/IconX';
 import { getUser } from '../../../utils/auth';
 import { useTranslation } from 'react-i18next';
 import { evaluationService, type Evaluation, type SectionVerificationStatus, type SectionC as SectionCType } from '../../../services/evaluationService';
+import Swal from 'sweetalert2';
 
 const EvaluationCommittee = () => {
     const dispatch = useDispatch();
@@ -277,6 +278,25 @@ const EvaluationCommittee = () => {
 
     const handleVerifyAllAndComplete = async () => {
         if (!evaluation || !isCommittee) return;
+
+        // Show confirmation dialog with sweet alert
+        const result = await Swal.fire({
+            title: 'Complete Evaluation?',
+            text: 'Are you sure you want to mark your evaluation as complete? The procurement officer will be notified.',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Complete It',
+            cancelButtonText: 'Cancel',
+            customClass: {
+                popup: 'sweet-alerts',
+                confirmButton: 'btn btn-primary',
+                cancelButton: 'btn btn-outline-danger ltr:mr-3 rtl:ml-3',
+            },
+            buttonsStyling: false,
+        });
+
+        if (!result.isConfirmed) return;
+
         const targets = getSubmittedSections();
         const allWouldBeVerified = sectionIds.every((s) => {
             const st = getSectionStatus(s);
@@ -295,18 +315,30 @@ const EvaluationCommittee = () => {
             setEvaluation(updatedEval);
 
             if (allVerified) {
-                setAlertMessage('All sections verified and evaluation completed! Procurement officer has been notified.');
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Evaluation Completed!',
+                    text: 'All sections verified and evaluation completed! Procurement officer has been notified.',
+                    customClass: {
+                        popup: 'sweet-alerts',
+                    },
+                });
             } else {
                 setAlertMessage(`Verified ${targets.length} section${targets.length > 1 ? 's' : ''}`);
+                setShowSuccessAlert(true);
+                setTimeout(() => setShowSuccessAlert(false), 3000);
             }
 
-            setShowSuccessAlert(true);
             setBulkNotes('');
-            setTimeout(() => setShowSuccessAlert(false), 3000);
         } catch (err: any) {
-            setAlertMessage(err.message || 'Failed to process bulk verification');
-            setShowErrorAlert(true);
-            setTimeout(() => setShowErrorAlert(false), 5000);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error!',
+                text: err.message || 'Failed to process bulk verification',
+                customClass: {
+                    popup: 'sweet-alerts',
+                },
+            });
         } finally {
             setLoading(false);
         }
@@ -357,7 +389,10 @@ const EvaluationCommittee = () => {
                 <TextAreaField label="Description" value={evaluation?.description || ''} />
             </FieldGroup>
             <FieldGroup title="Financial Information" color="success">
-                <Field label="Comparable Estimate (JMD)" value={sectionA?.comparableEstimate} />
+                <Field
+                    label="Comparable Estimate"
+                    value={sectionA?.comparableEstimate ? `$${parseFloat(sectionA.comparableEstimate).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}
+                />
                 <Field label="Funded By" value={sectionA?.fundedBy} />
             </FieldGroup>
             <FieldGroup title="Tender Schedule" color="info">
@@ -368,15 +403,33 @@ const EvaluationCommittee = () => {
                 <Field label="Actual Opening Date" value={sectionA?.actualOpeningDate} />
                 <Field label="Actual Opening Time" value={sectionA?.actualOpeningTime} />
             </FieldGroup>
-            <FieldGroup title="Procurement Method & Type" color="warning">
-                <Field label="Procurement Method" value={titleCase(String(sectionA?.procurementMethod || ''))} />
-                <Field label="Contract Type" value={titleCase(String(sectionA?.contractType || ''))} />
-                <Field label="Bid Security Required" value={sectionA?.bidSecurity} />
-                <Field label="Award Criteria" value={titleCase(String(sectionA?.awardCriteria || ''))} />
+            <FieldGroup title="Tender Period" color="secondary">
+                <Field label="Tender Period Start Date" value={sectionA?.tenderPeriodStartDate} />
+                <Field label="Tender Period End Date" value={sectionA?.tenderPeriodEndDate} />
+                <Field label="Tender Period (Days)" value={sectionA?.tenderPeriodDays} />
+            </FieldGroup>
+            <FieldGroup title="Bid Validity" color="secondary">
                 <Field label="Bid Validity (Days)" value={sectionA?.bidValidityDays} />
+                <Field label="Bid Validity Expiration" value={sectionA?.bidValidityExpiration} />
+            </FieldGroup>
+            <FieldGroup title="Procurement Method & Type" color="warning">
+                <Field label="Procurement Method" value={titleCase(String(sectionA?.procurementMethod || '').replace(/_/g, ' '))} />
+                <Field label="Advertisement Methods" value={Array.isArray(sectionA?.advertisementMethods) ? sectionA.advertisementMethods.join(', ') : '-'} />
+                <Field label="Contract Type" value={titleCase(String(sectionA?.contractType || '').replace(/_/g, ' '))} />
+                <Field label="Bid Security Required" value={sectionA?.bidSecurity} />
+                <Field label="Award Criteria" value={titleCase(String(sectionA?.awardCriteria || '').replace(/_/g, ' '))} />
+            </FieldGroup>
+            <FieldGroup title="Bid Information" color="info">
                 <Field label="Number of Bids Requested" value={sectionA?.numberOfBidsRequested} />
+                <Field label="Number of Bids Received" value={sectionA?.numberOfBidsReceived} />
                 <Field label="Arithmetic Error Identified" value={sectionA?.arithmeticErrorIdentified ? 'Yes' : 'No'} />
-                <Field label="Retender" value={sectionA?.retender ? 'Yes' : 'No'} />
+            </FieldGroup>
+            <FieldGroup title="Retender Information" color="danger">
+                <Field label="Retender Required" value={sectionA?.retender ? 'Yes' : 'No'} />
+                {sectionA?.retender && sectionA?.retenderReasons && (
+                    <Field label="Retender Reasons" value={Array.isArray(sectionA.retenderReasons) ? sectionA.retenderReasons.join(', ') : sectionA.retenderReasons} fullWidth />
+                )}
+                {sectionA?.retender && sectionA?.retenderOtherReason && <TextAreaField label="Other Retender Reason" value={sectionA.retenderOtherReason} />}
             </FieldGroup>
         </div>
     );
@@ -392,14 +445,104 @@ const EvaluationCommittee = () => {
                     </div>
                 </FieldGroup>
                 {bidders.map((bidder: any, index: number) => (
-                    <FieldGroup key={index} title={`Bidder ${index + 1}: ${bidder.name || 'Unnamed'}`} color="info">
-                        <Field label="Bidder Name" value={bidder.name} />
-                        <Field label="Bid Amount (JMD)" value={bidder.bidAmount} />
-                        <Field label="Eligibility Met" value={bidder.eligibilityMet ? 'Yes' : 'No'} />
-                        <Field label="Technical Score" value={bidder.technicalScore} />
-                        <TextAreaField label="Compliance Notes" value={bidder.complianceNotes} />
-                        <TextAreaField label="Specifications" value={bidder.specifications} />
-                    </FieldGroup>
+                    <div key={index} className="space-y-4">
+                        <FieldGroup title={`Bidder ${index + 1}: ${bidder.bidderName || 'Unnamed'}`} color="info">
+                            {bidder.bidderName && <Field label="Bidder Name" value={bidder.bidderName} />}
+                        </FieldGroup>
+
+                        {/* Eligibility Requirements Table */}
+                        {bidder.eligibilityRequirements?.columns && bidder.eligibilityRequirements?.rows && (
+                            <div className="panel">
+                                <h6 className="mb-3 text-base font-semibold">Eligibility Requirements</h6>
+                                <div className="overflow-x-auto">
+                                    <table className="table-auto w-full border-collapse border border-gray-300 dark:border-gray-700">
+                                        <thead>
+                                            <tr className="bg-gray-100 dark:bg-gray-800">
+                                                {bidder.eligibilityRequirements.columns.map((col: any) => (
+                                                    <th key={col.id} className="border border-gray-300 dark:border-gray-700 px-3 py-2 text-left font-semibold">
+                                                        {col.name}
+                                                    </th>
+                                                ))}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {bidder.eligibilityRequirements.rows.map((row: any) => (
+                                                <tr key={row.id}>
+                                                    {bidder.eligibilityRequirements.columns.map((col: any) => (
+                                                        <td key={col.id} className="border border-gray-300 dark:border-gray-700 px-3 py-2">
+                                                            {row.data[col.id] || ''}
+                                                        </td>
+                                                    ))}
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Compliance Matrix Table */}
+                        {bidder.complianceMatrix?.columns && bidder.complianceMatrix?.rows && (
+                            <div className="panel">
+                                <h6 className="mb-3 text-base font-semibold">Compliance Matrix</h6>
+                                <div className="overflow-x-auto">
+                                    <table className="table-auto w-full border-collapse border border-gray-300 dark:border-gray-700">
+                                        <thead>
+                                            <tr className="bg-gray-100 dark:bg-gray-800">
+                                                {bidder.complianceMatrix.columns.map((col: any) => (
+                                                    <th key={col.id} className="border border-gray-300 dark:border-gray-700 px-3 py-2 text-left font-semibold">
+                                                        {col.name}
+                                                    </th>
+                                                ))}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {bidder.complianceMatrix.rows.map((row: any) => (
+                                                <tr key={row.id}>
+                                                    {bidder.complianceMatrix.columns.map((col: any) => (
+                                                        <td key={col.id} className="border border-gray-300 dark:border-gray-700 px-3 py-2">
+                                                            {row.data[col.id] || ''}
+                                                        </td>
+                                                    ))}
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Technical Evaluation Table */}
+                        {bidder.technicalEvaluation?.columns && bidder.technicalEvaluation?.rows && (
+                            <div className="panel">
+                                <h6 className="mb-3 text-base font-semibold">Technical Evaluation</h6>
+                                <div className="overflow-x-auto">
+                                    <table className="table-auto w-full border-collapse border border-gray-300 dark:border-gray-700">
+                                        <thead>
+                                            <tr className="bg-gray-100 dark:bg-gray-800">
+                                                {bidder.technicalEvaluation.columns.map((col: any) => (
+                                                    <th key={col.id} className="border border-gray-300 dark:border-gray-700 px-3 py-2 text-left font-semibold">
+                                                        {col.name}
+                                                    </th>
+                                                ))}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {bidder.technicalEvaluation.rows.map((row: any) => (
+                                                <tr key={row.id}>
+                                                    {bidder.technicalEvaluation.columns.map((col: any) => (
+                                                        <td key={col.id} className="border border-gray-300 dark:border-gray-700 px-3 py-2">
+                                                            {row.data[col.id] || ''}
+                                                        </td>
+                                                    ))}
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 ))}
             </div>
         );

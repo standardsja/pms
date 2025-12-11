@@ -16,7 +16,11 @@ const NewEvaluation = () => {
     const navigate = useNavigate();
     const { t } = useTranslation();
     const [searchParams] = useSearchParams();
-    const combinedRequestId = searchParams.get('combinedRequestId');
+    const combinedRequestIdParam = searchParams.get('combinedRequestId');
+    const requestIdParam = searchParams.get('requestId');
+
+    const [combinedRequestIdState, setCombinedRequestIdState] = useState<string | null>(combinedRequestIdParam || null);
+    const [prefilledRequest, setPrefilledRequest] = useState<any>(null);
 
     // Combined request data
     const [combinedRequest, setCombinedRequest] = useState<any>(null);
@@ -29,12 +33,12 @@ const NewEvaluation = () => {
     // Fetch combined request if ID provided
     useEffect(() => {
         const fetchCombinedRequest = async () => {
-            if (!combinedRequestId) return;
+            if (!combinedRequestIdState) return;
 
             try {
                 setLoadingCombinedRequest(true);
                 const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
-                const response = await fetch(getApiUrl(`/api/requests/combine/${combinedRequestId}`), {
+                const response = await fetch(getApiUrl(`/api/requests/combine/${combinedRequestIdState}`), {
                     headers: {
                         Authorization: `Bearer ${token}`,
                         'Content-Type': 'application/json',
@@ -63,7 +67,59 @@ const NewEvaluation = () => {
         };
 
         fetchCombinedRequest();
-    }, [combinedRequestId]);
+    }, [combinedRequestIdState]);
+
+    // Fetch single request if requestId provided (prefill form and derive combinedRequestId)
+    useEffect(() => {
+        const fetchRequest = async () => {
+            if (!requestIdParam) return;
+            try {
+                const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
+                const response = await fetch(getApiUrl(`/api/requests/${requestIdParam}`), {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                });
+
+                if (!response.ok) throw new Error('Failed to fetch request');
+
+                const data = await response.json();
+                setPrefilledRequest(data);
+
+                // Calculate total from items
+                let totalEstimate = 0;
+                if (data.items && Array.isArray(data.items)) {
+                    totalEstimate = data.items.reduce((sum: number, item: any) => {
+                        const quantity = parseFloat(item.quantity) || 0;
+                        const unitPrice = parseFloat(item.unitPrice) || 0;
+                        return sum + quantity * unitPrice;
+                    }, 0);
+                } else if (data.totalEstimated) {
+                    // Fallback to totalEstimated field if items aren't available
+                    totalEstimate = parseFloat(data.totalEstimated) || 0;
+                }
+
+                // Prefill basic evaluation fields from the request
+                setFormData((prev) => ({
+                    ...prev,
+                    rfqNumber: data.reference || data.code || '',
+                    rfqTitle: data.title || '',
+                    description: data.description || data.justification || '',
+                    comparableEstimate: totalEstimate > 0 ? totalEstimate.toFixed(2) : '',
+                }));
+
+                // If the request belongs to a combinedRequest, use that for linking
+                if (!combinedRequestIdState && data.combinedRequestId) {
+                    setCombinedRequestIdState(String(data.combinedRequestId));
+                }
+            } catch (err) {
+                console.error('Error fetching request for evaluation prefill:', err);
+            }
+        };
+
+        fetchRequest();
+    }, [requestIdParam]);
 
     // Role guard (Officer / Manager only)
     useEffect(() => {
@@ -419,7 +475,8 @@ const NewEvaluation = () => {
                 description: formData.background || undefined,
                 evaluator: formData.evaluator || undefined,
                 dueDate: formData.bidValidityExpiration || undefined,
-                combinedRequestId: combinedRequestId ? parseInt(combinedRequestId) : undefined, // Link to combined request
+                combinedRequestId: combinedRequestIdState ? parseInt(combinedRequestIdState) : undefined, // Link to combined request
+                requestId: requestIdParam || undefined,
                 sectionA: {
                     comparableEstimate: safeParseFloat(formData.comparableEstimate),
                     fundedBy: formData.fundedBy || '',
@@ -509,7 +566,7 @@ const NewEvaluation = () => {
             // Load users for selection
             try {
                 const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
-                const resp = await fetch(getApiUrl('/admin/users'), {
+                const resp = await fetch(getApiUrl('/api/admin/users'), {
                     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
                 });
                 if (resp.ok) {
@@ -857,26 +914,40 @@ const NewEvaluation = () => {
                                 <label htmlFor="comparableEstimate" className="mb-2 block font-semibold">
                                     1. COMPARABLE ESTIMATE: <span className="text-danger">*</span>
                                 </label>
-                                <input
-                                    id="comparableEstimate"
-                                    name="comparableEstimate"
-                                    type="text"
-                                    className="form-input w-full"
-                                    placeholder="$49,680.00"
-                                    value={
-                                        formData.comparableEstimate
-                                            ? new Intl.NumberFormat('en-US', {
-                                                  style: 'currency',
-                                                  currency: 'USD',
-                                              }).format(parseFloat(formData.comparableEstimate.replace(/[^0-9.-]+/g, '')) || 0)
-                                            : ''
-                                    }
-                                    onChange={(e) => {
-                                        const value = e.target.value.replace(/[^0-9.-]+/g, '');
-                                        setFormData({ ...formData, comparableEstimate: value });
-                                    }}
-                                    required
-                                />
+                                <div className="relative">
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium">$</span>
+                                    <input
+                                        id="comparableEstimate"
+                                        name="comparableEstimate"
+                                        type="text"
+                                        className="form-input w-full pl-8"
+                                        placeholder="1,395,444.02"
+                                        value={
+                                            formData.comparableEstimate
+                                                ? parseFloat(formData.comparableEstimate).toLocaleString('en-US', {
+                                                      minimumFractionDigits: 2,
+                                                      maximumFractionDigits: 2,
+                                                  })
+                                                : ''
+                                        }
+                                        onChange={(e) => {
+                                            // Remove formatting and allow only numbers, decimal point, and minus sign
+                                            const value = e.target.value.replace(/[^0-9.-]/g, '');
+                                            // Prevent multiple decimal points
+                                            const parts = value.split('.');
+                                            const cleanValue = parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : value;
+                                            setFormData({ ...formData, comparableEstimate: cleanValue });
+                                        }}
+                                        onBlur={(e) => {
+                                            // Format with 2 decimal places on blur if value exists
+                                            const numValue = parseFloat(e.target.value.replace(/,/g, ''));
+                                            if (!isNaN(numValue)) {
+                                                setFormData({ ...formData, comparableEstimate: numValue.toFixed(2) });
+                                            }
+                                        }}
+                                        required
+                                    />
+                                </div>
                             </div>
 
                             {/* Field 2 */}

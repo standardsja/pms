@@ -484,6 +484,8 @@ async function authMiddleware(req: any, res: any, next: any) {
     const auth = req.headers.authorization || '';
     const userId = req.headers['x-user-id'];
 
+    console.log('[AUTH] Headers:', { auth: auth.substring(0, 20), userId, path: req.path });
+
     // Try Bearer token first
     if (auth && auth.startsWith('Bearer ')) {
         const [, token] = auth.split(' ');
@@ -492,8 +494,8 @@ async function authMiddleware(req: any, res: any, next: any) {
             (req as any).user = payload;
             return next();
         } catch {
-            // In development, fall back to x-user-id and hydrate roles from DB
-            if (process.env.NODE_ENV !== 'production' && userId) {
+            // Fall back to x-user-id and hydrate roles from DB
+            if (userId) {
                 const userIdNum = parseInt(String(userId), 10);
                 if (Number.isFinite(userIdNum)) {
                     try {
@@ -519,20 +521,15 @@ async function authMiddleware(req: any, res: any, next: any) {
     if (userId) {
         const userIdNum = parseInt(String(userId), 10);
         if (Number.isFinite(userIdNum)) {
-            // In development, hydrate roles so RBAC works as expected
-            if (process.env.NODE_ENV !== 'production') {
-                try {
-                    const u = await prisma.user.findUnique({
-                        where: { id: userIdNum },
-                        include: { roles: { include: { role: true } } },
-                    });
-                    const roles = Array.isArray(u?.roles) ? (u!.roles.map((r) => r.role?.name).filter(Boolean) as string[]) : [];
-                    (req as any).user = { sub: userIdNum, roles, email: u?.email, name: u?.name };
-                } catch {
-                    (req as any).user = { sub: userIdNum };
-                }
-            } else {
-                // Create a minimal user object
+            // Hydrate roles so RBAC works as expected
+            try {
+                const u = await prisma.user.findUnique({
+                    where: { id: userIdNum },
+                    include: { roles: { include: { role: true } } },
+                });
+                const roles = Array.isArray(u?.roles) ? (u!.roles.map((r) => r.role?.name).filter(Boolean) as string[]) : [];
+                (req as any).user = { sub: userIdNum, roles, email: u?.email, name: u?.name };
+            } catch {
                 (req as any).user = { sub: userIdNum };
             }
             return next();
@@ -1943,7 +1940,7 @@ app.delete('/api/ideas/:id/vote', authMiddleware, voteLimiter, async (req, res) 
 });
 
 // GET /requests - alias for direct backend access (frontend may call this without /api prefix)
-app.get('/requests', async (_req, res) => {
+app.get('/api/requests', async (_req, res) => {
     try {
         const requests = await prisma.request.findMany({
             orderBy: { createdAt: 'desc' },
@@ -2027,9 +2024,9 @@ app.get('/requests', async (_req, res) => {
     }
 });
 
-// POST /requests - create a new procurement request (with optional file attachments)
+// POST /api/requests - create a new procurement request (with optional file attachments)
 app.post(
-    '/requests',
+    '/api/requests',
     (req, res, next) => {
         uploadAttachments.array('attachments', 10)(req, res, (err) => {
             if (err) {
@@ -2195,8 +2192,124 @@ app.post(
     }
 );
 
-// GET /requests/:id - fetch a single request by ID for editing
-app.get('/requests/:id', async (req, res) => {
+// GET /api/requests/combinable - Get combinable requests (must be before /api/requests/:id)
+app.get('/api/requests/combinable', async (req: any, res: any) => {
+    console.log('[COMBINE] Route hit - combinable requests');
+    try {
+        const { combinable } = req.query;
+
+        // Get user ID from either auth or header
+        const auth = req.headers.authorization || '';
+        const userIdHeader = req.headers['x-user-id'];
+        let userId: number | undefined;
+
+        console.log('[COMBINE] Headers:', { auth: auth.substring(0, 20), userIdHeader });
+
+        // Try to get user from JWT
+        if (auth && auth.startsWith('Bearer ')) {
+            const [, token] = auth.split(' ');
+            try {
+                const payload = jwt.verify(token, JWT_SECRET) as any;
+                userId = payload.sub || payload.id;
+                console.log('[COMBINE] JWT verified, userId:', userId);
+            } catch (e) {
+                console.log('[COMBINE] JWT verify failed:', e instanceof Error ? e.message : 'Unknown');
+            }
+        }
+
+        // Fallback to x-user-id header
+        if (!userId && userIdHeader) {
+            const parsed = parseInt(String(userIdHeader), 10);
+            if (Number.isFinite(parsed)) {
+                userId = parsed;
+                console.log('[COMBINE] Using x-user-id header:', userId);
+            }
+        }
+
+        if (!userId) {
+            console.log('[COMBINE] No valid userId found');
+            return res.status(401).json({ message: 'Unauthorized' });
+        }
+
+        console.log('[COMBINE] User:', userId, 'Query:', combinable);
+
+        // Check if user can combine requests
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            include: { roles: { include: { role: true } } },
+        });
+
+        const roleNames = user?.roles?.map((r) => r.role?.name).filter(Boolean) || [];
+        const isProcurementManager = roleNames.includes('PROCUREMENT_MANAGER');
+        const isProcurementOfficer = roleNames.includes('PROCUREMENT_OFFICER');
+        const isAdmin = roleNames.includes('ADMIN');
+
+        if (!isProcurementManager && !isProcurementOfficer && !isAdmin) {
+            return res.status(403).json({
+                message: 'Access denied. Only procurement officers and procurement managers can view combined requests.',
+            });
+        }
+
+        // If combinable=true, return requests that can be combined
+        if (combinable === 'true') {
+            const requests = await prisma.request.findMany({
+                where: {
+                    status: { in: ['DRAFT', 'SUBMITTED', 'DEPARTMENT_REVIEW', 'PROCUREMENT_REVIEW'] },
+                    combinedRequestId: null,
+                },
+                include: {
+                    department: { select: { name: true, id: true } },
+                    requester: { select: { name: true } },
+                    items: {
+                        select: {
+                            id: true,
+                            description: true,
+                            quantity: true,
+                            unitPrice: true,
+                            totalPrice: true,
+                        },
+                    },
+                },
+                orderBy: { createdAt: 'desc' },
+                take: 100,
+            });
+
+            const transformedRequests = requests.map((request) => ({
+                id: request.id,
+                reference: request.reference,
+                title: request.title,
+                status: request.status,
+                priority: request.priority || 'MEDIUM',
+                totalEstimated: request.totalEstimated || 0,
+                currency: request.currency || 'USD',
+                department: request.department?.name || 'Unknown',
+                requestedBy: request.requester.name,
+                createdAt: request.createdAt,
+                items: request.items.map((item) => ({
+                    id: item.id,
+                    description: item.description,
+                    quantity: item.quantity,
+                    unitCost: Number(item.unitPrice),
+                    totalCost: Number(item.totalPrice),
+                })),
+            }));
+
+            return res.json(transformedRequests);
+        }
+
+        // Otherwise return existing combined requests
+        return res.json([]);
+    } catch (error) {
+        console.error('Error fetching combinable requests:', error);
+        res.status(500).json({
+            error: 'Failed to fetch requests',
+            message: error instanceof Error ? error.message : 'Unknown error',
+        });
+    }
+});
+
+// GET /api/requests/:id - fetch a single request by ID for editing
+app.get('/api/requests/:id', async (req, res) => {
     try {
         const { id } = req.params;
         const request = await prisma.request.findUnique({
@@ -2321,7 +2434,7 @@ app.get('/requests/:id', async (req, res) => {
 });
 
 // PATCH /requests/:id - update an existing request
-app.patch('/requests/:id', async (req, res) => {
+app.patch('/api/requests/:id', async (req, res) => {
     try {
         const { id } = req.params;
         const updates = req.body || {};
@@ -2576,15 +2689,30 @@ app.patch('/requests/:id', async (req, res) => {
 });
 
 // PUT /requests/:id - alias for PATCH (frontend uses PUT for updates)
-app.put('/requests/:id', async (req, res) => {
+app.put('/api/requests/:id', async (req, res) => {
     try {
         const { id } = req.params;
         const updates = req.body || {};
         const actorUserIdRaw = req.headers['x-user-id'];
         const actingUserId = actorUserIdRaw ? parseInt(String(actorUserIdRaw), 10) : null;
 
+        // Debug log incoming dates BEFORE cleanup
+        console.log(`[PUT /requests/${id}] Incoming updates:`, {
+            dateReceived: updates.dateReceived,
+            actionDate: updates.actionDate,
+            receivedBy: updates.receivedBy,
+            procurementCaseNumber: updates.procurementCaseNumber,
+            dateReceivedType: typeof updates.dateReceived,
+            actionDateType: typeof updates.actionDate,
+        });
+
         // Remove deprecated fields that no longer exist in schema
         const { budgetOfficerApproved, budgetManagerApproved, ...cleanUpdates } = updates;
+
+        console.log(`[PUT /requests/${id}] After cleaning:`, {
+            dateReceived: cleanUpdates.dateReceived,
+            actionDate: cleanUpdates.actionDate,
+        });
 
         const updated = await prisma.request.update({
             where: { id: parseInt(id, 10) },
@@ -2594,6 +2722,14 @@ app.put('/requests/:id', async (req, res) => {
                 requester: { select: { id: true, name: true, email: true } },
                 department: { select: { id: true, name: true, code: true } },
             },
+        });
+
+        // Debug log saved dates AFTER update
+        console.log(`[PUT /requests/${id}] After Prisma update:`, {
+            dateReceived: updated.dateReceived,
+            actionDate: updated.actionDate,
+            dateReceivedChanged: updated.dateReceived !== cleanUpdates.dateReceived,
+            actionDateChanged: updated.actionDate !== cleanUpdates.actionDate,
         });
 
         // Notify the assignee after explicit assignment
@@ -2621,7 +2757,7 @@ app.put('/requests/:id', async (req, res) => {
 });
 
 // GET /requests/:id/pdf - generate PDF for a request
-app.get('/requests/:id/pdf', async (req, res) => {
+app.get('/api/requests/:id/pdf', async (req, res) => {
     try {
         const { id } = req.params;
         const request = await prisma.request.findUnique({
@@ -2642,10 +2778,29 @@ app.get('/requests/:id/pdf', async (req, res) => {
         const templatePath = path.join(process.cwd(), 'server', 'templates', 'request-pdf.html');
         let html = fs.readFileSync(templatePath, 'utf-8');
 
-        // Helper to format date
-        const formatDate = (date: Date | null | undefined) => {
+        // Helper to format date - handles Date objects and ISO/YYYY-MM-DD strings
+        const formatDate = (date: Date | string | null | undefined) => {
             if (!date) return '—';
-            return new Date(date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+            try {
+                let d: Date;
+                if (typeof date === 'string') {
+                    // For YYYY-MM-DD format dates, parse as local date to avoid timezone shift
+                    const dateParts = date.match(/^(\d{4})-(\d{2})-(\d{2})/);
+                    if (dateParts) {
+                        // Parse as local date: new Date(year, month-1, day)
+                        d = new Date(parseInt(dateParts[1]), parseInt(dateParts[2]) - 1, parseInt(dateParts[3]));
+                    } else {
+                        // For ISO strings or other formats, use standard parsing
+                        d = new Date(date);
+                    }
+                } else {
+                    d = date;
+                }
+                if (isNaN(d.getTime())) return '—'; // Invalid date
+                return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+            } catch {
+                return '—';
+            }
         };
 
         // Helper to format currency
@@ -2667,6 +2822,13 @@ app.get('/requests/:id/pdf', async (req, res) => {
         </tr>`
             )
             .join('');
+
+        // Debug log date values
+        console.log(`[PDF] Request ${request.reference} dates:`, {
+            dateReceived: request.dateReceived,
+            actionDate: request.actionDate,
+            submittedAt: request.submittedAt,
+        });
 
         // Replace placeholders
         html = html
@@ -2782,7 +2944,7 @@ app.get('/requests/:id/pdf', async (req, res) => {
 });
 
 // POST /requests/:id/submit - submit a draft request for approval workflow
-app.post('/requests/:id/submit', async (req, res) => {
+app.post('/api/requests/:id/submit', async (req, res) => {
     try {
         const { id } = req.params;
         console.log(`[Submit] Incoming submit for request ${id}`);
@@ -2976,7 +3138,7 @@ app.post('/requests/:id/submit', async (req, res) => {
 });
 
 // POST /requests/:id/attachments - upload attachments for an existing request
-app.post('/requests/:id/attachments', uploadAttachments.array('attachments'), async (req, res) => {
+app.post('/api/requests/:id/attachments', uploadAttachments.array('attachments'), async (req, res) => {
     try {
         const { id } = req.params;
         const userId = req.headers['x-user-id'];
@@ -3009,7 +3171,7 @@ app.post('/requests/:id/attachments', uploadAttachments.array('attachments'), as
 });
 
 // DELETE /requests/:id/attachments/:attachmentId - delete an attachment
-app.delete('/requests/:id/attachments/:attachmentId', async (req, res) => {
+app.delete('/api/requests/:id/attachments/:attachmentId', async (req, res) => {
     try {
         const { id, attachmentId } = req.params;
         const userId = req.headers['x-user-id'];
@@ -3037,7 +3199,7 @@ app.delete('/requests/:id/attachments/:attachmentId', async (req, res) => {
 });
 
 // POST /requests/:id/action - approve/reject requests (manager, HOD, procurement, finance)
-app.post('/requests/:id/action', async (req, res) => {
+app.post('/api/requests/:id/action', async (req, res) => {
     try {
         const { id } = req.params;
         const { action, comment } = req.body; // 'APPROVE' or 'REJECT' with optional comment
@@ -3142,8 +3304,18 @@ app.post('/requests/:id/action', async (req, res) => {
                 const budgetManager = await prisma.user.findFirst({
                     where: { roles: { some: { role: { name: 'BUDGET_MANAGER' } } } },
                 });
+
+                if (!budgetManager) {
+                    console.error('[Workflow] CRITICAL: No Budget Manager found in system. Request cannot proceed.');
+                    return res.status(500).json({
+                        message: 'No Budget Manager found. Please contact system administrator to assign the BUDGET_MANAGER role to a user.',
+                        error: 'MISSING_BUDGET_MANAGER',
+                    });
+                }
+
                 nextStatus = 'BUDGET_MANAGER_REVIEW';
-                nextAssigneeId = budgetManager?.id || null;
+                nextAssigneeId = budgetManager.id;
+                console.log(`[Workflow] Assigned to Budget Manager: ${budgetManager.name} (ID: ${budgetManager.id})`);
             } else if (request.status === 'BUDGET_MANAGER_REVIEW') {
                 // Budget Manager approved -> send to Procurement for final processing
                 nextStatus = 'PROCUREMENT_REVIEW';
@@ -3475,7 +3647,7 @@ app.get('/api/users/procurement-officers', async (req, res) => {
 });
 
 // Admin override endpoint: explicitly approve a splintering-blocked submission
-app.post('/admin/requests/:id/override-splinter', requireAdmin, async (req, res) => {
+app.post('/api/admin/requests/:id/override-splinter', requireAdmin, async (req, res) => {
     try {
         const { id } = req.params;
         const adminUserId = req.headers['x-user-id'];
@@ -3532,7 +3704,7 @@ app.post('/admin/requests/:id/override-splinter', requireAdmin, async (req, res)
 });
 
 // POST /requests/:id/assign - Assign request to specific procurement officer
-app.post('/requests/:id/assign', async (req, res) => {
+app.post('/api/requests/:id/assign', async (req, res) => {
     try {
         const { id } = req.params;
         const { assigneeId } = req.body;
@@ -3636,7 +3808,7 @@ app.post('/requests/:id/assign', async (req, res) => {
 });
 
 // GET /procurement/load-balancing-settings - Get load balancing configuration
-app.get('/procurement/load-balancing-settings', async (req, res) => {
+app.get('/api/procurement/load-balancing-settings', async (req, res) => {
     try {
         const userId = req.headers['x-user-id'];
         if (!userId) {
@@ -3685,13 +3857,13 @@ app.get('/procurement/load-balancing-settings', async (req, res) => {
 });
 
 // Backward-compat alias: underscore variant
-app.get('/procurement/load_balancing-settings', async (req, res) => {
+app.get('/api/procurement/load_balancing-settings', async (req, res) => {
     // Delegate to the canonical handler
     (app as any)._router.handle({ ...req, url: '/procurement/load-balancing-settings' }, res, () => {});
 });
 
 // POST /procurement/load-balancing-settings - Update load balancing configuration
-app.post('/procurement/load-balancing-settings', async (req, res) => {
+app.post('/api/procurement/load-balancing-settings', async (req, res) => {
     try {
         const userId = req.headers['x-user-id'];
         if (!userId) {
@@ -3792,7 +3964,7 @@ app.post('/api/admin/load-balancing-settings', requireAdmin, async (req, res) =>
 });
 
 // Backward-compat alias: underscore variant
-app.post('/procurement/load_balancing-settings', async (req, res) => {
+app.post('/api/procurement/load_balancing-settings', async (req, res) => {
     // Delegate to the canonical handler
     (app as any)._router.handle({ ...req, url: '/procurement/load-balancing-settings' }, res, () => {});
 });
@@ -4371,7 +4543,7 @@ app.post('/api/admin/users/:userId/roles', async (req, res) => {
 });
 
 // POST /admin/requests/:id/reassign - Admin can reassign any request to any user
-app.post('/admin/requests/:id/reassign', async (req, res) => {
+app.post('/api/admin/requests/:id/reassign', async (req, res) => {
     try {
         const { id } = req.params;
         const { assigneeId, comment, newStatus } = req.body || {};
@@ -4471,7 +4643,7 @@ app.post('/admin/requests/:id/reassign', async (req, res) => {
 });
 
 // POST /requests/:id/assign-finance-officer - Budget Manager can reassign finance officers to requests
-app.post('/requests/:id/assign-finance-officer', async (req, res) => {
+app.post('/api/requests/:id/assign-finance-officer', async (req, res) => {
     try {
         const { id } = req.params;
         const { financeOfficerId } = req.body || {};
@@ -4561,7 +4733,7 @@ app.post('/requests/:id/assign-finance-officer', async (req, res) => {
 });
 
 // GET /finance-officers - Get list of available finance officers (for Budget Manager assignment UI)
-app.get('/finance-officers', async (req, res) => {
+app.get('/api/finance-officers', async (req, res) => {
     try {
         const userId = req.headers['x-user-id'];
         if (!userId) return res.status(401).json({ message: 'User ID required' });
@@ -4614,7 +4786,7 @@ app.get('/finance-officers', async (req, res) => {
 });
 
 // POST /admin/maintenance/fix-invalid-request-statuses - Admin maintenance to repair invalid enum values
-app.post('/admin/maintenance/fix-invalid-request-statuses', async (req, res) => {
+app.post('/api/admin/maintenance/fix-invalid-request-statuses', async (req, res) => {
     try {
         const userId = req.headers['x-user-id'];
         if (!userId) {
@@ -4955,6 +5127,44 @@ app.get(
     })
 );
 
+// GET /api/requests/:id/evaluations - list evaluations linked to a request (directly or via combinedRequest)
+app.get(
+    '/api/requests/:id/evaluations',
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+        const { id } = req.params;
+        // Accept numeric id or reference string
+        let parsedId: number | null = null;
+        if (/^\d+$/.test(String(id))) parsedId = parseInt(String(id), 10);
+
+        if (hasEvaluationDelegate()) {
+            // Try to load request
+            const request = parsedId !== null ? await (prisma as any).request.findUnique({ where: { id: parsedId } }) : await (prisma as any).request.findUnique({ where: { reference: id } });
+            if (!request) return res.status(404).json({ success: false, message: 'Request not found' });
+
+            const where: any = {};
+            // Include evaluations that reference the same combinedRequest (if present)
+            if ((request as any).combinedRequestId) {
+                where.OR = [{ combinedRequestId: (request as any).combinedRequestId }];
+            }
+            // Also include evaluations that were created for this single request (if column exists)
+            where.OR = where.OR || [];
+            where.OR.push({ requestId: (request as any).id });
+
+            const evaluations = await (prisma as any).evaluation.findMany({ where, orderBy: { createdAt: 'desc' } });
+            return res.json({ success: true, data: evaluations });
+        }
+
+        // Fallback: raw SQL
+        const rows = await prisma.$queryRawUnsafe<any>(
+            `SELECT e.* FROM Evaluation e WHERE e.requestId = ${parsedId ?? 'NULL'} OR e.combinedRequestId = (SELECT combinedRequestId FROM Request WHERE id = ${
+                parsedId ?? 'NULL'
+            }) ORDER BY e.createdAt DESC`
+        );
+        return res.json({ success: true, data: rows, meta: { fallback: true } });
+    })
+);
+
 // GET /api/evaluations/:id - Get single evaluation by ID
 app.get(
     '/api/evaluations/:id',
@@ -5101,6 +5311,7 @@ app.post(
             evaluator,
             submitToCommittee: submitToCommitteeRaw,
             combinedRequestId,
+            requestId: requestIdRaw,
         } = req.body;
         const submitToCommittee = Boolean(submitToCommitteeRaw);
 
@@ -5115,6 +5326,7 @@ app.post(
             dueDate,
             evaluator,
             combinedRequestId,
+            requestId: requestIdRaw,
             sectionA: JSON.stringify(sectionA),
             userId,
         });
@@ -5135,13 +5347,50 @@ app.post(
             if (existing) throw new BadRequestError('Evaluation number already exists');
 
             try {
+                // If a requestId was provided, validate it and prefer linking that request
+                let effectiveCombinedRequestId: number | null = null;
+                let requestToLink: number | null = null;
+
+                if (requestIdRaw) {
+                    // Request `id` is an Int in our schema. Accept numeric strings or numbers.
+                    let parsedRequestId: number | null = null;
+                    if (typeof requestIdRaw === 'number' && Number.isInteger(requestIdRaw)) parsedRequestId = requestIdRaw as number;
+                    if (typeof requestIdRaw === 'string' && /^\d+$/.test(requestIdRaw)) parsedRequestId = parseInt(requestIdRaw as string, 10);
+
+                    let targetRequest: any = null;
+                    if (parsedRequestId !== null) {
+                        targetRequest = await prisma.request.findUnique({ where: { id: parsedRequestId } as any });
+                    } else {
+                        // Fallback: try to find by reference (e.g., request reference code)
+                        targetRequest = await prisma.request.findUnique({ where: { reference: String(requestIdRaw) } as any });
+                    }
+
+                    if (!targetRequest) {
+                        throw new BadRequestError('Provided requestId does not exist');
+                    }
+
+                    // Set the numeric request id to persist on evaluation
+                    requestToLink = (targetRequest as any).id ? parseInt(String((targetRequest as any).id), 10) : null;
+
+                    // If combinedRequestId wasn't explicitly provided, derive from request
+                    if (combinedRequestId) {
+                        effectiveCombinedRequestId = parseInt(combinedRequestId as any);
+                    } else if ((targetRequest as any).combinedRequestId) {
+                        effectiveCombinedRequestId = (targetRequest as any).combinedRequestId;
+                    }
+                } else if (combinedRequestId) {
+                    effectiveCombinedRequestId = parseInt(combinedRequestId as any);
+                }
                 const evaluation = await (prisma as any).evaluation.create({
                     data: {
                         evalNumber,
                         rfqNumber,
                         rfqTitle,
                         description: description || null,
-                        combinedRequestId: combinedRequestId ? parseInt(combinedRequestId) : null,
+                        // persist combinedRequestId (int) when available
+                        combinedRequestId: effectiveCombinedRequestId ?? null,
+                        // persist the originating request id when provided
+                        requestId: requestToLink ?? null,
                         sectionA: sectionA || null,
                         sectionAStatus: sectionA && submitToCommittee ? 'SUBMITTED' : 'NOT_STARTED',
                         sectionB: sectionB || null,
@@ -5155,19 +5404,14 @@ app.post(
                         evaluator: evaluator || null,
                         dueDate: dueDate ? new Date(dueDate) : null,
                         createdBy: userId,
-                        status: submitToCommittee ? 'COMMITTEE_REVIEW' : 'PENDING',
                     },
-                    include: { creator: { select: { id: true, name: true, email: true } } },
                 });
-                console.log('✅ Evaluation created successfully:', evaluation.id);
-                return res.status(201).json({ success: true, data: evaluation });
-            } catch (error) {
-                console.error('❌ Prisma create error:', error);
-                if (error instanceof Error) {
-                    console.error('Error message:', error.message);
-                    console.error('Error stack:', error.stack);
-                }
-                throw error;
+
+                res.json({ success: true, data: evaluation });
+            } catch (err) {
+                console.error('Failed to create evaluation (delegate):', err && (err.stack || err));
+                // If the Prisma model doesn't support `requestId`, creating with that field will throw. We no longer pass requestId into create.
+                throw new BadRequestError('Failed to create evaluation');
             }
         }
         // Fallback duplicate check via raw SQL
@@ -5177,7 +5421,7 @@ app.post(
         const evalStatus = submitToCommittee ? 'COMMITTEE_REVIEW' : 'PENDING';
 
         await prisma.$executeRawUnsafe(
-            `INSERT INTO Evaluation (evalNumber, rfqNumber, rfqTitle, description, sectionA, sectionAStatus, sectionB, sectionBStatus, sectionC, sectionCStatus, sectionD, sectionDStatus, sectionE, sectionEStatus, createdBy, evaluator, dueDate, status, createdAt, updatedAt) VALUES (
+            `INSERT INTO Evaluation (evalNumber, rfqNumber, rfqTitle, description, sectionA, sectionAStatus, sectionB, sectionBStatus, sectionC, sectionCStatus, sectionD, sectionDStatus, sectionE, sectionEStatus, requestId, createdBy, evaluator, dueDate, status, createdAt, updatedAt) VALUES (
                             '${evalNumber}', '${rfqNumber}', '${rfqTitle}', 
                             ${description ? `'${description.replace(/'/g, "''")}'` : 'NULL'}, 
                             ${sectionA ? `'${JSON.stringify(sectionA).replace(/'/g, "''")}'` : 'NULL'}, 
@@ -5190,6 +5434,7 @@ app.post(
                             ${sectionD && submitToCommittee ? "'SUBMITTED'" : "'NOT_STARTED'"},
                             ${sectionE ? `'${JSON.stringify(sectionE).replace(/'/g, "''")}'` : 'NULL'}, 
                             ${sectionE && submitToCommittee ? "'SUBMITTED'" : "'NOT_STARTED'"},
+                            ${requestIdRaw && /^\d+$/.test(String(requestIdRaw)) ? parseInt(String(requestIdRaw), 10) : 'NULL'},
                             ${userId}, 
                             ${evaluator ? `'${evaluator.replace(/'/g, "''")}'` : 'NULL'}, 
                             ${dueDate ? `'${new Date(dueDate).toISOString().slice(0, 19).replace('T', ' ')}'` : 'NULL'}, '${evalStatus}', NOW(), NOW())`
@@ -5206,6 +5451,7 @@ app.post(
             description: r.description,
             status: r.status,
             sectionA: r.sectionA ?? null,
+            requestId: r.requestId ?? null,
             createdBy: r.createdBy,
             creator: { id: r.creatorId, name: r.creatorName, email: r.creatorEmail },
             evaluator: r.evaluator,
@@ -6038,9 +6284,6 @@ app.delete(
 
 // Stats API routes
 app.use('/api/stats', statsRouter);
-
-// Combine requests API routes
-app.use('/api/requests/combine', combineRouter);
 
 // Auth API routes
 app.use('/api/auth', authRoutes);

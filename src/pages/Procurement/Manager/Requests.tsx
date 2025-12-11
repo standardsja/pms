@@ -53,10 +53,18 @@ const ProcurementManagerRequests = () => {
     let currentUserId: number | null = null;
 
     try {
-        const profileStr = localStorage.getItem('userProfile');
-        if (profileStr) {
-            userProfile = JSON.parse(profileStr);
+        // Check modern auth storage first
+        const authUserStr = sessionStorage.getItem('auth_user') || localStorage.getItem('auth_user');
+        if (authUserStr) {
+            userProfile = JSON.parse(authUserStr);
             currentUserId = userProfile?.id || userProfile?.userId || null;
+        } else {
+            // Fallback to legacy storage
+            const profileStr = localStorage.getItem('userProfile');
+            if (profileStr) {
+                userProfile = JSON.parse(profileStr);
+                currentUserId = userProfile?.id || userProfile?.userId || null;
+            }
         }
     } catch (err) {
         console.error('Error parsing user profile:', err);
@@ -72,7 +80,7 @@ const ProcurementManagerRequests = () => {
             setError(null);
 
             try {
-                const res = await fetch(getApiUrl('/requests'), {
+                const res = await fetch(getApiUrl('/api/requests'), {
                     headers: {
                         'x-user-id': String(currentUserId || ''),
                     },
@@ -161,7 +169,7 @@ const ProcurementManagerRequests = () => {
 
         if (result.isConfirmed) {
             try {
-                const res = await fetch(getApiUrl(`/requests/${req.id}/assign`), {
+                const res = await fetch(getApiUrl(`/api/requests/${req.id}/assign`), {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -233,7 +241,7 @@ const ProcurementManagerRequests = () => {
         const comment = (result.value as string) || '';
 
         try {
-            const res = await fetch(getApiUrl(`/requests/${req.id}/action`), {
+            const res = await fetch(getApiUrl(`/api/requests/${req.id}/action`), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

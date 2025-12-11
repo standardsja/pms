@@ -11,6 +11,7 @@ import RoleDashboardGuard from '../components/RoleDashboardGuard';
 const Index = lazy(() => import('../pages/Index'));
 const LandingPage = lazy(() => import('../pages/LandingPage'));
 const Error = lazy(() => import('../components/Error'));
+const NotFound = lazy(() => import('../pages/Procurement/NotFound'));
 
 // Auth Pages
 const Login = lazy(() => import('../pages/Procurement/Auth/Login'));
@@ -838,6 +839,22 @@ const routes = [
                 <AuditTrail />
             </AdminRoute>
         ),
+    },
+
+    // ============================================
+    // PROCUREMENT 404 CATCH-ALL
+    // ============================================
+    {
+        path: '/procurement/*',
+        element: <NotFound />,
+    },
+    {
+        path: '/finance/*',
+        element: <NotFound />,
+    },
+    {
+        path: '/apps/*',
+        element: <NotFound />,
     },
 
     // ============================================
