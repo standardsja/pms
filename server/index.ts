@@ -3187,8 +3187,18 @@ app.post('/requests/:id/action', async (req, res) => {
                 const budgetManager = await prisma.user.findFirst({
                     where: { roles: { some: { role: { name: 'BUDGET_MANAGER' } } } },
                 });
+
+                if (!budgetManager) {
+                    console.error('[Workflow] CRITICAL: No Budget Manager found in system. Request cannot proceed.');
+                    return res.status(500).json({
+                        message: 'No Budget Manager found. Please contact system administrator to assign the BUDGET_MANAGER role to a user.',
+                        error: 'MISSING_BUDGET_MANAGER',
+                    });
+                }
+
                 nextStatus = 'BUDGET_MANAGER_REVIEW';
-                nextAssigneeId = budgetManager?.id || null;
+                nextAssigneeId = budgetManager.id;
+                console.log(`[Workflow] Assigned to Budget Manager: ${budgetManager.name} (ID: ${budgetManager.id})`);
             } else if (request.status === 'BUDGET_MANAGER_REVIEW') {
                 // Budget Manager approved -> send to Procurement for final processing
                 nextStatus = 'PROCUREMENT_REVIEW';

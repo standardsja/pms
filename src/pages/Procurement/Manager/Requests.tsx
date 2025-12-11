@@ -53,10 +53,18 @@ const ProcurementManagerRequests = () => {
     let currentUserId: number | null = null;
 
     try {
-        const profileStr = localStorage.getItem('userProfile');
-        if (profileStr) {
-            userProfile = JSON.parse(profileStr);
+        // Check modern auth storage first
+        const authUserStr = sessionStorage.getItem('auth_user') || localStorage.getItem('auth_user');
+        if (authUserStr) {
+            userProfile = JSON.parse(authUserStr);
             currentUserId = userProfile?.id || userProfile?.userId || null;
+        } else {
+            // Fallback to legacy storage
+            const profileStr = localStorage.getItem('userProfile');
+            if (profileStr) {
+                userProfile = JSON.parse(profileStr);
+                currentUserId = userProfile?.id || userProfile?.userId || null;
+            }
         }
     } catch (err) {
         console.error('Error parsing user profile:', err);

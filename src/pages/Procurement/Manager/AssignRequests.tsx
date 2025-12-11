@@ -57,7 +57,22 @@ const AssignRequests = () => {
     const [sortBy, setSortBy] = useState<'workload' | 'name'>('workload');
     const [viewingOfficerRequests, setViewingOfficerRequests] = useState<number | null>(null);
     const [isProcurementManager, setIsProcurementManager] = useState<boolean>(false);
-    const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
+
+    // Get current user from modern auth storage
+    const getUserProfile = () => {
+        try {
+            const authUserStr = sessionStorage.getItem('auth_user') || localStorage.getItem('auth_user');
+            if (authUserStr) return JSON.parse(authUserStr);
+            // Fallback to legacy
+            const legacyStr = localStorage.getItem('userProfile');
+            if (legacyStr) return JSON.parse(legacyStr);
+        } catch (err) {
+            console.error('Error parsing user profile:', err);
+        }
+        return {};
+    };
+
+    const userProfile = getUserProfile();
     const currentUserId = userProfile?.id || userProfile?.userId || null;
 
     useEffect(() => {

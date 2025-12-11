@@ -18,9 +18,24 @@ export default defineConfig({
         // CAUTION: This is for development only — do not expose arbitrary hosts in production.
         allowedHosts: process.env.VITE_ALLOWED_HOSTS ? process.env.VITE_ALLOWED_HOSTS.split(',').map((s) => s.trim()) : ['heron', 'sphinx-dev', 'sphinx-prod', 'localhost', '127.0.0.1'],
         proxy: {
-            // Proxy only API requests to the backend
-            // Frontend pages (/auth/login, /requests, etc.) are served by Vite
+            // Proxy API requests to the backend
             '/api': {
+                target: process.env.VITE_API_URL || 'http://localhost:4000',
+                changeOrigin: true,
+            },
+            '/requests': {
+                target: process.env.VITE_API_URL || 'http://localhost:4000',
+                changeOrigin: true,
+            },
+            '/procurement': {
+                target: process.env.VITE_API_URL || 'http://localhost:4000',
+                changeOrigin: true,
+            },
+            '/admin': {
+                target: process.env.VITE_API_URL || 'http://localhost:4000',
+                changeOrigin: true,
+            },
+            '/auth': {
                 target: process.env.VITE_API_URL || 'http://localhost:4000',
                 changeOrigin: true,
             },
