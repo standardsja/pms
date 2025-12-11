@@ -12,7 +12,7 @@
 
 import fetch from 'node-fetch';
 
-const API_URL = process.env.API_URL || 'http://heron:4000';
+const API_URL = process.env.API_URL || 'http://localhost:4000';
 
 async function testLDAPUser(email, password) {
     console.log('\n🔍 Testing LDAP Login for:', email);

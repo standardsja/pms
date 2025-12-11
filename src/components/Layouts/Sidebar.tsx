@@ -28,6 +28,7 @@ import IconBook from '../Icon/IconBook';
 import IconBarChart from '../Icon/IconBarChart';
 import IconCreditCard from '../Icon/IconCreditCard';
 import IconSettings from '../Icon/IconSettings';
+import IconMenuMore from '../Icon/Menu/IconMenuMore';
 import IconInbox from '../Icon/IconInbox';
 import IconCircleCheck from '../Icon/IconCircleCheck';
 import IconThumbUp from '../Icon/IconThumbUp';
@@ -111,10 +112,20 @@ const Sidebar = () => {
     const committeeLocked = moduleLocks.committee.locked;
 
     // Only show procurement menus when procurement is the active module and not locked
-    const showProcurementMenus = useMemo(() => pinnedModule === 'procurement' && !procurementLocked, [pinnedModule, procurementLocked]);
+    // Also hide when the pinned module is innovation (even if on non-module routes like /profile)
+    const showProcurementMenus = useMemo(() => {
+        return pinnedModule === 'procurement' && !procurementLocked && !isInnovationHub;
+    }, [pinnedModule, procurementLocked, isInnovationHub]);
 
-    // Compute dashboard path for logo/home using centralized utility
-    const dashboardPath = getDashboardPath(detectedRoles, location.pathname);
+    // Compute dashboard path for logo/home based on pinnedModule
+    const dashboardPath = useMemo(() => {
+        // If user has explicitly pinned Innovation Hub, always go there
+        if (pinnedModule === 'innovation' && !innovationLocked) {
+            return '/innovation/dashboard';
+        }
+        // Otherwise use role-based detection
+        return getDashboardPath(detectedRoles, location.pathname);
+    }, [pinnedModule, innovationLocked, detectedRoles, location.pathname]);
 
     // Debug logging for dashboard path
 
@@ -279,6 +290,18 @@ const Sidebar = () => {
                             <IconCaretsDown className="m-auto rotate-90" />
                         </button>
                     </div>
+                    {/* Quick access to onboarding without module selector */}
+                    <div className="px-4 pb-3">
+                        <NavLink
+                            to="/onboarding?from=sidebar"
+                            state={{ from: 'sidebar' }}
+                            className="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/10 text-primary font-semibold hover:bg-primary/15 transition-colors"
+                        >
+                            <IconMenuMore className="w-5 h-5" />
+                            <span>Onboarding</span>
+                        </NavLink>
+                    </div>
+
                     <PerfectScrollbar className="h-[calc(100vh-80px)] relative">
                         <ul className="relative font-semibold space-y-0.5 p-4 py-0">
                             {/* Show ADMIN section for admin users only */}
@@ -751,7 +774,7 @@ const Sidebar = () => {
                             )}
 
                             {/* Show REQUESTER section - hide for admins; only when procurement is active and unlocked */}
-                            {isRequester && !isAdmin && showProcurementMenus && !isInnovationHub && (
+                            {isRequester && !isAdmin && showProcurementMenus && (
                                 // Requester Only Menu
                                 <>
                                     <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
@@ -778,7 +801,7 @@ const Sidebar = () => {
                             )}
 
                             {/* Show DEPARTMENT_MANAGER section - only when procurement module is active and unlocked */}
-                            {(isDepartmentManager || isDeptManagerHere) && !isAdmin && showProcurementMenus && !isInnovationHub && (
+                            {(isDepartmentManager || isDeptManagerHere) && !isAdmin && showProcurementMenus && (
                                 // Department Manager Menu
                                 <>
                                     <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
@@ -816,7 +839,7 @@ const Sidebar = () => {
                             )}
 
                             {/* Show PROCUREMENT_OFFICER section - only when procurement module is active and unlocked */}
-                            {isProcurementOfficer && !isAdmin && showProcurementMenus && !isInnovationHub && (
+                            {isProcurementOfficer && !isAdmin && showProcurementMenus && (
                                 // Procurement Officer Only Menu
                                 <>
                                     <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">

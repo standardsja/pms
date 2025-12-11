@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { isAuthenticated, getUser, getToken } from '../utils/auth';
-import ModuleSelector from './ModuleSelector';
+import { isAuthenticated, getUser } from '../utils/auth';
 
 const LandingPage = () => {
     const navigate = useNavigate();
@@ -11,36 +10,25 @@ const LandingPage = () => {
         const authenticated = isAuthenticated();
         const user = getUser();
 
-        // If not authenticated, redirect to login
         if (!authenticated) {
             navigate('/auth/login', { replace: true });
             return;
         }
 
-        // If authenticated, check if user is Innovation Committee member
         const userRoles = user?.roles || (user?.role ? [user.role] : []);
 
-        // Only Innovation committee goes directly to their dashboard
-        // All other users see the ModuleSelector
         if (userRoles.includes('INNOVATION_COMMITTEE')) {
             navigate('/innovation/committee/dashboard', { replace: true });
             return;
         }
 
-        console.log('Authenticated user, showing ModuleSelector');
-        // For all other authenticated users, show the ModuleSelector
-        // This includes managers, officers, suppliers, and general staff
+        // Default path: send users through onboarding flow
+        navigate('/onboarding', { replace: true });
     }, [navigate]);
 
-    // If we get here, show the ModuleSelector for authenticated users (except committee)
-    if (isAuthenticated()) {
-        return <ModuleSelector />;
-    }
-
-    // Show loading state while redirecting
     return (
         <div className="min-h-screen flex items-center justify-center">
-            <div className="text-lg">Loading...</div>
+            <div className="text-lg">Redirecting...</div>
         </div>
     );
 };

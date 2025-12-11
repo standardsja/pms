@@ -31,8 +31,10 @@
         "prisma:seed": "npx tsx server/prisma/seed.ts",
         "preview": "vite preview",
         "server:dev": "npx tsx watch server/index.ts",
+        "server:build": "tsc --project server/tsconfig.json",
+        "server:prod": "node dist/server/index.js",
         "seed:ideas": "node server/seed-ideas.mjs",
-        "backfill:votes": "node server/scripts/backfill-vote-counts.mjs"
+        "backfill:votes": "node server/scripts/backfill-vote-count.mjs"
     },
     "prisma": {
         "seed": "npx tsx server/prisma/seed.ts",

@@ -1,6 +1,6 @@
 import fetch from 'node-fetch';
 
-const API_URL = 'http://heron:4000';
+const API_URL = 'http://localhost:4000';
 
 async function debugNotifications() {
     try {

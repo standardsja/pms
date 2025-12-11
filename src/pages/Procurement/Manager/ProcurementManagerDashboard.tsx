@@ -133,7 +133,7 @@ const ProcurementManagerDashboard = () => {
     }, [stats, pendingEvals]);
 
     // Heron-only API base
-    const API_BASE = (import.meta.env.VITE_API_URL as string) || 'http://heron:4000';
+    const API_BASE = (import.meta.env.VITE_API_URL as string) || 'http://localhost:4000';
 
     useEffect(() => {
         if (authLoading || !authUser) return;

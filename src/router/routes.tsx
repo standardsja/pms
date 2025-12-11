@@ -116,7 +116,6 @@ const AccountSetting = lazy(() => import('../pages/Procurement/Users/AccountSett
 const HelpSupport = lazy(() => import('../pages/HelpSupport'));
 
 // Module Selector (legacy)
-const ModuleSelector = lazy(() => import('../pages/ModuleSelector'));
 
 // Innovation Hub Pages
 const InnovationDashboard = lazy(() => import('../pages/Innovation/InnovationDashboard'));
@@ -172,7 +171,7 @@ const routes = [
     // ============================================
     // MODULE SELECTOR / ONBOARDING
     // ============================================
-    // Root path shows ModuleSelector for authenticated users or redirects to login
+    // Root path redirects authenticated users based on onboarding
     {
         path: '/',
         element: <LandingPage />,
@@ -183,12 +182,7 @@ const routes = [
         path: '/dashboard',
         element: <Index />,
     },
-    // Direct route to module selector
-    {
-        path: '/modules',
-        element: <ModuleSelector />,
-        layout: 'blank',
-    },
+    // Module selector removed; onboarding handles initial module choice
 
     // ============================================
     // INNOVATION HUB MODULE
