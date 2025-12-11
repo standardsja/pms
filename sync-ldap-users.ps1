@@ -131,8 +131,8 @@ try {
         
         if ($result.errors -and $result.errors.Count -gt 0) {
             Write-Host "Errors encountered:" -ForegroundColor Red
-            foreach ($error in $result.errors) {
-                Write-Host "  - $($error.email): $($error.error)" -ForegroundColor Red
+            foreach ($syncError in $result.errors) {
+                Write-Host "  - $($syncError.email): $($syncError.error)" -ForegroundColor Red
             }
             Write-Host ""
         }

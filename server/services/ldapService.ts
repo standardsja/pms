@@ -21,6 +21,7 @@ export interface LDAPUser {
     email: string;
     name?: string;
     department?: string;
+    phone?: string; // Phone number from AD
     memberOf?: string[]; // AD group memberships
     profileImage?: string; // Profile photo path
 }
@@ -100,7 +101,7 @@ class LDAPService {
                     filter: `(userPrincipalName=${sanitizedEmail})`,
                     scope: 'sub',
                     // Include sAMAccountName and userPrincipalName to support bind fallbacks
-                    attributes: ['dn', 'userPrincipalName', 'sAMAccountName', 'cn', 'displayName', 'mail', 'department', 'memberOf', 'thumbnailPhoto'],
+                    attributes: ['dn', 'userPrincipalName', 'sAMAccountName', 'cn', 'displayName', 'mail', 'department', 'telephoneNumber', 'memberOf', 'thumbnailPhoto'],
                 });
 
                 if (searchEntries.length === 0) {
@@ -134,11 +135,30 @@ class LDAPService {
                     logger.info('No thumbnailPhoto attribute in LDAP entry', { email: sanitizedEmail });
                 }
 
+                // Extract phone number - handle array or string response
+                let phoneNumber: string | undefined;
+                if (entry.telephoneNumber) {
+                    logger.info('LDAP telephoneNumber raw value', {
+                        email: sanitizedEmail,
+                        value: entry.telephoneNumber,
+                        type: typeof entry.telephoneNumber,
+                        isArray: Array.isArray(entry.telephoneNumber),
+                    });
+                    if (Array.isArray(entry.telephoneNumber) && entry.telephoneNumber.length > 0) {
+                        phoneNumber = entry.telephoneNumber[0] as string;
+                    } else if (typeof entry.telephoneNumber === 'string') {
+                        phoneNumber = entry.telephoneNumber;
+                    }
+                } else {
+                    logger.warn('LDAP telephoneNumber attribute not found', { email: sanitizedEmail });
+                }
+
                 ldapUser = {
                     dn: userDN,
                     email: (entry.mail as string) || sanitizedEmail,
                     name: (entry.displayName as string) || (entry.cn as string) || undefined,
                     department: entry.department as string | undefined,
+                    phone: phoneNumber,
                     memberOf,
                     profileImage,
                 };

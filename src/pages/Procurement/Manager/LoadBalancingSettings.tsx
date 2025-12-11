@@ -111,7 +111,7 @@ const LoadBalancingSettings = () => {
 
         try {
             const currentUser = getUser();
-            const apiUrl = getApiUrl('/procurement/load-balancing-settings');
+            const apiUrl = getApiUrl('/api/procurement/load-balancing-settings');
 
             if (!currentUser?.id) {
                 throw new Error('User not authenticated. Please log in again.');

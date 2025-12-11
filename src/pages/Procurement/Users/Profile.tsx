@@ -342,7 +342,7 @@ const Profile = () => {
     const userDepartment = displayUser?.department?.name || 'Not assigned';
     const joinDate = displayUser?.createdAt ? new Date(displayUser.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'Jan 2024';
     const userLocation = displayUser?.department?.code || 'Jamaica';
-    const userPhone = displayUser?.phone || '+1 (876) 555-1234';
+    const userPhone = displayUser?.phone || '';
     return (
         <div>
             <ul className="flex space-x-2 rtl:space-x-reverse">
@@ -428,12 +428,14 @@ const Profile = () => {
                                         {userEmail}
                                     </a>
                                 </li>
-                                <li className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors">
-                                    <IconPhone className="shrink-0 w-5 h-5 text-secondary" />
-                                    <span className="whitespace-nowrap" dir="ltr">
-                                        {userPhone}
-                                    </span>
-                                </li>
+                                {userPhone && (
+                                    <li className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors">
+                                        <IconPhone className="shrink-0 w-5 h-5 text-secondary" />
+                                        <span className="whitespace-nowrap" dir="ltr">
+                                            {userPhone}
+                                        </span>
+                                    </li>
+                                )}
                             </ul>
                         </div>
                     </div>
