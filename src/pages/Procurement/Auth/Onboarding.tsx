@@ -30,9 +30,10 @@ const Onboarding = () => {
     const dispatch = useDispatch();
     const navigate = useNavigate();
     const { t } = useTranslation();
-    const { search } = useLocation();
+    const { search, state } = useLocation();
     const query = useMemo(() => new URLSearchParams(search), [search]);
-    const forceOnboarding = query.get('force') === '1' || query.get('reset') === '1';
+    const fromSidebar = query.get('from') === 'sidebar' || (state as any)?.from === 'sidebar';
+    const forceOnboarding = query.get('force') === '1' || query.get('reset') === '1' || fromSidebar;
 
     // Memoize currentUser to prevent infinite loops
     const currentUser = useMemo(() => getUser(), []);

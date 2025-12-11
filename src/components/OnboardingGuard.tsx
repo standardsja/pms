@@ -11,12 +11,14 @@ export default function OnboardingGuard({ children }: PropsWithChildren) {
     const location = useLocation();
     const params = new URLSearchParams(location.search);
 
+    const fromSidebar = (location.state as any)?.from === 'sidebar' || params.get('from') === 'sidebar';
+
     const force = params.get('force') === '1';
     const reset = params.get('reset') === '1';
     const clear = params.get('clear') === '1';
 
-    // Allow access with override parameters
-    if (force || reset || clear) {
+    // Allow access with explicit overrides or when navigated from sidebar entrypoint
+    if (force || reset || clear || fromSidebar) {
         return <>{children}</>;
     }
 
