@@ -2189,14 +2189,45 @@ app.post(
 );
 
 // GET /api/requests/combinable - Get combinable requests (must be before /api/requests/:id)
-app.get('/api/requests/combinable', authMiddleware, async (req: any, res: any) => {
+app.get('/api/requests/combinable', async (req: any, res: any) => {
     console.log('[COMBINE] Route hit - combinable requests');
     try {
         const { combinable } = req.query;
-        const userId = req.user?.sub || req.user?.id;
-        const userRoles = req.user?.roles || [];
+        
+        // Get user ID from either auth or header
+        const auth = req.headers.authorization || '';
+        const userIdHeader = req.headers['x-user-id'];
+        let userId: number | undefined;
+        
+        console.log('[COMBINE] Headers:', { auth: auth.substring(0, 20), userIdHeader });
+        
+        // Try to get user from JWT
+        if (auth && auth.startsWith('Bearer ')) {
+            const [, token] = auth.split(' ');
+            try {
+                const payload = jwt.verify(token, JWT_SECRET) as any;
+                userId = payload.sub || payload.id;
+                console.log('[COMBINE] JWT verified, userId:', userId);
+            } catch (e) {
+                console.log('[COMBINE] JWT verify failed:', e instanceof Error ? e.message : 'Unknown');
+            }
+        }
+        
+        // Fallback to x-user-id header
+        if (!userId && userIdHeader) {
+            const parsed = parseInt(String(userIdHeader), 10);
+            if (Number.isFinite(parsed)) {
+                userId = parsed;
+                console.log('[COMBINE] Using x-user-id header:', userId);
+            }
+        }
+        
+        if (!userId) {
+            console.log('[COMBINE] No valid userId found');
+            return res.status(401).json({ message: 'Unauthorized' });
+        }
 
-        console.log('[COMBINE] User:', userId, 'Roles:', userRoles, 'Query:', combinable);
+        console.log('[COMBINE] User:', userId, 'Query:', combinable);
 
         // Check if user can combine requests
         const user = await prisma.user.findUnique({

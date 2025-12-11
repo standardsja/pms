@@ -25,7 +25,7 @@ import {
 const CombineRequests = () => {
     const dispatch = useDispatch();
     const navigate = useNavigate();
-    const { user } = useSelector((state: IRootState) => state.auth);
+    const { user, token: reduxToken } = useSelector((state: IRootState) => state.auth);
 
     useEffect(() => {
         dispatch(setPageTitle('Combine Requests'));
@@ -65,16 +65,41 @@ const CombineRequests = () => {
             setIsLoading(true);
             setError(null);
             try {
-                const token = localStorage.getItem('token');
-                const userId = localStorage.getItem('userId');
+                // Get token and userId from multiple sources
+                const token = reduxToken || 
+                              sessionStorage.getItem('token') || 
+                              localStorage.getItem('token') ||
+                              sessionStorage.getItem('auth_token') ||
+                              localStorage.getItem('auth_token');
+                              
+                const userId = user?.id?.toString() || 
+                              sessionStorage.getItem('userId') || 
+                              localStorage.getItem('userId');
+
+                console.log('[CombineRequests] Auth values:', { 
+                    hasToken: !!token, 
+                    tokenSource: reduxToken ? 'redux' : 'storage',
+                    userId,
+                    userFromRedux: user?.id 
+                });
 
                 // Fetch combinable requests
+                const headers: Record<string, string> = {
+                    'Content-Type': 'application/json',
+                };
+                
+                if (token && token !== 'null') {
+                    headers['Authorization'] = `Bearer ${token}`;
+                }
+                
+                if (userId && userId !== 'null') {
+                    headers['x-user-id'] = userId;
+                }
+
+                console.log('[CombineRequests] Request headers:', { ...headers, Authorization: headers.Authorization?.substring(0, 20) });
+
                 const response = await fetch(getApiUrl('/api/requests/combinable?combinable=true'), {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        'x-user-id': userId || '',
-                        'Content-Type': 'application/json',
-                    },
+                    headers,
                 });
 
                 if (!response.ok) {
@@ -96,7 +121,7 @@ const CombineRequests = () => {
                 setRequests(formattedRequests);
 
                 // Also fetch existing combined requests
-                const combinedResponse = await fetch(getApiUrl('/api/requests/combine'), {
+                const combinedResponse = await fetch(getApiUrl('/api/requests/combinable'), {
                     headers: {
                         Authorization: `Bearer ${token}`,
                         'x-user-id': userId || '',
@@ -245,7 +270,7 @@ const CombineRequests = () => {
 
             const token = localStorage.getItem('token');
             const userId = localStorage.getItem('userId');
-            const response = await fetch(getApiUrl('/api/requests/combine'), {
+            const response = await fetch(getApiUrl('/api/requests/combinable'), {
                 method: 'POST',
                 headers: {
                     Authorization: `Bearer ${token}`,
