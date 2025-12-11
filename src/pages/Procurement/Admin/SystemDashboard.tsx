@@ -73,7 +73,7 @@ const SystemDashboard = () => {
             // Fetch metrics from various endpoints
             const [usersRes, requestsRes, deptsRes, vendorsRes] = await Promise.all([
                 fetch(getApiUrl('/api/admin/users'), { headers }).catch(() => null),
-                fetch(getApiUrl('/requests'), { headers }).catch(() => null),
+                fetch(getApiUrl('/api/requests'), { headers }).catch(() => null),
                 fetch(getApiUrl('/api/departments'), { headers }).catch(() => null),
                 fetch(getApiUrl('/api/suppliers'), { headers }).catch(() => null),
             ]);
