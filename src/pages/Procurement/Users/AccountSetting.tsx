@@ -607,7 +607,7 @@ const AccountSetting = () => {
                                                 <input
                                                     id="phone"
                                                     type="tel"
-                                                    placeholder="Enter phone number"
+                                                    placeholder=""
                                                     className="form-input"
                                                     value={formData.phone}
                                                     onChange={handleFormChange}

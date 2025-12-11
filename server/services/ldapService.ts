@@ -138,11 +138,19 @@ class LDAPService {
                 // Extract phone number - handle array or string response
                 let phoneNumber: string | undefined;
                 if (entry.telephoneNumber) {
+                    logger.info('LDAP telephoneNumber raw value', {
+                        email: sanitizedEmail,
+                        value: entry.telephoneNumber,
+                        type: typeof entry.telephoneNumber,
+                        isArray: Array.isArray(entry.telephoneNumber),
+                    });
                     if (Array.isArray(entry.telephoneNumber) && entry.telephoneNumber.length > 0) {
                         phoneNumber = entry.telephoneNumber[0] as string;
                     } else if (typeof entry.telephoneNumber === 'string') {
                         phoneNumber = entry.telephoneNumber;
                     }
+                } else {
+                    logger.warn('LDAP telephoneNumber attribute not found', { email: sanitizedEmail });
                 }
 
                 ldapUser = {

@@ -65,8 +65,19 @@ export async function syncLDAPUserToDatabase(ldapUser: LDAPUser, existingUser?: 
             const updateData: any = {};
 
             // Sync phone number from AD
+            logger.info('LDAP: Phone sync check', {
+                email: ldapUser.email,
+                ldapPhone: ldapUser.phone,
+                dbPhone: dbUser.phone,
+                shouldUpdate: !!(ldapUser.phone && ldapUser.phone !== dbUser.phone),
+            });
             if (ldapUser.phone && ldapUser.phone !== dbUser.phone) {
                 updateData.phone = ldapUser.phone;
+                logger.info('LDAP: Phone number will be synced', {
+                    email: ldapUser.email,
+                    oldPhone: dbUser.phone,
+                    newPhone: ldapUser.phone,
+                });
             }
 
             // Handle profile image sync logic:
