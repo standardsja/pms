@@ -74,7 +74,7 @@ const Requests = () => {
                 if (user?.id || currentUserId) headers['x-user-id'] = String(user?.id || currentUserId || '');
 
                 // Fetch regular requests
-                const res = await fetch(getApiUrl('/requests'), {
+                const res = await fetch(getApiUrl('/api/requests'), {
                     headers,
                     signal: controller.signal,
                 });

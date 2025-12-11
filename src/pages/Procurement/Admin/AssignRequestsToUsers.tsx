@@ -33,7 +33,21 @@ const AssignRequestsToUsers = () => {
         setLoading(true);
         setError(null);
         try {
-            const [usersData, requestsData] = await Promise.all([adminService.getUsers(), fetch(getApiUrl('/requests')).then((r) => r.json())]);
+            const [usersData, requestsResponse] = await Promise.all([
+                adminService.getUsers(),
+                fetch(getApiUrl('/api/requests'), {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token')}`,
+                    },
+                }),
+            ]);
+            
+            if (!requestsResponse.ok) {
+                throw new Error(`Failed to fetch requests: ${requestsResponse.statusText}`);
+            }
+            
+            const requestsData = await requestsResponse.json();
             setUsers(usersData);
             setRequests(requestsData);
         } catch (e: any) {

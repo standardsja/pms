@@ -72,7 +72,7 @@ const ProcurementManagerRequests = () => {
             setError(null);
 
             try {
-                const res = await fetch(getApiUrl('/requests'), {
+                const res = await fetch(getApiUrl('/api/requests'), {
                     headers: {
                         'x-user-id': String(currentUserId || ''),
                     },

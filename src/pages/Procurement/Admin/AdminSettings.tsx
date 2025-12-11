@@ -815,7 +815,7 @@ function AssignRequestsToUsersPanel({ users }: { users: FlatUser[] }) {
         setLoading(true);
         setError(null);
         try {
-            const res = await fetch(getApiUrl('/requests'));
+            const res = await fetch(getApiUrl('/api/requests'));
             if (!res.ok) {
                 throw new Error('Failed to fetch requests');
             }
@@ -1070,7 +1070,7 @@ function ReassignRequestsTab() {
         setLoading(true);
         setError(null);
         try {
-            const [reqsRes, usersRes] = await Promise.all([fetch(getApiUrl('/requests')), fetch(getApiUrl('/admin/users'))]);
+            const [reqsRes, usersRes] = await Promise.all([fetch(getApiUrl('/api/requests')), fetch(getApiUrl('/api/admin/users'))]);
 
             if (!reqsRes.ok || !usersRes.ok) {
                 throw new Error('Failed to fetch data from server');

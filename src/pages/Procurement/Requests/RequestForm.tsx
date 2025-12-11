@@ -768,7 +768,7 @@ const RequestForm = () => {
                 if (headerYear) formData.append('headerYear', String(headerYear));
                 formData.append('headerSequence', headerSequence);
 
-                const resp = await fetch(getApiUrl('/requests'), {
+                const resp = await fetch(getApiUrl('/api/requests'), {
                     method: 'POST',
                     headers: {
                         'x-user-id': String(userId),

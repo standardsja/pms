@@ -70,7 +70,7 @@ const FinanceRequests = () => {
                     throw new Error('User not logged in');
                 }
 
-                const res = await fetch(getApiUrl('/requests'), {
+                const res = await fetch(getApiUrl('/api/requests'), {
                     headers: {
                         'x-user-id': String(currentUserId),
                         'Content-Type': 'application/json',

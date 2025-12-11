@@ -91,7 +91,7 @@ const AssignRequests = () => {
             setIsProcurementManager(roles.includes('PROCUREMENT_MANAGER') || roles.includes('Procurement Manager') || roles.includes('PROCUREMENT'));
 
             // Fetch requests at PROCUREMENT_REVIEW status
-            const requestsRes = await fetch(getApiUrl('/requests'), {
+            const requestsRes = await fetch(getApiUrl('/api/requests'), {
                 headers: {
                     'x-user-id': String(currentUserId || ''),
                 },
