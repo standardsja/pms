@@ -51,8 +51,11 @@ const APP_ENV = process.env.APP_ENV || 'production';
 // Bind address for the HTTP server. In local development we bind to 0.0.0.0
 // so that other hostnames (e.g. Docker host aliases like `heron`) can reach the server.
 const API_HOST = process.env.API_HOST || (APP_ENV === 'local' ? '0.0.0.0' : '0.0.0.0');
-// Public host for logs (what users type in the browser)
-const PUBLIC_HOST = process.env.API_PUBLIC_HOST || (APP_ENV === 'local' ? 'localhost' : 'heron');
+// Public host for logs (what users type in the browser).
+// Default to `localhost` when not explicitly provided so the app works on the
+// local server without hardcoding an environment-specific hostname.
+// Set `API_PUBLIC_HOST` in the environment when you want a different public host.
+const PUBLIC_HOST = process.env.API_PUBLIC_HOST || 'localhost';
 const JWT_SECRET = process.env.JWT_SECRET || 'devsecret-change-me';
 
 let trendingJobInterval: NodeJS.Timeout | null = null;
