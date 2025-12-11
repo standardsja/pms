@@ -604,15 +604,7 @@ const AccountSetting = () => {
                                             </div>
                                             <div>
                                                 <label htmlFor="phone">Phone</label>
-                                                <input
-                                                    id="phone"
-                                                    type="tel"
-                                                    placeholder=""
-                                                    className="form-input"
-                                                    value={formData.phone}
-                                                    onChange={handleFormChange}
-                                                    disabled={isLdapUser}
-                                                />
+                                                <input id="phone" type="tel" placeholder="" className="form-input" value={formData.phone} onChange={handleFormChange} disabled={isLdapUser} />
                                             </div>
                                             <div>
                                                 <label htmlFor="employeeId">Employee ID</label>
