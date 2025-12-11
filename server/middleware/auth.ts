@@ -79,7 +79,12 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
                 try {
                     const user = await prisma.user.findUnique({
                         where: { id: userIdNum },
-                        include: { roles: { include: { role: true } } },
+                        select: {
+                            id: true,
+                            email: true,
+                            name: true,
+                            roles: { select: { role: { select: { name: true } } } },
+                        },
                     });
 
                     if (!user) {
@@ -142,7 +147,12 @@ async function enrichUserWithRoles(userId: number, email: string, name: string |
             // Fall back to database roles
             const user = await prisma.user.findUnique({
                 where: { id: userId },
-                include: { roles: { include: { role: true } } },
+                select: {
+                    id: true,
+                    email: true,
+                    name: true,
+                    roles: { select: { role: { select: { name: true } } } },
+                },
             });
 
             if (!user) {
@@ -179,7 +189,12 @@ async function enrichUserWithRoles(userId: number, email: string, name: string |
         try {
             const user = await prisma.user.findUnique({
                 where: { id: userId },
-                include: { roles: { include: { role: true } } },
+                select: {
+                    id: true,
+                    email: true,
+                    name: true,
+                    roles: { select: { role: { select: { name: true } } } },
+                },
             });
 
             const roles = user?.roles.map((r) => r.role.name) || ['REQUESTER'];
