@@ -28,6 +28,7 @@ import IconBook from '../Icon/IconBook';
 import IconBarChart from '../Icon/IconBarChart';
 import IconCreditCard from '../Icon/IconCreditCard';
 import IconSettings from '../Icon/IconSettings';
+import IconMenuMore from '../Icon/Menu/IconMenuMore';
 import IconInbox from '../Icon/IconInbox';
 import IconCircleCheck from '../Icon/IconCircleCheck';
 import IconThumbUp from '../Icon/IconThumbUp';
@@ -289,6 +290,18 @@ const Sidebar = () => {
                             <IconCaretsDown className="m-auto rotate-90" />
                         </button>
                     </div>
+                    {/* Quick access to onboarding without module selector */}
+                    <div className="px-4 pb-3">
+                        <NavLink
+                            to="/onboarding?from=sidebar"
+                            state={{ from: 'sidebar' }}
+                            className="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/10 text-primary font-semibold hover:bg-primary/15 transition-colors"
+                        >
+                            <IconMenuMore className="w-5 h-5" />
+                            <span>Onboarding</span>
+                        </NavLink>
+                    </div>
+
                     <PerfectScrollbar className="h-[calc(100vh-80px)] relative">
                         <ul className="relative font-semibold space-y-0.5 p-4 py-0">
                             {/* Show ADMIN section for admin users only */}
