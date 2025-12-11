@@ -278,7 +278,7 @@ const EvaluationCommittee = () => {
 
     const handleVerifyAllAndComplete = async () => {
         if (!evaluation || !isCommittee) return;
-        
+
         // Show confirmation dialog with sweet alert
         const result = await Swal.fire({
             title: 'Complete Evaluation?',
@@ -389,7 +389,10 @@ const EvaluationCommittee = () => {
                 <TextAreaField label="Description" value={evaluation?.description || ''} />
             </FieldGroup>
             <FieldGroup title="Financial Information" color="success">
-                <Field label="Comparable Estimate" value={sectionA?.comparableEstimate ? `$${parseFloat(sectionA.comparableEstimate).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'} />
+                <Field
+                    label="Comparable Estimate"
+                    value={sectionA?.comparableEstimate ? `$${parseFloat(sectionA.comparableEstimate).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}
+                />
                 <Field label="Funded By" value={sectionA?.fundedBy} />
             </FieldGroup>
             <FieldGroup title="Tender Schedule" color="info">
@@ -426,9 +429,7 @@ const EvaluationCommittee = () => {
                 {sectionA?.retender && sectionA?.retenderReasons && (
                     <Field label="Retender Reasons" value={Array.isArray(sectionA.retenderReasons) ? sectionA.retenderReasons.join(', ') : sectionA.retenderReasons} fullWidth />
                 )}
-                {sectionA?.retender && sectionA?.retenderOtherReason && (
-                    <TextAreaField label="Other Retender Reason" value={sectionA.retenderOtherReason} />
-                )}
+                {sectionA?.retender && sectionA?.retenderOtherReason && <TextAreaField label="Other Retender Reason" value={sectionA.retenderOtherReason} />}
             </FieldGroup>
         </div>
     );
