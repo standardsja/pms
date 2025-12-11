@@ -81,7 +81,7 @@ const Profile = () => {
                 });
                 if (meResponse.ok) {
                     const data = await meResponse.json();
-                    
+
                     // Fallback: if profileImage is missing from /api/auth/me, fetch from /api/test/my-photo
                     if (!data.profileImage) {
                         try {
@@ -102,7 +102,7 @@ const Profile = () => {
                             console.warn('Could not fetch photo from test endpoint:', error);
                         }
                     }
-                    
+
                     // Add timestamp to profile image for cache busting
                     if (data.profileImage) {
                         data.profileImage = resolveProfileImageUrl(data.profileImage);
