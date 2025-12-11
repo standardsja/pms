@@ -202,6 +202,13 @@ model User {
   loadBalancingSettingsUpdated LoadBalancingSettings[] @relation("LoadBalancingUpdater")
   createdAt                    DateTime                @default(now())
   updatedAt                    DateTime                @updatedAt
+  // Login / account state fields (added to support auth workflows)
+  failedLogins     Int?      @default(0)
+  lastFailedLogin  DateTime?
+  lastLogin        DateTime?
+  blocked          Boolean?  @default(false)
+  blockedAt        DateTime?
+  blockedReason    String?
 
   // Innovation Hub relations
   ideas         Idea[]
