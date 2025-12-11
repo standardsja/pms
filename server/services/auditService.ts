@@ -4,13 +4,13 @@
  * Provides comprehensive audit logging for all critical system operations.
  * Tracks who did what, when, and on which entity for compliance and security.
  */
-import { PrismaClient, AuditAction } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../prismaClient.js';
 import { logger } from '../config/logger.js';
 
 export interface AuditLogData {
     userId?: number;
-    action: AuditAction;
+    action: Prisma.AuditAction;
     entity: string;
     entityId?: number;
     message: string;
@@ -313,7 +313,7 @@ class AuditService {
     /**
      * Search audit logs
      */
-    async searchLogs(params: { userId?: number; action?: AuditAction; entity?: string; startDate?: Date; endDate?: Date; limit?: number }) {
+    async searchLogs(params: { userId?: number; action?: Prisma.AuditAction; entity?: string; startDate?: Date; endDate?: Date; limit?: number }) {
         return await prisma.auditLog.findMany({
             where: {
                 userId: params.userId,
