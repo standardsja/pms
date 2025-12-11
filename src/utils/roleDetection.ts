@@ -97,8 +97,7 @@ export function detectUserRoles(userRoles: (string | { name: string } | any)[] =
 
     // 4. FINANCE ROLES (must check before generic MANAGER keywords)
     const isBudgetManager = hasRole('BUDGET_MANAGER') || (containsAll(['BUDGET', 'MANAGER']) && !isProcurementManager);
-    const isFinanceManager =
-        hasRole('FINANCE_MANAGER') || (containsAll(['FINANCE', 'MANAGER']) && !isProcurementManager && !isBudgetManager);
+    const isFinanceManager = hasRole('FINANCE_MANAGER') || (containsAll(['FINANCE', 'MANAGER']) && !isProcurementManager && !isBudgetManager);
 
     // Treat generic 'FINANCE' role as a Finance Officer for compatibility with legacy role names
     const isFinanceOfficer = hasRole(['FINANCE_OFFICER', 'FINANCE']) && !isFinanceManager && !isBudgetManager;
