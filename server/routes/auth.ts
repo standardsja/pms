@@ -502,6 +502,7 @@ router.get(
                 supervisor: true,
                 ldapDN: true,
                 profileImage: true,
+                pinnedModule: true,
                 createdAt: true,
                 updatedAt: true,
                 roles: {
@@ -556,8 +557,36 @@ router.get(
             deptManagerFor,
             ldapDN: user.ldapDN,
             profileImage: user.profileImage,
+            pinnedModule: user.pinnedModule,
             createdAt: user.createdAt,
             updatedAt: user.updatedAt,
+        });
+    })
+);
+
+// Update user's pinned module preference (for sidebar state persistence)
+router.put(
+    '/me/pinned-module',
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+        const authenticatedReq = req as AuthenticatedRequest;
+        const userId = authenticatedReq.user.sub;
+        const { pinnedModule } = req.body;
+
+        // Validate pinnedModule value
+        if (!pinnedModule || !['procurement', 'innovation'].includes(pinnedModule)) {
+            throw new BadRequestError('Invalid pinnedModule value. Must be "procurement" or "innovation".');
+        }
+
+        const updatedUser = await prisma.user.update({
+            where: { id: userId },
+            data: { pinnedModule },
+            select: { pinnedModule: true },
+        });
+
+        res.json({
+            success: true,
+            data: { pinnedModule: updatedUser.pinnedModule },
         });
     })
 );
