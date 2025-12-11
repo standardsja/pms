@@ -21,7 +21,7 @@ function getApiUrl(): string {
         return window.location.origin;
     }
 
-    return 'http://heron:4000';
+    return 'http://localhost:4000';
 }
 
 const API_URL = getApiUrl();

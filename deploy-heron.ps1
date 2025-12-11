@@ -7,7 +7,7 @@ Copy-Item .env.production .env -Force
 npm install
 
 # 3. Build the frontend with the correct API URL
-$env:VITE_API_URL="http://heron:4000"
+$env:VITE_API_URL="http://localhost:4000"
 npm run build
 
 # 4. Start the backend server (in background)

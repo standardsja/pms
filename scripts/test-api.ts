@@ -9,7 +9,7 @@ async function testAPI() {
 
         // Test health endpoint
         console.log('\n1. Testing health endpoint...');
-        const healthResponse = await fetch('http://heron:4000/health');
+        const healthResponse = await fetch('http://localhost:4000/health');
         console.log('Health status:', healthResponse.status);
         if (healthResponse.ok) {
             const healthData = await healthResponse.json();
@@ -20,7 +20,7 @@ async function testAPI() {
 
         // Test ideas endpoint
         console.log('\n2. Testing ideas endpoint...');
-        const ideasResponse = await fetch('http://heron:4000/api/ideas', {
+        const ideasResponse = await fetch('http://localhost:4000/api/ideas', {
             headers: {
                 'x-user-id': '1',
             },
