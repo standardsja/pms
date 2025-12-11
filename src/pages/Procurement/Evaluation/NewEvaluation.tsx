@@ -93,7 +93,7 @@ const NewEvaluation = () => {
                     totalEstimate = data.items.reduce((sum: number, item: any) => {
                         const quantity = parseFloat(item.quantity) || 0;
                         const unitPrice = parseFloat(item.unitPrice) || 0;
-                        return sum + (quantity * unitPrice);
+                        return sum + quantity * unitPrice;
                     }, 0);
                 } else if (data.totalEstimated) {
                     // Fallback to totalEstimated field if items aren't available
