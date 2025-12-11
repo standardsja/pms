@@ -142,7 +142,7 @@ const RequestForm = () => {
     const isAssignee = !!(isEditMode && requestMeta?.currentAssigneeId && currentUserId && Number(requestMeta.currentAssigneeId) === Number(currentUserId));
     const canEditManagerFields = !!(isAssignee && requestMeta?.status === 'DEPARTMENT_REVIEW');
     const canEditHodFields = !!(isAssignee && requestMeta?.status === 'HOD_REVIEW');
-    const canEditProcurementSection = !!(isAssignee && requestMeta?.status === 'PROCUREMENT_REVIEW');
+    const canEditProcurementSection = !!(isAssignee && (requestMeta?.status === 'PROCUREMENT_REVIEW' || requestMeta?.status === 'FINANCE_APPROVED'));
     const canEditBudgetSection = !!(isAssignee && (requestMeta?.status === 'FINANCE_REVIEW' || requestMeta?.status === 'BUDGET_MANAGER_REVIEW'));
 
     // Budget Officer can only approve as officer (during FINANCE_REVIEW), Budget Manager can only approve as manager (during BUDGET_MANAGER_REVIEW)
@@ -156,7 +156,7 @@ const RequestForm = () => {
 
         const fetchFinanceOfficers = async () => {
             try {
-                const resp = await fetch(getApiUrl('/finance-officers'), {
+                const resp = await fetch(getApiUrl('/api/finance-officers'), {
                     headers: { 'x-user-id': String(currentUserId) },
                 });
                 if (resp.ok) {
@@ -236,7 +236,7 @@ const RequestForm = () => {
 
         const fetchRequest = async () => {
             try {
-                const resp = await fetch(getApiUrl(`/requests/${id}`));
+                const resp = await fetch(getApiUrl(`/api/requests/${id}`));
                 if (!resp.ok) throw new Error('Failed to fetch request');
 
                 const request = await resp.json();
@@ -390,7 +390,7 @@ const RequestForm = () => {
         if (!confirm.isConfirmed) return;
 
         try {
-            const resp = await fetch(getApiUrl(`/requests/${id}/attachments/${attachmentId}`), {
+            const resp = await fetch(getApiUrl(`/api/requests/${id}/attachments/${attachmentId}`), {
                 method: 'DELETE',
                 headers: { 'x-user-id': String(userId) },
             });
@@ -540,7 +540,7 @@ const RequestForm = () => {
                         try {
                             const fd = new FormData();
                             attachments.forEach((f) => fd.append('attachments', f));
-                            const uploadResp = await fetch(getApiUrl(`/requests/${id}/attachments`), {
+                            const uploadResp = await fetch(getApiUrl(`/api/requests/${id}/attachments`), {
                                 method: 'POST',
                                 headers: { 'x-user-id': String(userId) },
                                 body: fd,
@@ -565,7 +565,13 @@ const RequestForm = () => {
                     }
                 }
 
-                const resp = await fetch(getApiUrl(`/requests/${id}`), {
+                // Debug: log the full payload before sending
+                console.log('[RequestForm] Full updatePayload:', updatePayload);
+                console.log('[RequestForm] canEditProcurementSection:', canEditProcurementSection);
+                console.log('[RequestForm] Current request status:', requestMeta?.status);
+                console.log('[RequestForm] isAssignee:', isAssignee);
+
+                const resp = await fetch(getApiUrl(`/api/requests/${id}`), {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
@@ -574,15 +580,18 @@ const RequestForm = () => {
                     body: JSON.stringify(updatePayload),
                 });
 
-                if (!resp.ok) {
-                    const err = await resp.json().catch(() => ({}));
-                    throw new Error(err.error || resp.statusText || 'Update failed');
-                }
+                // Debug log - show what was sent
+                console.log('[RequestForm] PUT payload dates:', {
+                    dateReceived: updatePayload.dateReceived,
+                    actionDate: updatePayload.actionDate,
+                    receivedBy: updatePayload.receivedBy,
+                    procurementCaseNumber: updatePayload.procurementCaseNumber,
+                });
                 // Automatically perform approval action if reviewer checked the approval box
 
                 if (isApproving) {
                     try {
-                        const approveResp = await fetch(getApiUrl(`/requests/${id}/action`), {
+                        const approveResp = await fetch(getApiUrl(`/api/requests/${id}/action`), {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json', 'x-user-id': String(userId) },
                             body: JSON.stringify({ action: 'APPROVE' }),
@@ -617,7 +626,7 @@ const RequestForm = () => {
 
                         if (confirmResubmit.isConfirmed) {
                             try {
-                                const submitResp = await fetch(getApiUrl(`/requests/${id}/submit`), {
+                                const submitResp = await fetch(getApiUrl(`/api/requests/${id}/submit`), {
                                     method: 'POST',
                                     headers: {
                                         'Content-Type': 'application/json',
@@ -666,7 +675,7 @@ const RequestForm = () => {
                                     }
 
                                     // Resend with override flag
-                                    const overrideResp = await fetch(getApiUrl(`/requests/${id}/submit`), {
+                                    const overrideResp = await fetch(getApiUrl(`/api/requests/${id}/submit`), {
                                         method: 'POST',
                                         headers: {
                                             'Content-Type': 'application/json',
@@ -784,7 +793,7 @@ const RequestForm = () => {
                 const data = await resp.json();
 
                 // Submit the request to department manager for review
-                const submitResp = await fetch(getApiUrl(`/requests/${data.id}/submit`), {
+                const submitResp = await fetch(getApiUrl(`/api/requests/${data.id}/submit`), {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -816,7 +825,7 @@ const RequestForm = () => {
 
     const handleDownloadPdf = () => {
         if (!id) return;
-        const url = getApiUrl(`/requests/${id}/pdf`);
+        const url = getApiUrl(`/api/requests/${id}/pdf`);
         // open in a new tab to trigger download
         window.open(url, '_blank');
     };
@@ -831,7 +840,7 @@ const RequestForm = () => {
             return;
         }
         try {
-            const resp = await fetch(getApiUrl(`/requests/${id}/action`), {
+            const resp = await fetch(getApiUrl(`/api/requests/${id}/action`), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'x-user-id': String(userId) },
                 body: JSON.stringify({ action: 'SEND_TO_VENDOR' }),
@@ -871,7 +880,7 @@ const RequestForm = () => {
 
         try {
             setIsReassigningOfficer(true);
-            const resp = await fetch(getApiUrl(`/requests/${id}/assign-finance-officer`), {
+            const resp = await fetch(getApiUrl(`/api/requests/${id}/assign-finance-officer`), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'x-user-id': String(userId) },
                 body: JSON.stringify({ financeOfficerId: selectedFinanceOfficerId }),
@@ -914,7 +923,7 @@ const RequestForm = () => {
 
         try {
             setIsSubmitting(true);
-            const resp = await fetch(getApiUrl(`/requests/${id}/submit`), {
+            const resp = await fetch(getApiUrl(`/api/requests/${id}/submit`), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'x-user-id': String(userId) },
                 body: JSON.stringify({}),
@@ -958,7 +967,7 @@ const RequestForm = () => {
                     return;
                 }
 
-                const overrideResp = await fetch(getApiUrl(`/requests/${id}/submit`), {
+                const overrideResp = await fetch(getApiUrl(`/api/requests/${id}/submit`), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'x-user-id': String(userId) },
                     body: JSON.stringify({ overrideSplinter: true }),
@@ -1246,8 +1255,15 @@ const RequestForm = () => {
                                 <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="form-input w-full" placeholder="Enter email" readOnly={!isEditMode} required />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium mb-2">Procurement Type</label>
-                                <div className="flex gap-4 flex-wrap items-center h-[42px]">
+                                <label className="block text-sm font-medium mb-2">
+                                    Procurement Type
+                                    {!isEditMode && procurementType.length === 0 && <span className="ml-2 inline-block px-2 py-0.5 text-xs bg-amber-100 text-amber-800 rounded-full">Required</span>}
+                                </label>
+                                <div
+                                    className={`flex gap-4 flex-wrap items-center h-[42px] transition-all ${
+                                        !isEditMode && procurementType.length === 0 ? 'ring-2 ring-amber-300 ring-opacity-50 rounded p-2' : ''
+                                    }`}
+                                >
                                     <label className="flex items-center gap-2">
                                         <input
                                             type="checkbox"
@@ -1295,8 +1311,11 @@ const RequestForm = () => {
                         {/* Header Code (moved to top – render preview here if not already displayed) */}
 
                         <div className="mb-4">
-                            <label className="block text-sm font-medium mb-2">Priority</label>
-                            <div className="flex gap-6">
+                            <label className="block text-sm font-medium mb-2">
+                                Priority
+                                {!isEditMode && !priority && <span className="ml-2 inline-block px-2 py-0.5 text-xs bg-amber-100 text-amber-800 rounded-full">Required</span>}
+                            </label>
+                            <div className={`flex gap-6 transition-all ${!isEditMode && !priority ? 'ring-2 ring-amber-300 ring-opacity-50 rounded p-2' : ''}`}>
                                 <label className="flex items-center gap-2">
                                     <input
                                         type="radio"
@@ -1467,12 +1486,17 @@ const RequestForm = () => {
                             <p className="text-sm font-semibold mb-3">Approved by:</p>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
-                                    <label className="block text-sm font-medium mb-2">Manager of Division's Name:</label>
+                                    <label className="block text-sm font-medium mb-2">
+                                        Manager of Division's Name:
+                                        {canEditManagerFields && !managerName && <span className="ml-2 inline-block px-2 py-0.5 text-xs bg-amber-100 text-amber-800 rounded-full">Required</span>}
+                                    </label>
                                     <input
                                         type="text"
                                         value={managerName}
                                         onChange={(e) => setManagerName(e.target.value)}
-                                        className="form-input w-full mb-3"
+                                        className={`form-input w-full mb-3 transition-all ${
+                                            canEditManagerFields && !managerName ? 'ring-2 ring-amber-300 ring-opacity-50 focus:ring-amber-400 focus:ring-opacity-100' : ''
+                                        }`}
                                         placeholder="Enter name of head of department"
                                         disabled={!canEditManagerFields}
                                     />
@@ -1495,12 +1519,17 @@ const RequestForm = () => {
                                     {/* Duplicate signature/date removed after refining permissions */}
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium mb-2">Head of Division's Name:</label>
+                                    <label className="block text-sm font-medium mb-2">
+                                        Head of Division's Name:
+                                        {canEditHodFields && !headName && <span className="ml-2 inline-block px-2 py-0.5 text-xs bg-amber-100 text-amber-800 rounded-full">Required</span>}
+                                    </label>
                                     <input
                                         type="text"
                                         value={headName}
                                         onChange={(e) => setHeadName(e.target.value)}
-                                        className="form-input w-full mb-3"
+                                        className={`form-input w-full mb-3 transition-all ${
+                                            canEditHodFields && !headName ? 'ring-2 ring-amber-300 ring-opacity-50 focus:ring-amber-400 focus:ring-opacity-100' : ''
+                                        }`}
                                         placeholder="Enter name of head of department"
                                         disabled={!canEditHodFields}
                                     />
@@ -1531,23 +1560,33 @@ const RequestForm = () => {
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                             <div>
-                                <label className="block text-sm font-medium mb-2">Commitment Number:</label>
+                                <label className="block text-sm font-medium mb-2">
+                                    Commitment Number:
+                                    {canEditBudgetSection && !commitmentNumber && <span className="ml-2 inline-block px-2 py-0.5 text-xs bg-amber-100 text-amber-800 rounded-full">Required</span>}
+                                </label>
                                 <input
                                     type="text"
                                     value={commitmentNumber}
                                     onChange={(e) => setCommitmentNumber(e.target.value)}
-                                    className="form-input w-full"
+                                    className={`form-input w-full transition-all ${
+                                        canEditBudgetSection && !commitmentNumber ? 'ring-2 ring-amber-300 ring-opacity-50 focus:ring-amber-400 focus:ring-opacity-100' : ''
+                                    }`}
                                     placeholder=""
                                     disabled={!canEditBudgetSection}
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium mb-2">Accounting Code:</label>
+                                <label className="block text-sm font-medium mb-2">
+                                    Accounting Code:
+                                    {canEditBudgetSection && !accountingCode && <span className="ml-2 inline-block px-2 py-0.5 text-xs bg-amber-100 text-amber-800 rounded-full">Required</span>}
+                                </label>
                                 <input
                                     type="text"
                                     value={accountingCode}
                                     onChange={(e) => setAccountingCode(e.target.value)}
-                                    className="form-input w-full"
+                                    className={`form-input w-full transition-all ${
+                                        canEditBudgetSection && !accountingCode ? 'ring-2 ring-amber-300 ring-opacity-50 focus:ring-amber-400 focus:ring-opacity-100' : ''
+                                    }`}
                                     placeholder=""
                                     disabled={!canEditBudgetSection}
                                 />
@@ -1568,12 +1607,17 @@ const RequestForm = () => {
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
-                                <label className="block text-sm font-medium mb-2">Budget Officer's Name:</label>
+                                <label className="block text-sm font-medium mb-2">
+                                    Budget Officer's Name:
+                                    {canApproveBudgetOfficer && !budgetOfficerName && <span className="ml-2 inline-block px-2 py-0.5 text-xs bg-amber-100 text-amber-800 rounded-full">Required</span>}
+                                </label>
                                 <input
                                     type="text"
                                     value={budgetOfficerName}
                                     onChange={(e) => setBudgetOfficerName(e.target.value)}
-                                    className="form-input w-full mb-3"
+                                    className={`form-input w-full mb-3 transition-all ${
+                                        canApproveBudgetOfficer && !budgetOfficerName ? 'ring-2 ring-amber-300 ring-opacity-50 focus:ring-amber-400 focus:ring-opacity-100' : ''
+                                    }`}
                                     placeholder={canApproveBudgetOfficer ? 'Your name will be auto-filled' : ''}
                                     disabled={!canApproveBudgetOfficer}
                                 />
@@ -1601,12 +1645,17 @@ const RequestForm = () => {
                                 </div>
                             </div>
                             <div>
-                                <label className="block text-sm font-medium mb-2">Budget Manager's Name:</label>
+                                <label className="block text-sm font-medium mb-2">
+                                    Budget Manager's Name:
+                                    {canApproveBudgetManager && !budgetManagerName && <span className="ml-2 inline-block px-2 py-0.5 text-xs bg-amber-100 text-amber-800 rounded-full">Required</span>}
+                                </label>
                                 <input
                                     type="text"
                                     value={budgetManagerName}
                                     onChange={(e) => setBudgetManagerName(e.target.value)}
-                                    className="form-input w-full mb-3"
+                                    className={`form-input w-full mb-3 transition-all ${
+                                        canApproveBudgetManager && !budgetManagerName ? 'ring-2 ring-amber-300 ring-opacity-50 focus:ring-amber-400 focus:ring-opacity-100' : ''
+                                    }`}
                                     placeholder={canApproveBudgetManager ? 'Your name will be auto-filled' : ''}
                                     disabled={!canApproveBudgetManager}
                                 />
@@ -1682,44 +1731,66 @@ const RequestForm = () => {
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm font-medium mb-2">Rec'd By:</label>
+                                    <label className="block text-sm font-medium mb-2">
+                                        Rec'd By:
+                                        {canEditProcurementSection && !receivedBy && <span className="ml-2 inline-block px-2 py-0.5 text-xs bg-amber-100 text-amber-800 rounded-full">Required</span>}
+                                    </label>
                                     <input
                                         type="text"
                                         value={receivedBy}
                                         onChange={(e) => setReceivedBy(e.target.value)}
-                                        className="form-input w-full"
+                                        className={`form-input w-full transition-all ${
+                                            canEditProcurementSection && !receivedBy ? 'ring-2 ring-amber-300 ring-opacity-50 focus:ring-amber-400 focus:ring-opacity-100' : ''
+                                        }`}
                                         placeholder=""
                                         disabled={!canEditProcurementSection}
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium mb-2">Procurement Case Number:</label>
+                                    <label className="block text-sm font-medium mb-2">
+                                        Procurement Case Number:
+                                        {canEditProcurementSection && !procurementCaseNumber && (
+                                            <span className="ml-2 inline-block px-2 py-0.5 text-xs bg-amber-100 text-amber-800 rounded-full">Required</span>
+                                        )}
+                                    </label>
                                     <input
                                         type="text"
                                         value={procurementCaseNumber}
                                         onChange={(e) => setProcurementCaseNumber(e.target.value)}
-                                        className="form-input w-full"
+                                        className={`form-input w-full transition-all ${
+                                            canEditProcurementSection && !procurementCaseNumber ? 'ring-2 ring-amber-300 ring-opacity-50 focus:ring-amber-400 focus:ring-opacity-100' : ''
+                                        }`}
                                         placeholder=""
                                         disabled={!canEditProcurementSection}
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium mb-2">Date Rec'd:</label>
+                                    <label className="block text-sm font-medium mb-2">
+                                        Date Rec'd:
+                                        {canEditProcurementSection && !dateReceived && <span className="ml-2 inline-block px-2 py-0.5 text-xs bg-amber-100 text-amber-800 rounded-full">Required</span>}
+                                    </label>
                                     <input
                                         type="date"
-                                        value={dateReceived || new Date().toISOString().split('T')[0]}
+                                        value={dateReceived || ''}
                                         onChange={(e) => setDateReceived(e.target.value)}
-                                        className="form-input w-full"
+                                        className={`form-input w-full transition-all ${
+                                            canEditProcurementSection && !dateReceived ? 'ring-2 ring-amber-300 ring-opacity-50 focus:ring-amber-400 focus:ring-opacity-100' : ''
+                                        }`}
                                         disabled={!canEditProcurementSection}
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium mb-2">Action Date:</label>
+                                    <label className="block text-sm font-medium mb-2">
+                                        Action Date:
+                                        {canEditProcurementSection && !actionDate && <span className="ml-2 inline-block px-2 py-0.5 text-xs bg-amber-100 text-amber-800 rounded-full">Required</span>}
+                                    </label>
                                     <input
                                         type="date"
-                                        value={actionDate || new Date().toISOString().split('T')[0]}
+                                        value={actionDate || ''}
                                         onChange={(e) => setActionDate(e.target.value)}
-                                        className="form-input w-full"
+                                        className={`form-input w-full transition-all ${
+                                            canEditProcurementSection && !actionDate ? 'ring-2 ring-amber-300 ring-opacity-50 focus:ring-amber-400 focus:ring-opacity-100' : ''
+                                        }`}
                                         disabled={!canEditProcurementSection}
                                     />
                                 </div>

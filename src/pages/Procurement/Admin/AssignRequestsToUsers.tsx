@@ -33,21 +33,7 @@ const AssignRequestsToUsers = () => {
         setLoading(true);
         setError(null);
         try {
-            const [usersData, requestsResponse] = await Promise.all([
-                adminService.getUsers(),
-                fetch(getApiUrl('/api/requests'), {
-                    headers: {
-                        'Content-Type': 'application/json',
-                        Authorization: `Bearer ${localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token')}`,
-                    },
-                }),
-            ]);
-
-            if (!requestsResponse.ok) {
-                throw new Error(`Failed to fetch requests: ${requestsResponse.statusText}`);
-            }
-
-            const requestsData = await requestsResponse.json();
+            const [usersData, requestsData] = await Promise.all([adminService.getUsers(), fetch(getApiUrl('/api/requests')).then((r) => r.json())]);
             setUsers(usersData);
             setRequests(requestsData);
         } catch (e: any) {
@@ -71,7 +57,7 @@ const AssignRequestsToUsers = () => {
                 throw new Error('Admin authentication required');
             }
 
-            const res = await fetch(getApiUrl(`/admin/requests/${requestId}/reassign`), {
+            const res = await fetch(getApiUrl(`/api/admin/requests/${requestId}/reassign`), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

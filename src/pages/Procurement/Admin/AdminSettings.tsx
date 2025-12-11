@@ -842,7 +842,7 @@ function AssignRequestsToUsersPanel({ users }: { users: FlatUser[] }) {
                 throw new Error('Admin authentication required');
             }
 
-            const res = await fetch(getApiUrl(`/admin/requests/${requestId}/reassign`), {
+            const res = await fetch(getApiUrl(`/api/admin/requests/${requestId}/reassign`), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1101,7 +1101,7 @@ function ReassignRequestsTab() {
                 throw new Error('User authentication required');
             }
 
-            const res = await fetch(getApiUrl(`/admin/requests/${requestId}/reassign`), {
+            const res = await fetch(getApiUrl(`/api/admin/requests/${requestId}/reassign`), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

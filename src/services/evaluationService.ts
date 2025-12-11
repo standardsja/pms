@@ -1,7 +1,7 @@
 import { getToken } from '../utils/auth';
 
 /**
- * API URL configuration - uses heron production server
+ * API URL configuration - uses relative paths in dev, configured URL in production
  */
 function getApiUrl(): string {
     // 1. Explicit override via environment variable (ALWAYS takes priority)
@@ -10,7 +10,17 @@ function getApiUrl(): string {
         return import.meta.env.VITE_API_URL;
     }
 
-    // 2. Use heron production server
+    // 2. In development, use empty string for relative paths (Vite proxy handles it)
+    const isDev = import.meta.env.DEV || import.meta.env.MODE === 'development';
+    if (isDev) {
+        return '';
+    }
+
+    // 3. Production: use same-origin or fallback to heron
+    if (typeof window !== 'undefined' && window.location?.origin) {
+        return window.location.origin;
+    }
+
     return 'http://heron:4000';
 }
 
@@ -101,6 +111,8 @@ export interface Evaluation {
     dateSubmissionConsidered?: string;
     reportCompletionDate?: string;
     status: EvaluationStatus;
+    combinedRequestId?: number;
+    requestId?: number;
 
     sectionA?: SectionA;
     sectionAStatus: SectionVerificationStatus;
@@ -163,6 +175,7 @@ export interface CreateEvaluationDTO {
     rfqTitle: string;
     description?: string;
     combinedRequestId?: number; // Link to combined request with lots
+    requestId?: number; // Optional link to a single Request (ID)
     sectionA?: SectionA;
     sectionB?: SectionB;
     sectionC?: SectionC;

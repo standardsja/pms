@@ -12,7 +12,9 @@ import IconEdit from '../../../components/Icon/IconEdit';
 import IconSearch from '../../../components/Icon/IconSearch';
 import IconX from '../../../components/Icon/IconX';
 import IconRefresh from '../../../components/Icon/IconRefresh';
+import IconTxtFile from '../../../components/Icon/IconTxtFile';
 import { useTranslation } from 'react-i18next';
+import Swal from 'sweetalert2';
 import { evaluationService, type Evaluation, type EvaluationStatus } from '../../../services/evaluationService';
 import { getUser } from '../../../utils/auth';
 
@@ -418,6 +420,12 @@ const EvaluationList = () => {
                                                 <div className="line-clamp-2">{evaluation.rfqTitle}</div>
                                             </div>
                                             {evaluation.description && <div className="text-xs text-white-dark line-clamp-1">{evaluation.description}</div>}
+                                            {(evaluation.requestId || evaluation.combinedRequestId) && (
+                                                <div className="mt-1 inline-flex items-center gap-1 text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
+                                                    <IconTxtFile className="h-3 w-3" />
+                                                    <span>Linked Request</span>
+                                                </div>
+                                            )}
                                         </td>
                                         <td className="whitespace-nowrap">{evaluation.evaluator || evaluation.creator.name || '-'}</td>
                                         <td className="whitespace-nowrap">{formatDate(evaluation.dueDate)}</td>
@@ -455,6 +463,27 @@ const EvaluationList = () => {
                                                 >
                                                     <IconEye className="h-4 w-4" />
                                                 </button>
+                                                {/* View linked request button */}
+                                                {(evaluation.requestId || evaluation.combinedRequestId) && (
+                                                    <button
+                                                        onClick={() => {
+                                                            if (evaluation.requestId) {
+                                                                navigate(`/apps/requests/edit/${evaluation.requestId}`);
+                                                            } else if (evaluation.combinedRequestId) {
+                                                                Swal.fire({
+                                                                    icon: 'info',
+                                                                    title: 'Combined Request',
+                                                                    text: `This evaluation is linked to Combined Request #${evaluation.combinedRequestId}`,
+                                                                    customClass: { popup: 'sweet-alerts' },
+                                                                });
+                                                            }
+                                                        }}
+                                                        className="btn btn-sm btn-outline-success"
+                                                        title="View Linked Request"
+                                                    >
+                                                        <IconTxtFile className="h-4 w-4" />
+                                                    </button>
+                                                )}
                                                 {/* Edit button for Procurement when sections are returned */}
                                                 {isProcurement && hasReturnedSections(evaluation) && (
                                                     <Link to={`/procurement/evaluation/${evaluation.id}/edit`} className="btn btn-sm btn-outline-warning" title="Edit Returned Sections">

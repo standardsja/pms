@@ -24,6 +24,7 @@ export interface DetectedRoles {
 
     // Finance roles
     isFinanceManager: boolean;
+    isBudgetManager: boolean;
     isFinanceOfficer: boolean;
     isFinancePaymentStage: boolean;
 
@@ -95,12 +96,12 @@ export function detectUserRoles(userRoles: (string | { name: string } | any)[] =
     const isProcurementOfficer = hasRole(['PROCUREMENT_OFFICER', 'PROCUREMENT']) && !isProcurementManager;
 
     // 4. FINANCE ROLES (must check before generic MANAGER keywords)
-    const isFinanceManager =
-        hasRole(['FINANCE_MANAGER', 'BUDGET_MANAGER']) || (containsAll(['FINANCE', 'MANAGER']) && !isProcurementManager) || (containsAll(['BUDGET', 'MANAGER']) && !isProcurementManager);
+    const isBudgetManager = hasRole('BUDGET_MANAGER') || (containsAll(['BUDGET', 'MANAGER']) && !isProcurementManager);
+    const isFinanceManager = hasRole('FINANCE_MANAGER') || (containsAll(['FINANCE', 'MANAGER']) && !isProcurementManager && !isBudgetManager);
 
     // Treat generic 'FINANCE' role as a Finance Officer for compatibility with legacy role names
-    const isFinanceOfficer = hasRole(['FINANCE_OFFICER', 'FINANCE']) && !isFinanceManager;
-    const isFinancePaymentStage = hasRole('FINANCE_PAYMENT_STAGE') && !isFinanceManager && !isFinanceOfficer;
+    const isFinanceOfficer = hasRole(['FINANCE_OFFICER', 'FINANCE']) && !isFinanceManager && !isBudgetManager;
+    const isFinancePaymentStage = hasRole('FINANCE_PAYMENT_STAGE') && !isFinanceManager && !isBudgetManager && !isFinanceOfficer;
 
     // 5. DEPARTMENT ROLES
     const isDepartmentHead = hasRole('DEPARTMENT_HEAD') && !isAdmin && !isHeadOfDivision && !isExecutiveDirector;
@@ -142,6 +143,8 @@ export function detectUserRoles(userRoles: (string | { name: string } | any)[] =
         primaryRole = 'AUDITOR';
     } else if (isFinancePaymentStage) {
         primaryRole = 'FINANCE_PAYMENT_STAGE';
+    } else if (isBudgetManager) {
+        primaryRole = 'BUDGET_MANAGER';
     } else if (isFinanceManager) {
         primaryRole = 'FINANCE_MANAGER';
     } else if (isFinanceOfficer) {
@@ -164,6 +167,7 @@ export function detectUserRoles(userRoles: (string | { name: string } | any)[] =
         isProcurementManager,
         isProcurementOfficer,
         isFinanceManager,
+        isBudgetManager,
         isFinanceOfficer,
         isFinancePaymentStage,
         isDepartmentHead,
@@ -217,6 +221,9 @@ export function getDashboardPath(roles: DetectedRoles, currentPathname: string =
     }
     if (roles.isFinancePaymentStage) {
         return '/payments/dashboard';
+    }
+    if (roles.isBudgetManager) {
+        return '/finance';
     }
     if (roles.isFinanceManager) {
         return '/finance';

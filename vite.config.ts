@@ -16,14 +16,15 @@ export default defineConfig({
         // Allow requests addressed to specific hostnames when developing on a remote/devbox.
         // Read from `VITE_ALLOWED_HOSTS` env var (comma-separated) or fall back to a safe default.
         // CAUTION: This is for development only — do not expose arbitrary hosts in production.
-        allowedHosts: process.env.VITE_ALLOWED_HOSTS ? process.env.VITE_ALLOWED_HOSTS.split(',').map((s) => s.trim()) : ['localhost', '127.0.0.1'],
+        allowedHosts: process.env.VITE_ALLOWED_HOSTS ? process.env.VITE_ALLOWED_HOSTS.split(',').map((s) => s.trim()) : ['heron', 'sphinx-dev', 'sphinx-prod', 'localhost', '127.0.0.1'],
         proxy: {
-            // Proxy only API requests to the backend
-            // Frontend pages (/auth/login, /requests, etc.) are served by Vite
+            // Proxy API requests to the backend
             '/api': {
-                target: 'http://localhost:4000',
+                target: process.env.VITE_API_URL || 'http://localhost:4000',
                 changeOrigin: true,
             },
+            // Note: Only proxy /api paths. DO NOT proxy frontend routes like /procurement, /finance, etc.
+            // Those are React Router routes and should be handled by the frontend.
         },
     },
 });
