@@ -119,7 +119,7 @@ app.get('/health', async (_req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/ideas', ideasRoutes);
 app.use('/api/v1', hodRouter);
-app.use('/requests', requestsRoutes);
+app.use('/api/requests', requestsRoutes);
 app.use('/api/role-requests', roleRequestsRouter);
 app.use('/api/admin', adminRoutes);
 

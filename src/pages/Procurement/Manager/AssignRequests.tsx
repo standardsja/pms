@@ -250,7 +250,7 @@ const AssignRequests = () => {
                 const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
                 const currentUserId = userProfile?.id || userProfile?.userId || null;
 
-                const res = await fetch(getApiUrl(`/requests/${reqId}/assign`), {
+                const res = await fetch(getApiUrl(`/api/requests/${reqId}/assign`), {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',

@@ -170,7 +170,7 @@ const FinanceRequests = () => {
             try {
                 // Call backend API to approve or reject
                 const apiAction = action === 'approve' ? 'APPROVE' : 'REJECT';
-                const res = await fetch(getApiUrl(`/requests/${req.id}/action`), {
+                const res = await fetch(getApiUrl(`/api/requests/${req.id}/action`), {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',

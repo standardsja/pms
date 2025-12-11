@@ -169,7 +169,7 @@ const ProcurementManagerRequests = () => {
 
         if (result.isConfirmed) {
             try {
-                const res = await fetch(getApiUrl(`/requests/${req.id}/assign`), {
+                const res = await fetch(getApiUrl(`/api/requests/${req.id}/assign`), {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -241,7 +241,7 @@ const ProcurementManagerRequests = () => {
         const comment = (result.value as string) || '';
 
         try {
-            const res = await fetch(getApiUrl(`/requests/${req.id}/action`), {
+            const res = await fetch(getApiUrl(`/api/requests/${req.id}/action`), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

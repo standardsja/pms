@@ -1939,7 +1939,7 @@ app.delete('/api/ideas/:id/vote', authMiddleware, voteLimiter, async (req, res) 
 });
 
 // GET /requests - alias for direct backend access (frontend may call this without /api prefix)
-app.get('/requests', async (_req, res) => {
+app.get('/api/requests', async (_req, res) => {
     try {
         const requests = await prisma.request.findMany({
             orderBy: { createdAt: 'desc' },
@@ -2191,8 +2191,8 @@ app.post(
     }
 );
 
-// GET /requests/:id - fetch a single request by ID for editing
-app.get('/requests/:id', async (req, res) => {
+// GET /api/requests/:id - fetch a single request by ID for editing
+app.get('/api/requests/:id', async (req, res) => {
     try {
         const { id } = req.params;
         const request = await prisma.request.findUnique({
@@ -2317,7 +2317,7 @@ app.get('/requests/:id', async (req, res) => {
 });
 
 // PATCH /requests/:id - update an existing request
-app.patch('/requests/:id', async (req, res) => {
+app.patch('/api/requests/:id', async (req, res) => {
     try {
         const { id } = req.params;
         const updates = req.body || {};
@@ -2572,7 +2572,7 @@ app.patch('/requests/:id', async (req, res) => {
 });
 
 // PUT /requests/:id - alias for PATCH (frontend uses PUT for updates)
-app.put('/requests/:id', async (req, res) => {
+app.put('/api/requests/:id', async (req, res) => {
     try {
         const { id } = req.params;
         const updates = req.body || {};
@@ -2640,7 +2640,7 @@ app.put('/requests/:id', async (req, res) => {
 });
 
 // GET /requests/:id/pdf - generate PDF for a request
-app.get('/requests/:id/pdf', async (req, res) => {
+app.get('/api/requests/:id/pdf', async (req, res) => {
     try {
         const { id } = req.params;
         const request = await prisma.request.findUnique({
@@ -2827,7 +2827,7 @@ app.get('/requests/:id/pdf', async (req, res) => {
 });
 
 // POST /requests/:id/submit - submit a draft request for approval workflow
-app.post('/requests/:id/submit', async (req, res) => {
+app.post('/api/requests/:id/submit', async (req, res) => {
     try {
         const { id } = req.params;
         console.log(`[Submit] Incoming submit for request ${id}`);
@@ -3021,7 +3021,7 @@ app.post('/requests/:id/submit', async (req, res) => {
 });
 
 // POST /requests/:id/attachments - upload attachments for an existing request
-app.post('/requests/:id/attachments', uploadAttachments.array('attachments'), async (req, res) => {
+app.post('/api/requests/:id/attachments', uploadAttachments.array('attachments'), async (req, res) => {
     try {
         const { id } = req.params;
         const userId = req.headers['x-user-id'];
@@ -3054,7 +3054,7 @@ app.post('/requests/:id/attachments', uploadAttachments.array('attachments'), as
 });
 
 // DELETE /requests/:id/attachments/:attachmentId - delete an attachment
-app.delete('/requests/:id/attachments/:attachmentId', async (req, res) => {
+app.delete('/api/requests/:id/attachments/:attachmentId', async (req, res) => {
     try {
         const { id, attachmentId } = req.params;
         const userId = req.headers['x-user-id'];
@@ -3082,7 +3082,7 @@ app.delete('/requests/:id/attachments/:attachmentId', async (req, res) => {
 });
 
 // POST /requests/:id/action - approve/reject requests (manager, HOD, procurement, finance)
-app.post('/requests/:id/action', async (req, res) => {
+app.post('/api/requests/:id/action', async (req, res) => {
     try {
         const { id } = req.params;
         const { action, comment } = req.body; // 'APPROVE' or 'REJECT' with optional comment
@@ -3530,7 +3530,7 @@ app.get('/api/users/procurement-officers', async (req, res) => {
 });
 
 // Admin override endpoint: explicitly approve a splintering-blocked submission
-app.post('/admin/requests/:id/override-splinter', requireAdmin, async (req, res) => {
+app.post('/api/admin/requests/:id/override-splinter', requireAdmin, async (req, res) => {
     try {
         const { id } = req.params;
         const adminUserId = req.headers['x-user-id'];
@@ -3587,7 +3587,7 @@ app.post('/admin/requests/:id/override-splinter', requireAdmin, async (req, res)
 });
 
 // POST /requests/:id/assign - Assign request to specific procurement officer
-app.post('/requests/:id/assign', async (req, res) => {
+app.post('/api/requests/:id/assign', async (req, res) => {
     try {
         const { id } = req.params;
         const { assigneeId } = req.body;
@@ -3691,7 +3691,7 @@ app.post('/requests/:id/assign', async (req, res) => {
 });
 
 // GET /procurement/load-balancing-settings - Get load balancing configuration
-app.get('/procurement/load-balancing-settings', async (req, res) => {
+app.get('/api/procurement/load-balancing-settings', async (req, res) => {
     try {
         const userId = req.headers['x-user-id'];
         if (!userId) {
@@ -3740,13 +3740,13 @@ app.get('/procurement/load-balancing-settings', async (req, res) => {
 });
 
 // Backward-compat alias: underscore variant
-app.get('/procurement/load_balancing-settings', async (req, res) => {
+app.get('/api/procurement/load_balancing-settings', async (req, res) => {
     // Delegate to the canonical handler
     (app as any)._router.handle({ ...req, url: '/procurement/load-balancing-settings' }, res, () => {});
 });
 
 // POST /procurement/load-balancing-settings - Update load balancing configuration
-app.post('/procurement/load-balancing-settings', async (req, res) => {
+app.post('/api/procurement/load-balancing-settings', async (req, res) => {
     try {
         const userId = req.headers['x-user-id'];
         if (!userId) {
@@ -3847,7 +3847,7 @@ app.post('/api/admin/load-balancing-settings', requireAdmin, async (req, res) =>
 });
 
 // Backward-compat alias: underscore variant
-app.post('/procurement/load_balancing-settings', async (req, res) => {
+app.post('/api/procurement/load_balancing-settings', async (req, res) => {
     // Delegate to the canonical handler
     (app as any)._router.handle({ ...req, url: '/procurement/load-balancing-settings' }, res, () => {});
 });
@@ -4413,7 +4413,7 @@ app.post('/api/admin/users/:userId/roles', async (req, res) => {
 });
 
 // POST /admin/requests/:id/reassign - Admin can reassign any request to any user
-app.post('/admin/requests/:id/reassign', async (req, res) => {
+app.post('/api/admin/requests/:id/reassign', async (req, res) => {
     try {
         const { id } = req.params;
         const { assigneeId, comment, newStatus } = req.body || {};
@@ -4513,7 +4513,7 @@ app.post('/admin/requests/:id/reassign', async (req, res) => {
 });
 
 // POST /requests/:id/assign-finance-officer - Budget Manager can reassign finance officers to requests
-app.post('/requests/:id/assign-finance-officer', async (req, res) => {
+app.post('/api/requests/:id/assign-finance-officer', async (req, res) => {
     try {
         const { id } = req.params;
         const { financeOfficerId } = req.body || {};
@@ -4603,7 +4603,7 @@ app.post('/requests/:id/assign-finance-officer', async (req, res) => {
 });
 
 // GET /finance-officers - Get list of available finance officers (for Budget Manager assignment UI)
-app.get('/finance-officers', async (req, res) => {
+app.get('/api/finance-officers', async (req, res) => {
     try {
         const userId = req.headers['x-user-id'];
         if (!userId) return res.status(401).json({ message: 'User ID required' });
@@ -4656,7 +4656,7 @@ app.get('/finance-officers', async (req, res) => {
 });
 
 // POST /admin/maintenance/fix-invalid-request-statuses - Admin maintenance to repair invalid enum values
-app.post('/admin/maintenance/fix-invalid-request-statuses', async (req, res) => {
+app.post('/api/admin/maintenance/fix-invalid-request-statuses', async (req, res) => {
     try {
         const userId = req.headers['x-user-id'];
         if (!userId) {

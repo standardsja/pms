@@ -236,7 +236,7 @@ const RequestForm = () => {
 
         const fetchRequest = async () => {
             try {
-                const resp = await fetch(getApiUrl(`/requests/${id}`));
+                const resp = await fetch(getApiUrl(`/api/requests/${id}`));
                 if (!resp.ok) throw new Error('Failed to fetch request');
 
                 const request = await resp.json();
@@ -390,7 +390,7 @@ const RequestForm = () => {
         if (!confirm.isConfirmed) return;
 
         try {
-            const resp = await fetch(getApiUrl(`/requests/${id}/attachments/${attachmentId}`), {
+            const resp = await fetch(getApiUrl(`/api/requests/${id}/attachments/${attachmentId}`), {
                 method: 'DELETE',
                 headers: { 'x-user-id': String(userId) },
             });
@@ -540,7 +540,7 @@ const RequestForm = () => {
                         try {
                             const fd = new FormData();
                             attachments.forEach((f) => fd.append('attachments', f));
-                            const uploadResp = await fetch(getApiUrl(`/requests/${id}/attachments`), {
+                            const uploadResp = await fetch(getApiUrl(`/api/requests/${id}/attachments`), {
                                 method: 'POST',
                                 headers: { 'x-user-id': String(userId) },
                                 body: fd,
@@ -571,7 +571,7 @@ const RequestForm = () => {
                 console.log('[RequestForm] Current request status:', requestMeta?.status);
                 console.log('[RequestForm] isAssignee:', isAssignee);
 
-                const resp = await fetch(getApiUrl(`/requests/${id}`), {
+                const resp = await fetch(getApiUrl(`/api/requests/${id}`), {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
@@ -591,7 +591,7 @@ const RequestForm = () => {
 
                 if (isApproving) {
                     try {
-                        const approveResp = await fetch(getApiUrl(`/requests/${id}/action`), {
+                        const approveResp = await fetch(getApiUrl(`/api/requests/${id}/action`), {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json', 'x-user-id': String(userId) },
                             body: JSON.stringify({ action: 'APPROVE' }),
@@ -626,7 +626,7 @@ const RequestForm = () => {
 
                         if (confirmResubmit.isConfirmed) {
                             try {
-                                const submitResp = await fetch(getApiUrl(`/requests/${id}/submit`), {
+                                const submitResp = await fetch(getApiUrl(`/api/requests/${id}/submit`), {
                                     method: 'POST',
                                     headers: {
                                         'Content-Type': 'application/json',
@@ -675,7 +675,7 @@ const RequestForm = () => {
                                     }
 
                                     // Resend with override flag
-                                    const overrideResp = await fetch(getApiUrl(`/requests/${id}/submit`), {
+                                    const overrideResp = await fetch(getApiUrl(`/api/requests/${id}/submit`), {
                                         method: 'POST',
                                         headers: {
                                             'Content-Type': 'application/json',
@@ -793,7 +793,7 @@ const RequestForm = () => {
                 const data = await resp.json();
 
                 // Submit the request to department manager for review
-                const submitResp = await fetch(getApiUrl(`/requests/${data.id}/submit`), {
+                const submitResp = await fetch(getApiUrl(`/api/requests/${data.id}/submit`), {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -825,7 +825,7 @@ const RequestForm = () => {
 
     const handleDownloadPdf = () => {
         if (!id) return;
-        const url = getApiUrl(`/requests/${id}/pdf`);
+        const url = getApiUrl(`/api/requests/${id}/pdf`);
         // open in a new tab to trigger download
         window.open(url, '_blank');
     };
@@ -840,7 +840,7 @@ const RequestForm = () => {
             return;
         }
         try {
-            const resp = await fetch(getApiUrl(`/requests/${id}/action`), {
+            const resp = await fetch(getApiUrl(`/api/requests/${id}/action`), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'x-user-id': String(userId) },
                 body: JSON.stringify({ action: 'SEND_TO_VENDOR' }),
@@ -880,7 +880,7 @@ const RequestForm = () => {
 
         try {
             setIsReassigningOfficer(true);
-            const resp = await fetch(getApiUrl(`/requests/${id}/assign-finance-officer`), {
+            const resp = await fetch(getApiUrl(`/api/requests/${id}/assign-finance-officer`), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'x-user-id': String(userId) },
                 body: JSON.stringify({ financeOfficerId: selectedFinanceOfficerId }),
@@ -923,7 +923,7 @@ const RequestForm = () => {
 
         try {
             setIsSubmitting(true);
-            const resp = await fetch(getApiUrl(`/requests/${id}/submit`), {
+            const resp = await fetch(getApiUrl(`/api/requests/${id}/submit`), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'x-user-id': String(userId) },
                 body: JSON.stringify({}),
@@ -967,7 +967,7 @@ const RequestForm = () => {
                     return;
                 }
 
-                const overrideResp = await fetch(getApiUrl(`/requests/${id}/submit`), {
+                const overrideResp = await fetch(getApiUrl(`/api/requests/${id}/submit`), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'x-user-id': String(userId) },
                     body: JSON.stringify({ overrideSplinter: true }),
