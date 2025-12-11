@@ -389,6 +389,8 @@ model Request {
 
   // Load balancing assignment logs back-relations
   assignmentLogs RequestAssignmentLog[]
+  // Splintering alerts related to this request
+  splinteringAlerts SplinteringAlert[]
   
   // Combined Request tracking
   isCombined        Boolean?         @default(false)
