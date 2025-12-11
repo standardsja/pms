@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { setPageTitle } from '../../../store/themeConfigSlice';
-import { DEFAULT_SPLINTERING_RULES, type SplinteringRule } from '../../../utils/splinteringDetection';
+import { type SplinteringRule } from '../../../utils/splinteringDetection';
 import { showSuccess, showError } from '../../../utils/notifications';
+import { getApiUrl, getAuthHeaders } from '../../../utils/api';
 import IconSettings from '../../../components/Icon/IconSettings';
 import IconEdit from '../../../components/Icon/IconEdit';
 import IconTrash from '../../../components/Icon/IconTrash';
@@ -11,7 +12,7 @@ import Swal from 'sweetalert2';
 
 const SplinteringManagement = () => {
     const dispatch = useDispatch();
-    const [rules, setRules] = useState<SplinteringRule[]>(DEFAULT_SPLINTERING_RULES);
+    const [rules, setRules] = useState<SplinteringRule[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [editingRule, setEditingRule] = useState<SplinteringRule | null>(null);
     const [showAddModal, setShowAddModal] = useState(false);
@@ -24,15 +25,19 @@ const SplinteringManagement = () => {
     const loadRules = async () => {
         setIsLoading(true);
         try {
-            // In a real app, this would fetch from backend
-            // For now, use default rules from localStorage or defaults
-            const savedRules = localStorage.getItem('splintering_rules');
-            if (savedRules) {
-                setRules(JSON.parse(savedRules));
+            const response = await fetch(getApiUrl('/api/admin/splintering-rules'), {
+                headers: getAuthHeaders(),
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                setRules(result.data || []);
+            } else {
+                showError('Failed to load rules', 'Please try again');
             }
         } catch (error) {
             console.error('Failed to load splintering rules:', error);
-            showError('Failed to load rules', 'Using default configuration');
+            showError('Failed to load rules', 'Please try again');
         } finally {
             setIsLoading(false);
         }
@@ -40,15 +45,31 @@ const SplinteringManagement = () => {
 
     const saveRule = async (rule: SplinteringRule) => {
         try {
-            const updatedRules = editingRule ? rules.map((r) => (r.id === rule.id ? rule : r)) : [...rules, rule];
+            const url = editingRule ? getApiUrl(`/api/admin/splintering-rules/${rule.id}`) : getApiUrl('/api/admin/splintering-rules');
 
-            // Save to localStorage (in real app, save to backend)
-            localStorage.setItem('splintering_rules', JSON.stringify(updatedRules));
-            setRules(updatedRules);
+            const method = editingRule ? 'PUT' : 'POST';
 
-            showSuccess(editingRule ? 'Rule updated successfully' : 'Rule created successfully');
-            setEditingRule(null);
-            setShowAddModal(false);
+            const response = await fetch(url, {
+                method,
+                headers: getAuthHeaders(),
+                body: JSON.stringify({
+                    ruleId: rule.id,
+                    name: rule.name,
+                    description: rule.description,
+                    thresholdAmount: rule.thresholdAmount,
+                    timeWindowDays: rule.timeWindowDays,
+                    enabled: rule.enabled,
+                }),
+            });
+
+            if (response.ok) {
+                showSuccess(editingRule ? 'Rule updated successfully' : 'Rule created successfully');
+                setEditingRule(null);
+                setShowAddModal(false);
+                await loadRules();
+            } else {
+                showError('Failed to save rule', 'Please try again');
+            }
         } catch (error) {
             console.error('Failed to save rule:', error);
             showError('Failed to save rule', 'Please try again');
@@ -66,17 +87,41 @@ const SplinteringManagement = () => {
         });
 
         if (result.isConfirmed) {
-            const updatedRules = rules.filter((r) => r.id !== ruleId);
-            localStorage.setItem('splintering_rules', JSON.stringify(updatedRules));
-            setRules(updatedRules);
-            showSuccess('Rule deleted successfully');
+            try {
+                const response = await fetch(getApiUrl(`/api/admin/splintering-rules/${ruleId}`), {
+                    method: 'DELETE',
+                    headers: getAuthHeaders(),
+                });
+
+                if (response.ok) {
+                    showSuccess('Rule deleted successfully');
+                    await loadRules();
+                } else {
+                    showError('Failed to delete rule', 'Please try again');
+                }
+            } catch (error) {
+                console.error('Failed to delete rule:', error);
+                showError('Failed to delete rule', 'Please try again');
+            }
         }
     };
 
-    const toggleRuleEnabled = (ruleId: string) => {
-        const updatedRules = rules.map((rule) => (rule.id === ruleId ? { ...rule, enabled: !rule.enabled } : rule));
-        localStorage.setItem('splintering_rules', JSON.stringify(updatedRules));
-        setRules(updatedRules);
+    const toggleRuleEnabled = async (ruleId: string) => {
+        try {
+            const response = await fetch(getApiUrl(`/api/admin/splintering-rules/${ruleId}/toggle`), {
+                method: 'POST',
+                headers: getAuthHeaders(),
+            });
+
+            if (response.ok) {
+                await loadRules();
+            } else {
+                showError('Failed to toggle rule', 'Please try again');
+            }
+        } catch (error) {
+            console.error('Failed to toggle rule:', error);
+            showError('Failed to toggle rule', 'Please try again');
+        }
     };
 
     const RuleForm = ({ rule, onSave, onCancel }: { rule?: SplinteringRule; onSave: (rule: SplinteringRule) => void; onCancel: () => void }) => {

@@ -280,6 +280,104 @@ async function main() {
         console.warn('[seed] Failed to assign INNOVATION_COMMITTEE role to committee user:', err);
     }
 
+    // Seed permissions and link them to roles
+    console.log('\n[seed] Seeding permissions...');
+    const permissions = await Promise.all([
+        // Procurement permissions
+        prisma.permission.upsert({
+            where: { name: 'CREATE_REQUEST' },
+            update: {},
+            create: { name: 'CREATE_REQUEST', description: 'Create procurement requests', module: 'procurement' },
+        }),
+        prisma.permission.upsert({
+            where: { name: 'APPROVE_REQUEST' },
+            update: {},
+            create: { name: 'APPROVE_REQUEST', description: 'Approve procurement requests', module: 'procurement' },
+        }),
+        prisma.permission.upsert({
+            where: { name: 'REJECT_REQUEST' },
+            update: {},
+            create: { name: 'REJECT_REQUEST', description: 'Reject procurement requests', module: 'procurement' },
+        }),
+        // Admin permissions
+        prisma.permission.upsert({
+            where: { name: 'VIEW_REPORTS' },
+            update: {},
+            create: { name: 'VIEW_REPORTS', description: 'View system reports', module: 'admin' },
+        }),
+        prisma.permission.upsert({
+            where: { name: 'MANAGE_USERS' },
+            update: {},
+            create: { name: 'MANAGE_USERS', description: 'Manage system users', module: 'admin' },
+        }),
+        prisma.permission.upsert({
+            where: { name: 'MANAGE_ROLES' },
+            update: {},
+            create: { name: 'MANAGE_ROLES', description: 'Manage roles and permissions', module: 'admin' },
+        }),
+        prisma.permission.upsert({
+            where: { name: 'SYSTEM_CONFIG' },
+            update: {},
+            create: { name: 'SYSTEM_CONFIG', description: 'Configure system settings', module: 'admin' },
+        }),
+        prisma.permission.upsert({
+            where: { name: 'VIEW_AUDIT_LOGS' },
+            update: {},
+            create: { name: 'VIEW_AUDIT_LOGS', description: 'View audit logs', module: 'admin' },
+        }),
+        // Innovation permissions
+        prisma.permission.upsert({
+            where: { name: 'CREATE_IDEA' },
+            update: {},
+            create: { name: 'CREATE_IDEA', description: 'Submit ideas to innovation hub', module: 'innovation' },
+        }),
+        prisma.permission.upsert({
+            where: { name: 'EVALUATE_IDEA' },
+            update: {},
+            create: { name: 'EVALUATE_IDEA', description: 'Evaluate and vote on ideas', module: 'innovation' },
+        }),
+    ]);
+    console.log(`[seed] Permissions ensured: ${permissions.map((p) => p.name).join(', ')}`);
+
+    // Assign permissions to roles
+    const rolePermissionMap: Record<string, string[]> = {
+        ADMIN: ['CREATE_REQUEST', 'APPROVE_REQUEST', 'REJECT_REQUEST', 'VIEW_REPORTS', 'MANAGE_USERS', 'MANAGE_ROLES', 'SYSTEM_CONFIG', 'VIEW_AUDIT_LOGS', 'CREATE_IDEA', 'EVALUATE_IDEA'],
+        REQUESTER: ['CREATE_REQUEST', 'CREATE_IDEA'],
+        DEPT_MANAGER: ['APPROVE_REQUEST', 'VIEW_REPORTS'],
+        HEAD_OF_DIVISION: ['APPROVE_REQUEST', 'VIEW_REPORTS'],
+        PROCUREMENT_OFFICER: ['APPROVE_REQUEST', 'VIEW_REPORTS'],
+        PROCUREMENT_MANAGER: ['APPROVE_REQUEST', 'REJECT_REQUEST', 'VIEW_REPORTS'],
+        PROCUREMENT: ['APPROVE_REQUEST', 'VIEW_REPORTS'],
+        FINANCE: ['APPROVE_REQUEST', 'VIEW_REPORTS'],
+        BUDGET_MANAGER: ['APPROVE_REQUEST'],
+        INNOVATION_COMMITTEE: ['EVALUATE_IDEA'],
+        EVALUATION_COMMITTEE: ['EVALUATE_IDEA'],
+    };
+
+    for (const [roleName, permissionNames] of Object.entries(rolePermissionMap)) {
+        const role = roles.find((r) => r.name === roleName);
+        if (!role) continue;
+
+        // Delete existing role permissions
+        await prisma.rolePermission.deleteMany({
+            where: { roleId: role.id },
+        });
+
+        // Add new permissions
+        for (const permName of permissionNames) {
+            const perm = permissions.find((p) => p.name === permName);
+            if (perm) {
+                await prisma.rolePermission.create({
+                    data: {
+                        roleId: role.id,
+                        permissionId: perm.id,
+                    },
+                });
+            }
+        }
+        console.log(`[seed] Assigned ${permissionNames.length} permissions to role: ${roleName}`);
+    }
+
     console.log('[seed] Users ready:');
     console.log('\nDepartment Staff:');
     console.log('  staff1@bsj.gov.jm      (Password: Passw0rd!) [REQUESTER]');

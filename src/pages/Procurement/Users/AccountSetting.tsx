@@ -5,6 +5,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { IRootState } from '../../../store';
 import { getToken, getUser } from '../../../utils/auth';
 import { getApiUrl } from '../../../config/api';
+import { computeRoleContext, AccountSettingsVisibility } from '../../../utils/roleVisibilityHelper';
 import Swal from 'sweetalert2';
 import IconHome from '../../../components/Icon/IconHome';
 import IconDollarSignCircle from '../../../components/Icon/IconDollarSignCircle';
@@ -22,6 +23,7 @@ const AccountSetting = () => {
     const { user } = useSelector((state: IRootState) => state.auth);
     const [tabs, setTabs] = useState<string>('home');
     const [profileData, setProfileData] = useState<any>(null);
+    const [roleContext, setRoleContext] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [formData, setFormData] = useState({
@@ -76,21 +78,34 @@ const AccountSetting = () => {
 
                 if (response.ok) {
                     const data = await response.json();
-                    console.log('====== PROFILE DATA RESPONSE ======');
-                    console.log('Full response:', JSON.stringify(data, null, 2));
-                    console.log('profileImage field:', data.profileImage);
-                    console.log('Has profileImage key?', 'profileImage' in data);
-                    console.log('====== END ======');
+
+                    // Fallback: if profileImage is missing, fetch from dedicated endpoint
+                    if (!data.profileImage) {
+                        try {
+                            const photoResponse = await fetch(getApiUrl('/api/auth/profile-photo'), {
+                                headers: {
+                                    Authorization: `Bearer ${token}`,
+                                    'Content-Type': 'application/json',
+                                },
+                            });
+                            if (photoResponse.ok) {
+                                const photoData = await photoResponse.json();
+                                if (photoData.success && photoData.data?.profileImage) {
+                                    data.profileImage = photoData.data.profileImage;
+                                }
+                            }
+                        } catch (error) {
+                            console.warn('Could not fetch profile photo:', error);
+                        }
+                    }
 
                     setProfileData(data);
                     setProfileImage(data.profileImage || '');
 
                     // CRITICAL: If user has a profileImage in database, always show it
                     if (data.profileImage) {
-                        console.log('✅ Profile image found, enabling photo mode');
                         setUseProfileImage(true);
                     } else {
-                        console.log('❌ No profile image, keeping initials mode');
                         setUseProfileImage(false);
                     }
 
@@ -108,9 +123,12 @@ const AccountSetting = () => {
                         employeeId: data.employeeId || '',
                         supervisor: data.supervisor || '',
                     };
-                    console.log('Form data set to:', userData);
                     setFormData(userData);
                     setOriginalFormData(userData);
+
+                    // Compute role context for visibility rules
+                    const context = computeRoleContext(data.roles);
+                    setRoleContext(context);
                 }
             } catch (error) {
                 console.error('Error fetching profile data:', error);
@@ -296,6 +314,27 @@ const AccountSetting = () => {
                         });
                         if (response.ok) {
                             const updatedData = await response.json();
+
+                            // Fallback: if profileImage is missing, fetch from dedicated endpoint
+                            if (!updatedData.profileImage) {
+                                try {
+                                    const photoResponse = await fetch(getApiUrl('/api/auth/profile-photo'), {
+                                        headers: {
+                                            Authorization: `Bearer ${token}`,
+                                            'Content-Type': 'application/json',
+                                        },
+                                    });
+                                    if (photoResponse.ok) {
+                                        const photoData = await photoResponse.json();
+                                        if (photoData.success && photoData.data?.profileImage) {
+                                            updatedData.profileImage = photoData.data.profileImage;
+                                        }
+                                    }
+                                } catch (error) {
+                                    console.warn('Could not fetch profile photo:', error);
+                                }
+                            }
+
                             setProfileImage(updatedData.profileImage || '');
                         }
                     } catch (error) {
@@ -601,7 +640,7 @@ const AccountSetting = () => {
                                         </div>
                                     </div>
                                 </form>
-                                {profileData?.roles?.some((role: string) => ['PROCUREMENT_MANAGER', 'PROCUREMENT_OFFICER', 'DEPT_MANAGER', 'BUDGET_MANAGER', 'EXECUTIVE_DIRECTOR'].includes(role)) && (
+                                {roleContext && AccountSettingsVisibility.shouldShowProcurementPermissions(roleContext) && (
                                     <form className="border border-[#ebedf2] dark:border-[#191e3a] rounded-md p-4 bg-white dark:bg-black">
                                         <h6 className="text-lg font-bold mb-5">Procurement Access & Permissions</h6>
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
@@ -691,9 +730,7 @@ const AccountSetting = () => {
                                             <span className="bg-[#ebedf2] dark:bg-dark block h-full rounded-full before:absolute before:left-1 before:bg-white  dark:before:bg-white-dark dark:peer-checked:before:bg-white before:bottom-1 before:w-4 before:h-4 before:rounded-full peer-checked:before:left-7 peer-checked:bg-primary before:transition-all before:duration-300"></span>
                                         </label>
                                     </div>
-                                    {profileData?.roles?.some((role: string) =>
-                                        ['PROCUREMENT_MANAGER', 'PROCUREMENT_OFFICER', 'DEPT_MANAGER', 'BUDGET_MANAGER', 'EXECUTIVE_DIRECTOR'].includes(role)
-                                    ) && (
+                                    {roleContext && AccountSettingsVisibility.shouldShowProcurementPreferences(roleContext) && (
                                         <>
                                             <div className="panel space-y-5">
                                                 <h5 className="font-semibold text-lg mb-4">Auto-Approve Low-Value Items</h5>

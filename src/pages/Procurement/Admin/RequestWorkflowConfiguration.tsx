@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { setPageTitle } from '../../../store/themeConfigSlice';
-import { getApiUrl } from '../../../config/api';
+import adminService from '../../../services/adminService';
 import IconLoader from '../../../components/Icon/IconLoader';
 import IconSquareCheck from '../../../components/Icon/IconSquareCheck';
 import IconAlertCircle from '../../../components/Icon/IconAlertCircle';
@@ -11,71 +11,35 @@ import IconPlus from '../../../components/Icon/IconPlus';
 import IconTrash from '../../../components/Icon/IconTrash';
 
 interface WorkflowStatus {
-    id: string;
+    id: number;
+    statusId: string;
     name: string;
-    code: string;
-    description: string;
+    description?: string | null;
     color: string;
-    order: number;
-    requiresApproval: boolean;
-    allowsTransition: string[];
+    icon?: string | null;
+    displayOrder: number;
+    isActive: boolean;
+    createdAt: string;
+    updatedAt: string;
 }
 
 interface WorkflowSLA {
+    id: number;
+    slaId: string;
+    name: string;
+    description?: string | null;
     fromStatus: string;
     toStatus: string;
-    hours: number;
+    slaHours: number;
+    isActive: boolean;
+    createdAt: string;
+    updatedAt: string;
 }
 
 const RequestWorkflowConfiguration = () => {
     const dispatch = useDispatch();
-    const [statuses, setStatuses] = useState<WorkflowStatus[]>([
-        {
-            id: '1',
-            name: 'Draft',
-            code: 'DRAFT',
-            description: 'Initial request draft',
-            color: 'gray',
-            order: 1,
-            requiresApproval: false,
-            allowsTransition: ['SUBMITTED', 'REJECTED'],
-        },
-        {
-            id: '2',
-            name: 'Submitted',
-            code: 'SUBMITTED',
-            description: 'Submitted for review',
-            color: 'blue',
-            order: 2,
-            requiresApproval: true,
-            allowsTransition: ['APPROVED', 'REJECTED'],
-        },
-        {
-            id: '3',
-            name: 'Approved',
-            code: 'APPROVED',
-            description: 'Approved by manager',
-            color: 'green',
-            order: 3,
-            requiresApproval: false,
-            allowsTransition: ['PROCESSING', 'CANCELLED'],
-        },
-        {
-            id: '4',
-            name: 'Rejected',
-            code: 'REJECTED',
-            description: 'Rejected by reviewer',
-            color: 'red',
-            order: 4,
-            requiresApproval: false,
-            allowsTransition: ['DRAFT'],
-        },
-    ]);
-
-    const [slas, setSlas] = useState<WorkflowSLA[]>([
-        { fromStatus: 'SUBMITTED', toStatus: 'APPROVED', hours: 48 },
-        { fromStatus: 'DRAFT', toStatus: 'SUBMITTED', hours: 72 },
-    ]);
+    const [statuses, setStatuses] = useState<WorkflowStatus[]>([]);
+    const [slas, setSlas] = useState<WorkflowSLA[]>([]);
 
     const [loading, setLoading] = useState(false);
     const [showStatusForm, setShowStatusForm] = useState(false);
@@ -86,18 +50,21 @@ const RequestWorkflowConfiguration = () => {
     const [error, setError] = useState('');
 
     const [formData, setFormData] = useState({
+        statusId: '',
         name: '',
-        code: '',
         description: '',
-        color: 'blue',
-        requiresApproval: false,
-        allowsTransition: [] as string[],
+        color: '#3B82F6',
+        icon: '',
+        displayOrder: 0,
     });
 
     const [slaData, setSLAData] = useState({
+        slaId: '',
+        name: '',
+        description: '',
         fromStatus: '',
         toStatus: '',
-        hours: 48,
+        slaHours: 48,
     });
 
     useEffect(() => {
@@ -108,23 +75,11 @@ const RequestWorkflowConfiguration = () => {
     const loadWorkflowConfig = async () => {
         setLoading(true);
         try {
-            const [statusRes, slaRes] = await Promise.all([fetch(getApiUrl('/api/admin/workflow-statuses')).catch(() => null), fetch(getApiUrl('/api/admin/workflow-slas')).catch(() => null)]);
+            const [statusesData, slasData] = await Promise.all([adminService.getWorkflowStatuses(), adminService.getWorkflowSLAs()]);
 
-            if (statusRes?.ok) {
-                const data = await statusRes.json();
-                const statuses = Array.isArray(data) ? data : data.data || [];
-                setStatuses(statuses);
-            } else {
-                console.warn('Failed to load workflow statuses');
-            }
-
-            if (slaRes?.ok) {
-                const data = await slaRes.json();
-                const slaData = Array.isArray(data) ? data : data.data || [];
-                setSlas(slaData);
-            } else {
-                console.warn('Failed to load workflow SLAs');
-            }
+            setStatuses(Array.isArray(statusesData) ? statusesData : []);
+            setSlas(Array.isArray(slasData) ? slasData : []);
+            setError('');
         } catch (e: any) {
             console.error('Error loading workflow config:', e.message);
             setError(e.message);
@@ -136,12 +91,12 @@ const RequestWorkflowConfiguration = () => {
     const handleAddStatus = () => {
         setEditingStatus(null);
         setFormData({
+            statusId: '',
             name: '',
-            code: '',
             description: '',
-            color: 'blue',
-            requiresApproval: false,
-            allowsTransition: [],
+            color: '#3B82F6',
+            icon: '',
+            displayOrder: statuses.length,
         });
         setShowStatusForm(true);
     };
@@ -149,38 +104,44 @@ const RequestWorkflowConfiguration = () => {
     const handleEditStatus = (status: WorkflowStatus) => {
         setEditingStatus(status);
         setFormData({
+            statusId: status.statusId,
             name: status.name,
-            code: status.code,
-            description: status.description,
+            description: status.description || '',
             color: status.color,
-            requiresApproval: status.requiresApproval,
-            allowsTransition: status.allowsTransition,
+            icon: status.icon || '',
+            displayOrder: status.displayOrder,
         });
         setShowStatusForm(true);
     };
 
     const handleSaveStatus = async () => {
-        if (!formData.name || !formData.code) {
-            setError('Name and code are required');
+        if (!formData.name || !formData.statusId) {
+            setError('Name and Status ID are required');
             return;
         }
 
         setLoading(true);
         try {
-            await new Promise((resolve) => setTimeout(resolve, 600));
-
             if (editingStatus) {
-                setStatuses(statuses.map((s) => (s.id === editingStatus.id ? { ...editingStatus, ...formData } : s)));
+                const updated = await adminService.updateWorkflowStatus(editingStatus.id, {
+                    name: formData.name,
+                    description: formData.description,
+                    color: formData.color,
+                    icon: formData.icon,
+                    displayOrder: formData.displayOrder,
+                });
+                setStatuses(statuses.map((s) => (s.id === editingStatus.id ? { ...s, ...updated } : s)));
                 setSuccess('Status updated successfully');
             } else {
-                setStatuses([
-                    ...statuses,
-                    {
-                        id: Date.now().toString(),
-                        ...formData,
-                        order: statuses.length + 1,
-                    },
-                ]);
+                const created = await adminService.createWorkflowStatus({
+                    statusId: formData.statusId,
+                    name: formData.name,
+                    description: formData.description,
+                    color: formData.color,
+                    icon: formData.icon,
+                    displayOrder: formData.displayOrder,
+                });
+                setStatuses([...statuses, created]);
                 setSuccess('Status created successfully');
             }
 
@@ -193,12 +154,12 @@ const RequestWorkflowConfiguration = () => {
         }
     };
 
-    const handleDeleteStatus = async (id: string) => {
+    const handleDeleteStatus = async (id: number) => {
         if (!confirm('Delete this status? Requests using it may be affected.')) return;
 
         setLoading(true);
         try {
-            await new Promise((resolve) => setTimeout(resolve, 600));
+            await adminService.deleteWorkflowStatus(id);
             setStatuses(statuses.filter((s) => s.id !== id));
             setSuccess('Status deleted successfully');
             setTimeout(() => setSuccess(''), 2000);
@@ -212,28 +173,44 @@ const RequestWorkflowConfiguration = () => {
     const handleAddSLA = () => {
         setEditingSLA(null);
         setSLAData({
+            slaId: '',
+            name: '',
+            description: '',
             fromStatus: '',
             toStatus: '',
-            hours: 48,
+            slaHours: 48,
         });
         setShowSLAForm(true);
     };
 
     const handleSaveSLA = async () => {
-        if (!slaData.fromStatus || !slaData.toStatus) {
-            setError('Both statuses are required');
+        if (!slaData.name || !slaData.fromStatus || !slaData.toStatus || !slaData.slaHours) {
+            setError('All fields are required');
             return;
         }
 
         setLoading(true);
         try {
-            await new Promise((resolve) => setTimeout(resolve, 600));
-
             if (editingSLA) {
-                setSlas(slas.map((s) => (s.fromStatus === editingSLA.fromStatus && s.toStatus === editingSLA.toStatus ? slaData : s)));
+                const updated = await adminService.updateWorkflowSLA(editingSLA.id, {
+                    name: slaData.name,
+                    description: slaData.description,
+                    fromStatus: slaData.fromStatus,
+                    toStatus: slaData.toStatus,
+                    slaHours: slaData.slaHours,
+                });
+                setSlas(slas.map((s) => (s.id === editingSLA.id ? { ...s, ...updated } : s)));
                 setSuccess('SLA updated successfully');
             } else {
-                setSlas([...slas, slaData]);
+                const created = await adminService.createWorkflowSLA({
+                    slaId: slaData.slaId || `${slaData.fromStatus}-${slaData.toStatus}`,
+                    name: slaData.name,
+                    description: slaData.description,
+                    fromStatus: slaData.fromStatus,
+                    toStatus: slaData.toStatus,
+                    slaHours: slaData.slaHours,
+                });
+                setSlas([...slas, created]);
                 setSuccess('SLA created successfully');
             }
 
@@ -246,13 +223,13 @@ const RequestWorkflowConfiguration = () => {
         }
     };
 
-    const handleDeleteSLA = async (from: string, to: string) => {
+    const handleDeleteSLA = async (id: number) => {
         if (!confirm('Delete this SLA?')) return;
 
         setLoading(true);
         try {
-            await new Promise((resolve) => setTimeout(resolve, 600));
-            setSlas(slas.filter((s) => !(s.fromStatus === from && s.toStatus === to)));
+            await adminService.deleteWorkflowSLA(id);
+            setSlas(slas.filter((s) => s.id !== id));
             setSuccess('SLA deleted successfully');
             setTimeout(() => setSuccess(''), 2000);
         } catch (e: any) {
@@ -262,11 +239,9 @@ const RequestWorkflowConfiguration = () => {
         }
     };
 
-    const getStatusDisplay = (code: string) => {
-        return statuses.find((s) => s.code === code)?.name || code;
+    const getStatusDisplay = (statusId: string) => {
+        return statuses.find((s) => s.statusId === statusId)?.name || statusId;
     };
-
-    const colorOptions = ['gray', 'blue', 'green', 'red', 'yellow', 'purple', 'pink', 'indigo'];
 
     return (
         <div className="space-y-6">
@@ -290,208 +265,255 @@ const RequestWorkflowConfiguration = () => {
                 </div>
             )}
 
-            {/* Status Form Modal */}
-            {showStatusForm && (
-                <div className="panel bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700/40">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-xl font-bold">{editingStatus ? 'Edit Status' : 'Add New Status'}</h2>
-                        <button onClick={() => setShowStatusForm(false)}>
-                            <IconX className="w-5 h-5" />
-                        </button>
-                    </div>
-                    <div className="space-y-4">
-                        <input type="text" placeholder="Status Name" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="form-input w-full" />
-                        <input
-                            type="text"
-                            placeholder="Status Code (e.g., APPROVED)"
-                            value={formData.code}
-                            onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
-                            className="form-input w-full"
-                        />
-                        <textarea
-                            placeholder="Description"
-                            value={formData.description}
-                            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                            className="form-textarea w-full"
-                            rows={2}
-                        />
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm font-semibold mb-2">Color</label>
-                                <select value={formData.color} onChange={(e) => setFormData({ ...formData, color: e.target.value })} className="form-select w-full">
-                                    {colorOptions.map((c) => (
-                                        <option key={c} value={c}>
-                                            {c.charAt(0).toUpperCase() + c.slice(1)}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div className="flex items-end">
-                                <label className="flex items-center gap-2 cursor-pointer">
-                                    <input
-                                        type="checkbox"
-                                        checked={formData.requiresApproval}
-                                        onChange={(e) => setFormData({ ...formData, requiresApproval: e.target.checked })}
-                                        className="form-checkbox"
-                                    />
-                                    <span className="text-sm font-semibold">Requires Approval</span>
-                                </label>
-                            </div>
-                        </div>
-                        <div className="flex gap-2">
-                            <button onClick={handleSaveStatus} disabled={loading} className="btn btn-primary">
-                                {loading ? 'Saving...' : 'Save Status'}
-                            </button>
-                            <button onClick={() => setShowStatusForm(false)} className="btn btn-outline">
-                                Cancel
-                            </button>
-                        </div>
-                    </div>
+            {loading && statuses.length === 0 && (
+                <div className="flex items-center justify-center py-12">
+                    <IconLoader className="w-8 h-8 animate-spin text-blue-500" />
+                    <span className="ml-2 text-gray-600 dark:text-gray-400">Loading configuration...</span>
                 </div>
             )}
 
-            {/* SLA Form Modal */}
-            {showSLAForm && (
-                <div className="panel bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-700/40">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-xl font-bold">{editingSLA ? 'Edit SLA' : 'Add New SLA'}</h2>
-                        <button onClick={() => setShowSLAForm(false)}>
-                            <IconX className="w-5 h-5" />
-                        </button>
-                    </div>
-                    <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm font-semibold mb-2">From Status</label>
-                                <select value={slaData.fromStatus} onChange={(e) => setSLAData({ ...slaData, fromStatus: e.target.value })} className="form-select w-full">
-                                    <option value="">Select status</option>
-                                    {statuses.map((s) => (
-                                        <option key={s.id} value={s.code}>
-                                            {s.name}
-                                        </option>
-                                    ))}
-                                </select>
+            {!loading && (
+                <>
+                    {/* Status Form Modal */}
+                    {showStatusForm && (
+                        <div className="panel bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700/40">
+                            <div className="flex items-center justify-between mb-4">
+                                <h2 className="text-xl font-bold">{editingStatus ? 'Edit Status' : 'Add New Status'}</h2>
+                                <button onClick={() => setShowStatusForm(false)}>
+                                    <IconX className="w-5 h-5" />
+                                </button>
                             </div>
-                            <div>
-                                <label className="block text-sm font-semibold mb-2">To Status</label>
-                                <select value={slaData.toStatus} onChange={(e) => setSLAData({ ...slaData, toStatus: e.target.value })} className="form-select w-full">
-                                    <option value="">Select status</option>
-                                    {statuses.map((s) => (
-                                        <option key={s.id} value={s.code}>
-                                            {s.name}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                        </div>
-                        <input
-                            type="number"
-                            placeholder="Hours"
-                            value={slaData.hours}
-                            onChange={(e) => setSLAData({ ...slaData, hours: parseInt(e.target.value) })}
-                            className="form-input w-full"
-                            min="1"
-                        />
-                        <div className="flex gap-2">
-                            <button onClick={handleSaveSLA} disabled={loading} className="btn btn-primary">
-                                {loading ? 'Saving...' : 'Save SLA'}
-                            </button>
-                            <button onClick={() => setShowSLAForm(false)} className="btn btn-outline">
-                                Cancel
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Workflow Statuses */}
-            <div>
-                <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-xl font-bold">Workflow Statuses</h2>
-                    <button onClick={handleAddStatus} className="btn btn-primary btn-sm">
-                        <IconPlus className="w-4 h-4 mr-2" />
-                        Add Status
-                    </button>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {statuses.map((status) => (
-                        <div key={status.id} className="panel p-4 border-l-4 border-l-blue-500">
-                            <div className="flex items-start justify-between">
-                                <div>
-                                    <h3 className="font-bold text-lg">{status.name}</h3>
-                                    <p className="text-sm text-gray-500 dark:text-gray-400 font-mono">{status.code}</p>
-                                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{status.description}</p>
-                                    <div className="flex gap-2 mt-3">
-                                        {status.requiresApproval && <span className="badge badge-warning text-xs">Requires Approval</span>}
-                                        <span className={`badge text-xs bg-${status.color}-100 text-${status.color}-800`}>{status.color}</span>
+                            <div className="space-y-4">
+                                <input
+                                    type="text"
+                                    placeholder="Status ID (e.g., SUBMITTED)"
+                                    value={formData.statusId}
+                                    onChange={(e) => setFormData({ ...formData, statusId: e.target.value.toUpperCase() })}
+                                    disabled={!!editingStatus}
+                                    className="form-input w-full"
+                                />
+                                <input type="text" placeholder="Status Name" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="form-input w-full" />
+                                <textarea
+                                    placeholder="Description"
+                                    value={formData.description}
+                                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                                    className="form-textarea w-full"
+                                    rows={2}
+                                />
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-semibold mb-2">Color (Hex)</label>
+                                        <input
+                                            type="text"
+                                            placeholder="#3B82F6"
+                                            value={formData.color}
+                                            onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+                                            className="form-input w-full"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold mb-2">Display Order</label>
+                                        <input
+                                            type="number"
+                                            value={formData.displayOrder}
+                                            onChange={(e) => setFormData({ ...formData, displayOrder: parseInt(e.target.value) })}
+                                            className="form-input w-full"
+                                            min="0"
+                                        />
                                     </div>
                                 </div>
+                                <div>
+                                    <label className="block text-sm font-semibold mb-2">Icon</label>
+                                    <input
+                                        type="text"
+                                        placeholder="Icon name or emoji"
+                                        value={formData.icon}
+                                        onChange={(e) => setFormData({ ...formData, icon: e.target.value })}
+                                        className="form-input w-full"
+                                    />
+                                </div>
                                 <div className="flex gap-2">
-                                    <button onClick={() => handleEditStatus(status)} className="btn btn-sm btn-outline-primary">
-                                        <IconEdit className="w-4 h-4" />
+                                    <button onClick={handleSaveStatus} disabled={loading} className="btn btn-primary">
+                                        {loading ? 'Saving...' : 'Save Status'}
                                     </button>
-                                    <button onClick={() => handleDeleteStatus(status.id)} className="btn btn-sm btn-outline-danger">
-                                        <IconTrash className="w-4 h-4" />
+                                    <button onClick={() => setShowStatusForm(false)} className="btn btn-outline">
+                                        Cancel
                                     </button>
                                 </div>
                             </div>
                         </div>
-                    ))}
-                </div>
-            </div>
+                    )}
 
-            {/* SLA Configuration */}
-            <div>
-                <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-xl font-bold">SLA Configuration</h2>
-                    <button onClick={handleAddSLA} className="btn btn-primary btn-sm">
-                        <IconPlus className="w-4 h-4 mr-2" />
-                        Add SLA
-                    </button>
-                </div>
+                    {/* SLA Form Modal */}
+                    {showSLAForm && (
+                        <div className="panel bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-700/40">
+                            <div className="flex items-center justify-between mb-4">
+                                <h2 className="text-xl font-bold">{editingSLA ? 'Edit SLA' : 'Add New SLA'}</h2>
+                                <button onClick={() => setShowSLAForm(false)}>
+                                    <IconX className="w-5 h-5" />
+                                </button>
+                            </div>
+                            <div className="space-y-4">
+                                <input type="text" placeholder="SLA ID" value={slaData.slaId} onChange={(e) => setSLAData({ ...slaData, slaId: e.target.value })} className="form-input w-full" />
+                                <input type="text" placeholder="SLA Name" value={slaData.name} onChange={(e) => setSLAData({ ...slaData, name: e.target.value })} className="form-input w-full" />
+                                <textarea
+                                    placeholder="Description"
+                                    value={slaData.description}
+                                    onChange={(e) => setSLAData({ ...slaData, description: e.target.value })}
+                                    className="form-textarea w-full"
+                                    rows={2}
+                                />
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-semibold mb-2">From Status</label>
+                                        <select value={slaData.fromStatus} onChange={(e) => setSLAData({ ...slaData, fromStatus: e.target.value })} className="form-select w-full">
+                                            <option value="">Select status</option>
+                                            {statuses.map((s) => (
+                                                <option key={s.id} value={s.statusId}>
+                                                    {s.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold mb-2">To Status</label>
+                                        <select value={slaData.toStatus} onChange={(e) => setSLAData({ ...slaData, toStatus: e.target.value })} className="form-select w-full">
+                                            <option value="">Select status</option>
+                                            {statuses.map((s) => (
+                                                <option key={s.id} value={s.statusId}>
+                                                    {s.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+                                <input
+                                    type="number"
+                                    placeholder="Hours"
+                                    value={slaData.slaHours}
+                                    onChange={(e) => setSLAData({ ...slaData, slaHours: parseInt(e.target.value) })}
+                                    className="form-input w-full"
+                                    min="1"
+                                />
+                                <div className="flex gap-2">
+                                    <button onClick={handleSaveSLA} disabled={loading} className="btn btn-primary">
+                                        {loading ? 'Saving...' : 'Save SLA'}
+                                    </button>
+                                    <button onClick={() => setShowSLAForm(false)} className="btn btn-outline">
+                                        Cancel
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
-                <div className="overflow-x-auto">
-                    <table className="w-full">
-                        <thead>
-                            <tr className="border-b-2 border-gray-200 dark:border-gray-700">
-                                <th className="px-4 py-3 text-left font-semibold">From Status</th>
-                                <th className="px-4 py-3 text-left font-semibold">To Status</th>
-                                <th className="px-4 py-3 text-left font-semibold">SLA Hours</th>
-                                <th className="px-4 py-3 text-left font-semibold">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {slas.map((sla, idx) => (
-                                <tr key={idx} className="border-b border-gray-100 dark:border-gray-800">
-                                    <td className="px-4 py-3">{getStatusDisplay(sla.fromStatus)}</td>
-                                    <td className="px-4 py-3">{getStatusDisplay(sla.toStatus)}</td>
-                                    <td className="px-4 py-3">
-                                        <span className="badge badge-info">{sla.hours}h</span>
-                                    </td>
-                                    <td className="px-4 py-3">
+                    {/* Workflow Statuses */}
+                    <div>
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 className="text-xl font-bold">Workflow Statuses</h2>
+                            <button onClick={handleAddStatus} className="btn btn-primary btn-sm">
+                                <IconPlus className="w-4 h-4 mr-2" />
+                                Add Status
+                            </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {statuses.map((status) => (
+                                <div key={status.id} className="panel p-4 border-l-4" style={{ borderLeftColor: status.color }}>
+                                    <div className="flex items-start justify-between">
+                                        <div>
+                                            <h3 className="font-bold text-lg">{status.name}</h3>
+                                            <p className="text-sm text-gray-500 dark:text-gray-400 font-mono">{status.statusId}</p>
+                                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{status.description}</p>
+                                            <div className="flex gap-2 mt-3">
+                                                <span className="badge text-xs" style={{ backgroundColor: status.color + '20', color: status.color }}>
+                                                    Order: {status.displayOrder}
+                                                </span>
+                                                {status.icon && <span className="badge text-xs">{status.icon}</span>}
+                                                {!status.isActive && <span className="badge badge-danger text-xs">Inactive</span>}
+                                            </div>
+                                        </div>
                                         <div className="flex gap-2">
-                                            <button
-                                                onClick={() => {
-                                                    setEditingSLA(sla);
-                                                    setSLAData(sla);
-                                                    setShowSLAForm(true);
-                                                }}
-                                                className="btn btn-sm btn-outline-primary"
-                                            >
+                                            <button onClick={() => handleEditStatus(status)} className="btn btn-sm btn-outline-primary">
                                                 <IconEdit className="w-4 h-4" />
                                             </button>
-                                            <button onClick={() => handleDeleteSLA(sla.fromStatus, sla.toStatus)} className="btn btn-sm btn-outline-danger">
+                                            <button onClick={() => handleDeleteStatus(status.id)} className="btn btn-sm btn-outline-danger">
                                                 <IconTrash className="w-4 h-4" />
                                             </button>
                                         </div>
-                                    </td>
-                                </tr>
+                                    </div>
+                                </div>
                             ))}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+                        </div>
+                    </div>
+
+                    {/* SLA Configuration */}
+                    <div>
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 className="text-xl font-bold">SLA Configuration</h2>
+                            <button onClick={handleAddSLA} className="btn btn-primary btn-sm">
+                                <IconPlus className="w-4 h-4 mr-2" />
+                                Add SLA
+                            </button>
+                        </div>
+
+                        <div className="overflow-x-auto">
+                            <table className="w-full">
+                                <thead>
+                                    <tr className="border-b-2 border-gray-200 dark:border-gray-700">
+                                        <th className="px-4 py-3 text-left font-semibold">Name</th>
+                                        <th className="px-4 py-3 text-left font-semibold">From Status</th>
+                                        <th className="px-4 py-3 text-left font-semibold">To Status</th>
+                                        <th className="px-4 py-3 text-left font-semibold">SLA Hours</th>
+                                        <th className="px-4 py-3 text-left font-semibold">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {slas.map((sla) => (
+                                        <tr key={sla.id} className="border-b border-gray-100 dark:border-gray-800">
+                                            <td className="px-4 py-3">
+                                                <div>
+                                                    <p className="font-semibold">{sla.name}</p>
+                                                    {sla.description && <p className="text-xs text-gray-500 dark:text-gray-400">{sla.description}</p>}
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-3">{getStatusDisplay(sla.fromStatus)}</td>
+                                            <td className="px-4 py-3">{getStatusDisplay(sla.toStatus)}</td>
+                                            <td className="px-4 py-3">
+                                                <span className="badge badge-info">{sla.slaHours}h</span>
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <div className="flex gap-2">
+                                                    <button
+                                                        onClick={() => {
+                                                            setEditingSLA(sla);
+                                                            setSLAData({
+                                                                slaId: sla.slaId,
+                                                                name: sla.name,
+                                                                description: sla.description || '',
+                                                                fromStatus: sla.fromStatus,
+                                                                toStatus: sla.toStatus,
+                                                                slaHours: sla.slaHours,
+                                                            });
+                                                            setShowSLAForm(true);
+                                                        }}
+                                                        className="btn btn-sm btn-outline-primary"
+                                                    >
+                                                        <IconEdit className="w-4 h-4" />
+                                                    </button>
+                                                    <button onClick={() => handleDeleteSLA(sla.id)} className="btn btn-sm btn-outline-danger">
+                                                        <IconTrash className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </>
+            )}
         </div>
     );
 };

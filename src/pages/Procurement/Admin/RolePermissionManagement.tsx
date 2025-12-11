@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { setPageTitle } from '../../../store/themeConfigSlice';
 import { getApiUrl } from '../../../config/api';
+import { getAuthHeaders } from '../../../utils/api';
 import IconLoader from '../../../components/Icon/IconLoader';
 import IconSquareCheck from '../../../components/Icon/IconSquareCheck';
 import IconAlertCircle from '../../../components/Icon/IconAlertCircle';
@@ -56,14 +57,19 @@ const RolePermissionManagement = () => {
     const loadData = async () => {
         setLoading(true);
         try {
-            const [rolesRes, permsRes] = await Promise.all([fetch(getApiUrl('/api/admin/roles')).catch(() => null), fetch(getApiUrl('/api/admin/permissions')).catch(() => null)]);
+            const authHeaders = getAuthHeaders();
 
+            const [rolesRes, permsRes] = await Promise.all([
+                fetch(getApiUrl('/api/admin/roles'), { headers: authHeaders }).catch(() => null),
+                fetch(getApiUrl('/api/admin/permissions'), { headers: authHeaders }).catch(() => null),
+            ]);
+
+            let loadedRoles: Role[] = [];
             if (rolesRes?.ok) {
                 const data = await rolesRes.json();
-                setRoles(Array.isArray(data) ? data : data.data || data.roles || []);
+                loadedRoles = Array.isArray(data) ? data : data.data || data.roles || [];
             } else {
                 console.warn('Failed to fetch roles');
-                setRoles([]);
             }
 
             if (permsRes?.ok) {
@@ -73,6 +79,29 @@ const RolePermissionManagement = () => {
                 console.warn('Failed to fetch permissions');
                 setPermissions([]);
             }
+
+            // Fetch permissions for each role and populate them
+            const rolesWithPermissions = await Promise.all(
+                loadedRoles.map(async (role) => {
+                    try {
+                        const permRes = await fetch(getApiUrl(`/api/admin/roles/${role.id}/permissions`), {
+                            headers: authHeaders,
+                        });
+                        if (permRes.ok) {
+                            const permData = await permRes.json();
+                            return {
+                                ...role,
+                                permissions: permData.assignedPermissions || [],
+                            };
+                        }
+                    } catch (e) {
+                        console.warn(`Failed to load permissions for role ${role.id}:`, e);
+                    }
+                    return role;
+                })
+            );
+
+            setRoles(rolesWithPermissions);
         } catch (e: any) {
             console.error('Error loading data:', e);
             setError(e.message);
@@ -99,6 +128,28 @@ const RolePermissionManagement = () => {
             permissions: [...(role.permissions || [])],
         });
         setShowRoleForm(true);
+
+        // Load permissions for this role from backend
+        loadRolePermissions(role.id);
+    };
+
+    const loadRolePermissions = async (roleId: string | number) => {
+        try {
+            const authHeaders = getAuthHeaders();
+            const response = await fetch(getApiUrl(`/api/admin/roles/${roleId}/permissions`), {
+                headers: authHeaders,
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setRoleFormData((prev) => ({
+                    ...prev,
+                    permissions: data.assignedPermissions.map((pId: number) => pId.toString()),
+                }));
+            }
+        } catch (e) {
+            console.warn('Failed to load role permissions:', e);
+        }
     };
 
     const handleSaveRole = async () => {
@@ -109,41 +160,93 @@ const RolePermissionManagement = () => {
 
         setProcessing(true);
         try {
-            await new Promise((resolve) => setTimeout(resolve, 800));
+            const authHeaders = getAuthHeaders();
+            let response;
 
             if (editingRole) {
+                // Update existing role
+                response = await fetch(getApiUrl(`/api/admin/roles/${editingRole.id}`), {
+                    method: 'PUT',
+                    headers: authHeaders,
+                    body: JSON.stringify({
+                        name: roleFormData.name,
+                        description: roleFormData.description,
+                    }),
+                });
+
+                if (!response.ok) {
+                    const errData = await response.json();
+                    throw new Error(errData.message || 'Failed to update role');
+                }
+
+                const updated = await response.json();
                 setRoles(
                     roles.map((r) =>
                         r.id === editingRole.id
                             ? {
                                   ...r,
-                                  name: roleFormData.name,
-                                  description: roleFormData.description,
-                                  permissions: roleFormData.permissions,
+                                  name: updated.name,
+                                  description: updated.description,
                               }
                             : r
                     )
                 );
                 setSuccess('Role updated successfully');
             } else {
+                // Create new role
+                response = await fetch(getApiUrl('/api/admin/roles'), {
+                    method: 'POST',
+                    headers: authHeaders,
+                    body: JSON.stringify({
+                        name: roleFormData.name,
+                        description: roleFormData.description,
+                    }),
+                });
+
+                if (!response.ok) {
+                    const errData = await response.json();
+                    throw new Error(errData.message || 'Failed to create role');
+                }
+
+                const created = await response.json();
                 setRoles([
                     ...roles,
                     {
-                        id: Date.now().toString(),
-                        name: roleFormData.name,
-                        description: roleFormData.description,
-                        permissions: roleFormData.permissions,
-                        userCount: 0,
+                        id: created.id,
+                        name: created.name,
+                        description: created.description,
+                        permissions: [],
+                        userCount: created.userCount || 0,
                         createdAt: new Date().toISOString().split('T')[0],
                     },
                 ]);
                 setSuccess('Role created successfully');
             }
 
+            // Save permissions if any are selected
+            if (roleFormData.permissions.length > 0) {
+                const roleId = editingRole?.id || roles[roles.length - 1].id;
+                const permResponse = await fetch(getApiUrl(`/api/admin/roles/${roleId}/permissions`), {
+                    method: 'POST',
+                    headers: authHeaders,
+                    body: JSON.stringify({
+                        permissionIds: roleFormData.permissions.map((p) => {
+                            const perm = permissions.find((pf) => pf.id.toString() === p || pf.name === p);
+                            return perm?.id || parseInt(p);
+                        }),
+                    }),
+                });
+
+                if (!permResponse.ok) {
+                    console.warn('Failed to save permissions');
+                }
+            }
+
             setShowRoleForm(false);
             setTimeout(() => setSuccess(''), 2000);
         } catch (e: any) {
-            setError(e.message);
+            setError(e.message || 'Failed to save role');
+            console.error('Error saving role:', e);
         } finally {
             setProcessing(false);
         }
@@ -154,12 +257,23 @@ const RolePermissionManagement = () => {
 
         setProcessing(true);
         try {
-            await new Promise((resolve) => setTimeout(resolve, 600));
+            const authHeaders = getAuthHeaders();
+            const response = await fetch(getApiUrl(`/api/admin/roles/${id}`), {
+                method: 'DELETE',
+                headers: authHeaders,
+            });
+
+            if (!response.ok) {
+                const errData = await response.json();
+                throw new Error(errData.message || 'Failed to delete role');
+            }
+
             setRoles(roles.filter((r) => r.id !== id));
             setSuccess('Role deleted successfully');
             setTimeout(() => setSuccess(''), 2000);
         } catch (e: any) {
-            setError(e.message);
+            setError(e.message || 'Failed to delete role');
+            console.error('Error deleting role:', e);
         } finally {
             setProcessing(false);
         }
@@ -333,14 +447,18 @@ const RolePermissionManagement = () => {
                             <div className="p-3 bg-gray-50 dark:bg-gray-900/20 rounded">
                                 <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2">Permissions:</p>
                                 <div className="flex flex-wrap gap-2">
-                                    {(role.permissions || []).map((permId) => {
-                                        const perm = permissions.find((p) => p.id === permId);
-                                        return perm ? (
-                                            <span key={permId} className="badge badge-outline-primary text-xs">
-                                                {perm.name}
-                                            </span>
-                                        ) : null;
-                                    })}
+                                    {(role.permissions || []).length > 0 ? (
+                                        (role.permissions || []).map((permId) => {
+                                            const perm = permissions.find((p) => p.id === permId || p.id === parseInt(permId as any));
+                                            return perm ? (
+                                                <span key={permId} className="badge badge-outline-primary text-xs">
+                                                    {perm.name}
+                                                </span>
+                                            ) : null;
+                                        })
+                                    ) : (
+                                        <p className="text-xs text-gray-500 italic">No permissions assigned</p>
+                                    )}
                                 </div>
                             </div>
                         </div>

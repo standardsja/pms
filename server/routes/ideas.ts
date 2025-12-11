@@ -13,7 +13,7 @@ import { logger } from '../config/logger';
 import { cacheGet, cacheSet, cacheDeletePattern } from '../config/redis';
 import { asyncHandler, BadRequestError, NotFoundError } from '../middleware/errorHandler';
 import { authMiddleware, requireCommittee } from '../middleware/auth';
-import { validate, createIdeaSchema, voteSchema, approveRejectIdeaSchema } from '../middleware/validation';
+import { validate, createIdeaSchema, voteSchema, approveRejectIdeaSchema, promoteIdeaSchema } from '../middleware/validation';
 import { updateIdeaTrendingScore } from '../services/trendingService';
 import { searchIdeas, getSearchSuggestions } from '../services/searchService';
 import { findPotentialDuplicates } from '../services/duplicateDetectionService';
@@ -86,25 +86,20 @@ router.get(
     '/counts',
     authMiddleware,
     asyncHandler(async (req, res) => {
-        try {
-            const counts = await prisma.$transaction(async (tx) => {
-                const [pending, approved, rejected, promoted, draft, total] = await Promise.all([
-                    tx.idea.count({ where: { status: 'PENDING_REVIEW' } }),
-                    tx.idea.count({ where: { status: 'APPROVED' } }),
-                    tx.idea.count({ where: { status: 'REJECTED' } }),
-                    tx.idea.count({ where: { status: 'PROMOTED_TO_PROJECT' } }),
-                    tx.idea.count({ where: { status: 'DRAFT' } }),
-                    tx.idea.count(),
-                ]);
+        const counts = await prisma.$transaction(async (tx) => {
+            const [pending, approved, rejected, promoted, draft, total] = await Promise.all([
+                tx.idea.count({ where: { status: 'PENDING_REVIEW' } }),
+                tx.idea.count({ where: { status: 'APPROVED' } }),
+                tx.idea.count({ where: { status: 'REJECTED' } }),
+                tx.idea.count({ where: { status: 'PROMOTED_TO_PROJECT' } }),
+                tx.idea.count({ where: { status: 'DRAFT' } }),
+                tx.idea.count(),
+            ]);
 
-                return { pending, approved, rejected, promoted, draft, total };
-            });
+            return { pending, approved, rejected, promoted, draft, total };
+        });
 
-            res.json(counts);
-        } catch (error) {
-            logger.error('Failed to fetch idea counts', error);
-            res.status(500).json({ error: 'Failed to fetch idea counts' });
-        }
+        res.json(counts);
     })
 );
 
@@ -271,6 +266,71 @@ router.get(
     })
 );
 
+// Get single idea by ID
+router.get(
+    '/:id',
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+        const { id } = req.params;
+        const ideaId = parseInt(id, 10);
+
+        if (isNaN(ideaId)) {
+            throw new BadRequestError('Invalid idea ID');
+        }
+
+        const idea = await prisma.idea.findUnique({
+            where: { id: ideaId },
+            include: {
+                attachments: true,
+                submitter: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                    },
+                },
+                tags: {
+                    include: { tag: true },
+                },
+                _count: {
+                    select: {
+                        comments: true,
+                        votes: true,
+                    },
+                },
+            },
+        });
+
+        if (!idea) {
+            throw new NotFoundError('Idea not found');
+        }
+
+        // Check user's vote if authenticated
+        const user = (req as any).user as { sub?: number };
+        let hasVoted: 'up' | 'down' | null = null;
+
+        if (user?.sub) {
+            const userVote = await prisma.vote.findFirst({
+                where: {
+                    ideaId,
+                    userId: user.sub,
+                },
+            });
+            if (userVote) {
+                hasVoted = userVote.voteType === 'UPVOTE' ? 'up' : 'down';
+            }
+        }
+
+        res.json({
+            ...idea,
+            commentCount: idea._count?.comments || 0,
+            hasVoted,
+            submittedBy: idea.isAnonymous ? 'Anonymous' : idea.submitter?.name || idea.submitter?.email || 'Unknown',
+            tags: Array.isArray(idea.tags) ? idea.tags.map((it: any) => it.tag?.name).filter(Boolean) : [],
+        });
+    })
+);
+
 // Create new idea
 router.post(
     '/',
@@ -431,6 +491,77 @@ router.post(
     })
 );
 
+// Remove vote from idea
+router.delete(
+    '/:id/vote',
+    authMiddleware,
+    voteLimiter,
+    asyncHandler(async (req, res) => {
+        const { id } = req.params;
+        const user = (req as any).user as { sub: number };
+
+        const ideaId = parseInt(id, 10);
+        const userId = user.sub;
+
+        const idea = await prisma.idea.findUnique({ where: { id: ideaId } });
+        if (!idea) {
+            throw new NotFoundError('Idea not found');
+        }
+
+        // Atomic vote removal transaction
+        const result = await prisma.$transaction(async (tx) => {
+            const existing = await tx.vote.findFirst({
+                where: { ideaId, userId },
+            });
+
+            if (!existing) {
+                // No vote to remove
+                return { idea, hasVoted: null };
+            }
+
+            // Remove the vote
+            await tx.vote.delete({
+                where: { id: existing.id },
+            });
+
+            // Update vote counts
+            let voteCountDelta = 0;
+            let upvoteCountDelta = 0;
+            let downvoteCountDelta = 0;
+
+            if (existing.voteType === 'UPVOTE') {
+                voteCountDelta = -1;
+                upvoteCountDelta = -1;
+            } else {
+                voteCountDelta = 1; // downvote removal increases net vote
+                downvoteCountDelta = -1;
+            }
+
+            const updated = await tx.idea.update({
+                where: { id: ideaId },
+                data: {
+                    voteCount: { increment: voteCountDelta },
+                    upvoteCount: { increment: upvoteCountDelta },
+                    downvoteCount: { increment: downvoteCountDelta },
+                },
+            });
+
+            return { idea: updated, hasVoted: null };
+        });
+
+        await cacheDeletePattern('ideas:*');
+
+        // Update trending score asynchronously
+        updateIdeaTrendingScore(ideaId).catch((err) => logger.error('Failed to update trending score', { ideaId, error: err }));
+
+        emitVoteUpdated(ideaId, result.idea.voteCount, result.idea.trendingScore);
+
+        logger.info('Vote removed', { ideaId, userId });
+
+        res.json({ ...result.idea, hasVoted: result.hasVoted });
+    })
+);
+
 // Committee: Approve idea
 router.post(
     '/:id/approve',
@@ -482,11 +613,239 @@ router.post(
             },
         });
 
+        emitIdeaStatusChanged(updated.id, 'PENDING_REVIEW', 'REJECTED');
         await cacheDeletePattern('ideas:*');
 
         logger.info('Idea rejected', { ideaId: updated.id, reviewerId: user.sub });
 
         res.json(updated);
+    })
+);
+
+// Committee: Promote idea to project
+router.post(
+    '/:id/promote',
+    authMiddleware,
+    requireCommittee,
+    validate(promoteIdeaSchema),
+    asyncHandler(async (req, res) => {
+        const { id } = req.params;
+        const { projectCode } = req.body;
+        const user = (req as any).user as { sub: number };
+
+        const updated = await prisma.idea.update({
+            where: { id: parseInt(id, 10) },
+            data: {
+                status: 'PROMOTED_TO_PROJECT',
+                promotedAt: new Date(),
+                projectCode: projectCode || null,
+            },
+        });
+
+        emitIdeaStatusChanged(updated.id, 'APPROVED', 'PROMOTED_TO_PROJECT');
+        await cacheDeletePattern('ideas:*');
+
+        logger.info('Idea promoted to project', { ideaId: updated.id, projectCode, promotedBy: user.sub });
+
+        res.json(updated);
+    })
+);
+
+// Get related ideas (same category or tags)
+router.get(
+    '/:id/related',
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+        const { id } = req.params;
+        const ideaId = parseInt(id, 10);
+
+        if (isNaN(ideaId)) {
+            throw new BadRequestError('Invalid idea ID');
+        }
+
+        const idea = await prisma.idea.findUnique({
+            where: { id: ideaId },
+            select: { category: true, tags: { select: { tag: { select: { id: true } } } } },
+        });
+
+        if (!idea) {
+            throw new NotFoundError('Idea not found');
+        }
+
+        // Find related ideas (same category or shared tags)
+        const tagIds = idea.tags.map((it) => it.tag.id);
+        const related = await prisma.idea.findMany({
+            where: {
+                AND: [
+                    { id: { not: ideaId } }, // Exclude self
+                    { status: { in: ['APPROVED', 'PROMOTED_TO_PROJECT'] } }, // Only public statuses
+                    {
+                        OR: [
+                            { category: idea.category }, // Same category
+                            tagIds.length > 0 ? { tags: { some: { tagId: { in: tagIds } } } } : undefined,
+                        ].filter(Boolean),
+                    },
+                ],
+            },
+            select: {
+                id: true,
+                title: true,
+                description: true,
+                voteCount: true,
+                viewCount: true,
+                category: true,
+            },
+            take: 5,
+            orderBy: { voteCount: 'desc' },
+        });
+
+        const formatted = related.map((r) => ({
+            id: r.id,
+            title: r.title,
+            snippet: r.description.substring(0, 100) + (r.description.length > 100 ? '...' : ''),
+            score: r.voteCount,
+        }));
+
+        res.json({ related: formatted });
+    })
+);
+
+// Search ideas
+router.get(
+    '/search',
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+        const { q, category, status } = req.query as { q?: string; category?: string; status?: string };
+
+        if (!q || q.trim().length < 2) {
+            return res.json([]);
+        }
+
+        const user = (req as any).user as { roles?: string[]; sub?: number };
+        const isCommittee = user.roles && user.roles.includes('INNOVATION_COMMITTEE');
+
+        const where: any = {
+            OR: [{ title: { contains: q, mode: 'insensitive' } }, { description: { contains: q, mode: 'insensitive' } }],
+        };
+
+        // Status filtering based on role
+        if (!isCommittee) {
+            where.status = { in: ['APPROVED', 'PROMOTED_TO_PROJECT'] };
+        } else if (status) {
+            const statusMap: Record<string, string> = {
+                pending: 'PENDING_REVIEW',
+                approved: 'APPROVED',
+                rejected: 'REJECTED',
+                promoted: 'PROMOTED_TO_PROJECT',
+            };
+            where.status = statusMap[status] || status;
+        }
+
+        if (category) {
+            where.category = category;
+        }
+
+        const results = await prisma.idea.findMany({
+            where,
+            select: {
+                id: true,
+                title: true,
+                description: true,
+                category: true,
+                voteCount: true,
+                viewCount: true,
+                status: true,
+                submittedAt: true,
+            },
+            take: 20,
+            orderBy: { voteCount: 'desc' },
+        });
+
+        res.json(results);
+    })
+);
+
+// Analytics endpoint
+router.get(
+    '/:dummy/analytics',
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+        // Cache analytics for 5 minutes
+        const cacheKey = 'ideas:analytics';
+        const cached = await cacheGet<any>(cacheKey);
+        if (cached) {
+            return res.json(cached);
+        }
+
+        const [pending, approved, rejected, promoted, draft, total] = await Promise.all([
+            prisma.idea.count({ where: { status: 'PENDING_REVIEW' } }),
+            prisma.idea.count({ where: { status: 'APPROVED' } }),
+            prisma.idea.count({ where: { status: 'REJECTED' } }),
+            prisma.idea.count({ where: { status: 'PROMOTED_TO_PROJECT' } }),
+            prisma.idea.count({ where: { status: 'DRAFT' } }),
+            prisma.idea.count(),
+        ]);
+
+        // Category distribution
+        const categoryResults = await prisma.idea.groupBy({
+            by: ['category'],
+            _count: { id: true },
+        });
+
+        const ideasByCategory: Record<string, number> = {};
+        categoryResults.forEach((c) => {
+            ideasByCategory[c.category] = c._count.id;
+        });
+
+        // Top contributors
+        const topContributors = await prisma.idea.groupBy({
+            by: ['submittedBy'],
+            _count: { id: true },
+            _sum: { voteCount: true },
+            orderBy: { _count: { id: 'desc' } },
+            take: 5,
+        });
+
+        const contributorsData = await Promise.all(
+            topContributors.map(async (c) => {
+                const user = await prisma.user.findUnique({
+                    where: { id: c.submittedBy },
+                    select: { name: true, email: true },
+                });
+                return {
+                    name: user?.name || user?.email || 'Unknown',
+                    ideas: c._count.id,
+                    votes: c._sum.voteCount || 0,
+                };
+            })
+        );
+
+        const analytics = {
+            kpis: {
+                totalIdeas: total,
+                underReview: pending,
+                approved,
+                promoted,
+                totalEngagement: pending + approved + rejected + promoted,
+            },
+            submissionsByMonth: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], // Placeholder - 12 months
+            ideasByCategory,
+            statusPipeline: {
+                submitted: pending,
+                underReview: pending,
+                approved,
+                rejected,
+                promoted,
+            },
+            topContributors: contributorsData,
+            weeklyEngagement: {
+                views: [0, 0, 0, 0, 0, 0, 0], // Placeholder - 7 days
+                votes: [0, 0, 0, 0, 0, 0, 0],
+            },
+        };
+
+        await cacheSet(cacheKey, analytics, 300); // 5 minute cache
+        res.json(analytics);
     })
 );
 

@@ -3,6 +3,8 @@ import OnboardingGuard from '../components/OnboardingGuard';
 import AdminRoute from '../components/AdminRoute';
 import CommitteeRoute from '../components/CommitteeRoute';
 import ProcurementRoute from '../components/ProcurementRoute';
+import InnovationRoute from '../components/InnovationRoute';
+import ModuleRoute from '../components/ModuleRoute';
 import RoleDashboardGuard from '../components/RoleDashboardGuard';
 
 // Main Pages
@@ -193,43 +195,83 @@ const routes = [
     // ============================================
     {
         path: '/innovation/dashboard',
-        element: <InnovationDashboard />,
+        element: (
+            <InnovationRoute>
+                <InnovationDashboard />
+            </InnovationRoute>
+        ),
     },
     {
         path: '/innovation/ideas/new',
-        element: <SubmitIdea />,
+        element: (
+            <InnovationRoute>
+                <SubmitIdea />
+            </InnovationRoute>
+        ),
     },
     {
         path: '/innovation/ideas/browse',
-        element: <ViewIdeas />,
+        element: (
+            <InnovationRoute>
+                <ViewIdeas />
+            </InnovationRoute>
+        ),
     },
     {
         path: '/innovation/ideas/mine',
-        element: <MyIdeas />,
+        element: (
+            <InnovationRoute>
+                <MyIdeas />
+            </InnovationRoute>
+        ),
     },
     {
         path: '/innovation/ideas/popular',
-        element: <VoteOnIdeas />,
+        element: (
+            <InnovationRoute>
+                <VoteOnIdeas />
+            </InnovationRoute>
+        ),
     },
     {
         path: '/innovation/ideas/all',
-        element: <ViewIdeas />,
+        element: (
+            <InnovationRoute>
+                <ViewIdeas />
+            </InnovationRoute>
+        ),
     },
     {
         path: '/innovation/ideas/analytics',
-        element: <InnovationAnalytics />,
+        element: (
+            <InnovationRoute>
+                <InnovationAnalytics />
+            </InnovationRoute>
+        ),
     },
     {
         path: '/innovation/leaderboard',
-        element: <InnovationLeaderboard />,
+        element: (
+            <InnovationRoute>
+                <InnovationLeaderboard />
+            </InnovationRoute>
+        ),
     },
     {
         path: '/innovation/ideas/:id',
-        element: <IdeaDetails />,
+        element: (
+            <InnovationRoute>
+                <IdeaDetails />
+            </InnovationRoute>
+        ),
     },
     {
         path: '/innovation/projects',
-        element: <BSJProjects />,
+        element: (
+            <InnovationRoute>
+                <BSJProjects />
+            </InnovationRoute>
+        ),
     },
     {
         path: '/innovation/committee',
@@ -644,9 +686,9 @@ const routes = [
     {
         path: '/audit/dashboard',
         element: (
-            <RoleDashboardGuard allowedRoles={['AUDITOR']} fallbackPath="/procurement/dashboard">
+            <ModuleRoute module="audit" requiredRoles={['AUDITOR']} fallbackPath="/procurement/dashboard">
                 <AuditorDashboard />
-            </RoleDashboardGuard>
+            </ModuleRoute>
         ),
     },
 

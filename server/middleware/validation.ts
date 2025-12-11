@@ -22,15 +22,19 @@ export const loginSchema = z.object({
 
 // Idea schemas
 export const createIdeaSchema = z.object({
-    title: z.string().min(1).max(200).trim(),
-    description: z.string().min(10).max(5000).trim(),
-    category: z.enum(['PROCESS_IMPROVEMENT', 'TECHNOLOGY', 'CUSTOMER_SERVICE', 'SUSTAINABILITY', 'COST_REDUCTION', 'PRODUCT_INNOVATION', 'OTHER']),
-    isAnonymous: z.boolean().optional(),
-    tagIds: z.string().optional(),
+    body: z.object({
+        title: z.string().min(1).max(200).trim(),
+        description: z.string().min(10).max(5000).trim(),
+        category: z.enum(['PROCESS_IMPROVEMENT', 'TECHNOLOGY', 'CUSTOMER_SERVICE', 'SUSTAINABILITY', 'COST_REDUCTION', 'PRODUCT_INNOVATION', 'OTHER']),
+        isAnonymous: z.boolean().optional(),
+        tagIds: z.string().optional(),
+    }),
 });
 
 export const voteSchema = z.object({
-    voteType: z.enum(['UPVOTE', 'DOWNVOTE']),
+    body: z.object({
+        voteType: z.enum(['UPVOTE', 'DOWNVOTE']),
+    }),
 });
 
 export const approveRejectIdeaSchema = z.object({

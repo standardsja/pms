@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { logEvent } from '../../../utils/analytics';
 import { getApiUrl } from '../../../config/api';
 import { statsService, SystemStats } from '../../../services/statsService';
-import { getModuleLocks, type ModuleLockState } from '../../../utils/moduleLocks';
+import { fetchModuleLocks, defaultModuleLockState, type ModuleLockState } from '../../../utils/moduleLocks';
 
 type ModuleKey = 'pms' | 'ih' | 'committee' | 'budgeting' | 'audit' | 'prime' | 'datapoint' | 'maintenance' | 'asset' | 'ppm' | 'kb';
 
@@ -84,7 +84,7 @@ const Onboarding = () => {
         pms: { totalUsers: 0, activeNow: 0, today: 0 },
         ih: { totalUsers: 0, activeNow: 0, today: 0 },
     });
-    const [moduleLocks, setModuleLocks] = useState<ModuleLockState>(() => getModuleLocks());
+    const [moduleLocks, setModuleLocks] = useState<ModuleLockState>(defaultModuleLockState);
 
     useEffect(() => {
         const fetchSystemStats = async () => {
@@ -123,8 +123,19 @@ const Onboarding = () => {
             }
         };
 
+        // Fetch module locks from API (database)
+        const loadModuleLocks = async () => {
+            try {
+                const locks = await fetchModuleLocks();
+                setModuleLocks(locks);
+            } catch (error) {
+                console.error('Failed to fetch module locks:', error);
+            }
+        };
+
         fetchSystemStats();
         fetchModuleStats();
+        loadModuleLocks();
         // Refresh stats every 30 seconds
         const interval = setInterval(() => {
             fetchSystemStats();

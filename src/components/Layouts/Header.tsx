@@ -41,7 +41,8 @@ import { fetchNotifications, deleteNotification, Notification } from '../../serv
 import { fetchMessages, deleteMessage, Message } from '../../services/messageApi';
 import { getApiUrl } from '../../config/api';
 import IconLock from '../Icon/IconLock';
-import { getModuleLocks, type ModuleLockState } from '../../utils/moduleLocks';
+import { fetchModuleLocks, getModuleLocks, defaultModuleLockState, type ModuleLockState } from '../../utils/moduleLocks';
+import BACKEND from '../../services/adminService';
 
 const Header = () => {
     const location = useLocation();
@@ -52,7 +53,7 @@ const Header = () => {
     // Memoize to prevent infinite render loops
     const currentUser = useMemo(() => getUser(), []);
     const [profileImage, setProfileImage] = useState<string | null>(null);
-    const [moduleLocks, setModuleLocks] = useState<ModuleLockState>(() => getModuleLocks());
+    const [moduleLocks, setModuleLocks] = useState<ModuleLockState>(defaultModuleLockState);
     const userRoles = currentUser?.roles || (currentUser?.role ? [currentUser.role] : []);
 
     // Use centralized role detection utility
@@ -161,6 +162,16 @@ const Header = () => {
         }
     };
 
+    // Fetch module locks from API
+    const loadModuleLocks = async () => {
+        try {
+            const locks = await fetchModuleLocks();
+            setModuleLocks(locks);
+        } catch (error) {
+            console.error('Failed to fetch module locks:', error);
+        }
+    };
+
     // Initial load and polling (60s interval, matching Innovation Hub pattern)
     useEffect(() => {
         // Get fresh auth data on every effect run
@@ -168,17 +179,25 @@ const Header = () => {
         const user = getUser();
 
         if (!user || !token) {
-            console.log('[HEADER] No token or user, skipping profile image load');
             return;
         }
 
         loadNotifications();
         loadMessages();
+        loadModuleLocks();
+        loadNavigationMenus();
+
+        // Normalize profile image URL with API base and cache buster
+        const resolveProfileImageUrl = (raw?: string | null) => {
+            if (!raw) return null;
+            const absolute = raw.startsWith('http') ? raw : getApiUrl(raw);
+            const separator = absolute.includes('?') ? '&' : '?';
+            return `${absolute}${separator}t=${Date.now()}`;
+        };
 
         // Fetch user profile image
         const loadProfileImage = async () => {
             try {
-                console.log('[HEADER] Fetching /api/auth/me for user:', user.id);
                 const response = await fetch(getApiUrl('/api/auth/me'), {
                     headers: {
                         Authorization: `Bearer ${token}`,
@@ -187,22 +206,30 @@ const Header = () => {
 
                 if (response.ok) {
                     const data = await response.json();
-                    console.log('[HEADER] /api/auth/me response:', data);
-                    if (data.profileImage) {
-                        // Add timestamp to bust cache on every load
-                        const imageWithTimestamp = `${data.profileImage}?t=${Date.now()}`;
-                        console.log('[HEADER] Loaded profileImage with timestamp:', imageWithTimestamp);
-                        setProfileImage(imageWithTimestamp);
-                    } else {
-                        console.log('[HEADER] No profileImage in response, clearing state');
-                        setProfileImage(null);
+
+                    // Fallback: if profileImage is missing, fetch from dedicated endpoint
+                    if (!data.profileImage) {
+                        try {
+                            const photoResponse = await fetch(getApiUrl('/api/auth/profile-photo'), {
+                                headers: {
+                                    Authorization: `Bearer ${token}`,
+                                },
+                            });
+                            if (photoResponse.ok) {
+                                const photoData = await photoResponse.json();
+                                if (photoData.success && photoData.data?.profileImage) {
+                                    data.profileImage = photoData.data.profileImage;
+                                }
+                            }
+                        } catch (error) {
+                            console.warn('Could not fetch profile photo:', error);
+                        }
                     }
+
+                    setProfileImage(resolveProfileImageUrl(data.profileImage));
                 } else {
-                    console.log('[HEADER] /api/auth/me failed:', response.status);
                 }
-            } catch (error) {
-                console.error('[HEADER] Error loading profile image:', error);
-            }
+            } catch (error) {}
         };
 
         loadProfileImage();
@@ -210,7 +237,7 @@ const Header = () => {
         // Listen for profile photo updates
         const handleProfilePhotoUpdate = (event: CustomEvent) => {
             if (event.detail?.profileImage) {
-                setProfileImage(event.detail.profileImage);
+                setProfileImage(resolveProfileImageUrl(event.detail.profileImage));
             }
         };
 
@@ -264,6 +291,29 @@ const Header = () => {
 
     const [search, setSearch] = useState(false);
 
+    // Navigation Menu Items
+    const [navigationMenus, setNavigationMenus] = useState<any[]>([]);
+    const [menusLoading, setMenusLoading] = useState(false);
+
+    // Fetch navigation menus from database
+    const loadNavigationMenus = async () => {
+        setMenusLoading(true);
+        try {
+            const menus = await BACKEND.getNavigationMenus();
+            setNavigationMenus(menus);
+        } catch (error) {
+            console.error('Failed to load navigation menus:', error);
+            // Fallback to default menus
+            setNavigationMenus([
+                { id: 1, menuId: 'my-profile', label: 'My Profile', icon: 'IconUser', path: '/profile' },
+                { id: 2, menuId: 'account-settings', label: 'Account Settings', icon: 'settings', path: '/settings' },
+                { id: 3, menuId: 'help-support', label: 'Help & Support', icon: 'IconInfoCircle', path: '/help' },
+            ]);
+        } finally {
+            setMenusLoading(false);
+        }
+    };
+
     const setLocale = (flag: string) => {
         setFlag(flag);
         if (flag.toLowerCase() === 'ae') {
@@ -309,28 +359,6 @@ const Header = () => {
                                         <IconMenuDashboard />
                                     </Link>
                                 </li>
-                                {!isRequester && (
-                                    <>
-                                        <li>
-                                            <Link
-                                                to="/procurement/rfq/list"
-                                                className="block p-2 rounded-full bg-white-light/40 dark:bg-dark/40 hover:text-primary hover:bg-white-light/90 dark:hover:bg-dark/60"
-                                                title="RFQ Management"
-                                            >
-                                                <IconEdit />
-                                            </Link>
-                                        </li>
-                                        <li>
-                                            <Link
-                                                to="/procurement/approvals"
-                                                className="block p-2 rounded-full bg-white-light/40 dark:bg-dark/40 hover:text-primary hover:bg-white-light/90 dark:hover:bg-dark/60"
-                                                title="Approvals"
-                                            >
-                                                <IconCalendar />
-                                            </Link>
-                                        </li>
-                                    </>
-                                )}
                             </ul>
                         </div>
                     )}
@@ -709,10 +737,27 @@ const Header = () => {
                                                     <span className="text-lg text-gray-600 dark:text-gray-300 font-semibold">{currentUser?.name?.charAt(0)?.toUpperCase() || '?'}</span>
                                                 </div>
                                             )}
-                                            <div className="ltr:pl-4 rtl:pr-4 truncate">
-                                                <h4 className="text-base">
-                                                    {currentUser?.name || 'User'}
-                                                    <span className="text-xs bg-success-light rounded text-success px-1 ltr:ml-2 rtl:ml-2">
+                                            <div className="ltr:pl-4 rtl:pr-4">
+                                                <h4 className="text-base">{currentUser?.name || 'User'}</h4>
+                                                <button type="button" className="text-black/60 hover:text-primary dark:text-dark-light/60 dark:hover:text-white text-xs">
+                                                    {currentUser?.email || 'user@bsj.gov.jm'}
+                                                </button>
+                                                {currentUser?.roles && currentUser.roles.length > 0 && (
+                                                    <span className="text-xs bg-blue-500 dark:bg-blue-600 rounded text-white px-2 py-0.5 font-bold whitespace-nowrap w-fit mt-1">
+                                                        {currentUser.roles
+                                                            .map((r: any) => {
+                                                                if (typeof r === 'string') return r;
+                                                                if (r.role?.name) return r.role.name;
+                                                                return r.name || 'User';
+                                                            })
+                                                            .join(', ')
+                                                            .split(',')[0]
+                                                            .trim()
+                                                            .substring(0, 15)}
+                                                    </span>
+                                                )}
+                                                {(!currentUser?.roles || currentUser.roles.length === 0) && (
+                                                    <span className="text-xs bg-success-light rounded text-success px-1 whitespace-nowrap w-fit mt-1">
                                                         {isCommitteeMember
                                                             ? 'Committee'
                                                             : isProcurementManager
@@ -723,38 +768,59 @@ const Header = () => {
                                                             ? 'User'
                                                             : 'Procurement Officer'}
                                                     </span>
-                                                </h4>
-                                                <button type="button" className="text-black/60 hover:text-primary dark:text-dark-light/60 dark:hover:text-white text-xs">
-                                                    {currentUser?.email || 'user@bsj.gov.jm'}
-                                                </button>
+                                                )}
                                             </div>
                                         </div>
                                     </li>
-                                    <li>
-                                        <Link to="/profile" className="dark:hover:text-white">
-                                            <IconUser className="w-4.5 h-4.5 ltr:mr-2 rtl:ml-2 shrink-0" />
-                                            My Profile
-                                        </Link>
-                                    </li>
-                                    <li>
-                                        <Link to="/settings" className="dark:hover:text-white">
-                                            <svg className="w-4.5 h-4.5 ltr:mr-2 rtl:ml-2 shrink-0" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                                <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.5"></circle>
-                                                <path
-                                                    d="M13.7654 2.15224C13.3978 2 12.9319 2 12 2C11.0681 2 10.6022 2 10.2346 2.15224C9.74457 2.35523 9.35522 2.74458 9.15223 3.23463C9.05957 3.45834 9.0233 3.7185 9.00911 4.09799C8.98826 4.65568 8.70226 5.17189 8.21894 5.45093C7.73564 5.72996 7.14559 5.71954 6.65219 5.45876C6.31645 5.2813 6.07301 5.18262 5.83294 5.15102C5.30704 5.08178 4.77518 5.22429 4.35436 5.5472C4.03874 5.78938 3.80577 6.1929 3.33983 6.99993C2.87389 7.80697 2.64092 8.21048 2.58899 8.60491C2.51976 9.1308 2.66227 9.66266 2.98518 10.0835C3.13256 10.2756 3.3397 10.437 3.66119 10.639C4.1338 10.936 4.43789 11.4419 4.43786 12C4.43783 12.5581 4.13375 13.0639 3.66118 13.3608C3.33965 13.5629 3.13248 13.7244 2.98508 13.9165C2.66217 14.3373 2.51966 14.8691 2.5889 15.395C2.64082 15.7894 2.87379 16.193 3.33973 17C3.80568 17.807 4.03865 18.2106 4.35426 18.4527C4.77508 18.7756 5.30694 18.9181 5.83284 18.8489C6.07289 18.8173 6.31632 18.7186 6.65204 18.5412C7.14547 18.2804 7.73556 18.27 8.2189 18.549C8.70224 18.8281 8.98826 19.3443 9.00911 19.9021C9.02331 20.2815 9.05957 20.5417 9.15223 20.7654C9.35522 21.2554 9.74457 21.6448 10.2346 21.8478C10.6022 22 11.0681 22 12 22C12.9319 22 13.3978 22 13.7654 21.8478C14.2554 21.6448 14.6448 21.2554 14.8477 20.7654C14.9404 20.5417 14.9767 20.2815 14.9909 19.902C15.0117 19.3443 15.2977 18.8281 15.781 18.549C16.2643 18.2699 16.8544 18.2804 17.3479 18.5412C17.6836 18.7186 17.927 18.8172 18.167 18.8488C18.6929 18.9181 19.2248 18.7756 19.6456 18.4527C19.9612 18.2105 20.1942 17.807 20.6601 16.9999C21.1261 16.1929 21.3591 15.7894 21.411 15.395C21.4802 14.8691 21.3377 14.3372 21.0148 13.9164C20.8674 13.7243 20.6602 13.5628 20.3387 13.3608C19.8662 13.0639 19.5621 12.558 19.5621 11.9999C19.5621 11.4418 19.8662 10.9361 20.3387 10.6392C20.6603 10.4371 20.8675 10.2757 21.0149 10.0835C21.3378 9.66273 21.4803 9.13087 21.4111 8.60497C21.3592 8.21055 21.1262 7.80703 20.6602 7C20.1943 6.19297 19.9613 5.78945 19.6457 5.54727C19.2249 5.22436 18.693 5.08185 18.1671 5.15109C17.9271 5.18269 17.6837 5.28136 17.3479 5.4588C16.8545 5.71959 16.2644 5.73002 15.7811 5.45096C15.2977 5.17191 15.0117 4.65566 14.9909 4.09794C14.9767 3.71848 14.9404 3.45833 14.8477 3.23463C14.6448 2.74458 14.2554 2.35523 13.7654 2.15224Z"
-                                                    stroke="currentColor"
-                                                    strokeWidth="1.5"
-                                                ></path>
-                                            </svg>
-                                            Account Settings
-                                        </Link>
-                                    </li>
-                                    <li>
-                                        <Link to="/help" className="dark:hover:text-white">
-                                            <IconInfoCircle className="w-4.5 h-4.5 ltr:mr-2 rtl:ml-2 shrink-0" />
-                                            Help & Support
-                                        </Link>
-                                    </li>
+                                    {navigationMenus.length > 0 ? (
+                                        navigationMenus.map((menu) => (
+                                            <li key={menu.id}>
+                                                <Link to={menu.path} className="dark:hover:text-white">
+                                                    {menu.menuId === 'my-profile' && <IconUser className="w-4.5 h-4.5 ltr:mr-2 rtl:ml-2 shrink-0" />}
+                                                    {menu.menuId === 'account-settings' && (
+                                                        <svg className="w-4.5 h-4.5 ltr:mr-2 rtl:ml-2 shrink-0" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                            <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.5"></circle>
+                                                            <path
+                                                                d="M13.7654 2.15224C13.3978 2 12.9319 2 12 2C11.0681 2 10.6022 2 10.2346 2.15224C9.74457 2.35523 9.35522 2.74458 9.15223 3.23463C9.05957 3.45834 9.0233 3.7185 9.00911 4.09799C8.98826 4.65568 8.70226 5.17189 8.21894 5.45093C7.73564 5.72996 7.14559 5.71954 6.65219 5.45876C6.31645 5.2813 6.07301 5.18262 5.83294 5.15102C5.30704 5.08178 4.77518 5.22429 4.35436 5.5472C4.03874 5.78938 3.80577 6.1929 3.33983 6.99993C2.87389 7.80697 2.64092 8.21048 2.58899 8.60491C2.51976 9.1308 2.66227 9.66266 2.98518 10.0835C3.13256 10.2756 3.3397 10.437 3.66119 10.639C4.1338 10.936 4.43789 11.4419 4.43786 12C4.43783 12.5581 4.13375 13.0639 3.66118 13.3608C3.33965 13.5629 3.13248 13.7244 2.98508 13.9165C2.66217 14.3373 2.51966 14.8691 2.5889 15.395C2.64082 15.7894 2.87379 16.193 3.33973 17C3.80568 17.807 4.03865 18.2106 4.35426 18.4527C4.77508 18.7756 5.30694 18.9181 5.83284 18.8489C6.07289 18.8173 6.31632 18.7186 6.65204 18.5412C7.14547 18.2804 7.73556 18.27 8.2189 18.549C8.70224 18.8281 8.98826 19.3443 9.00911 19.9021C9.02331 20.2815 9.05957 20.5417 9.15223 20.7654C9.35522 21.2554 9.74457 21.6448 10.2346 21.8478C10.6022 22 11.0681 22 12 22C12.9319 22 13.3978 22 13.7654 21.8478C14.2554 21.6448 14.6448 21.2554 14.8477 20.7654C14.9404 20.5417 14.9767 20.2815 14.9909 19.902C15.0117 19.3443 15.2977 18.8281 15.781 18.549C16.2643 18.2699 16.8544 18.2804 17.3479 18.5412C17.6836 18.7186 17.927 18.8172 18.167 18.8488C18.6929 18.9181 19.2248 18.7756 19.6456 18.4527C19.9612 18.2105 20.1942 17.807 20.6601 16.9999C21.1261 16.1929 21.3591 15.7894 21.411 15.395C21.4802 14.8691 21.3377 14.3372 21.0148 13.9164C20.8674 13.7243 20.6602 13.5628 20.3387 13.3608C19.8662 13.0639 19.5621 12.558 19.5621 11.9999C19.5621 11.4418 19.8662 10.9361 20.3387 10.6392C20.6603 10.4371 20.8675 10.2757 21.0149 10.0835C21.3378 9.66273 21.4803 9.13087 21.4111 8.60497C21.3592 8.21055 21.1262 7.80703 20.6602 7C20.1943 6.19297 19.9613 5.78945 19.6457 5.54727C19.2249 5.22436 18.693 5.08185 18.1671 5.15109C17.9271 5.18269 17.6837 5.28136 17.3479 5.4588C16.8545 5.71959 16.2644 5.73002 15.7811 5.45096C15.2977 5.17191 15.0117 4.65566 14.9909 4.09794C14.9767 3.71848 14.9404 3.45833 14.8477 3.23463C14.6448 2.74458 14.2554 2.35523 13.7654 2.15224Z"
+                                                                stroke="currentColor"
+                                                                strokeWidth="1.5"
+                                                            ></path>
+                                                        </svg>
+                                                    )}
+                                                    {menu.menuId === 'help-support' && <IconInfoCircle className="w-4.5 h-4.5 ltr:mr-2 rtl:ml-2 shrink-0" />}
+                                                    {menu.label}
+                                                </Link>
+                                            </li>
+                                        ))
+                                    ) : (
+                                        <>
+                                            <li>
+                                                <Link to="/profile" className="dark:hover:text-white">
+                                                    <IconUser className="w-4.5 h-4.5 ltr:mr-2 rtl:ml-2 shrink-0" />
+                                                    My Profile
+                                                </Link>
+                                            </li>
+                                            <li>
+                                                <Link to="/settings" className="dark:hover:text-white">
+                                                    <svg className="w-4.5 h-4.5 ltr:mr-2 rtl:ml-2 shrink-0" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                        <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.5"></circle>
+                                                        <path
+                                                            d="M13.7654 2.15224C13.3978 2 12.9319 2 12 2C11.0681 2 10.6022 2 10.2346 2.15224C9.74457 2.35523 9.35522 2.74458 9.15223 3.23463C9.05957 3.45834 9.0233 3.7185 9.00911 4.09799C8.98826 4.65568 8.70226 5.17189 8.21894 5.45093C7.73564 5.72996 7.14559 5.71954 6.65219 5.45876C6.31645 5.2813 6.07301 5.18262 5.83294 5.15102C5.30704 5.08178 4.77518 5.22429 4.35436 5.5472C4.03874 5.78938 3.80577 6.1929 3.33983 6.99993C2.87389 7.80697 2.64092 8.21048 2.58899 8.60491C2.51976 9.1308 2.66227 9.66266 2.98518 10.0835C3.13256 10.2756 3.3397 10.437 3.66119 10.639C4.1338 10.936 4.43789 11.4419 4.43786 12C4.43783 12.5581 4.13375 13.0639 3.66118 13.3608C3.33965 13.5629 3.13248 13.7244 2.98508 13.9165C2.66217 14.3373 2.51966 14.8691 2.5889 15.395C2.64082 15.7894 2.87379 16.193 3.33973 17C3.80568 17.807 4.03865 18.2106 4.35426 18.4527C4.77508 18.7756 5.30694 18.9181 5.83284 18.8489C6.07289 18.8173 6.31632 18.7186 6.65204 18.5412C7.14547 18.2804 7.73556 18.27 8.2189 18.549C8.70224 18.8281 8.98826 19.3443 9.00911 19.9021C9.02331 20.2815 9.05957 20.5417 9.15223 20.7654C9.35522 21.2554 9.74457 21.6448 10.2346 21.8478C10.6022 22 11.0681 22 12 22C12.9319 22 13.3978 22 13.7654 21.8478C14.2554 21.6448 14.6448 21.2554 14.8477 20.7654C14.9404 20.5417 14.9767 20.2815 14.9909 19.902C15.0117 19.3443 15.2977 18.8281 15.781 18.549C16.2643 18.2699 16.8544 18.2804 17.3479 18.5412C17.6836 18.7186 17.927 18.8172 18.167 18.8488C18.6929 18.9181 19.2248 18.7756 19.6456 18.4527C19.9612 18.2105 20.1942 17.807 20.6601 16.9999C21.1261 16.1929 21.3591 15.7894 21.411 15.395C21.4802 14.8691 21.3377 14.3372 21.0148 13.9164C20.8674 13.7243 20.6602 13.5628 20.3387 13.3608C19.8662 13.0639 19.5621 12.558 19.5621 11.9999C19.5621 11.4418 19.8662 10.9361 20.3387 10.6392C20.6603 10.4371 20.8675 10.2757 21.0149 10.0835C21.3378 9.66273 21.4803 9.13087 21.4111 8.60497C21.3592 8.21055 21.1262 7.80703 20.6602 7C20.1943 6.19297 19.9613 5.78945 19.6457 5.54727C19.2249 5.22436 18.693 5.08185 18.1671 5.15109C17.9271 5.18269 17.6837 5.28136 17.3479 5.4588C16.8545 5.71959 16.2644 5.73002 15.7811 5.45096C15.2977 5.17191 15.0117 4.65566 14.9909 4.09794C14.9767 3.71848 14.9404 3.45833 14.8477 3.23463C14.6448 2.74458 14.2554 2.35523 13.7654 2.15224Z"
+                                                            stroke="currentColor"
+                                                            strokeWidth="1.5"
+                                                        ></path>
+                                                    </svg>
+                                                    Account Settings
+                                                </Link>
+                                            </li>
+                                            <li>
+                                                <Link to="/help" className="dark:hover:text-white">
+                                                    <IconInfoCircle className="w-4.5 h-4.5 ltr:mr-2 rtl:ml-2 shrink-0" />
+                                                    Help & Support
+                                                </Link>
+                                            </li>
+                                        </>
+                                    )}
                                     <li className="border-t border-white-light dark:border-white-light/10">
                                         <Link
                                             to="/auth/login"
@@ -808,9 +874,6 @@ const Header = () => {
                             </button>
                             <ul className="sub-menu">
                                 <li>
-                                    <NavLink to="/procurement/rfq/list">RFQ Management</NavLink>
-                                </li>
-                                <li>
                                     <NavLink to="/procurement/quotes">Quotes</NavLink>
                                 </li>
                                 <li>
@@ -818,9 +881,6 @@ const Header = () => {
                                 </li>
                                 <li>
                                     <NavLink to="/procurement/review">Review</NavLink>
-                                </li>
-                                <li>
-                                    <NavLink to="/procurement/approvals">Approvals</NavLink>
                                 </li>
                                 <li>
                                     <NavLink to="/procurement/purchase-orders">Purchase Orders</NavLink>

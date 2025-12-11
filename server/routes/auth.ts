@@ -170,6 +170,23 @@ router.post(
                 });
             }
 
+            // Check if user is blocked
+            if (user.blocked) {
+                logger.warn('Blocked user attempted login', {
+                    userId: user.id,
+                    email: user.email,
+                    blockedAt: user.blockedAt,
+                    blockedReason: user.blockedReason,
+                });
+                return res.status(403).json({
+                    error: 'Account Blocked',
+                    message: 'Your account has been blocked. Please contact an administrator.',
+                    statusCode: 403,
+                    timestamp: new Date().toISOString(),
+                    path: '/api/auth/login',
+                });
+            }
+
             // Perform hybrid role sync: AD groups → admin panel → default REQUESTER
             const syncResult = await syncLDAPUserToDatabase(ldapUser, user);
 
@@ -199,6 +216,16 @@ router.post(
             const permissions = computePermissionsForUser(user);
             const deptManagerFor = computeDeptManagerForUser(user);
             const token = jwt.sign({ sub: user.id, email: user.email, roles, name: user.name, permissions, deptManagerFor }, config.JWT_SECRET, { expiresIn: '24h' });
+
+            // Update last login and reset failed login counter
+            await prisma.user.update({
+                where: { id: user.id },
+                data: {
+                    lastLogin: new Date(),
+                    failedLogins: 0,
+                    lastFailedLogin: null,
+                },
+            });
 
             logger.info('User logged in via LDAP with role sync', {
                 userId: user.id,
@@ -232,8 +259,62 @@ router.post(
             throw new UnauthorizedError('Invalid credentials');
         }
 
+        // Check if user is blocked BEFORE checking password
+        if (user.blocked) {
+            logger.warn('Blocked user attempted login', {
+                userId: user.id,
+                email: user.email,
+                blockedAt: user.blockedAt,
+                blockedReason: user.blockedReason,
+            });
+            return res.status(403).json({
+                error: 'Account Blocked',
+                message: 'Your account has been blocked. Please contact an administrator.',
+                statusCode: 403,
+                timestamp: new Date().toISOString(),
+                path: '/api/auth/login',
+            });
+        }
+
         const isValid = await bcrypt.compare(password, user.passwordHash);
         if (!isValid) {
+            // Increment failed login counter
+            const failedAttempts = (user.failedLogins || 0) + 1;
+
+            // Get MAX_LOGIN_ATTEMPTS from system config (default to 5)
+            const maxAttemptsConfig = await prisma.systemConfig.findUnique({
+                where: { key: 'MAX_LOGIN_ATTEMPTS' },
+            });
+            const maxAttempts = maxAttemptsConfig ? parseInt(maxAttemptsConfig.value) : 5;
+
+            // Check if user should be blocked
+            const shouldBlock = failedAttempts >= maxAttempts;
+
+            await prisma.user.update({
+                where: { id: user.id },
+                data: {
+                    failedLogins: failedAttempts,
+                    lastFailedLogin: new Date(),
+                    ...(shouldBlock && {
+                        blocked: true,
+                        blockedAt: new Date(),
+                        blockedReason: `Account automatically blocked after ${failedAttempts} failed login attempts`,
+                    }),
+                },
+            });
+
+            logger.warn('Failed login attempt', {
+                userId: user.id,
+                email: user.email,
+                failedAttempts,
+                maxAttempts,
+                blocked: shouldBlock,
+            });
+
+            if (shouldBlock) {
+                throw new UnauthorizedError(`Account blocked after ${maxAttempts} failed login attempts. Please contact an administrator.`);
+            }
+
             throw new UnauthorizedError('Invalid credentials');
         }
 
@@ -241,6 +322,16 @@ router.post(
         const permissions = computePermissionsForUser(user);
         const deptManagerFor = computeDeptManagerForUser(user);
         const token = jwt.sign({ sub: user.id, email: user.email, roles, name: user.name, permissions, deptManagerFor }, config.JWT_SECRET, { expiresIn: '24h' });
+
+        // Update last login and reset failed login counter on successful login
+        await prisma.user.update({
+            where: { id: user.id },
+            data: {
+                lastLogin: new Date(),
+                failedLogins: 0,
+                lastFailedLogin: null,
+            },
+        });
 
         logger.info('User logged in via database successfully', { userId: user.id, email: user.email });
 
@@ -398,13 +489,38 @@ router.get(
 
         const user = await prisma.user.findUnique({
             where: { id: userId },
-            include: {
+            select: {
+                id: true,
+                email: true,
+                name: true,
+                jobTitle: true,
+                phone: true,
+                address: true,
+                city: true,
+                country: true,
+                employeeId: true,
+                supervisor: true,
+                ldapDN: true,
+                profileImage: true,
+                createdAt: true,
+                updatedAt: true,
                 roles: {
-                    include: {
-                        role: true,
+                    select: {
+                        role: {
+                            select: {
+                                id: true,
+                                name: true,
+                            },
+                        },
                     },
                 },
-                department: true,
+                department: {
+                    select: {
+                        id: true,
+                        name: true,
+                        code: true,
+                    },
+                },
             },
         });
 
@@ -416,13 +532,18 @@ router.get(
         const permissions = computePermissionsForUser(user);
         const deptManagerFor = computeDeptManagerForUser(user);
 
+        // Return user profile data including profileImage
         res.json({
             id: user.id,
             email: user.email,
             name: user.name,
-            roles,
-            permissions,
-            deptManagerFor,
+            jobTitle: user.jobTitle,
+            phone: user.phone,
+            address: user.address,
+            city: user.city,
+            country: user.country,
+            employeeId: user.employeeId,
+            supervisor: user.supervisor,
             department: user.department
                 ? {
                       id: user.department.id,
@@ -430,8 +551,88 @@ router.get(
                       code: user.department.code,
                   }
                 : null,
+            roles: user.roles.map((r) => ({ id: r.role.id, name: r.role.name })),
+            permissions,
+            deptManagerFor,
+            ldapDN: user.ldapDN,
             profileImage: user.profileImage,
+            createdAt: user.createdAt,
+            updatedAt: user.updatedAt,
         });
+    })
+);
+
+// Get user's Innovation Hub profile stats
+router.get(
+    '/me/innovation-stats',
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+        const authenticatedReq = req as AuthenticatedRequest;
+        const userId = authenticatedReq.user.sub;
+
+        try {
+            // Get user's submitted ideas count
+            const ideasSubmitted = await prisma.idea.count({
+                where: { submittedBy: userId },
+            });
+
+            // Get user's approved ideas count
+            const ideasApproved = await prisma.idea.count({
+                where: {
+                    submittedBy: userId,
+                    status: { in: ['APPROVED', 'PROMOTED_TO_PROJECT'] },
+                },
+            });
+
+            // Get user's total votes received
+            const votesData = await prisma.vote.aggregate({
+                where: {
+                    idea: {
+                        submittedBy: userId,
+                    },
+                },
+                _count: true,
+                _sum: {
+                    voteType: true,
+                },
+            });
+
+            // Get user's ideas under review (for committee members)
+            const isCommittee = authenticatedReq.user.roles?.includes('INNOVATION_COMMITTEE');
+            const ideasUnderReview = isCommittee
+                ? await prisma.idea.count({
+                      where: { status: 'PENDING_REVIEW' },
+                  })
+                : 0;
+
+            // Get user's promoted ideas count
+            const ideasPromoted = await prisma.idea.count({
+                where: {
+                    submittedBy: userId,
+                    status: 'PROMOTED_TO_PROJECT',
+                },
+            });
+
+            res.json({
+                ideasSubmitted,
+                ideasApproved,
+                votesReceived: votesData._count || 0,
+                ideasUnderReview,
+                ideasPromoted,
+                isCommittee,
+            });
+        } catch (error) {
+            logger.error('[Innovation Stats] Error fetching stats:', error);
+            // Return graceful empty stats instead of error
+            res.json({
+                ideasSubmitted: 0,
+                ideasApproved: 0,
+                votesReceived: 0,
+                ideasUnderReview: 0,
+                ideasPromoted: 0,
+                isCommittee: false,
+            });
+        }
     })
 );
 
@@ -462,6 +663,11 @@ router.post(
             throw new BadRequestError('No photo file provided');
         }
 
+        // Validate uploaded file has content
+        if (req.file.size === 0) {
+            throw new BadRequestError('Uploaded file is empty');
+        }
+
         // Delete old profile photo if it exists
         const user = await prisma.user.findUnique({
             where: { id: userId },
@@ -472,6 +678,7 @@ router.post(
             const oldPhotoPath = path.join(process.cwd(), user.profileImage);
             if (fs.existsSync(oldPhotoPath)) {
                 fs.unlinkSync(oldPhotoPath);
+                logger.info('Deleted old profile photo', { userId, oldPath: user.profileImage });
             }
         }
 
@@ -486,6 +693,8 @@ router.post(
         logger.info('Profile photo updated', {
             userId: updatedUser.id,
             photoPath: relativePath,
+            fileSize: req.file.size,
+            mimeType: req.file.mimetype,
         });
 
         res.json({
@@ -665,6 +874,187 @@ router.post(
                 duration: `${(result.duration / 1000).toFixed(2)}s`,
                 errors: result.errors.length > 0 ? result.errors.slice(0, 10) : undefined, // Show max 10 errors
             },
+        });
+    })
+);
+
+/**
+ * PUT /api/auth/profile
+ * Update user profile information
+ * Respects LDAP field restrictions for LDAP-synced users
+ */
+router.put(
+    '/profile',
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+        const authenticatedReq = req as AuthenticatedRequest;
+        const userId = authenticatedReq.user.sub;
+
+        // Get current user to check if LDAP
+        const currentUser = await prisma.user.findUnique({
+            where: { id: userId },
+            select: {
+                id: true,
+                ldapDN: true,
+                email: true,
+                name: true,
+            },
+        });
+
+        if (!currentUser) {
+            throw new BadRequestError('User not found');
+        }
+
+        const isLdapUser = !!currentUser.ldapDN;
+
+        // Extract fields from request body
+        const { name, jobTitle, country, address, city, phone, employeeId, supervisor } = req.body;
+
+        // Build update object - exclude LDAP-managed fields for LDAP users
+        const updateData: any = {};
+
+        // Only allow updates for non-LDAP users or for non-LDAP-managed fields
+        if (!isLdapUser) {
+            if (name !== undefined) updateData.name = name;
+            if (jobTitle !== undefined) updateData.jobTitle = jobTitle;
+            if (phone !== undefined) updateData.phone = phone;
+        }
+
+        // These fields can always be updated (not LDAP-managed)
+        if (country !== undefined) updateData.country = country;
+        if (address !== undefined) updateData.address = address;
+        if (city !== undefined) updateData.city = city;
+        if (employeeId !== undefined) updateData.employeeId = employeeId;
+        if (supervisor !== undefined) updateData.supervisor = supervisor;
+
+        // If no fields to update, return current data
+        if (Object.keys(updateData).length === 0) {
+            const user = await prisma.user.findUnique({
+                where: { id: userId },
+                select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                    jobTitle: true,
+                    country: true,
+                    address: true,
+                    city: true,
+                    phone: true,
+                    employeeId: true,
+                    supervisor: true,
+                    profileImage: true,
+                    department: { select: { name: true } },
+                },
+            });
+            return res.json({ success: true, user });
+        }
+
+        // Update user
+        const updatedUser = await prisma.user.update({
+            where: { id: userId },
+            data: updateData,
+            select: {
+                id: true,
+                name: true,
+                email: true,
+                jobTitle: true,
+                country: true,
+                address: true,
+                city: true,
+                phone: true,
+                employeeId: true,
+                supervisor: true,
+                profileImage: true,
+                department: { select: { name: true } },
+                updatedAt: true,
+            },
+        });
+
+        logger.info('User profile updated', {
+            userId: updatedUser.id,
+            fields: Object.keys(updateData),
+        });
+
+        res.json({
+            success: true,
+            message: 'Profile updated successfully',
+            user: updatedUser,
+        });
+    })
+);
+
+/**
+ * POST /api/auth/profile-image
+ * Upload and update user profile image
+ */
+router.post(
+    '/profile-image',
+    authMiddleware,
+    uploadProfilePhoto.single('profileImage'),
+    asyncHandler(async (req, res) => {
+        const authenticatedReq = req as AuthenticatedRequest;
+        const userId = authenticatedReq.user.sub;
+
+        if (!req.file) {
+            throw new BadRequestError('No image file provided');
+        }
+
+        // Validate file type (frontend does this too, but always validate on backend)
+        const allowedMimes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+        if (!allowedMimes.includes(req.file.mimetype)) {
+            // Delete uploaded file since it's invalid
+            fs.unlinkSync(req.file.path);
+            throw new BadRequestError(`Invalid file type. Allowed types: ${allowedMimes.join(', ')}`);
+        }
+
+        // Validate file size (max 5MB)
+        if (req.file.size > 5 * 1024 * 1024) {
+            // Delete uploaded file since it's too large
+            fs.unlinkSync(req.file.path);
+            throw new BadRequestError('File is too large. Maximum size is 5MB');
+        }
+
+        // Get current user to find old profile image
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { profileImage: true },
+        });
+
+        // Delete old profile image if it exists
+        if (user?.profileImage) {
+            const oldPhotoPath = path.join(process.cwd(), user.profileImage);
+            if (fs.existsSync(oldPhotoPath)) {
+                try {
+                    fs.unlinkSync(oldPhotoPath);
+                } catch (err) {
+                    logger.warn('Failed to delete old profile image', { path: oldPhotoPath, error: err });
+                }
+            }
+        }
+
+        // Update user with new profile image path
+        const relativePath = `/uploads/profiles/${req.file.filename}`;
+        const updatedUser = await prisma.user.update({
+            where: { id: userId },
+            data: { profileImage: relativePath },
+            select: {
+                id: true,
+                name: true,
+                email: true,
+                profileImage: true,
+            },
+        });
+
+        logger.info('Profile image uploaded', {
+            userId: updatedUser.id,
+            imagePath: relativePath,
+            fileSize: req.file.size,
+        });
+
+        res.json({
+            success: true,
+            message: 'Profile image uploaded successfully',
+            profileImage: updatedUser.profileImage,
         });
     })
 );

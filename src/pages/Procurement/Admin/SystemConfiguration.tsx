@@ -1,60 +1,29 @@
 import { useEffect, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { setPageTitle } from '../../../store/themeConfigSlice';
-import { getApiUrl } from '../../../config/api';
+import adminService from '../../../services/adminService';
 import IconLoader from '../../../components/Icon/IconLoader';
 import IconSquareCheck from '../../../components/Icon/IconSquareCheck';
 import IconAlertCircle from '../../../components/Icon/IconAlertCircle';
 import IconSave from '../../../components/Icon/IconSave';
 
 interface SystemConfig {
-    emailSettings: {
-        smtpServer: string;
-        smtpPort: number;
-        fromEmail: string;
-        fromName: string;
-        enableSSL: boolean;
-    };
-    fileUpload: {
-        maxFileSize: number;
-        allowedFormats: string[];
-        uploadDirectory: string;
-        scanForViruses: boolean;
-    };
-    systemParameters: {
-        maxLoginAttempts: number;
-        sessionTimeout: number;
-        passwordMinLength: number;
-        requireSpecialChars: boolean;
-        logoUrl: string;
-        systemName: string;
-    };
+    [key: string]: any;
 }
 
 const SystemConfiguration = () => {
     const dispatch = useDispatch();
     const [config, setConfig] = useState<SystemConfig>({
-        emailSettings: {
-            smtpServer: 'smtp.gmail.com',
-            smtpPort: 587,
-            fromEmail: 'noreply@pms.local',
-            fromName: 'Procurement Management System',
-            enableSSL: true,
-        },
-        fileUpload: {
-            maxFileSize: 10,
-            allowedFormats: ['pdf', 'doc', 'docx', 'xlsx', 'xls', 'txt', 'csv', 'jpg', 'png'],
-            uploadDirectory: '/uploads',
-            scanForViruses: true,
-        },
-        systemParameters: {
-            maxLoginAttempts: 5,
-            sessionTimeout: 30,
-            passwordMinLength: 8,
-            requireSpecialChars: true,
-            logoUrl: '/logo.png',
-            systemName: 'Procurement Management System',
-        },
+        SMTP_HOST: 'smtp.example.com',
+        SMTP_PORT: 587,
+        SMTP_USER: '',
+        FROM_EMAIL: 'noreply@pms.local',
+        MAX_LOGIN_ATTEMPTS: 5,
+        SESSION_TIMEOUT: 30,
+        PASSWORD_MIN_LENGTH: 8,
+        REQUIRE_SPECIAL_CHARS: true,
+        LOGO_URL: '/logo.png',
+        SYSTEM_NAME: 'Procurement Management System',
     });
 
     const [loading, setLoading] = useState(true);
@@ -70,15 +39,12 @@ const SystemConfiguration = () => {
     const loadConfig = async () => {
         setLoading(true);
         try {
-            const response = await fetch(getApiUrl('/api/admin/system-config'));
-            if (response.ok) {
-                const data = await response.json();
-                setConfig(data);
-            } else {
-                console.warn('Failed to load system config:', response.status);
-            }
+            const data = await adminService.getSystemConfig();
+            setConfig(data);
+            setError('');
         } catch (e: any) {
             console.warn('Error loading config:', e.message);
+            setError(e.message || 'Failed to load configuration');
         } finally {
             setLoading(false);
         }
@@ -86,33 +52,16 @@ const SystemConfiguration = () => {
 
     const handleSave = async () => {
         setSaving(true);
+        setError('');
         try {
-            const response = await fetch(getApiUrl('/api/admin/system-config'), {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(config),
-            });
-
-            if (!response.ok) {
-                throw new Error('Failed to save configuration');
-            }
-
+            await adminService.updateSystemConfig(config);
             setSuccess('Configuration saved successfully');
             setTimeout(() => setSuccess(''), 3000);
         } catch (e: any) {
-            setError(e.message);
+            setError(e.message || 'Failed to save configuration');
+            setTimeout(() => setError(''), 5000);
         } finally {
             setSaving(false);
-        }
-    };
-
-    const handleTestEmail = async () => {
-        try {
-            await new Promise((resolve) => setTimeout(resolve, 1500));
-            setSuccess('Test email sent successfully');
-            setTimeout(() => setSuccess(''), 3000);
-        } catch (e: any) {
-            setError(e.message);
         }
     };
 
@@ -152,159 +101,22 @@ const SystemConfiguration = () => {
                 <div className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-sm font-semibold mb-2">SMTP Server</label>
-                            <input
-                                type="text"
-                                value={config.emailSettings.smtpServer}
-                                onChange={(e) =>
-                                    setConfig({
-                                        ...config,
-                                        emailSettings: { ...config.emailSettings, smtpServer: e.target.value },
-                                    })
-                                }
-                                className="form-input w-full"
-                            />
+                            <label className="block text-sm font-semibold mb-2">SMTP Host</label>
+                            <input type="text" value={config.SMTP_HOST} onChange={(e) => setConfig({ ...config, SMTP_HOST: e.target.value })} className="form-input w-full" />
                         </div>
                         <div>
                             <label className="block text-sm font-semibold mb-2">SMTP Port</label>
-                            <input
-                                type="number"
-                                value={config.emailSettings.smtpPort}
-                                onChange={(e) =>
-                                    setConfig({
-                                        ...config,
-                                        emailSettings: {
-                                            ...config.emailSettings,
-                                            smtpPort: parseInt(e.target.value),
-                                        },
-                                    })
-                                }
-                                className="form-input w-full"
-                            />
+                            <input type="number" value={config.SMTP_PORT} onChange={(e) => setConfig({ ...config, SMTP_PORT: parseInt(e.target.value) })} className="form-input w-full" />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-semibold mb-2">SMTP User</label>
+                            <input type="text" value={config.SMTP_USER} onChange={(e) => setConfig({ ...config, SMTP_USER: e.target.value })} className="form-input w-full" />
                         </div>
                         <div>
                             <label className="block text-sm font-semibold mb-2">From Email</label>
-                            <input
-                                type="email"
-                                value={config.emailSettings.fromEmail}
-                                onChange={(e) =>
-                                    setConfig({
-                                        ...config,
-                                        emailSettings: { ...config.emailSettings, fromEmail: e.target.value },
-                                    })
-                                }
-                                className="form-input w-full"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-semibold mb-2">From Name</label>
-                            <input
-                                type="text"
-                                value={config.emailSettings.fromName}
-                                onChange={(e) =>
-                                    setConfig({
-                                        ...config,
-                                        emailSettings: { ...config.emailSettings, fromName: e.target.value },
-                                    })
-                                }
-                                className="form-input w-full"
-                            />
+                            <input type="email" value={config.FROM_EMAIL} onChange={(e) => setConfig({ ...config, FROM_EMAIL: e.target.value })} className="form-input w-full" />
                         </div>
                     </div>
-
-                    <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                            type="checkbox"
-                            checked={config.emailSettings.enableSSL}
-                            onChange={(e) =>
-                                setConfig({
-                                    ...config,
-                                    emailSettings: { ...config.emailSettings, enableSSL: e.target.checked },
-                                })
-                            }
-                            className="form-checkbox"
-                        />
-                        <span className="font-semibold">Enable SSL/TLS</span>
-                    </label>
-
-                    <button onClick={handleTestEmail} className="btn btn-outline-primary">
-                        Send Test Email
-                    </button>
-                </div>
-            </div>
-
-            {/* File Upload Settings */}
-            <div className="panel p-6">
-                <h2 className="text-xl font-bold mb-4">File Upload Settings</h2>
-                <div className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-sm font-semibold mb-2">Max File Size (MB)</label>
-                            <input
-                                type="number"
-                                value={config.fileUpload.maxFileSize}
-                                onChange={(e) =>
-                                    setConfig({
-                                        ...config,
-                                        fileUpload: {
-                                            ...config.fileUpload,
-                                            maxFileSize: parseInt(e.target.value),
-                                        },
-                                    })
-                                }
-                                className="form-input w-full"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-semibold mb-2">Upload Directory</label>
-                            <input
-                                type="text"
-                                value={config.fileUpload.uploadDirectory}
-                                onChange={(e) =>
-                                    setConfig({
-                                        ...config,
-                                        fileUpload: { ...config.fileUpload, uploadDirectory: e.target.value },
-                                    })
-                                }
-                                className="form-input w-full"
-                            />
-                        </div>
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-semibold mb-2">Allowed File Formats</label>
-                        <input
-                            type="text"
-                            value={config.fileUpload.allowedFormats.join(', ')}
-                            onChange={(e) =>
-                                setConfig({
-                                    ...config,
-                                    fileUpload: {
-                                        ...config.fileUpload,
-                                        allowedFormats: e.target.value.split(',').map((f) => f.trim()),
-                                    },
-                                })
-                            }
-                            className="form-input w-full"
-                            placeholder="pdf, doc, docx, xlsx..."
-                        />
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Separate with commas</p>
-                    </div>
-
-                    <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                            type="checkbox"
-                            checked={config.fileUpload.scanForViruses}
-                            onChange={(e) =>
-                                setConfig({
-                                    ...config,
-                                    fileUpload: { ...config.fileUpload, scanForViruses: e.target.checked },
-                                })
-                            }
-                            className="form-checkbox"
-                        />
-                        <span className="font-semibold">Scan files for viruses</span>
-                    </label>
                 </div>
             </div>
 
@@ -315,83 +127,31 @@ const SystemConfiguration = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label className="block text-sm font-semibold mb-2">System Name</label>
-                            <input
-                                type="text"
-                                value={config.systemParameters.systemName}
-                                onChange={(e) =>
-                                    setConfig({
-                                        ...config,
-                                        systemParameters: {
-                                            ...config.systemParameters,
-                                            systemName: e.target.value,
-                                        },
-                                    })
-                                }
-                                className="form-input w-full"
-                            />
+                            <input type="text" value={config.SYSTEM_NAME} onChange={(e) => setConfig({ ...config, SYSTEM_NAME: e.target.value })} className="form-input w-full" />
                         </div>
                         <div>
                             <label className="block text-sm font-semibold mb-2">Logo URL</label>
-                            <input
-                                type="text"
-                                value={config.systemParameters.logoUrl}
-                                onChange={(e) =>
-                                    setConfig({
-                                        ...config,
-                                        systemParameters: { ...config.systemParameters, logoUrl: e.target.value },
-                                    })
-                                }
-                                className="form-input w-full"
-                            />
+                            <input type="text" value={config.LOGO_URL} onChange={(e) => setConfig({ ...config, LOGO_URL: e.target.value })} className="form-input w-full" />
                         </div>
                         <div>
                             <label className="block text-sm font-semibold mb-2">Max Login Attempts</label>
                             <input
                                 type="number"
-                                value={config.systemParameters.maxLoginAttempts}
-                                onChange={(e) =>
-                                    setConfig({
-                                        ...config,
-                                        systemParameters: {
-                                            ...config.systemParameters,
-                                            maxLoginAttempts: parseInt(e.target.value),
-                                        },
-                                    })
-                                }
+                                value={config.MAX_LOGIN_ATTEMPTS}
+                                onChange={(e) => setConfig({ ...config, MAX_LOGIN_ATTEMPTS: parseInt(e.target.value) })}
                                 className="form-input w-full"
                             />
                         </div>
                         <div>
                             <label className="block text-sm font-semibold mb-2">Session Timeout (minutes)</label>
-                            <input
-                                type="number"
-                                value={config.systemParameters.sessionTimeout}
-                                onChange={(e) =>
-                                    setConfig({
-                                        ...config,
-                                        systemParameters: {
-                                            ...config.systemParameters,
-                                            sessionTimeout: parseInt(e.target.value),
-                                        },
-                                    })
-                                }
-                                className="form-input w-full"
-                            />
+                            <input type="number" value={config.SESSION_TIMEOUT} onChange={(e) => setConfig({ ...config, SESSION_TIMEOUT: parseInt(e.target.value) })} className="form-input w-full" />
                         </div>
                         <div>
                             <label className="block text-sm font-semibold mb-2">Password Min Length</label>
                             <input
                                 type="number"
-                                value={config.systemParameters.passwordMinLength}
-                                onChange={(e) =>
-                                    setConfig({
-                                        ...config,
-                                        systemParameters: {
-                                            ...config.systemParameters,
-                                            passwordMinLength: parseInt(e.target.value),
-                                        },
-                                    })
-                                }
+                                value={config.PASSWORD_MIN_LENGTH}
+                                onChange={(e) => setConfig({ ...config, PASSWORD_MIN_LENGTH: parseInt(e.target.value) })}
                                 className="form-input w-full"
                             />
                         </div>
@@ -400,16 +160,8 @@ const SystemConfiguration = () => {
                     <label className="flex items-center gap-2 cursor-pointer">
                         <input
                             type="checkbox"
-                            checked={config.systemParameters.requireSpecialChars}
-                            onChange={(e) =>
-                                setConfig({
-                                    ...config,
-                                    systemParameters: {
-                                        ...config.systemParameters,
-                                        requireSpecialChars: e.target.checked,
-                                    },
-                                })
-                            }
+                            checked={config.REQUIRE_SPECIAL_CHARS === true || config.REQUIRE_SPECIAL_CHARS === 'true'}
+                            onChange={(e) => setConfig({ ...config, REQUIRE_SPECIAL_CHARS: e.target.checked })}
                             className="form-checkbox"
                         />
                         <span className="font-semibold">Require special characters in passwords</span>

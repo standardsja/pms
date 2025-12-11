@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useDispatch } from 'react-redux';
 import { setPageTitle } from '../../../store/themeConfigSlice';
-import { getApiUrl } from '../../../config/api';
+import adminService from '../../../services/adminService';
 import IconSearch from '../../../components/Icon/IconSearch';
 import IconLoader from '../../../components/Icon/IconLoader';
 import IconSquareCheck from '../../../components/Icon/IconSquareCheck';
@@ -14,7 +14,7 @@ interface AuditLog {
     timestamp: string;
     userId: string;
     userName: string;
-    action: 'create' | 'update' | 'delete' | 'approve' | 'reject' | 'login' | 'logout' | 'permission_change' | 'export';
+    action: 'create' | 'update' | 'delete' | 'approve' | 'reject' | 'login' | 'logout' | 'permission_change' | 'export' | 'other';
     resource: string;
     details: string;
     status: 'success' | 'failure';
@@ -42,16 +42,46 @@ const AuditCompliance = () => {
         loadAuditLogs();
     }, []);
 
+    const normalizeAction = (actionRaw: string | null | undefined): AuditLog['action'] => {
+        if (!actionRaw) return 'other';
+        const upper = actionRaw.toUpperCase();
+        if (upper.includes('CREATE')) return 'create';
+        if (upper.includes('UPDATE')) return 'update';
+        if (upper.includes('DELETE')) return 'delete';
+        if (upper.includes('APPROV')) return 'approve';
+        if (upper.includes('REJECT') || upper.includes('DENY')) return 'reject';
+        if (upper.includes('LOGIN')) return 'login';
+        if (upper.includes('LOGOUT')) return 'logout';
+        if (upper.includes('ROLE') || upper.includes('PERMISSION')) return 'permission_change';
+        if (upper.includes('EXPORT')) return 'export';
+        return 'other';
+    };
+
     const loadAuditLogs = async () => {
         setLoading(true);
         try {
-            const response = await fetch(getApiUrl('/api/admin/audit-log'));
-            if (!response.ok) throw new Error('Failed to fetch audit logs');
-            const data = await response.json();
-            const logs = Array.isArray(data) ? data : data.logs || data.data || [];
-            setLogs(logs.sort((a: AuditLog, b: AuditLog) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+            const result = await adminService.getAuditLog({});
+            const rawLogs = Array.isArray(result) ? result : (result as any)?.data || (result as any)?.logs || [];
+
+            const mapped: AuditLog[] = rawLogs.map((log: any) => {
+                const action = normalizeAction(log?.action);
+                return {
+                    id: String(log?.id ?? crypto.randomUUID()),
+                    timestamp: log?.createdAt || log?.timestamp || new Date().toISOString(),
+                    userId: String(log?.userId ?? ''),
+                    userName: log?.user?.name || log?.user?.email || 'Unknown user',
+                    action,
+                    resource: log?.entity || log?.resource || 'system',
+                    details: log?.message || log?.details || log?.metadata?.message || '',
+                    status: log?.metadata?.status === 'failure' ? 'failure' : 'success',
+                    ipAddress: (log?.ipAddress as string) || 'N/A',
+                    changes: log?.metadata?.changes,
+                };
+            });
+
+            setLogs(mapped.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
         } catch (e: any) {
-            console.error('Failed to load audit logs:', e.message);
+            console.error('Failed to load audit logs:', e?.message || e);
         } finally {
             setLoading(false);
         }
@@ -60,7 +90,10 @@ const AuditCompliance = () => {
     const filteredLogs = useMemo(() => {
         return logs.filter((log) => {
             const matchesSearch =
-                !searchTerm || log.userName.toLowerCase().includes(searchTerm.toLowerCase()) || log.details.toLowerCase().includes(searchTerm.toLowerCase()) || log.ipAddress.includes(searchTerm);
+                !searchTerm ||
+                log.userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (log.details || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                log.ipAddress.includes(searchTerm);
 
             const matchesAction = filterAction === 'all' || log.action === filterAction;
             const matchesStatus = filterStatus === 'all' || log.status === filterStatus;
@@ -127,6 +160,7 @@ const AuditCompliance = () => {
             logout: 'badge-secondary',
             permission_change: 'badge-warning',
             export: 'badge-info',
+            other: 'badge-secondary',
         };
         return colors[action] || 'badge-secondary';
     };

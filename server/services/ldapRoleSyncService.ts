@@ -59,16 +59,34 @@ export async function syncLDAPUserToDatabase(ldapUser: LDAPUser, existingUser?: 
                 },
                 include: { roles: true },
             });
-        } else if (ldapUser.profileImage && !dbUser.profileImage) {
-            // Update profile image from LDAP if user doesn't have one
-            await prisma.user.update({
-                where: { id: dbUser.id },
-                data: { profileImage: ldapUser.profileImage },
-            });
-            logger.info('LDAP: Profile image updated from LDAP', {
-                email: ldapUser.email,
-                profileImage: ldapUser.profileImage,
-            });
+        } else {
+            // Handle profile image sync logic:
+            // 1. If LDAP has a photo, use it (LDAP is source of truth)
+            // 2. If LDAP doesn't have a photo but user uploaded one, keep user's photo
+            // 3. If neither exist, no photo
+            if (ldapUser.profileImage) {
+                // LDAP has a photo - sync it to database (overwrites user upload)
+                await prisma.user.update({
+                    where: { id: dbUser.id },
+                    data: { profileImage: ldapUser.profileImage },
+                });
+                logger.info('LDAP: Profile image synced from LDAP', {
+                    email: ldapUser.email,
+                    profileImage: ldapUser.profileImage,
+                    hadPreviousPhoto: !!dbUser.profileImage,
+                });
+            } else if (!ldapUser.profileImage && !dbUser.profileImage) {
+                // Neither LDAP nor database has a photo - user can upload their own
+                logger.info('LDAP: No profile photo in LDAP, user can upload custom photo', {
+                    email: ldapUser.email,
+                });
+            } else if (!ldapUser.profileImage && dbUser.profileImage) {
+                // LDAP doesn't have photo, but user uploaded one - keep user's upload
+                logger.info('LDAP: No LDAP photo found, keeping user-uploaded photo', {
+                    email: ldapUser.email,
+                    profileImage: dbUser.profileImage,
+                });
+            }
         }
 
         // Get mapping rules

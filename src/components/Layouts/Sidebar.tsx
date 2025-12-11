@@ -52,6 +52,7 @@ const Sidebar = () => {
     const [currentMenu, setCurrentMenu] = useState<string>('');
     const [errorSubMenu, setErrorSubMenu] = useState(false);
     const [moduleLocks, setModuleLocks] = useState<ModuleLockState>(() => getModuleLocks());
+    const [pinnedModule, setPinnedModule] = useState<string | null>(null); // Track which module should be shown in sidebar
     const themeConfig = useSelector((state: IRootState) => state.themeConfig);
     const semidark = useSelector((state: IRootState) => state.themeConfig.semidark);
     const location = useLocation();
@@ -104,9 +105,6 @@ const Sidebar = () => {
     const dashboardPath = getDashboardPath(detectedRoles, location.pathname);
 
     // Debug logging for dashboard path
-    console.log('[SIDEBAR] User roles:', userRoles);
-    console.log('[SIDEBAR] Detected roles:', detectedRoles);
-    console.log('[SIDEBAR] Dashboard path:', dashboardPath);
 
     const toggleMenu = (value: string) => {
         setCurrentMenu((oldValue) => {
@@ -139,6 +137,9 @@ const Sidebar = () => {
                 }
             }
         }
+        // Don't auto-click sidebar items for non-module routes (like /profile, /settings)
+        // when a module is locked. This prevents the sidebar from switching away from
+        // the locked module display.
     }, []);
 
     useEffect(() => {
@@ -154,6 +155,37 @@ const Sidebar = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [location]);
 
+    // Track which module we're in and pin it to the sidebar
+    // This prevents the sidebar from changing when navigating to non-module routes like /profile
+    useEffect(() => {
+        const path = location.pathname;
+
+        // Determine which module the current path belongs to
+        if (path.startsWith('/procurement') || path.startsWith('/apps/requests')) {
+            setPinnedModule('procurement');
+        } else if (path.startsWith('/innovation')) {
+            setPinnedModule('innovation');
+        } else if (path.startsWith('/apps') || path === '/') {
+            // Generic apps route or home
+            // If only one module is available (not locked), default to showing it
+            const procAvailable = !procurementLocked;
+            const innovAvailable = !innovationLocked;
+
+            if (procAvailable && !innovAvailable) {
+                setPinnedModule('procurement');
+            } else if (!procAvailable && innovAvailable) {
+                setPinnedModule('innovation');
+            } else if (procAvailable && innovAvailable) {
+                // Both available - default to procurement if no pinnedModule yet
+                if (!pinnedModule) {
+                    setPinnedModule('procurement');
+                }
+                // Otherwise keep current pinnedModule
+            }
+        }
+        // For non-module routes (/profile, /settings, etc.), don't change pinnedModule
+        // It will remain set to whichever module is currently active or the only available one
+    }, [location.pathname, procurementLocked, innovationLocked, pinnedModule]);
     return (
         <div className={semidark ? 'dark' : ''}>
             <nav

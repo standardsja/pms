@@ -32,6 +32,7 @@ import { authMiddleware } from './middleware/auth';
 // Route imports
 import { authRoutes } from './routes/auth';
 import { ideasRoutes } from './routes/ideas';
+import { innovationRoutes } from './routes/innovation';
 import { requestsRoutes } from './routes/requests';
 import roleRequestsRouter from './routes/roleRequests';
 import hodRouter from './routes/hod';
@@ -119,6 +120,7 @@ app.get('/health', async (_req, res) => {
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/ideas', ideasRoutes);
+app.use('/api/innovation', innovationRoutes);
 app.use('/api/v1', hodRouter);
 app.use('/api/requests/combinable', combineRoutes);
 app.use('/api/requests', requestsRoutes);

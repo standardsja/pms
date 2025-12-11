@@ -119,10 +119,19 @@ class LDAPService {
                 let profileImage: string | undefined;
                 if (entry.thumbnailPhoto) {
                     try {
-                        profileImage = await this.saveLDAPPhoto(sanitizedEmail, entry.thumbnailPhoto as Buffer);
+                        const photoBuffer = entry.thumbnailPhoto as Buffer;
+                        // Validate buffer has actual data
+                        if (photoBuffer && photoBuffer.length > 0) {
+                            profileImage = await this.saveLDAPPhoto(sanitizedEmail, photoBuffer);
+                            logger.info('LDAP photo buffer processed', { email: sanitizedEmail, bufferSize: photoBuffer.length });
+                        } else {
+                            logger.warn('LDAP thumbnailPhoto exists but buffer is empty', { email: sanitizedEmail });
+                        }
                     } catch (error: any) {
                         logger.warn('Failed to save LDAP profile photo', { email: sanitizedEmail, error: error.message });
                     }
+                } else {
+                    logger.info('No thumbnailPhoto attribute in LDAP entry', { email: sanitizedEmail });
                 }
 
                 ldapUser = {
@@ -303,10 +312,19 @@ class LDAPService {
             let profileImage: string | undefined;
             if (entry.thumbnailPhoto) {
                 try {
-                    profileImage = await this.saveLDAPPhoto(sanitizedEmail, entry.thumbnailPhoto as Buffer);
+                    const photoBuffer = entry.thumbnailPhoto as Buffer;
+                    // Validate buffer has actual data
+                    if (photoBuffer && photoBuffer.length > 0) {
+                        profileImage = await this.saveLDAPPhoto(sanitizedEmail, photoBuffer);
+                        logger.info('LDAP photo buffer processed', { email: sanitizedEmail, bufferSize: photoBuffer.length });
+                    } else {
+                        logger.warn('LDAP thumbnailPhoto exists but buffer is empty', { email: sanitizedEmail });
+                    }
                 } catch (error: any) {
                     logger.warn('Failed to save LDAP profile photo', { email: sanitizedEmail, error: error.message });
                 }
+            } else {
+                logger.info('No thumbnailPhoto attribute in LDAP entry', { email: sanitizedEmail });
             }
 
             return {
@@ -384,6 +402,11 @@ class LDAPService {
     private async saveLDAPPhoto(email: string, photoBuffer: Buffer): Promise<string> {
         const uploadDir = path.join(process.cwd(), 'uploads', 'profiles');
 
+        // Validate photo buffer
+        if (!photoBuffer || photoBuffer.length === 0) {
+            throw new Error('Photo buffer is empty or invalid');
+        }
+
         // Ensure directory exists
         if (!fs.existsSync(uploadDir)) {
             fs.mkdirSync(uploadDir, { recursive: true });
@@ -397,7 +420,22 @@ class LDAPService {
         // Write photo to disk
         await fs.promises.writeFile(filePath, photoBuffer);
 
-        logger.info('LDAP profile photo saved', { email, filename });
+        // Verify file was written
+        const stats = await fs.promises.stat(filePath);
+        logger.info('LDAP profile photo saved', {
+            email,
+            filename,
+            fileSize: stats.size,
+            bufferSize: photoBuffer.length,
+        });
+
+        if (stats.size === 0) {
+            logger.error('Written file has 0 bytes despite buffer having data', {
+                email,
+                bufferSize: photoBuffer.length,
+            });
+            throw new Error('Failed to write photo data to disk');
+        }
 
         return `/uploads/profiles/${filename}`;
     }

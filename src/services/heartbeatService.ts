@@ -4,6 +4,7 @@
  */
 
 import { getToken } from '../utils/auth';
+import { getApiUrl } from '../config/api';
 
 type ModuleType = 'pms' | 'ih';
 
@@ -52,7 +53,7 @@ class HeartbeatService {
      */
     private async sendHeartbeat(module: ModuleType): Promise<void> {
         try {
-            const apiUrl = import.meta.env.DEV ? '/api/stats/heartbeat' : `${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/stats/heartbeat`;
+            const apiUrl = getApiUrl('/api/stats/heartbeat');
 
             const token = getToken();
 
@@ -89,7 +90,7 @@ class HeartbeatService {
      */
     private async clearSession(): Promise<void> {
         try {
-            const apiUrl = import.meta.env.DEV ? '/api/stats/heartbeat' : `${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/stats/heartbeat`;
+            const apiUrl = getApiUrl('/api/stats/heartbeat');
 
             const token = getToken();
 
