@@ -552,7 +552,7 @@ const NewEvaluation = () => {
             // Load users for selection
             try {
                 const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
-                const resp = await fetch(getApiUrl('/admin/users'), {
+                const resp = await fetch(getApiUrl('/api/admin/users'), {
                     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
                 });
                 if (resp.ok) {

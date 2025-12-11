@@ -23,22 +23,8 @@ export default defineConfig({
                 target: process.env.VITE_API_URL || 'http://localhost:4000',
                 changeOrigin: true,
             },
-            '/requests': {
-                target: process.env.VITE_API_URL || 'http://localhost:4000',
-                changeOrigin: true,
-            },
-            '/procurement': {
-                target: process.env.VITE_API_URL || 'http://localhost:4000',
-                changeOrigin: true,
-            },
-            '/admin': {
-                target: process.env.VITE_API_URL || 'http://localhost:4000',
-                changeOrigin: true,
-            },
-            '/auth': {
-                target: process.env.VITE_API_URL || 'http://localhost:4000',
-                changeOrigin: true,
-            },
+            // Note: Only proxy /api paths. DO NOT proxy frontend routes like /procurement, /finance, etc.
+            // Those are React Router routes and should be handled by the frontend.
         },
     },
 });

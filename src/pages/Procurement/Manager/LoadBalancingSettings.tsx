@@ -43,7 +43,7 @@ const LoadBalancingSettings = () => {
 
             try {
                 const currentUser = getUser();
-                const apiUrl = getApiUrl('/procurement/load-balancing-settings');
+                const apiUrl = getApiUrl('/api/procurement/load-balancing-settings');
 
                 console.log('[LoadBalancing] Fetching settings...');
                 console.log('[LoadBalancing] User ID:', currentUser?.id);

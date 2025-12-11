@@ -156,7 +156,7 @@ const RequestForm = () => {
 
         const fetchFinanceOfficers = async () => {
             try {
-                const resp = await fetch(getApiUrl('/finance-officers'), {
+                const resp = await fetch(getApiUrl('/api/finance-officers'), {
                     headers: { 'x-user-id': String(currentUserId) },
                 });
                 if (resp.ok) {
@@ -777,7 +777,7 @@ const RequestForm = () => {
                 if (headerYear) formData.append('headerYear', String(headerYear));
                 formData.append('headerSequence', headerSequence);
 
-                const resp = await fetch(getApiUrl('/requests'), {
+                const resp = await fetch(getApiUrl('/api/requests'), {
                     method: 'POST',
                     headers: {
                         'x-user-id': String(userId),

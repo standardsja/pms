@@ -45,7 +45,7 @@ const AuditCompliance = () => {
     const loadAuditLogs = async () => {
         setLoading(true);
         try {
-            const response = await fetch(getApiUrl('/admin/audit-log'));
+            const response = await fetch(getApiUrl('/api/admin/audit-log'));
             if (!response.ok) throw new Error('Failed to fetch audit logs');
             const data = await response.json();
             const logs = Array.isArray(data) ? data : data.logs || data.data || [];
