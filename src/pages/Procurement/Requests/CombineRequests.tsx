@@ -66,32 +66,26 @@ const CombineRequests = () => {
             setError(null);
             try {
                 // Get token and userId from multiple sources
-                const token = reduxToken || 
-                              sessionStorage.getItem('token') || 
-                              localStorage.getItem('token') ||
-                              sessionStorage.getItem('auth_token') ||
-                              localStorage.getItem('auth_token');
-                              
-                const userId = user?.id?.toString() || 
-                              sessionStorage.getItem('userId') || 
-                              localStorage.getItem('userId');
+                const token = reduxToken || sessionStorage.getItem('token') || localStorage.getItem('token') || sessionStorage.getItem('auth_token') || localStorage.getItem('auth_token');
 
-                console.log('[CombineRequests] Auth values:', { 
-                    hasToken: !!token, 
+                const userId = user?.id?.toString() || sessionStorage.getItem('userId') || localStorage.getItem('userId');
+
+                console.log('[CombineRequests] Auth values:', {
+                    hasToken: !!token,
                     tokenSource: reduxToken ? 'redux' : 'storage',
                     userId,
-                    userFromRedux: user?.id 
+                    userFromRedux: user?.id,
                 });
 
                 // Fetch combinable requests
                 const headers: Record<string, string> = {
                     'Content-Type': 'application/json',
                 };
-                
+
                 if (token && token !== 'null') {
                     headers['Authorization'] = `Bearer ${token}`;
                 }
-                
+
                 if (userId && userId !== 'null') {
                     headers['x-user-id'] = userId;
                 }
