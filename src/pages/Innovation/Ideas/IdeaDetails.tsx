@@ -84,8 +84,14 @@ export default function IdeaDetails() {
         }
     }
 
+    const voteAllowed = idea?.status === 'APPROVED' || idea?.status === 'PROMOTED_TO_PROJECT' || idea?.status === 'IMPLEMENTED';
+
     async function handleVote(voteType: 'UPVOTE' | 'DOWNVOTE' = 'UPVOTE') {
         if (!id || !idea || isVoting) return;
+        if (!voteAllowed) {
+            alert(t('innovation.view.votingLocked', { defaultValue: 'Voting opens after this idea is approved.' }));
+            return;
+        }
         try {
             setIsVoting(true);
             let updated;
@@ -298,8 +304,8 @@ export default function IdeaDetails() {
                         <button
                             type="button"
                             onClick={() => handleVote('UPVOTE')}
-                            disabled={isVoting}
-                            className={`btn ${idea.userVoteType === 'UPVOTE' ? 'btn-primary' : 'btn-outline-primary'} gap-2`}
+                            disabled={isVoting || !voteAllowed}
+                            className={`btn ${idea.userVoteType === 'UPVOTE' ? 'btn-primary' : 'btn-outline-primary'} gap-2 ${!voteAllowed ? 'opacity-60 cursor-not-allowed' : ''}`}
                         >
                             <IconThumbUp className="w-4 h-4" />
                             {isVoting && idea.userVoteType === 'UPVOTE' ? 'Processing...' : idea.userVoteType === 'UPVOTE' ? 'Upvoted' : 'Upvote'}
@@ -307,12 +313,13 @@ export default function IdeaDetails() {
                         <button
                             type="button"
                             onClick={() => handleVote('DOWNVOTE')}
-                            disabled={isVoting}
-                            className={`btn ${idea.userVoteType === 'DOWNVOTE' ? 'btn-danger' : 'btn-outline-danger'} gap-2`}
+                            disabled={isVoting || !voteAllowed}
+                            className={`btn ${idea.userVoteType === 'DOWNVOTE' ? 'btn-danger' : 'btn-outline-danger'} gap-2 ${!voteAllowed ? 'opacity-60 cursor-not-allowed' : ''}`}
                         >
                             <IconThumbUp className="w-4 h-4 rotate-180" />
                             {isVoting && idea.userVoteType === 'DOWNVOTE' ? 'Processing...' : idea.userVoteType === 'DOWNVOTE' ? 'Downvoted' : 'Downvote'}
                         </button>
+                        {!voteAllowed && <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">{t('innovation.view.votingLocked', { defaultValue: 'Voting opens after approval.' })}</p>}
                     </div>
                 </div>
                 {/* Related */}
