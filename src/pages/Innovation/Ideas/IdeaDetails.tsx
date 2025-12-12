@@ -65,6 +65,34 @@ export default function IdeaDetails() {
         loadIdea();
     }, [id]);
 
+    // Track view with 10-second threshold (similar to YouTube)
+    useEffect(() => {
+        if (!id || !idea) return;
+
+        const timer = setTimeout(async () => {
+            try {
+                const token = localStorage.getItem('token');
+                const userId = localStorage.getItem('userId');
+
+                if (!token || !userId) return;
+
+                await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/ideas/${id}/view`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${token}`,
+                        'x-user-id': userId,
+                    },
+                });
+            } catch (err) {
+                // Silently fail - view tracking is not critical
+                console.debug('View tracking failed:', err);
+            }
+        }, 10000); // 10 seconds
+
+        return () => clearTimeout(timer);
+    }, [id, idea]);
+
     async function loadIdea() {
         if (!id) return;
         try {

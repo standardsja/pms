@@ -48,6 +48,9 @@ const httpServer = http.createServer(app);
 const PORT = process.env.PORT ? Number(process.env.PORT) : 4000;
 const APP_ENV = process.env.APP_ENV || 'production';
 // In production, bind to 0.0.0.0 unless overridden via API_HOST
+
+// In-memory fallback for view tracking when Redis is not configured
+const viewTrackingCache = new Map<string, number>();
 // Bind address for the HTTP server. In local development we bind to 0.0.0.0
 // so that other hostnames (e.g. Docker host aliases like `heron`) can reach the server.
 const API_HOST = process.env.API_HOST || (APP_ENV === 'local' ? '0.0.0.0' : '0.0.0.0');
@@ -905,11 +908,26 @@ app.get('/api/ideas', authMiddleware, async (req, res) => {
                 } as any;
             }
         }
-        // If user is NOT committee and not filtering to their own, show APPROVED and PROMOTED ideas
-        else if (!isCommittee) {
-            where.status = { in: ['APPROVED', 'PROMOTED_TO_PROJECT'] };
+
+        // Status filtering logic
+        if (mine !== 'true') {
+            // If NOT viewing own ideas, apply status filters
+            if (!isCommittee) {
+                // Non-committee users see only APPROVED and PROMOTED ideas in public view
+                where.status = { in: ['APPROVED', 'PROMOTED_TO_PROJECT'] };
+            } else if (status && status !== 'all') {
+                // Committee members can filter by specific status
+                const map: Record<string, string> = {
+                    pending: 'PENDING_REVIEW',
+                    approved: 'APPROVED',
+                    rejected: 'REJECTED',
+                    promoted: 'PROMOTED_TO_PROJECT',
+                };
+                const s = map[status] || status;
+                where.status = s;
+            }
         } else if (status && status !== 'all') {
-            // Committee members can filter by status
+            // When viewing own ideas, still allow status filtering if requested
             const map: Record<string, string> = {
                 pending: 'PENDING_REVIEW',
                 approved: 'APPROVED',
@@ -1171,15 +1189,41 @@ app.get('/api/ideas/:id', authMiddleware, async (req, res) => {
         const submittedBy = idea.isAnonymous ? 'Anonymous' : idea.submitter?.name || idea.submitter?.email || 'Unknown';
         const commentCount = idea._count?.comments || 0;
 
-        // Increment view count and update trending score (non-blocking)
+        // Session-based view tracking: increment view count only if viewer hasn't viewed recently (24h window)
         const ideaId = parseInt(id, 10);
-        prisma.idea
-            .update({
-                where: { id: ideaId },
-                data: { viewCount: { increment: 1 } },
-            })
-            .then(() => updateIdeaTrendingScore(ideaId))
-            .catch((err) => console.error('Failed to update view count/trending:', err));
+        const viewerId = (req as any).user?.sub;
+        if (viewerId && viewerId !== idea.submittedBy) {
+            const viewKey = `view:idea:${ideaId}:user:${viewerId}`;
+
+            // Check if user has viewed this idea recently
+            const hasViewedRecently = await cacheGet<boolean>(viewKey);
+            const hasViewedRecentlyFallback = viewTrackingCache.get(viewKey);
+
+            if (!hasViewedRecently && !hasViewedRecentlyFallback) {
+                // Mark as viewed for 24 hours
+                await cacheSet(viewKey, true, 86400); // 24 hours in seconds
+                viewTrackingCache.set(viewKey, Date.now() + 86400000); // 24 hours in ms
+
+                // Increment view count (non-blocking)
+                prisma.idea
+                    .update({
+                        where: { id: ideaId },
+                        data: { viewCount: { increment: 1 } },
+                    })
+                    .then(() => updateIdeaTrendingScore(ideaId))
+                    .catch((err) => console.error('Failed to update view count/trending:', err));
+            }
+
+            // Clean up expired entries from in-memory cache (every 100 requests)
+            if (Math.random() < 0.01) {
+                const now = Date.now();
+                for (const [key, expiry] of viewTrackingCache.entries()) {
+                    if (expiry < now) {
+                        viewTrackingCache.delete(key);
+                    }
+                }
+            }
+        }
 
         const tags = Array.isArray((idea as any).tags) ? (idea as any).tags.map((it: any) => it.tag?.name).filter(Boolean) : [];
         const tagObjects = Array.isArray((idea as any).tags) ? (idea as any).tags.map((it: any) => ({ id: it.tagId, name: it.tag?.name })).filter((t: any) => t.name) : [];
@@ -1188,6 +1232,62 @@ app.get('/api/ideas/:id', authMiddleware, async (req, res) => {
     } catch (e: any) {
         console.error('GET /api/ideas/:id error:', e);
         return res.status(500).json({ error: 'Unable to load idea', message: 'Unable to load idea details. Please try again later.' });
+    }
+});
+
+// Record a view after time threshold (called from frontend after user has viewed for 10+ seconds)
+app.post('/api/ideas/:id/view', authMiddleware, async (req, res) => {
+    try {
+        const { id } = req.params as { id: string };
+        const ideaId = parseInt(id, 10);
+        const viewerId = (req as any).user?.sub;
+
+        if (!viewerId) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+
+        // Get idea to check submitter
+        const idea = await prisma.idea.findUnique({
+            where: { id: ideaId },
+            select: { submittedBy: true },
+        });
+
+        if (!idea) {
+            return res.status(404).json({ error: 'Idea not found' });
+        }
+
+        // Don't count views from the submitter
+        if (viewerId === idea.submittedBy) {
+            return res.json({ success: true, counted: false, reason: 'own_idea' });
+        }
+
+        const viewKey = `view:idea:${ideaId}:user:${viewerId}`;
+
+        // Check if already viewed recently
+        const hasViewedRecently = await cacheGet<boolean>(viewKey);
+        const hasViewedRecentlyFallback = viewTrackingCache.get(viewKey);
+
+        if (hasViewedRecently || hasViewedRecentlyFallback) {
+            return res.json({ success: true, counted: false, reason: 'already_viewed' });
+        }
+
+        // Mark as viewed for 24 hours
+        await cacheSet(viewKey, true, 86400);
+        viewTrackingCache.set(viewKey, Date.now() + 86400000);
+
+        // Increment view count
+        await prisma.idea.update({
+            where: { id: ideaId },
+            data: { viewCount: { increment: 1 } },
+        });
+
+        // Update trending score (non-blocking)
+        updateIdeaTrendingScore(ideaId).catch((err) => console.error('Failed to update trending score:', err));
+
+        return res.json({ success: true, counted: true });
+    } catch (e: any) {
+        console.error('POST /api/ideas/:id/view error:', e);
+        return res.status(500).json({ error: 'Unable to record view' });
     }
 });
 

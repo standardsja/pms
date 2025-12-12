@@ -103,9 +103,7 @@ const MyIdeas = () => {
     const loadMyIdeas = async (silent = false) => {
         if (!silent) setIsLoading(true);
         try {
-            // Use mine=true parameter to filter server-side
             const response = await fetchIdeas({ includeAttachments: true, mine: true, limit: 100 });
-            // Handle both paginated and legacy response formats
             const myIdeas = Array.isArray(response) ? (response as Idea[]) : (response as { ideas?: Idea[] })?.ideas ?? [];
 
             const formattedIdeas = myIdeas.map((idea) => {
