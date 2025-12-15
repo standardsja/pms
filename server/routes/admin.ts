@@ -1029,24 +1029,28 @@ router.post('/users/:id/block', adminOnly, async (req: Request, res: Response) =
             },
         });
 
-        // Create audit log
-        await prisma.auditLog.create({
-            data: {
-                userId: adminUser.sub,
-                action: 'USER_UPDATED',
-                entity: 'User',
-                entityId: userId,
-                message: `User ${userToBlock.email} was blocked by admin`,
-                ipAddress: (req.headers['x-forwarded-for'] as string) || req.ip || req.socket.remoteAddress || null,
-                metadata: {
-                    action: 'block',
-                    reason: reason.trim(),
-                    blockedUser: userToBlock.email,
-                    blockedBy: adminUser.email,
-                    status: 'success',
+        // Create audit log (non-fatal)
+        try {
+            await prisma.auditLog.create({
+                data: {
+                    userId: adminUser.sub,
+                    action: 'USER_UPDATED',
+                    entity: 'User',
+                    entityId: userId,
+                    message: `User ${userToBlock.email} was blocked by admin`,
+                    ipAddress: (req.headers['x-forwarded-for'] as string) || req.ip || req.socket.remoteAddress || null,
+                    metadata: {
+                        action: 'block',
+                        reason: reason.trim(),
+                        blockedUser: userToBlock.email,
+                        blockedBy: adminUser.email,
+                        status: 'success',
+                    },
                 },
-            },
-        });
+            });
+        } catch (auditErr) {
+            logger.error('Failed to write audit log for user block (non-fatal)', { error: auditErr, userId, blockedBy: adminUser.sub });
+        }
 
         logger.info('User blocked', {
             userId,
@@ -1098,23 +1102,27 @@ router.post('/users/:id/unblock', adminOnly, async (req: Request, res: Response)
             },
         });
 
-        // Create audit log
-        await prisma.auditLog.create({
-            data: {
-                userId: adminUser.sub,
-                action: 'USER_UPDATED',
-                entity: 'User',
-                entityId: userId,
-                message: `User ${userToUnblock.email} was unblocked by admin`,
-                ipAddress: (req.headers['x-forwarded-for'] as string) || req.ip || req.socket.remoteAddress || null,
-                metadata: {
-                    action: 'unblock',
-                    unblockedUser: userToUnblock.email,
-                    unblockedBy: adminUser.email,
-                    status: 'success',
+        // Create audit log (non-fatal)
+        try {
+            await prisma.auditLog.create({
+                data: {
+                    userId: adminUser.sub,
+                    action: 'USER_UPDATED',
+                    entity: 'User',
+                    entityId: userId,
+                    message: `User ${userToUnblock.email} was unblocked by admin`,
+                    ipAddress: (req.headers['x-forwarded-for'] as string) || req.ip || req.socket.remoteAddress || null,
+                    metadata: {
+                        action: 'unblock',
+                        unblockedUser: userToUnblock.email,
+                        unblockedBy: adminUser.email,
+                        status: 'success',
+                    },
                 },
-            },
-        });
+            });
+        } catch (auditErr) {
+            logger.error('Failed to write audit log for user unblock (non-fatal)', { error: auditErr, userId, unblockedBy: adminUser.sub });
+        }
 
         logger.info('User unblocked', {
             userId,
