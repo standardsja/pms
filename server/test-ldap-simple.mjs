@@ -46,7 +46,7 @@ async function testLDAP() {
 
         console.log('Next steps:');
         console.log('  1. Test authentication with a real user:');
-        console.log('     POST http://spinx-dev:4000/api/auth/ldap-login');
+        console.log('     POST ${process.env.API_URL || "http://localhost:4000"}/api/auth/ldap-login');
         console.log('     Body: { "email": "user@bos.local", "password": "..." }');
         console.log('');
         console.log('  2. The frontend login form now has an "Active Directory" option');

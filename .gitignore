@@ -69,6 +69,5 @@ debug.log
 
 # Deployment scripts (local only)
 deploy-update.ps1
-deploy-heron.ps1
 #ecosystem.config.cjs
 DEPLOYMENT.md

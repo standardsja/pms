@@ -132,8 +132,8 @@ const ProcurementManagerDashboard = () => {
         return { trendOptions, trendSeries, spendOptions, spendSeries, scoreOptions, scoreSeries };
     }, [stats, pendingEvals]);
 
-    // spinx-dev-only API base
-    const API_BASE = (import.meta.env.VITE_API_URL as string) || 'http://spinx-dev:4000';
+    // API base from environment
+    const API_BASE = (import.meta.env.VITE_API_URL as string) || '';
 
     useEffect(() => {
         if (authLoading || !authUser) return;

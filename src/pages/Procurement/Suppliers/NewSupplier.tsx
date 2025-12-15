@@ -41,7 +41,8 @@ const NewSupplier = () => {
             const token = localStorage.getItem('token');
             const userId = localStorage.getItem('userId');
 
-            const response = await fetch('http://spinx-dev:4000/api/suppliers', {
+            const apiUrl = import.meta.env.VITE_API_URL || '';
+            const response = await fetch(`${apiUrl}/api/suppliers`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

@@ -16,12 +16,12 @@ function getApiUrl(): string {
         return '';
     }
 
-    // 3. Production: use same-origin or fallback to spinx-dev
+    // 3. Production: use same-origin or fallback to empty (relative URLs)
     if (typeof window !== 'undefined' && window.location?.origin) {
         return window.location.origin;
     }
 
-    return 'http://spinx-dev:4000';
+    return '';
 }
 
 const API_URL = getApiUrl();

@@ -52,10 +52,10 @@ const APP_ENV = process.env.APP_ENV || 'production';
 // In-memory fallback for view tracking when Redis is not configured
 const viewTrackingCache = new Map<string, number>();
 // Bind address for the HTTP server. In local development we bind to 0.0.0.0
-// so that other hostnames (e.g. Docker host aliases like `spinx-dev`) can reach the server.
-const API_HOST = process.env.API_HOST || (APP_ENV === 'local' ? '0.0.0.0' : '0.0.0.0');
-// Public host for logs (what users type in the browser)
-const PUBLIC_HOST = process.env.API_PUBLIC_HOST || (APP_ENV === 'local' ? 'localhost' : 'spinx-dev');
+// Bind to all interfaces to allow access from different hostnames
+const API_HOST = process.env.API_HOST || '0.0.0.0';
+// Public host for logs and URLs (configurable via environment)
+const PUBLIC_HOST = process.env.API_PUBLIC_HOST || 'localhost';
 const JWT_SECRET = process.env.JWT_SECRET || 'devsecret-change-me';
 
 let trendingJobInterval: NodeJS.Timeout | null = null;
@@ -1520,7 +1520,7 @@ app.post('/api/ideas', authMiddleware, ideaCreationLimiter, upload.single('image
         }
 
         if (req.file) {
-            const fileUrl = `http://spinx-dev:4000/uploads/${req.file.filename}`;
+            const fileUrl = `/uploads/${req.file.filename}`;
             await prisma.ideaAttachment.create({
                 data: {
                     ideaId: idea.id,
@@ -2221,7 +2221,7 @@ app.post(
             if (req.files && Array.isArray(req.files) && req.files.length > 0) {
                 console.log('[POST /requests] Processing', req.files.length, 'file attachments');
                 for (const file of req.files) {
-                    const fileUrl = `http://spinx-dev:4000/uploads/${file.filename}`;
+                    const fileUrl = `/uploads/${file.filename}`;
                     console.log('[POST /requests] Creating attachment:', file.originalname);
                     await prisma.requestAttachment.create({
                         data: {

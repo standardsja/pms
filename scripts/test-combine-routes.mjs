@@ -6,7 +6,8 @@ async function testCombineRoutes() {
     try {
         // First login as a procurement officer
         console.log('1️⃣ Logging in as procurement officer...');
-        const loginResponse = await fetch('http://spinx-dev:4000/api/auth/login', {
+        const apiUrl = process.env.API_URL || 'http://localhost:4000';
+        const loginResponse = await fetch(`${apiUrl}/api/auth/login`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -27,7 +28,7 @@ async function testCombineRoutes() {
 
         // Test GET /api/requests/combine (fetch combinable requests)
         console.log('2️⃣ Testing GET /api/requests/combine...');
-        const getResponse = await fetch('http://spinx-dev:4000/api/requests/combine?combinable=true', {
+        const getResponse = await fetch(`${apiUrl}/api/requests/combine?combinable=true`, {
             method: 'GET',
             headers: {
                 Authorization: `Bearer ${token}`,

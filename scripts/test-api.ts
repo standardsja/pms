@@ -9,7 +9,8 @@ async function testAPI() {
 
         // Test health endpoint
         console.log('\n1. Testing health endpoint...');
-        const healthResponse = await fetch('http://spinx-dev:4000/health');
+        const apiUrl = process.env.API_URL || 'http://localhost:4000';
+        const healthResponse = await fetch(`${apiUrl}/health`);
         console.log('Health status:', healthResponse.status);
         if (healthResponse.ok) {
             const healthData = await healthResponse.json();
@@ -20,7 +21,7 @@ async function testAPI() {
 
         // Test ideas endpoint
         console.log('\n2. Testing ideas endpoint...');
-        const ideasResponse = await fetch('http://spinx-dev:4000/api/ideas', {
+        const ideasResponse = await fetch(`${apiUrl}/api/ideas`, {
             headers: {
                 'x-user-id': '1',
             },
