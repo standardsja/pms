@@ -302,8 +302,8 @@ const Sidebar = () => {
                         </NavLink>
                     </div>
 
-                    <PerfectScrollbar className="h-[calc(100vh-80px)] relative">
-                        <ul className="relative font-semibold space-y-0.5 p-4 py-0">
+                    <PerfectScrollbar className="h-[calc(100vh-80px)] relative overflow-y-auto">
+                        <ul className="relative font-semibold space-y-0.5 p-4 py-0 pb-10">
                             {/* Show ADMIN section for admin users only */}
                             {isAdmin && (
                                 <>
