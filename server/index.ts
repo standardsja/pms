@@ -134,6 +134,10 @@ const batchLimiter = rateLimit({
     message: 'Too many batch operations, please slow down.',
 });
 
+// Enable trust proxy for reverse proxy setup (nginx, etc.)
+// This allows rate limiting to work correctly with X-Forwarded-For headers
+app.set('trust proxy', true);
+
 app.use(cors());
 // Body parsing middleware - MUST come before routes
 app.use(express.json()); // Parse JSON bodies
