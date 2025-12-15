@@ -452,23 +452,19 @@ export default function FormDetail() {
                             <span className="text-gray-400">BSJ</span>
                         </div>
                         <div className="text-sm text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            Bureau of<br />
-                            Standards<br />
+                            Bureau of
+                            <br />
+                            Standards
+                            <br />
                             Jamaica
                         </div>
                     </div>
                 </div>
 
                 {/* Official Form Title */}
-                <h1 className="text-2xl font-bold text-gray-800 dark:text-white mb-2 uppercase">
-                    BUREAU OF STANDARDS JAMAICA
-                </h1>
-                <h2 className="text-xl font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                    Head of Entity's Approval Form
-                </h2>
-                <p className="text-gray-600 dark:text-gray-400">
-                    Contracts valued at 1¢ up to $2,999k (Goods, Services & Works)
-                </p>
+                <h1 className="text-2xl font-bold text-gray-800 dark:text-white mb-2 uppercase">BUREAU OF STANDARDS JAMAICA</h1>
+                <h2 className="text-xl font-semibold text-gray-700 dark:text-gray-300 mb-2">Head of Entity's Approval Form</h2>
+                <p className="text-gray-600 dark:text-gray-400">Contracts valued at 1¢ up to $2,999k (Goods, Services & Works)</p>
             </div>
 
             {/* Action Buttons */}
