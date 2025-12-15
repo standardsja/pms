@@ -135,6 +135,11 @@ router.get(
         // Build cache key
         const cacheKey = `ideas:${userId}:${status || 'all'}:${sort || 'recent'}:${include || 'none'}:${mine || 'false'}:${cursor || 'start'}:${limit}`;
 
+        // For mine=true requests, always clear cache to ensure fresh data
+        if (mine === 'true') {
+            await cacheDeletePattern(`ideas:${userId}:*`);
+        }
+
         const cached = await cacheGet<any>(cacheKey);
         if (cached) {
             return res.json(cached);
@@ -146,6 +151,8 @@ router.get(
         if (mine === 'true' && user.sub) {
             where.submittedBy = user.sub;
         }
+
+        logger.info('[IDEAS GET] WHERE before status filter:', JSON.stringify(where));
 
         // Filter by tag if provided
         if (tag) {
@@ -168,10 +175,10 @@ router.get(
             }
         }
 
-        // Status filtering based on user role
-        if (!isCommittee && mine !== 'true') {
-            where.status = { in: ['APPROVED', 'PROMOTED_TO_PROJECT'] };
-        } else if (status && status !== 'all') {
+        // Status filtering based on user role and request
+        // Show all ideas to all users (voting is restricted on frontend/backend per idea)
+        // Committee can filter by specific status if requested
+        if (status && status !== 'all') {
             const statusMap: Record<string, string> = {
                 pending: 'PENDING_REVIEW',
                 approved: 'APPROVED',
@@ -180,6 +187,12 @@ router.get(
             };
             where.status = statusMap[status] || status;
         }
+        // If no status filter specified, show all (unless committee wants to filter)
+        // Non-committee users see all statuses to enable browsing ideas at all stages
+        // Voting eligibility is checked separately
+
+        logger.info('[IDEAS GET] WHERE after status filter:', JSON.stringify(where));
+        logger.info('[IDEAS GET] Query params:', { status, mine, userId });
 
         // Sorting
         const orderBy: any = sort === 'trending' ? { trendingScore: 'desc' } : sort === 'popularity' ? { voteCount: 'desc' } : { createdAt: 'desc' };

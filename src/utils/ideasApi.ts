@@ -111,7 +111,6 @@ export async function fetchIdeas(params?: {
                 'Cache-Control': 'no-store',
                 Pragma: 'no-cache',
             },
-            cache: 'no-store',
         });
 
         if (!res.ok) {

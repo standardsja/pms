@@ -134,12 +134,6 @@ const Login = () => {
                 return;
             }
 
-            // Evaluation Committee members go straight to their committee dashboard regardless of onboarding state
-            if (detected.isEvaluationCommittee) {
-                navigate('/evaluation/committee/dashboard');
-                return;
-            }
-
             // Innovation committee members with ONLY committee role go directly to committee dashboard
             const isInnovationCommitteeOnly = detected.isInnovationCommittee && userRoles.length === 1;
 

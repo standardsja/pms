@@ -7,6 +7,8 @@ import { setPageTitle } from '../../../store/themeConfigSlice';
 import { getUser } from '../../../utils/auth';
 import { fetchIdeas, voteForIdea, removeVote, fetchIdeaById } from '../../../utils/ideasApi';
 
+type IdeaStatus = 'UNDER_REVIEW' | 'APPROVED' | 'IMPLEMENTED' | 'REJECTED' | 'DRAFT';
+
 interface Idea {
     id: string;
     title: string;
@@ -20,9 +22,58 @@ interface Idea {
     hasVoted: 'up' | 'down' | null;
     viewCount: number;
     trendingScore: number;
+    status: IdeaStatus;
     firstAttachmentUrl?: string | null;
     attachmentsCount?: number;
 }
+
+type ApiIdea = {
+    id?: string | number;
+    title?: string;
+    description?: string;
+    category?: string;
+    submittedBy?: string;
+    createdAt?: string;
+    upvoteCount?: number;
+    downvoteCount?: number;
+    voteCount?: number;
+    hasVoted?: 'up' | 'down' | boolean | null;
+    viewCount?: number;
+    status?: string;
+    firstAttachmentUrl?: string | null;
+    attachments?: Array<{ fileUrl?: string }> | null;
+    attachmentsCount?: number;
+};
+
+const normalizeStatus = (status?: string): IdeaStatus => {
+    const normalized = status?.toUpperCase() || 'UNDER_REVIEW';
+    if (normalized === 'PROMOTED_TO_PROJECT' || normalized === 'IMPLEMENTED') return 'IMPLEMENTED';
+    if (normalized === 'APPROVED') return 'APPROVED';
+    if (normalized === 'REJECTED') return 'REJECTED';
+    if (normalized === 'DRAFT') return 'DRAFT';
+    return 'UNDER_REVIEW';
+};
+
+const mapApiIdea = (idea: ApiIdea): Idea => {
+    const hasVoted = typeof idea.hasVoted === 'string' ? idea.hasVoted : idea.hasVoted ? 'up' : null;
+    return {
+        id: String(idea.id ?? ''),
+        title: idea.title ?? 'Untitled idea',
+        description: idea.description ?? '',
+        category: idea.category ?? 'OTHER',
+        submittedBy: idea.submittedBy ?? 'Unknown',
+        submittedAt: idea.createdAt ? new Date(idea.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        upvotes: Math.max(0, idea.upvoteCount ?? 0),
+        downvotes: Math.max(0, idea.downvoteCount ?? 0),
+        voteCount: idea.voteCount ?? 0,
+        hasVoted,
+        viewCount: idea.viewCount ?? 0,
+        trendingScore: idea.voteCount ?? 0,
+        status: normalizeStatus(idea.status),
+        firstAttachmentUrl: idea.firstAttachmentUrl ?? idea.attachments?.[0]?.fileUrl ?? null,
+        attachmentsCount: idea.attachmentsCount ?? idea.attachments?.length ?? 0,
+    };
+};
 
 const VoteOnIdeas = () => {
     const dispatch = useDispatch();
@@ -57,26 +108,9 @@ const VoteOnIdeas = () => {
                 });
 
                 // Handle both paginated and legacy response formats
-                const apiIdeas = Array.isArray(response) ? response : (response as any).ideas || response;
+                const apiIdeas = Array.isArray(response) ? (response as ApiIdea[]) : (response as { ideas?: ApiIdea[] })?.ideas ?? [];
 
-                setIdeas(
-                    apiIdeas.map((idea: any) => ({
-                        id: String(idea.id),
-                        title: idea.title,
-                        description: idea.description,
-                        category: idea.category,
-                        submittedBy: idea.submittedBy || 'Unknown',
-                        submittedAt: idea.createdAt ? new Date(idea.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-                        upvotes: Math.max(0, idea.upvoteCount || 0),
-                        downvotes: Math.max(0, idea.downvoteCount || 0),
-                        voteCount: idea.voteCount || 0,
-                        hasVoted: (idea as any).hasVoted || null,
-                        viewCount: idea.viewCount || 0,
-                        trendingScore: idea.voteCount || 0,
-                        firstAttachmentUrl: (idea as any).firstAttachmentUrl || (idea as any).attachments?.[0]?.fileUrl || null,
-                        attachmentsCount: (idea as any).attachments?.length || 0,
-                    }))
-                );
+                setIdeas(apiIdeas.map((idea) => mapApiIdea(idea)));
             } catch (error: any) {
                 console.error('[VoteOnIdeas] Error loading ideas:', error);
                 // Only show error on first load, not background polling
@@ -125,21 +159,9 @@ const VoteOnIdeas = () => {
     }, [statusFilters, categoryFilters, sortBy, showVotedOnly]);
 
     // Helper function to update idea state from server response
-    const updateIdeaState = (updatedIdea: any) => {
-        setIdeas(
-            ideas.map((i) =>
-                i.id === String(updatedIdea.id)
-                    ? {
-                          ...i,
-                          upvotes: updatedIdea.upvoteCount || 0,
-                          downvotes: updatedIdea.downvoteCount || 0,
-                          voteCount: updatedIdea.voteCount || 0,
-                          hasVoted: updatedIdea.hasVoted || null,
-                          viewCount: updatedIdea.viewCount || i.viewCount,
-                      }
-                    : i
-            )
-        );
+    const updateIdeaState = (updatedIdea: ApiIdea) => {
+        const next = mapApiIdea(updatedIdea);
+        setIdeas((prev) => prev.map((i) => (i.id === next.id ? next : i)));
     };
 
     const handleVote = async (ideaId: string, voteType: 'up' | 'down') => {
@@ -154,7 +176,7 @@ const VoteOnIdeas = () => {
             if (idea.hasVoted === voteType) {
                 await removeVote(ideaId);
                 const updatedIdea = await fetchIdeaById(ideaId);
-                updateIdeaState(updatedIdea);
+                updateIdeaState(updatedIdea as ApiIdea);
 
                 void Swal.fire({
                     toast: true,
@@ -168,7 +190,7 @@ const VoteOnIdeas = () => {
                 // Add or switch vote
                 await voteForIdea(ideaId, voteType === 'up' ? 'UPVOTE' : 'DOWNVOTE');
                 const updatedIdea = await fetchIdeaById(ideaId);
-                updateIdeaState(updatedIdea);
+                updateIdeaState(updatedIdea as ApiIdea);
 
                 void Swal.fire({
                     toast: true,
@@ -209,7 +231,7 @@ const VoteOnIdeas = () => {
                 // Refresh from server to get correct state
                 try {
                     const updatedIdea = await fetchIdeaById(ideaId);
-                    updateIdeaState(updatedIdea);
+                    updateIdeaState(updatedIdea as ApiIdea);
                 } catch {}
             } else {
                 // Generic error
@@ -290,6 +312,32 @@ const VoteOnIdeas = () => {
             ),
         };
         return icons[category] || icons.OTHER;
+    };
+
+    const getStatusBadge = (status: IdeaStatus) => {
+        const map: Record<IdeaStatus, { label: string; className: string }> = {
+            UNDER_REVIEW: {
+                label: t('innovation.vote.status.underReview', { defaultValue: 'Under Review' }),
+                className: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200',
+            },
+            APPROVED: {
+                label: t('innovation.vote.status.approved', { defaultValue: 'Approved' }),
+                className: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200',
+            },
+            IMPLEMENTED: {
+                label: t('innovation.vote.status.implemented', { defaultValue: 'Implemented' }),
+                className: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-200',
+            },
+            REJECTED: {
+                label: t('innovation.vote.status.rejected', { defaultValue: 'Rejected' }),
+                className: 'bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-200',
+            },
+            DRAFT: {
+                label: t('innovation.vote.status.draft', { defaultValue: 'Draft' }),
+                className: 'bg-slate-100 text-slate-800 dark:bg-slate-800/60 dark:text-slate-200',
+            },
+        };
+        return map[status] ?? map.UNDER_REVIEW;
     };
 
     const sortedIdeas = [...ideas].sort((a, b) => {
@@ -488,46 +536,71 @@ const VoteOnIdeas = () => {
                         <div className="flex gap-4">
                             {/* Vote Column */}
                             <div className="flex flex-col items-center gap-3">
-                                {/* Vote Buttons Side by Side */}
-                                <div className="flex items-center gap-2">
-                                    {/* Upvote Button */}
-                                    <button
-                                        onClick={() => handleVote(idea.id, 'up')}
-                                        disabled={idea.hasVoted !== 'up' && votingPower === 0}
-                                        className={`group relative p-3 rounded-xl transition-all transform ${
-                                            idea.hasVoted === 'up'
-                                                ? 'bg-gradient-to-br from-green-500 to-emerald-600 text-white shadow-lg scale-110'
-                                                : votingPower === 0
-                                                ? 'bg-gray-200 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
-                                                : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gradient-to-br hover:from-green-500 hover:to-emerald-600 hover:text-white hover:scale-110 hover:shadow-lg'
-                                        }`}
-                                        aria-pressed={idea.hasVoted === 'up'}
-                                        aria-label={t('innovation.vote.actions.upvote')}
-                                    >
-                                        <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
-                                            <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008.943 18h5.416a2 2 0 001.962-1.608l1.2-6A2 2 0 0015.56 8H12V4a2 2 0 00-2-2 1 1 0 00-1 1v.667a4 4 0 01-.8 2.4L6.8 7.933a4 4 0 00-.8 2.4z" />
-                                        </svg>
-                                    </button>
+                                {(() => {
+                                    const canVote = idea.status === 'APPROVED' || idea.status === 'IMPLEMENTED';
+                                    const upDisabled = !canVote || (idea.hasVoted !== 'up' && votingPower === 0);
+                                    const downDisabled = !canVote || (idea.hasVoted !== 'down' && votingPower === 0);
 
-                                    {/* Downvote Button */}
-                                    <button
-                                        onClick={() => handleVote(idea.id, 'down')}
-                                        disabled={idea.hasVoted !== 'down' && votingPower === 0}
-                                        className={`group relative p-3 rounded-xl transition-all transform ${
-                                            idea.hasVoted === 'down'
-                                                ? 'bg-gradient-to-br from-red-500 to-rose-600 text-white shadow-lg scale-110'
-                                                : votingPower === 0
-                                                ? 'bg-gray-200 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
-                                                : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gradient-to-br hover:from-red-500 hover:to-rose-600 hover:text-white hover:scale-110 hover:shadow-lg'
-                                        }`}
-                                        aria-pressed={idea.hasVoted === 'down'}
-                                        aria-label={t('innovation.vote.actions.downvote')}
-                                    >
-                                        <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
-                                            <path d="M18 9.5a1.5 1.5 0 11-3 0v-6a1.5 1.5 0 013 0v6zM14 9.667v-5.43a2 2 0 00-1.105-1.79l-.05-.025A4 4 0 0011.055 2H5.64a2 2 0 00-1.962 1.608l-1.2 6A2 2 0 004.44 12H8v4a2 2 0 002 2 1 1 0 001-1v-.667a4 4 0 01.8-2.4l1.4-1.866a4 4 0 00.8-2.4z" />
-                                        </svg>
-                                    </button>
-                                </div>
+                                    return (
+                                        <>
+                                            {/* Vote Buttons Side by Side */}
+                                            <div className="flex items-center gap-2">
+                                                {/* Upvote Button */}
+                                                <button
+                                                    onClick={() => handleVote(idea.id, 'up')}
+                                                    disabled={upDisabled}
+                                                    className={`group relative p-3 rounded-xl transition-all transform ${
+                                                        idea.hasVoted === 'up'
+                                                            ? 'bg-gradient-to-br from-green-500 to-emerald-600 text-white shadow-lg scale-110'
+                                                            : upDisabled
+                                                            ? 'bg-gray-200 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
+                                                            : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gradient-to-br hover:from-green-500 hover:to-emerald-600 hover:text-white hover:scale-110 hover:shadow-lg'
+                                                    }`}
+                                                    aria-pressed={idea.hasVoted === 'up'}
+                                                    aria-label={t('innovation.vote.actions.upvote')}
+                                                >
+                                                    <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                                                        <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008.943 18h5.416a2 2 0 001.962-1.608l1.2-6A2 2 0 0015.56 8H12V4a2 2 0 00-2-2 1 1 0 00-1 1v.667a4 4 0 01-.8 2.4L6.8 7.933a4 4 0 00-.8 2.4z" />
+                                                    </svg>
+                                                </button>
+
+                                                {/* Downvote Button */}
+                                                <button
+                                                    onClick={() => handleVote(idea.id, 'down')}
+                                                    disabled={downDisabled}
+                                                    className={`group relative p-3 rounded-xl transition-all transform ${
+                                                        idea.hasVoted === 'down'
+                                                            ? 'bg-gradient-to-br from-red-500 to-rose-600 text-white shadow-lg scale-110'
+                                                            : downDisabled
+                                                            ? 'bg-gray-200 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
+                                                            : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gradient-to-br hover:from-red-500 hover:to-rose-600 hover:text-white hover:scale-110 hover:shadow-lg'
+                                                    }`}
+                                                    aria-pressed={idea.hasVoted === 'down'}
+                                                    aria-label={t('innovation.vote.actions.downvote')}
+                                                >
+                                                    <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                                                        <path d="M18 9.5a1.5 1.5 0 11-3 0v-6a1.5 1.5 0 013 0v6zM14 9.667v-5.43a2 2 0 00-1.105-1.79l-.05-.025A4 4 0 0011.055 2H5.64a2 2 0 00-1.962 1.608l-1.2 6A2 2 0 004.44 12H8v4a2 2 0 002 2 1 1 0 001-1v-.667a4 4 0 01.8-2.4l1.4-1.866a4 4 0 00.8-2.4z" />
+                                                    </svg>
+                                                </button>
+                                            </div>
+
+                                            {sortBy === 'trending' && idea.trendingScore > 0 && (
+                                                <div className="mt-1 px-2 py-1 bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-300 rounded text-xs font-bold inline-flex items-center gap-1">
+                                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                                                    </svg>
+                                                    {idea.trendingScore}
+                                                </div>
+                                            )}
+
+                                            {!canVote && (
+                                                <div className="text-[11px] text-amber-700 dark:text-amber-300 text-center px-2">
+                                                    {t('innovation.vote.status.locked', { defaultValue: 'Voting opens after approval.' })}
+                                                </div>
+                                            )}
+                                        </>
+                                    );
+                                })()}
 
                                 {/* Vote Count Display */}
                                 <div className="text-center">
@@ -557,15 +630,6 @@ const VoteOnIdeas = () => {
                                         </span>
                                     </div>
                                 </div>
-
-                                {sortBy === 'trending' && idea.trendingScore > 0 && (
-                                    <div className="mt-1 px-2 py-1 bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-300 rounded text-xs font-bold inline-flex items-center gap-1">
-                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                                        </svg>
-                                        {idea.trendingScore}
-                                    </div>
-                                )}
                             </div>
 
                             {/* Content */}
@@ -573,9 +637,15 @@ const VoteOnIdeas = () => {
                                 <div className="flex items-start gap-3 mb-3">
                                     <span className="text-3xl">{getCategoryIcon(idea.category)}</span>
                                     <div className="flex-1">
-                                        <Link to={`/innovation/ideas/${idea.id}`} className="text-xl font-bold text-gray-900 dark:text-white hover:text-primary transition-colors line-clamp-2">
-                                            {idea.title}
-                                        </Link>
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <Link to={`/innovation/ideas/${idea.id}`} className="text-xl font-bold text-gray-900 dark:text-white hover:text-primary transition-colors line-clamp-2">
+                                                {idea.title}
+                                            </Link>
+                                            {(() => {
+                                                const badge = getStatusBadge(idea.status);
+                                                return <span className={`px-2 py-1 rounded-full text-[11px] font-semibold ${badge.className}`}>{badge.label}</span>;
+                                            })()}
+                                        </div>
                                         <div className="flex items-center gap-2 mt-1 text-sm text-gray-500 dark:text-gray-400">
                                             <span>{t('innovation.view.submittedBy', { name: idea.submittedBy })}</span>
                                             <span>•</span>
