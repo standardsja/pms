@@ -103,10 +103,8 @@ const Profile = () => {
                         }
                     }
 
-                    // Add timestamp to profile image for cache busting
-                    if (data.profileImage) {
-                        data.profileImage = resolveProfileImageUrl(data.profileImage);
-                    }
+                    // Store raw profile image path (cache-busting timestamp added at render time)
+                    // This ensures fresh image loads when component re-renders
                     setProfileData(data);
                     // Fetch Innovation Hub stats
                     try {
@@ -219,17 +217,17 @@ const Profile = () => {
             }
 
             const data = await response.json();
-            // Update profile data with new photo (add timestamp to bust cache)
-            const newProfileImage = resolveProfileImageUrl(data.profileImage);
+            // Store the raw profile image path (without cache-busting timestamp)
+            // Cache-busting will be added at render time to ensure fresh loads
             setProfileData((prev: any) => ({
                 ...prev,
-                profileImage: newProfileImage,
+                profileImage: data.profileImage,
             }));
 
-            // Trigger a custom event to notify Header component
+            // Dispatch event with cache-busted URL for Header component
             window.dispatchEvent(
                 new CustomEvent('profilePhotoUpdated', {
-                    detail: { profileImage: newProfileImage },
+                    detail: { profileImage: resolveProfileImageUrl(data.profileImage) },
                 })
             );
 
@@ -368,7 +366,7 @@ const Profile = () => {
                                 <div className="relative group mb-4 transition-transform duration-300 hover:scale-105">
                                     {displayUser?.profileImage ? (
                                         <img
-                                            src={displayUser.profileImage.startsWith('http') ? displayUser.profileImage : getApiUrl(displayUser.profileImage)}
+                                            src={resolveProfileImageUrl(displayUser.profileImage)}
                                             alt="profile"
                                             className="w-24 h-24 rounded-full object-cover ring-4 ring-primary/30 shadow-lg transition-shadow duration-300 group-hover:ring-primary/50"
                                             onError={(e) => {
