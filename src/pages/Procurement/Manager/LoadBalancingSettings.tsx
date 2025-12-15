@@ -211,7 +211,7 @@ const LoadBalancingSettings = () => {
                                 <div className="bg-white dark:bg-gray-800 rounded p-4 mb-4">
                                     <p className="text-sm text-gray-700 dark:text-gray-300 mb-2 font-semibold">Troubleshooting:</p>
                                     <ul className="list-disc list-inside text-sm text-gray-600 dark:text-gray-400 space-y-1">
-                                        <li>Check if the backend server is running (http://heron:4000)</li>
+                                        <li>Check if the backend server is running (http://spinx-dev:4000)</li>
                                         <li>Verify you are logged in with PROCUREMENT_MANAGER role</li>
                                         <li>Open browser console (F12) for detailed error logs</li>
                                         <li>Check network connectivity to the server</li>

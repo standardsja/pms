@@ -40,7 +40,7 @@ async function testConnection() {
             console.log('');
             console.log('Next steps:');
             console.log('  1. Test authentication with a real user:');
-            console.log('     POST http://heron:4000/api/auth/ldap-login');
+            console.log('     POST http://spinx-dev:4000/api/auth/ldap-login');
             console.log('     Body: { "email": "user@bos.local", "password": "..." }');
             console.log('');
             console.log('  2. Update frontend login form to add LDAP option');

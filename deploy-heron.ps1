@@ -1,13 +1,13 @@
-# Deployment Script for Heron Server
+# Deployment Script for spinx-dev Server
 
-# 1. Make sure you have the correct .env file on heron
+# 1. Make sure you have the correct .env file on spinx-dev
 Copy-Item .env.production .env -Force
 
 # 2. Install dependencies if not already installed
 npm install
 
 # 3. Build the frontend with the correct API URL
-$env:VITE_API_URL="http://heron:4000"
+$env:VITE_API_URL="http://spinx-dev:4000"
 npm run build
 
 # 4. Start the backend server (in background)

@@ -57,7 +57,7 @@ Write-Host "  See docs/SUPPLIER_NOTIFICATIONS.md for details" -ForegroundColor W
 Write-Host ""
 Write-Host "Example API Call:" -ForegroundColor Yellow
 Write-Host @"
-  POST http://heron:4000/api/purchase-orders
+  POST http://spinx-dev:4000/api/purchase-orders
   {
     "supplierName": "ABC Corporation",
     "supplierEmail": "supplier@example.com",

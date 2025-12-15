@@ -16,12 +16,12 @@ function getApiUrl(): string {
         return '';
     }
 
-    // 3. Production: use same-origin or fallback to heron
+    // 3. Production: use same-origin or fallback to spinx-dev
     if (typeof window !== 'undefined' && window.location?.origin) {
         return window.location.origin;
     }
 
-    return 'http://heron:4000';
+    return 'http://spinx-dev:4000';
 }
 
 const API_URL = getApiUrl();

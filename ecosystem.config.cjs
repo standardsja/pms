@@ -126,9 +126,9 @@ module.exports = {
     ],
 
     deploy: {
-        heron: {
+        spinxdev: {
             user: 'ict_admin',
-            host: 'heron',
+            host: 'spinx-dev',
             ref: 'origin/Kymarley',
             repo: 'git@github.com:standardsja/pms.git',
             path: '/var/www/pms',

@@ -35,7 +35,7 @@ const SupplierList = () => {
             const token = localStorage.getItem('token');
             const userId = localStorage.getItem('userId');
 
-            const response = await fetch('http://heron:4000/api/suppliers', {
+            const response = await fetch('http://spinx-dev:4000/api/suppliers', {
                 headers: {
                     Authorization: `Bearer ${token}`,
                     'x-user-id': userId || '',

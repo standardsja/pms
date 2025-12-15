@@ -41,7 +41,7 @@ const NewSupplier = () => {
             const token = localStorage.getItem('token');
             const userId = localStorage.getItem('userId');
 
-            const response = await fetch('http://heron:4000/api/suppliers', {
+            const response = await fetch('http://spinx-dev:4000/api/suppliers', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
