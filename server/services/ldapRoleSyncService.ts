@@ -191,7 +191,7 @@ export async function syncLDAPUserToDatabase(ldapUser: LDAPUser, existingUser?: 
                     });
 
                     result.departmentAssigned = {
-                        id: dept.id,
+                        id: String(dept.id),
                         name: dept.name,
                     };
 
@@ -272,7 +272,7 @@ export async function syncLDAPUserToDatabase(ldapUser: LDAPUser, existingUser?: 
                         });
 
                         result.departmentAssigned = {
-                            id: dept.id,
+                            id: String(dept.id),
                             name: dept.name,
                         };
 

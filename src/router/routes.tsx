@@ -80,6 +80,10 @@ const RolePermissionManagement = lazy(() => import('../pages/Procurement/Admin/R
 const BulkUserManagement = lazy(() => import('../pages/Procurement/Admin/BulkUserManagement'));
 const SystemConfiguration = lazy(() => import('../pages/Procurement/Admin/SystemConfiguration'));
 
+// Forms Pages
+const FormSelection = lazy(() => import('../pages/Procurement/Forms/FormSelection'));
+const FormDetail = lazy(() => import('../pages/Procurement/Forms/FormDetail'));
+
 // Request Pages
 const Requests = lazy(() => import('../pages/Procurement/Requests/Requests'));
 const RequestForm = lazy(() => import('../pages/Procurement/Requests/RequestForm'));
@@ -604,6 +608,28 @@ const routes = [
     {
         path: '/procurement/executive/signoffs',
         element: <ExecutiveDigitalSignoffs />,
+    },
+
+    // ============================================
+    // REQUEST ROUTES
+    // ============================================
+    // FORMS ROUTES
+    // ============================================
+    {
+        path: '/procurement/forms',
+        element: (
+            <ProcurementRoute>
+                <FormSelection />
+            </ProcurementRoute>
+        ),
+    },
+    {
+        path: '/procurement/forms/:id',
+        element: (
+            <ProcurementRoute>
+                <FormDetail />
+            </ProcurementRoute>
+        ),
     },
 
     // ============================================

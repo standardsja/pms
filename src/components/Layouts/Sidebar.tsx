@@ -932,6 +932,15 @@ const Sidebar = () => {
                                     </li>
 
                                     <li className="nav-item">
+                                        <NavLink to="/procurement/forms" className="group">
+                                            <div className="flex items-center">
+                                                <IconFile className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Forms</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+
+                                    <li className="nav-item">
                                         <NavLink to="/procurement/catalog" className="group">
                                             <div className="flex items-center">
                                                 <IconBook className="group-hover:!text-primary shrink-0" />
@@ -1050,6 +1059,15 @@ const Sidebar = () => {
                                             <div className="flex items-center">
                                                 <IconClipboardText className="group-hover:!text-primary shrink-0" />
                                                 <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Evaluation</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+
+                                    <li className="nav-item">
+                                        <NavLink to="/procurement/forms" className="group">
+                                            <div className="flex items-center">
+                                                <IconFile className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Forms</span>
                                             </div>
                                         </NavLink>
                                     </li>
