@@ -35,6 +35,7 @@ const Profile = () => {
     const [recentActivities, setRecentActivities] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [uploadingPhoto, setUploadingPhoto] = useState(false);
+    const [imageError, setImageError] = useState(false);
     const [roleContext, setRoleContext] = useState<any>(null);
     const [stats, setStats] = useState<any>({
         // Procurement stats
@@ -364,19 +365,14 @@ const Profile = () => {
                         <div className="mb-5">
                             <div className="flex flex-col justify-center items-center">
                                 <div className="relative group mb-4 transition-transform duration-300 hover:scale-105">
-                                    {displayUser?.profileImage ? (
+                                    {displayUser?.profileImage && !imageError ? (
                                         <img
                                             src={resolveProfileImageUrl(displayUser.profileImage)}
                                             alt="profile"
                                             className="w-24 h-24 rounded-full object-cover ring-4 ring-primary/30 shadow-lg transition-shadow duration-300 group-hover:ring-primary/50"
-                                            onError={(e) => {
-                                                // Fallback to initials if image fails to load
-                                                const img = e.target as HTMLImageElement;
-                                                img.style.display = 'none';
-                                            }}
+                                            onError={() => setImageError(true)}
                                         />
-                                    ) : null}
-                                    {!displayUser?.profileImage && (
+                                    ) : (
                                         <div className="w-24 h-24 rounded-full bg-gradient-to-br from-primary/30 to-primary/10 dark:from-primary/40 dark:to-primary/20 ring-4 ring-primary/30 flex items-center justify-center shadow-lg font-bold">
                                             <span className="text-4xl text-primary dark:text-primary-light">{userName?.charAt(0)?.toUpperCase() || '?'}</span>
                                         </div>

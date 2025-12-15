@@ -74,7 +74,7 @@ module.exports = {
         {
             name: 'pms-backend',
             script: 'npm',
-            args: 'run server:dev', // you may later change this to a prod script like `server`
+            args: 'run server:prod',
             env: {
                 NODE_ENV: 'development',
                 PORT: 4000,
@@ -83,59 +83,14 @@ module.exports = {
                 NODE_ENV: 'production',
                 PORT: 4000,
                 LOG_LEVEL: 'info',
+                DATABASE_URL: 'mysql://user:pass@stork:3306/pmsdb',
             },
-            env_staging: {
-                NODE_ENV: 'staging',
-                PORT: 4001,
-                LOG_LEVEL: 'debug',
-            },
-
-            // Process management
             max_memory_restart: '1G',
             autorestart: true,
-
-            // Logging
             log_file: './logs/combined.log',
             out_file: './logs/out.log',
             error_file: './logs/error.log',
             log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
         },
-        {
-            name: 'pms-frontend',
-            script: 'npm',
-            args: 'run dev', // dev server (Vite) – fine if you just want sphinx-prod:5173
-            env: {
-                NODE_ENV: 'development',
-                PORT: 5173,
-            },
-            env_production: {
-                NODE_ENV: 'production',
-                PORT: 5173, // or whatever port you want in prod
-            },
-
-            // Process management
-            max_memory_restart: '500M',
-            autorestart: true,
-
-            // Logging
-            log_file: './logs/frontend-combined.log',
-            out_file: './logs/frontend-out.log',
-            error_file: './logs/frontend-error.log',
-            log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
-        },
     ],
-
-    deploy: {
-        spinxdev: {
-            user: 'ict_admin',
-            host: 'spinx-dev',
-            ref: 'origin/Kymarley',
-            repo: 'git@github.com:standardsja/pms.git',
-            path: '/var/www/pms',
-            'post-deploy': 'npm install && npm run build && pm2 reload ecosystem.config.cjs --env production',
-            env: {
-                NODE_ENV: 'production',
-            },
-        },
-    },
 };

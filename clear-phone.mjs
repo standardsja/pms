@@ -3,13 +3,13 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-async function checkPhone() {
+async function fixProfileImage() {
     try {
-        const result = await prisma.user.findUnique({
+        const result = await prisma.user.update({
             where: { email: 'srobinson@bsj.org.jm' },
-            select: { id: true, name: true, email: true, phone: true },
+            data: { profileImage: '/uploads/profiles/ldap-srobinson-bsj-org-jm-1765300256736.jpg' },
         });
-        console.log('User data:', JSON.stringify(result, null, 2));
+        console.log('Profile image updated to:', result.profileImage);
     } catch (error) {
         console.error('Error:', error);
     } finally {
@@ -17,4 +17,4 @@ async function checkPhone() {
     }
 }
 
-checkPhone();
+fixProfileImage();

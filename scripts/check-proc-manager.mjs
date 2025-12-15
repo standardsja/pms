@@ -1,6 +1,6 @@
 import fetch from 'node-fetch';
 
-const LOGIN_HOSTS = [process.env.API_URL || 'http://localhost:4000'];
+const LOGIN_HOSTS = ['http://sphinx-dev:4000', 'http://localhost:4000'];
 
 async function tryLoginAt(host) {
     const url = `${host}/api/auth/login`;

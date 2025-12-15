@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { PrismaClient, RequestStatus } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth';
 import { checkUserRoles, hasPermission } from '../utils/roleUtils';
 import { checkProcurementThresholds } from '../services/thresholdService';

@@ -132,8 +132,8 @@ const ProcurementManagerDashboard = () => {
         return { trendOptions, trendSeries, spendOptions, spendSeries, scoreOptions, scoreSeries };
     }, [stats, pendingEvals]);
 
-    // API base from environment
-    const API_BASE = (import.meta.env.VITE_API_URL as string) || '';
+    // Heron-only API base
+    const API_BASE = (import.meta.env.VITE_API_URL as string) || 'http://localhost:4000';
 
     useEffect(() => {
         if (authLoading || !authUser) return;

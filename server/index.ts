@@ -52,9 +52,12 @@ const APP_ENV = process.env.APP_ENV || 'production';
 // In-memory fallback for view tracking when Redis is not configured
 const viewTrackingCache = new Map<string, number>();
 // Bind address for the HTTP server. In local development we bind to 0.0.0.0
-// Bind to all interfaces to allow access from different hostnames
-const API_HOST = process.env.API_HOST || '0.0.0.0';
-// Public host for logs and URLs (configurable via environment)
+// so that other hostnames (e.g. Docker host aliases like `heron`) can reach the server.
+const API_HOST = process.env.API_HOST || (APP_ENV === 'local' ? '0.0.0.0' : '0.0.0.0');
+// Public host for logs (what users type in the browser).
+// Default to `localhost` when not explicitly provided so the app works on the
+// local server without hardcoding an environment-specific hostname.
+// Set `API_PUBLIC_HOST` in the environment when you want a different public host.
 const PUBLIC_HOST = process.env.API_PUBLIC_HOST || 'localhost';
 const JWT_SECRET = process.env.JWT_SECRET || 'devsecret-change-me';
 
@@ -1520,7 +1523,7 @@ app.post('/api/ideas', authMiddleware, ideaCreationLimiter, upload.single('image
         }
 
         if (req.file) {
-            const fileUrl = `/uploads/${req.file.filename}`;
+            const fileUrl = `http://localhost:4000/uploads/${req.file.filename}`;
             await prisma.ideaAttachment.create({
                 data: {
                     ideaId: idea.id,
@@ -2221,7 +2224,7 @@ app.post(
             if (req.files && Array.isArray(req.files) && req.files.length > 0) {
                 console.log('[POST /requests] Processing', req.files.length, 'file attachments');
                 for (const file of req.files) {
-                    const fileUrl = `/uploads/${file.filename}`;
+                    const fileUrl = `http://localhost:4000/uploads/${file.filename}`;
                     console.log('[POST /requests] Creating attachment:', file.originalname);
                     await prisma.requestAttachment.create({
                         data: {
@@ -2878,9 +2881,32 @@ app.get('/api/requests/:id/pdf', async (req, res) => {
             return res.status(404).json({ error: 'Not Found', message: 'Route GET /requests/9/pdf does not exist', statusCode: 404 });
         }
 
-        // Load HTML template
+        // Load HTML template and inject logo + document control
         const templatePath = path.join(process.cwd(), 'server', 'templates', 'request-pdf.html');
         let html = fs.readFileSync(templatePath, 'utf-8');
+
+        // Attempt to inline the logo as data URI so Puppeteer can render without external HTTP server
+        let logoData = '';
+        try {
+            const logoPath = path.join(process.cwd(), 'public', 'assets', 'images', 'bsj-logo.png');
+            if (fs.existsSync(logoPath)) {
+                const bin = fs.readFileSync(logoPath);
+                const b64 = bin.toString('base64');
+                logoData = `data:image/png;base64,${b64}`;
+            }
+        } catch (err) {
+            console.warn('Failed to inline logo for PDF:', err);
+        }
+
+        // Build document control string from environment (server-side)
+        const docControl =
+            process.env.VITE_DOC_CONTROL_TEXT ||
+            process.env.DOC_CONTROL_TEXT ||
+            `${process.env.VITE_DOC_CONTROL_CODE || 'PRO_70_F14/00'} | Issue Date: ${process.env.VITE_DOC_ISSUE_DATE || process.env.DOC_ISSUE_DATE || 'August 01,2025'} | Revision Date: ${
+                process.env.VITE_DOC_REVISION_DATE || process.env.DOC_REVISION_DATE || 'N/A'
+            } | Revision #: ${process.env.VITE_DOC_REVISION_NUMBER || process.env.DOC_REVISION_NUMBER || '0'}`;
+
+        html = html.replace('{{logoData}}', logoData).replace('{{docControl}}', docControl);
 
         // Helper to format date - handles Date objects and ISO/YYYY-MM-DD strings
         const formatDate = (date: Date | string | null | undefined) => {
@@ -3005,13 +3031,50 @@ app.get('/api/requests/:id/pdf', async (req, res) => {
                 doc.on('data', (d: Buffer) => chunks.push(d));
                 doc.on('end', () => resolve(Buffer.concat(chunks)));
             });
+            // helper to draw header/footer on current page
+            const drawHeaderFooter = () => {
+                try {
+                    const { width, height } = doc.page;
+                    // Header: logo left, title centered
+                    const headerY = 18;
+                    if (logoData) {
+                        // logoData is a data URI; convert to Buffer
+                        const m = logoData.match(/^data:image\/(png|jpeg);base64,(.*)$/);
+                        if (m) {
+                            const b = Buffer.from(m[2], 'base64');
+                            try {
+                                doc.image(b, 36, headerY, { height: 32 });
+                            } catch (e) {
+                                // ignore image errors
+                            }
+                        }
+                    }
+                    doc.fontSize(12);
+                    doc.text('BUREAU OF STANDARDS JAMAICA', 0, headerY, { align: 'center' });
+                    doc.fontSize(10);
+                    doc.text('PROCUREMENT REQUISITION FORM', 0, headerY + 14, { align: 'center' });
 
-            doc.fontSize(14);
-            doc.text('BUREAU OF STANDARDS JAMAICA', { align: 'center' });
-            doc.moveDown(0.3);
-            doc.fontSize(12);
-            doc.text('PROCUREMENT REQUISITION FORM', { align: 'center' });
-            doc.moveDown();
+                    // Footer: docControl string left
+                    doc.fontSize(9);
+                    const footerY = height - 40;
+                    try {
+                        doc.text(docControl, 36, footerY, { align: 'left', width: width - 72 });
+                    } catch (e) {}
+                } catch (err) {
+                    // ignore header/footer failures
+                }
+            };
+
+            // Draw header/footer on the first page
+            drawHeaderFooter();
+
+            // Ensure header/footer are drawn on subsequent pages
+            doc.on('pageAdded', () => {
+                drawHeaderFooter();
+            });
+
+            // Body content
+            doc.moveDown(6);
             doc.fontSize(10);
             const ref = request.reference || String(id);
             doc.text(`Reference: ${ref}`);
@@ -3022,16 +3085,29 @@ app.get('/api/requests/:id/pdf', async (req, res) => {
             doc.text(`Priority: ${request.priority || '—'} | Currency: ${request.currency || 'JMD'}`);
             doc.text(`Estimated Total: ${request.totalEstimated ?? '—'}`);
             doc.moveDown();
-            doc.text('Justification:', { underline: true });
-            doc.text(request.description || '—');
+            doc.font('Helvetica-Bold').text('Justification:');
+            doc.font('Helvetica').text(request.description || '—');
             doc.moveDown();
-            doc.text('Items:', { underline: true });
+            doc.font('Helvetica-Bold').text('Items:');
+            doc.font('Helvetica');
             request.items.forEach((it: any, idx: number) => {
                 const qty = it.quantity ?? '—';
                 const up = it.unitPrice ?? '—';
                 const sub = (Number(it.quantity || 0) * Number(it.unitPrice || 0)).toFixed(2);
                 doc.text(`${idx + 1}. ${it.description || '—'} | Qty: ${qty} | Unit: ${up} | Subtotal: ${sub}`);
             });
+
+            // Add final signature page
+            doc.addPage();
+            // draw header/footer on new page (pageAdded handler will run)
+            doc.moveDown(12);
+            // place signature line on right
+            const sigX = doc.page.width - 72 - 360; // right margin minus width
+            const sigY = doc.y + 60;
+            doc.moveTo(sigX, sigY)
+                .lineTo(sigX + 360, sigY)
+                .stroke();
+
             doc.end();
             pdf = await done;
         }
@@ -5720,7 +5796,7 @@ app.post(
             throw new NotFoundError('You are not assigned to this evaluation');
         }
 
-        // Update assignment status to SUBMITTED (fallback to raw SQL if enum mismatch exists)
+        // Update assignment status to SUBMITTED
         try {
             await (prisma as any).evaluationAssignment.update({
                 where: { id: assignment.id },
@@ -5738,13 +5814,42 @@ app.post(
             }
         }
 
+        // Check if all assignments for this evaluation are now SUBMITTED
+        const allAssignments = await (prisma as any).evaluationAssignment.findMany({
+            where: { evaluationId },
+        });
+
+        const allSubmitted = allAssignments.length > 0 && allAssignments.every((a: any) => a.status === 'SUBMITTED');
+
+        // If all assignments are submitted, surface Sections B & C as returned to procurement and ready for D & E
+        if (allSubmitted) {
+            try {
+                await (prisma as any).evaluation.update({
+                    where: { id: evaluationId },
+                    data: {
+                        // keep overall evaluation active but signal procurement to continue
+                        status: 'IN_PROGRESS',
+                        sectionBStatus: 'RETURNED',
+                        sectionCStatus: 'RETURNED',
+                        // ensure procurement sections are unlocked
+                        sectionDStatus: 'NOT_STARTED',
+                        sectionEStatus: 'NOT_STARTED',
+                    },
+                });
+            } catch (e) {
+                console.error('Failed to update evaluation status after assignments complete:', e);
+            }
+        }
+
         // Notify procurement officer (creator)
         try {
             await (prisma as any).notification.create({
                 data: {
                     userId: assignment.evaluation.createdBy,
                     type: 'EVALUATION_VERIFIED',
-                    message: `${userObj.name || userObj.email} has completed their evaluation assignment for ${assignment.evaluation.evalNumber}`,
+                    message: `${userObj.name || userObj.email} has completed their evaluation assignment for ${assignment.evaluation.evalNumber}${
+                        allSubmitted ? '. All assignments complete – Sections B & C returned; please finalize Sections D & E.' : ''
+                    }`,
                     data: { evaluationId, evalNumber: assignment.evaluation.evalNumber },
                 },
             });
@@ -5752,7 +5857,10 @@ app.post(
             console.error('Failed to create completion notification:', e);
         }
 
-        res.json({ success: true, message: 'Assignment marked as complete and procurement notified' });
+        res.json({
+            success: true,
+            message: allSubmitted ? 'All assignments complete! Evaluation returned to procurement for Sections D & E.' : 'Assignment marked as complete and procurement notified',
+        });
     })
 );
 

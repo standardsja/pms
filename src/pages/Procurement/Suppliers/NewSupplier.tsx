@@ -41,8 +41,7 @@ const NewSupplier = () => {
             const token = localStorage.getItem('token');
             const userId = localStorage.getItem('userId');
 
-            const apiUrl = import.meta.env.VITE_API_URL || '';
-            const response = await fetch(`${apiUrl}/api/suppliers`, {
+            const response = await fetch('http://localhost:4000/api/suppliers', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

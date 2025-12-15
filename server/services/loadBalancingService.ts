@@ -1,4 +1,4 @@
-import { PrismaClient, LoadBalancingStrategy } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 
 /**
  * Load Balancing Service
@@ -9,7 +9,7 @@ import { PrismaClient, LoadBalancingStrategy } from '@prisma/client';
 
 export interface LoadBalancingConfig {
     enabled: boolean;
-    strategy: LoadBalancingStrategy;
+    strategy: Prisma.LoadBalancingStrategy;
     autoAssignOnApproval: boolean;
     roundRobinCounter: number;
     splinteringEnabled: boolean;
@@ -75,7 +75,7 @@ export async function updateLoadBalancingSettings(prisma: PrismaClient, config: 
         const created = await prisma.loadBalancingSettings.create({
             data: {
                 enabled: config.enabled ?? false,
-                strategy: config.strategy ?? 'LEAST_LOADED',
+                strategy: config.strategy ?? ('LEAST_LOADED' as Prisma.LoadBalancingStrategy),
                 autoAssignOnApproval: config.autoAssignOnApproval ?? true,
                 roundRobinCounter: config.roundRobinCounter ?? 0,
                 splinteringEnabled: config.splinteringEnabled ?? false,
