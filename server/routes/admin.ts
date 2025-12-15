@@ -209,13 +209,14 @@ router.get('/permissions', adminOnly, async (req: Request, res: Response) => {
                 )
             );
 
-            res.json(created);
-        } else {
-            res.json(permissions);
+            return res.json(created);
         }
-    } catch (error) {
-        logger.error('Failed to fetch permissions', { error });
-        res.status(500).json({ success: false, message: 'Failed to fetch permissions' });
+
+        res.json(permissions);
+    } catch (error: any) {
+        logger.error('Failed to fetch permissions', { error: error?.message, stack: error?.stack });
+        console.error('GET /api/admin/permissions error:', error);
+        res.status(500).json({ success: false, message: 'Failed to fetch permissions', error: error?.message });
     }
 });
 
@@ -774,6 +775,19 @@ router.get('/roles/:id/permissions', adminOnly, async (req: Request, res: Respon
         const { id } = req.params;
         const roleId = parseInt(id);
 
+        if (isNaN(roleId)) {
+            return res.status(400).json({ success: false, message: 'Invalid role ID' });
+        }
+
+        // Verify role exists
+        const role = await prisma.role.findUnique({
+            where: { id: roleId },
+        });
+
+        if (!role) {
+            return res.status(404).json({ success: false, message: 'Role not found' });
+        }
+
         const rolePermissions = await prisma.rolePermission.findMany({
             where: { roleId },
             include: {
@@ -794,9 +808,10 @@ router.get('/roles/:id/permissions', adminOnly, async (req: Request, res: Respon
             allPermissions,
             rolePermissions: rolePermissions.map((rp) => rp.permission),
         });
-    } catch (error) {
-        logger.error('Failed to fetch role permissions', { error });
-        res.status(500).json({ success: false, message: 'Failed to fetch role permissions' });
+    } catch (error: any) {
+        logger.error('Failed to fetch role permissions', { error: error?.message, stack: error?.stack });
+        console.error('GET /api/admin/roles/:id/permissions error:', error);
+        res.status(500).json({ success: false, message: 'Failed to fetch role permissions', error: error?.message });
     }
 });
 
