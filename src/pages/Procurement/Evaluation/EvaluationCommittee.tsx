@@ -557,7 +557,8 @@ const EvaluationCommittee = () => {
     const renderSectionEFormStyle = (sectionE: any) => (
         <FieldGroup title="Final Recommendation" color="success">
             <TextAreaField label="Recommendation" value={sectionE?.finalRecommendation} />
-            <Field label="% Difference" value={sectionE?.percentageDifference} />
+            <Field label="Approval Date" value={sectionE?.approvalDate ? new Date(sectionE.approvalDate).toLocaleDateString() : ''} />
+            <Field label="Approved" value={sectionE?.approved ? 'Yes' : 'No'} />
             <Field label="Prepared By" value={sectionE?.preparedBy} />
         </FieldGroup>
     );

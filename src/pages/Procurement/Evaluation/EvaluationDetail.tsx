@@ -31,13 +31,24 @@ const EvaluationDetail = () => {
     const [returnNotes, setReturnNotes] = useState<string>('');
     const [pendingSectionB, setPendingSectionB] = useState<any>(null);
 
+    // Assignment-related state (missing declarations caused ReferenceError 'myAssignment is not defined')
+    const [myAssignment, setMyAssignment] = useState<any | null>(null);
+    const [currentAssignments, setCurrentAssignments] = useState<any[]>([]);
+    const [selectedUserId, setSelectedUserId] = useState<string>('');
+    const [selectedAssignSections, setSelectedAssignSections] = useState<string[]>([]);
+    const [completingAssignment, setCompletingAssignment] = useState<boolean>(false);
+
     // Add print styles
     useEffect(() => {
         const style = document.createElement('style');
         style.innerHTML = `
             @media print {
-                /* Hide all buttons, controls, and navigation */
-                button, .btn, nav, .no-print {
+                /* Hide interactive controls, navigation and topbars */
+                button, .btn, nav, .no-print, header, .topbar, .app-header, .header-right, .user-menu {
+                    display: none !important;
+                }
+                /* Hide header logos and icons specifically so they don't appear on PDF */
+                header img, header svg, .topbar img, .topbar svg, .header-icons, .topbar-icons {
                     display: none !important;
                 }
                 /* Hide assignment management panels */
@@ -60,6 +71,14 @@ const EvaluationDetail = () => {
                 .panel:has(h5:contains('Section')) {
                     page-break-before: auto;
                 }
+                /* Footer / signature area for printed evaluations: place on its own final page */
+                #print-footer { display: block !important; position: static !important; page-break-before: always; background: white; border-top: 1px solid #ddd; padding: 40px 12px 120px; font-size: 10pt; }
+                #print-footer .print-footer-content { max-width: 1000px; margin: 0 auto; display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+                #print-footer .doc-control { font-weight: 600; }
+                /* Push the signature block lower so there's room to hand-sign */
+                #print-footer .signature-block { text-align: right; min-width: 420px; margin-top: 40px; }
+                #print-footer .signature-line { margin-bottom: 36px; border-bottom: 1px solid #000; width: 320px; }
+                #print-footer .signature-meta { font-size: 9pt; color: #222; display: none; }
             }
         `;
         document.head.appendChild(style);
@@ -67,27 +86,20 @@ const EvaluationDetail = () => {
             document.head.removeChild(style);
         };
     }, []);
-    const [showAssignModal, setShowAssignModal] = useState(false);
-    const [availableUsers, setAvailableUsers] = useState<any[]>([]);
-    const [selectedUserId, setSelectedUserId] = useState<string>('');
-    const [selectedAssignSections, setSelectedAssignSections] = useState<string[]>([]);
-    const [currentAssignments, setCurrentAssignments] = useState<any[]>([]);
-    const [myAssignment, setMyAssignment] = useState<any>(null);
-    const [completingAssignment, setCompletingAssignment] = useState(false);
 
+    // Determine user roles (procurement/committee) for gating
     useEffect(() => {
-        dispatch(setPageTitle('Evaluation Details'));
-    }, [dispatch]);
-
-    useEffect(() => {
-        const u = getUser();
-        if (u) {
+        try {
+            const u = getUser();
+            if (!u) return;
             const roles = (u?.roles || (u?.role ? [u.role] : [])).map((r: any) => {
                 const roleName = typeof r === 'string' ? r : r?.name || '';
                 return roleName.toUpperCase();
             });
             setIsProcurement(roles.some((role) => role.includes('PROCUREMENT_OFFICER') || role.includes('PROCUREMENT_MANAGER') || role.includes('PROCUREMENT')));
             setIsCommittee(roles.some((role) => role.includes('COMMITTEE') || role.includes('EVALUATION_COMMITTEE')));
+        } catch (err) {
+            // ignore
         }
     }, []);
 
@@ -252,13 +264,6 @@ const EvaluationDetail = () => {
                         <p className="text-white-dark">
                             {evaluation.evalNumber} • {evaluation.rfqNumber} • {evaluation.rfqTitle}
                         </p>
-                        {(evaluation.requestId || evaluation.combinedRequestId) && (
-                            <div className="mt-2 inline-flex items-center gap-2 text-sm">
-                                <span className="px-2 py-1 rounded bg-primary/10 text-primary font-medium">📎 Linked to Request</span>
-                                {evaluation.requestId && <span className="text-white-dark">Request ID: {evaluation.requestId}</span>}
-                                {evaluation.combinedRequestId && <span className="text-white-dark">Combined Request #{evaluation.combinedRequestId}</span>}
-                            </div>
-                        )}
                     </div>
                     <div className="flex gap-2">
                         {(evaluation.requestId || evaluation.combinedRequestId) && (
@@ -352,122 +357,6 @@ const EvaluationDetail = () => {
                             )}
                         </button>
                     </div>
-                </div>
-            )}
-
-            {/* Assignment Management - Procurement Only */}
-            {isProcurement && evaluation && (
-                <div className="panel mb-4 no-print">
-                    <div className="mb-5 flex items-center justify-between">
-                        <h5 className="text-lg font-semibold">Evaluator Assignments</h5>
-                    </div>
-
-                    {/* Quick assign form */}
-                    <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-800 rounded">
-                        <h6 className="font-semibold mb-3">Assign New Evaluator</h6>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                            <div>
-                                <label className="block mb-1 text-sm">User Email or ID</label>
-                                <input type="text" className="form-input" placeholder="Enter user email or ID" value={selectedUserId} onChange={(e) => setSelectedUserId(e.target.value)} />
-                                <p className="text-xs text-gray-500 mt-1">For ICT staff, use their user ID</p>
-                            </div>
-                            <div>
-                                <label className="block mb-1 text-sm">Sections</label>
-                                <div className="flex gap-2 flex-wrap">
-                                    {['A', 'B', 'C', 'D', 'E'].map((sec) => (
-                                        <label key={sec} className="flex items-center gap-1">
-                                            <input
-                                                type="checkbox"
-                                                className="form-checkbox"
-                                                checked={selectedAssignSections.includes(sec)}
-                                                onChange={(e) => {
-                                                    if (e.target.checked) {
-                                                        setSelectedAssignSections([...selectedAssignSections, sec]);
-                                                    } else {
-                                                        setSelectedAssignSections(selectedAssignSections.filter((s) => s !== sec));
-                                                    }
-                                                }}
-                                            />
-                                            <span className="text-sm">{sec}</span>
-                                        </label>
-                                    ))}
-                                    \n{' '}
-                                </div>
-                            </div>
-                            <div className="flex items-end">
-                                <button
-                                    className="btn btn-primary w-full"
-                                    onClick={async () => {
-                                        if (!selectedUserId || selectedAssignSections.length === 0) {
-                                            alert('Please enter a user ID and select at least one section');
-                                            return;
-                                        }
-                                        try {
-                                            await evaluationService.assignEvaluators(evaluation.id, {
-                                                userIds: [parseInt(selectedUserId)],
-                                                sections: selectedAssignSections as Array<'A' | 'B' | 'C' | 'D' | 'E'>,
-                                            });
-                                            const updated = await evaluationService.getAllAssignments(evaluation.id);
-                                            setCurrentAssignments(updated || []);
-                                            setSelectedUserId('');
-                                            setSelectedAssignSections([]);
-                                            alert('Evaluator assigned successfully!');
-                                        } catch (err: any) {
-                                            alert('Failed to assign evaluator: ' + (err.message || 'Unknown error'));
-                                        }
-                                    }}
-                                >
-                                    Assign
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    {currentAssignments.length > 0 ? (
-                        <div className="table-responsive">
-                            <table className="table-hover">
-                                <thead>
-                                    <tr>
-                                        <th>Evaluator</th>
-                                        <th>Assigned Sections</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {currentAssignments.map((assignment: any) => (
-                                        <tr key={assignment.id}>
-                                            <td>{assignment.user?.name || assignment.user?.email || `User #${assignment.userId}`}</td>
-                                            <td>
-                                                <div className="flex gap-1">
-                                                    {(assignment.sections || []).map((sec: string) => (
-                                                        <span key={sec} className="badge bg-primary">
-                                                            Section {sec}
-                                                        </span>
-                                                    ))}
-                                                </div>
-                                            </td>
-                                            <td>
-                                                <button
-                                                    className="btn btn-sm btn-outline-danger"
-                                                    onClick={async () => {
-                                                        if (confirm('Remove this assignment?')) {
-                                                            await evaluationService.removeAssignment(assignment.id);
-                                                            const updated = await evaluationService.getAllAssignments(evaluation.id);
-                                                            setCurrentAssignments(updated || []);
-                                                        }
-                                                    }}
-                                                >
-                                                    Remove
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    ) : (
-                        <div className="text-center py-4 text-gray-500">No evaluators assigned yet. Use the form above to assign an evaluator.</div>
-                    )}
                 </div>
             )}
 
