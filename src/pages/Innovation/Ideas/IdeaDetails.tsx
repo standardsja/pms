@@ -7,6 +7,7 @@ import { setPageTitle } from '../../../store/themeConfigSlice';
 import { fetchIdeaById, voteForIdea, removeVote, fetchRelatedIdeas, type Idea } from '../../../utils/ideasApi';
 import Comments from '../../../components/Comments';
 import IconThumbUp from '../../../components/Icon/IconThumbUp';
+import { getApiUrl } from '../../../config/api';
 
 export default function IdeaDetails() {
     const { t } = useTranslation();
@@ -231,7 +232,7 @@ export default function IdeaDetails() {
                                                 onClick={() => setLightboxIndex(images.findIndex((a) => a.id === attachment.id))}
                                             >
                                                 <img
-                                                    src={attachment.fileUrl}
+                                                    src={getApiUrl(attachment.fileUrl)}
                                                     alt={attachment.fileName}
                                                     className="w-full h-48 object-cover cursor-zoom-in hover:scale-105 transition-transform"
                                                     loading="lazy"
@@ -387,10 +388,10 @@ export default function IdeaDetails() {
                                     {images[lightboxIndex].fileName}
                                 </span>
                                 <div className="flex items-center gap-3">
-                                    <button type="button" onClick={() => window.open(images[lightboxIndex!].fileUrl, '_blank')} className="px-2 py-1 rounded bg-white/10 hover:bg-white/20">
+                                    <button type="button" onClick={() => window.open(getApiUrl(images[lightboxIndex!].fileUrl), '_blank')} className="px-2 py-1 rounded bg-white/10 hover:bg-white/20">
                                         Open in new tab
                                     </button>
-                                    <a href={images[lightboxIndex!].fileUrl} download className="px-2 py-1 rounded bg-white/10 hover:bg-white/20">
+                                    <a href={getApiUrl(images[lightboxIndex!].fileUrl)} download className="px-2 py-1 rounded bg-white/10 hover:bg-white/20">
                                         Download
                                     </a>
                                     <button type="button" onClick={closeLightbox} className="px-2 py-1 rounded bg-white/10 hover:bg-white/20" aria-label="Close lightbox">
@@ -401,7 +402,7 @@ export default function IdeaDetails() {
                                 </div>
                             </div>
                             <div className="flex-1 flex items-center justify-center overflow-auto">
-                                <img src={images[lightboxIndex].fileUrl} alt={images[lightboxIndex].fileName} className="max-h-[75vh] object-contain rounded shadow-lg" draggable={false} />
+                                <img src={getApiUrl(images[lightboxIndex].fileUrl)} alt={images[lightboxIndex].fileName} className="max-h-[75vh] object-contain rounded shadow-lg" draggable={false} />
                             </div>
                             {images.length > 1 && (
                                 <div className="mt-4 flex justify-between items-center text-white text-xs">

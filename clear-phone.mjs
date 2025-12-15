@@ -3,13 +3,13 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-async function fixProfileImage() {
+async function checkPinnedModule() {
     try {
-        const result = await prisma.user.update({
-            where: { email: 'srobinson@bsj.org.jm' },
-            data: { profileImage: '/uploads/profiles/ldap-srobinson-bsj-org-jm-1765300256736.jpg' },
+        const user = await prisma.user.findUnique({
+            where: { email: 'ict.staff1@bsj.gov.jm' },
+            select: { id: true, email: true, pinnedModule: true }
         });
-        console.log('Profile image updated to:', result.profileImage);
+        console.log(JSON.stringify(user, null, 2));
     } catch (error) {
         console.error('Error:', error);
     } finally {
@@ -17,4 +17,4 @@ async function fixProfileImage() {
     }
 }
 
-fixProfileImage();
+checkPinnedModule();

@@ -104,18 +104,25 @@ const Sidebar = () => {
 
     const isDeptManagerHere = isDeptManagerFor((currentUser as any)?.department?.code || '');
 
-    // Determine if we're in Innovation Hub
-    const isInnovationHub = location.pathname.startsWith('/innovation');
-
     const procurementLocked = moduleLocks.procurement.locked;
     const innovationLocked = moduleLocks.innovation.locked;
     const committeeLocked = moduleLocks.committee.locked;
 
-    // Only show procurement menus when procurement is the active module and not locked
-    // Also hide when the pinned module is innovation (even if on non-module routes like /profile)
+    // Determine if we're in Innovation Hub
+    // Priority: If on /innovation route, ALWAYS show innovation sidebar
+    // Otherwise, check pinnedModule preference for shared routes
+    const isInnovationHub = useMemo(() => {
+        if (location.pathname.startsWith('/innovation')) {
+            return true; // Always show Innovation sidebar when on Innovation routes
+        }
+        // For shared routes (profile, settings, etc), use pinned preference
+        return pinnedModule === 'innovation';
+    }, [location.pathname, pinnedModule]);
+
+    // Only show procurement menus when NOT in innovation hub and not locked
     const showProcurementMenus = useMemo(() => {
-        return pinnedModule === 'procurement' && !procurementLocked && !isInnovationHub;
-    }, [pinnedModule, procurementLocked, isInnovationHub]);
+        return !isInnovationHub && !procurementLocked;
+    }, [isInnovationHub, procurementLocked]);
 
     // Compute dashboard path for logo/home based on pinnedModule
     const dashboardPath = useMemo(() => {
@@ -690,7 +697,7 @@ const Sidebar = () => {
                             )}
 
                             {/* Show INNOVATION_HUB section when in innovation context and not a committee member */}
-                            {!showCommitteeSidebar && !isEvaluationCommittee && isInnovationHub && !innovationLocked && (
+                            {!showCommitteeSidebar && !isEvaluationCommittee && isInnovationHub && (
                                 // Innovation Hub Menu
                                 <>
                                     <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
