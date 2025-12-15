@@ -61,7 +61,6 @@ const Header = () => {
 
     // Convenience aliases for clarity in this component
     const {
-        isEvaluationCommittee,
         isInnovationCommittee: isCommitteeMember,
         isFinanceManager,
         isProcurementManager,

@@ -903,9 +903,7 @@ const NewEvaluation = () => {
                     <div className="panel">
                         <div className="mb-5 -m-5 p-5 bg-primary/10 border-l-4 border-primary">
                             <h5 className="text-lg font-bold text-primary">Section A</h5>
-                            <p className="text-sm mt-1">
-                                to be completed by the Assigned Procurement Officer. <span className="font-semibold">Must be verified by the Evaluation Committee</span>
-                            </p>
+                            <p className="text-sm mt-1">to be completed by the Assigned Procurement Officer.</p>
                         </div>
 
                         <div className="space-y-4 p-5">
@@ -1324,9 +1322,7 @@ const NewEvaluation = () => {
                     <div className="panel">
                         <div className="mb-5 -m-5 p-5 bg-info/10 border-l-4 border-info">
                             <h5 className="text-lg font-bold text-info">Section B</h5>
-                            <p className="text-sm mt-1">
-                                to be drafted by the Assigned Procurement Officer. <span className="font-semibold">Must be verified by the Evaluation Committee</span>
-                            </p>
+                            <p className="text-sm mt-1">to be drafted by the Assigned Procurement Officer.</p>
                         </div>
 
                         <div className="space-y-6 p-5">

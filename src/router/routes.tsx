@@ -41,8 +41,6 @@ const EvaluationList = lazy(() => import('../pages/Procurement/Evaluation/Evalua
 const NewEvaluation = lazy(() => import('../pages/Procurement/Evaluation/NewEvaluation'));
 const EvaluationEdit = lazy(() => import('../pages/Procurement/Evaluation/EvaluationEdit'));
 const EvaluationDetail = lazy(() => import('../pages/Procurement/Evaluation/EvaluationDetail'));
-const EvaluationCommittee = lazy(() => import('../pages/Procurement/Evaluation/EvaluationCommittee'));
-const EvaluationCommitteeDashboard = lazy(() => import('../pages/Procurement/Evaluation/CommitteeDashboard'));
 const ReviewList = lazy(() => import('../pages/Procurement/Review/ReviewList'));
 const ReviewDetail = lazy(() => import('../pages/Procurement/Review/ReviewDetail'));
 const ApprovalsList = lazy(() => import('../pages/Procurement/Approvals/ApprovalsList'));
@@ -457,10 +455,6 @@ const routes = [
         element: <EvaluationList />,
     },
     {
-        path: '/evaluation/committee/dashboard',
-        element: <EvaluationCommitteeDashboard />,
-    },
-    {
         path: '/procurement/evaluation/new',
         element: <NewEvaluation />,
     },
@@ -471,11 +465,6 @@ const routes = [
     {
         path: '/procurement/evaluation/:id',
         element: <EvaluationDetail />,
-    },
-    // Workspace route removed (no longer used)
-    {
-        path: '/evaluation/:id/committee',
-        element: <EvaluationCommittee />,
     },
     {
         path: '/procurement/review',

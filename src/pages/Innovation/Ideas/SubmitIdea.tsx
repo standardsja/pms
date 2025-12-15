@@ -71,15 +71,11 @@ const SubmitIdea = () => {
 
     // Simple inline validation
     const [errors, setErrors] = useState<{ [k: string]: string }>({});
-    const TITLE_MAX = 100;
     const DESC_MIN = 50;
-    const DESC_MAX = 1000;
-    const titleRemaining = useMemo(() => Math.max(0, TITLE_MAX - formData.title.length), [formData.title]);
-    const descRemaining = useMemo(() => Math.max(0, DESC_MAX - formData.description.length), [formData.description]);
 
     const validate = () => {
         const next: { [k: string]: string } = {};
-        if (!formData.title || formData.title.length < 10 || formData.title.length > TITLE_MAX) {
+        if (!formData.title || formData.title.length < 10) {
             next.title = t('innovation.submit.form.title.error');
         }
         if (!formData.category) {
@@ -471,7 +467,7 @@ const SubmitIdea = () => {
                             aria-describedby="title-error title-hint"
                         />
                         <p id="title-hint" className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                            {t('innovation.submit.form.title.hint')} • {t('innovation.submit.form.charactersRemaining', { count: titleRemaining })}
+                            {t('innovation.submit.form.title.hint')}
                         </p>
                         {errors.title && (
                             <p id="title-error" role="alert" className="text-xs text-danger mt-1">
@@ -527,7 +523,7 @@ const SubmitIdea = () => {
                             />
                         </div>
                         <p id="description-hint" className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                            {t('innovation.submit.form.description.hint')} • {t('innovation.submit.form.charactersRemaining', { count: descRemaining })}
+                            {t('innovation.submit.form.description.hint')}
                         </p>
                         {errors.description && (
                             <p id="description-error" role="alert" className="text-xs text-danger mt-1">

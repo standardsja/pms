@@ -82,7 +82,6 @@ const Sidebar = () => {
         isAdmin,
         isHeadOfDivision,
         isInnovationCommittee,
-        isEvaluationCommittee,
         isExecutiveDirector,
         isSeniorDirector,
         isDepartmentHead,
@@ -538,15 +537,6 @@ const Sidebar = () => {
                                                             </div>
                                                         </NavLink>
                                                     </li>
-
-                                                    <li className="nav-item">
-                                                        <NavLink to="/evaluation/committee/dashboard" className="group">
-                                                            <div className="flex items-center">
-                                                                <IconMenuDashboard className="group-hover:!text-primary shrink-0" />
-                                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Evaluation Committee</span>
-                                                            </div>
-                                                        </NavLink>
-                                                    </li>
                                                 </>
                                             )}
                                         </>
@@ -613,26 +603,6 @@ const Sidebar = () => {
                                     </li>
                                 </>
                             )}
-
-                            {/* Show EVALUATION_COMMITTEE section */}
-                            {isEvaluationCommittee && !committeeLocked && (
-                                // Evaluation Committee Menu
-                                <>
-                                    <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
-                                        <IconMinus className="w-4 h-5 flex-none hidden" />
-                                        <span>Committee Verification</span>
-                                    </h2>
-                                    <li className="nav-item">
-                                        <NavLink to="/evaluation/committee/dashboard" className="group">
-                                            <div className="flex items-center">
-                                                <IconMenuDashboard className="group-hover:!text-primary shrink-0" />
-                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Dashboard</span>
-                                            </div>
-                                        </NavLink>
-                                    </li>
-                                </>
-                            )}
-
                             {/* Show INNOVATION_COMMITTEE section (forced by route or role) */}
                             {showCommitteeSidebar && !committeeLocked && (
                                 // Innovation Committee Menu
@@ -688,9 +658,8 @@ const Sidebar = () => {
                                     </li>
                                 </>
                             )}
-
                             {/* Show INNOVATION_HUB section when in innovation context and not a committee member */}
-                            {!showCommitteeSidebar && !isEvaluationCommittee && isInnovationHub && !innovationLocked && (
+                            {!showCommitteeSidebar && isInnovationHub && !innovationLocked && (
                                 // Innovation Hub Menu
                                 <>
                                     <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
@@ -753,7 +722,6 @@ const Sidebar = () => {
                                     </li>
                                 </>
                             )}
-
                             {/* Show SUPPLIER section */}
                             {isSupplier && (
                                 // Supplier Only Menu
@@ -772,7 +740,6 @@ const Sidebar = () => {
                                     </li>
                                 </>
                             )}
-
                             {/* Show REQUESTER section - hide for admins; only when procurement is active and unlocked */}
                             {isRequester && !isAdmin && showProcurementMenus && (
                                 // Requester Only Menu
@@ -799,7 +766,6 @@ const Sidebar = () => {
                                     </li>
                                 </>
                             )}
-
                             {/* Show DEPARTMENT_MANAGER section - only when procurement module is active and unlocked */}
                             {(isDepartmentManager || isDeptManagerHere) && !isAdmin && showProcurementMenus && (
                                 // Department Manager Menu
@@ -837,7 +803,6 @@ const Sidebar = () => {
                                     </li>
                                 </>
                             )}
-
                             {/* Show PROCUREMENT_OFFICER section - only when procurement module is active and unlocked */}
                             {isProcurementOfficer && !isAdmin && showProcurementMenus && (
                                 // Procurement Officer Only Menu
@@ -961,7 +926,6 @@ const Sidebar = () => {
                                     </li>
                                 </>
                             )}
-
                             {/* Show PROCUREMENT_MANAGER section - hide for admins and when in Innovation Hub */}
                             {isProcurementManager && !isAdmin && !isInnovationHub && !procurementLocked && (
                                 // Procurement Manager Only Menu
@@ -1048,7 +1012,6 @@ const Sidebar = () => {
                                     </li>
                                 </>
                             )}
-
                             {/* Show FINANCE_MANAGER or BUDGET_MANAGER section - limited access to USER and FINANCE only */}
                             {/* Show FINANCE_OFFICER section - limited access to USER and FINANCE only */}
                             {can('VIEW_FINANCE') && !isAdmin && !isProcurementManager && !isInnovationHub && !procurementLocked && (
@@ -1094,7 +1057,6 @@ const Sidebar = () => {
                                     )}
                                 </>
                             )}
-
                             {can('VIEW_FINANCE') && can('APPROVE_PAYMENTS') && !isAdmin && !isProcurementManager && !isInnovationHub && !procurementLocked && (
                                 <>
                                     <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
@@ -1149,7 +1111,6 @@ const Sidebar = () => {
                                     </li>
                                 </>
                             )}
-
                             {/* Show Budget Manager section - same menu as Finance Manager */}
                             {isBudgetManager && !isAdmin && !isInnovationHub && !procurementLocked && (
                                 <>
