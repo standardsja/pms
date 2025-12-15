@@ -1,7 +1,7 @@
 {
     "name": "@bsj/spinx-pms",
     "description": "Procurement Management System with Innovation Hub - Bureau of Standards Jamaica",
-    "version": "2.0.2-beta.1",
+    "version": "2.5.0",
     "private": true,
     "type": "module",
     "author": "Bureau of Standards Jamaica",

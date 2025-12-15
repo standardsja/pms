@@ -9,6 +9,7 @@ import { logEvent } from '../../../utils/analytics';
 import { getApiUrl } from '../../../config/api';
 import { statsService, SystemStats } from '../../../services/statsService';
 import { fetchModuleLocks, defaultModuleLockState, type ModuleLockState } from '../../../utils/moduleLocks';
+import ChangelogModal from '../../../components/ChangelogModal';
 
 type ModuleKey = 'pms' | 'ih' | 'committee' | 'budgeting' | 'audit' | 'prime' | 'datapoint' | 'maintenance' | 'asset' | 'ppm' | 'kb';
 
@@ -561,6 +562,9 @@ const Onboarding = () => {
                 </div>
             )}
 
+            {/* Changelog Modal - Shows latest updates */}
+            <ChangelogModal />
+
             {/* Main Content */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
                 {/* Quick Stats Banner */}
@@ -990,7 +994,7 @@ const Onboarding = () => {
                                 <span className="font-medium">99.9% Uptime SLA</span>
                             </div>
                         </div>
-                        <p className="text-xs text-gray-400 dark:text-gray-500">Powered by SPINX Enterprise Platform v2.0.1-beta.1 • © 2025 Bureau of Standards Jamaica</p>
+                        <p className="text-xs text-gray-400 dark:text-gray-500">Powered by SPINX Enterprise Platform v2.5.0 • © 2025 Bureau of Standards Jamaica</p>
                     </div>
                 </div>
             </div>
