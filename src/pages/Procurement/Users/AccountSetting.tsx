@@ -299,8 +299,8 @@ const AccountSetting = () => {
                 setProfileImage(data.profileImage);
                 setUseProfileImage(true);
 
-                // Dispatch custom event so Header component can update
-                window.dispatchEvent(new CustomEvent('profileImageUpdated', { detail: { profileImage: data.profileImage } }));
+                // Dispatch custom event so Header component can update avatar immediately
+                window.dispatchEvent(new CustomEvent('profilePhotoUpdated', { detail: { profileImage: data.profileImage } }));
 
                 // Refetch full profile to ensure persistence
                 setTimeout(async () => {
