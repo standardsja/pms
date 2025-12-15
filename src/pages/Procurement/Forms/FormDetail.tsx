@@ -443,155 +443,76 @@ export default function FormDetail() {
                 <span>Back to Forms</span>
             </button>
 
-            {/* Form Header */}
-            <div className="border-b border-gray-200 dark:border-gray-700 pb-6">
-                <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-4">
-                    <div className="flex-1">
-                        {isEditMode && editedForm ? (
-                            <>
-                                <input
-                                    type="text"
-                                    value={editedForm.category}
-                                    onChange={(e) => handleFieldChange('category', e.target.value)}
-                                    className="inline-block px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-xs font-semibold rounded-full mb-3 border border-blue-300 dark:border-blue-700"
-                                    placeholder="Category"
-                                />
-                                <input
-                                    type="text"
-                                    value={editedForm.name}
-                                    onChange={(e) => handleFieldChange('name', e.target.value)}
-                                    className="block w-full text-3xl font-bold text-gray-800 dark:text-white mb-2 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 dark:bg-gray-700"
-                                    placeholder="Form name"
-                                />
-                                <textarea
-                                    value={editedForm.description}
-                                    onChange={(e) => handleFieldChange('description', e.target.value)}
-                                    className="block w-full text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 dark:bg-gray-700"
-                                    placeholder="Form description"
-                                    rows={2}
-                                />
-                            </>
-                        ) : (
-                            <>
-                                <span className="inline-block px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-xs font-semibold rounded-full mb-3">
-                                    {form!.category}
-                                </span>
-                                <h1 className="text-3xl font-bold text-gray-800 dark:text-white mb-2">{form!.name}</h1>
-                                <p className="text-gray-600 dark:text-gray-400">{form!.description}</p>
-                            </>
-                        )}
-                    </div>
-                    <div className="flex gap-2">
-                        {!isEditMode ? (
-                            <>
-                                <button
-                                    onClick={handleEdit}
-                                    className="flex items-center gap-2 px-4 py-2 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
-                                >
-                                    <IconEdit className="w-5 h-5" />
-                                    <span>Edit</span>
-                                </button>
-                                <button
-                                    onClick={() => window.print()}
-                                    className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-                                >
-                                    <IconPrinter className="w-5 h-5" />
-                                    <span>Print</span>
-                                </button>
-                                <button className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors">
-                                    <IconDownload className="w-5 h-5" />
-                                    <span>Download PDF</span>
-                                </button>
-                            </>
-                        ) : (
-                            <>
-                                <button
-                                    onClick={handleSave}
-                                    disabled={isSaving}
-                                    className="flex items-center gap-2 px-4 py-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-lg hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors disabled:opacity-50"
-                                >
-                                    <IconCircleCheck className="w-5 h-5" />
-                                    <span>{isSaving ? 'Saving...' : 'Save'}</span>
-                                </button>
-                                <button
-                                    onClick={handleCancel}
-                                    className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-                                >
-                                    <IconX className="w-5 h-5" />
-                                    <span>Cancel</span>
-                                </button>
-                            </>
-                        )}
+            {/* BSJ Form Header - Official Header with Logo */}
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-8 text-center">
+                {/* BSJ Logo */}
+                <div className="flex justify-center mb-4">
+                    <div className="text-center">
+                        <div className="text-6xl font-bold mb-2">
+                            <span className="text-gray-400">BSJ</span>
+                        </div>
+                        <div className="text-sm text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            Bureau of<br />
+                            Standards<br />
+                            Jamaica
+                        </div>
                     </div>
                 </div>
 
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4">
-                    {isEditMode && editedForm ? (
-                        <>
-                            <div>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide font-semibold mb-1">Form Code</p>
-                                <input
-                                    type="text"
-                                    value={editedForm.code}
-                                    onChange={(e) => handleFieldChange('code', e.target.value)}
-                                    className="w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1 dark:bg-gray-700 text-gray-800 dark:text-white"
-                                />
-                            </div>
-                            <div>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide font-semibold mb-1">Issue Date</p>
-                                <input
-                                    type="text"
-                                    value={editedForm.createdDate}
-                                    onChange={(e) => handleFieldChange('createdDate', e.target.value)}
-                                    className="w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1 dark:bg-gray-700 text-gray-800 dark:text-white"
-                                />
-                            </div>
-                            <div>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide font-semibold mb-1">Rev. Date</p>
-                                <input
-                                    type="text"
-                                    value={editedForm.revisionDate}
-                                    onChange={(e) => handleFieldChange('revisionDate', e.target.value)}
-                                    className="w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1 dark:bg-gray-700 text-gray-800 dark:text-white"
-                                />
-                            </div>
-                            {editedForm.minValue && (
-                                <div>
-                                    <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide font-semibold mb-1">Min Value</p>
-                                    <input
-                                        type="text"
-                                        value={editedForm.minValue}
-                                        onChange={(e) => handleFieldChange('minValue', e.target.value)}
-                                        className="w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1 dark:bg-gray-700 text-gray-800 dark:text-white"
-                                    />
-                                </div>
-                            )}
-                        </>
-                    ) : (
-                        <>
-                            <div>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide font-semibold mb-1">Form Code</p>
-                                <p className="text-lg font-semibold text-gray-800 dark:text-white">{form!.code}</p>
-                            </div>
-                            <div>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide font-semibold mb-1">Issue Date</p>
-                                <p className="text-lg font-semibold text-gray-800 dark:text-white">{form!.createdDate}</p>
-                            </div>
-                            <div>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide font-semibold mb-1">Rev. Date</p>
-                                <p className="text-lg font-semibold text-gray-800 dark:text-white">{form!.revisionDate}</p>
-                            </div>
-                            {form!.minValue && (
-                                <div>
-                                    <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide font-semibold mb-1">Value Range</p>
-                                    <p className="text-lg font-semibold text-gray-800 dark:text-white">
-                                        {form!.minValue} - {form!.maxValue}
-                                    </p>
-                                </div>
-                            )}
-                        </>
-                    )}
-                </div>
+                {/* Official Form Title */}
+                <h1 className="text-2xl font-bold text-gray-800 dark:text-white mb-2 uppercase">
+                    BUREAU OF STANDARDS JAMAICA
+                </h1>
+                <h2 className="text-xl font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                    Head of Entity's Approval Form
+                </h2>
+                <p className="text-gray-600 dark:text-gray-400">
+                    Contracts valued at 1¢ up to $2,999k (Goods, Services & Works)
+                </p>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex justify-end gap-2">
+                {!isEditMode ? (
+                    <>
+                        <button
+                            onClick={handleEdit}
+                            className="flex items-center gap-2 px-4 py-2 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
+                        >
+                            <IconEdit className="w-5 h-5" />
+                            <span>Edit</span>
+                        </button>
+                        <button
+                            onClick={() => window.print()}
+                            className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                        >
+                            <IconPrinter className="w-5 h-5" />
+                            <span>Print</span>
+                        </button>
+                        <button className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors">
+                            <IconDownload className="w-5 h-5" />
+                            <span>Download PDF</span>
+                        </button>
+                    </>
+                ) : (
+                    <>
+                        <button
+                            onClick={handleSave}
+                            disabled={isSaving}
+                            className="flex items-center gap-2 px-4 py-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-lg hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors disabled:opacity-50"
+                        >
+                            <IconCircleCheck className="w-5 h-5" />
+                            <span>{isSaving ? 'Saving...' : 'Save'}</span>
+                        </button>
+                        <button
+                            onClick={handleCancel}
+                            className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                        >
+                            <IconX className="w-5 h-5" />
+                            <span>Cancel</span>
+                        </button>
+                    </>
+                )}
             </div>
 
             {/* Form Sections */}
@@ -715,6 +636,16 @@ export default function FormDetail() {
                         <span>Submit the completed form through the procurement portal</span>
                     </li>
                 </ul>
+            </div>
+
+            {/* Form Footer - Official Document Information */}
+            <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+                <div className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                    <p className="font-semibold">{form!.code}</p>
+                    <p>Issue Date: {form!.createdDate}</p>
+                    <p>Rev. Date: {form!.revisionDate}</p>
+                    <p>Rev. #: 00</p>
+                </div>
             </div>
         </div>
     );
