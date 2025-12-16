@@ -897,7 +897,7 @@ model LoadBalancingSettings {
 /// Performance metrics for procurement officers (used by advanced load balancing / analytics)
 model OfficerPerformanceMetrics {
   id                       Int       @id @default(autoincrement())
-  officer                  User      @relation(fields: [officerId], references: [id])
+  officer                  User      @relation(fields: [officerId], references: [id], onDelete: Cascade)
   officerId                Int
   activeAssignments        Int       @default(0)
   completedAssignments     Int       @default(0)
