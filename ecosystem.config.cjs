@@ -83,7 +83,7 @@ module.exports = {
                 NODE_ENV: 'production',
                 PORT: 4000,
                 LOG_LEVEL: 'info',
-                DATABASE_URL: 'mysql://user:pass@stork:3306/pmsdb',
+                DATABASE_URL: 'mysql://database_admin:03un5gZ1QBls@Stork:3306/db_spinx',
             },
             max_memory_restart: '1G',
             autorestart: true,
