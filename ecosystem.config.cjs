@@ -80,13 +80,13 @@ module.exports = {
                 PORT: 4000,
             },
             env_production: {
-                    NODE_ENV: 'production',
-                    PORT: 4000,
-                    LOG_LEVEL: 'info',
-                    // NOTE: Do NOT hardcode DATABASE credentials in source. Set `DATABASE_URL`
-                    // in the deployment environment (e.g., pm2 ecosystem env, or CI/CD secrets).
-                    // DATABASE_URL: 'mysql://user:password@host:3306/database'
-                },
+                NODE_ENV: 'production',
+                PORT: 4000,
+                LOG_LEVEL: 'info',
+                // NOTE: Do NOT hardcode DATABASE credentials in source. Set `DATABASE_URL`
+                // in the deployment environment (e.g., pm2 ecosystem env, or CI/CD secrets).
+                // DATABASE_URL: 'mysql://user:password@host:3306/database'
+            },
             max_memory_restart: '1G',
             autorestart: true,
             log_file: './logs/combined.log',
