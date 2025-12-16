@@ -76,7 +76,8 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
 
                 if (errName === 'TokenExpiredError') {
                     logger.info('[Auth] JWT expired', { message: errMsg });
-                    return res.status(401).json({ success: false, message: 'Token expired' });
+                    res.status(401).json({ success: false, message: 'Token expired' });
+                    return;
                 }
 
                 // Malformed / invalid signature / other JWT errors
@@ -84,7 +85,8 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
 
                 // Token invalid, fall back to x-user-id only if provided; otherwise respond 401
                 if (!userIdHeader) {
-                    return res.status(401).json({ success: false, message: 'Invalid token' });
+                    res.status(401).json({ success: false, message: 'Invalid token' });
+                    return;
                 }
             }
         }

@@ -215,6 +215,7 @@ model User {
   blocked          Boolean?  @default(false)
   blockedAt        DateTime?
   blockedReason    String?
+  blockedBy        Int?
 
   // Innovation Hub relations
   ideas         Idea[]
