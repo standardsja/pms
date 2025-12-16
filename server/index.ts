@@ -4535,9 +4535,7 @@ app.post('/api/admin/users/:userId/department', async (req, res) => {
             const isDeptManager = userRoles.map((r) => String(r).toUpperCase()).includes('DEPT_MANAGER');
 
             // Clear this user's managerId from any other department that referenced them but is not the current one
-            const clearManagerWhere = updated.departmentId
-                ? { managerId: parsedUserId, id: { not: updated.departmentId } }
-                : { managerId: parsedUserId };
+            const clearManagerWhere = updated.departmentId ? { managerId: parsedUserId, id: { not: updated.departmentId } } : { managerId: parsedUserId };
 
             await prisma.department.updateMany({ where: clearManagerWhere, data: { managerId: null } });
 
