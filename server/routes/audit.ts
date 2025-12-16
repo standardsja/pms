@@ -135,16 +135,19 @@ router.post(
  * GET /api/audit/actions
  * Get list of all available audit actions (for filter dropdowns)
  */
-router.get('/actions', asyncHandler(async (req, res) => {
-    const distinctActions = await prisma.auditLog.findMany({
-        select: { action: true },
-        distinct: ['action'],
-    });
-    const actions = distinctActions.map((a: any) => a.action).filter(Boolean);
-    res.json({
-        success: true,
-        data: actions,
-    });
-}));
+router.get(
+    '/actions',
+    asyncHandler(async (req, res) => {
+        const distinctActions = await prisma.auditLog.findMany({
+            select: { action: true },
+            distinct: ['action'],
+        });
+        const actions = distinctActions.map((a: any) => a.action).filter(Boolean);
+        res.json({
+            success: true,
+            data: actions,
+        });
+    })
+);
 
 export { router as auditRoutes };
