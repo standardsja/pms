@@ -148,11 +148,11 @@ router.post(
                 blocked: true,
                 blockedAt: true,
                 blockedReason: true,
-                failedLogins: true,
-                lastFailedLogin: true,
-                lastLogin: true,
                 roles: {
                     select: {
+                        role: true,
+                    },
+                },
                         role: true,
                     },
                 },
@@ -164,6 +164,7 @@ router.post(
                     },
                 },
             },
+                        passwordHash: null,
         });
 
         // If LDAP succeeded, sync user data and roles
@@ -491,7 +492,11 @@ router.post(
         }
 
         // Perform hybrid role sync: AD groups → admin panel → default REQUESTER
-        const syncResult = await syncLDAPUserToDatabase(ldapUser, user!);
+        if (!user) {
+            throw new UnauthorizedError('User account not found after LDAP sync.');
+        }
+
+        const syncResult = await syncLDAPUserToDatabase(ldapUser, user);
 
         logger.info('LDAP user roles synced', {
             email,
@@ -512,6 +517,7 @@ router.post(
                 failedLogins: true,
                 lastFailedLogin: true,
                 lastLogin: true,
+                passwordHash: true,
                 roles: {
                     select: {
                         role: true,
@@ -531,7 +537,7 @@ router.post(
             throw new UnauthorizedError('User account not found in system.');
         }
 
-        const roles = user.roles.map((r) => r.role.name);
+            const roles = user.roles.map((r: any) => r.role.name);
         const permissions = computePermissionsForUser(user);
         const deptManagerFor = computeDeptManagerForUser(user);
         const token = jwt.sign(
@@ -696,7 +702,7 @@ router.get(
                       code: user.department.code,
                   }
                 : null,
-            roles: user.roles.map((r) => ({ id: r.role.id, name: r.role.name })),
+            roles: user.roles.map((r: any) => ({ id: r.role.id, name: r.role.name })),
             permissions,
             deptManagerFor,
             ldapDN: user.ldapDN,
@@ -773,7 +779,6 @@ router.get(
                 },
                 _count: true,
                 _sum: {
-                    voteType: true,
                 },
             });
 

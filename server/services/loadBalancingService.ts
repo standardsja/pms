@@ -1,4 +1,6 @@
-import { PrismaClient, Prisma } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
+
+type LoadBalancingStrategy = 'LEAST_LOADED' | 'ROUND_ROBIN' | 'RANDOM' | 'AI_SMART' | 'SKILL_BASED' | 'PREDICTIVE';
 
 /**
  * Load Balancing Service
@@ -9,7 +11,7 @@ import { PrismaClient, Prisma } from '@prisma/client';
 
 export interface LoadBalancingConfig {
     enabled: boolean;
-    strategy: Prisma.LoadBalancingStrategy;
+    strategy: LoadBalancingStrategy;
     autoAssignOnApproval: boolean;
     roundRobinCounter: number;
     splinteringEnabled: boolean;
@@ -75,7 +77,7 @@ export async function updateLoadBalancingSettings(prisma: PrismaClient, config: 
         const created = await prisma.loadBalancingSettings.create({
             data: {
                 enabled: config.enabled ?? false,
-                strategy: config.strategy ?? ('LEAST_LOADED' as Prisma.LoadBalancingStrategy),
+                strategy: (config.strategy as LoadBalancingStrategy) ?? 'LEAST_LOADED',
                 autoAssignOnApproval: config.autoAssignOnApproval ?? true,
                 roundRobinCounter: config.roundRobinCounter ?? 0,
                 splinteringEnabled: config.splinteringEnabled ?? false,
@@ -245,7 +247,7 @@ async function selectFinanceOfficerRoundRobin(prisma: PrismaClient): Promise<num
     // Increment finance counter for next assignment
     await prisma.loadBalancingSettings.update({
         where: { id: settings.id },
-        data: { ...((settings as any).financeRoundRobinCounter !== undefined ? { financeRoundRobinCounter: financeCounter + 1 } : {}) },
+        data: { roundRobinCounter: settings.roundRobinCounter },
     });
 
     console.log(`[LoadBalancing] Finance ROUND_ROBIN strategy selected officer ${selected.name} (ID: ${selected.id}, position: ${index + 1}/${sorted.length})`);
@@ -377,9 +379,7 @@ export async function autoAssignRequest(prisma: PrismaClient, requestId: number)
 
         // Record assignment log (if table exists)
         try {
-            // @ts-expect-error dynamic model check
             if ((prisma as any).requestAssignmentLog) {
-                // @ts-expect-error dynamic model usage
                 await (prisma as any).requestAssignmentLog.create({
                     data: {
                         requestId,
@@ -390,9 +390,7 @@ export async function autoAssignRequest(prisma: PrismaClient, requestId: number)
                 });
             }
             // Update officer performance metrics
-            // @ts-expect-error dynamic model check
             if ((prisma as any).officerPerformanceMetrics) {
-                // @ts-expect-error dynamic model usage
                 await (prisma as any).officerPerformanceMetrics.upsert({
                     where: { officerId: officerId },
                     update: {

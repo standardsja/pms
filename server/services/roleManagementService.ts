@@ -401,7 +401,7 @@ class RoleManagementService {
         const roles = user.roles.map((ur: (typeof user.roles)[number]) => ({
             id: ur.role.id,
             name: ur.role.name,
-            description: ur.role.description,
+            description: ur.role.description ?? undefined,
         }));
 
         logger.info('Roles detected for user', {
@@ -428,7 +428,6 @@ class RoleManagementService {
                 role: {
                     name: {
                         equals: roleName,
-                        mode: 'insensitive',
                     },
                 },
             },
@@ -447,7 +446,6 @@ class RoleManagementService {
                 role: {
                     name: {
                         in: roleNames,
-                        mode: 'insensitive',
                     },
                 },
             },
@@ -466,7 +464,6 @@ class RoleManagementService {
                 role: {
                     name: {
                         in: roleNames,
-                        mode: 'insensitive',
                     },
                 },
             },
