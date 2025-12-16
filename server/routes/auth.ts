@@ -148,11 +148,11 @@ router.post(
                 blocked: true,
                 blockedAt: true,
                 blockedReason: true,
+                failedLogins: true,
+                lastFailedLogin: true,
+                lastLogin: true,
                 roles: {
                     select: {
-                        role: true,
-                    },
-                },
                         role: true,
                     },
                 },
@@ -164,7 +164,6 @@ router.post(
                     },
                 },
             },
-                        passwordHash: null,
         });
 
         // If LDAP succeeded, sync user data and roles
