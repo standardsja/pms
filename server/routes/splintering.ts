@@ -125,7 +125,7 @@ router.get('/splintering-analysis', async (req, res) => {
         const whereClause: any = {};
         if (user) whereClause.userId = user;
 
-            const requests = await prisma.request.findMany({
+        const requests = await prisma.request.findMany({
             where: whereClause,
             include: {
                 user: {

@@ -693,13 +693,7 @@ router.get(
                     { id: { not: ideaId } }, // Exclude self
                     { status: { in: ['APPROVED', 'PROMOTED_TO_PROJECT'] } }, // Only public statuses
                     {
-                        OR:
-                            tagIds.length > 0
-                                ? [
-                                      { category: idea.category },
-                                      { tags: { some: { tagId: { in: tagIds } } } },
-                                  ]
-                                : [{ category: idea.category }],
+                        OR: tagIds.length > 0 ? [{ category: idea.category }, { tags: { some: { tagId: { in: tagIds } } } }] : [{ category: idea.category }],
                     },
                 ],
             },
