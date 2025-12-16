@@ -11,6 +11,7 @@ import express from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
 import helmet from 'helmet';
+// @ts-ignore
 import compression from 'compression';
 import rateLimit from 'express-rate-limit';
 import path from 'path';

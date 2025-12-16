@@ -50,7 +50,7 @@ router.get('/splintering-stats', async (req, res) => {
                 },
             },
             include: {
-                user: {
+                requester: {
                     select: { name: true, email: true, department: true },
                 },
                 items: true,
@@ -69,12 +69,12 @@ router.get('/splintering-stats', async (req, res) => {
             vendorGroups.get(vendorKey)!.push(request);
 
             // Group by department
-            const deptKey = request.user?.department?.name || 'unknown';
+            const deptKey = request.requester?.department?.name || 'unknown';
             if (!departmentGroups.has(deptKey)) departmentGroups.set(deptKey, []);
             departmentGroups.get(deptKey)!.push(request);
 
             // Group by user
-            const userKey = request.user?.email || 'unknown';
+            const userKey = request.requester?.email || 'unknown';
             if (!userGroups.has(userKey)) userGroups.set(userKey, []);
             userGroups.get(userKey)!.push(request);
         });
@@ -128,7 +128,7 @@ router.get('/splintering-analysis', async (req, res) => {
         const requests = await prisma.request.findMany({
             where: whereClause,
             include: {
-                user: {
+                requester: {
                     select: { id: true, name: true, email: true, department: true },
                 },
                 items: true,
@@ -142,11 +142,11 @@ router.get('/splintering-analysis', async (req, res) => {
             id: request.id,
             vendorName: '', // Would extract from request metadata
             category: request.procurementType || 'general',
-            department: request.user?.department?.name || 'unknown',
+            department: request.requester?.department?.name || 'unknown',
             description: request.description || '',
             estimatedCost: request.totalEstimated || 0,
             requestedDate: request.createdAt.toISOString(),
-            requestedBy: request.user?.name || '',
+            requestedBy: request.requester?.name || '',
         }));
 
         res.json(analysisData);

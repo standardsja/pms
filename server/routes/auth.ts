@@ -220,6 +220,7 @@ router.post(
                     email: true,
                     name: true,
                     externalId: true,
+                    passwordHash: true,
                     blocked: true,
                     blockedAt: true,
                     blockedReason: true,
@@ -245,7 +246,7 @@ router.post(
                 throw new UnauthorizedError('User account not found in system.');
             }
 
-            const roles = user.roles.map((r) => r.role.name);
+            const roles = user.roles.map((r: any) => r.role.name);
             const permissions = computePermissionsForUser(user);
             const deptManagerFor = computeDeptManagerForUser(user);
             const token = jwt.sign({ sub: user.id, email: user.email, roles, name: user.name, permissions, deptManagerFor }, config.JWT_SECRET, { expiresIn: '24h' });
@@ -368,7 +369,7 @@ router.post(
             throw new UnauthorizedError('Invalid credentials');
         }
 
-        const roles = user.roles.map((r) => r.role.name);
+        const roles = user.roles.map((r: any) => r.role.name);
         const permissions = computePermissionsForUser(user);
         const deptManagerFor = computeDeptManagerForUser(user);
         const token = jwt.sign({ sub: user.id, email: user.email, roles, name: user.name, permissions, deptManagerFor }, config.JWT_SECRET, { expiresIn: '24h' });
@@ -478,8 +479,13 @@ router.post(
                     email: true,
                     name: true,
                     externalId: true,
+                    passwordHash: true,
                     blocked: true,
+                    blockedAt: true,
+                    blockedReason: true,
                     failedLogins: true,
+                    lastFailedLogin: true,
+                    lastLogin: true,
                     roles: {
                         select: { role: true },
                     },
@@ -678,7 +684,7 @@ router.get(
             throw new BadRequestError('User not found');
         }
 
-        const roles = user.roles.map((r) => r.role.name);
+        const roles = user.roles.map((r: any) => r.role.name);
         const permissions = computePermissionsForUser(user);
         const deptManagerFor = computeDeptManagerForUser(user);
 
