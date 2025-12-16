@@ -554,9 +554,6 @@ const NewEvaluation = () => {
                     ],
                 },
             };
-
-            console.log('Sending evaluation data to backend:', JSON.stringify(evaluationData, null, 2));
-
             const result = await evaluationService.createEvaluation(evaluationData);
 
             setCreatedEvaluationId(result.id);
