@@ -1,4 +1,4 @@
-import { prisma } from '../prismaClient';
+import { prisma } from '../prismaClient.js';
 
 export async function ensureCoreRoles() {
     const needed = [{ name: 'PROCUREMENT_MANAGER', description: 'Procurement manager - advanced procurement access and management' }];

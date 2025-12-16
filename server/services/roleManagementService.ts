@@ -6,9 +6,9 @@
  * Uses UserRole table as source of truth
  */
 
-import { prisma } from '../prismaClient';
-import { auditService } from './auditService';
-import { logger } from '../config/logger';
+import { prisma } from '../prismaClient.js';
+import { auditService } from './auditService.js';
+import { logger } from '../config/logger.js';
 
 export interface AssignRoleInput {
     userId: number;
@@ -100,7 +100,7 @@ class RoleManagementService {
             throw new Error(`Assigner with ID ${assignedBy} not found`);
         }
 
-        const assignerRoles = assigner.roles.map((r) => r.role.name);
+        const assignerRoles = assigner.roles.map((r: (typeof assigner.roles)[number]) => r.role.name);
         const isAdmin = assignerRoles.includes('ADMIN');
 
         if (!isAdmin && assignedBy !== userId) {
@@ -116,13 +116,13 @@ class RoleManagementService {
             throw new Error(`No valid roles found: ${roleNames.join(', ')}`);
         }
 
-        const validRoleNames = allRoles.map((r) => r.name);
+        const validRoleNames = allRoles.map((r: (typeof allRoles)[number]) => r.name);
         const skippedRoles: string[] = [];
         const assignedRoles: string[] = [];
         const auditLogIds: number[] = [];
 
         // Get current user roles
-        const currentRoleNames = user.roles.map((r) => r.role.name);
+        const currentRoleNames = user.roles.map((r: (typeof user.roles)[number]) => r.role.name);
 
         // Assign each role
         for (const role of allRoles) {
@@ -255,7 +255,7 @@ class RoleManagementService {
             throw new Error(`Remover with ID ${removedBy} not found`);
         }
 
-        const removerRoles = remover.roles.map((r) => r.role.name);
+        const removerRoles = remover.roles.map((r: (typeof remover.roles)[number]) => r.role.name);
         const isAdmin = removerRoles.includes('ADMIN');
 
         if (!isAdmin) {
@@ -276,7 +276,7 @@ class RoleManagementService {
         const auditLogIds: number[] = [];
 
         // Get current user roles
-        const currentRoleNames = user.roles.map((r) => r.role.name);
+        const currentRoleNames = user.roles.map((r: (typeof user.roles)[number]) => r.role.name);
 
         // Remove each role
         for (const role of allRoles) {
@@ -398,7 +398,7 @@ class RoleManagementService {
         }
 
         // Extract role details
-        const roles = user.roles.map((ur) => ({
+        const roles = user.roles.map((ur: (typeof user.roles)[number]) => ({
             id: ur.role.id,
             name: ur.role.name,
             description: ur.role.description,

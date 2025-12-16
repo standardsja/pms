@@ -4,9 +4,9 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { roleRequestService } from '../services/roleRequestService';
-import { authMiddleware, requirePermission } from '../middleware/auth';
-import { logger } from '../config/logger';
+import { roleRequestService } from '../services/roleRequestService.js';
+import { authMiddleware, requirePermission } from '../middleware/auth.js';
+import { logger } from '../config/logger.js';
 
 const router = Router();
 

@@ -3,9 +3,9 @@
  * Handles procurement request operations
  */
 import { Router } from 'express';
-import { authMiddleware } from '../middleware/auth';
-import { asyncHandler } from '../middleware/errorHandler';
-import { logger } from '../config/logger';
+import { authMiddleware } from '../middleware/auth.js';
+import { asyncHandler } from '../middleware/errorHandler.js';
+import { logger } from '../config/logger.js';
 
 const router = Router();
 

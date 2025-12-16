@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 /**
  * Test Script: Verify LDAP Group Mappings
- * 
+ *
  * This script helps verify that AD group mappings are working correctly
- * 
+ *
  * Usage:
  *   node test-ldap-group-mappings.mjs <email> <password>
- * 
+ *
  * Example:
  *   node test-ldap-group-mappings.mjs john.doe@bos.local password123
  */
@@ -59,7 +59,7 @@ async function testGroupMappings() {
         // Step 4: Find matching mappings
         console.log('5️⃣  Matching Groups:');
         const matchedMappings = findMappingsForGroups(groups, mappings);
-        
+
         if (matchedMappings.length === 0) {
             console.log(`   ⚠️  No group mappings matched for this user`);
             console.log(`   Roles will be assigned from admin panel or default REQUESTER\n`);
@@ -76,10 +76,8 @@ async function testGroupMappings() {
 
         // Step 5: Calculate resulting roles
         console.log('6️⃣  Resulting Roles:');
-        const resultingRoles = mergeRoles(
-            ...matchedMappings.map((m) => m.roles)
-        );
-        
+        const resultingRoles = mergeRoles(...matchedMappings.map((m) => m.roles));
+
         if (resultingRoles.length === 0) {
             console.log(`   (None from AD groups - will use fallback)\n`);
         } else {
@@ -103,8 +101,7 @@ async function testGroupMappings() {
         console.log(`   Roles to Assign: ${resultingRoles.length > 0 ? resultingRoles.join(', ') : '(fallback)'}`);
         console.log(`   Department to Assign: ${deptInfo ? deptInfo.name : '(none)'}`);
         console.log('\n✅ Test completed\n');
-
-    } catch (error: any) {
+    } catch (error) {
         console.error('\n❌ Error during test:');
         console.error(`   ${error.message}\n`);
         process.exit(1);

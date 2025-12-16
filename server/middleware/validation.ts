@@ -5,7 +5,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import DOMPurify from 'isomorphic-dompurify';
-import { BadRequestError } from './errorHandler';
+import { BadRequestError } from './errorHandler.js';
 
 // Common validation schemas
 const emailSchema = z.string().email().max(255);
