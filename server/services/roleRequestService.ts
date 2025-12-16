@@ -111,7 +111,7 @@ export class RoleRequestService {
             if (admins.length > 0) {
                 const message = `${roleRequest.user?.name || roleRequest.user.email} requested access: ${roleRequest.role} (${roleRequest.module})`;
 
-                const notifications = admins.map((a) => ({
+                const notifications = admins.map((a: typeof admins[number]) => ({
                     userId: a.id,
                     type: 'ROLE_REQUEST' as any,
                     message,
