@@ -246,6 +246,9 @@ model User {
 
   // Assignments back-relation
   evaluationAssignments EvaluationAssignment[]
+
+  // Refresh token relations
+  refreshTokens RefreshToken[]
 }
 
 model Department {
@@ -1057,4 +1060,25 @@ model NavigationMenu {
 
   @@index([isActive])
   @@index([displayOrder])
+}
+
+/// Refresh token model for JWT token rotation
+model RefreshToken {
+  id          Int            @id @default(autoincrement())
+  tokenHash   String         @unique
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      Int
+  expiresAt   DateTime
+  revoked     Boolean        @default(false)
+  replacedBy  RefreshToken?  @relation("replacedByRelation", fields: [replacedById], references: [id], onDelete: SetNull)
+  replacedById Int?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  // Self-relation for tracking token rotation chains
+  replacedTokens RefreshToken[] @relation("replacedByRelation")
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([revoked])
 }
