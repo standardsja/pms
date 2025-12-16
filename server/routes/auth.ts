@@ -536,7 +536,7 @@ router.post(
             throw new UnauthorizedError('User account not found in system.');
         }
 
-            const roles = user.roles.map((r: any) => r.role.name);
+        const roles = user.roles.map((r: any) => r.role.name);
         const permissions = computePermissionsForUser(user);
         const deptManagerFor = computeDeptManagerForUser(user);
         const token = jwt.sign(
@@ -777,8 +777,7 @@ router.get(
                     },
                 },
                 _count: true,
-                _sum: {
-                },
+                _sum: {},
             });
 
             // Get user's ideas under review (for committee members)
