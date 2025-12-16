@@ -1,0 +1,2 @@
+-- Placeholder migration to align with drifted history.
+-- TODO: populate with actual SQL if available.
