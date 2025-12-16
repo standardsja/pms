@@ -88,7 +88,7 @@ export async function searchIdeas(
 
         // Calculate relevance scores
         const results = ideas
-            .map((idea: typeof ideas[number]) => {
+            .map((idea: (typeof ideas)[number]) => {
                 let relevanceScore = 0;
 
                 const titleLower = idea.title.toLowerCase();
@@ -139,7 +139,7 @@ export async function searchIdeas(
                     relevanceScore,
                 };
             })
-            .sort((a: typeof ideas[number] & { relevanceScore: number }, b: typeof ideas[number] & { relevanceScore: number }) => b.relevanceScore - a.relevanceScore); // Sort by relevance
+            .sort((a: (typeof ideas)[number] & { relevanceScore: number }, b: (typeof ideas)[number] & { relevanceScore: number }) => b.relevanceScore - a.relevanceScore); // Sort by relevance
 
         return { results, total };
     } catch (error) {
@@ -173,7 +173,7 @@ export async function getSearchSuggestions(query: string, limit: number = 5): Pr
             },
         });
 
-        return ideas.map((idea: typeof ideas[number]) => idea.title);
+        return ideas.map((idea: (typeof ideas)[number]) => idea.title);
     } catch (error) {
         console.error('[Search] Error getting suggestions:', error);
         return [];
@@ -203,11 +203,11 @@ export async function getPopularSearchTerms(limit: number = 10): Promise<string[
         // Extract and count words
         const wordCounts = new Map<string, number>();
 
-        ideas.forEach((idea: typeof ideas[number]) => {
+        ideas.forEach((idea: (typeof ideas)[number]) => {
             const words = idea.title
                 .toLowerCase()
                 .split(/\s+/)
-            .filter((word: string) => word.length > 3); // Filter short words
+                .filter((word: string) => word.length > 3); // Filter short words
 
             words.forEach((word) => {
                 wordCounts.set(word, (wordCounts.get(word) || 0) + 1);

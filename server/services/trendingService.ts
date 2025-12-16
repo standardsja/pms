@@ -53,7 +53,7 @@ export async function updateAllTrendingScores(): Promise<number> {
             const batch = ideas.slice(i, i + batchSize);
 
             await Promise.all(
-                batch.map(async (idea: typeof batch[number]) => {
+                batch.map(async (idea: (typeof batch)[number]) => {
                     const score = calculateTrendingScore(idea.upvoteCount, idea.downvoteCount, idea.viewCount, idea.createdAt);
 
                     // Workaround: Use raw SQL until Prisma regenerates with trendingScore
