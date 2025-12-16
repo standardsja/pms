@@ -3,11 +3,11 @@
  * Handles analytics, leaderboard, and other innovation-specific endpoints
  */
 import { Router } from 'express';
-import { prisma } from '../prismaClient';
-import { logger } from '../config/logger';
-import { cacheGet, cacheSet } from '../config/redis';
-import { asyncHandler, NotFoundError } from '../middleware/errorHandler';
-import { authMiddleware } from '../middleware/auth';
+import { prisma } from '../prismaClient.js';
+import { logger } from '../config/logger.js';
+import { cacheGet, cacheSet } from '../config/redis.js';
+import { asyncHandler, NotFoundError } from '../middleware/errorHandler.js';
+import { authMiddleware } from '../middleware/auth.js';
 
 const router = Router();
 

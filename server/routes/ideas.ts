@@ -7,17 +7,17 @@ import rateLimit from 'express-rate-limit';
 import multer from 'multer';
 import path from 'path';
 import crypto from 'crypto';
-import { prisma } from '../prismaClient';
-import { config } from '../config/environment';
-import { logger } from '../config/logger';
-import { cacheGet, cacheSet, cacheDeletePattern } from '../config/redis';
-import { asyncHandler, BadRequestError, NotFoundError } from '../middleware/errorHandler';
-import { authMiddleware, requireCommittee } from '../middleware/auth';
-import { validate, createIdeaSchema, voteSchema, approveRejectIdeaSchema, promoteIdeaSchema } from '../middleware/validation';
-import { updateIdeaTrendingScore } from '../services/trendingService';
-import { searchIdeas, getSearchSuggestions } from '../services/searchService';
-import { findPotentialDuplicates } from '../services/duplicateDetectionService';
-import { emitIdeaCreated, emitIdeaStatusChanged, emitVoteUpdated } from '../services/websocketService';
+import { prisma } from '../prismaClient.js';
+import { config } from '../config/environment.js';
+import { logger } from '../config/logger.js';
+import { cacheGet, cacheSet, cacheDeletePattern } from '../config/redis.js';
+import { asyncHandler, BadRequestError, NotFoundError } from '../middleware/errorHandler.js';
+import { authMiddleware, requireCommittee } from '../middleware/auth.js';
+import { validate, createIdeaSchema, voteSchema, approveRejectIdeaSchema, promoteIdeaSchema } from '../middleware/validation.js';
+import { updateIdeaTrendingScore } from '../services/trendingService.js';
+import { searchIdeas, getSearchSuggestions } from '../services/searchService.js';
+import { findPotentialDuplicates } from '../services/duplicateDetectionService.js';
+import { emitIdeaCreated, emitIdeaStatusChanged, emitVoteUpdated } from '../services/websocketService.js';
 
 const router = Router();
 

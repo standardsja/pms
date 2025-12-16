@@ -1,4 +1,4 @@
-import { prisma } from '../prismaClient';
+import { prisma } from '../prismaClient.js';
 
 /**
  * Calculate trending score for ideas using time-decay algorithm

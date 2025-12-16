@@ -2,9 +2,9 @@
  * Admin Routes - System management and configuration
  */
 import express, { Router, Request, Response } from 'express';
-import { prisma } from '../prismaClient';
-import { authMiddleware } from '../middleware/auth';
-import { logger } from '../config/logger';
+import { prisma } from '../prismaClient.js';
+import { authMiddleware } from '../middleware/auth.js';
+import { logger } from '../config/logger.js';
 
 const router: Router = express.Router();
 

@@ -3,7 +3,7 @@
  * Handles business logic for role assignment requests
  */
 
-import { prisma } from '../prismaClient';
+import { prisma } from '../prismaClient.js';
 
 // Type for role request status (matches Prisma enum)
 type RoleRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';

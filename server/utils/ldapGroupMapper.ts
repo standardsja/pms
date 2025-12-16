@@ -3,9 +3,9 @@
  * Maps LDAP group memberships and attributes to internal role names
  */
 
-import { LDAPUser, ResolvedRole, LDAPGroupMapping, LDAPAttributeMapping } from '../types/rbac';
-import { validateMemberOf, validateLDAPAttribute, validateRoleName, parseDN } from './rbacValidation';
-import { LDAPResolutionError, RoleResolutionException } from '../types/rbac';
+import { LDAPUser, ResolvedRole, LDAPGroupMapping, LDAPAttributeMapping } from '../types/rbac.js';
+import { validateMemberOf, validateLDAPAttribute, validateRoleName, parseDN } from './rbacValidation.js';
+import { LDAPResolutionError, RoleResolutionException } from '../types/rbac.js';
 
 /**
  * Maps LDAP groups to internal roles

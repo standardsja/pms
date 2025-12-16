@@ -6,9 +6,9 @@
  * Uses UserRole table as source of truth
  */
 
-import { prisma } from '../prismaClient';
-import { auditService } from './auditService';
-import { logger } from '../config/logger';
+import { prisma } from '../prismaClient.js';
+import { auditService } from './auditService.js';
+import { logger } from '../config/logger.js';
 
 export interface AssignRoleInput {
     userId: number;

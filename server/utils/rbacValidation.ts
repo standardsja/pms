@@ -2,7 +2,7 @@
  * Error handling and validation utilities for RBAC system
  */
 
-import { LDAPResolutionError, RoleResolutionException, LDAPUser } from '../types/rbac';
+import { LDAPResolutionError, RoleResolutionException, LDAPUser } from '../types/rbac.js';
 
 /**
  * Validates LDAP user data structure

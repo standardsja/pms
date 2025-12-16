@@ -17,9 +17,9 @@ import {
     DatabaseRoleOverride,
     LDAPResolutionError,
     RoleResolutionException,
-} from '../types/rbac';
-import { LDAPGroupMapper } from '../utils/ldapGroupMapper';
-import { validateConfig, validateLDAPUser, validateResolvedRoles, validatePermissions, handleResolutionError } from '../utils/rbacValidation';
+} from '../types/rbac.js';
+import { LDAPGroupMapper } from '../utils/ldapGroupMapper.js';
+import { validateConfig, validateLDAPUser, validateResolvedRoles, validatePermissions, handleResolutionError } from '../utils/rbacValidation.js';
 
 /**
  * Main Role Resolver class

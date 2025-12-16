@@ -5,12 +5,12 @@
  */
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { config } from '../config/environment';
-import { logger } from '../config/logger';
-import { prisma } from '../prismaClient';
-import { UnauthorizedError, ForbiddenError } from './errorHandler';
-import { getGlobalRoleResolver } from '../services/roleResolver';
-import { Permission } from '../types/rbac';
+import { config } from '../config/environment.js';
+import { logger } from '../config/logger.js';
+import { prisma } from '../prismaClient.js';
+import { UnauthorizedError, ForbiddenError } from './errorHandler.js';
+import { getGlobalRoleResolver } from '../services/roleResolver.js';
+import { Permission } from '../types/rbac.js';
 
 export interface AuthenticatedRequest extends Request {
     user: {

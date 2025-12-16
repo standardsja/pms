@@ -7,10 +7,10 @@
 
 import { Client } from 'ldapts';
 import { PrismaClient } from '@prisma/client';
-import { config } from '../config/environment';
-import { logger } from '../config/logger';
-import { syncLDAPUserToDatabase } from './ldapRoleSyncService';
-import { LDAPUser } from './ldapService';
+import { config } from '../config/environment.js';
+import { logger } from '../config/logger.js';
+import { syncLDAPUserToDatabase } from './ldapRoleSyncService.js';
+import { LDAPUser } from './ldapService.js';
 import path from 'path';
 import fs from 'fs';
 

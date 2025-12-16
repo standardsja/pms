@@ -1,5 +1,5 @@
 import { compareTwoStrings, findBestMatch } from 'string-similarity';
-import { prisma } from '../prismaClient';
+import { prisma } from '../prismaClient.js';
 
 /**
  * Calculate similarity between two strings (0-1 scale)

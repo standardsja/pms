@@ -15,16 +15,16 @@ import rateLimit from 'express-rate-limit';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import { prisma } from '../prismaClient';
-import { config } from '../config/environment';
-import { logger } from '../config/logger';
-import { asyncHandler, BadRequestError, UnauthorizedError } from '../middleware/errorHandler';
-import { authMiddleware, AuthenticatedRequest } from '../middleware/auth';
-import { validate, loginSchema } from '../middleware/validation';
-import { ldapService } from '../services/ldapService';
-import { computePermissionsForUser, computeDeptManagerForUser } from '../utils/permissionUtils';
-import { syncLDAPUserToDatabase, describeSyncResult } from '../services/ldapRoleSyncService';
-import { bulkSyncADUsers, getSyncStatistics } from '../services/ldapBulkSyncService';
+import { prisma } from '../prismaClient.js';
+import { config } from '../config/environment.js';
+import { logger } from '../config/logger.js';
+import { asyncHandler, BadRequestError, UnauthorizedError } from '../middleware/errorHandler.js';
+import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.js';
+import { validate, loginSchema } from '../middleware/validation.js';
+import { ldapService } from '../services/ldapService.js';
+import { computePermissionsForUser, computeDeptManagerForUser } from '../utils/permissionUtils.js';
+import { syncLDAPUserToDatabase, describeSyncResult } from '../services/ldapRoleSyncService.js';
+import { bulkSyncADUsers, getSyncStatistics } from '../services/ldapBulkSyncService.js';
 
 const router = Router();
 

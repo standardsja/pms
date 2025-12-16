@@ -1,9 +1,9 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
-import { authMiddleware, AuthenticatedRequest } from '../middleware/auth';
-import { checkUserRoles, hasPermission } from '../utils/roleUtils';
-import { checkProcurementThresholds } from '../services/thresholdService';
-import { createThresholdNotifications } from '../services/notificationService';
+import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.js';
+import { checkUserRoles, hasPermission } from '../utils/roleUtils.js';
+import { checkProcurementThresholds } from '../services/thresholdService.js';
+import { createThresholdNotifications } from '../services/notificationService.js';
 
 const router = Router();
 const prisma = new PrismaClient();
