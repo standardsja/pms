@@ -55,7 +55,8 @@ const NewEvaluation = () => {
                     ...prev,
                     rfqNumber: data.reference || '',
                     rfqTitle: data.title,
-                    description: data.description || '',
+                    description: data.description || data.justification || '',
+                    background: data.description || data.justification || '',
                 }));
             } catch (error) {
                 console.error('Error fetching combined request:', error);
@@ -106,6 +107,7 @@ const NewEvaluation = () => {
                     rfqNumber: data.reference || data.code || '',
                     rfqTitle: data.title || '',
                     description: data.description || data.justification || '',
+                    background: data.description || data.justification || '',
                     comparableEstimate: totalEstimate > 0 ? totalEstimate.toFixed(2) : '',
                 }));
 
