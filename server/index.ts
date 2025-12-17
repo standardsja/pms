@@ -4535,7 +4535,9 @@ app.post('/api/admin/users/:userId/department', async (req, res) => {
             const isDeptManager = userRoles.map((r) => String(r).toUpperCase()).includes('DEPT_MANAGER');
 
             // Clear this user's managerId from any other department that referenced them but is not the current one
-            await prisma.department.updateMany({ where: { managerId: parsedUserId, id: { not: updated.departmentId } }, data: { managerId: null } });
+            const clearManagerWhere = updated.departmentId ? { managerId: parsedUserId, id: { not: updated.departmentId } } : { managerId: parsedUserId };
+
+            await prisma.department.updateMany({ where: clearManagerWhere, data: { managerId: null } });
 
             if (isDeptManager && updated.departmentId) {
                 await prisma.department.update({ where: { id: updated.departmentId }, data: { managerId: parsedUserId } });
@@ -4600,7 +4602,6 @@ app.get('/api/admin/users', async (req, res) => {
             blocked: u.blocked,
             blockedAt: u.blockedAt,
             blockedReason: u.blockedReason,
-            blockedBy: u.blockedBy,
             lastLogin: u.lastLogin,
             failedLogins: u.failedLogins,
             lastFailedLogin: u.lastFailedLogin,
@@ -5589,7 +5590,7 @@ app.post(
 
                 res.json({ success: true, data: evaluation });
             } catch (err) {
-                console.error('Failed to create evaluation (delegate):', err && (err.stack || err));
+                console.error('Failed to create evaluation (delegate):', err instanceof Error ? err.stack || err.message : err);
                 // If the Prisma model doesn't support `requestId`, creating with that field will throw. We no longer pass requestId into create.
                 throw new BadRequestError('Failed to create evaluation');
             }
@@ -6568,7 +6569,7 @@ async function start() {
         initWebSocket(httpServer); // Initialize WebSocket server
 
         // Start real-time system stats broadcast (every 5 seconds)
-        const { activeSessions: sessions } = await import('./routes/stats');
+        const { activeSessions: sessions } = await import('./routes/stats.js');
         systemStatsInterval = setInterval(async () => {
             try {
                 const activeUsers = sessions.size;

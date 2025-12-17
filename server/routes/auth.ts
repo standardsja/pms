@@ -220,6 +220,7 @@ router.post(
                     email: true,
                     name: true,
                     externalId: true,
+                    passwordHash: true,
                     blocked: true,
                     blockedAt: true,
                     blockedReason: true,
@@ -245,7 +246,7 @@ router.post(
                 throw new UnauthorizedError('User account not found in system.');
             }
 
-            const roles = user.roles.map((r) => r.role.name);
+            const roles = user.roles.map((r: any) => r.role.name);
             const permissions = computePermissionsForUser(user);
             const deptManagerFor = computeDeptManagerForUser(user);
             const token = jwt.sign({ sub: user.id, email: user.email, roles, name: user.name, permissions, deptManagerFor }, config.JWT_SECRET, { expiresIn: '24h' });
@@ -368,7 +369,7 @@ router.post(
             throw new UnauthorizedError('Invalid credentials');
         }
 
-        const roles = user.roles.map((r) => r.role.name);
+        const roles = user.roles.map((r: any) => r.role.name);
         const permissions = computePermissionsForUser(user);
         const deptManagerFor = computeDeptManagerForUser(user);
         const token = jwt.sign({ sub: user.id, email: user.email, roles, name: user.name, permissions, deptManagerFor }, config.JWT_SECRET, { expiresIn: '24h' });
@@ -478,8 +479,13 @@ router.post(
                     email: true,
                     name: true,
                     externalId: true,
+                    passwordHash: true,
                     blocked: true,
+                    blockedAt: true,
+                    blockedReason: true,
                     failedLogins: true,
+                    lastFailedLogin: true,
+                    lastLogin: true,
                     roles: {
                         select: { role: true },
                     },
@@ -491,7 +497,11 @@ router.post(
         }
 
         // Perform hybrid role sync: AD groups → admin panel → default REQUESTER
-        const syncResult = await syncLDAPUserToDatabase(ldapUser, user!);
+        if (!user) {
+            throw new UnauthorizedError('User account not found after LDAP sync.');
+        }
+
+        const syncResult = await syncLDAPUserToDatabase(ldapUser, user);
 
         logger.info('LDAP user roles synced', {
             email,
@@ -512,6 +522,7 @@ router.post(
                 failedLogins: true,
                 lastFailedLogin: true,
                 lastLogin: true,
+                passwordHash: true,
                 roles: {
                     select: {
                         role: true,
@@ -531,7 +542,7 @@ router.post(
             throw new UnauthorizedError('User account not found in system.');
         }
 
-        const roles = user.roles.map((r) => r.role.name);
+        const roles = user.roles.map((r: any) => r.role.name);
         const permissions = computePermissionsForUser(user);
         const deptManagerFor = computeDeptManagerForUser(user);
         const token = jwt.sign(
@@ -673,7 +684,7 @@ router.get(
             throw new BadRequestError('User not found');
         }
 
-        const roles = user.roles.map((r) => r.role.name);
+        const roles = user.roles.map((r: any) => r.role.name);
         const permissions = computePermissionsForUser(user);
         const deptManagerFor = computeDeptManagerForUser(user);
 
@@ -696,7 +707,7 @@ router.get(
                       code: user.department.code,
                   }
                 : null,
-            roles: user.roles.map((r) => ({ id: r.role.id, name: r.role.name })),
+            roles: user.roles.map((r: any) => ({ id: r.role.id, name: r.role.name })),
             permissions,
             deptManagerFor,
             ldapDN: user.ldapDN,
@@ -772,9 +783,7 @@ router.get(
                     },
                 },
                 _count: true,
-                _sum: {
-                    voteType: true,
-                },
+                _sum: {},
             });
 
             // Get user's ideas under review (for committee members)

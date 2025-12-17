@@ -4,7 +4,14 @@ type UserWithRolesAndDepartment = {
     id: number;
     email: string;
     name?: string | null;
-    department?: { id: number; name: string; code: string } | null;
+    passwordHash?: string | null;
+    failedLogins?: number | null;
+    lastFailedLogin?: Date | null;
+    lastLogin?: Date | null;
+    blocked?: boolean | null;
+    blockedAt?: Date | null;
+    blockedReason?: string | null;
+    department?: { id: number; name: string; code: string | null } | null;
     roles: Array<{ role: { id: number; name: string } }> | Array<{ name: string }>;
 };
 

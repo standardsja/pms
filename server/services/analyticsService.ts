@@ -1,4 +1,5 @@
 import { prisma } from '../prismaClient.js';
+import { IdeaCategory, IdeaStatus } from '@prisma/client';
 
 /**
  * Pre-aggregated analytics cache (updated periodically)

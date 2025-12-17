@@ -10,7 +10,7 @@ import { logger } from '../config/logger.js';
 
 export interface AuditLogData {
     userId?: number;
-    action: Prisma.AuditAction;
+    action: string;
     entity: string;
     entityId?: number;
     message: string;
@@ -313,7 +313,7 @@ class AuditService {
     /**
      * Search audit logs
      */
-    async searchLogs(params: { userId?: number; action?: Prisma.AuditAction; entity?: string; startDate?: Date; endDate?: Date; limit?: number }) {
+    async searchLogs(params: { userId?: number; action?: string; entity?: string; startDate?: Date; endDate?: Date; limit?: number }) {
         return await prisma.auditLog.findMany({
             where: {
                 userId: params.userId,

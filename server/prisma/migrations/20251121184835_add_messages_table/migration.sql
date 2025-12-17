@@ -1,0 +1,1 @@
+-- baseline placeholder to reconcile historical migration already applied in db

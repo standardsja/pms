@@ -128,7 +128,7 @@ export async function updateSettings(config: LoadBalancingConfig): Promise<LoadB
  * Initialize or get performance metrics for an officer
  */
 async function getOrCreatePerformanceMetrics(officerId: number) {
-    let metrics = await prisma.officerPerformanceMetrics.findUnique({
+    let metrics = await prisma.officerPerformanceMetrics.findFirst({
         where: { officerId },
     });
 
@@ -136,14 +136,11 @@ async function getOrCreatePerformanceMetrics(officerId: number) {
         metrics = await prisma.officerPerformanceMetrics.create({
             data: {
                 officerId,
-                totalAssignments: 0,
                 completedAssignments: 0,
                 averageCompletionTime: 24, // default 24 hours
                 successRate: 0.9,
                 currentWorkload: 0,
                 categoryExpertise: {},
-                averageResponseTime: 2,
-                qualityScore: 0.8,
                 efficiencyScore: 0.8,
                 complexityHandling: 0.5,
                 peakPerformanceHours: [9, 10, 11, 14, 15],
@@ -653,19 +650,26 @@ async function updateOfficerWorkload(officerId: number) {
         },
     });
 
-    await prisma.officerPerformanceMetrics.upsert({
+    const existingMetric = await prisma.officerPerformanceMetrics.findFirst({
         where: { officerId },
-        create: {
-            officerId,
-            currentWorkload,
-            totalAssignments: 1,
-        },
-        update: {
-            currentWorkload,
-            totalAssignments: { increment: 1 },
-            lastAssignedAt: new Date(),
-        },
     });
+
+    if (existingMetric) {
+        await prisma.officerPerformanceMetrics.update({
+            where: { id: existingMetric.id },
+            data: {
+                currentWorkload,
+                lastAssignedAt: new Date(),
+            },
+        });
+    } else {
+        await prisma.officerPerformanceMetrics.create({
+            data: {
+                officerId,
+                currentWorkload,
+            },
+        });
+    }
 }
 
 /**
@@ -690,10 +694,7 @@ export async function learnFromAssignment(requestId: number, wasSuccessful: bool
         await prisma.requestAssignmentLog.update({
             where: { id: log.id },
             data: {
-                completedAt,
                 actualCompletionTime,
-                wasSuccessful,
-                feedbackScore,
             },
         });
 
@@ -705,12 +706,11 @@ export async function learnFromAssignment(requestId: number, wasSuccessful: bool
         const newAvgCompletionTime = (metrics.averageCompletionTime * metrics.completedAssignments + actualCompletionTime) / newCompletedCount;
 
         await prisma.officerPerformanceMetrics.update({
-            where: { officerId: log.officerId },
+            where: { id: metrics.id },
             data: {
                 completedAssignments: newCompletedCount,
                 successRate: newSuccessRate,
                 averageCompletionTime: newAvgCompletionTime,
-                lastPerformanceUpdate: new Date(),
             },
         });
 
@@ -743,18 +743,17 @@ export async function getAIAnalytics() {
 
     return {
         totalAssignments: totalLogs,
-        averageConfidence: avgConfidence._avg.confidenceScore || 0,
+        averageConfidence: avgConfidence._avg?.confidenceScore || 0,
         topPerformers: topOfficers.map((m) => ({
             officer: m.officer,
             successRate: m.successRate,
             avgCompletionTime: m.averageCompletionTime,
-            totalAssignments: m.totalAssignments,
             efficiencyScore: m.efficiencyScore,
         })),
         strategyPerformance: strategyStats.map((s) => ({
             strategy: s.strategy,
-            count: s._count.id,
-            avgConfidence: s._avg.confidenceScore || 0,
+            count: s._count?.id ?? 0,
+            avgConfidence: s._avg?.confidenceScore || 0,
         })),
     };
 }
