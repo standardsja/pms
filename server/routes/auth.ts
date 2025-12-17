@@ -112,31 +112,12 @@ router.post(
                 path: '/api/auth/login',
             });
         }
+        // Authentication strategy: DATABASE first, then LDAP as fallback
         let authMethod = 'DATABASE';
         let ldapAuthenticated = false;
         let ldapUser: any = null;
 
-        // Try LDAP authentication first if enabled
-        if (ldapService.isEnabled()) {
-            try {
-                logger.info('Attempting LDAP authentication', { email });
-                ldapUser = await ldapService.authenticateUser(email, password);
-                ldapAuthenticated = true;
-                authMethod = 'LDAP';
-                logger.info('LDAP authentication successful', {
-                    email,
-                    groupCount: ldapUser.memberOf?.length || 0,
-                });
-            } catch (ldapError) {
-                logger.warn('LDAP authentication failed, falling back to database', {
-                    email,
-                    error: ldapError instanceof Error ? ldapError.message : 'Unknown error',
-                });
-                // Fall through to database authentication
-            }
-        }
-
-        // Look up user in local database
+        // Look up user in local database first
         let user = await prisma.user.findUnique({
             where: { email },
             select: {
@@ -165,6 +146,120 @@ router.post(
                 },
             },
         });
+
+        // If we found a DB user and it has a passwordHash, validate password and return token
+        if (user && user.passwordHash) {
+            // Check if user is blocked
+            if (user.blocked) {
+                logger.warn('Blocked user attempted login', {
+                    userId: user.id,
+                    email: user.email,
+                    blockedAt: user.blockedAt,
+                    blockedReason: user.blockedReason,
+                });
+                return res.status(403).json({
+                    error: 'Account Blocked',
+                    message: 'Your account has been blocked. Please contact an administrator.',
+                    statusCode: 403,
+                    timestamp: new Date().toISOString(),
+                    path: '/api/auth/login',
+                });
+            }
+
+            const isValid = await bcrypt.compare(password, user.passwordHash);
+            if (!isValid) {
+                // Increment failed login counter
+                const failedAttempts = (user.failedLogins || 0) + 1;
+                const maxAttemptsConfig = await prisma.systemConfig.findUnique({ where: { key: 'MAX_LOGIN_ATTEMPTS' } });
+                const maxAttempts = maxAttemptsConfig ? parseInt(maxAttemptsConfig.value) : 5;
+                const shouldBlock = failedAttempts >= maxAttempts;
+
+                try {
+                    await prisma.user.update({
+                        where: { id: user.id },
+                        data: {
+                            failedLogins: failedAttempts,
+                            lastFailedLogin: new Date(),
+                            ...(shouldBlock && {
+                                blocked: true,
+                                blockedAt: new Date(),
+                                blockedReason: `Account automatically blocked after ${failedAttempts} failed login attempts`,
+                            }),
+                        },
+                    });
+                } catch (updateErr: any) {
+                    logger.error('Non-fatal: failed to update failed-login counter', {
+                        userId: user.id,
+                        email: user.email,
+                        failedAttempts,
+                        error: updateErr?.message || String(updateErr),
+                    });
+                }
+
+                logger.warn('Failed login attempt', {
+                    userId: user.id,
+                    email: user.email,
+                    failedAttempts,
+                    maxAttempts,
+                    blocked: shouldBlock,
+                });
+
+                if (shouldBlock) {
+                    throw new UnauthorizedError(`Account blocked after ${maxAttempts} failed login attempts. Please contact an administrator.`);
+                }
+
+                throw new UnauthorizedError('Invalid credentials');
+            }
+
+            // Successful DB auth: generate token, update login fields and return
+            const roles = user.roles.map((r: any) => r.role.name);
+            const permissions = computePermissionsForUser(user);
+            const deptManagerFor = computeDeptManagerForUser(user);
+            const token = jwt.sign({ sub: user.id, email: user.email, roles, name: user.name, permissions, deptManagerFor }, config.JWT_SECRET, { expiresIn: '24h' });
+
+            try {
+                await prisma.user.update({ where: { id: user.id }, data: { lastLogin: new Date(), failedLogins: 0, lastFailedLogin: null } });
+            } catch (updateErr: any) {
+                logger.error('Non-fatal: failed to update user login fields after DB login', {
+                    userId: user.id,
+                    email: user.email,
+                    error: updateErr?.message || String(updateErr),
+                });
+            }
+
+            logger.info('User logged in via database successfully', { userId: user.id, email: user.email });
+
+            return res.json({
+                token,
+                user: {
+                    id: user.id,
+                    email: user.email,
+                    name: user.name,
+                    roles,
+                    permissions,
+                    deptManagerFor,
+                    department: user.department
+                        ? { id: user.department.id, name: user.department.name, code: user.department.code }
+                        : null,
+                },
+            });
+        }
+
+        // If no DB user found or user exists without a passwordHash, attempt LDAP if enabled
+        if (ldapService.isEnabled()) {
+            try {
+                logger.info('Attempting LDAP authentication (DB did not authenticate)', { email });
+                ldapUser = await ldapService.authenticateUser(email, password);
+                ldapAuthenticated = true;
+                authMethod = 'LDAP';
+                logger.info('LDAP authentication successful', { email, groupCount: ldapUser.memberOf?.length || 0 });
+            } catch (ldapError) {
+                logger.warn('LDAP authentication failed and DB did not authenticate', {
+                    email,
+                    error: ldapError instanceof Error ? ldapError.message : 'Unknown error',
+                });
+            }
+        }
 
         // If LDAP succeeded, sync user data and roles
         if (ldapAuthenticated && ldapUser) {
