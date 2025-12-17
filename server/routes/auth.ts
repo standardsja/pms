@@ -238,9 +238,7 @@ router.post(
                     roles,
                     permissions,
                     deptManagerFor,
-                    department: user.department
-                        ? { id: user.department.id, name: user.department.name, code: user.department.code }
-                        : null,
+                    department: user.department ? { id: user.department.id, name: user.department.name, code: user.department.code } : null,
                 },
             });
         }
