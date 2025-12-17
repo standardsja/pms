@@ -6,9 +6,9 @@
  */
 
 import { PrismaClient } from '@prisma/client';
-import { logger } from '../config/logger';
-import { LDAPUser } from './ldapService';
-import { getGroupMappings, findMappingsForGroups, mergeRoles, getFirstDepartment, GroupRoleMapping } from '../config/ldapGroupMapping';
+import { logger } from '../config/logger.js';
+import { LDAPUser } from './ldapService.js';
+import { getGroupMappings, findMappingsForGroups, mergeRoles, getFirstDepartment, GroupRoleMapping } from '../config/ldapGroupMapping.js';
 
 const prisma = new PrismaClient();
 

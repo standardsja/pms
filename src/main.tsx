@@ -31,8 +31,79 @@ if (import.meta.env.DEV) {
     };
 }
 
-// Module-load diagnostic wrapper (helps catch Safari "Importing a module script failed" errors)
+// Global print header/footer injection (non-fixed header for print)
 if (typeof window !== 'undefined') {
+    (function () {
+        try {
+            const style = document.createElement('style');
+            style.id = 'global-print-style';
+            style.innerHTML = `
+                @media print {
+                    /* Hide interactive controls */
+                    button, .btn, nav, .no-print, header, .topbar, .app-header, .header-right, .user-menu { display: none !important; }
+                    /* Header rendered in-flow so it doesn't overlap content */
+                    #global-print-header { display: block !important; position: static !important; margin: 0 0 6px 0; padding: 8px 12px; background: white; border-bottom: 1px solid #ddd; }
+                    #global-print-header .inner { max-width: 1100px; margin: 0 auto; display:flex; flex-direction:column; align-items:center; gap:6px; }
+                    #global-print-header img { height:48px; width:auto; object-fit:contain; }
+                    #global-print-header .meta { width:100%; display:flex; justify-content:space-between; font-size:11px; color:#333; margin-top:6px; }
+                    /* Footer fixed to bottom but content has normal flow header above */
+                    #global-print-footer { display: block !important; position: fixed; bottom: 0; left: 0; right: 0; background: white; border-top: 1px solid #ddd; padding: 6px 12px; font-size: 10pt; }
+                    @page { margin: 1in 0.5in 1in; }
+                    html, body, #root, main, .app, .page, .container, .page-content { box-sizing: border-box; }
+                }
+            `;
+            document.head.appendChild(style);
+
+            const header = document.createElement('div');
+            header.id = 'global-print-header';
+            header.style.display = 'none';
+            const now = new Date().toLocaleString();
+            header.innerHTML = `
+                <div class="inner">
+                    <img src="/assets/images/bsj-logo.png" alt="BSJ" />
+                    <div style="font-weight:700;font-size:13px;">BUREAU OF STANDARDS JAMAICA</div>
+                    <div class="meta"><div style="text-align:left">${now}</div><div style="text-align:center;font-weight:600">SPINX</div><div style="text-align:right"></div></div>
+                </div>
+            `;
+            document.body.insertBefore(header, document.body.firstChild);
+
+            const footer = document.createElement('div');
+            footer.id = 'global-print-footer';
+            footer.style.display = 'none';
+            const docControl = (window as any).__DOC_CONTROL__ || '';
+            footer.innerHTML = `<div style="max-width:1100px;margin:0 auto;"><div style="text-align:left;color:#6b7280">${docControl}</div></div>`;
+            document.body.appendChild(footer);
+
+            const signature = document.createElement('div');
+            signature.id = 'global-print-signature';
+            signature.style.display = 'none';
+            signature.innerHTML = `<div style="max-width:1100px;margin:0 auto;"><div style="display:flex;justify-content:flex-end;padding:60px 12px 120px;"><div style="width:360px;border-bottom:1px solid #000;height:2rem"></div></div></div>`;
+            document.body.appendChild(signature);
+
+            window.addEventListener(
+                'beforeunload',
+                () => {
+                    try {
+                        style.remove();
+                    } catch {}
+                    try {
+                        header.remove();
+                    } catch {}
+                    try {
+                        footer.remove();
+                    } catch {}
+                    try {
+                        signature.remove();
+                    } catch {}
+                },
+                { once: true }
+            );
+        } catch (err) {
+            console.error('Failed to initialize print header/footer', err);
+        }
+    })();
+
+    // Module-load diagnostic wrapper (helps catch Safari "Importing a module script failed" errors)
     (function () {
         const failing = new Set<string>();
 

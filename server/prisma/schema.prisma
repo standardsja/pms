@@ -158,6 +158,9 @@ enum LoadBalancingStrategy {
   LEAST_LOADED
   ROUND_ROBIN
   RANDOM
+  AI_SMART
+  SKILL_BASED
+  PREDICTIVE
 }
 
 enum RoleRequestStatus {
@@ -212,6 +215,7 @@ model User {
   blocked          Boolean?  @default(false)
   blockedAt        DateTime?
   blockedReason    String?
+  blockedBy        Int?
 
   // Innovation Hub relations
   ideas         Idea[]
@@ -246,6 +250,9 @@ model User {
 
   // Assignments back-relation
   evaluationAssignments EvaluationAssignment[]
+
+  // Refresh token relations
+  refreshTokens RefreshToken[]
 }
 
 model Department {
@@ -869,26 +876,42 @@ model EvaluationAssignment {
 }
 
 model LoadBalancingSettings {
-  id                   Int                   @id @default(autoincrement())
-  enabled              Boolean               @default(false)
-  strategy             LoadBalancingStrategy @default(LEAST_LOADED)
-  autoAssignOnApproval Boolean               @default(true)
-  splinteringEnabled   Boolean               @default(false) // Enable/disable splintering detection
-  roundRobinCounter    Int                   @default(0) // Track position for round-robin
-  updatedAt            DateTime              @updatedAt
-  updatedBy            Int?
-  user                 User?                 @relation("LoadBalancingUpdater", fields: [updatedBy], references: [id])
+  id                       Int                   @id @default(autoincrement())
+  enabled                  Boolean               @default(false)
+  strategy                 LoadBalancingStrategy @default(LEAST_LOADED)
+  autoAssignOnApproval     Boolean               @default(true)
+  splinteringEnabled       Boolean               @default(false) // Enable/disable splintering detection
+  roundRobinCounter        Int                   @default(0) // Track position for round-robin
+  aiEnabled                Boolean               @default(true) // Enable AI-powered assignments
+  learningEnabled          Boolean               @default(true) // Enable continuous learning from outcomes
+  priorityWeighting        Float                 @default(1.0) // Weight for request priority
+  performanceWeighting     Float                 @default(1.5) // Weight for officer performance metrics
+  workloadWeighting        Float                 @default(1.2) // Weight for current workload
+  specialtyWeighting       Float                 @default(1.3) // Weight for category expertise match
+  minConfidenceScore       Float                 @default(0.6) // Minimum AI confidence threshold
+  lastRoundRobinIndex      Int                   @default(0) // Track position for round-robin fallback
+  updatedAt                DateTime              @updatedAt
+  updatedBy                Int?
+  user                     User?                 @relation("LoadBalancingUpdater", fields: [updatedBy], references: [id])
 }
 
 /// Performance metrics for procurement officers (used by advanced load balancing / analytics)
 model OfficerPerformanceMetrics {
   id                       Int       @id @default(autoincrement())
-  officer                  User      @relation(fields: [officerId], references: [id])
+  officer                  User      @relation(fields: [officerId], references: [id], onDelete: Cascade)
   officerId                Int
   activeAssignments        Int       @default(0)
   completedAssignments     Int       @default(0)
-  averageTurnaroundMinutes Int? // Average time to complete an assignment in minutes
-  lastAssignmentAt         DateTime?
+  averageCompletionTime    Int       @default(24) // Average time in hours
+  successRate              Float     @default(0.8) // Success rate 0-1
+  efficiencyScore          Float     @default(0.8) // Efficiency score 0-1
+  complexityHandling       Float     @default(0.5) // How well they handle complex requests
+  peakPerformanceHours     Json      @default("[]") // Array of hours when officer performs best
+  categoryExpertise        Json      @default("{}") // Object mapping request categories to expertise scores
+  averageTurnaroundMinutes Int? // Average time to complete an assignment in minutes (legacy)
+  lastAssignmentAt         DateTime? // Legacy field
+  lastAssignedAt           DateTime? // When officer was last assigned a request
+  currentWorkload          Int       @default(0) // Current number of active assignments
   loadScore                Float? // Composite score for AI smart distribution
   createdAt                DateTime  @default(now())
   updatedAt                DateTime  @updatedAt
@@ -898,16 +921,19 @@ model OfficerPerformanceMetrics {
 
 /// Log of request assignment events for auditing and future ML feature engineering
 model RequestAssignmentLog {
-  id                Int                    @id @default(autoincrement())
-  request           Request                @relation(fields: [requestId], references: [id])
-  requestId         Int
-  officer           User                   @relation(fields: [officerId], references: [id])
-  officerId         Int
-  strategy          LoadBalancingStrategy?
-  previousOfficerId Int?
-  notes             String?
-  assignedAt        DateTime               @default(now())
-  createdAt         DateTime               @default(now())
+  id                       Int                    @id @default(autoincrement())
+  request                  Request                @relation(fields: [requestId], references: [id])
+  requestId                Int
+  officer                  User                   @relation(fields: [officerId], references: [id])
+  officerId                Int
+  strategy                 LoadBalancingStrategy?
+  previousOfficerId        Int?
+  confidenceScore          Float? // AI confidence in the assignment decision
+  predictedCompletionTime  Float? // Predicted hours to complete
+  actualCompletionTime     Float? // Actual hours (filled when assignment completes)
+  notes                    String?
+  assignedAt               DateTime               @default(now())
+  createdAt                DateTime               @default(now())
 
   @@index([requestId])
   @@index([officerId])
@@ -1057,4 +1083,25 @@ model NavigationMenu {
 
   @@index([isActive])
   @@index([displayOrder])
+}
+
+/// Refresh token model for JWT token rotation
+model RefreshToken {
+  id          Int            @id @default(autoincrement())
+  tokenHash   String         @unique
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      Int
+  expiresAt   DateTime
+  revoked     Boolean        @default(false)
+  replacedBy  RefreshToken?  @relation("replacedByRelation", fields: [replacedById], references: [id], onDelete: SetNull)
+  replacedById Int?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  // Self-relation for tracking token rotation chains
+  replacedTokens RefreshToken[] @relation("replacedByRelation")
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([revoked])
 }

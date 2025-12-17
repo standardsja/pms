@@ -5,6 +5,7 @@
 import { Router } from 'express';
 import { auditService } from '../services/auditService.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
+import { prisma } from '../prismaClient.js';
 import { Prisma } from '@prisma/client';
 
 const router = Router();
@@ -108,7 +109,7 @@ router.post(
 
         const logs = await auditService.searchLogs({
             userId: userId ? parseInt(userId) : undefined,
-            action: action as Prisma.AuditAction | undefined,
+            action: action || undefined,
             entity,
             startDate: startDate ? new Date(startDate) : undefined,
             endDate: endDate ? new Date(endDate) : undefined,
@@ -134,12 +135,19 @@ router.post(
  * GET /api/audit/actions
  * Get list of all available audit actions (for filter dropdowns)
  */
-router.get('/actions', (req, res) => {
-    const actions = Object.values(Prisma.AuditAction);
-    res.json({
-        success: true,
-        data: actions,
-    });
-});
+router.get(
+    '/actions',
+    asyncHandler(async (req, res) => {
+        const distinctActions = await prisma.auditLog.findMany({
+            select: { action: true },
+            distinct: ['action'],
+        });
+        const actions = distinctActions.map((a: any) => a.action).filter(Boolean);
+        res.json({
+            success: true,
+            data: actions,
+        });
+    })
+);
 
 export { router as auditRoutes };

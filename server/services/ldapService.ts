@@ -10,9 +10,9 @@
  */
 import { Client } from 'ldapts';
 import { URL } from 'url';
-import { config } from '../config/environment';
-import { logger } from '../config/logger';
-import { BadRequestError, UnauthorizedError } from '../middleware/errorHandler';
+import { config } from '../config/environment.js';
+import { logger } from '../config/logger.js';
+import { BadRequestError, UnauthorizedError } from '../middleware/errorHandler.js';
 import path from 'path';
 import fs from 'fs';
 

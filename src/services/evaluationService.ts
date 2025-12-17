@@ -98,7 +98,10 @@ export interface SectionD {
 
 export interface SectionE {
     finalRecommendation: string;
-    percentageDifference?: number;
+    // Approval date for the procurement officer when completing the form
+    approvalDate?: string;
+    // Whether the person completing the form approves the recommendation
+    approved?: boolean;
     preparedBy: string;
 }
 

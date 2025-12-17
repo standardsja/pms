@@ -2,7 +2,7 @@
  * Production Logger
  * Structured logging with appropriate levels for production
  */
-import { config } from './environment';
+import { config } from './environment.js';
 
 export enum LogLevel {
     ERROR = 0,

@@ -3,7 +3,7 @@
  * Handles business logic for role assignment requests
  */
 
-import { prisma } from '../prismaClient';
+import { prisma } from '../prismaClient.js';
 
 // Type for role request status (matches Prisma enum)
 type RoleRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
@@ -111,7 +111,7 @@ export class RoleRequestService {
             if (admins.length > 0) {
                 const message = `${roleRequest.user?.name || roleRequest.user.email} requested access: ${roleRequest.role} (${roleRequest.module})`;
 
-                const notifications = admins.map((a) => ({
+                const notifications = admins.map((a: (typeof admins)[number]) => ({
                     userId: a.id,
                     type: 'ROLE_REQUEST' as any,
                     message,

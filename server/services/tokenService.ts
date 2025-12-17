@@ -1,7 +1,7 @@
 import crypto from 'crypto';
-import { prisma } from '../prismaClient';
-import { config } from '../config/environment';
-import { logger } from '../config/logger';
+import { prisma } from '../prismaClient.js';
+import { config } from '../config/environment.js';
+import { logger } from '../config/logger.js';
 
 // Create a refresh token record and return the raw token string (not hashed)
 export async function createRefreshToken(userId: number, ttlDays = 7): Promise<string> {

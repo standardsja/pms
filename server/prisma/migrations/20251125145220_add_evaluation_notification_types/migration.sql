@@ -1,2 +1,1 @@
--- AlterTable
-ALTER TABLE `notification` MODIFY `type` ENUM('MENTION', 'STAGE_CHANGED', 'IDEA_APPROVED', 'THRESHOLD_EXCEEDED', 'EVALUATION_VERIFIED', 'EVALUATION_RETURNED') NOT NULL;
+-- baseline placeholder to reconcile historical migration already applied in db

@@ -1,4 +1,4 @@
-import { prisma } from '../prismaClient';
+import { prisma } from '../prismaClient.js';
 import type { Prisma } from '@prisma/client';
 
 /**

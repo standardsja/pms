@@ -85,18 +85,30 @@ export const EvaluationForm: React.FC<Props> = ({
                             </div>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {evaluation.dateSubmissionConsidered && (
-                                <div>
-                                    <label className="block mb-1 text-sm font-semibold">DATE SUBMISSION WAS CONSIDERED:</label>
-                                    <div className="p-2 bg-gray-50 dark:bg-gray-900 rounded border">{new Date(evaluation.dateSubmissionConsidered).toLocaleDateString()}</div>
-                                </div>
-                            )}
-                            {evaluation.reportCompletionDate && (
-                                <div>
-                                    <label className="block mb-1 text-sm font-semibold">REPORT COMPLETION DATE:</label>
-                                    <div className="p-2 bg-gray-50 dark:bg-gray-900 rounded border">{new Date(evaluation.reportCompletionDate).toLocaleDateString()}</div>
-                                </div>
-                            )}
+                            <div>
+                                <label className="block mb-1 text-sm font-semibold">DATE SUBMISSION WAS CONSIDERED:</label>
+                                <input
+                                    type="date"
+                                    className="form-input w-full"
+                                    value={evaluation.dateSubmissionConsidered ? new Date(evaluation.dateSubmissionConsidered).toISOString().split('T')[0] : ''}
+                                    onChange={(e) => {
+                                        const updated = { ...evaluation, dateSubmissionConsidered: e.target.value ? new Date(e.target.value).toISOString() : null };
+                                        onSaveSection('Background', updated);
+                                    }}
+                                />
+                            </div>
+                            <div>
+                                <label className="block mb-1 text-sm font-semibold">REPORT COMPLETION DATE:</label>
+                                <input
+                                    type="date"
+                                    className="form-input w-full"
+                                    value={evaluation.reportCompletionDate ? new Date(evaluation.reportCompletionDate).toISOString().split('T')[0] : ''}
+                                    onChange={(e) => {
+                                        const updated = { ...evaluation, reportCompletionDate: e.target.value ? new Date(e.target.value).toISOString() : null };
+                                        onSaveSection('Background', updated);
+                                    }}
+                                />
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -112,11 +124,11 @@ export const EvaluationForm: React.FC<Props> = ({
                     {/* Basic Info - Always Read-Only */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                            <label className="block mb-1 text-sm font-semibold">RFQ Number</label>
+                            <label className="block mb-1 text-sm font-semibold">Reference Number</label>
                             <input className="form-input w-full bg-gray-100 dark:bg-gray-700" disabled value={evaluation?.rfqNumber || ''} />
                         </div>
                         <div>
-                            <label className="block mb-1 text-sm font-semibold">RFQ Title</label>
+                            <label className="block mb-1 text-sm font-semibold">Title</label>
                             <input className="form-input w-full bg-gray-100 dark:bg-gray-700" disabled value={evaluation?.rfqTitle || ''} />
                         </div>
                     </div>
@@ -919,14 +931,27 @@ export const EvaluationForm: React.FC<Props> = ({
                         />
                     </div>
                     <div>
-                        <label className="block mb-1 text-sm font-semibold">% Difference</label>
+                        <label className="block mb-1 text-sm font-semibold">Date</label>
                         <input
-                            type="number"
+                            type="date"
                             className="form-input w-full"
                             disabled={!canEdit('E')}
-                            value={sectionE?.percentageDifference ?? ''}
-                            onChange={(e) => setSectionE({ ...(sectionE as any), percentageDifference: Number(e.target.value) })}
+                            value={sectionE?.approvalDate ? sectionE.approvalDate.split('T')[0] : ''}
+                            onChange={(e) => setSectionE({ ...(sectionE as any), approvalDate: e.target.value })}
                         />
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <input
+                            id="sectionE-approved"
+                            type="checkbox"
+                            disabled={!canEdit('E')}
+                            checked={Boolean(sectionE?.approved)}
+                            onChange={(e) => setSectionE({ ...(sectionE as any), approved: e.target.checked })}
+                            className="form-checkbox"
+                        />
+                        <label htmlFor="sectionE-approved" className="text-sm">
+                            Approved by person completing form
+                        </label>
                     </div>
                 </div>
                 {canEdit('E') && (

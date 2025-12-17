@@ -2,9 +2,9 @@
  * Admin Routes - System management and configuration
  */
 import express, { Router, Request, Response } from 'express';
-import { prisma } from '../prismaClient';
-import { authMiddleware } from '../middleware/auth';
-import { logger } from '../config/logger';
+import { prisma } from '../prismaClient.js';
+import { authMiddleware } from '../middleware/auth.js';
+import { logger } from '../config/logger.js';
 
 const router: Router = express.Router();
 
@@ -209,13 +209,14 @@ router.get('/permissions', adminOnly, async (req: Request, res: Response) => {
                 )
             );
 
-            res.json(created);
-        } else {
-            res.json(permissions);
+            return res.json(created);
         }
-    } catch (error) {
-        logger.error('Failed to fetch permissions', { error });
-        res.status(500).json({ success: false, message: 'Failed to fetch permissions' });
+
+        res.json(permissions);
+    } catch (error: any) {
+        logger.error('Failed to fetch permissions', { error: error?.message, stack: error?.stack });
+        console.error('GET /api/admin/permissions error:', error);
+        res.status(500).json({ success: false, message: 'Failed to fetch permissions', error: error?.message });
     }
 });
 
@@ -774,6 +775,19 @@ router.get('/roles/:id/permissions', adminOnly, async (req: Request, res: Respon
         const { id } = req.params;
         const roleId = parseInt(id);
 
+        if (isNaN(roleId)) {
+            return res.status(400).json({ success: false, message: 'Invalid role ID' });
+        }
+
+        // Verify role exists
+        const role = await prisma.role.findUnique({
+            where: { id: roleId },
+        });
+
+        if (!role) {
+            return res.status(404).json({ success: false, message: 'Role not found' });
+        }
+
         const rolePermissions = await prisma.rolePermission.findMany({
             where: { roleId },
             include: {
@@ -794,9 +808,10 @@ router.get('/roles/:id/permissions', adminOnly, async (req: Request, res: Respon
             allPermissions,
             rolePermissions: rolePermissions.map((rp) => rp.permission),
         });
-    } catch (error) {
-        logger.error('Failed to fetch role permissions', { error });
-        res.status(500).json({ success: false, message: 'Failed to fetch role permissions' });
+    } catch (error: any) {
+        logger.error('Failed to fetch role permissions', { error: error?.message, stack: error?.stack });
+        console.error('GET /api/admin/roles/:id/permissions error:', error);
+        res.status(500).json({ success: false, message: 'Failed to fetch role permissions', error: error?.message });
     }
 });
 
@@ -1014,24 +1029,28 @@ router.post('/users/:id/block', adminOnly, async (req: Request, res: Response) =
             },
         });
 
-        // Create audit log
-        await prisma.auditLog.create({
-            data: {
-                userId: adminUser.sub,
-                action: 'USER_UPDATED',
-                entity: 'User',
-                entityId: userId,
-                message: `User ${userToBlock.email} was blocked by admin`,
-                ipAddress: (req.headers['x-forwarded-for'] as string) || req.ip || req.socket.remoteAddress || null,
-                metadata: {
-                    action: 'block',
-                    reason: reason.trim(),
-                    blockedUser: userToBlock.email,
-                    blockedBy: adminUser.email,
-                    status: 'success',
+        // Create audit log (non-fatal)
+        try {
+            await prisma.auditLog.create({
+                data: {
+                    userId: adminUser.sub,
+                    action: 'USER_UPDATED',
+                    entity: 'User',
+                    entityId: userId,
+                    message: `User ${userToBlock.email} was blocked by admin`,
+                    ipAddress: (req.headers['x-forwarded-for'] as string) || req.ip || req.socket.remoteAddress || null,
+                    metadata: {
+                        action: 'block',
+                        reason: reason.trim(),
+                        blockedUser: userToBlock.email,
+                        blockedBy: adminUser.email,
+                        status: 'success',
+                    },
                 },
-            },
-        });
+            });
+        } catch (auditErr) {
+            logger.error('Failed to write audit log for user block (non-fatal)', { error: auditErr, userId, blockedBy: adminUser.sub });
+        }
 
         logger.info('User blocked', {
             userId,
@@ -1083,23 +1102,27 @@ router.post('/users/:id/unblock', adminOnly, async (req: Request, res: Response)
             },
         });
 
-        // Create audit log
-        await prisma.auditLog.create({
-            data: {
-                userId: adminUser.sub,
-                action: 'USER_UPDATED',
-                entity: 'User',
-                entityId: userId,
-                message: `User ${userToUnblock.email} was unblocked by admin`,
-                ipAddress: (req.headers['x-forwarded-for'] as string) || req.ip || req.socket.remoteAddress || null,
-                metadata: {
-                    action: 'unblock',
-                    unblockedUser: userToUnblock.email,
-                    unblockedBy: adminUser.email,
-                    status: 'success',
+        // Create audit log (non-fatal)
+        try {
+            await prisma.auditLog.create({
+                data: {
+                    userId: adminUser.sub,
+                    action: 'USER_UPDATED',
+                    entity: 'User',
+                    entityId: userId,
+                    message: `User ${userToUnblock.email} was unblocked by admin`,
+                    ipAddress: (req.headers['x-forwarded-for'] as string) || req.ip || req.socket.remoteAddress || null,
+                    metadata: {
+                        action: 'unblock',
+                        unblockedUser: userToUnblock.email,
+                        unblockedBy: adminUser.email,
+                        status: 'success',
+                    },
                 },
-            },
-        });
+            });
+        } catch (auditErr) {
+            logger.error('Failed to write audit log for user unblock (non-fatal)', { error: auditErr, userId, unblockedBy: adminUser.sub });
+        }
 
         logger.info('User unblocked', {
             userId,

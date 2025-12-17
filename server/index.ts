@@ -15,39 +15,42 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 import rateLimit from 'express-rate-limit';
-import { prisma, ensureDbConnection } from './prismaClient';
-import { initRedis, closeRedis, cacheGet, cacheSet, cacheDelete, cacheDeletePattern } from './config/redis';
-import { initializeGlobalRoleResolver } from './services/roleResolver';
-import { getGroupMappings } from './config/ldapGroupMapping';
-import { initTrendingScoreJob, updateIdeaTrendingScore } from './services/trendingService';
-import { findPotentialDuplicates } from './services/duplicateDetectionService';
-import { searchIdeas, getSearchSuggestions } from './services/searchService';
-import { batchUpdateIdeas, getCommitteeDashboardStats, getPendingIdeasForReview, getCommitteeMemberStats } from './services/committeeService';
-import { initWebSocket, emitIdeaCreated, emitIdeaStatusChanged, emitVoteUpdated, emitBatchApproval, emitCommentAdded, broadcastSystemStats } from './services/websocketService';
-import { initAnalyticsJob, stopAnalyticsJob, getAnalytics, getCategoryAnalytics, getTimeBasedAnalytics } from './services/analyticsService';
-import { requestMonitoringMiddleware, trackCacheHit, trackCacheMiss, getMetrics, getHealthStatus, getSlowEndpoints, getErrorProneEndpoints } from './services/monitoringService';
-import { checkProcurementThresholds } from './services/thresholdService';
-import { checkSplintering } from './services/splinteringService';
-import { createThresholdNotifications } from './services/notificationService';
-import { getLoadBalancingSettings, updateLoadBalancingSettings, autoAssignRequest, autoAssignFinanceOfficer, shouldAutoAssign } from './services/loadBalancingService';
+import { prisma, ensureDbConnection } from './prismaClient.js';
+import { initRedis, closeRedis, cacheGet, cacheSet, cacheDelete, cacheDeletePattern } from './config/redis.js';
+import { initializeGlobalRoleResolver } from './services/roleResolver.js';
+import { getGroupMappings } from './config/ldapGroupMapping.js';
+import { initTrendingScoreJob, updateIdeaTrendingScore } from './services/trendingService.js';
+import { findPotentialDuplicates } from './services/duplicateDetectionService.js';
+import { searchIdeas, getSearchSuggestions } from './services/searchService.js';
+import { batchUpdateIdeas, getCommitteeDashboardStats, getPendingIdeasForReview, getCommitteeMemberStats } from './services/committeeService.js';
+import { initWebSocket, emitIdeaCreated, emitIdeaStatusChanged, emitVoteUpdated, emitBatchApproval, emitCommentAdded, broadcastSystemStats } from './services/websocketService.js';
+import { initAnalyticsJob, stopAnalyticsJob, getAnalytics, getCategoryAnalytics, getTimeBasedAnalytics } from './services/analyticsService.js';
+import { requestMonitoringMiddleware, trackCacheHit, trackCacheMiss, getMetrics, getHealthStatus, getSlowEndpoints, getErrorProneEndpoints } from './services/monitoringService.js';
+import { checkProcurementThresholds } from './services/thresholdService.js';
+import { checkSplintering } from './services/splinteringService.js';
+import { createThresholdNotifications } from './services/notificationService.js';
+import { getLoadBalancingSettings, updateLoadBalancingSettings, autoAssignRequest, autoAssignFinanceOfficer, shouldAutoAssign } from './services/loadBalancingService.js';
 import type { Prisma } from '@prisma/client';
-import { requireCommittee as requireCommitteeRole, requireEvaluationCommittee, requireAdmin, requireExecutive, requireRole } from './middleware/rbac';
-import { validate, createIdeaSchema, voteSchema, approveRejectIdeaSchema, promoteIdeaSchema, sanitizeInput as sanitize } from './middleware/validation';
-import { errorHandler, notFoundHandler, asyncHandler, NotFoundError, BadRequestError } from './middleware/errorHandler';
-import statsRouter from './routes/stats';
-import combineRouter from './routes/combine';
-import { authRoutes } from './routes/auth';
-import { adminRoutes as adminRouter } from './routes/admin';
-import { ideasRoutes } from './routes/ideas';
-import { innovationRoutes } from './routes/innovation';
-import suppliersRouter from './routes/suppliers';
-import testPhotoRouter from './routes/test-photo';
+import { requireCommittee as requireCommitteeRole, requireEvaluationCommittee, requireAdmin, requireExecutive, requireRole } from './middleware/rbac.js';
+import { validate, createIdeaSchema, voteSchema, approveRejectIdeaSchema, promoteIdeaSchema, sanitizeInput as sanitize } from './middleware/validation.js';
+import { errorHandler, notFoundHandler, asyncHandler, NotFoundError, BadRequestError } from './middleware/errorHandler.js';
+import statsRouter from './routes/stats.js';
+import combineRouter from './routes/combine.js';
+import { authRoutes } from './routes/auth.js';
+import { adminRoutes as adminRouter } from './routes/admin.js';
+import { ideasRoutes } from './routes/ideas.js';
+import { innovationRoutes } from './routes/innovation.js';
+import suppliersRouter from './routes/suppliers.js';
+import testPhotoRouter from './routes/test-photo.js';
 
 const app = express();
 const httpServer = http.createServer(app);
 const PORT = process.env.PORT ? Number(process.env.PORT) : 4000;
 const APP_ENV = process.env.APP_ENV || 'production';
 // In production, bind to 0.0.0.0 unless overridden via API_HOST
+
+// In-memory fallback for view tracking when Redis is not configured
+const viewTrackingCache = new Map<string, number>();
 // Bind address for the HTTP server. In local development we bind to 0.0.0.0
 // so that other hostnames (e.g. Docker host aliases like `heron`) can reach the server.
 const API_HOST = process.env.API_HOST || (APP_ENV === 'local' ? '0.0.0.0' : '0.0.0.0');
@@ -133,6 +136,10 @@ const batchLimiter = rateLimit({
     max: 20, // 20 batch operations per 5 minutes
     message: 'Too many batch operations, please slow down.',
 });
+
+// Enable trust proxy for reverse proxy setup (nginx, etc.)
+// This allows rate limiting to work correctly with X-Forwarded-For headers
+app.set('trust proxy', true);
 
 app.use(cors());
 // Body parsing middleware - MUST come before routes
@@ -908,11 +915,26 @@ app.get('/api/ideas', authMiddleware, async (req, res) => {
                 } as any;
             }
         }
-        // If user is NOT committee and not filtering to their own, show APPROVED and PROMOTED ideas
-        else if (!isCommittee) {
-            where.status = { in: ['APPROVED', 'PROMOTED_TO_PROJECT'] };
+
+        // Status filtering logic
+        if (mine !== 'true') {
+            // If NOT viewing own ideas, apply status filters
+            if (!isCommittee) {
+                // Non-committee users see only APPROVED and PROMOTED ideas in public view
+                where.status = { in: ['APPROVED', 'PROMOTED_TO_PROJECT'] };
+            } else if (status && status !== 'all') {
+                // Committee members can filter by specific status
+                const map: Record<string, string> = {
+                    pending: 'PENDING_REVIEW',
+                    approved: 'APPROVED',
+                    rejected: 'REJECTED',
+                    promoted: 'PROMOTED_TO_PROJECT',
+                };
+                const s = map[status] || status;
+                where.status = s;
+            }
         } else if (status && status !== 'all') {
-            // Committee members can filter by status
+            // When viewing own ideas, still allow status filtering if requested
             const map: Record<string, string> = {
                 pending: 'PENDING_REVIEW',
                 approved: 'APPROVED',
@@ -1174,15 +1196,41 @@ app.get('/api/ideas/:id', authMiddleware, async (req, res) => {
         const submittedBy = idea.isAnonymous ? 'Anonymous' : idea.submitter?.name || idea.submitter?.email || 'Unknown';
         const commentCount = idea._count?.comments || 0;
 
-        // Increment view count and update trending score (non-blocking)
+        // Session-based view tracking: increment view count only if viewer hasn't viewed recently (24h window)
         const ideaId = parseInt(id, 10);
-        prisma.idea
-            .update({
-                where: { id: ideaId },
-                data: { viewCount: { increment: 1 } },
-            })
-            .then(() => updateIdeaTrendingScore(ideaId))
-            .catch((err) => console.error('Failed to update view count/trending:', err));
+        const viewerId = (req as any).user?.sub;
+        if (viewerId && viewerId !== idea.submittedBy) {
+            const viewKey = `view:idea:${ideaId}:user:${viewerId}`;
+
+            // Check if user has viewed this idea recently
+            const hasViewedRecently = await cacheGet<boolean>(viewKey);
+            const hasViewedRecentlyFallback = viewTrackingCache.get(viewKey);
+
+            if (!hasViewedRecently && !hasViewedRecentlyFallback) {
+                // Mark as viewed for 24 hours
+                await cacheSet(viewKey, true, 86400); // 24 hours in seconds
+                viewTrackingCache.set(viewKey, Date.now() + 86400000); // 24 hours in ms
+
+                // Increment view count (non-blocking)
+                prisma.idea
+                    .update({
+                        where: { id: ideaId },
+                        data: { viewCount: { increment: 1 } },
+                    })
+                    .then(() => updateIdeaTrendingScore(ideaId))
+                    .catch((err) => console.error('Failed to update view count/trending:', err));
+            }
+
+            // Clean up expired entries from in-memory cache (every 100 requests)
+            if (Math.random() < 0.01) {
+                const now = Date.now();
+                for (const [key, expiry] of viewTrackingCache.entries()) {
+                    if (expiry < now) {
+                        viewTrackingCache.delete(key);
+                    }
+                }
+            }
+        }
 
         const tags = Array.isArray((idea as any).tags) ? (idea as any).tags.map((it: any) => it.tag?.name).filter(Boolean) : [];
         const tagObjects = Array.isArray((idea as any).tags) ? (idea as any).tags.map((it: any) => ({ id: it.tagId, name: it.tag?.name })).filter((t: any) => t.name) : [];
@@ -1191,6 +1239,62 @@ app.get('/api/ideas/:id', authMiddleware, async (req, res) => {
     } catch (e: any) {
         console.error('GET /api/ideas/:id error:', e);
         return res.status(500).json({ error: 'Unable to load idea', message: 'Unable to load idea details. Please try again later.' });
+    }
+});
+
+// Record a view after time threshold (called from frontend after user has viewed for 10+ seconds)
+app.post('/api/ideas/:id/view', authMiddleware, async (req, res) => {
+    try {
+        const { id } = req.params as { id: string };
+        const ideaId = parseInt(id, 10);
+        const viewerId = (req as any).user?.sub;
+
+        if (!viewerId) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+
+        // Get idea to check submitter
+        const idea = await prisma.idea.findUnique({
+            where: { id: ideaId },
+            select: { submittedBy: true },
+        });
+
+        if (!idea) {
+            return res.status(404).json({ error: 'Idea not found' });
+        }
+
+        // Don't count views from the submitter
+        if (viewerId === idea.submittedBy) {
+            return res.json({ success: true, counted: false, reason: 'own_idea' });
+        }
+
+        const viewKey = `view:idea:${ideaId}:user:${viewerId}`;
+
+        // Check if already viewed recently
+        const hasViewedRecently = await cacheGet<boolean>(viewKey);
+        const hasViewedRecentlyFallback = viewTrackingCache.get(viewKey);
+
+        if (hasViewedRecently || hasViewedRecentlyFallback) {
+            return res.json({ success: true, counted: false, reason: 'already_viewed' });
+        }
+
+        // Mark as viewed for 24 hours
+        await cacheSet(viewKey, true, 86400);
+        viewTrackingCache.set(viewKey, Date.now() + 86400000);
+
+        // Increment view count
+        await prisma.idea.update({
+            where: { id: ideaId },
+            data: { viewCount: { increment: 1 } },
+        });
+
+        // Update trending score (non-blocking)
+        updateIdeaTrendingScore(ideaId).catch((err) => console.error('Failed to update trending score:', err));
+
+        return res.json({ success: true, counted: true });
+    } catch (e: any) {
+        console.error('POST /api/ideas/:id/view error:', e);
+        return res.status(500).json({ error: 'Unable to record view' });
     }
 });
 
@@ -2777,9 +2881,32 @@ app.get('/api/requests/:id/pdf', async (req, res) => {
             return res.status(404).json({ error: 'Not Found', message: 'Route GET /requests/9/pdf does not exist', statusCode: 404 });
         }
 
-        // Load HTML template
+        // Load HTML template and inject logo + document control
         const templatePath = path.join(process.cwd(), 'server', 'templates', 'request-pdf.html');
         let html = fs.readFileSync(templatePath, 'utf-8');
+
+        // Attempt to inline the logo as data URI so Puppeteer can render without external HTTP server
+        let logoData = '';
+        try {
+            const logoPath = path.join(process.cwd(), 'public', 'assets', 'images', 'bsj-logo.png');
+            if (fs.existsSync(logoPath)) {
+                const bin = fs.readFileSync(logoPath);
+                const b64 = bin.toString('base64');
+                logoData = `data:image/png;base64,${b64}`;
+            }
+        } catch (err) {
+            console.warn('Failed to inline logo for PDF:', err);
+        }
+
+        // Build document control string from environment (server-side)
+        const docControl =
+            process.env.VITE_DOC_CONTROL_TEXT ||
+            process.env.DOC_CONTROL_TEXT ||
+            `${process.env.VITE_DOC_CONTROL_CODE || 'PRO_70_F14/00'} | Issue Date: ${process.env.VITE_DOC_ISSUE_DATE || process.env.DOC_ISSUE_DATE || 'August 01,2025'} | Revision Date: ${
+                process.env.VITE_DOC_REVISION_DATE || process.env.DOC_REVISION_DATE || 'N/A'
+            } | Revision #: ${process.env.VITE_DOC_REVISION_NUMBER || process.env.DOC_REVISION_NUMBER || '0'}`;
+
+        html = html.replace('{{logoData}}', logoData).replace('{{docControl}}', docControl);
 
         // Helper to format date - handles Date objects and ISO/YYYY-MM-DD strings
         const formatDate = (date: Date | string | null | undefined) => {
@@ -2904,13 +3031,50 @@ app.get('/api/requests/:id/pdf', async (req, res) => {
                 doc.on('data', (d: Buffer) => chunks.push(d));
                 doc.on('end', () => resolve(Buffer.concat(chunks)));
             });
+            // helper to draw header/footer on current page
+            const drawHeaderFooter = () => {
+                try {
+                    const { width, height } = doc.page;
+                    // Header: logo left, title centered
+                    const headerY = 18;
+                    if (logoData) {
+                        // logoData is a data URI; convert to Buffer
+                        const m = logoData.match(/^data:image\/(png|jpeg);base64,(.*)$/);
+                        if (m) {
+                            const b = Buffer.from(m[2], 'base64');
+                            try {
+                                doc.image(b, 36, headerY, { height: 32 });
+                            } catch (e) {
+                                // ignore image errors
+                            }
+                        }
+                    }
+                    doc.fontSize(12);
+                    doc.text('BUREAU OF STANDARDS JAMAICA', 0, headerY, { align: 'center' });
+                    doc.fontSize(10);
+                    doc.text('PROCUREMENT REQUISITION FORM', 0, headerY + 14, { align: 'center' });
 
-            doc.fontSize(14);
-            doc.text('BUREAU OF STANDARDS JAMAICA', { align: 'center' });
-            doc.moveDown(0.3);
-            doc.fontSize(12);
-            doc.text('PROCUREMENT REQUISITION FORM', { align: 'center' });
-            doc.moveDown();
+                    // Footer: docControl string left
+                    doc.fontSize(9);
+                    const footerY = height - 40;
+                    try {
+                        doc.text(docControl, 36, footerY, { align: 'left', width: width - 72 });
+                    } catch (e) {}
+                } catch (err) {
+                    // ignore header/footer failures
+                }
+            };
+
+            // Draw header/footer on the first page
+            drawHeaderFooter();
+
+            // Ensure header/footer are drawn on subsequent pages
+            doc.on('pageAdded', () => {
+                drawHeaderFooter();
+            });
+
+            // Body content
+            doc.moveDown(6);
             doc.fontSize(10);
             const ref = request.reference || String(id);
             doc.text(`Reference: ${ref}`);
@@ -2921,16 +3085,29 @@ app.get('/api/requests/:id/pdf', async (req, res) => {
             doc.text(`Priority: ${request.priority || '—'} | Currency: ${request.currency || 'JMD'}`);
             doc.text(`Estimated Total: ${request.totalEstimated ?? '—'}`);
             doc.moveDown();
-            doc.text('Justification:', { underline: true });
-            doc.text(request.description || '—');
+            doc.font('Helvetica-Bold').text('Justification:');
+            doc.font('Helvetica').text(request.description || '—');
             doc.moveDown();
-            doc.text('Items:', { underline: true });
+            doc.font('Helvetica-Bold').text('Items:');
+            doc.font('Helvetica');
             request.items.forEach((it: any, idx: number) => {
                 const qty = it.quantity ?? '—';
                 const up = it.unitPrice ?? '—';
                 const sub = (Number(it.quantity || 0) * Number(it.unitPrice || 0)).toFixed(2);
                 doc.text(`${idx + 1}. ${it.description || '—'} | Qty: ${qty} | Unit: ${up} | Subtotal: ${sub}`);
             });
+
+            // Add final signature page
+            doc.addPage();
+            // draw header/footer on new page (pageAdded handler will run)
+            doc.moveDown(12);
+            // place signature line on right
+            const sigX = doc.page.width - 72 - 360; // right margin minus width
+            const sigY = doc.y + 60;
+            doc.moveTo(sigX, sigY)
+                .lineTo(sigX + 360, sigY)
+                .stroke();
+
             doc.end();
             pdf = await done;
         }
@@ -4358,7 +4535,9 @@ app.post('/api/admin/users/:userId/department', async (req, res) => {
             const isDeptManager = userRoles.map((r) => String(r).toUpperCase()).includes('DEPT_MANAGER');
 
             // Clear this user's managerId from any other department that referenced them but is not the current one
-            await prisma.department.updateMany({ where: { managerId: parsedUserId, id: { not: updated.departmentId } }, data: { managerId: null } });
+            const clearManagerWhere = updated.departmentId ? { managerId: parsedUserId, id: { not: updated.departmentId } } : { managerId: parsedUserId };
+
+            await prisma.department.updateMany({ where: clearManagerWhere, data: { managerId: null } });
 
             if (isDeptManager && updated.departmentId) {
                 await prisma.department.update({ where: { id: updated.departmentId }, data: { managerId: parsedUserId } });
@@ -4423,7 +4602,6 @@ app.get('/api/admin/users', async (req, res) => {
             blocked: u.blocked,
             blockedAt: u.blockedAt,
             blockedReason: u.blockedReason,
-            blockedBy: u.blockedBy,
             lastLogin: u.lastLogin,
             failedLogins: u.failedLogins,
             lastFailedLogin: u.lastFailedLogin,
@@ -5412,7 +5590,7 @@ app.post(
 
                 res.json({ success: true, data: evaluation });
             } catch (err) {
-                console.error('Failed to create evaluation (delegate):', err && (err.stack || err));
+                console.error('Failed to create evaluation (delegate):', err instanceof Error ? err.stack || err.message : err);
                 // If the Prisma model doesn't support `requestId`, creating with that field will throw. We no longer pass requestId into create.
                 throw new BadRequestError('Failed to create evaluation');
             }
@@ -5619,7 +5797,7 @@ app.post(
             throw new NotFoundError('You are not assigned to this evaluation');
         }
 
-        // Update assignment status to SUBMITTED (fallback to raw SQL if enum mismatch exists)
+        // Update assignment status to SUBMITTED
         try {
             await (prisma as any).evaluationAssignment.update({
                 where: { id: assignment.id },
@@ -5637,13 +5815,42 @@ app.post(
             }
         }
 
+        // Check if all assignments for this evaluation are now SUBMITTED
+        const allAssignments = await (prisma as any).evaluationAssignment.findMany({
+            where: { evaluationId },
+        });
+
+        const allSubmitted = allAssignments.length > 0 && allAssignments.every((a: any) => a.status === 'SUBMITTED');
+
+        // If all assignments are submitted, surface Sections B & C as returned to procurement and ready for D & E
+        if (allSubmitted) {
+            try {
+                await (prisma as any).evaluation.update({
+                    where: { id: evaluationId },
+                    data: {
+                        // keep overall evaluation active but signal procurement to continue
+                        status: 'IN_PROGRESS',
+                        sectionBStatus: 'RETURNED',
+                        sectionCStatus: 'RETURNED',
+                        // ensure procurement sections are unlocked
+                        sectionDStatus: 'NOT_STARTED',
+                        sectionEStatus: 'NOT_STARTED',
+                    },
+                });
+            } catch (e) {
+                console.error('Failed to update evaluation status after assignments complete:', e);
+            }
+        }
+
         // Notify procurement officer (creator)
         try {
             await (prisma as any).notification.create({
                 data: {
                     userId: assignment.evaluation.createdBy,
                     type: 'EVALUATION_VERIFIED',
-                    message: `${userObj.name || userObj.email} has completed their evaluation assignment for ${assignment.evaluation.evalNumber}`,
+                    message: `${userObj.name || userObj.email} has completed their evaluation assignment for ${assignment.evaluation.evalNumber}${
+                        allSubmitted ? '. All assignments complete – Sections B & C returned; please finalize Sections D & E.' : ''
+                    }`,
                     data: { evaluationId, evalNumber: assignment.evaluation.evalNumber },
                 },
             });
@@ -5651,7 +5858,10 @@ app.post(
             console.error('Failed to create completion notification:', e);
         }
 
-        res.json({ success: true, message: 'Assignment marked as complete and procurement notified' });
+        res.json({
+            success: true,
+            message: allSubmitted ? 'All assignments complete! Evaluation returned to procurement for Sections D & E.' : 'Assignment marked as complete and procurement notified',
+        });
     })
 );
 
@@ -6359,7 +6569,7 @@ async function start() {
         initWebSocket(httpServer); // Initialize WebSocket server
 
         // Start real-time system stats broadcast (every 5 seconds)
-        const { activeSessions: sessions } = await import('./routes/stats');
+        const { activeSessions: sessions } = await import('./routes/stats.js');
         systemStatsInterval = setInterval(async () => {
             try {
                 const activeUsers = sessions.size;

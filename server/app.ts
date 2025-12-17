@@ -11,33 +11,34 @@ import express from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
 import helmet from 'helmet';
+// @ts-ignore
 import compression from 'compression';
 import rateLimit from 'express-rate-limit';
 import path from 'path';
 import fs from 'fs';
 import http from 'http';
 
-import { config } from './config/environment';
-import { logger } from './config/logger';
-import { prisma, ensureDbConnection } from './prismaClient';
-import { initRedis, closeRedis } from './config/redis';
-import { initTrendingScoreJob } from './services/trendingService';
-import { initAnalyticsJob, stopAnalyticsJob } from './services/analyticsService';
-import { initWebSocket } from './services/websocketService';
-import { requestMonitoringMiddleware, getHealthStatus } from './services/monitoringService';
-import { errorHandler, notFoundHandler } from './middleware/errorHandler';
-import { sanitizeInput } from './middleware/validation-clean';
-import { authMiddleware } from './middleware/auth';
+import { config } from './config/environment.js';
+import { logger } from './config/logger.js';
+import { prisma, ensureDbConnection } from './prismaClient.js';
+import { initRedis, closeRedis } from './config/redis.js';
+import { initTrendingScoreJob } from './services/trendingService.js';
+import { initAnalyticsJob, stopAnalyticsJob } from './services/analyticsService.js';
+import { initWebSocket } from './services/websocketService.js';
+import { requestMonitoringMiddleware, getHealthStatus } from './services/monitoringService.js';
+import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
+import { sanitizeInput } from './middleware/validation-clean.js';
+import { authMiddleware } from './middleware/auth.js';
 
 // Route imports
-import { authRoutes } from './routes/auth';
-import { ideasRoutes } from './routes/ideas';
-import { innovationRoutes } from './routes/innovation';
-import { requestsRoutes } from './routes/requests';
-import roleRequestsRouter from './routes/roleRequests';
-import hodRouter from './routes/hod';
-import { adminRoutes } from './routes/admin';
-import combineRoutes from './routes/combine';
+import { authRoutes } from './routes/auth.js';
+import { ideasRoutes } from './routes/ideas.js';
+import { innovationRoutes } from './routes/innovation.js';
+import { requestsRoutes } from './routes/requests.js';
+import roleRequestsRouter from './routes/roleRequests.js';
+import hodRouter from './routes/hod.js';
+import { adminRoutes } from './routes/admin.js';
+import combineRoutes from './routes/combine.js';
 
 // Initialize Express app
 const app = express();

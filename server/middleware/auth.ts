@@ -5,12 +5,12 @@
  */
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { config } from '../config/environment';
-import { logger } from '../config/logger';
-import { prisma } from '../prismaClient';
-import { UnauthorizedError, ForbiddenError } from './errorHandler';
-import { getGlobalRoleResolver } from '../services/roleResolver';
-import { Permission } from '../types/rbac';
+import { config } from '../config/environment.js';
+import { logger } from '../config/logger.js';
+import { prisma } from '../prismaClient.js';
+import { UnauthorizedError, ForbiddenError } from './errorHandler.js';
+import { getGlobalRoleResolver } from '../services/roleResolver.js';
+import { Permission } from '../types/rbac.js';
 
 export interface AuthenticatedRequest extends Request {
     user: {
@@ -34,6 +34,28 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
             hasUserId: !!userIdHeader,
         });
 
+        // Prioritize x-user-id header when present (for development and testing)
+        if (userIdHeader) {
+            const userIdNum = parseInt(String(userIdHeader), 10);
+            if (Number.isFinite(userIdNum)) {
+                try {
+                    const user = await prisma.user.findUnique({
+                        where: { id: userIdNum },
+                        include: { roles: { include: { role: true } } },
+                    });
+
+                    if (user) {
+                        const userWithRoles = await enrichUserWithRoles(user.id, user.email, user.name || undefined, undefined);
+                        (req as AuthenticatedRequest).user = userWithRoles;
+                        logger.debug('[Auth] Using x-user-id header', { userId: userIdNum });
+                        return next();
+                    }
+                } catch (error) {
+                    logger.debug('[Auth] x-user-id lookup failed, trying JWT', { error });
+                }
+            }
+        }
+
         // Try Bearer token first
         if (authHeader?.startsWith('Bearer ')) {
             const token = authHeader.substring(7);
@@ -54,7 +76,8 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
 
                 if (errName === 'TokenExpiredError') {
                     logger.info('[Auth] JWT expired', { message: errMsg });
-                    return res.status(401).json({ success: false, message: 'Token expired' });
+                    res.status(401).json({ success: false, message: 'Token expired' });
+                    return;
                 }
 
                 // Malformed / invalid signature / other JWT errors
@@ -62,7 +85,8 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
 
                 // Token invalid, fall back to x-user-id only if provided; otherwise respond 401
                 if (!userIdHeader) {
-                    return res.status(401).json({ success: false, message: 'Invalid token' });
+                    res.status(401).json({ success: false, message: 'Invalid token' });
+                    return;
                 }
             }
         }

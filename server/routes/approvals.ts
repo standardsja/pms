@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
-import { authMiddleware, AuthenticatedRequest } from '../middleware/auth';
-import { checkUserRoles } from '../utils/roleUtils';
+import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.js';
+import { checkUserRoles } from '../utils/roleUtils.js';
 
 const router = Router();
 const prisma = new PrismaClient();

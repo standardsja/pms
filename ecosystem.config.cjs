@@ -73,8 +73,12 @@ module.exports = {
     apps: [
         {
             name: 'pms-backend',
-            script: 'npm',
-            args: 'run server:prod',
+            // Run the compiled server output directly. This avoids wrapping via `npm run` and
+            // gives PM2 direct control of the node process. Ensure you run `npm run server:build`
+            // before starting PM2 so `dist/server/index.js` exists.
+            script: 'dist/server/index.js',
+            // Explicitly use node as the interpreter; PM2 will pass NODE_OPTIONS and env vars.
+            interpreter: 'node',
             env: {
                 NODE_ENV: 'development',
                 PORT: 4000,
@@ -83,7 +87,9 @@ module.exports = {
                 NODE_ENV: 'production',
                 PORT: 4000,
                 LOG_LEVEL: 'info',
-                DATABASE_URL: 'mysql://user:pass@stork:3306/pmsdb',
+                // NOTE: Do NOT hardcode DATABASE credentials in source. Set `DATABASE_URL`
+                // in the deployment environment (e.g., pm2 ecosystem env, or CI/CD secrets).
+                // DATABASE_URL: 'mysql://user:password@host:3306/database'
             },
             max_memory_restart: '1G',
             autorestart: true,

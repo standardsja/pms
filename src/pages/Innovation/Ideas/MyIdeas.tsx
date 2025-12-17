@@ -33,6 +33,17 @@ interface IdeaComment {
     isCommittee?: boolean;
 }
 
+const normalizeStatus = (status: string): MyIdea['status'] => {
+    const normalized = status?.toUpperCase() || 'UNDER_REVIEW';
+    if (normalized === 'PROMOTED_TO_PROJECT') return 'IMPLEMENTED';
+    if (normalized === 'IMPLEMENTED') return 'IMPLEMENTED';
+    if (normalized === 'APPROVED') return 'APPROVED';
+    if (normalized === 'REJECTED') return 'REJECTED';
+    if (normalized === 'DRAFT') return 'DRAFT';
+    if (normalized === 'PENDING' || normalized === 'PENDING_REVIEW' || normalized === 'UNDER_REVIEW') return 'UNDER_REVIEW';
+    return 'UNDER_REVIEW';
+};
+
 const MyIdeas = () => {
     const dispatch = useDispatch();
     const { t } = useTranslation();
@@ -64,14 +75,14 @@ const MyIdeas = () => {
                         id: String(detail.id),
                         title: detail.title || 'Untitled',
                         description: detail.description || '',
-                        category: (detail as any).category || 'OTHER',
+                        category: detail.category || 'OTHER',
                         submittedAt: new Date().toISOString(),
                         voteCount: 0,
                         upvoteCount: 0,
                         downvoteCount: 0,
                         viewCount: 0,
                         commentCount: 0,
-                        status: 'PENDING_REVIEW',
+                        status: 'UNDER_REVIEW',
                         feedback: undefined,
                         comments: [],
                     };
@@ -92,29 +103,29 @@ const MyIdeas = () => {
     const loadMyIdeas = async (silent = false) => {
         if (!silent) setIsLoading(true);
         try {
-            // Use mine=true parameter to filter server-side
             const response = await fetchIdeas({ includeAttachments: true, mine: true, limit: 100 });
-            // Handle both paginated and legacy response formats
-            const myIdeas = Array.isArray(response) ? response : (response as any).ideas || response;
+            const myIdeas = Array.isArray(response) ? (response as Idea[]) : (response as { ideas?: Idea[] })?.ideas ?? [];
 
-            const formattedIdeas = myIdeas.map((idea: any) => ({
-                id: String(idea.id),
-                title: idea.title,
-                description: idea.description,
-                category: idea.category,
-                submittedAt: idea.submittedAt,
-                voteCount: idea.voteCount,
-                upvoteCount: Math.max(0, idea.upvoteCount || 0),
-                downvoteCount: Math.max(0, idea.downvoteCount || 0),
-                viewCount: idea.viewCount,
-                commentCount: (idea as any).commentCount || 0,
-                status: idea.status as any,
-                feedback: idea.reviewNotes || undefined,
-                comments: [],
-                // include first attachment url if available from API
-                // @ts-ignore
-                firstAttachmentUrl: (idea as any).firstAttachmentUrl || (idea as any).attachments?.[0]?.fileUrl || null,
-            }));
+            const formattedIdeas = myIdeas.map((idea) => {
+                const normalizedStatus = normalizeStatus(String(idea.status || 'UNDER_REVIEW'));
+                return {
+                    id: String(idea.id),
+                    title: idea.title,
+                    description: idea.description,
+                    category: idea.category,
+                    submittedAt: idea.submittedAt,
+                    voteCount: idea.voteCount,
+                    upvoteCount: Math.max(0, idea.upvoteCount || 0),
+                    downvoteCount: Math.max(0, idea.downvoteCount || 0),
+                    viewCount: idea.viewCount,
+                    commentCount: idea.commentCount || 0,
+                    status: normalizedStatus,
+                    feedback: idea.reviewNotes || undefined,
+                    comments: [],
+                    // include first attachment url if available from API
+                    firstAttachmentUrl: idea.firstAttachmentUrl || idea.attachments?.[0]?.fileUrl || null,
+                };
+            });
 
             // Preserve any comments already fetched locally to avoid them disappearing
             setIdeas((prev) =>
@@ -370,7 +381,7 @@ const MyIdeas = () => {
         total: ideas.length,
         approved: ideas.filter((i) => i.status === 'APPROVED').length,
         implemented: ideas.filter((i) => i.status === 'IMPLEMENTED').length,
-        pending: ideas.filter((i) => i.status === 'PENDING_REVIEW' || i.status === 'UNDER_REVIEW').length,
+        pending: ideas.filter((i) => i.status === 'UNDER_REVIEW').length,
         totalVotes: ideas.reduce((sum, i) => sum + i.voteCount, 0),
         totalViews: ideas.reduce((sum, i) => sum + i.viewCount, 0),
     };
@@ -492,7 +503,7 @@ const MyIdeas = () => {
             {/* Filters */}
             <div className="flex items-center gap-3 flex-wrap">
                 <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{t('innovation.myIdeas.filters.status')}</span>
-                {['all', 'PENDING_REVIEW', 'UNDER_REVIEW', 'APPROVED', 'IMPLEMENTED'].map((status) => (
+                {['all', 'UNDER_REVIEW', 'APPROVED', 'IMPLEMENTED'].map((status) => (
                     <button
                         key={status}
                         onClick={() => setFilterStatus(status)}

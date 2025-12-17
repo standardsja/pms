@@ -34,7 +34,6 @@ export interface DetectedRoles {
 
     // Committee roles
     isInnovationCommittee: boolean;
-    isEvaluationCommittee: boolean;
 
     // Support roles
     isAuditor: boolean;
@@ -117,7 +116,6 @@ export function detectUserRoles(userRoles: (string | { name: string } | any)[] =
 
     // 6. COMMITTEE ROLES
     const isInnovationCommittee = hasRole('INNOVATION_COMMITTEE');
-    const isEvaluationCommittee = hasRole('EVALUATION_COMMITTEE');
 
     // 7. SUPPORT ROLES
     const isAuditor = hasRole('AUDITOR');
@@ -129,8 +127,6 @@ export function detectUserRoles(userRoles: (string | { name: string } | any)[] =
 
     if (isAdmin || isHeadOfDivision) {
         primaryRole = 'ADMIN';
-    } else if (isEvaluationCommittee) {
-        primaryRole = 'EVALUATION_COMMITTEE';
     } else if (isInnovationCommittee) {
         primaryRole = 'INNOVATION_COMMITTEE';
     } else if (isExecutiveDirector) {
@@ -173,7 +169,6 @@ export function detectUserRoles(userRoles: (string | { name: string } | any)[] =
         isDepartmentHead,
         isDepartmentManager,
         isInnovationCommittee,
-        isEvaluationCommittee,
         isAuditor,
         isSupplier,
         isRequester,
@@ -197,9 +192,6 @@ export function getDashboardPath(roles: DetectedRoles, currentPathname: string =
     }
     if (roles.isHeadOfDivision) {
         return '/procurement/hod';
-    }
-    if (roles.isEvaluationCommittee) {
-        return '/evaluation/committee/dashboard';
     }
     if (roles.isInnovationCommittee) {
         return '/innovation/committee/dashboard';
@@ -289,9 +281,6 @@ export function getRoleLabel(roles: DetectedRoles): string {
     }
     if (roles.isInnovationCommittee) {
         return 'Innovation Committee';
-    }
-    if (roles.isEvaluationCommittee) {
-        return 'Evaluation Committee';
     }
     if (roles.isSupplier) {
         return 'Supplier';

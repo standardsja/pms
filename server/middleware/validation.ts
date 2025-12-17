@@ -5,7 +5,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import DOMPurify from 'isomorphic-dompurify';
-import { BadRequestError } from './errorHandler';
+import { BadRequestError } from './errorHandler.js';
 
 // Common validation schemas
 const emailSchema = z.string().email().max(255);
@@ -23,8 +23,8 @@ export const loginSchema = z.object({
 // Idea schemas
 export const createIdeaSchema = z.object({
     body: z.object({
-        title: z.string().min(1).max(200).trim(),
-        description: z.string().min(10).max(5000).trim(),
+        title: z.string().min(1).trim(),
+        description: z.string().min(10).trim(),
         category: z.enum(['PROCESS_IMPROVEMENT', 'TECHNOLOGY', 'CUSTOMER_SERVICE', 'SUSTAINABILITY', 'COST_REDUCTION', 'PRODUCT_INNOVATION', 'OTHER']),
         isAnonymous: z.boolean().optional(),
         tagIds: z.string().optional(),

@@ -305,7 +305,6 @@ const Profile = () => {
             DEPT_MANAGER: 'Department Manager',
             DEPARTMENT_HEAD: 'Department Head',
             BUDGET_MANAGER: 'Budget Manager',
-            EVALUATION_COMMITTEE: 'Evaluation Committee',
             INNOVATION_COMMITTEE: 'Innovation Committee',
             EXECUTIVE_DIRECTOR: 'Executive Director',
             REQUESTER: 'Requester',
@@ -715,25 +714,6 @@ const Profile = () => {
                                                 </ul>
                                             </div>
                                         )}
-                                        {roleCodes.includes('EVALUATION_COMMITTEE') && (
-                                            <div className="border border-[#ebedf2] dark:border-[#3b5998] rounded-lg p-4 hover:shadow-md transition-shadow">
-                                                <h6 className="text-sm font-semibold text-[#515365] dark:text-white-light mb-2">Evaluation Committee</h6>
-                                                <ul className="space-y-1.5 text-xs text-white-dark">
-                                                    <li className="flex items-center gap-2">
-                                                        <span className="w-1.5 h-1.5 rounded-full bg-info"></span>
-                                                        Quote Evaluation
-                                                    </li>
-                                                    <li className="flex items-center gap-2">
-                                                        <span className="w-1.5 h-1.5 rounded-full bg-info"></span>
-                                                        Vendor Assessment
-                                                    </li>
-                                                    <li className="flex items-center gap-2">
-                                                        <span className="w-1.5 h-1.5 rounded-full bg-info"></span>
-                                                        Recommendations
-                                                    </li>
-                                                </ul>
-                                            </div>
-                                        )}
 
                                         {roleCodes.includes('INNOVATION_COMMITTEE') && (
                                             <div className="border border-[#ebedf2] dark:border-[#3b5998] rounded-lg p-4 hover:shadow-md transition-shadow bg-gradient-to-br from-purple-50/50 to-pink-50/50 dark:from-purple-900/20 dark:to-pink-900/20">
@@ -939,22 +919,6 @@ const Profile = () => {
                                         </div>
                                     </Link>
                                 </>
-                            )}
-
-                            {/* Evaluation Committee Actions */}
-                            {roleCodes.includes('EVALUATION_COMMITTEE') && (
-                                <Link
-                                    to="/procurement/manager/evaluations-to-validate"
-                                    className="flex items-center gap-3 px-4 py-3 bg-secondary/10 dark:bg-secondary/20 border border-secondary/20 dark:border-secondary/30 rounded-lg hover:bg-secondary/20 dark:hover:bg-secondary/30 transition-all group cursor-pointer"
-                                >
-                                    <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-secondary/30 group-hover:bg-secondary/40 transition-colors">
-                                        <IconClipboardText className="w-5 h-5 text-secondary" />
-                                    </div>
-                                    <div className="flex-1">
-                                        <p className="text-sm font-semibold text-[#515365] dark:text-white-light">Evaluations Pending</p>
-                                        <p className="text-xs text-white-dark mt-0.5">Review quotes to evaluate</p>
-                                    </div>
-                                </Link>
                             )}
 
                             {/* Common Request Action - Only for users with actual procurement role */}

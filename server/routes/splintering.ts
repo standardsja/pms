@@ -43,14 +43,14 @@ router.get('/splintering-stats', async (req, res) => {
         cutoffDate.setDate(cutoffDate.getDate() - daysAgo);
 
         // Get requests from the last N days
-        const recentRequests = await prisma.procurementRequest.findMany({
+        const recentRequests = await prisma.request.findMany({
             where: {
                 createdAt: {
                     gte: cutoffDate,
                 },
             },
             include: {
-                user: {
+                requester: {
                     select: { name: true, email: true, department: true },
                 },
                 items: true,
@@ -62,19 +62,19 @@ router.get('/splintering-stats', async (req, res) => {
         const departmentGroups = new Map<string, any[]>();
         const userGroups = new Map<string, any[]>();
 
-        recentRequests.forEach((request) => {
+        recentRequests.forEach((request: any) => {
             // Group by vendor (if available in items or metadata)
             const vendorKey = 'unknown'; // Would extract from request data
             if (!vendorGroups.has(vendorKey)) vendorGroups.set(vendorKey, []);
             vendorGroups.get(vendorKey)!.push(request);
 
             // Group by department
-            const deptKey = request.user?.department?.name || 'unknown';
+            const deptKey = request.requester?.department?.name || 'unknown';
             if (!departmentGroups.has(deptKey)) departmentGroups.set(deptKey, []);
             departmentGroups.get(deptKey)!.push(request);
 
             // Group by user
-            const userKey = request.user?.email || 'unknown';
+            const userKey = request.requester?.email || 'unknown';
             if (!userGroups.has(userKey)) userGroups.set(userKey, []);
             userGroups.get(userKey)!.push(request);
         });
@@ -125,10 +125,10 @@ router.get('/splintering-analysis', async (req, res) => {
         const whereClause: any = {};
         if (user) whereClause.userId = user;
 
-        const requests = await prisma.procurementRequest.findMany({
+        const requests = await prisma.request.findMany({
             where: whereClause,
             include: {
-                user: {
+                requester: {
                     select: { id: true, name: true, email: true, department: true },
                 },
                 items: true,
@@ -138,15 +138,15 @@ router.get('/splintering-analysis', async (req, res) => {
         });
 
         // Transform for splintering analysis
-        const analysisData = requests.map((request) => ({
+        const analysisData = requests.map((request: any) => ({
             id: request.id,
             vendorName: '', // Would extract from request metadata
             category: request.procurementType || 'general',
-            department: request.user?.department?.name || 'unknown',
+            department: request.requester?.department?.name || 'unknown',
             description: request.description || '',
             estimatedCost: request.totalEstimated || 0,
             requestedDate: request.createdAt.toISOString(),
-            requestedBy: request.user?.name || '',
+            requestedBy: request.requester?.name || '',
         }));
 
         res.json(analysisData);
