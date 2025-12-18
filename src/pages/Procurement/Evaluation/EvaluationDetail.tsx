@@ -495,6 +495,15 @@ const EvaluationDetail = () => {
                 }}
                 onSaveSection={async (sec, data) => {
                     if (!evaluation) return;
+                    if (sec === 'Background') {
+                        const updated = await evaluationService.updateEvaluation(evaluation.id, {
+                            description: data?.description ?? evaluation.description,
+                            dateSubmissionConsidered: data?.dateSubmissionConsidered ?? null,
+                            reportCompletionDate: data?.reportCompletionDate ?? null,
+                        });
+                        setEvaluation(updated);
+                        return;
+                    }
                     const updated = await evaluationService.updateSection(evaluation.id, sec, data);
                     setEvaluation(updated);
                 }}

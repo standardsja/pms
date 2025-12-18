@@ -494,11 +494,13 @@ async function authMiddleware(req: any, res: any, next: any) {
     const auth = req.headers.authorization || '';
     const userId = req.headers['x-user-id'];
 
+    console.log('[AUTH] Headers:', { auth: auth.substring(0, 20), userId, path: req.path });
+
     // Try Bearer token first
     if (auth && auth.startsWith('Bearer ')) {
         const [, token] = auth.split(' ');
         try {
-            const payload = jwt.verify(token, JWT_SECRET) as any;
+            const payload = jwt.verify(token, JWT_SECRET);
             (req as any).user = payload;
             return next();
         } catch {
@@ -5159,6 +5161,20 @@ function hasEvaluationDelegate(): boolean {
     return Boolean(evalDelegate && typeof evalDelegate.findMany === 'function');
 }
 
+function evaluationDelegateSupportsDateFields(): boolean {
+    // Prisma exposes runtime datamodel; use it to detect if columns exist in generated client
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const modelFields: any = (prisma as any)?._runtimeDataModel?.models?.Evaluation?.fields;
+    return Boolean(modelFields?.dateSubmissionConsidered && modelFields?.reportCompletionDate);
+}
+
+function formatDateTimeForSql(value?: string | null): string | null {
+    if (!value) return null;
+    const dt = new Date(value);
+    if (Number.isNaN(dt.getTime())) return null;
+    return dt.toISOString().slice(0, 19).replace('T', ' ');
+}
+
 // Expose lightweight version/debug info
 const GIT_COMMIT = process.env.GIT_COMMIT || 'untracked';
 app.get('/api/_version', (req, res) => {
@@ -5294,6 +5310,8 @@ app.get(
             creator: { id: r.creatorId, name: r.creatorName, email: r.creatorEmail },
             evaluator: r.evaluator,
             dueDate: r.dueDate ? r.dueDate : null,
+            dateSubmissionConsidered: r.dateSubmissionConsidered ?? null,
+            reportCompletionDate: r.reportCompletionDate ?? null,
             validatedBy: r.validatedBy,
             validator: r.validatorId ? { id: r.validatorId, name: r.validatorName, email: r.validatorEmail } : null,
             validatedAt: r.validatedAt ?? null,
@@ -5458,6 +5476,8 @@ app.get(
             creator: { id: r.creatorId, name: r.creatorName, email: r.creatorEmail },
             evaluator: r.evaluator,
             dueDate: r.dueDate ? r.dueDate : null,
+            dateSubmissionConsidered: r.dateSubmissionConsidered ?? null,
+            reportCompletionDate: r.reportCompletionDate ?? null,
             validatedBy: r.validatedBy,
             validator: r.validatorId ? { id: r.validatorId, name: r.validatorName, email: r.validatorEmail } : null,
             validatedAt: r.validatedAt ?? null,
@@ -5491,13 +5511,13 @@ app.post(
             submitToCommittee: submitToCommitteeRaw,
             combinedRequestId,
             requestId: requestIdRaw,
+            dateSubmissionConsidered,
+            reportCompletionDate,
         } = req.body;
         const submitToCommittee = Boolean(submitToCommitteeRaw);
 
         // JWT payload uses 'sub' for user ID, fallback to 'id' for compatibility
-        // Ensure this is a numeric ID for Prisma (createdBy: Int)
-        const userIdRaw = (user as any)?.sub ?? (user as any)?.id;
-        const userId: number = typeof userIdRaw === 'number' ? userIdRaw : typeof userIdRaw === 'string' && /^\d+$/.test(userIdRaw) ? parseInt(userIdRaw, 10) : NaN;
+        const userId = user?.sub || user?.id;
 
         console.log('Creating evaluation with data:', {
             evalNumber,
@@ -5508,12 +5528,14 @@ app.post(
             evaluator,
             combinedRequestId,
             requestId: requestIdRaw,
+            dateSubmissionConsidered,
+            reportCompletionDate,
             sectionA: JSON.stringify(sectionA),
             userId,
         });
 
         // Check if user is authenticated
-        if (!user || !Number.isFinite(userId)) {
+        if (!user || !userId) {
             throw new BadRequestError('User not authenticated. Please log in again.');
         }
 
@@ -5521,8 +5543,14 @@ app.post(
             throw new BadRequestError('Missing required fields: evalNumber, rfqNumber, rfqTitle');
         }
 
+        const formattedDueDate = formatDateTimeForSql(dueDate);
+        const formattedDateSubmission = formatDateTimeForSql(dateSubmissionConsidered);
+        const formattedReportCompletion = formatDateTimeForSql(reportCompletionDate);
+        const delegateSupportsDates = evaluationDelegateSupportsDateFields();
+        const canUseDelegate = hasEvaluationDelegate() && delegateSupportsDates;
+
         // Check if evalNumber already exists
-        if (hasEvaluationDelegate()) {
+        if (canUseDelegate) {
             // Check duplicate using delegate
             const existing = await (prisma as any).evaluation.findUnique({ where: { evalNumber } });
             if (existing) throw new BadRequestError('Evaluation number already exists');
@@ -5562,65 +5590,39 @@ app.post(
                 } else if (combinedRequestId) {
                     effectiveCombinedRequestId = parseInt(combinedRequestId as any);
                 }
-                const baseData: Record<string, unknown> = {
-                    evalNumber,
-                    rfqNumber,
-                    rfqTitle,
-                    description: description || null,
-                    sectionA: sectionA || null,
-                    sectionAStatus: sectionA && submitToCommittee ? 'SUBMITTED' : 'NOT_STARTED',
-                    sectionB: sectionB || null,
-                    sectionBStatus: sectionB && submitToCommittee ? 'SUBMITTED' : 'NOT_STARTED',
-                    sectionC: sectionC || null,
-                    sectionCStatus: sectionC && submitToCommittee ? 'SUBMITTED' : 'NOT_STARTED',
-                    sectionD: sectionD || null,
-                    sectionDStatus: sectionD && submitToCommittee ? 'SUBMITTED' : 'NOT_STARTED',
-                    sectionE: sectionE || null,
-                    sectionEStatus: sectionE && submitToCommittee ? 'SUBMITTED' : 'NOT_STARTED',
-                    evaluator: evaluator || null,
-                    dueDate: dueDate ? new Date(dueDate) : null,
-                    createdBy: userId,
-                };
-
-                // Prefer linking request/combinedRequest when the delegate supports those fields
-                if (effectiveCombinedRequestId !== null) {
-                    (baseData as any).combinedRequestId = effectiveCombinedRequestId;
-                }
-                if (requestToLink !== null) {
-                    (baseData as any).requestId = requestToLink;
-                }
-
-                let evaluation: any;
-                try {
-                    evaluation = await (prisma as any).evaluation.create({ data: baseData });
-                } catch (err) {
-                    const msg = (err as any)?.message || '';
-                    // If the delegate schema is missing requestId/combinedRequestId, retry without them
-                    const hasUnknownRequestId = msg.includes('Unknown argument `requestId`');
-                    const hasUnknownCombinedId = msg.includes('Unknown argument `combinedRequestId`');
-                    if (hasUnknownRequestId || hasUnknownCombinedId) {
-                        const retryData = { ...baseData };
-                        delete (retryData as any).requestId;
-                        delete (retryData as any).combinedRequestId;
-                        evaluation = await (prisma as any).evaluation.create({ data: retryData });
-                    } else {
-                        throw err;
-                    }
-                }
+                const evaluation = await (prisma as any).evaluation.create({
+                    data: {
+                        evalNumber,
+                        rfqNumber,
+                        rfqTitle,
+                        description: description || null,
+                        // persist combinedRequestId (int) when available
+                        combinedRequestId: effectiveCombinedRequestId ?? null,
+                        // persist the originating request id when provided
+                        requestId: requestToLink ?? null,
+                        sectionA: sectionA || null,
+                        sectionAStatus: sectionA && submitToCommittee ? 'SUBMITTED' : 'NOT_STARTED',
+                        sectionB: sectionB || null,
+                        sectionBStatus: sectionB && submitToCommittee ? 'SUBMITTED' : 'NOT_STARTED',
+                        sectionC: sectionC || null,
+                        sectionCStatus: sectionC && submitToCommittee ? 'SUBMITTED' : 'NOT_STARTED',
+                        sectionD: sectionD || null,
+                        sectionDStatus: sectionD && submitToCommittee ? 'SUBMITTED' : 'NOT_STARTED',
+                        sectionE: sectionE || null,
+                        sectionEStatus: sectionE && submitToCommittee ? 'SUBMITTED' : 'NOT_STARTED',
+                        evaluator: evaluator || null,
+                        dueDate: formattedDueDate ? new Date(formattedDueDate) : null,
+                        dateSubmissionConsidered: formattedDateSubmission ? new Date(formattedDateSubmission) : null,
+                        reportCompletionDate: formattedReportCompletion ? new Date(formattedReportCompletion) : null,
+                        createdBy: userId,
+                    },
+                });
 
                 res.json({ success: true, data: evaluation });
             } catch (err) {
                 console.error('Failed to create evaluation (delegate):', err instanceof Error ? err.stack || err.message : err);
-                // Preserve explicit BadRequestError messages (e.g., invalid requestId) for clarity
-                if (err instanceof BadRequestError) {
-                    throw err;
-                }
-
-                // Surface Prisma error codes/details to help diagnose (foreign key, validation, etc.)
-                const prismaErr = err as any;
-                const code = prismaErr?.code ? ` ${prismaErr.code}` : '';
-                const cause = prismaErr?.meta?.cause || prismaErr?.message || 'Unknown error';
-                throw new BadRequestError(`Failed to create evaluation:${code ? code : ''} ${cause}`);
+                // If the Prisma model doesn't support `requestId`, creating with that field will throw. We no longer pass requestId into create.
+                throw new BadRequestError('Failed to create evaluation');
             }
         }
         // Fallback duplicate check via raw SQL
@@ -5629,12 +5631,7 @@ app.post(
 
         const evalStatus = submitToCommittee ? 'COMMITTEE_REVIEW' : 'PENDING';
 
-        // Detect available columns to avoid unknown-column errors when database schema lags behind Prisma
-        const columns = (await prisma.$queryRawUnsafe<Array<{ Field: string }>>('SHOW COLUMNS FROM Evaluation')).map((c) => c.Field);
-        const hasRequestId = columns.includes('requestId');
-        const hasCombinedRequestId = columns.includes('combinedRequestId');
-
-        const insertColumns: string[] = [
+        const columnNames = [
             'evalNumber',
             'rfqNumber',
             'rfqTitle',
@@ -5649,60 +5646,62 @@ app.post(
             'sectionDStatus',
             'sectionE',
             'sectionEStatus',
-        ];
-        const insertValues: string[] = [
-            `'${evalNumber.replace(/'/g, "''")}'`,
-            `'${rfqNumber.replace(/'/g, "''")}'`,
-            `'${rfqTitle.replace(/'/g, "''")}'`,
-            description ? `'${description.replace(/'/g, "''")}'` : 'NULL',
-            sectionA ? `'${JSON.stringify(sectionA).replace(/'/g, "''")}'` : 'NULL',
-            sectionA && submitToCommittee ? "'SUBMITTED'" : "'NOT_STARTED'",
-            sectionB ? `'${JSON.stringify(sectionB).replace(/'/g, "''")}'` : 'NULL',
-            sectionB && submitToCommittee ? "'SUBMITTED'" : "'NOT_STARTED'",
-            sectionC ? `'${JSON.stringify(sectionC).replace(/'/g, "''")}'` : 'NULL',
-            sectionC && submitToCommittee ? "'SUBMITTED'" : "'NOT_STARTED'",
-            sectionD ? `'${JSON.stringify(sectionD).replace(/'/g, "''")}'` : 'NULL',
-            sectionD && submitToCommittee ? "'SUBMITTED'" : "'NOT_STARTED'",
-            sectionE ? `'${JSON.stringify(sectionE).replace(/'/g, "''")}'` : 'NULL',
-            sectionE && submitToCommittee ? "'SUBMITTED'" : "'NOT_STARTED'",
+            'requestId',
+            'createdBy',
+            'evaluator',
+            'dueDate',
         ];
 
-        if (hasCombinedRequestId) {
-            insertColumns.push('combinedRequestId');
-            insertValues.push(combinedRequestId ? `${parseInt(String(combinedRequestId), 10)}` : 'NULL');
-        }
+        const values = [
+            `'${evalNumber}'`,
+            `'${rfqNumber}'`,
+            `'${rfqTitle}'`,
+            `${description ? `'${description.replace(/'/g, "''")}'` : 'NULL'}`,
+            `${sectionA ? `'${JSON.stringify(sectionA).replace(/'/g, "''")}'` : 'NULL'}`,
+            `${sectionA && submitToCommittee ? "'SUBMITTED'" : "'NOT_STARTED'"}`,
+            `${sectionB ? `'${JSON.stringify(sectionB).replace(/'/g, "''")}'` : 'NULL'}`,
+            `${sectionB && submitToCommittee ? "'SUBMITTED'" : "'NOT_STARTED'"}`,
+            `${sectionC ? `'${JSON.stringify(sectionC).replace(/'/g, "''")}'` : 'NULL'}`,
+            `${sectionC && submitToCommittee ? "'SUBMITTED'" : "'NOT_STARTED'"}`,
+            `${sectionD ? `'${JSON.stringify(sectionD).replace(/'/g, "''")}'` : 'NULL'}`,
+            `${sectionD && submitToCommittee ? "'SUBMITTED'" : "'NOT_STARTED'"}`,
+            `${sectionE ? `'${JSON.stringify(sectionE).replace(/'/g, "''")}'` : 'NULL'}`,
+            `${sectionE && submitToCommittee ? "'SUBMITTED'" : "'NOT_STARTED'"}`,
+            `${requestIdRaw && /^\d+$/.test(String(requestIdRaw)) ? parseInt(String(requestIdRaw), 10) : 'NULL'}`,
+            `${userId}`,
+            `${evaluator ? `'${evaluator.replace(/'/g, "''")}'` : 'NULL'}`,
+            `${formattedDueDate ? `'${formattedDueDate}'` : 'NULL'}`,
+        ];
 
-        if (hasRequestId) {
-            insertColumns.push('requestId');
-            insertValues.push(requestIdRaw && /^\d+$/.test(String(requestIdRaw)) ? `${parseInt(String(requestIdRaw), 10)}` : 'NULL');
-        }
-
-        insertColumns.push('createdBy');
-        insertValues.push(`${userId}`);
-
-        insertColumns.push('evaluator');
-        insertValues.push(evaluator ? `'${evaluator.replace(/'/g, "''")}'` : 'NULL');
-
-        insertColumns.push('dueDate');
-        insertValues.push(dueDate ? `'${new Date(dueDate).toISOString().slice(0, 19).replace('T', ' ')}'` : 'NULL');
-
-        insertColumns.push('status');
-        insertValues.push(`'${evalStatus}'`);
-
-        insertColumns.push('createdAt', 'updatedAt');
-        insertValues.push('NOW()', 'NOW()');
-
-        const insertSql = `INSERT INTO Evaluation (${insertColumns.join(', ')}) VALUES (${insertValues.join(', ')})`;
-
+        // Conditionally add date fields only if columns exist (handles schema drift)
         try {
-            await prisma.$executeRawUnsafe(insertSql);
-        } catch (err) {
-            const rawErr = err as any;
-            const message = rawErr?.message || 'Failed to create evaluation (fallback)';
-            throw new BadRequestError(`Failed to create evaluation (fallback SQL): ${message}`);
+            const hasDateSubmissionCol = await prisma.$queryRawUnsafe<any>(
+                "SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='Evaluation' AND COLUMN_NAME='dateSubmissionConsidered' LIMIT 1"
+            );
+            const hasReportCompletionCol = await prisma.$queryRawUnsafe<any>(
+                "SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='Evaluation' AND COLUMN_NAME='reportCompletionDate' LIMIT 1"
+            );
+
+            if (hasDateSubmissionCol && hasDateSubmissionCol[0]) {
+                columnNames.push('dateSubmissionConsidered');
+                values.push(formattedDateSubmission ? "'" + formattedDateSubmission + "'" : 'NULL');
+            }
+            if (hasReportCompletionCol && hasReportCompletionCol[0]) {
+                columnNames.push('reportCompletionDate');
+                values.push(formattedReportCompletion ? "'" + formattedReportCompletion + "'" : 'NULL');
+            }
+        } catch (_) {
+            // If information_schema is unavailable, skip date fields gracefully
         }
+
+        columnNames.push('status', 'createdAt', 'updatedAt');
+        values.push("'" + evalStatus + "'", 'NOW()', 'NOW()');
+
+        await prisma.$executeRawUnsafe('INSERT INTO Evaluation (' + columnNames.join(', ') + ') VALUES (' + values.join(', ') + ')');
         const createdRow = await prisma.$queryRawUnsafe<any>(
-            `SELECT e.*, uc.id AS creatorId, uc.name AS creatorName, uc.email AS creatorEmail FROM Evaluation e LEFT JOIN User uc ON e.createdBy = uc.id WHERE e.evalNumber='${evalNumber}' LIMIT 1`
+            "SELECT e.*, uc.id AS creatorId, uc.name AS creatorName, uc.email AS creatorEmail FROM Evaluation e LEFT JOIN User uc ON e.createdBy = uc.id WHERE e.evalNumber='" +
+                evalNumber +
+                "' LIMIT 1"
         );
         const r = createdRow[0];
         const mapped = {
@@ -5732,7 +5731,7 @@ app.post(
     authMiddleware,
     asyncHandler(async (req, res) => {
         const { id } = req.params;
-        const { userIds, userEmails, sections } = (req.body || {}) as { userIds?: number[]; userEmails?: string[]; sections?: string[] };
+        const { userIds, sections } = (req.body || {}) as { userIds?: number[]; sections?: string[] };
         const authUser: any = (req as any).user;
         const roles: string[] = authUser?.roles || [];
         const isProcurement = roles.some((r: string) => r.toUpperCase().includes('PROCUREMENT'));
@@ -5759,22 +5758,7 @@ app.post(
         // Determine requester(s) from combined lots; auto-include as assignees
         const requesterIds: number[] = Array.isArray(evalRecord?.combinedRequest?.lots) ? Array.from(new Set(evalRecord.combinedRequest.lots.map((l: any) => l.requesterId).filter(Boolean))) : [];
 
-        // Resolve emails to IDs if provided
-        let resolvedIds: number[] = [];
-        if (Array.isArray(userEmails) && userEmails.length > 0) {
-            try {
-                const users = await (prisma as any).user.findMany({
-                    where: { email: { in: userEmails.filter((e: any) => typeof e === 'string' && e.includes('@')) } },
-                    select: { id: true, email: true },
-                });
-                resolvedIds = users.map((u: any) => Number(u.id)).filter((n: number) => Number.isFinite(n));
-            } catch (e) {
-                // ignore, fallback to none
-            }
-        }
-
-        const numericIds = (userIds || []).filter((n) => Number.isFinite(n));
-        const uniqueUserIds = Array.from(new Set([...numericIds, ...resolvedIds, ...requesterIds])).filter((n) => Number.isFinite(n));
+        const uniqueUserIds = Array.from(new Set([...(userIds || []), ...requesterIds])).filter((n) => Number.isFinite(n));
         if (uniqueUserIds.length === 0) {
             return res.status(400).json({ success: false, message: 'No valid recipients to assign' });
         }
@@ -5863,75 +5847,6 @@ app.get(
                     rfqTitle: r.rfqTitle,
                     creator: { id: r.creatorId, name: r.creatorName, email: r.creatorEmail },
                 },
-            }));
-            return res.json({ success: true, data: mapped, meta: { fallback: true } });
-        }
-    })
-);
-
-// GET /api/evaluations/:id/assignments - Get all assignments for an evaluation
-app.get(
-    '/api/evaluations/:id/assignments',
-    authMiddleware,
-    asyncHandler(async (req, res) => {
-        const { id } = req.params;
-        const evaluationId = parseInt(id);
-
-        if (!Number.isFinite(evaluationId)) {
-            throw new BadRequestError('Invalid evaluation ID');
-        }
-
-        if (!hasEvaluationDelegate()) {
-            // Fallback to raw SQL
-            const rows = await prisma.$queryRawUnsafe<any>(
-                `SELECT ea.*, u.id AS userId, u.name AS userName, u.email AS userEmail
-                 FROM EvaluationAssignment ea
-                 LEFT JOIN User u ON ea.userId = u.id
-                 WHERE ea.evaluationId = ${evaluationId}
-                 ORDER BY ea.createdAt ASC`
-            );
-            const mapped = rows.map((r: any) => ({
-                id: r.id,
-                evaluationId: r.evaluationId,
-                userId: r.userId,
-                user: r.userId ? { id: r.userId, name: r.userName, email: r.userEmail } : null,
-                sections: r.sections,
-                status: r.status,
-                submittedAt: r.submittedAt ?? null,
-                createdAt: r.createdAt,
-                updatedAt: r.updatedAt,
-            }));
-            return res.json({ success: true, data: mapped, meta: { fallback: true } });
-        }
-
-        try {
-            const assignments = await (prisma as any).evaluationAssignment.findMany({
-                where: { evaluationId },
-                include: {
-                    user: { select: { id: true, name: true, email: true } },
-                },
-                orderBy: { createdAt: 'asc' },
-            });
-            return res.json({ success: true, data: assignments });
-        } catch (e) {
-            // Fallback to raw SQL if Prisma query fails
-            const rows = await prisma.$queryRawUnsafe<any>(
-                `SELECT ea.*, u.id AS userId, u.name AS userName, u.email AS userEmail
-                 FROM EvaluationAssignment ea
-                 LEFT JOIN User u ON ea.userId = u.id
-                 WHERE ea.evaluationId = ${evaluationId}
-                 ORDER BY ea.createdAt ASC`
-            );
-            const mapped = rows.map((r: any) => ({
-                id: r.id,
-                evaluationId: r.evaluationId,
-                userId: r.userId,
-                user: r.userId ? { id: r.userId, name: r.userName, email: r.userEmail } : null,
-                sections: r.sections,
-                status: r.status,
-                submittedAt: r.submittedAt ?? null,
-                createdAt: r.createdAt,
-                updatedAt: r.updatedAt,
             }));
             return res.json({ success: true, data: mapped, meta: { fallback: true } });
         }
@@ -6036,15 +5951,21 @@ app.patch(
     authMiddleware,
     asyncHandler(async (req, res) => {
         const { id } = req.params;
-        const { status, sectionA, sectionB, sectionC, sectionD, sectionE, validationNotes } = req.body;
+        const { status, sectionA, sectionB, sectionC, sectionD, sectionE, validationNotes, description, dateSubmissionConsidered, reportCompletionDate } = req.body;
 
-        if (!hasEvaluationDelegate()) {
+        const delegateSupportsDates = evaluationDelegateSupportsDateFields();
+        const useDelegate = hasEvaluationDelegate() && delegateSupportsDates;
+
+        if (!useDelegate) {
             const checkRow = await prisma.$queryRawUnsafe<any>(`SELECT id FROM Evaluation WHERE id = ${parseInt(id)} LIMIT 1`);
             if (!checkRow[0]) throw new NotFoundError('Evaluation not found');
         } else {
             const existing = await (prisma as any).evaluation.findUnique({ where: { id: parseInt(id) } });
             if (!existing) throw new NotFoundError('Evaluation not found');
         }
+
+        const formattedUpdateDateSubmission = formatDateTimeForSql(dateSubmissionConsidered);
+        const formattedUpdateReportCompletion = formatDateTimeForSql(reportCompletionDate);
 
         const updateData: Prisma.EvaluationUpdateInput = {};
 
@@ -6055,8 +5976,11 @@ app.patch(
         if (sectionD) updateData.sectionD = sectionD;
         if (sectionE) updateData.sectionE = sectionE;
         if (validationNotes) updateData.validationNotes = validationNotes;
+        if (description !== undefined) updateData.description = description;
+        if (dateSubmissionConsidered !== undefined) updateData.dateSubmissionConsidered = formattedUpdateDateSubmission ? new Date(formattedUpdateDateSubmission) : null;
+        if (reportCompletionDate !== undefined) updateData.reportCompletionDate = formattedUpdateReportCompletion ? new Date(formattedUpdateReportCompletion) : null;
 
-        if (hasEvaluationDelegate()) {
+        if (useDelegate) {
             const evaluation = await (prisma as any).evaluation.update({
                 where: { id: parseInt(id) },
                 data: updateData,
@@ -6078,6 +6002,13 @@ app.patch(
             if (val !== undefined) sets.push(`${key}=${val === null ? 'NULL' : `'${JSON.stringify(val).replace(/'/g, "''")}'`}`);
         }
         if (validationNotes) sets.push(`validationNotes='${String(validationNotes).replace(/'/g, "''")}'`);
+        if (description !== undefined) sets.push(`description=${description ? `'${description.replace(/'/g, "''")}'` : 'NULL'}`);
+        if (dateSubmissionConsidered !== undefined) {
+            sets.push(`dateSubmissionConsidered=${formattedUpdateDateSubmission ? `'${formattedUpdateDateSubmission}'` : 'NULL'}`);
+        }
+        if (reportCompletionDate !== undefined) {
+            sets.push(`reportCompletionDate=${formattedUpdateReportCompletion ? `'${formattedUpdateReportCompletion}'` : 'NULL'}`);
+        }
         sets.push('updatedAt=NOW()');
         if (sets.length) await prisma.$executeRawUnsafe(`UPDATE Evaluation SET ${sets.join(', ')} WHERE id=${parseInt(id)}`);
         const row = await prisma.$queryRawUnsafe<any>(
@@ -6102,6 +6033,8 @@ app.patch(
             creator: { id: r.creatorId, name: r.creatorName, email: r.creatorEmail },
             evaluator: r.evaluator,
             dueDate: r.dueDate ?? null,
+            dateSubmissionConsidered: r.dateSubmissionConsidered ?? null,
+            reportCompletionDate: r.reportCompletionDate ?? null,
             validatedBy: r.validatedBy,
             validator: r.validatorId ? { id: r.validatorId, name: r.validatorName, email: r.validatorEmail } : null,
             validatedAt: r.validatedAt ?? null,
@@ -6743,40 +6676,36 @@ async function start() {
                 const healthMetrics = getHealthStatus();
                 const metrics = getMetrics();
 
-                // Calculate API response time more safely
-                const endpointMetrics = Object.values(metrics.requests.byEndpoint);
-                const apiResponseTime = endpointMetrics.length > 0 ? endpointMetrics.reduce((sum, e) => sum + e.avgDuration, 0) / endpointMetrics.length : 0;
-
-                // Success rate (default to 100% if no requests yet)
-                const requestSuccessRate = metrics.requests.total > 0 ? (metrics.requests.success / metrics.requests.total) * 100 : 100;
+                const apiResponseTime =
+                    metrics.requests.total > 0 ? Object.values(metrics.requests.byEndpoint).reduce((sum, e) => sum + e.avgDuration, 0) / Object.values(metrics.requests.byEndpoint).length : 0;
+                const requestSuccessRate = metrics.requests.total > 0 ? (metrics.requests.success / metrics.requests.total) * 100 : 0;
 
                 // System uptime: Start at 100%, degrade based on performance issues
                 let systemUptime = 100;
 
-                // More realistic thresholds for production API
-                // Degrade for slow response times (adjusted for database-heavy operations)
-                if (apiResponseTime > 2000) {
+                // Degrade for slow response times
+                if (apiResponseTime > 1000) {
                     systemUptime -= 30;
-                } else if (apiResponseTime > 1000) {
-                    systemUptime -= 15;
                 } else if (apiResponseTime > 500) {
-                    systemUptime -= 5;
+                    systemUptime -= 20;
+                } else if (apiResponseTime > 200) {
+                    systemUptime -= 10;
                 }
 
                 // Degrade for low success rate
-                if (requestSuccessRate < 70) {
+                if (requestSuccessRate < 80) {
                     systemUptime -= 40;
-                } else if (requestSuccessRate < 85) {
-                    systemUptime -= 20;
+                } else if (requestSuccessRate < 90) {
+                    systemUptime -= 25;
                 } else if (requestSuccessRate < 95) {
-                    systemUptime -= 5;
+                    systemUptime -= 10;
                 }
 
                 // Degrade based on overall health status
                 if (healthMetrics.status === 'unhealthy') {
-                    systemUptime -= 20;
+                    systemUptime -= 30;
                 } else if (healthMetrics.status === 'degraded') {
-                    systemUptime -= 10;
+                    systemUptime -= 15;
                 }
 
                 systemUptime = Math.max(0, Math.min(100, systemUptime));
