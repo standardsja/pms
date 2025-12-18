@@ -469,12 +469,17 @@ const NewEvaluation = () => {
                 return isNaN(parsed) ? 0 : parsed;
             };
 
+            const dateSubmissionIso = formData.dateSubmissionConsidered ? new Date(formData.dateSubmissionConsidered).toISOString() : null;
+            const reportCompletionIso = formData.reportCompletionDate ? new Date(formData.reportCompletionDate).toISOString() : null;
+
             // Prepare the evaluation data matching the backend API structure
             const evaluationData: CreateEvaluationDTO = {
                 evalNumber,
                 rfqNumber: evalNumber,
                 rfqTitle: 'BSJ Evaluation Report',
                 description: formData.background || undefined,
+                dateSubmissionConsidered: dateSubmissionIso,
+                reportCompletionDate: reportCompletionIso,
                 evaluator: formData.evaluator || undefined,
                 dueDate: formData.bidValidityExpiration || undefined,
                 combinedRequestId: combinedRequestIdState ? parseInt(combinedRequestIdState) : undefined, // Link to combined request

@@ -513,6 +513,8 @@ model Evaluation {
   createdBy                    Int
   evaluator                    String?
   dueDate                      DateTime?
+  dateSubmissionConsidered     DateTime?
+  reportCompletionDate         DateTime?
   validatedBy                  Int?
   validatedAt                  DateTime?
   validationNotes              String?                   @db.Text
