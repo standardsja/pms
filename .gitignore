@@ -16,6 +16,7 @@ dist-ssr
 .env
 .env.local
 .env.*.local
+.env.bak.*
 .env.production
 server/prisma/.env
 
@@ -40,6 +41,27 @@ uploads/*
 !uploads/.gitkeep
 server/uploads/*
 !server/uploads/.gitkeep
+
+# Root scripts (should be in /scripts directory)
+/test-*.ts
+/check-*.ts
+/check-*.js
+/check-*.cjs
+/assign-*.ts
+/unblock-*.ts
+/update-*.ts
+/clear-*.mjs
+/reset-*.js
+*.sql
+
+# Documentation (should be in /docs directory, except essential root files)
+# Allowed: README.md, CHANGELOG.md, CONTRIBUTING.md, DEPLOYMENT.md
+/*_REPORT.md
+/*_TEST*.md
+/*_FIXES.md
+/RBAC_*.md
+/STRUCTURE_*.md
+/LDAP_*.md
 
 # Editor directories and files
 .vscode/*
@@ -69,6 +91,5 @@ debug.log
 
 # Deployment scripts (local only)
 deploy-update.ps1
-deploy-heron.ps1
 #ecosystem.config.cjs
 DEPLOYMENT.md

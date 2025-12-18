@@ -1773,4 +1773,144 @@ router.delete('/navigation-menus/:id', adminOnly, async (req: Request, res: Resp
     }
 });
 
+/**
+ * POST /api/admin/users - Create a LOCAL/dummy user (admin-managed, not LDAP-synced)
+ *
+ * Creates a user with userSource=LOCAL that will not have roles synced from LDAP.
+ * Useful for creating test users, contractors, or service accounts.
+ */
+router.post('/users', adminOnly, async (req: Request, res: Response) => {
+    try {
+        const { email, name, password, roleIds, departmentId } = req.body;
+
+        // Validate required fields
+        if (!email || !name) {
+            return res.status(400).json({
+                success: false,
+                message: 'Email and name are required',
+            });
+        }
+
+        // Check if user already exists
+        const existingUser = await prisma.user.findUnique({
+            where: { email },
+        });
+
+        if (existingUser) {
+            return res.status(400).json({
+                success: false,
+                message: 'User with this email already exists',
+            });
+        }
+
+        // Validate roles if provided
+        if (roleIds && Array.isArray(roleIds) && roleIds.length > 0) {
+            const roles = await prisma.role.findMany({
+                where: { id: { in: roleIds } },
+            });
+
+            if (roles.length !== roleIds.length) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'One or more role IDs are invalid',
+                });
+            }
+        }
+
+        // Validate department if provided
+        if (departmentId) {
+            const department = await prisma.department.findUnique({
+                where: { id: departmentId },
+            });
+
+            if (!department) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Invalid department ID',
+                });
+            }
+        }
+
+        // Hash password if provided (optional for dummy users)
+        let passwordHash = null;
+        if (password) {
+            const bcrypt = await import('bcryptjs');
+            passwordHash = await bcrypt.hash(password, 10);
+        }
+
+        // Create user with userSource=LOCAL
+        const newUser = await prisma.user.create({
+            data: {
+                email,
+                name,
+                passwordHash,
+                userSource: 'LOCAL', // Mark as LOCAL user (admin-managed, not LDAP-synced)
+                departmentId: departmentId || null,
+            },
+            include: {
+                department: true,
+            },
+        });
+
+        // Assign roles if provided
+        if (roleIds && Array.isArray(roleIds) && roleIds.length > 0) {
+            await prisma.userRole.createMany({
+                data: roleIds.map((roleId: number) => ({
+                    userId: newUser.id,
+                    roleId,
+                })),
+            });
+        } else {
+            // No roles specified - assign REQUESTER as default
+            const requesterRole = await prisma.role.findUnique({
+                where: { name: 'REQUESTER' },
+            });
+
+            if (requesterRole) {
+                await prisma.userRole.create({
+                    data: {
+                        userId: newUser.id,
+                        roleId: requesterRole.id,
+                    },
+                });
+            }
+        }
+
+        // Fetch complete user with roles
+        const createdUser = await prisma.user.findUnique({
+            where: { id: newUser.id },
+            include: {
+                roles: {
+                    include: {
+                        role: true,
+                    },
+                },
+                department: true,
+            },
+            omit: {
+                passwordHash: true,
+            },
+        });
+
+        logger.info('LOCAL user created by admin', {
+            userId: newUser.id,
+            email: newUser.email,
+            userSource: 'LOCAL',
+            createdBy: (req as any).user?.sub,
+        });
+
+        res.status(201).json({
+            success: true,
+            message: 'Local user created successfully',
+            user: createdUser,
+        });
+    } catch (error) {
+        logger.error('Failed to create LOCAL user', { error });
+        res.status(500).json({
+            success: false,
+            message: 'Failed to create user',
+        });
+    }
+});
+
 export { router as adminRoutes };

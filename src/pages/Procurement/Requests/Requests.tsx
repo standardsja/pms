@@ -145,9 +145,10 @@ const Requests = () => {
     const filteredRequests = useMemo(() => {
         if (!showMineOnly) return filteredByMeta;
         return filteredByMeta.filter((r) => {
-            // @ts-ignore: backend may return string or number for id
-            const assigneeId = r.currentAssigneeId ? Number(r.currentAssigneeId) : null;
-            return r.requester === currentUserName || (currentUserId && assigneeId === currentUserId);
+            const assigneeRaw = r.currentAssigneeId;
+            const assigneeId = typeof assigneeRaw === 'number' ? assigneeRaw : Number(assigneeRaw);
+            const matchesAssignee = currentUserId && Number.isFinite(assigneeId) && assigneeId === currentUserId;
+            return r.requester === currentUserName || !!matchesAssignee;
         });
     }, [showMineOnly, filteredByMeta, currentUserName, currentUserId]);
 

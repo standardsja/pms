@@ -70,13 +70,6 @@ const CombineRequests = () => {
 
                 const userId = user?.id?.toString() || sessionStorage.getItem('userId') || localStorage.getItem('userId');
 
-                console.log('[CombineRequests] Auth values:', {
-                    hasToken: !!token,
-                    tokenSource: reduxToken ? 'redux' : 'storage',
-                    userId,
-                    userFromRedux: user?.id,
-                });
-
                 // Fetch combinable requests
                 const headers: Record<string, string> = {
                     'Content-Type': 'application/json',
@@ -89,9 +82,6 @@ const CombineRequests = () => {
                 if (userId && userId !== 'null') {
                     headers['x-user-id'] = userId;
                 }
-
-                console.log('[CombineRequests] Request headers:', { ...headers, Authorization: headers.Authorization?.substring(0, 20) });
-
                 const response = await fetch(getApiUrl('/api/requests/combinable?combinable=true'), {
                     headers,
                 });
@@ -145,10 +135,6 @@ const CombineRequests = () => {
         // Get user roles - handle different possible role structures
         const userRoles = user.roles || [];
         const userDepartment = user.department_name || '';
-
-        // Debug log to see what we're working with
-        console.log('User roles:', userRoles, 'Department:', userDepartment, 'Selected requests:', selectedRequests.length);
-
         return checkCombinePermissions(userRoles, userDepartment, selectedRequests);
     }, [user, selectedRequests]);
 

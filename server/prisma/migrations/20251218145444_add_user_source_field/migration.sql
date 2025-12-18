@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE `User` ADD COLUMN `userSource` ENUM('LDAP', 'LOCAL') NOT NULL DEFAULT 'LOCAL';

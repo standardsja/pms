@@ -45,10 +45,6 @@ const LoadBalancingSettings = () => {
                 const currentUser = getUser();
                 const apiUrl = getApiUrl('/api/procurement/load-balancing-settings');
 
-                console.log('[LoadBalancing] Fetching settings...');
-                console.log('[LoadBalancing] User ID:', currentUser?.id);
-                console.log('[LoadBalancing] API URL:', apiUrl);
-
                 if (!currentUser?.id) {
                     throw new Error('User not authenticated. Please log in again.');
                 }
@@ -58,13 +54,9 @@ const LoadBalancingSettings = () => {
                         'x-user-id': String(currentUser.id),
                     },
                 });
-
-                console.log('[LoadBalancing] Response status:', res.status, res.statusText);
-
                 if (!res.ok) {
                     if (res.status === 404) {
                         // Settings don't exist yet, use defaults
-                        console.log('[LoadBalancing] No settings found, using defaults');
                         setLoading(false);
                         return;
                     }
@@ -83,7 +75,6 @@ const LoadBalancingSettings = () => {
                 }
 
                 const data = await res.json();
-                console.log('[LoadBalancing] Settings loaded successfully:', data);
                 setSettings(data);
             } catch (err: any) {
                 console.error('[LoadBalancing] Error fetching settings:', err);
@@ -116,9 +107,6 @@ const LoadBalancingSettings = () => {
             if (!currentUser?.id) {
                 throw new Error('User not authenticated. Please log in again.');
             }
-
-            console.log('[LoadBalancing] Saving settings:', settings);
-
             const res = await fetch(apiUrl, {
                 method: 'POST',
                 headers: {
@@ -136,8 +124,6 @@ const LoadBalancingSettings = () => {
                 } catch {}
                 throw new Error(errorMessage);
             }
-
-            console.log('[LoadBalancing] Settings saved successfully');
 
             MySwal.fire({
                 icon: 'success',

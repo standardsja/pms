@@ -49,7 +49,7 @@ export async function syncLDAPUserToDatabase(ldapUser: LDAPUser, existingUser?: 
         }
 
         if (!dbUser) {
-            logger.info('LDAP: Creating new user in database', { email: ldapUser.email });
+            logger.info('LDAP: Creating new LDAP user in database', { email: ldapUser.email });
             dbUser = await prisma.user.create({
                 data: {
                     email: ldapUser.email,
@@ -57,10 +57,54 @@ export async function syncLDAPUserToDatabase(ldapUser: LDAPUser, existingUser?: 
                     ldapDN: ldapUser.dn,
                     phone: ldapUser.phone,
                     profileImage: ldapUser.profileImage,
+                    userSource: 'LDAP', // Mark as LDAP user
                 },
                 include: { roles: true },
             });
         } else {
+            // Check if this is a LOCAL user - do not sync roles for LOCAL users
+            if (dbUser.userSource === 'LOCAL') {
+                logger.info('LDAP: Skipping role sync for LOCAL user', {
+                    email: ldapUser.email,
+                    userSource: dbUser.userSource,
+                });
+
+                // Still sync LDAP profile data (phone, image) but preserve admin-assigned roles
+                const updateData: any = {};
+
+                if (ldapUser.phone && ldapUser.phone !== dbUser.phone) {
+                    updateData.phone = ldapUser.phone;
+                }
+
+                if (ldapUser.profileImage) {
+                    updateData.profileImage = ldapUser.profileImage;
+                }
+
+                if (Object.keys(updateData).length > 0) {
+                    await prisma.user.update({
+                        where: { id: dbUser.id },
+                        data: updateData,
+                    });
+                }
+
+                // Return existing admin-assigned roles without modification
+                const userRoles = await prisma.userRole.findMany({
+                    where: { userId: dbUser.id },
+                    include: { role: true },
+                });
+
+                result.rolesApplied = userRoles.map((ur) => ur.role.name);
+                result.appliedFromAdminPanel = true;
+
+                logger.info('LDAP: LOCAL user roles preserved (admin-managed)', {
+                    email: ldapUser.email,
+                    roles: result.rolesApplied,
+                });
+
+                return result;
+            }
+
+            // For LDAP users, continue with normal sync
             // Sync LDAP data to database
             const updateData: any = {};
 
