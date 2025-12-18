@@ -5869,6 +5869,75 @@ app.get(
     })
 );
 
+// GET /api/evaluations/:id/assignments - Get all assignments for an evaluation
+app.get(
+    '/api/evaluations/:id/assignments',
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+        const { id } = req.params;
+        const evaluationId = parseInt(id);
+
+        if (!Number.isFinite(evaluationId)) {
+            throw new BadRequestError('Invalid evaluation ID');
+        }
+
+        if (!hasEvaluationDelegate()) {
+            // Fallback to raw SQL
+            const rows = await prisma.$queryRawUnsafe<any>(
+                `SELECT ea.*, u.id AS userId, u.name AS userName, u.email AS userEmail
+                 FROM EvaluationAssignment ea
+                 LEFT JOIN User u ON ea.userId = u.id
+                 WHERE ea.evaluationId = ${evaluationId}
+                 ORDER BY ea.createdAt ASC`
+            );
+            const mapped = rows.map((r: any) => ({
+                id: r.id,
+                evaluationId: r.evaluationId,
+                userId: r.userId,
+                user: r.userId ? { id: r.userId, name: r.userName, email: r.userEmail } : null,
+                sections: r.sections,
+                status: r.status,
+                submittedAt: r.submittedAt ?? null,
+                createdAt: r.createdAt,
+                updatedAt: r.updatedAt,
+            }));
+            return res.json({ success: true, data: mapped, meta: { fallback: true } });
+        }
+
+        try {
+            const assignments = await (prisma as any).evaluationAssignment.findMany({
+                where: { evaluationId },
+                include: {
+                    user: { select: { id: true, name: true, email: true } },
+                },
+                orderBy: { createdAt: 'asc' },
+            });
+            return res.json({ success: true, data: assignments });
+        } catch (e) {
+            // Fallback to raw SQL if Prisma query fails
+            const rows = await prisma.$queryRawUnsafe<any>(
+                `SELECT ea.*, u.id AS userId, u.name AS userName, u.email AS userEmail
+                 FROM EvaluationAssignment ea
+                 LEFT JOIN User u ON ea.userId = u.id
+                 WHERE ea.evaluationId = ${evaluationId}
+                 ORDER BY ea.createdAt ASC`
+            );
+            const mapped = rows.map((r: any) => ({
+                id: r.id,
+                evaluationId: r.evaluationId,
+                userId: r.userId,
+                user: r.userId ? { id: r.userId, name: r.userName, email: r.userEmail } : null,
+                sections: r.sections,
+                status: r.status,
+                submittedAt: r.submittedAt ?? null,
+                createdAt: r.createdAt,
+                updatedAt: r.updatedAt,
+            }));
+            return res.json({ success: true, data: mapped, meta: { fallback: true } });
+        }
+    })
+);
+
 // POST /api/evaluations/:id/assignments/complete - Evaluator marks their assignment as complete
 app.post(
     '/api/evaluations/:id/assignments/complete',

@@ -638,7 +638,7 @@ const NewEvaluation = () => {
                 return;
             }
 
-            const sectionsWithC = selectedSections.includes('C') ? selectedSections : [...selectedSections, 'C'];
+            const sectionsWithC = selectedSections.includes('C') ? selectedSections : ([...selectedSections, 'C'] as Array<'A' | 'B' | 'C' | 'D' | 'E'>);
 
             console.debug('Assigning evaluators', { evaluationId: createdEvaluationId, userIds, userEmails: manualEmails, sections: sectionsWithC });
             await evaluationService.assignEvaluators(createdEvaluationId, {
