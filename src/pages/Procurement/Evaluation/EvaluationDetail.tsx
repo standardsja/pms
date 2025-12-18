@@ -339,13 +339,7 @@ const EvaluationDetail = () => {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <div>
                             <label className="block mb-1 text-sm">User Email or ID</label>
-                            <input
-                                type="text"
-                                className="form-input"
-                                placeholder="Enter user email or numeric ID"
-                                value={selectedUserId}
-                                onChange={(e) => setSelectedUserId(e.target.value)}
-                            />
+                            <input type="text" className="form-input" placeholder="Enter user email or numeric ID" value={selectedUserId} onChange={(e) => setSelectedUserId(e.target.value)} />
                             <p className="text-xs text-gray-500 mt-1">Tip: Officers can delegate Section C to any staff here.</p>
                         </div>
                         <div>
