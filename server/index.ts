@@ -5699,7 +5699,9 @@ app.post(
 
         await prisma.$executeRawUnsafe('INSERT INTO Evaluation (' + columnNames.join(', ') + ') VALUES (' + values.join(', ') + ')');
         const createdRow = await prisma.$queryRawUnsafe<any>(
-            'SELECT e.*, uc.id AS creatorId, uc.name AS creatorName, uc.email AS creatorEmail FROM Evaluation e LEFT JOIN User uc ON e.createdBy = uc.id WHERE e.evalNumber=\'' + evalNumber + "\' LIMIT 1"
+            "SELECT e.*, uc.id AS creatorId, uc.name AS creatorName, uc.email AS creatorEmail FROM Evaluation e LEFT JOIN User uc ON e.createdBy = uc.id WHERE e.evalNumber='" +
+                evalNumber +
+                "' LIMIT 1"
         );
         const r = createdRow[0];
         const mapped = {
