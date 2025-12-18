@@ -95,6 +95,8 @@ const authLimiter = rateLimit({
 router.post(
     '/login',
     authLimiter,
+    // Add validation to ensure consistent 400s with details when payload is wrong
+    validate(loginSchema),
     asyncHandler(async (req, res) => {
         const { email, password } = req.body;
 
@@ -103,6 +105,7 @@ router.post(
             hasPassword: Boolean(password),
         });
 
+        // Redundant safeguard; validate(loginSchema) already enforces this.
         if (!email || !password) {
             return res.status(400).json({
                 error: 'Validation Error',
@@ -120,30 +123,13 @@ router.post(
         // Look up user in local database first
         let user = await prisma.user.findUnique({
             where: { email },
-            select: {
-                id: true,
-                email: true,
-                name: true,
-                passwordHash: true,
-                externalId: true,
-                blocked: true,
-                blockedAt: true,
-                blockedReason: true,
-                failedLogins: true,
-                lastFailedLogin: true,
-                lastLogin: true,
+            include: {
                 roles: {
-                    select: {
+                    include: {
                         role: true,
                     },
                 },
-                department: {
-                    select: {
-                        id: true,
-                        name: true,
-                        code: true,
-                    },
-                },
+                department: true,
             },
         });
 
@@ -308,30 +294,13 @@ router.post(
             // Refresh user data from database with new roles
             user = await prisma.user.findUnique({
                 where: { id: user.id },
-                select: {
-                    id: true,
-                    email: true,
-                    name: true,
-                    externalId: true,
-                    passwordHash: true,
-                    blocked: true,
-                    blockedAt: true,
-                    blockedReason: true,
-                    failedLogins: true,
-                    lastFailedLogin: true,
-                    lastLogin: true,
+                include: {
                     roles: {
-                        select: {
+                        include: {
                             role: true,
                         },
                     },
-                    department: {
-                        select: {
-                            id: true,
-                            name: true,
-                            code: true,
-                        },
-                    },
+                    department: true,
                 },
             });
 

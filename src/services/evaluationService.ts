@@ -177,6 +177,8 @@ export interface CreateEvaluationDTO {
     rfqNumber: string;
     rfqTitle: string;
     description?: string;
+    dateSubmissionConsidered?: string | null;
+    reportCompletionDate?: string | null;
     combinedRequestId?: number; // Link to combined request with lots
     requestId?: number; // Optional link to a single Request (ID)
     sectionA?: SectionA;
@@ -197,6 +199,9 @@ export interface UpdateEvaluationDTO {
     sectionD?: SectionD;
     sectionE?: SectionE;
     validationNotes?: string;
+    description?: string;
+    dateSubmissionConsidered?: string | null;
+    reportCompletionDate?: string | null;
 }
 
 export interface EvaluationFilters {

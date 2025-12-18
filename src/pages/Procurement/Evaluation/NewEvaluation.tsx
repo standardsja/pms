@@ -55,7 +55,8 @@ const NewEvaluation = () => {
                     ...prev,
                     rfqNumber: data.reference || '',
                     rfqTitle: data.title,
-                    description: data.description || '',
+                    description: data.description || data.justification || '',
+                    background: data.description || data.justification || '',
                 }));
             } catch (error) {
                 console.error('Error fetching combined request:', error);
@@ -106,6 +107,7 @@ const NewEvaluation = () => {
                     rfqNumber: data.reference || data.code || '',
                     rfqTitle: data.title || '',
                     description: data.description || data.justification || '',
+                    background: data.description || data.justification || '',
                     comparableEstimate: totalEstimate > 0 ? totalEstimate.toFixed(2) : '',
                 }));
 
@@ -467,12 +469,17 @@ const NewEvaluation = () => {
                 return isNaN(parsed) ? 0 : parsed;
             };
 
+            const dateSubmissionIso = formData.dateSubmissionConsidered ? new Date(formData.dateSubmissionConsidered).toISOString() : null;
+            const reportCompletionIso = formData.reportCompletionDate ? new Date(formData.reportCompletionDate).toISOString() : null;
+
             // Prepare the evaluation data matching the backend API structure
             const evaluationData: CreateEvaluationDTO = {
                 evalNumber,
                 rfqNumber: evalNumber,
                 rfqTitle: 'BSJ Evaluation Report',
                 description: formData.background || undefined,
+                dateSubmissionConsidered: dateSubmissionIso,
+                reportCompletionDate: reportCompletionIso,
                 evaluator: formData.evaluator || undefined,
                 dueDate: formData.bidValidityExpiration || undefined,
                 combinedRequestId: combinedRequestIdState ? parseInt(combinedRequestIdState) : undefined, // Link to combined request
@@ -525,30 +532,27 @@ const NewEvaluation = () => {
                             bidderName: '', // Can be extracted from table if needed
                             eligibilityRequirements: {
                                 columns: eligibilityColumns,
-                                rows: eligibilityRows
-                                    .filter((row) => Object.values(row.data).some((val) => val.trim() !== ''))
-                                    .map((row) => ({
-                                        id: row.id,
-                                        data: row.data,
-                                    })),
+                                // Preserve authored table structure even if cells are empty
+                                rows: eligibilityRows.map((row) => ({
+                                    id: row.id,
+                                    data: row.data,
+                                })),
                             },
                             complianceMatrix: {
                                 columns: complianceColumns,
-                                rows: complianceRows
-                                    .filter((row) => Object.values(row.data).some((val) => val.trim() !== ''))
-                                    .map((row) => ({
-                                        id: row.id,
-                                        data: row.data,
-                                    })),
+                                // Preserve authored table structure even if cells are empty
+                                rows: complianceRows.map((row) => ({
+                                    id: row.id,
+                                    data: row.data,
+                                })),
                             },
                             technicalEvaluation: {
                                 columns: technicalColumns,
-                                rows: technicalRows
-                                    .filter((row) => Object.values(row.data).some((val) => val.trim() !== ''))
-                                    .map((row) => ({
-                                        id: row.id,
-                                        data: row.data,
-                                    })),
+                                // Preserve authored table structure even if cells are empty
+                                rows: technicalRows.map((row) => ({
+                                    id: row.id,
+                                    data: row.data,
+                                })),
                             },
                         },
                     ],

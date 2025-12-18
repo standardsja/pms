@@ -5159,6 +5159,20 @@ function hasEvaluationDelegate(): boolean {
     return Boolean(evalDelegate && typeof evalDelegate.findMany === 'function');
 }
 
+function evaluationDelegateSupportsDateFields(): boolean {
+    // Prisma exposes runtime datamodel; use it to detect if columns exist in generated client
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const modelFields: any = (prisma as any)?._runtimeDataModel?.models?.Evaluation?.fields;
+    return Boolean(modelFields?.dateSubmissionConsidered && modelFields?.reportCompletionDate);
+}
+
+function formatDateTimeForSql(value?: string | null): string | null {
+    if (!value) return null;
+    const dt = new Date(value);
+    if (Number.isNaN(dt.getTime())) return null;
+    return dt.toISOString().slice(0, 19).replace('T', ' ');
+}
+
 // Expose lightweight version/debug info
 const GIT_COMMIT = process.env.GIT_COMMIT || 'untracked';
 app.get('/api/_version', (req, res) => {
@@ -5294,6 +5308,8 @@ app.get(
             creator: { id: r.creatorId, name: r.creatorName, email: r.creatorEmail },
             evaluator: r.evaluator,
             dueDate: r.dueDate ? r.dueDate : null,
+            dateSubmissionConsidered: r.dateSubmissionConsidered ?? null,
+            reportCompletionDate: r.reportCompletionDate ?? null,
             validatedBy: r.validatedBy,
             validator: r.validatorId ? { id: r.validatorId, name: r.validatorName, email: r.validatorEmail } : null,
             validatedAt: r.validatedAt ?? null,
@@ -5458,6 +5474,8 @@ app.get(
             creator: { id: r.creatorId, name: r.creatorName, email: r.creatorEmail },
             evaluator: r.evaluator,
             dueDate: r.dueDate ? r.dueDate : null,
+            dateSubmissionConsidered: r.dateSubmissionConsidered ?? null,
+            reportCompletionDate: r.reportCompletionDate ?? null,
             validatedBy: r.validatedBy,
             validator: r.validatorId ? { id: r.validatorId, name: r.validatorName, email: r.validatorEmail } : null,
             validatedAt: r.validatedAt ?? null,
@@ -5491,6 +5509,8 @@ app.post(
             submitToCommittee: submitToCommitteeRaw,
             combinedRequestId,
             requestId: requestIdRaw,
+            dateSubmissionConsidered,
+            reportCompletionDate,
         } = req.body;
         const submitToCommittee = Boolean(submitToCommitteeRaw);
 
@@ -5506,6 +5526,8 @@ app.post(
             evaluator,
             combinedRequestId,
             requestId: requestIdRaw,
+            dateSubmissionConsidered,
+            reportCompletionDate,
             sectionA: JSON.stringify(sectionA),
             userId,
         });
@@ -5519,8 +5541,14 @@ app.post(
             throw new BadRequestError('Missing required fields: evalNumber, rfqNumber, rfqTitle');
         }
 
+        const formattedDueDate = formatDateTimeForSql(dueDate);
+        const formattedDateSubmission = formatDateTimeForSql(dateSubmissionConsidered);
+        const formattedReportCompletion = formatDateTimeForSql(reportCompletionDate);
+        const delegateSupportsDates = evaluationDelegateSupportsDateFields();
+        const canUseDelegate = hasEvaluationDelegate() && delegateSupportsDates;
+
         // Check if evalNumber already exists
-        if (hasEvaluationDelegate()) {
+        if (canUseDelegate) {
             // Check duplicate using delegate
             const existing = await (prisma as any).evaluation.findUnique({ where: { evalNumber } });
             if (existing) throw new BadRequestError('Evaluation number already exists');
@@ -5581,7 +5609,9 @@ app.post(
                         sectionE: sectionE || null,
                         sectionEStatus: sectionE && submitToCommittee ? 'SUBMITTED' : 'NOT_STARTED',
                         evaluator: evaluator || null,
-                        dueDate: dueDate ? new Date(dueDate) : null,
+                        dueDate: formattedDueDate ? new Date(formattedDueDate) : null,
+                        dateSubmissionConsidered: formattedDateSubmission ? new Date(formattedDateSubmission) : null,
+                        reportCompletionDate: formattedReportCompletion ? new Date(formattedReportCompletion) : null,
                         createdBy: userId,
                     },
                 });
@@ -5599,27 +5629,77 @@ app.post(
 
         const evalStatus = submitToCommittee ? 'COMMITTEE_REVIEW' : 'PENDING';
 
-        await prisma.$executeRawUnsafe(
-            `INSERT INTO Evaluation (evalNumber, rfqNumber, rfqTitle, description, sectionA, sectionAStatus, sectionB, sectionBStatus, sectionC, sectionCStatus, sectionD, sectionDStatus, sectionE, sectionEStatus, requestId, createdBy, evaluator, dueDate, status, createdAt, updatedAt) VALUES (
-                            '${evalNumber}', '${rfqNumber}', '${rfqTitle}', 
-                            ${description ? `'${description.replace(/'/g, "''")}'` : 'NULL'}, 
-                            ${sectionA ? `'${JSON.stringify(sectionA).replace(/'/g, "''")}'` : 'NULL'}, 
-                            ${sectionA && submitToCommittee ? "'SUBMITTED'" : "'NOT_STARTED'"},
-                            ${sectionB ? `'${JSON.stringify(sectionB).replace(/'/g, "''")}'` : 'NULL'}, 
-                            ${sectionB && submitToCommittee ? "'SUBMITTED'" : "'NOT_STARTED'"},
-                            ${sectionC ? `'${JSON.stringify(sectionC).replace(/'/g, "''")}'` : 'NULL'}, 
-                            ${sectionC && submitToCommittee ? "'SUBMITTED'" : "'NOT_STARTED'"},
-                            ${sectionD ? `'${JSON.stringify(sectionD).replace(/'/g, "''")}'` : 'NULL'}, 
-                            ${sectionD && submitToCommittee ? "'SUBMITTED'" : "'NOT_STARTED'"},
-                            ${sectionE ? `'${JSON.stringify(sectionE).replace(/'/g, "''")}'` : 'NULL'}, 
-                            ${sectionE && submitToCommittee ? "'SUBMITTED'" : "'NOT_STARTED'"},
-                            ${requestIdRaw && /^\d+$/.test(String(requestIdRaw)) ? parseInt(String(requestIdRaw), 10) : 'NULL'},
-                            ${userId}, 
-                            ${evaluator ? `'${evaluator.replace(/'/g, "''")}'` : 'NULL'}, 
-                            ${dueDate ? `'${new Date(dueDate).toISOString().slice(0, 19).replace('T', ' ')}'` : 'NULL'}, '${evalStatus}', NOW(), NOW())`
-        );
+        const columnNames = [
+            'evalNumber',
+            'rfqNumber',
+            'rfqTitle',
+            'description',
+            'sectionA',
+            'sectionAStatus',
+            'sectionB',
+            'sectionBStatus',
+            'sectionC',
+            'sectionCStatus',
+            'sectionD',
+            'sectionDStatus',
+            'sectionE',
+            'sectionEStatus',
+            'requestId',
+            'createdBy',
+            'evaluator',
+            'dueDate',
+        ];
+
+        const values = [
+            `'${evalNumber}'`,
+            `'${rfqNumber}'`,
+            `'${rfqTitle}'`,
+            `${description ? `'${description.replace(/'/g, "''")}'` : 'NULL'}`,
+            `${sectionA ? `'${JSON.stringify(sectionA).replace(/'/g, "''")}'` : 'NULL'}`,
+            `${sectionA && submitToCommittee ? "'SUBMITTED'" : "'NOT_STARTED'"}`,
+            `${sectionB ? `'${JSON.stringify(sectionB).replace(/'/g, "''")}'` : 'NULL'}`,
+            `${sectionB && submitToCommittee ? "'SUBMITTED'" : "'NOT_STARTED'"}`,
+            `${sectionC ? `'${JSON.stringify(sectionC).replace(/'/g, "''")}'` : 'NULL'}`,
+            `${sectionC && submitToCommittee ? "'SUBMITTED'" : "'NOT_STARTED'"}`,
+            `${sectionD ? `'${JSON.stringify(sectionD).replace(/'/g, "''")}'` : 'NULL'}`,
+            `${sectionD && submitToCommittee ? "'SUBMITTED'" : "'NOT_STARTED'"}`,
+            `${sectionE ? `'${JSON.stringify(sectionE).replace(/'/g, "''")}'` : 'NULL'}`,
+            `${sectionE && submitToCommittee ? "'SUBMITTED'" : "'NOT_STARTED'"}`,
+            `${requestIdRaw && /^\d+$/.test(String(requestIdRaw)) ? parseInt(String(requestIdRaw), 10) : 'NULL'}`,
+            `${userId}`,
+            `${evaluator ? `'${evaluator.replace(/'/g, "''")}'` : 'NULL'}`,
+            `${formattedDueDate ? `'${formattedDueDate}'` : 'NULL'}`,
+        ];
+
+        // Conditionally add date fields only if columns exist (handles schema drift)
+        try {
+            const hasDateSubmissionCol = await prisma.$queryRawUnsafe<any>(
+                "SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='Evaluation' AND COLUMN_NAME='dateSubmissionConsidered' LIMIT 1"
+            );
+            const hasReportCompletionCol = await prisma.$queryRawUnsafe<any>(
+                "SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='Evaluation' AND COLUMN_NAME='reportCompletionDate' LIMIT 1"
+            );
+
+            if (hasDateSubmissionCol && hasDateSubmissionCol[0]) {
+                columnNames.push('dateSubmissionConsidered');
+                values.push(formattedDateSubmission ? "'" + formattedDateSubmission + "'" : 'NULL');
+            }
+            if (hasReportCompletionCol && hasReportCompletionCol[0]) {
+                columnNames.push('reportCompletionDate');
+                values.push(formattedReportCompletion ? "'" + formattedReportCompletion + "'" : 'NULL');
+            }
+        } catch (_) {
+            // If information_schema is unavailable, skip date fields gracefully
+        }
+
+        columnNames.push('status', 'createdAt', 'updatedAt');
+        values.push("'" + evalStatus + "'", 'NOW()', 'NOW()');
+
+        await prisma.$executeRawUnsafe('INSERT INTO Evaluation (' + columnNames.join(', ') + ') VALUES (' + values.join(', ') + ')');
         const createdRow = await prisma.$queryRawUnsafe<any>(
-            `SELECT e.*, uc.id AS creatorId, uc.name AS creatorName, uc.email AS creatorEmail FROM Evaluation e LEFT JOIN User uc ON e.createdBy = uc.id WHERE e.evalNumber='${evalNumber}' LIMIT 1`
+            "SELECT e.*, uc.id AS creatorId, uc.name AS creatorName, uc.email AS creatorEmail FROM Evaluation e LEFT JOIN User uc ON e.createdBy = uc.id WHERE e.evalNumber='" +
+                evalNumber +
+                "' LIMIT 1"
         );
         const r = createdRow[0];
         const mapped = {
@@ -5869,15 +5949,21 @@ app.patch(
     authMiddleware,
     asyncHandler(async (req, res) => {
         const { id } = req.params;
-        const { status, sectionA, sectionB, sectionC, sectionD, sectionE, validationNotes } = req.body;
+        const { status, sectionA, sectionB, sectionC, sectionD, sectionE, validationNotes, description, dateSubmissionConsidered, reportCompletionDate } = req.body;
 
-        if (!hasEvaluationDelegate()) {
+        const delegateSupportsDates = evaluationDelegateSupportsDateFields();
+        const useDelegate = hasEvaluationDelegate() && delegateSupportsDates;
+
+        if (!useDelegate) {
             const checkRow = await prisma.$queryRawUnsafe<any>(`SELECT id FROM Evaluation WHERE id = ${parseInt(id)} LIMIT 1`);
             if (!checkRow[0]) throw new NotFoundError('Evaluation not found');
         } else {
             const existing = await (prisma as any).evaluation.findUnique({ where: { id: parseInt(id) } });
             if (!existing) throw new NotFoundError('Evaluation not found');
         }
+
+        const formattedUpdateDateSubmission = formatDateTimeForSql(dateSubmissionConsidered);
+        const formattedUpdateReportCompletion = formatDateTimeForSql(reportCompletionDate);
 
         const updateData: Prisma.EvaluationUpdateInput = {};
 
@@ -5888,8 +5974,11 @@ app.patch(
         if (sectionD) updateData.sectionD = sectionD;
         if (sectionE) updateData.sectionE = sectionE;
         if (validationNotes) updateData.validationNotes = validationNotes;
+        if (description !== undefined) updateData.description = description;
+        if (dateSubmissionConsidered !== undefined) updateData.dateSubmissionConsidered = formattedUpdateDateSubmission ? new Date(formattedUpdateDateSubmission) : null;
+        if (reportCompletionDate !== undefined) updateData.reportCompletionDate = formattedUpdateReportCompletion ? new Date(formattedUpdateReportCompletion) : null;
 
-        if (hasEvaluationDelegate()) {
+        if (useDelegate) {
             const evaluation = await (prisma as any).evaluation.update({
                 where: { id: parseInt(id) },
                 data: updateData,
@@ -5911,6 +6000,13 @@ app.patch(
             if (val !== undefined) sets.push(`${key}=${val === null ? 'NULL' : `'${JSON.stringify(val).replace(/'/g, "''")}'`}`);
         }
         if (validationNotes) sets.push(`validationNotes='${String(validationNotes).replace(/'/g, "''")}'`);
+        if (description !== undefined) sets.push(`description=${description ? `'${description.replace(/'/g, "''")}'` : 'NULL'}`);
+        if (dateSubmissionConsidered !== undefined) {
+            sets.push(`dateSubmissionConsidered=${formattedUpdateDateSubmission ? `'${formattedUpdateDateSubmission}'` : 'NULL'}`);
+        }
+        if (reportCompletionDate !== undefined) {
+            sets.push(`reportCompletionDate=${formattedUpdateReportCompletion ? `'${formattedUpdateReportCompletion}'` : 'NULL'}`);
+        }
         sets.push('updatedAt=NOW()');
         if (sets.length) await prisma.$executeRawUnsafe(`UPDATE Evaluation SET ${sets.join(', ')} WHERE id=${parseInt(id)}`);
         const row = await prisma.$queryRawUnsafe<any>(
@@ -5935,6 +6031,8 @@ app.patch(
             creator: { id: r.creatorId, name: r.creatorName, email: r.creatorEmail },
             evaluator: r.evaluator,
             dueDate: r.dueDate ?? null,
+            dateSubmissionConsidered: r.dateSubmissionConsidered ?? null,
+            reportCompletionDate: r.reportCompletionDate ?? null,
             validatedBy: r.validatedBy,
             validator: r.validatorId ? { id: r.validatorId, name: r.validatorName, email: r.validatorEmail } : null,
             validatedAt: r.validatedAt ?? null,

@@ -5,7 +5,7 @@ type Props = {
     mode: 'create' | 'edit';
     evaluation?: Evaluation | null;
     canEditSections?: Array<'A' | 'B' | 'C' | 'D' | 'E'>;
-    onSaveSection?: (section: 'A' | 'B' | 'C' | 'D' | 'E', data: any) => Promise<void> | void;
+    onSaveSection?: (section: 'Background' | 'A' | 'B' | 'C' | 'D' | 'E', data: any) => Promise<void> | void;
     onSubmitSection?: (section: 'A' | 'B' | 'C' | 'D' | 'E') => Promise<void> | void;
     onVerifySection?: (section: 'A' | 'B' | 'C' | 'D' | 'E', notes?: string) => Promise<void> | void;
     onReturnSection?: (section: 'A' | 'B' | 'C' | 'D' | 'E', notes: string) => Promise<void> | void;
@@ -32,14 +32,16 @@ export const EvaluationForm: React.FC<Props> = ({
     const [sectionE, setSectionE] = useState<SectionE | undefined>(evaluation?.sectionE);
     const [saving, setSaving] = useState(false);
 
+    const canEdit = (sec: 'A' | 'B' | 'C' | 'D' | 'E') => canEditSections.includes(sec);
+    const canEditStructure = (sec: 'A' | 'B' | 'C' | 'D' | 'E') => structureEditableSections.includes(sec);
+
     // Debug logging
     console.log('EvaluationForm - evaluation:', evaluation);
     console.log('EvaluationForm - sectionB:', sectionB);
     console.log('EvaluationForm - sectionB.bidders:', sectionB?.bidders);
+    console.log('EvaluationForm - sectionC:', sectionC);
     console.log('EvaluationForm - canEditSections:', canEditSections);
-
-    const canEdit = (sec: 'A' | 'B' | 'C' | 'D' | 'E') => canEditSections.includes(sec);
-    const canEditStructure = (sec: 'A' | 'B' | 'C' | 'D' | 'E') => structureEditableSections.includes(sec);
+    console.log('EvaluationForm - canEdit(C):', canEdit('C'));
 
     // Keep local section state in sync when evaluation prop updates
     React.useEffect(() => {
@@ -71,19 +73,21 @@ export const EvaluationForm: React.FC<Props> = ({
     return (
         <div className="space-y-6">
             {/* Background Section */}
-            {evaluation?.description && (
+            {evaluation && (
                 <div className="panel">
                     <div className="mb-5 -m-5 p-5 bg-gray-100 dark:bg-gray-800 border-l-4 border-gray-500">
                         <h5 className="text-lg font-bold">Background Information</h5>
                         <p className="text-sm mt-1">Bureau of Standards Jamaica - Official Evaluation Report Form (PRO_70_F_14/00)</p>
                     </div>
                     <div className="p-5 space-y-4">
-                        <div>
-                            <label className="block mb-2 text-sm font-semibold text-lg">BACKGROUND:</label>
-                            <div className="p-3 bg-gray-50 dark:bg-gray-900 rounded border">
-                                <p className="whitespace-pre-wrap">{evaluation.description}</p>
+                        {evaluation.description && (
+                            <div>
+                                <label className="block mb-2 text-sm font-semibold text-lg">BACKGROUND:</label>
+                                <div className="p-3 bg-gray-50 dark:bg-gray-900 rounded border">
+                                    <p className="whitespace-pre-wrap">{evaluation.description}</p>
+                                </div>
                             </div>
-                        </div>
+                        )}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label className="block mb-1 text-sm font-semibold">DATE SUBMISSION WAS CONSIDERED:</label>
@@ -93,7 +97,7 @@ export const EvaluationForm: React.FC<Props> = ({
                                     value={evaluation.dateSubmissionConsidered ? new Date(evaluation.dateSubmissionConsidered).toISOString().split('T')[0] : ''}
                                     onChange={(e) => {
                                         const updated = { ...evaluation, dateSubmissionConsidered: e.target.value ? new Date(e.target.value).toISOString() : null };
-                                        onSaveSection('Background', updated);
+                                        onSaveSection?.('Background', updated);
                                     }}
                                 />
                             </div>
@@ -105,7 +109,7 @@ export const EvaluationForm: React.FC<Props> = ({
                                     value={evaluation.reportCompletionDate ? new Date(evaluation.reportCompletionDate).toISOString().split('T')[0] : ''}
                                     onChange={(e) => {
                                         const updated = { ...evaluation, reportCompletionDate: e.target.value ? new Date(e.target.value).toISOString() : null };
-                                        onSaveSection('Background', updated);
+                                        onSaveSection?.('Background', updated);
                                     }}
                                 />
                             </div>
@@ -843,31 +847,121 @@ export const EvaluationForm: React.FC<Props> = ({
                 )}
             </div>
 
-            {/* Section C: Evaluator Comments */}
+            {/* Section C: Evaluator Assessment */}
             <div className="panel">
                 <div className="mb-5 -m-5 p-5 bg-warning/10 border-l-4 border-warning">
                     <h5 className="text-lg font-bold text-warning">Section C</h5>
-                    <p className="text-sm mt-1">Evaluator Comments</p>
+                    <p className="text-sm mt-1">to be completed by the Evaluator</p>
                 </div>
-                <div className="p-5 space-y-4">
+                <div className="p-5 space-y-6">
                     <div>
-                        <label className="block mb-1 text-sm font-semibold">Comments</label>
+                        <label className="block mb-1 text-sm font-semibold">Comments/Critical Issues Examined</label>
                         <textarea
                             className="form-textarea w-full"
-                            rows={4}
+                            rows={5}
                             disabled={!canEdit('C')}
-                            value={sectionC?.comments || ''}
-                            onChange={(e) => setSectionC({ ...(sectionC as any), comments: e.target.value })}
+                            value={sectionC?.criticalIssues || ''}
+                            onChange={(e) => setSectionC({ ...(sectionC as any), criticalIssues: e.target.value })}
                         />
                     </div>
+
                     <div>
-                        <label className="block mb-1 text-sm font-semibold">Recommended Supplier</label>
+                        <label className="block mb-1 text-sm font-semibold">Action Taken</label>
+                        <div className="flex flex-wrap gap-4">
+                            {[
+                                { label: '(a) Recommended', value: 'RECOMMENDED' },
+                                { label: '(b) Rejected', value: 'REJECTED' },
+                                { label: '(c) Deferred', value: 'DEFERRED' },
+                            ].map((opt) => (
+                                <label key={opt.value} className="flex items-center gap-2 text-sm">
+                                    <input
+                                        type="radio"
+                                        className="form-radio"
+                                        disabled={!canEdit('C')}
+                                        checked={sectionC?.actionTaken === opt.value}
+                                        onChange={() => setSectionC({ ...(sectionC as any), actionTaken: opt.value })}
+                                    />
+                                    <span>{opt.label}</span>
+                                </label>
+                            ))}
+                        </div>
+                    </div>
+
+                    {(sectionC?.actionTaken === 'REJECTED' || sectionC?.actionTaken === 'DEFERRED') && (
+                        <div>
+                            <label className="block mb-1 text-sm font-semibold">If rejected or deferred, please give details below</label>
+                            <textarea
+                                className="form-textarea w-full"
+                                rows={3}
+                                disabled={!canEdit('C')}
+                                value={sectionC?.rejectionReason || ''}
+                                onChange={(e) => setSectionC({ ...(sectionC as any), rejectionReason: e.target.value })}
+                            />
+                        </div>
+                    )}
+
+                    <div>
+                        <label className="block mb-1 text-sm font-semibold">Recommended Contractor/Supplier</label>
                         <input
                             className="form-input w-full"
                             disabled={!canEdit('C')}
                             value={sectionC?.recommendedSupplier || ''}
                             onChange={(e) => setSectionC({ ...(sectionC as any), recommendedSupplier: e.target.value })}
                         />
+                    </div>
+
+                    <div>
+                        <label className="block mb-1 text-sm font-semibold">Recommended Contract Amount (inclusive of GCT)</label>
+                        <input
+                            type="number"
+                            className="form-input w-full"
+                            disabled={!canEdit('C')}
+                            value={sectionC?.recommendedAmountInclusiveGCT ?? ''}
+                            onChange={(e) => setSectionC({ ...(sectionC as any), recommendedAmountInclusiveGCT: Number(e.target.value) || 0 })}
+                        />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block mb-1 text-sm font-semibold">Evaluator's Name</label>
+                            <input
+                                className="form-input w-full"
+                                disabled={!canEdit('C')}
+                                value={sectionC?.evaluatorName || ''}
+                                onChange={(e) => setSectionC({ ...(sectionC as any), evaluatorName: e.target.value })}
+                            />
+                        </div>
+                        <div>
+                            <label className="block mb-1 text-sm font-semibold">Job Title</label>
+                            <input
+                                className="form-input w-full"
+                                disabled={!canEdit('C')}
+                                value={sectionC?.evaluatorTitle || ''}
+                                onChange={(e) => setSectionC({ ...(sectionC as any), evaluatorTitle: e.target.value })}
+                            />
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block mb-1 text-sm font-semibold">Signature</label>
+                            <input
+                                className="form-input w-full"
+                                disabled={!canEdit('C')}
+                                value={sectionC?.evaluatorSignature || ''}
+                                onChange={(e) => setSectionC({ ...(sectionC as any), evaluatorSignature: e.target.value })}
+                            />
+                        </div>
+                        <div>
+                            <label className="block mb-1 text-sm font-semibold">Date</label>
+                            <input
+                                type="date"
+                                className="form-input w-full"
+                                disabled={!canEdit('C')}
+                                value={sectionC?.evaluationDate ? sectionC.evaluationDate : ''}
+                                onChange={(e) => setSectionC({ ...(sectionC as any), evaluationDate: e.target.value })}
+                            />
+                        </div>
                     </div>
                 </div>
                 {canEdit('C') && (
