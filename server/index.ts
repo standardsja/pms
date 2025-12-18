@@ -5497,7 +5497,9 @@ app.post(
         const submitToCommittee = Boolean(submitToCommitteeRaw);
 
         // JWT payload uses 'sub' for user ID, fallback to 'id' for compatibility
-        const userId = user?.sub || user?.id;
+        // Ensure this is a numeric ID for Prisma (createdBy: Int)
+        const userIdRaw = (user as any)?.sub ?? (user as any)?.id;
+        const userId: number = typeof userIdRaw === 'number' ? userIdRaw : typeof userIdRaw === 'string' && /^\d+$/.test(userIdRaw) ? parseInt(userIdRaw, 10) : NaN;
 
         console.log('Creating evaluation with data:', {
             evalNumber,
@@ -5513,7 +5515,7 @@ app.post(
         });
 
         // Check if user is authenticated
-        if (!user || !userId) {
+        if (!user || !Number.isFinite(userId)) {
             throw new BadRequestError('User not authenticated. Please log in again.');
         }
 
@@ -5562,37 +5564,65 @@ app.post(
                 } else if (combinedRequestId) {
                     effectiveCombinedRequestId = parseInt(combinedRequestId as any);
                 }
-                const evaluation = await (prisma as any).evaluation.create({
-                    data: {
-                        evalNumber,
-                        rfqNumber,
-                        rfqTitle,
-                        description: description || null,
-                        // persist combinedRequestId (int) when available
-                        combinedRequestId: effectiveCombinedRequestId ?? null,
-                        // persist the originating request id when provided
-                        requestId: requestToLink ?? null,
-                        sectionA: sectionA || null,
-                        sectionAStatus: sectionA && submitToCommittee ? 'SUBMITTED' : 'NOT_STARTED',
-                        sectionB: sectionB || null,
-                        sectionBStatus: sectionB && submitToCommittee ? 'SUBMITTED' : 'NOT_STARTED',
-                        sectionC: sectionC || null,
-                        sectionCStatus: sectionC && submitToCommittee ? 'SUBMITTED' : 'NOT_STARTED',
-                        sectionD: sectionD || null,
-                        sectionDStatus: sectionD && submitToCommittee ? 'SUBMITTED' : 'NOT_STARTED',
-                        sectionE: sectionE || null,
-                        sectionEStatus: sectionE && submitToCommittee ? 'SUBMITTED' : 'NOT_STARTED',
-                        evaluator: evaluator || null,
-                        dueDate: dueDate ? new Date(dueDate) : null,
-                        createdBy: userId,
-                    },
-                });
+                const baseData: Record<string, unknown> = {
+                    evalNumber,
+                    rfqNumber,
+                    rfqTitle,
+                    description: description || null,
+                    sectionA: sectionA || null,
+                    sectionAStatus: sectionA && submitToCommittee ? 'SUBMITTED' : 'NOT_STARTED',
+                    sectionB: sectionB || null,
+                    sectionBStatus: sectionB && submitToCommittee ? 'SUBMITTED' : 'NOT_STARTED',
+                    sectionC: sectionC || null,
+                    sectionCStatus: sectionC && submitToCommittee ? 'SUBMITTED' : 'NOT_STARTED',
+                    sectionD: sectionD || null,
+                    sectionDStatus: sectionD && submitToCommittee ? 'SUBMITTED' : 'NOT_STARTED',
+                    sectionE: sectionE || null,
+                    sectionEStatus: sectionE && submitToCommittee ? 'SUBMITTED' : 'NOT_STARTED',
+                    evaluator: evaluator || null,
+                    dueDate: dueDate ? new Date(dueDate) : null,
+                    createdBy: userId,
+                };
+
+                // Prefer linking request/combinedRequest when the delegate supports those fields
+                if (effectiveCombinedRequestId !== null) {
+                    (baseData as any).combinedRequestId = effectiveCombinedRequestId;
+                }
+                if (requestToLink !== null) {
+                    (baseData as any).requestId = requestToLink;
+                }
+
+                let evaluation: any;
+                try {
+                    evaluation = await (prisma as any).evaluation.create({ data: baseData });
+                } catch (err) {
+                    const msg = (err as any)?.message || '';
+                    // If the delegate schema is missing requestId/combinedRequestId, retry without them
+                    const hasUnknownRequestId = msg.includes('Unknown argument `requestId`');
+                    const hasUnknownCombinedId = msg.includes('Unknown argument `combinedRequestId`');
+                    if (hasUnknownRequestId || hasUnknownCombinedId) {
+                        const retryData = { ...baseData };
+                        delete (retryData as any).requestId;
+                        delete (retryData as any).combinedRequestId;
+                        evaluation = await (prisma as any).evaluation.create({ data: retryData });
+                    } else {
+                        throw err;
+                    }
+                }
 
                 res.json({ success: true, data: evaluation });
             } catch (err) {
                 console.error('Failed to create evaluation (delegate):', err instanceof Error ? err.stack || err.message : err);
-                // If the Prisma model doesn't support `requestId`, creating with that field will throw. We no longer pass requestId into create.
-                throw new BadRequestError('Failed to create evaluation');
+                // Preserve explicit BadRequestError messages (e.g., invalid requestId) for clarity
+                if (err instanceof BadRequestError) {
+                    throw err;
+                }
+
+                // Surface Prisma error codes/details to help diagnose (foreign key, validation, etc.)
+                const prismaErr = err as any;
+                const code = prismaErr?.code ? ` ${prismaErr.code}` : '';
+                const cause = prismaErr?.meta?.cause || prismaErr?.message || 'Unknown error';
+                throw new BadRequestError(`Failed to create evaluation:${code ? code : ''} ${cause}`);
             }
         }
         // Fallback duplicate check via raw SQL
@@ -5601,25 +5631,78 @@ app.post(
 
         const evalStatus = submitToCommittee ? 'COMMITTEE_REVIEW' : 'PENDING';
 
-        await prisma.$executeRawUnsafe(
-            `INSERT INTO Evaluation (evalNumber, rfqNumber, rfqTitle, description, sectionA, sectionAStatus, sectionB, sectionBStatus, sectionC, sectionCStatus, sectionD, sectionDStatus, sectionE, sectionEStatus, requestId, createdBy, evaluator, dueDate, status, createdAt, updatedAt) VALUES (
-                            '${evalNumber}', '${rfqNumber}', '${rfqTitle}', 
-                            ${description ? `'${description.replace(/'/g, "''")}'` : 'NULL'}, 
-                            ${sectionA ? `'${JSON.stringify(sectionA).replace(/'/g, "''")}'` : 'NULL'}, 
-                            ${sectionA && submitToCommittee ? "'SUBMITTED'" : "'NOT_STARTED'"},
-                            ${sectionB ? `'${JSON.stringify(sectionB).replace(/'/g, "''")}'` : 'NULL'}, 
-                            ${sectionB && submitToCommittee ? "'SUBMITTED'" : "'NOT_STARTED'"},
-                            ${sectionC ? `'${JSON.stringify(sectionC).replace(/'/g, "''")}'` : 'NULL'}, 
-                            ${sectionC && submitToCommittee ? "'SUBMITTED'" : "'NOT_STARTED'"},
-                            ${sectionD ? `'${JSON.stringify(sectionD).replace(/'/g, "''")}'` : 'NULL'}, 
-                            ${sectionD && submitToCommittee ? "'SUBMITTED'" : "'NOT_STARTED'"},
-                            ${sectionE ? `'${JSON.stringify(sectionE).replace(/'/g, "''")}'` : 'NULL'}, 
-                            ${sectionE && submitToCommittee ? "'SUBMITTED'" : "'NOT_STARTED'"},
-                            ${requestIdRaw && /^\d+$/.test(String(requestIdRaw)) ? parseInt(String(requestIdRaw), 10) : 'NULL'},
-                            ${userId}, 
-                            ${evaluator ? `'${evaluator.replace(/'/g, "''")}'` : 'NULL'}, 
-                            ${dueDate ? `'${new Date(dueDate).toISOString().slice(0, 19).replace('T', ' ')}'` : 'NULL'}, '${evalStatus}', NOW(), NOW())`
-        );
+        // Detect available columns to avoid unknown-column errors when database schema lags behind Prisma
+        const columns = (await prisma.$queryRawUnsafe<Array<{ Field: string }>>('SHOW COLUMNS FROM Evaluation')).map((c) => c.Field);
+        const hasRequestId = columns.includes('requestId');
+        const hasCombinedRequestId = columns.includes('combinedRequestId');
+
+        const insertColumns: string[] = [
+            'evalNumber',
+            'rfqNumber',
+            'rfqTitle',
+            'description',
+            'sectionA',
+            'sectionAStatus',
+            'sectionB',
+            'sectionBStatus',
+            'sectionC',
+            'sectionCStatus',
+            'sectionD',
+            'sectionDStatus',
+            'sectionE',
+            'sectionEStatus',
+        ];
+        const insertValues: string[] = [
+            `'${evalNumber.replace(/'/g, "''")}'`,
+            `'${rfqNumber.replace(/'/g, "''")}'`,
+            `'${rfqTitle.replace(/'/g, "''")}'`,
+            description ? `'${description.replace(/'/g, "''")}'` : 'NULL',
+            sectionA ? `'${JSON.stringify(sectionA).replace(/'/g, "''")}'` : 'NULL',
+            sectionA && submitToCommittee ? "'SUBMITTED'" : "'NOT_STARTED'",
+            sectionB ? `'${JSON.stringify(sectionB).replace(/'/g, "''")}'` : 'NULL',
+            sectionB && submitToCommittee ? "'SUBMITTED'" : "'NOT_STARTED'",
+            sectionC ? `'${JSON.stringify(sectionC).replace(/'/g, "''")}'` : 'NULL',
+            sectionC && submitToCommittee ? "'SUBMITTED'" : "'NOT_STARTED'",
+            sectionD ? `'${JSON.stringify(sectionD).replace(/'/g, "''")}'` : 'NULL',
+            sectionD && submitToCommittee ? "'SUBMITTED'" : "'NOT_STARTED'",
+            sectionE ? `'${JSON.stringify(sectionE).replace(/'/g, "''")}'` : 'NULL',
+            sectionE && submitToCommittee ? "'SUBMITTED'" : "'NOT_STARTED'",
+        ];
+
+        if (hasCombinedRequestId) {
+            insertColumns.push('combinedRequestId');
+            insertValues.push(combinedRequestId ? `${parseInt(String(combinedRequestId), 10)}` : 'NULL');
+        }
+
+        if (hasRequestId) {
+            insertColumns.push('requestId');
+            insertValues.push(requestIdRaw && /^\d+$/.test(String(requestIdRaw)) ? `${parseInt(String(requestIdRaw), 10)}` : 'NULL');
+        }
+
+        insertColumns.push('createdBy');
+        insertValues.push(`${userId}`);
+
+        insertColumns.push('evaluator');
+        insertValues.push(evaluator ? `'${evaluator.replace(/'/g, "''")}'` : 'NULL');
+
+        insertColumns.push('dueDate');
+        insertValues.push(dueDate ? `'${new Date(dueDate).toISOString().slice(0, 19).replace('T', ' ')}'` : 'NULL');
+
+        insertColumns.push('status');
+        insertValues.push(`'${evalStatus}'`);
+
+        insertColumns.push('createdAt', 'updatedAt');
+        insertValues.push('NOW()', 'NOW()');
+
+        const insertSql = `INSERT INTO Evaluation (${insertColumns.join(', ')}) VALUES (${insertValues.join(', ')})`;
+
+        try {
+            await prisma.$executeRawUnsafe(insertSql);
+        } catch (err) {
+            const rawErr = err as any;
+            const message = rawErr?.message || 'Failed to create evaluation (fallback)';
+            throw new BadRequestError(`Failed to create evaluation (fallback SQL): ${message}`);
+        }
         const createdRow = await prisma.$queryRawUnsafe<any>(
             `SELECT e.*, uc.id AS creatorId, uc.name AS creatorName, uc.email AS creatorEmail FROM Evaluation e LEFT JOIN User uc ON e.createdBy = uc.id WHERE e.evalNumber='${evalNumber}' LIMIT 1`
         );
@@ -5651,7 +5734,7 @@ app.post(
     authMiddleware,
     asyncHandler(async (req, res) => {
         const { id } = req.params;
-        const { userIds, sections } = (req.body || {}) as { userIds?: number[]; sections?: string[] };
+        const { userIds, userEmails, sections } = (req.body || {}) as { userIds?: number[]; userEmails?: string[]; sections?: string[] };
         const authUser: any = (req as any).user;
         const roles: string[] = authUser?.roles || [];
         const isProcurement = roles.some((r: string) => r.toUpperCase().includes('PROCUREMENT'));
@@ -5678,7 +5761,22 @@ app.post(
         // Determine requester(s) from combined lots; auto-include as assignees
         const requesterIds: number[] = Array.isArray(evalRecord?.combinedRequest?.lots) ? Array.from(new Set(evalRecord.combinedRequest.lots.map((l: any) => l.requesterId).filter(Boolean))) : [];
 
-        const uniqueUserIds = Array.from(new Set([...(userIds || []), ...requesterIds])).filter((n) => Number.isFinite(n));
+        // Resolve emails to IDs if provided
+        let resolvedIds: number[] = [];
+        if (Array.isArray(userEmails) && userEmails.length > 0) {
+            try {
+                const users = await (prisma as any).user.findMany({
+                    where: { email: { in: userEmails.filter((e: any) => typeof e === 'string' && e.includes('@')) } },
+                    select: { id: true, email: true },
+                });
+                resolvedIds = users.map((u: any) => Number(u.id)).filter((n: number) => Number.isFinite(n));
+            } catch (e) {
+                // ignore, fallback to none
+            }
+        }
+
+        const numericIds = (userIds || []).filter((n) => Number.isFinite(n));
+        const uniqueUserIds = Array.from(new Set([...numericIds, ...resolvedIds, ...requesterIds])).filter((n) => Number.isFinite(n));
         if (uniqueUserIds.length === 0) {
             return res.status(400).json({ success: false, message: 'No valid recipients to assign' });
         }

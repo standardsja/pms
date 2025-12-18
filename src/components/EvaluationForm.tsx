@@ -79,7 +79,7 @@ export const EvaluationForm: React.FC<Props> = ({
                     </div>
                     <div className="p-5 space-y-4">
                         <div>
-                            <label className="block mb-2 text-sm font-semibold text-lg">BACKGROUND:</label>
+                            <label className="block mb-2 text-sm font-semibold">BACKGROUND:</label>
                             <div className="p-3 bg-gray-50 dark:bg-gray-900 rounded border">
                                 <p className="whitespace-pre-wrap">{evaluation.description}</p>
                             </div>
