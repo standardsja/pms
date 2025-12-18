@@ -494,13 +494,11 @@ async function authMiddleware(req: any, res: any, next: any) {
     const auth = req.headers.authorization || '';
     const userId = req.headers['x-user-id'];
 
-    console.log('[AUTH] Headers:', { auth: auth.substring(0, 20), userId, path: req.path });
-
     // Try Bearer token first
     if (auth && auth.startsWith('Bearer ')) {
         const [, token] = auth.split(' ');
         try {
-            const payload = jwt.verify(token, JWT_SECRET);
+            const payload = jwt.verify(token, JWT_SECRET) as any;
             (req as any).user = payload;
             return next();
         } catch {
