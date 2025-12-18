@@ -5673,15 +5673,33 @@ app.post(
             `${formattedDueDate ? `'${formattedDueDate}'` : 'NULL'}`,
         ];
 
-        columnNames.push('dateSubmissionConsidered', 'reportCompletionDate');
-        values.push(`${formattedDateSubmission ? `'${formattedDateSubmission}'` : 'NULL'}`, `${formattedReportCompletion ? `'${formattedReportCompletion}'` : 'NULL'}');
+        // Conditionally add date fields only if columns exist (handles schema drift)
+        try {
+            const hasDateSubmissionCol = await prisma.$queryRawUnsafe<any>(
+                "SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='Evaluation' AND COLUMN_NAME='dateSubmissionConsidered' LIMIT 1"
+            );
+            const hasReportCompletionCol = await prisma.$queryRawUnsafe<any>(
+                "SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='Evaluation' AND COLUMN_NAME='reportCompletionDate' LIMIT 1"
+            );
+
+            if (hasDateSubmissionCol && hasDateSubmissionCol[0]) {
+                columnNames.push('dateSubmissionConsidered');
+                values.push(formattedDateSubmission ? "'" + formattedDateSubmission + "'" : 'NULL');
+            }
+            if (hasReportCompletionCol && hasReportCompletionCol[0]) {
+                columnNames.push('reportCompletionDate');
+                values.push(formattedReportCompletion ? "'" + formattedReportCompletion + "'" : 'NULL');
+            }
+        } catch (_) {
+            // If information_schema is unavailable, skip date fields gracefully
+        }
 
         columnNames.push('status', 'createdAt', 'updatedAt');
-        values.push(`'${evalStatus}'`, 'NOW()', 'NOW()');
+        values.push("'" + evalStatus + "'", 'NOW()', 'NOW()');
 
-        await prisma.$executeRawUnsafe(`INSERT INTO Evaluation (${columnNames.join(', ')}) VALUES (${values.join(', ')})`);
+        await prisma.$executeRawUnsafe('INSERT INTO Evaluation (' + columnNames.join(', ') + ') VALUES (' + values.join(', ') + ')');
         const createdRow = await prisma.$queryRawUnsafe<any>(
-            `SELECT e.*, uc.id AS creatorId, uc.name AS creatorName, uc.email AS creatorEmail FROM Evaluation e LEFT JOIN User uc ON e.createdBy = uc.id WHERE e.evalNumber='${evalNumber}' LIMIT 1`
+            'SELECT e.*, uc.id AS creatorId, uc.name AS creatorName, uc.email AS creatorEmail FROM Evaluation e LEFT JOIN User uc ON e.createdBy = uc.id WHERE e.evalNumber=\'' + evalNumber + "\' LIMIT 1"
         );
         const r = createdRow[0];
         const mapped = {
