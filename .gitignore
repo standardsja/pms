@@ -54,6 +54,15 @@ server/uploads/*
 /reset-*.js
 *.sql
 
+# Documentation (should be in /docs directory, except essential root files)
+# Allowed: README.md, CHANGELOG.md, CONTRIBUTING.md, DEPLOYMENT.md
+/*_REPORT.md
+/*_TEST*.md
+/*_FIXES.md
+/RBAC_*.md
+/STRUCTURE_*.md
+/LDAP_*.md
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
