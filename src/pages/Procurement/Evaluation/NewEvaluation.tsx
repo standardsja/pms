@@ -527,30 +527,27 @@ const NewEvaluation = () => {
                             bidderName: '', // Can be extracted from table if needed
                             eligibilityRequirements: {
                                 columns: eligibilityColumns,
-                                rows: eligibilityRows
-                                    .filter((row) => Object.values(row.data).some((val) => val.trim() !== ''))
-                                    .map((row) => ({
-                                        id: row.id,
-                                        data: row.data,
-                                    })),
+                                // Preserve authored table structure even if cells are empty
+                                rows: eligibilityRows.map((row) => ({
+                                    id: row.id,
+                                    data: row.data,
+                                })),
                             },
                             complianceMatrix: {
                                 columns: complianceColumns,
-                                rows: complianceRows
-                                    .filter((row) => Object.values(row.data).some((val) => val.trim() !== ''))
-                                    .map((row) => ({
-                                        id: row.id,
-                                        data: row.data,
-                                    })),
+                                // Preserve authored table structure even if cells are empty
+                                rows: complianceRows.map((row) => ({
+                                    id: row.id,
+                                    data: row.data,
+                                })),
                             },
                             technicalEvaluation: {
                                 columns: technicalColumns,
-                                rows: technicalRows
-                                    .filter((row) => Object.values(row.data).some((val) => val.trim() !== ''))
-                                    .map((row) => ({
-                                        id: row.id,
-                                        data: row.data,
-                                    })),
+                                // Preserve authored table structure even if cells are empty
+                                rows: technicalRows.map((row) => ({
+                                    id: row.id,
+                                    data: row.data,
+                                })),
                             },
                         },
                     ],
