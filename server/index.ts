@@ -6578,36 +6578,40 @@ async function start() {
                 const healthMetrics = getHealthStatus();
                 const metrics = getMetrics();
 
-                const apiResponseTime =
-                    metrics.requests.total > 0 ? Object.values(metrics.requests.byEndpoint).reduce((sum, e) => sum + e.avgDuration, 0) / Object.values(metrics.requests.byEndpoint).length : 0;
-                const requestSuccessRate = metrics.requests.total > 0 ? (metrics.requests.success / metrics.requests.total) * 100 : 0;
+                // Calculate API response time more safely
+                const endpointMetrics = Object.values(metrics.requests.byEndpoint);
+                const apiResponseTime = endpointMetrics.length > 0 ? endpointMetrics.reduce((sum, e) => sum + e.avgDuration, 0) / endpointMetrics.length : 0;
+
+                // Success rate (default to 100% if no requests yet)
+                const requestSuccessRate = metrics.requests.total > 0 ? (metrics.requests.success / metrics.requests.total) * 100 : 100;
 
                 // System uptime: Start at 100%, degrade based on performance issues
                 let systemUptime = 100;
 
-                // Degrade for slow response times
-                if (apiResponseTime > 1000) {
+                // More realistic thresholds for production API
+                // Degrade for slow response times (adjusted for database-heavy operations)
+                if (apiResponseTime > 2000) {
                     systemUptime -= 30;
+                } else if (apiResponseTime > 1000) {
+                    systemUptime -= 15;
                 } else if (apiResponseTime > 500) {
-                    systemUptime -= 20;
-                } else if (apiResponseTime > 200) {
-                    systemUptime -= 10;
+                    systemUptime -= 5;
                 }
 
                 // Degrade for low success rate
-                if (requestSuccessRate < 80) {
+                if (requestSuccessRate < 70) {
                     systemUptime -= 40;
-                } else if (requestSuccessRate < 90) {
-                    systemUptime -= 25;
+                } else if (requestSuccessRate < 85) {
+                    systemUptime -= 20;
                 } else if (requestSuccessRate < 95) {
-                    systemUptime -= 10;
+                    systemUptime -= 5;
                 }
 
                 // Degrade based on overall health status
                 if (healthMetrics.status === 'unhealthy') {
-                    systemUptime -= 30;
+                    systemUptime -= 20;
                 } else if (healthMetrics.status === 'degraded') {
-                    systemUptime -= 15;
+                    systemUptime -= 10;
                 }
 
                 systemUptime = Math.max(0, Math.min(100, systemUptime));
