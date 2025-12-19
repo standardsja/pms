@@ -138,8 +138,10 @@ const batchLimiter = rateLimit({
 });
 
 // Enable trust proxy for reverse proxy setup (nginx, etc.)
-// This allows rate limiting to work correctly with X-Forwarded-For headers
-app.set('trust proxy', true);
+// Configure trust proxy properly to avoid rate limiting bypass
+// For production behind reverse proxy: set to 1 (trust first proxy)
+// For development: set to false or use loopback
+app.set('trust proxy', process.env.NODE_ENV === 'production' ? 1 : 'loopback');
 
 app.use(cors());
 // Body parsing middleware - MUST come before routes
