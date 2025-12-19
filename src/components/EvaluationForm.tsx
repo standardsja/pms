@@ -34,6 +34,8 @@ export const EvaluationForm: React.FC<Props> = ({
 
     const canEdit = (sec: 'A' | 'B' | 'C' | 'D' | 'E') => canEditSections.includes(sec);
     const canEditStructure = (sec: 'A' | 'B' | 'C' | 'D' | 'E') => structureEditableSections.includes(sec);
+    // Evaluators can only edit technical evaluation table, not eligibility or compliance
+    const canEditTechnical = () => canEditSections.includes('B');
 
     // Debug logging
     console.log('EvaluationForm - evaluation:', evaluation);
@@ -360,7 +362,8 @@ export const EvaluationForm: React.FC<Props> = ({
                                             <tr key={row.id}>
                                                 {sectionB.bidders[0].eligibilityRequirements!.columns.map((col: any) => (
                                                     <td key={col.id} className="border px-2 py-2">
-                                                        {col.cellType === 'radio' && canEdit('B') ? (
+                                                        {/* Eligibility table is read-only for evaluators, only procurement can edit */}
+                                                        {col.cellType === 'radio' && canEditStructure('B') ? (
                                                             <div className="flex items-center gap-4 justify-center">
                                                                 <label className="flex items-center gap-1 cursor-pointer">
                                                                     <input
@@ -395,7 +398,7 @@ export const EvaluationForm: React.FC<Props> = ({
                                                                     <span className="text-sm">No</span>
                                                                 </label>
                                                             </div>
-                                                        ) : canEdit('B') ? (
+                                                        ) : canEditStructure('B') ? (
                                                             <input
                                                                 className="form-input w-full"
                                                                 value={row.data[col.id] || ''}
@@ -556,7 +559,8 @@ export const EvaluationForm: React.FC<Props> = ({
                                             <tr key={row.id}>
                                                 {sectionB.bidders[0].complianceMatrix.columns.map((col: any) => (
                                                     <td key={col.id} className="border px-2 py-2">
-                                                        {col.cellType === 'radio' && canEdit('B') ? (
+                                                        {/* Compliance table is read-only for evaluators, only procurement can edit */}
+                                                        {col.cellType === 'radio' && canEditStructure('B') ? (
                                                             <div className="flex items-center gap-4 justify-center">
                                                                 <label className="flex items-center gap-1 cursor-pointer">
                                                                     <input
@@ -591,7 +595,7 @@ export const EvaluationForm: React.FC<Props> = ({
                                                                     <span className="text-sm">No</span>
                                                                 </label>
                                                             </div>
-                                                        ) : canEdit('B') ? (
+                                                        ) : canEditStructure('B') ? (
                                                             <input
                                                                 className="form-input w-full"
                                                                 value={row.data[col.id] || ''}
@@ -755,7 +759,8 @@ export const EvaluationForm: React.FC<Props> = ({
                                             <tr key={row.id}>
                                                 {sectionB.bidders[0].technicalEvaluation.columns.map((col: any) => (
                                                     <td key={col.id} className="border px-2 py-2">
-                                                        {col.cellType === 'radio' && canEdit('B') ? (
+                                                        {/* Technical evaluation table is editable by evaluators */}
+                                                        {col.cellType === 'radio' && canEditTechnical() ? (
                                                             <div className="flex items-center gap-4 justify-center">
                                                                 <label className="flex items-center gap-1 cursor-pointer">
                                                                     <input
@@ -790,7 +795,7 @@ export const EvaluationForm: React.FC<Props> = ({
                                                                     <span className="text-sm">No</span>
                                                                 </label>
                                                             </div>
-                                                        ) : canEdit('B') ? (
+                                                        ) : canEditTechnical() ? (
                                                             <input
                                                                 className="form-input w-full"
                                                                 value={row.data[col.id] || ''}
