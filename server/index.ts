@@ -2048,6 +2048,9 @@ app.delete('/api/ideas/:id/vote', authMiddleware, voteLimiter, async (req, res) 
     }
 });
 
+// Combine requests routes (must be registered BEFORE other /api/requests routes)
+app.use('/api/requests/combine', combineRouter);
+
 // GET /requests - alias for direct backend access (frontend may call this without /api prefix)
 app.get('/api/requests', async (_req, res) => {
     try {

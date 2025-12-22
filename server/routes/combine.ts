@@ -222,7 +222,7 @@ router.post('/', authMiddleware, async (req, res) => {
         }
 
         // Check cross-department permissions - procurement users can combine across departments
-        const departments = [...new Set(originalRequests.map((req) => req.department?.name))];
+        const departments = Array.from(new Set(originalRequests.map((req) => req.department?.name)));
 
         if (departments.length > 1 && !(canCombine || userRoleInfo.isProcurementOfficer || userRoleInfo.isProcurementManager || userRoleInfo.isAdmin)) {
             return res.status(403).json({

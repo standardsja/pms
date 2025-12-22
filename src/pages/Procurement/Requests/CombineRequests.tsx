@@ -270,7 +270,7 @@ const CombineRequests = () => {
             if (token) headers.Authorization = `Bearer ${token}`;
             if (userId) headers['x-user-id'] = userId;
 
-            const response = await fetch(getApiUrl('/api/requests/combinable'), {
+            const response = await fetch(getApiUrl('/api/requests/combine'), {
                 method: 'POST',
                 headers,
                 body: JSON.stringify(combinedRequestData),
