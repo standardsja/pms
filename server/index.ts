@@ -593,15 +593,12 @@ app.get('/api/notifications', authMiddleware, async (req, res) => {
             console.warn('Prisma fetch notifications failed, falling back to raw query:', err?.message || err);
             try {
                 // MySQL-compatible raw query (parameterized)
-                const rows: any = await prisma.$queryRawUnsafe(
-                    `SELECT * FROM Notification WHERE userId = ? ORDER BY createdAt DESC LIMIT 50`,
-                    userId
-                );
+                const rows: any = await prisma.$queryRawUnsafe(`SELECT * FROM Notification WHERE userId = ? ORDER BY createdAt DESC LIMIT 50`, userId);
                 notifications = rows || [];
             } catch (rawErr) {
                 console.error('Raw fallback for notifications failed:', rawErr);
                 // Return empty array instead of breaking the page
-                return res.json({ success: true, data: [] , meta: { fallback: true, error: String(rawErr?.message || rawErr) } });
+                return res.json({ success: true, data: [], meta: { fallback: true, error: String(rawErr?.message || rawErr) } });
             }
         }
 
@@ -2171,6 +2168,7 @@ app.post(
             next();
         });
     },
+    authMiddleware,
     async (req, res) => {
         try {
             console.log('[POST /requests] Request received');

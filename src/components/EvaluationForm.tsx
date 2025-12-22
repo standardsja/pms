@@ -765,6 +765,25 @@ export const EvaluationForm: React.FC<Props> = ({
                             const table = sectionB.bidders[0].technicalEvaluation;
                             if (!table.columns) table.columns = [];
                             if (!table.rows) table.rows = [];
+                            const placeholderRows = [
+                                {
+                                    id: 'temp-row-1',
+                                    data: Object.fromEntries((table.columns || []).map((c: any) => [c.id, ''])),
+                                },
+                            ];
+                            const rowsToRender = (table.rows ?? []).length > 0 ? table.rows : placeholderRows;
+                            const seedRowsIfEmpty = (copy: any, targetRowId: string, mutate: (row: any) => any) => {
+                                const hasRows = (copy.bidders[0].technicalEvaluation.rows || []).length > 0;
+                                if (!hasRows) {
+                                    copy.bidders[0].technicalEvaluation.rows = rowsToRender.map((r: any) =>
+                                        r.id === targetRowId ? mutate({ ...r }) : { ...r }
+                                    );
+                                } else {
+                                    copy.bidders[0].technicalEvaluation.rows = copy.bidders[0].technicalEvaluation.rows.map((r: any) =>
+                                        r.id === targetRowId ? mutate({ ...r }) : r
+                                    );
+                                }
+                            };
                             return (
                                 <div>
                                     <div className="flex items-center justify-between mb-2">
@@ -891,7 +910,7 @@ export const EvaluationForm: React.FC<Props> = ({
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {(sectionB.bidders[0]?.technicalEvaluation?.rows ?? []).map((row: any) => (
+                                                {rowsToRender.map((row: any) => (
                                                     <tr key={row.id}>
                                                         {(sectionB.bidders[0]?.technicalEvaluation?.columns ?? []).map((col: any) => (
                                                             <td key={col.id} className="border px-2 py-2">
@@ -906,9 +925,7 @@ export const EvaluationForm: React.FC<Props> = ({
                                                                                 checked={row.data[col.id] === 'Yes'}
                                                                                 onChange={() => {
                                                                                     const copy = { ...(sectionB as any) };
-                                                                                    copy.bidders[0].technicalEvaluation.rows = copy.bidders[0].technicalEvaluation.rows.map((r: any) =>
-                                                                                        r.id === row.id ? { ...r, data: { ...r.data, [col.id]: 'Yes' } } : r
-                                                                                    );
+                                                                                    seedRowsIfEmpty(copy, row.id, (r: any) => ({ ...r, data: { ...r.data, [col.id]: 'Yes' } }));
                                                                                     setSectionB(copy);
                                                                                 }}
                                                                             />
@@ -922,9 +939,7 @@ export const EvaluationForm: React.FC<Props> = ({
                                                                                 checked={row.data[col.id] === 'No'}
                                                                                 onChange={() => {
                                                                                     const copy = { ...(sectionB as any) };
-                                                                                    copy.bidders[0].technicalEvaluation.rows = copy.bidders[0].technicalEvaluation.rows.map((r: any) =>
-                                                                                        r.id === row.id ? { ...r, data: { ...r.data, [col.id]: 'No' } } : r
-                                                                                    );
+                                                                                    seedRowsIfEmpty(copy, row.id, (r: any) => ({ ...r, data: { ...r.data, [col.id]: 'No' } }));
                                                                                     setSectionB(copy);
                                                                                 }}
                                                                             />
@@ -937,9 +952,7 @@ export const EvaluationForm: React.FC<Props> = ({
                                                                         value={row.data[col.id] || ''}
                                                                         onChange={(e) => {
                                                                             const copy = { ...(sectionB as any) };
-                                                                            copy.bidders[0].technicalEvaluation.rows = copy.bidders[0].technicalEvaluation.rows.map((r: any) =>
-                                                                                r.id === row.id ? { ...r, data: { ...r.data, [col.id]: e.target.value } } : r
-                                                                            );
+                                                                            seedRowsIfEmpty(copy, row.id, (r: any) => ({ ...r, data: { ...r.data, [col.id]: e.target.value } }));
                                                                             setSectionB(copy);
                                                                         }}
                                                                     />

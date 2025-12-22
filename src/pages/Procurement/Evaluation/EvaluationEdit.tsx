@@ -5,7 +5,7 @@ import { setPageTitle } from '../../../store/themeConfigSlice';
 import IconArrowLeft from '../../../components/Icon/IconArrowLeft';
 import IconX from '../../../components/Icon/IconX';
 import { getUser } from '../../../utils/auth';
-import { evaluationService, type Evaluation } from '../../../services/evaluationService';
+import { evaluationService, type Evaluation, type SectionA, type SectionB, type SectionD, type SectionE } from '../../../services/evaluationService';
 
 const EvaluationEdit = () => {
     const dispatch = useDispatch();
@@ -23,10 +23,10 @@ const EvaluationEdit = () => {
     const [currentSection, setCurrentSection] = useState<'A' | 'B' | 'C' | 'D' | 'E' | null>(null);
 
     // Section forms
-    const [sectionAForm, setSectionAForm] = useState<any>(null);
-    const [sectionBForm, setSectionBForm] = useState<any>(null);
-    const [sectionDForm, setSectionDForm] = useState<any>(null);
-    const [sectionEForm, setSectionEForm] = useState<any>(null);
+    const [sectionAForm, setSectionAForm] = useState<SectionA | null>(null);
+    const [sectionBForm, setSectionBForm] = useState<SectionB | null>(null);
+    const [sectionDForm, setSectionDForm] = useState<SectionD | null>(null);
+    const [sectionEForm, setSectionEForm] = useState<SectionE | null>(null);
 
     useEffect(() => {
         dispatch(setPageTitle('Edit Returned Evaluation'));
@@ -173,6 +173,351 @@ const EvaluationEdit = () => {
         return sections;
     };
 
+    const renderSectionAEditor = () => {
+        return (
+            <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-sm font-semibold mb-1">Comparable Estimate</label>
+                        <input
+                            type="number"
+                            className="form-input"
+                            value={sectionAForm?.comparableEstimate ?? ''}
+                            onChange={(e) => {
+                                const value = Number(e.target.value);
+                                setSectionAForm((prev) => ({ ...(prev ?? ({} as SectionA)), comparableEstimate: Number.isFinite(value) ? value : 0 }));
+                            }}
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-semibold mb-1">Funded By</label>
+                        <input
+                            type="text"
+                            className="form-input"
+                            value={sectionAForm?.fundedBy ?? ''}
+                            onChange={(e) => setSectionAForm((prev) => ({ ...(prev ?? ({} as SectionA)), fundedBy: e.target.value }))}
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-semibold mb-1">Procurement Method</label>
+                        <input
+                            type="text"
+                            className="form-input"
+                            value={sectionAForm?.procurementMethod ?? ''}
+                            onChange={(e) => setSectionAForm((prev) => ({ ...(prev ?? ({} as SectionA)), procurementMethod: e.target.value as SectionA['procurementMethod'] }))}
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-semibold mb-1">Contract Type</label>
+                        <input
+                            type="text"
+                            className="form-input"
+                            value={sectionAForm?.contractType ?? ''}
+                            onChange={(e) => setSectionAForm((prev) => ({ ...(prev ?? ({} as SectionA)), contractType: e.target.value as SectionA['contractType'] }))}
+                        />
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label className="block text-sm font-semibold mb-1">Tender Closing Date</label>
+                        <input
+                            type="date"
+                            className="form-input"
+                            value={sectionAForm?.tenderClosingDate ?? ''}
+                            onChange={(e) => setSectionAForm((prev) => ({ ...(prev ?? ({} as SectionA)), tenderClosingDate: e.target.value }))}
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-semibold mb-1">Tender Opening Date</label>
+                        <input
+                            type="date"
+                            className="form-input"
+                            value={sectionAForm?.tenderOpeningDate ?? ''}
+                            onChange={(e) => setSectionAForm((prev) => ({ ...(prev ?? ({} as SectionA)), tenderOpeningDate: e.target.value }))}
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-semibold mb-1">Bid Validity Days</label>
+                        <input
+                            type="number"
+                            className="form-input"
+                            value={sectionAForm?.bidValidityDays ?? ''}
+                            onChange={(e) => {
+                                const value = Number(e.target.value);
+                                setSectionAForm((prev) => ({ ...(prev ?? ({} as SectionA)), bidValidityDays: Number.isFinite(value) ? value : 0 }));
+                            }}
+                        />
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-sm font-semibold mb-1">Number of Bids Requested</label>
+                        <input
+                            type="number"
+                            className="form-input"
+                            value={sectionAForm?.numberOfBidsRequested ?? ''}
+                            onChange={(e) => {
+                                const value = Number(e.target.value);
+                                setSectionAForm((prev) => ({ ...(prev ?? ({} as SectionA)), numberOfBidsRequested: Number.isFinite(value) ? value : 0 }));
+                            }}
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-semibold mb-1">Number of Bids Received</label>
+                        <input
+                            type="number"
+                            className="form-input"
+                            value={sectionAForm?.numberOfBidsReceived ?? ''}
+                            onChange={(e) => {
+                                const value = Number(e.target.value);
+                                setSectionAForm((prev) => ({ ...(prev ?? ({} as SectionA)), numberOfBidsReceived: Number.isFinite(value) ? value : 0 }));
+                            }}
+                        />
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-sm font-semibold mb-1">Bid Security</label>
+                        <select
+                            className="form-select"
+                            value={sectionAForm?.bidSecurity ?? ''}
+                            onChange={(e) => setSectionAForm((prev) => ({ ...(prev ?? ({} as SectionA)), bidSecurity: e.target.value as SectionA['bidSecurity'] }))}
+                        >
+                            <option value="">Select</option>
+                            <option value="Yes">Yes</option>
+                            <option value="No">No</option>
+                            <option value="N/A">N/A</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-semibold mb-1">Award Criteria</label>
+                        <select
+                            className="form-select"
+                            value={sectionAForm?.awardCriteria ?? ''}
+                            onChange={(e) => setSectionAForm((prev) => ({ ...(prev ?? ({} as SectionA)), awardCriteria: e.target.value as SectionA['awardCriteria'] }))}
+                        >
+                            <option value="">Select</option>
+                            <option value="LOWEST_COST">Lowest Cost</option>
+                            <option value="MOST_ADVANTAGEOUS_BID">Most Advantageous Bid</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    const renderSectionDEditor = () => {
+        return (
+            <div className="space-y-3">
+                <label className="block text-sm font-semibold">Summary</label>
+                <textarea
+                    className="form-textarea"
+                    rows={6}
+                    value={sectionDForm?.summary ?? ''}
+                    onChange={(e) => setSectionDForm((prev) => ({ ...(prev ?? ({} as SectionD)), summary: e.target.value }))}
+                    placeholder="Enter summary of findings"
+                />
+            </div>
+        );
+    };
+
+    const renderSectionEEditor = () => {
+        return (
+            <div className="space-y-4">
+                <div>
+                    <label className="block text-sm font-semibold mb-1">Final Recommendation</label>
+                    <textarea
+                        className="form-textarea"
+                        rows={5}
+                        value={sectionEForm?.finalRecommendation ?? ''}
+                        onChange={(e) => setSectionEForm((prev) => ({ ...(prev ?? ({} as SectionE)), finalRecommendation: e.target.value }))}
+                        placeholder="Enter the procurement officer's recommendation"
+                    />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-sm font-semibold mb-1">Approval Date</label>
+                        <input
+                            type="date"
+                            className="form-input"
+                            value={sectionEForm?.approvalDate ?? ''}
+                            onChange={(e) => setSectionEForm((prev) => ({ ...(prev ?? ({} as SectionE)), approvalDate: e.target.value }))}
+                        />
+                    </div>
+                    <div className="flex items-center gap-2 mt-6">
+                        <input
+                            id="approved"
+                            type="checkbox"
+                            className="form-checkbox"
+                            checked={sectionEForm?.approved ?? false}
+                            onChange={(e) => setSectionEForm((prev) => ({ ...(prev ?? ({} as SectionE)), approved: e.target.checked }))}
+                        />
+                        <label htmlFor="approved" className="text-sm">Approved</label>
+                    </div>
+                </div>
+                <div>
+                    <label className="block text-sm font-semibold mb-1">Prepared By</label>
+                    <input
+                        type="text"
+                        className="form-input"
+                        value={sectionEForm?.preparedBy ?? ''}
+                        onChange={(e) => setSectionEForm((prev) => ({ ...(prev ?? ({} as SectionE)), preparedBy: e.target.value }))}
+                        placeholder="Name of preparer"
+                    />
+                </div>
+            </div>
+        );
+    };
+
+    type TableKey = 'eligibilityRequirements' | 'complianceMatrix' | 'technicalEvaluation';
+    type TableShape = { columns: Array<{ id: string; name: string; cellType?: 'text' | 'radio' }>; rows: Array<{ id: string; data: Record<string, string> }> };
+
+    const withSectionBTable = (key: TableKey, updater: (table: TableShape) => TableShape) => {
+        setSectionBForm((prev) => {
+            if (!prev || !prev.bidders || prev.bidders.length === 0) return prev;
+            const bidder = { ...prev.bidders[0] };
+            const table: TableShape = bidder[key] ?? { columns: [], rows: [] };
+            const updated = updater(table);
+            const nextBidder = { ...bidder, [key]: updated };
+            const nextBidders = [nextBidder, ...prev.bidders.slice(1)];
+            return { ...prev, bidders: nextBidders };
+        });
+    };
+
+    const updateSectionBCell = (key: TableKey, rowId: string, colId: string, value: string) => {
+        withSectionBTable(key, (table) => {
+            const rows = table.rows.map((row) => (row.id === rowId ? { ...row, data: { ...row.data, [colId]: value } } : row));
+            return { ...table, rows };
+        });
+    };
+
+    const updateSectionBColumnName = (key: TableKey, colId: string, value: string) => {
+        withSectionBTable(key, (table) => {
+            const columns = table.columns.map((col) => (col.id === colId ? { ...col, name: value } : col));
+            return { ...table, columns };
+        });
+    };
+
+    const addSectionBColumn = (key: TableKey) => {
+        withSectionBTable(key, (table) => {
+            const colId = `col-${Date.now()}`;
+            const newCol = { id: colId, name: 'New Column', cellType: key === 'technicalEvaluation' ? 'text' : undefined };
+            const rows = table.rows.map((row) => ({ ...row, data: { ...row.data, [colId]: '' } }));
+            return { ...table, columns: [...table.columns, newCol], rows };
+        });
+    };
+
+    const addSectionBRow = (key: TableKey) => {
+        withSectionBTable(key, (table) => {
+            const newRow = {
+                id: `row-${Date.now()}`,
+                data: table.columns.reduce<Record<string, string>>((acc, col) => {
+                    acc[col.id] = '';
+                    return acc;
+                }, {}),
+            };
+            return { ...table, rows: [...table.rows, newRow] };
+        });
+    };
+
+    const removeSectionBRow = (key: TableKey, rowId: string) => {
+        withSectionBTable(key, (table) => ({ ...table, rows: table.rows.filter((row) => row.id !== rowId) }));
+    };
+
+    const renderSectionBTable = (key: TableKey, title: string, helper: string) => {
+        const bidder = sectionBForm?.bidders?.[0];
+        const table = bidder?.[key] ?? { columns: [], rows: [] };
+
+        if (!sectionBForm || !sectionBForm.bidders || sectionBForm.bidders.length === 0) {
+            return (
+                <div className="p-4 bg-warning/10 border border-warning rounded">
+                    <p className="text-sm text-warning">No bidder data found for Section B.</p>
+                </div>
+            );
+        }
+
+        return (
+            <div className="space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                    <div>
+                        <p className="text-sm font-semibold">{title}</p>
+                        <p className="text-xs text-white-dark">{helper}</p>
+                    </div>
+                    <div className="flex gap-2">
+                        <button type="button" className="btn btn-outline-primary btn-sm" onClick={() => addSectionBColumn(key)}>
+                            + Column
+                        </button>
+                        <button type="button" className="btn btn-outline-primary btn-sm" onClick={() => addSectionBRow(key)}>
+                            + Row
+                        </button>
+                    </div>
+                </div>
+
+                {table.columns.length === 0 ? (
+                    <div className="p-3 bg-info/10 border border-info rounded text-sm text-info">No columns defined yet. Add a column to begin.</div>
+                ) : (
+                    <div className="overflow-x-auto">
+                        <table className="table-auto w-full border-collapse border border-gray-200 dark:border-gray-700 text-sm">
+                            <thead>
+                                <tr className="bg-gray-50 dark:bg-gray-800/50">
+                                    {table.columns.map((col) => (
+                                        <th key={col.id} className="border border-gray-200 dark:border-gray-700 px-2 py-2 align-middle">
+                                            <input
+                                                type="text"
+                                                className="form-input text-xs font-semibold bg-transparent border-0 p-1 w-full"
+                                                value={col.name}
+                                                onChange={(e) => updateSectionBColumnName(key, col.id, e.target.value)}
+                                                placeholder="Column name"
+                                            />
+                                        </th>
+                                    ))}
+                                    <th className="w-16 border border-gray-200 dark:border-gray-700 px-2 py-2 text-center text-xs">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {table.rows.map((row) => (
+                                    <tr key={row.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30">
+                                        {table.columns.map((col) => (
+                                            <td key={col.id} className="border border-gray-200 dark:border-gray-700 px-2 py-1">
+                                                <input
+                                                    type="text"
+                                                    className="form-input text-xs"
+                                                    value={row.data[col.id] || ''}
+                                                    onChange={(e) => updateSectionBCell(key, row.id, col.id, e.target.value)}
+                                                    placeholder="Enter value"
+                                                />
+                                            </td>
+                                        ))}
+                                        <td className="border border-gray-200 dark:border-gray-700 px-2 py-1 text-center">
+                                            <button
+                                                type="button"
+                                                className="btn btn-outline-danger btn-xs"
+                                                onClick={() => removeSectionBRow(key, row.id)}
+                                                title="Remove row"
+                                            >
+                                                Remove
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                                {table.rows.length === 0 && (
+                                    <tr>
+                                        <td className="text-center text-xs text-white-dark py-3" colSpan={table.columns.length + 1}>
+                                            No rows yet. Add a row to start entering data.
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </div>
+        );
+    };
+
     if (loading && !evaluation) {
         return (
             <div className="flex items-center justify-center h-64">
@@ -293,8 +638,43 @@ const EvaluationEdit = () => {
                         </p>
                     </div>
 
-                    {/* Add section-specific form fields here based on currentSection */}
-                    <div className="text-center text-white-dark">Section {currentSection} editor - Form fields to be implemented</div>
+                    {currentSection === 'A' ? (
+                        <div className="space-y-6">
+                            <div className="rounded border border-info p-3 bg-info/5">
+                                <p className="text-sm font-semibold text-info">Section A: Procurement Details</p>
+                                <p className="text-xs text-white-dark mt-1">Update core procurement details before saving and resubmitting.</p>
+                            </div>
+                            {renderSectionAEditor()}
+                        </div>
+                    ) : currentSection === 'B' ? (
+                        <div className="space-y-6">
+                            <div className="rounded border border-info p-3 bg-info/5">
+                                <p className="text-sm font-semibold text-info">Section B: Bidders & Compliance</p>
+                                <p className="text-xs text-white-dark mt-1">Edit table values below, then save and resubmit to the committee.</p>
+                            </div>
+                            {renderSectionBTable('eligibilityRequirements', 'Eligibility Requirements', 'Capture bidder eligibility details and compliance evidence')}
+                            {renderSectionBTable('complianceMatrix', 'Compliance Matrix', 'Record compliance checklist outcomes for each bidder')}
+                            {renderSectionBTable('technicalEvaluation', 'Technical Evaluation', 'Enter technical scores/notes for bidders')}
+                        </div>
+                    ) : currentSection === 'D' ? (
+                        <div className="space-y-6">
+                            <div className="rounded border border-info p-3 bg-info/5">
+                                <p className="text-sm font-semibold text-info">Section D: Summary</p>
+                                <p className="text-xs text-white-dark mt-1">Summarize findings and key observations.</p>
+                            </div>
+                            {renderSectionDEditor()}
+                        </div>
+                    ) : currentSection === 'E' ? (
+                        <div className="space-y-6">
+                            <div className="rounded border border-info p-3 bg-info/5">
+                                <p className="text-sm font-semibold text-info">Section E: Procurement Officer Recommendation</p>
+                                <p className="text-xs text-white-dark mt-1">Record the final recommendation and approval details.</p>
+                            </div>
+                            {renderSectionEEditor()}
+                        </div>
+                    ) : (
+                        <div className="text-center text-white-dark">Section {currentSection} editor - Form fields to be implemented</div>
+                    )}
 
                     <div className="flex gap-3 mt-6">
                         <button onClick={() => handleUpdateSection(currentSection)} className="btn btn-primary" disabled={loading}>
