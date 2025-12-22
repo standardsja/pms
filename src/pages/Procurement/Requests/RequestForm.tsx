@@ -739,8 +739,11 @@ const RequestForm = () => {
                 };
                 const priorityEnum = priority ? priorityMap[priority] || 'MEDIUM' : 'MEDIUM';
 
+                // Generate title using form code
+                const formCodeTitle = `${headerDeptCode}/${headerMonth}/${headerYear}/${headerSequence}`;
+
                 const formData = new FormData();
-                formData.append('title', `Request - ${formDate} - ${items.length} item(s)`);
+                formData.append('title', formCodeTitle);
                 formData.append('description', commentsJustification || 'Procurement request created from form');
                 formData.append('departmentId', String(departmentId));
                 formData.append('totalEstimated', String(estimatedTotal));

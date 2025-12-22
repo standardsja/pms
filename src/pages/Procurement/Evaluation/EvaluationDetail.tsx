@@ -162,8 +162,14 @@ const EvaluationDetail = () => {
                 const allAssignments = await evaluationService.getAllAssignments(parseInt(id));
                 setCurrentAssignments(allAssignments || []);
 
-                // Load available users (you may need to add this endpoint)
-                // For now, we'll just show the assignment list
+                // Disable structure editing if there are any assignments (evaluators have been assigned)
+                // This prevents procurement from changing table structure after sending to evaluators
+                if (allAssignments && allAssignments.length > 0) {
+                    setStructureEditEnabled(false);
+                } else {
+                    // Only allow structure editing if no evaluators have been assigned yet
+                    setStructureEditEnabled(true);
+                }
             } catch (err) {
                 console.error('Failed to load assignments:', err);
             }
