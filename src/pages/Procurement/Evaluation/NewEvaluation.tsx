@@ -159,6 +159,7 @@ const NewEvaluation = () => {
     type RetenderReasonCode = (typeof RETENDER_REASON_OPTIONS)[number]['code'];
 
     const [formData, setFormData] = useState({
+        evaluationTitle: '',
         background: '',
         dateSubmissionConsidered: '',
         reportCompletionDate: '',
@@ -433,6 +434,7 @@ const NewEvaluation = () => {
     const handleCreateEvaluation = async () => {
         const missingFields: string[] = [];
 
+        if (!formData.evaluationTitle) missingFields.push('Evaluation Title');
         if (!formData.comparableEstimate) missingFields.push('Comparable Estimate');
         if (!formData.tenderClosingDate) missingFields.push('Tender Closing Date');
         if (!formData.tenderOpeningDate) missingFields.push('Tender Opening Date');
@@ -476,7 +478,7 @@ const NewEvaluation = () => {
             const evaluationData: CreateEvaluationDTO = {
                 evalNumber,
                 rfqNumber: evalNumber,
-                rfqTitle: 'BSJ Evaluation Report',
+                rfqTitle: formData.evaluationTitle || 'BSJ Evaluation Report',
                 description: formData.background || undefined,
                 dateSubmissionConsidered: dateSubmissionIso,
                 reportCompletionDate: reportCompletionIso,
@@ -854,6 +856,21 @@ const NewEvaluation = () => {
                 {/* Step 1: BACKGROUND Section */}
                 {currentStep === 1 && (
                     <div className="panel">
+                        <div className="mb-5">
+                            <label htmlFor="evaluationTitle" className="mb-2 block font-semibold text-lg">
+                                EVALUATION TITLE: <span className="text-danger">*</span>
+                            </label>
+                            <input
+                                id="evaluationTitle"
+                                name="evaluationTitle"
+                                type="text"
+                                className="form-input"
+                                placeholder="e.g., Procurement of Office Supplies for ICT Department"
+                                value={formData.evaluationTitle}
+                                onChange={handleInputChange}
+                            />
+                            <p className="text-xs text-gray-500 mt-1">This title will appear as a header on all evaluation pages</p>
+                        </div>
                         <div className="mb-5">
                             <label htmlFor="background" className="mb-2 block font-semibold text-lg">
                                 BACKGROUND:

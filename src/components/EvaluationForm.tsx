@@ -74,6 +74,53 @@ export const EvaluationForm: React.FC<Props> = ({
 
     return (
         <div className="space-y-6">
+            {/* Evaluation Title Header */}
+            {evaluation?.rfqTitle && (
+                <div className="panel">
+                    <div className="p-6 bg-gradient-to-r from-primary to-primary-dark text-white rounded-lg shadow-lg">
+                        <h3 className="text-2xl font-bold mb-2">{evaluation.rfqTitle}</h3>
+                        <div className="flex items-center gap-4 text-sm opacity-90">
+                            <span>📋 {evaluation.evalNumber}</span>
+                            {evaluation.creator && <span>👤 Created by: {evaluation.creator.name || evaluation.creator.email}</span>}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Request Information Header */}
+            {evaluation && (evaluation.request || evaluation.combinedRequest) && (
+                <div className="panel">
+                    <div className="mb-5 -m-5 p-5 bg-primary/10 border-l-4 border-primary">
+                        <h5 className="text-lg font-bold text-primary">📋 Request Information</h5>
+                        <p className="text-sm mt-1">This evaluation is for the following procurement request</p>
+                    </div>
+                    <div className="p-5 space-y-3">
+                        <div>
+                            <label className="block mb-1 text-sm font-semibold text-primary">Request Title:</label>
+                            <p className="text-base font-medium">
+                                {evaluation.request?.title || evaluation.combinedRequest?.title}
+                            </p>
+                        </div>
+                        {(evaluation.request?.description || evaluation.combinedRequest?.description) && (
+                            <div>
+                                <label className="block mb-1 text-sm font-semibold">Request Description:</label>
+                                <div className="p-3 bg-gray-50 dark:bg-gray-900 rounded border">
+                                    <p className="whitespace-pre-wrap">
+                                        {evaluation.request?.description || evaluation.combinedRequest?.description}
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+                        {evaluation.request?.department && (
+                            <div>
+                                <label className="block mb-1 text-sm font-semibold">Requesting Department:</label>
+                                <p className="text-base">{evaluation.request.department.name}</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
             {/* Background Section */}
             {evaluation && (
                 <div className="panel">
