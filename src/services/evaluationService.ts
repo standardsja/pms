@@ -116,6 +116,17 @@ export interface Evaluation {
     status: EvaluationStatus;
     combinedRequestId?: number;
     requestId?: number;
+    request?: {
+        id: number;
+        title: string;
+        description?: string;
+        department?: { name: string };
+    };
+    combinedRequest?: {
+        id: number;
+        title: string;
+        description?: string;
+    };
 
     sectionA?: SectionA;
     sectionAStatus: SectionVerificationStatus;

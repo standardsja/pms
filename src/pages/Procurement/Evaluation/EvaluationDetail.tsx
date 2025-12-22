@@ -192,6 +192,24 @@ const EvaluationDetail = () => {
             setError(null);
             const data = await evaluationService.getEvaluationById(parseInt(id));
             setEvaluation(data);
+
+            // Update the print header with evaluation title
+            if (data?.rfqTitle) {
+                const printHeader = document.getElementById('global-print-header');
+                if (printHeader) {
+                    const now = new Date().toLocaleString();
+                    printHeader.innerHTML = `
+                        <div class="inner">
+                            <img src="/assets/images/bsj-logo.png" alt="BSJ" />
+                            <div style="font-weight:700;font-size:13px;">BUREAU OF STANDARDS JAMAICA</div>
+                            <div style="font-weight:600;font-size:12px;margin-top:4px;">BSJ Evaluation Report | ${data.rfqTitle}</div>
+                            <div class="meta"><div style="text-align:left">${now}</div><div style="text-align:center;font-weight:600">SPINX</div><div style="text-align:right">${
+                        data.evalNumber || ''
+                    }</div></div>
+                        </div>
+                    `;
+                }
+            }
         } catch (err: any) {
             console.error('Failed to load evaluation:', err);
             setError(err.message || 'Failed to load evaluation');

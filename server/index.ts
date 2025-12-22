@@ -5385,6 +5385,8 @@ app.get(
                     sectionCVerifier: { select: { id: true, name: true, email: true } },
                     sectionDVerifier: { select: { id: true, name: true, email: true } },
                     sectionEVerifier: { select: { id: true, name: true, email: true } },
+                    request: { select: { id: true, title: true, description: true, departmentId: true, department: { select: { name: true } } } },
+                    combinedRequest: { select: { id: true, title: true, description: true } },
                 },
             });
             if (!evaluation) throw new NotFoundError('Evaluation not found');
@@ -5416,7 +5418,9 @@ app.get(
              ub.id AS sectionBVerifierId, ub.name AS sectionBVerifierName, ub.email AS sectionBVerifierEmail,
              uc_v.id AS sectionCVerifierId, uc_v.name AS sectionCVerifierName, uc_v.email AS sectionCVerifierEmail,
              ud.id AS sectionDVerifierId, ud.name AS sectionDVerifierName, ud.email AS sectionDVerifierEmail,
-             ue.id AS sectionEVerifierId, ue.name AS sectionEVerifierName, ue.email AS sectionEVerifierEmail
+             ue.id AS sectionEVerifierId, ue.name AS sectionEVerifierName, ue.email AS sectionEVerifierEmail,
+             req.id AS requestId, req.title AS requestTitle, req.description AS requestDescription,
+             cr.id AS combinedRequestId, cr.title AS combinedRequestTitle
              FROM Evaluation e 
              LEFT JOIN User uc ON e.createdBy = uc.id 
              LEFT JOIN User uv ON e.validatedBy = uv.id
@@ -5425,6 +5429,8 @@ app.get(
              LEFT JOIN User uc_v ON e.sectionCVerifiedBy = uc_v.id
              LEFT JOIN User ud ON e.sectionDVerifiedBy = ud.id
              LEFT JOIN User ue ON e.sectionEVerifiedBy = ue.id
+             LEFT JOIN Request req ON e.requestId = req.id
+             LEFT JOIN CombinedRequest cr ON e.combinedRequestId = cr.id
              WHERE e.id = ${parseInt(id)} LIMIT 1`
         );
         const r = rows[0];
@@ -5484,6 +5490,10 @@ app.get(
             validationNotes: r.validationNotes ?? null,
             createdAt: r.createdAt,
             updatedAt: r.updatedAt,
+            requestId: r.requestId ?? null,
+            request: r.requestId ? { id: r.requestId, title: r.requestTitle, description: r.requestDescription } : null,
+            combinedRequestId: r.combinedRequestId ?? null,
+            combinedRequest: r.combinedRequestId ? { id: r.combinedRequestId, title: r.combinedRequestTitle } : null,
             _fallback: true,
         };
         res.json({ success: true, data: mapped, meta: { fallback: true } });
