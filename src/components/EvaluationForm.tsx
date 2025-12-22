@@ -97,17 +97,13 @@ export const EvaluationForm: React.FC<Props> = ({
                     <div className="p-5 space-y-3">
                         <div>
                             <label className="block mb-1 text-sm font-semibold text-primary">Request Title:</label>
-                            <p className="text-base font-medium">
-                                {evaluation.request?.title || evaluation.combinedRequest?.title}
-                            </p>
+                            <p className="text-base font-medium">{evaluation.request?.title || evaluation.combinedRequest?.title}</p>
                         </div>
                         {(evaluation.request?.description || evaluation.combinedRequest?.description) && (
                             <div>
                                 <label className="block mb-1 text-sm font-semibold">Request Description:</label>
                                 <div className="p-3 bg-gray-50 dark:bg-gray-900 rounded border">
-                                    <p className="whitespace-pre-wrap">
-                                        {evaluation.request?.description || evaluation.combinedRequest?.description}
-                                    </p>
+                                    <p className="whitespace-pre-wrap">{evaluation.request?.description || evaluation.combinedRequest?.description}</p>
                                 </div>
                             </div>
                         )}

@@ -203,7 +203,9 @@ const EvaluationDetail = () => {
                             <img src="/assets/images/bsj-logo.png" alt="BSJ" />
                             <div style="font-weight:700;font-size:13px;">BUREAU OF STANDARDS JAMAICA</div>
                             <div style="font-weight:600;font-size:12px;margin-top:4px;">BSJ Evaluation Report | ${data.rfqTitle}</div>
-                            <div class="meta"><div style="text-align:left">${now}</div><div style="text-align:center;font-weight:600">SPINX</div><div style="text-align:right">${data.evalNumber || ''}</div></div>
+                            <div class="meta"><div style="text-align:left">${now}</div><div style="text-align:center;font-weight:600">SPINX</div><div style="text-align:right">${
+                        data.evalNumber || ''
+                    }</div></div>
                         </div>
                     `;
                 }
