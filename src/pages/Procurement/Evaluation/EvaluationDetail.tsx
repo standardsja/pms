@@ -356,6 +356,69 @@ const EvaluationDetail = () => {
                 </div>
             )}
 
+            {/* Procurement Officer: Assign evaluators (including Section C delegation) */}
+            {isProcurement && evaluation && (
+                <div className="panel mb-4 no-print">
+                    <h6 className="font-semibold mb-3">Assign Evaluator</h6>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div>
+                            <label className="block mb-1 text-sm">User Email or ID</label>
+                            <input type="text" className="form-input" placeholder="Enter user email or numeric ID" value={selectedUserId} onChange={(e) => setSelectedUserId(e.target.value)} />
+                            <p className="text-xs text-gray-500 mt-1">Tip: Officers can delegate Section C to any staff here.</p>
+                        </div>
+                        <div>
+                            <label className="block mb-1 text-sm">Sections</label>
+                            <div className="flex gap-2 flex-wrap">
+                                {(['A', 'B', 'C', 'D', 'E'] as const).map((sec) => (
+                                    <label key={sec} className="flex items-center gap-1">
+                                        <input
+                                            type="checkbox"
+                                            className="form-checkbox"
+                                            checked={selectedAssignSections.includes(sec)}
+                                            onChange={(e) => {
+                                                if (e.target.checked) setSelectedAssignSections([...selectedAssignSections, sec]);
+                                                else setSelectedAssignSections(selectedAssignSections.filter((s) => s !== sec));
+                                            }}
+                                        />
+                                        <span className="text-sm">{sec}</span>
+                                    </label>
+                                ))}
+                            </div>
+                            <p className="text-xs text-white-dark mt-1">Common: select B and C for technical + comments.</p>
+                        </div>
+                        <div className="flex items-end">
+                            <button
+                                className="btn btn-primary w-full"
+                                onClick={async () => {
+                                    if (!selectedUserId || selectedAssignSections.length === 0) {
+                                        alert('Enter a user and select at least one section');
+                                        return;
+                                    }
+                                    try {
+                                        const n = parseInt(selectedUserId);
+                                        const isNum = !isNaN(n);
+                                        await evaluationService.assignEvaluators(evaluation.id, {
+                                            userIds: isNum ? [n] : undefined,
+                                            userEmails: !isNum ? [selectedUserId.trim()] : undefined,
+                                            sections: selectedAssignSections as Array<'A' | 'B' | 'C' | 'D' | 'E'>,
+                                        });
+                                        const updated = await evaluationService.getAllAssignments(evaluation.id);
+                                        setCurrentAssignments(updated || []);
+                                        setSelectedUserId('');
+                                        setSelectedAssignSections([]);
+                                        alert('Evaluator assigned successfully');
+                                    } catch (err: any) {
+                                        alert(err?.message || 'Failed to assign evaluator');
+                                    }
+                                }}
+                            >
+                                Assign
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Evaluator Complete Assignment Button */}
             {!isProcurement && !isCommittee && myAssignment && myAssignment.status !== 'SUBMITTED' && evaluation && (
                 <div className="panel mb-4 bg-success-light border-2 border-success no-print">

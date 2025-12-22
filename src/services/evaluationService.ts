@@ -371,7 +371,7 @@ class EvaluationService {
         });
     }
 
-    async assignEvaluators(id: number, payload: { userIds: number[]; sections?: Array<'A' | 'B' | 'C' | 'D' | 'E'> }) {
+    async assignEvaluators(id: number, payload: { userIds?: number[]; userEmails?: string[]; sections?: Array<'A' | 'B' | 'C' | 'D' | 'E'> }) {
         const result = await this.fetchWithAuth(`/api/evaluations/${id}/assign`, {
             method: 'POST',
             body: JSON.stringify(payload),
