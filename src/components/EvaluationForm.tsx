@@ -282,7 +282,15 @@ export const EvaluationForm: React.FC<Props> = ({
                     )}
 
                     {/* Eligibility Table */}
-                    {sectionB?.bidders?.[0]?.eligibilityRequirements && (
+                    {sectionB?.bidders?.[0] && (() => {
+                        // Initialize table if it doesn't exist
+                        if (!sectionB.bidders[0].eligibilityRequirements) {
+                            sectionB.bidders[0].eligibilityRequirements = { columns: [], rows: [] };
+                        }
+                        const table = sectionB.bidders[0].eligibilityRequirements;
+                        if (!table.columns) table.columns = [];
+                        if (!table.rows) table.rows = [];
+                        return (
                         <div>
                             <div className="flex items-center justify-between mb-2">
                                 <h6 className="font-semibold">Eligibility Table</h6>
@@ -293,10 +301,13 @@ export const EvaluationForm: React.FC<Props> = ({
                                             className="btn btn-outline-info btn-sm"
                                             onClick={() => {
                                                 const copy = { ...(sectionB as any) };
+                                                if (!copy.bidders[0].eligibilityRequirements) {
+                                                    copy.bidders[0].eligibilityRequirements = { columns: [], rows: [] };
+                                                }
                                                 const colId = `col-${Date.now()}`;
                                                 const newCol = { id: colId, name: 'New Column', cellType: 'text' };
-                                                copy.bidders[0].eligibilityRequirements.columns = [...copy.bidders[0].eligibilityRequirements.columns, newCol];
-                                                copy.bidders[0].eligibilityRequirements.rows = copy.bidders[0].eligibilityRequirements.rows.map((r: any) => ({
+                                                copy.bidders[0].eligibilityRequirements.columns = [...(copy.bidders[0].eligibilityRequirements.columns || []), newCol];
+                                                copy.bidders[0].eligibilityRequirements.rows = (copy.bidders[0].eligibilityRequirements.rows || []).map((r: any) => ({
                                                     ...r,
                                                     data: { ...r.data, [colId]: '' },
                                                 }));
@@ -310,12 +321,15 @@ export const EvaluationForm: React.FC<Props> = ({
                                             className="btn btn-outline-primary btn-sm"
                                             onClick={() => {
                                                 const copy = { ...(sectionB as any) };
-                                                const cols = copy.bidders[0].eligibilityRequirements.columns;
+                                                if (!copy.bidders[0].eligibilityRequirements) {
+                                                    copy.bidders[0].eligibilityRequirements = { columns: [], rows: [] };
+                                                }
+                                                const cols = copy.bidders[0].eligibilityRequirements.columns || [];
                                                 const newRow = {
                                                     id: `row-${Date.now()}`,
                                                     data: Object.fromEntries(cols.map((c: any) => [c.id, ''])),
                                                 };
-                                                copy.bidders[0].eligibilityRequirements.rows = [...copy.bidders[0].eligibilityRequirements.rows, newRow];
+                                                copy.bidders[0].eligibilityRequirements.rows = [...(copy.bidders[0].eligibilityRequirements.rows || []), newRow];
                                                 setSectionB(copy);
                                             }}
                                         >
@@ -486,10 +500,19 @@ export const EvaluationForm: React.FC<Props> = ({
                                 </table>
                             </div>
                         </div>
-                    )}
+                        );
+                    })()}
 
                     {/* Compliance Table */}
-                    {sectionB?.bidders?.[0]?.complianceMatrix && (
+                    {sectionB?.bidders?.[0] && (() => {
+                        // Initialize table if it doesn't exist
+                        if (!sectionB.bidders[0].complianceMatrix) {
+                            sectionB.bidders[0].complianceMatrix = { columns: [], rows: [] };
+                        }
+                        const table = sectionB.bidders[0].complianceMatrix;
+                        if (!table.columns) table.columns = [];
+                        if (!table.rows) table.rows = [];
+                        return (
                         <div>
                             <div className="flex items-center justify-between mb-2">
                                 <h6 className="font-semibold">Compliance Table</h6>
@@ -500,9 +523,12 @@ export const EvaluationForm: React.FC<Props> = ({
                                             className="btn btn-outline-info btn-sm"
                                             onClick={() => {
                                                 const copy = { ...(sectionB as any) };
+                                                if (!copy.bidders[0].complianceMatrix) {
+                                                    copy.bidders[0].complianceMatrix = { columns: [], rows: [] };
+                                                }
                                                 const colId = `col-${Date.now()}`;
-                                                copy.bidders[0].complianceMatrix.columns = [...copy.bidders[0].complianceMatrix.columns, { id: colId, name: 'New Column', cellType: 'text' }];
-                                                copy.bidders[0].complianceMatrix.rows = copy.bidders[0].complianceMatrix.rows.map((r: any) => ({ ...r, data: { ...r.data, [colId]: '' } }));
+                                                copy.bidders[0].complianceMatrix.columns = [...(copy.bidders[0].complianceMatrix.columns || []), { id: colId, name: 'New Column', cellType: 'text' }];
+                                                copy.bidders[0].complianceMatrix.rows = (copy.bidders[0].complianceMatrix.rows || []).map((r: any) => ({ ...r, data: { ...r.data, [colId]: '' } }));
                                                 setSectionB(copy);
                                             }}
                                         >
@@ -513,8 +539,11 @@ export const EvaluationForm: React.FC<Props> = ({
                                             className="btn btn-outline-primary btn-sm"
                                             onClick={() => {
                                                 const copy = { ...(sectionB as any) };
-                                                const newRow = { id: `row-${Date.now()}`, data: Object.fromEntries(copy.bidders[0].complianceMatrix.columns.map((c: any) => [c.id, ''])) };
-                                                copy.bidders[0].complianceMatrix.rows = [...copy.bidders[0].complianceMatrix.rows, newRow];
+                                                if (!copy.bidders[0].complianceMatrix) {
+                                                    copy.bidders[0].complianceMatrix = { columns: [], rows: [] };
+                                                }
+                                                const newRow = { id: `row-${Date.now()}`, data: Object.fromEntries((copy.bidders[0].complianceMatrix.columns || []).map((c: any) => [c.id, ''])) };
+                                                copy.bidders[0].complianceMatrix.rows = [...(copy.bidders[0].complianceMatrix.rows || []), newRow];
                                                 setSectionB(copy);
                                             }}
                                         >
@@ -600,7 +629,7 @@ export const EvaluationForm: React.FC<Props> = ({
                                     <tbody>
                                         {(sectionB.bidders[0]?.complianceMatrix?.rows ?? []).map((row: any) => (
                                             <tr key={row.id}>
-                                                {sectionB.bidders[0].complianceMatrix.columns.map((col: any) => (
+                                                {(sectionB.bidders[0]?.complianceMatrix?.columns ?? []).map((col: any) => (
                                                     <td key={col.id} className="border px-2 py-2">
                                                         {/* Compliance table is read-only for evaluators, only procurement can edit */}
                                                         {col.cellType === 'radio' && canEditStructure('B') ? (
@@ -684,10 +713,19 @@ export const EvaluationForm: React.FC<Props> = ({
                                 </table>
                             </div>
                         </div>
-                    )}
+                        );
+                    })()}
 
                     {/* Technical Table */}
-                    {sectionB?.bidders?.[0]?.technicalEvaluation && (
+                    {sectionB?.bidders?.[0] && (() => {
+                        // Initialize table if it doesn't exist
+                        if (!sectionB.bidders[0].technicalEvaluation) {
+                            sectionB.bidders[0].technicalEvaluation = { columns: [], rows: [] };
+                        }
+                        const table = sectionB.bidders[0].technicalEvaluation;
+                        if (!table.columns) table.columns = [];
+                        if (!table.rows) table.rows = [];
+                        return (
                         <div>
                             <div className="flex items-center justify-between mb-2">
                                 <h6 className="font-semibold">Technical Evaluation Table</h6>
@@ -698,9 +736,12 @@ export const EvaluationForm: React.FC<Props> = ({
                                             className="btn btn-outline-info btn-sm"
                                             onClick={() => {
                                                 const copy = { ...(sectionB as any) };
+                                                if (!copy.bidders[0].technicalEvaluation) {
+                                                    copy.bidders[0].technicalEvaluation = { columns: [], rows: [] };
+                                                }
                                                 const colId = `col-${Date.now()}`;
-                                                copy.bidders[0].technicalEvaluation.columns = [...copy.bidders[0].technicalEvaluation.columns, { id: colId, name: 'New Column', cellType: 'text' }];
-                                                copy.bidders[0].technicalEvaluation.rows = copy.bidders[0].technicalEvaluation.rows.map((r: any) => ({ ...r, data: { ...r.data, [colId]: '' } }));
+                                                copy.bidders[0].technicalEvaluation.columns = [...(copy.bidders[0].technicalEvaluation.columns || []), { id: colId, name: 'New Column', cellType: 'text' }];
+                                                copy.bidders[0].technicalEvaluation.rows = (copy.bidders[0].technicalEvaluation.rows || []).map((r: any) => ({ ...r, data: { ...r.data, [colId]: '' } }));
                                                 setSectionB(copy);
                                             }}
                                         >
@@ -711,8 +752,11 @@ export const EvaluationForm: React.FC<Props> = ({
                                             className="btn btn-outline-primary btn-sm"
                                             onClick={() => {
                                                 const copy = { ...(sectionB as any) };
-                                                const newRow = { id: `row-${Date.now()}`, data: Object.fromEntries(copy.bidders[0].technicalEvaluation.columns.map((c: any) => [c.id, ''])) };
-                                                copy.bidders[0].technicalEvaluation.rows = [...copy.bidders[0].technicalEvaluation.rows, newRow];
+                                                if (!copy.bidders[0].technicalEvaluation) {
+                                                    copy.bidders[0].technicalEvaluation = { columns: [], rows: [] };
+                                                }
+                                                const newRow = { id: `row-${Date.now()}`, data: Object.fromEntries((copy.bidders[0].technicalEvaluation.columns || []).map((c: any) => [c.id, ''])) };
+                                                copy.bidders[0].technicalEvaluation.rows = [...(copy.bidders[0].technicalEvaluation.rows || []), newRow];
                                                 setSectionB(copy);
                                             }}
                                         >
@@ -800,7 +844,7 @@ export const EvaluationForm: React.FC<Props> = ({
                                     <tbody>
                                         {(sectionB.bidders[0]?.technicalEvaluation?.rows ?? []).map((row: any) => (
                                             <tr key={row.id}>
-                                                {sectionB.bidders[0].technicalEvaluation.columns.map((col: any) => (
+                                                {(sectionB.bidders[0]?.technicalEvaluation?.columns ?? []).map((col: any) => (
                                                     <td key={col.id} className="border px-2 py-2">
                                                         {/* Technical evaluation table is editable by evaluators */}
                                                         {col.cellType === 'radio' && canEditTechnical() ? (
@@ -884,7 +928,8 @@ export const EvaluationForm: React.FC<Props> = ({
                                 </table>
                             </div>
                         </div>
-                    )}
+                        );
+                    })()}
                 </div>
                 {canEdit('B') && (
                     <div className="p-5 flex justify-end border-t">

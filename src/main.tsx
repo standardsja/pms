@@ -41,15 +41,17 @@ if (typeof window !== 'undefined') {
                 @media print {
                     /* Hide interactive controls */
                     button, .btn, nav, .no-print, header, .topbar, .app-header, .header-right, .user-menu { display: none !important; }
-                    /* Header rendered in-flow so it doesn't overlap content */
-                    #global-print-header { display: block !important; position: static !important; margin: 0 0 6px 0; padding: 8px 12px; background: white; border-bottom: 1px solid #ddd; }
-                    #global-print-header .inner { max-width: 1100px; margin: 0 auto; display:flex; flex-direction:column; align-items:center; gap:6px; }
+                    /* Fixed header so it repeats on every printed page */
+                    #global-print-header { display: block !important; position: fixed !important; top: 0; left: 0; right: 0; margin: 0; padding: 10px 18px; background: white; border-bottom: 1px solid #ddd; z-index: 9999; }
+                    #global-print-header .inner { max-width: 1100px; margin: 0 auto; display:flex; flex-direction:column; align-items:center; gap:6px; text-align:center; }
                     #global-print-header img { height:48px; width:auto; object-fit:contain; }
                     #global-print-header .meta { width:100%; display:flex; justify-content:space-between; font-size:11px; color:#333; margin-top:6px; }
                     /* Footer fixed to bottom but content has normal flow header above */
                     #global-print-footer { display: block !important; position: fixed; bottom: 0; left: 0; right: 0; background: white; border-top: 1px solid #ddd; padding: 6px 12px; font-size: 10pt; }
-                    @page { margin: 1in 0.5in 1in; }
+                    @page { margin: 1.1in 0.6in 1in; }
                     html, body, #root, main, .app, .page, .container, .page-content { box-sizing: border-box; }
+                    /* Add padding so content doesn't sit under the fixed header */
+                    body { padding-top: 120px !important; }
                 }
             `;
             document.head.appendChild(style);
