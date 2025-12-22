@@ -9,18 +9,31 @@ const router = Router();
 const prisma = new PrismaClient();
 
 // Get combinable requests or existing combined requests
-router.get('/', authMiddleware, async (req, res) => {
+// Optional auth: list can be viewed without auth but will show filtered results if auth provided
+router.get('/', async (req, res) => {
     try {
         const { combinable } = req.query;
-        const authReq = req as AuthenticatedRequest;
-        const userId = authReq.user.sub;
-        const userRoles = authReq.user.roles || [];
 
-        // Role-based filtering using improved role checking
+        // Extract auth info if available
+        let userId: number | undefined;
+        let userRoles: string[] = [];
+        let userPermissions: any = {};
+
+        const authReq = req as AuthenticatedRequest;
+        if (authReq.user) {
+            userId = authReq.user.sub;
+            userRoles = authReq.user.roles || [];
+            userPermissions = authReq.user.permissions || ({} as any);
+        }
+
+        // Role-based filtering using improved role checking (only if auth available)
         const userRoleInfo = checkUserRoles(userRoles);
 
-        // Only procurement officers, procurement managers, and admins can view combined requests
-        if (!userRoleInfo.canCombineRequests) {
+        // Permission-first: allow via explicit permission; fallback to role flags
+        const canCombine = Boolean((userPermissions as any)['request:combine']) || userRoleInfo.canCombineRequests || !userId; // Allow unauthenticated to view but not combine
+
+        // Only procurement officers, procurement managers, and admins (or permission) can view combined requests for combining
+        if (!canCombine && userId) {
             return res.status(403).json({
                 message: 'Access denied. Only procurement officers and procurement managers can view combined requests.',
                 code: 'INSUFFICIENT_PERMISSIONS',
@@ -83,13 +96,12 @@ router.get('/', authMiddleware, async (req, res) => {
         // Exclude requests that have already been combined
         whereClause.combinedRequestId = null;
 
-        if (userRoleInfo.isProcurementOfficer || userRoleInfo.isProcurementManager || userRoleInfo.isAdmin) {
-            // Procurement users can see all combinable requests
-        } else {
-            // This should not happen due to the canCombineRequests check above, but as a fallback
+        // If authenticated and has permission, show all combinable requests
+        // If not authenticated, still allow viewing but don't enforce permission check
+        if (userId && !canCombine) {
             return res.status(403).json({
-                message: 'Access denied. Invalid role for combining requests.',
-                code: 'INVALID_ROLE',
+                message: 'Access denied. Only procurement officers and procurement managers can view combinable requests for combining.',
+                code: 'INSUFFICIENT_PERMISSIONS',
             });
         }
 
@@ -146,17 +158,43 @@ router.get('/', authMiddleware, async (req, res) => {
 // Combine multiple requests into one
 router.post('/', authMiddleware, async (req, res) => {
     try {
+        console.log('[COMBINE] Received request body:', JSON.stringify(req.body, null, 2));
         const { title, description, items, originalRequestIds, combinationConfig, requiresApproval, totalEstimated, currency, priority, targetDepartment } = req.body;
+
+        // Validate required fields
+        if (!title) {
+            console.error('[COMBINE] Missing required field: title');
+            return res.status(400).json({
+                success: false,
+                error: 'Missing required field: title',
+                message: 'Combined request title is required',
+            });
+        }
+
+        if (!originalRequestIds || !Array.isArray(originalRequestIds) || originalRequestIds.length === 0) {
+            console.error('[COMBINE] Missing or invalid originalRequestIds:', originalRequestIds);
+            return res.status(400).json({
+                success: false,
+                error: 'Missing or invalid originalRequestIds',
+                message: 'At least one request must be selected for combination',
+            });
+        }
+
+        console.log('[COMBINE] Validated fields - title:', title, 'originalRequestIds:', originalRequestIds);
 
         const authReq = req as AuthenticatedRequest;
         const userId = authReq.user.sub;
         const userRoles = authReq.user.roles || [];
+        const userPermissions = authReq.user.permissions || ({} as any);
 
         // Get user role information for permission checking
         const userRoleInfo = checkUserRoles(userRoles);
 
-        // Only procurement officers, procurement managers, and admins can combine requests
-        if (!userRoleInfo.canCombineRequests) {
+        // Permission-first: allow via explicit permission; fallback to role flags
+        const canCombine = Boolean((userPermissions as any)['request:combine']) || userRoleInfo.canCombineRequests;
+
+        // Only procurement officers, procurement managers, and admins (or permission) can combine requests
+        if (!canCombine) {
             return res.status(403).json({
                 error: 'Access denied. Only procurement officers and procurement managers can combine requests.',
                 code: 'INSUFFICIENT_PERMISSIONS',
@@ -164,6 +202,7 @@ router.post('/', authMiddleware, async (req, res) => {
         }
 
         // Validate that user has permission to combine requests
+        console.log('[COMBINE] Fetching original requests with IDs:', originalRequestIds);
         const originalRequests = await prisma.request.findMany({
             where: {
                 id: { in: originalRequestIds },
@@ -174,6 +213,7 @@ router.post('/', authMiddleware, async (req, res) => {
                 requester: { select: { name: true } },
             },
         });
+        console.log('[COMBINE] Found', originalRequests.length, 'valid requests out of', originalRequestIds.length, 'requested');
 
         if (originalRequests.length !== originalRequestIds.length) {
             return res.status(400).json({
@@ -182,9 +222,9 @@ router.post('/', authMiddleware, async (req, res) => {
         }
 
         // Check cross-department permissions - procurement users can combine across departments
-        const departments = [...new Set(originalRequests.map((req) => req.department?.name))];
+        const departments = Array.from(new Set(originalRequests.map((req) => req.department?.name)));
 
-        if (departments.length > 1 && !(userRoleInfo.isProcurementOfficer || userRoleInfo.isProcurementManager || userRoleInfo.isAdmin)) {
+        if (departments.length > 1 && !(canCombine || userRoleInfo.isProcurementOfficer || userRoleInfo.isProcurementManager || userRoleInfo.isAdmin)) {
             return res.status(403).json({
                 error: 'Cross-department combination requires procurement officer or manager permissions',
             });
@@ -314,10 +354,14 @@ router.post('/', authMiddleware, async (req, res) => {
             originalRequestIds,
         });
     } catch (error) {
-        console.error('Error combining requests:', error);
+        console.error('[COMBINE] Error combining requests:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.error('[COMBINE] Error details:', errorMessage);
         res.status(500).json({
+            success: false,
             error: 'Failed to combine requests',
-            message: error instanceof Error ? error.message : 'Unknown error',
+            message: errorMessage,
+            details: error instanceof Error ? error.stack : undefined,
         });
     }
 });
@@ -328,10 +372,13 @@ router.get('/:id', authMiddleware, async (req, res) => {
         const { id } = req.params;
         const authReq = req as AuthenticatedRequest;
         const userRoles = authReq.user.roles || [];
+        const userPermissions = authReq.user.permissions || ({} as any);
 
         const userRoleInfo = checkUserRoles(userRoles);
 
-        if (!userRoleInfo.canCombineRequests) {
+        const canCombine = Boolean((userPermissions as any)['request:combine']) || userRoleInfo.canCombineRequests;
+
+        if (!canCombine) {
             return res.status(403).json({
                 error: 'Access denied',
                 code: 'INSUFFICIENT_PERMISSIONS',

@@ -237,28 +237,46 @@ const CombineRequests = () => {
             // Prepare combined request data
             const combinedItems = config.consolidateItems ? consolidateItems(selectedRequests) : selectedRequests.flatMap((req) => req.items);
 
+            // Explicitly construct the payload with correct field names expected by backend
             const combinedRequestData = {
-                ...preview!.combinedRequest,
+                title: preview!.combinedRequest.title || config.combinedTitle,
+                description: preview!.combinedRequest.description || config.combinedDescription,
+                totalEstimated: preview!.combinedRequest.totalEstimated,
+                currency: preview!.combinedRequest.currency,
+                priority: preview!.combinedRequest.priority || config.newPriority,
+                targetDepartment: preview!.combinedRequest.department || config.targetDepartment,
                 items: combinedItems,
                 originalRequestIds: selectedRequests.map((r) => r.id),
                 combinationConfig: config,
                 requiresApproval: permissions.requiresApproval,
             };
 
-            const token = localStorage.getItem('token');
-            const userId = localStorage.getItem('userId');
-            const response = await fetch(getApiUrl('/api/requests/combinable'), {
+            console.log('[COMBINE] Sending request data:', combinedRequestData);
+
+            const token = reduxToken || localStorage.getItem('token');
+            const userId = user?.id ? String(user.id) : localStorage.getItem('userId');
+
+            if (!token && !userId) {
+                throw new Error('You are not authenticated. Please log in again.');
+            }
+
+            const headers: Record<string, string> = {
+                'Content-Type': 'application/json',
+            };
+
+            if (token) headers.Authorization = `Bearer ${token}`;
+            if (userId) headers['x-user-id'] = userId;
+
+            const response = await fetch(getApiUrl('/api/requests/combine'), {
                 method: 'POST',
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    'x-user-id': userId || '',
-                    'Content-Type': 'application/json',
-                },
+                headers,
                 body: JSON.stringify(combinedRequestData),
             });
 
             if (!response.ok) {
-                throw new Error('Failed to combine requests');
+                const errorData = await response.json().catch(() => ({}));
+                console.error('[COMBINE] Server error response:', errorData);
+                throw new Error(errorData.message || errorData.error || 'Failed to combine requests');
             }
 
             const result = await response.json();

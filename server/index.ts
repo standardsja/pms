@@ -2048,6 +2048,9 @@ app.delete('/api/ideas/:id/vote', authMiddleware, voteLimiter, async (req, res) 
     }
 });
 
+// Combine requests routes (must be registered BEFORE other /api/requests routes)
+app.use('/api/requests/combine', combineRouter);
+
 // GET /requests - alias for direct backend access (frontend may call this without /api prefix)
 app.get('/api/requests', async (_req, res) => {
     try {
@@ -2301,121 +2304,8 @@ app.post(
     }
 );
 
-// GET /api/requests/combinable - Get combinable requests (must be before /api/requests/:id)
-app.get('/api/requests/combinable', async (req: any, res: any) => {
-    console.log('[COMBINE] Route hit - combinable requests');
-    try {
-        const { combinable } = req.query;
-
-        // Get user ID from either auth or header
-        const auth = req.headers.authorization || '';
-        const userIdHeader = req.headers['x-user-id'];
-        let userId: number | undefined;
-
-        console.log('[COMBINE] Headers:', { auth: auth.substring(0, 20), userIdHeader });
-
-        // Try to get user from JWT
-        if (auth && auth.startsWith('Bearer ')) {
-            const [, token] = auth.split(' ');
-            try {
-                const payload = jwt.verify(token, JWT_SECRET) as any;
-                userId = payload.sub || payload.id;
-                console.log('[COMBINE] JWT verified, userId:', userId);
-            } catch (e) {
-                console.log('[COMBINE] JWT verify failed:', e instanceof Error ? e.message : 'Unknown');
-            }
-        }
-
-        // Fallback to x-user-id header
-        if (!userId && userIdHeader) {
-            const parsed = parseInt(String(userIdHeader), 10);
-            if (Number.isFinite(parsed)) {
-                userId = parsed;
-                console.log('[COMBINE] Using x-user-id header:', userId);
-            }
-        }
-
-        if (!userId) {
-            console.log('[COMBINE] No valid userId found');
-            return res.status(401).json({ message: 'Unauthorized' });
-        }
-
-        console.log('[COMBINE] User:', userId, 'Query:', combinable);
-
-        // Check if user can combine requests
-        const user = await prisma.user.findUnique({
-            where: { id: userId },
-            include: { roles: { include: { role: true } } },
-        });
-
-        const roleNames = user?.roles?.map((r) => r.role?.name).filter(Boolean) || [];
-        const isProcurementManager = roleNames.includes('PROCUREMENT_MANAGER');
-        const isProcurementOfficer = roleNames.includes('PROCUREMENT_OFFICER');
-        const isAdmin = roleNames.includes('ADMIN');
-
-        if (!isProcurementManager && !isProcurementOfficer && !isAdmin) {
-            return res.status(403).json({
-                message: 'Access denied. Only procurement officers and procurement managers can view combined requests.',
-            });
-        }
-
-        // If combinable=true, return requests that can be combined
-        if (combinable === 'true') {
-            const requests = await prisma.request.findMany({
-                where: {
-                    status: { in: ['DRAFT', 'SUBMITTED', 'DEPARTMENT_REVIEW', 'PROCUREMENT_REVIEW'] },
-                    combinedRequestId: null,
-                },
-                include: {
-                    department: { select: { name: true, id: true } },
-                    requester: { select: { name: true } },
-                    items: {
-                        select: {
-                            id: true,
-                            description: true,
-                            quantity: true,
-                            unitPrice: true,
-                            totalPrice: true,
-                        },
-                    },
-                },
-                orderBy: { createdAt: 'desc' },
-                take: 100,
-            });
-
-            const transformedRequests = requests.map((request) => ({
-                id: request.id,
-                reference: request.reference,
-                title: request.title,
-                status: request.status,
-                priority: request.priority || 'MEDIUM',
-                totalEstimated: request.totalEstimated || 0,
-                currency: request.currency || 'USD',
-                department: request.department?.name || 'Unknown',
-                requestedBy: request.requester.name,
-                createdAt: request.createdAt,
-                items: request.items.map((item) => ({
-                    id: item.id,
-                    description: item.description,
-                    quantity: item.quantity,
-                    unitCost: Number(item.unitPrice),
-                    totalCost: Number(item.totalPrice),
-                })),
-            }));
-
-            return res.json(transformedRequests);
-        }
-
-        // Otherwise return existing combined requests
-        return res.json([]);
-    } catch (error) {
-        console.error('Error fetching combinable requests:', error);
-        res.status(500).json({
-            error: 'Failed to fetch requests',
-            message: error instanceof Error ? error.message : 'Unknown error',
-        });
-    }
-});
+// Mount dedicated Combine Requests router (handles GET list + POST combine)
+app.use('/api/requests/combinable', combineRouter);
 
 // GET /api/requests/:id - fetch a single request by ID for editing
 app.get('/api/requests/:id', async (req, res) => {
@@ -5989,8 +5879,9 @@ app.patch(
         if (sectionE) updateData.sectionE = sectionE;
         if (validationNotes) updateData.validationNotes = validationNotes;
         if (description !== undefined) updateData.description = description;
-        if (dateSubmissionConsidered !== undefined) updateData.dateSubmissionConsidered = formattedUpdateDateSubmission ? new Date(formattedUpdateDateSubmission) : null;
-        if (reportCompletionDate !== undefined) updateData.reportCompletionDate = formattedUpdateReportCompletion ? new Date(formattedUpdateReportCompletion) : null;
+        // Note: Prisma Client may be out of sync; these fields exist in schema but not yet in generated types
+        if (dateSubmissionConsidered !== undefined) (updateData as any).dateSubmissionConsidered = formattedUpdateDateSubmission ? new Date(formattedUpdateDateSubmission) : null;
+        if (reportCompletionDate !== undefined) (updateData as any).reportCompletionDate = formattedUpdateReportCompletion ? new Date(formattedUpdateReportCompletion) : null;
 
         if (useDelegate) {
             const evaluation = await (prisma as any).evaluation.update({
