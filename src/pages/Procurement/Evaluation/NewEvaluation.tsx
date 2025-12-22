@@ -55,8 +55,7 @@ const NewEvaluation = () => {
                     ...prev,
                     rfqNumber: data.reference || '',
                     rfqTitle: data.title,
-                    description: data.description || data.justification || '',
-                    background: data.description || data.justification || '',
+                    description: data.description || '',
                 }));
             } catch (error) {
                 console.error('Error fetching combined request:', error);
@@ -107,7 +106,6 @@ const NewEvaluation = () => {
                     rfqNumber: data.reference || data.code || '',
                     rfqTitle: data.title || '',
                     description: data.description || data.justification || '',
-                    background: data.description || data.justification || '',
                     comparableEstimate: totalEstimate > 0 ? totalEstimate.toFixed(2) : '',
                 }));
 
@@ -204,6 +202,7 @@ const NewEvaluation = () => {
     const [availableUsers, setAvailableUsers] = useState<Array<{ id: number; email: string; name?: string | null; roles?: string[] }>>([]);
     const [userSearch, setUserSearch] = useState('');
     const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
+    const [manualRecipient, setManualRecipient] = useState('');
     const [selectedSections, setSelectedSections] = useState<Array<'A' | 'B' | 'C' | 'D' | 'E'>>(['B', 'C']);
 
     const totalSteps = 5; // Background, Section A, Section B, Section C, Sections D & E
@@ -471,8 +470,8 @@ const NewEvaluation = () => {
                 return isNaN(parsed) ? 0 : parsed;
             };
 
-            const dateSubmissionIso = formData.dateSubmissionConsidered ? new Date(formData.dateSubmissionConsidered).toISOString() : null;
-            const reportCompletionIso = formData.reportCompletionDate ? new Date(formData.reportCompletionDate).toISOString() : null;
+            // Only propagate requestId when it is a valid integer (avoid sending string references/null)
+            const parsedRequestId = requestIdParam && /^\d+$/.test(requestIdParam) ? parseInt(requestIdParam, 10) : undefined;
 
             // Prepare the evaluation data matching the backend API structure
             const evaluationData: CreateEvaluationDTO = {
@@ -480,12 +479,10 @@ const NewEvaluation = () => {
                 rfqNumber: evalNumber,
                 rfqTitle: formData.evaluationTitle || 'BSJ Evaluation Report',
                 description: formData.background || undefined,
-                dateSubmissionConsidered: dateSubmissionIso,
-                reportCompletionDate: reportCompletionIso,
                 evaluator: formData.evaluator || undefined,
                 dueDate: formData.bidValidityExpiration || undefined,
                 combinedRequestId: combinedRequestIdState ? parseInt(combinedRequestIdState) : undefined, // Link to combined request
-                requestId: requestIdParam || undefined,
+                requestId: parsedRequestId,
                 sectionA: {
                     comparableEstimate: safeParseFloat(formData.comparableEstimate),
                     fundedBy: formData.fundedBy || '',
@@ -534,27 +531,30 @@ const NewEvaluation = () => {
                             bidderName: '', // Can be extracted from table if needed
                             eligibilityRequirements: {
                                 columns: eligibilityColumns,
-                                // Preserve authored table structure even if cells are empty
-                                rows: eligibilityRows.map((row) => ({
-                                    id: row.id,
-                                    data: row.data,
-                                })),
+                                rows: eligibilityRows
+                                    .filter((row) => Object.values(row.data).some((val) => val.trim() !== ''))
+                                    .map((row) => ({
+                                        id: row.id,
+                                        data: row.data,
+                                    })),
                             },
                             complianceMatrix: {
                                 columns: complianceColumns,
-                                // Preserve authored table structure even if cells are empty
-                                rows: complianceRows.map((row) => ({
-                                    id: row.id,
-                                    data: row.data,
-                                })),
+                                rows: complianceRows
+                                    .filter((row) => Object.values(row.data).some((val) => val.trim() !== ''))
+                                    .map((row) => ({
+                                        id: row.id,
+                                        data: row.data,
+                                    })),
                             },
                             technicalEvaluation: {
                                 columns: technicalColumns,
-                                // Preserve authored table structure even if cells are empty
-                                rows: technicalRows.map((row) => ({
-                                    id: row.id,
-                                    data: row.data,
-                                })),
+                                rows: technicalRows
+                                    .filter((row) => Object.values(row.data).some((val) => val.trim() !== ''))
+                                    .map((row) => ({
+                                        id: row.id,
+                                        data: row.data,
+                                    })),
                             },
                         },
                     ],
@@ -617,18 +617,39 @@ const NewEvaluation = () => {
         try {
             setLoading(true);
             // Coerce and filter IDs to ensure valid numeric payload
-            const validIds = selectedUserIds.map((v) => (typeof v === 'number' ? v : parseInt(String(v), 10))).filter((n) => Number.isFinite(n));
+            const baseIds = selectedUserIds.map((v) => (typeof v === 'number' ? v : parseInt(String(v), 10))).filter((n) => Number.isFinite(n));
+            const manual = manualRecipient.trim();
+            const manualIds: number[] = [];
+            const manualEmails: string[] = [];
 
-            if (validIds.length === 0) {
-                setAlertMessage('Please select at least one valid user');
+            if (manual) {
+                const numericCandidate = parseInt(manual, 10);
+                if (!Number.isNaN(numericCandidate)) {
+                    manualIds.push(numericCandidate);
+                } else if (manual.includes('@')) {
+                    manualEmails.push(manual.toLowerCase());
+                }
+            }
+
+            const userIds = Array.from(new Set([...baseIds, ...manualIds])).filter((n) => Number.isFinite(n));
+
+            if (userIds.length === 0 && manualEmails.length === 0) {
+                setAlertMessage('Please select at least one valid user or enter an email/ID');
                 setShowErrorAlert(true);
                 setTimeout(() => setShowErrorAlert(false), 4000);
                 return;
             }
 
-            console.debug('Assigning evaluators', { evaluationId: createdEvaluationId, userIds: validIds, sections: selectedSections });
-            await evaluationService.assignEvaluators(createdEvaluationId, { userIds: validIds, sections: selectedSections });
+            const sectionsWithC = selectedSections.includes('C') ? selectedSections : ([...selectedSections, 'C'] as Array<'A' | 'B' | 'C' | 'D' | 'E'>);
+
+            console.debug('Assigning evaluators', { evaluationId: createdEvaluationId, userIds, userEmails: manualEmails, sections: sectionsWithC });
+            await evaluationService.assignEvaluators(createdEvaluationId, {
+                userIds,
+                userEmails: manualEmails.length > 0 ? manualEmails : undefined,
+                sections: sectionsWithC,
+            });
             setShowAssignModal(false);
+            setManualRecipient('');
             navigate('/procurement/evaluation');
         } catch (err: any) {
             // Surface structured error message
@@ -749,7 +770,8 @@ const NewEvaluation = () => {
                             <div className="bg-info-light p-3 rounded">
                                 <p className="text-sm font-semibold text-info">Section B: Technical Evaluation</p>
                                 <p className="text-xs text-white-dark mt-1">
-                                    Select evaluators who will complete the technical evaluation tables (eligibility, compliance, and technical criteria). Requester(s) are automatically included.
+                                    Select evaluators who will complete the technical evaluation tables (eligibility, compliance, and technical criteria). Requester(s) are automatically included and
+                                    will always receive Section C to complete.
                                 </p>
                             </div>
                             <div className="flex flex-col md:flex-row gap-4">
@@ -762,6 +784,19 @@ const NewEvaluation = () => {
                                             value={userSearch}
                                             onChange={(e) => setUserSearch(e.target.value)}
                                         />
+                                    </div>
+                                    <div className="mb-3">
+                                        <label className="text-xs font-semibold text-gray-600 mb-1 block">Or enter a requester/evaluator email or ID</label>
+                                        <div className="flex gap-2">
+                                            <input
+                                                type="text"
+                                                className="form-input flex-1"
+                                                placeholder="name@org.com or 123"
+                                                value={manualRecipient}
+                                                onChange={(e) => setManualRecipient(e.target.value)}
+                                            />
+                                        </div>
+                                        <p className="text-[11px] text-white-dark mt-1">We will include this recipient even if they are not listed below.</p>
                                     </div>
                                     <div className="max-h-72 overflow-auto border rounded">
                                         {availableUsers
@@ -811,8 +846,12 @@ const NewEvaluation = () => {
                                 <button className="btn btn-outline-danger" onClick={() => setShowAssignModal(false)}>
                                     Cancel
                                 </button>
-                                <button className="btn btn-primary" onClick={handleSendAssignments} disabled={loading || selectedUserIds.length === 0}>
-                                    {loading ? 'Assigning...' : `Assign to ${selectedUserIds.length} User${selectedUserIds.length !== 1 ? 's' : ''}`}
+                                <button className="btn btn-primary" onClick={handleSendAssignments} disabled={loading || selectedUserIds.length + (manualRecipient.trim() ? 1 : 0) === 0}>
+                                    {loading
+                                        ? 'Assigning...'
+                                        : `Assign to ${selectedUserIds.length + (manualRecipient.trim() ? 1 : 0)} Recipient${
+                                              selectedUserIds.length + (manualRecipient.trim() ? 1 : 0) !== 1 ? 's' : ''
+                                          }`}
                                 </button>
                             </div>
                         </div>
@@ -921,9 +960,8 @@ const NewEvaluation = () => {
                     <div className="panel">
                         <div className="mb-5 -m-5 p-5 bg-primary/10 border-l-4 border-primary">
                             <h5 className="text-lg font-bold text-primary">Section A</h5>
-                            <p className="text-sm mt-1">to be completed by the Assigned Procurement Officer.</p>
+                            <p className="text-sm mt-1">Procurement Details - to be completed by the Procurement Officer</p>
                         </div>
-
                         <div className="space-y-4 p-5">
                             {/* Field 1 */}
                             <div>
@@ -1736,7 +1774,7 @@ const NewEvaluation = () => {
                         <div className="panel">
                             <div className="mb-5 -m-5 p-5 bg-success/10 border-l-4 border-success">
                                 <h5 className="text-lg font-bold text-success">Section D</h5>
-                                <p className="text-sm mt-1">to be completed by the Assigned Procurement Officer</p>
+                                <p className="text-sm mt-1">Summary of Evaluation - to be completed by the Procurement Officer</p>
                             </div>
 
                             <div className="space-y-5 p-5">
@@ -1748,11 +1786,11 @@ const NewEvaluation = () => {
                             </div>
                         </div>
 
-                        {/* Section E - To be completed by the Assigned Procurement Officer */}
+                        {/* Section E - To be completed by the Assigned Procurement Officer AFTER Section C is completed by Requesters */}
                         <div className="panel">
                             <div className="mb-5 -m-5 p-5 bg-primary/10 border-l-4 border-primary">
                                 <h5 className="text-lg font-bold text-primary">Section E</h5>
-                                <p className="text-sm mt-1">to be completed by the Assigned Procurement Officer</p>
+                                <p className="text-sm mt-1">Final Recommendation - to be completed by the Procurement Officer (after requesters complete Section C)</p>
                             </div>
 
                             <div className="space-y-5 p-5">
@@ -1834,22 +1872,24 @@ const NewEvaluation = () => {
                             <p className="text-sm text-white-dark mb-3">This evaluation form includes all required sections:</p>
                             <ul className="ml-4 list-disc space-y-1 text-sm text-white-dark">
                                 <li>
-                                    <strong>Section A:</strong> Procurement details, tender information, and award criteria
+                                    <strong>Section A:</strong> Procurement details, tender information, and award criteria (Procurement Officer)
                                 </li>
                                 <li>
-                                    <strong>Section B:</strong> Eligibility Requirements, Compliance Matrix, and Technical Evaluation
+                                    <strong>Section B:</strong> Eligibility Requirements, Compliance Matrix, and Technical Evaluation (Assigned Evaluators)
                                 </li>
                                 <li>
-                                    <strong>Section C:</strong> Evaluator comments, action taken, and recommendation
+                                    <strong>Section C:</strong> Evaluator comments, action taken, and recommendation (Requesters/Evaluators)
                                 </li>
                                 <li>
-                                    <strong>Section D:</strong> Summary of evaluation (to be completed by Procurement Officer)
+                                    <strong>Section D:</strong> Summary of evaluation (Procurement Officer)
                                 </li>
                                 <li>
-                                    <strong>Section E:</strong> Final recommendation (to be completed by Procurement Officer)
+                                    <strong>Section E:</strong> Final recommendation (Procurement Officer - available after Section C completion)
                                 </li>
                             </ul>
-                            <p className="mt-3 text-sm text-info font-semibold">Use the navigation buttons to move between sections and complete all required fields.</p>
+                            <p className="mt-3 text-sm text-info font-semibold">
+                                <strong>Workflow:</strong> Officer creates → Evaluators complete B → Requesters complete C → Officer completes D & E
+                            </p>
                         </div>
                     </div>
                 </div>
