@@ -5,7 +5,7 @@ import { selectUser } from '../../../../store/authSlice';
 import IconPlus from '../../../../components/Icon/IconPlus';
 import IconSearch from '../../../../components/Icon/IconSearch';
 import IconDownload from '../../../../components/Icon/IconDownload';
-import { getApiUrl, getAuthHeaders } from '../../../../utils/api';
+import { getApiUrl, getAuthHeadersSync } from '../../../../utils/api';
 import { showError, showInfo, showSuccess } from '../../../../utils/notifications';
 
 interface Report {
@@ -55,7 +55,7 @@ const HODReports: React.FC = () => {
             const url = getApiUrl(
                 `/api/v1/reports?division=${encodeURIComponent(String(userDepartment))}&hod=${encodeURIComponent(String(hodId || ''))}&status=${encodeURIComponent('Completed,In Progress')}`
             );
-            const response = await fetch(url, { headers: getAuthHeaders() });
+            const response = await fetch(url, { headers: getAuthHeadersSync() });
 
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);

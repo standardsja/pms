@@ -15,6 +15,7 @@ import rateLimit from 'express-rate-limit';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
 import { prisma } from '../prismaClient.js';
 import { config } from '../config/environment.js';
 import { logger } from '../config/logger.js';
@@ -98,11 +99,12 @@ router.post(
     // Add validation to ensure consistent 400s with details when payload is wrong
     validate(loginSchema),
     asyncHandler(async (req, res) => {
-        const { email, password } = req.body;
+        const { email, password, rememberMe } = req.body;
 
         logger.info('Auth login request received', {
             email,
             hasPassword: Boolean(password),
+            rememberMe: Boolean(rememberMe),
         });
 
         // Redundant safeguard; validate(loginSchema) already enforces this.
@@ -197,11 +199,12 @@ router.post(
                 throw new UnauthorizedError('Invalid credentials');
             }
 
-            // Successful DB auth: generate token, update login fields and return
+            // Successful DB auth: generate tokens, update login fields and return
             const roles = user.roles.map((r: any) => r.role.name);
             const permissions = computePermissionsForUser(user);
             const deptManagerFor = computeDeptManagerForUser(user);
             const token = jwt.sign({ sub: user.id, email: user.email, roles, name: user.name, permissions, deptManagerFor }, config.JWT_SECRET, { expiresIn: '24h' });
+            const refreshToken = await createRefreshToken(user.id, rememberMe);
 
             try {
                 await prisma.user.update({ where: { id: user.id }, data: { lastLogin: new Date(), failedLogins: 0, lastFailedLogin: null } });
@@ -213,10 +216,11 @@ router.post(
                 });
             }
 
-            logger.info('User logged in via database successfully', { userId: user.id, email: user.email });
+            logger.info('User logged in via database successfully', { userId: user.id, email: user.email, rememberMe });
 
             return res.json({
                 token,
+                refreshToken,
                 user: {
                     id: user.id,
                     email: user.email,
@@ -312,6 +316,7 @@ router.post(
             const permissions = computePermissionsForUser(user);
             const deptManagerFor = computeDeptManagerForUser(user);
             const token = jwt.sign({ sub: user.id, email: user.email, roles, name: user.name, permissions, deptManagerFor }, config.JWT_SECRET, { expiresIn: '24h' });
+            const refreshToken = await createRefreshToken(user.id, rememberMe);
 
             // Update last login and reset failed login counter (non-fatal)
             try {
@@ -335,11 +340,13 @@ router.post(
                 userId: user.id,
                 email: user.email,
                 roles,
+                rememberMe,
                 syncMethod: syncResult.appliedFromADGroups ? 'AD_GROUPS' : 'ADMIN_PANEL',
             });
 
             return res.json({
                 token,
+                refreshToken,
                 user: {
                     id: user.id,
                     email: user.email,
@@ -645,6 +652,264 @@ router.post(
                       }
                     : null,
             },
+        });
+    })
+);
+
+/**
+ * Helper function to create and store refresh token
+ */
+async function createRefreshToken(userId: number, rememberMe: boolean = false): Promise<string> {
+    const tokenValue = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(tokenValue).digest('hex');
+
+    // Remember me: 30 days, otherwise: 7 days
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + (rememberMe ? 30 : 7));
+
+    await prisma.refreshToken.create({
+        data: {
+            tokenHash,
+            userId,
+            expiresAt,
+        },
+    });
+
+    return tokenValue;
+}
+
+/**
+ * Helper function to generate password reset token
+ */
+async function createPasswordResetToken(userId: number): Promise<string> {
+    const token = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+    // Reset tokens expire in 1 hour
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + 1);
+
+    await prisma.refreshToken.create({
+        data: {
+            tokenHash,
+            userId,
+            expiresAt,
+        },
+    });
+
+    return token;
+}
+
+/**
+ * POST /api/auth/refresh
+ * Refresh access token using refresh token
+ */
+router.post(
+    '/refresh',
+    asyncHandler(async (req, res) => {
+        const { refreshToken } = req.body;
+
+        if (!refreshToken) {
+            throw new BadRequestError('Refresh token is required');
+        }
+
+        const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
+
+        const storedToken = await prisma.refreshToken.findUnique({
+            where: { tokenHash },
+            include: {
+                user: {
+                    include: {
+                        roles: {
+                            include: {
+                                role: true,
+                            },
+                        },
+                        department: true,
+                    },
+                },
+            },
+        });
+
+        if (!storedToken || storedToken.revoked || new Date() > storedToken.expiresAt) {
+            throw new UnauthorizedError('Invalid or expired refresh token');
+        }
+
+        const user = storedToken.user;
+        const roles = user.roles.map((r: any) => r.role.name);
+        const permissions = computePermissionsForUser(user);
+        const deptManagerFor = computeDeptManagerForUser(user);
+
+        // Generate new access token
+        const accessToken = jwt.sign(
+            {
+                sub: user.id,
+                email: user.email,
+                roles,
+                name: user.name,
+                permissions,
+                deptManagerFor,
+            },
+            config.JWT_SECRET,
+            { expiresIn: '24h' }
+        );
+
+        // Rotate refresh token: revoke old, create new
+        await prisma.refreshToken.update({
+            where: { id: storedToken.id },
+            data: { revoked: true },
+        });
+
+        const newRefreshToken = await createRefreshToken(user.id);
+
+        logger.info('Access token refreshed', { userId: user.id });
+
+        res.json({
+            token: accessToken,
+            refreshToken: newRefreshToken,
+            user: {
+                id: user.id,
+                email: user.email,
+                name: user.name,
+                roles,
+                permissions,
+                deptManagerFor,
+                department: user.department
+                    ? {
+                          id: user.department.id,
+                          name: user.department.name,
+                          code: user.department.code,
+                      }
+                    : null,
+            },
+        });
+    })
+);
+
+/**
+ * POST /api/auth/forgot-password
+ * Request password reset token
+ */
+router.post(
+    '/forgot-password',
+    authLimiter,
+    asyncHandler(async (req, res) => {
+        const { email } = req.body;
+
+        if (!email) {
+            throw new BadRequestError('Email is required');
+        }
+
+        const user = await prisma.user.findUnique({
+            where: { email: email.toLowerCase() },
+        });
+
+        // Always return success to prevent email enumeration
+        if (!user) {
+            logger.warn('Password reset requested for non-existent email', { email });
+            return res.json({
+                success: true,
+                message: 'If an account exists with this email, a password reset link has been sent.',
+            });
+        }
+
+        // LDAP-only users (no passwordHash) must contact admin - return specific message
+        if (!user.passwordHash) {
+            logger.warn('Password reset requested for LDAP-only user', { userId: user.id, email });
+            return res.status(400).json({
+                success: false,
+                message: 'This account uses LDAP/Active Directory authentication. Please contact your system administrator to reset your password.',
+                isLdapUser: true,
+            });
+        }
+
+        const resetToken = await createPasswordResetToken(user.id);
+
+        // In production, send email here with resetToken
+        // For now, we'll just log it (in production, remove this log!)
+        logger.info('Password reset token generated', {
+            userId: user.id,
+            email: user.email,
+            resetToken, // REMOVE IN PRODUCTION
+        });
+
+        res.json({
+            success: true,
+            message: 'If an account exists with this email, a password reset link has been sent.',
+            // REMOVE IN PRODUCTION - for development only:
+            resetToken,
+        });
+    })
+);
+
+/**
+ * POST /api/auth/reset-password
+ * Reset password using reset token
+ */
+router.post(
+    '/reset-password',
+    authLimiter,
+    asyncHandler(async (req, res) => {
+        const { token, password } = req.body;
+
+        if (!token || !password) {
+            throw new BadRequestError('Token and new password are required');
+        }
+
+        // Validate password strength
+        if (password.length < 8) {
+            throw new BadRequestError('Password must be at least 8 characters long');
+        }
+        if (!/[a-z]/.test(password)) {
+            throw new BadRequestError('Password must contain at least one lowercase letter');
+        }
+        if (!/[A-Z]/.test(password)) {
+            throw new BadRequestError('Password must contain at least one uppercase letter');
+        }
+        if (!/\d/.test(password)) {
+            throw new BadRequestError('Password must contain at least one number');
+        }
+        if (!/[^A-Za-z0-9]/.test(password)) {
+            throw new BadRequestError('Password must contain at least one special character');
+        }
+
+        const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+        const storedToken = await prisma.refreshToken.findUnique({
+            where: { tokenHash },
+            include: { user: true },
+        });
+
+        if (!storedToken || storedToken.revoked || new Date() > storedToken.expiresAt) {
+            throw new UnauthorizedError('Invalid or expired reset token');
+        }
+
+        // Hash new password
+        const passwordHash = await bcrypt.hash(password, 12);
+
+        // Update user password and revoke token
+        await prisma.$transaction([
+            prisma.user.update({
+                where: { id: storedToken.userId },
+                data: {
+                    passwordHash,
+                    failedLogins: 0,
+                    blocked: false,
+                    blockedAt: null,
+                    blockedReason: null,
+                },
+            }),
+            prisma.refreshToken.update({
+                where: { id: storedToken.id },
+                data: { revoked: true },
+            }),
+        ]);
+
+        logger.info('Password reset successfully', { userId: storedToken.userId });
+
+        res.json({
+            success: true,
+            message: 'Password has been reset successfully. You can now log in with your new password.',
         });
     })
 );

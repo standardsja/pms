@@ -4,7 +4,7 @@ import { setPageTitle } from '../../../../store/themeConfigSlice';
 import { selectUser } from '../../../../store/authSlice';
 import IconPlus from '../../../../components/Icon/IconPlus';
 import IconSearch from '../../../../components/Icon/IconSearch';
-import { getApiUrl, getAuthHeaders } from '../../../../utils/api';
+import { getApiUrl, getAuthHeadersSync } from '../../../../utils/api';
 import { showError, showInfo } from '../../../../utils/notifications';
 
 interface Department {
@@ -52,7 +52,7 @@ const HODDepartments: React.FC = () => {
 
             // Fetch real-time data from API
             const url = getApiUrl(`/api/v1/departments?division=${encodeURIComponent(String(userDepartment))}&hod=${encodeURIComponent(String(userId || ''))}`);
-            const response = await fetch(url, { headers: getAuthHeaders() });
+            const response = await fetch(url, { headers: getAuthHeadersSync() });
 
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);

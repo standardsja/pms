@@ -6,7 +6,7 @@ import IconSearch from '../../../../components/Icon/IconSearch';
 import IconEye from '../../../../components/Icon/IconEye';
 import { Request } from '../../../../types/request.types';
 import { adaptRequestsResponse, filterRequests, formatDate, searchRequests, sortRequestsByDateDesc } from '../../../../utils/requestUtils';
-import { getApiUrl, getAuthHeaders } from '../../../../utils/api';
+import { getApiUrl, getAuthHeadersSync } from '../../../../utils/api';
 import { Link } from 'react-router-dom';
 import { showError } from '../../../../utils/notifications';
 
@@ -28,7 +28,7 @@ const HODPendingApprovals: React.FC = () => {
             setLoading(true);
             try {
                 const res = await fetch(getApiUrl('/api/requests'), {
-                    headers: getAuthHeaders(),
+                    headers: getAuthHeadersSync(),
                     signal: controller.signal,
                 });
                 let data: unknown = null;

@@ -3,7 +3,7 @@ import { useDispatch } from 'react-redux';
 import { setPageTitle } from '../../../store/themeConfigSlice';
 import { type SplinteringRule } from '../../../utils/splinteringDetection';
 import { showSuccess, showError } from '../../../utils/notifications';
-import { getApiUrl, getAuthHeaders } from '../../../utils/api';
+import { getApiUrl, getAuthHeadersSync } from '../../../utils/api';
 import IconSettings from '../../../components/Icon/IconSettings';
 import IconEdit from '../../../components/Icon/IconEdit';
 import IconTrash from '../../../components/Icon/IconTrash';
@@ -26,7 +26,7 @@ const SplinteringManagement = () => {
         setIsLoading(true);
         try {
             const response = await fetch(getApiUrl('/api/admin/splintering-rules'), {
-                headers: getAuthHeaders(),
+                headers: getAuthHeadersSync(),
             });
 
             if (response.ok) {
@@ -51,7 +51,7 @@ const SplinteringManagement = () => {
 
             const response = await fetch(url, {
                 method,
-                headers: getAuthHeaders(),
+                headers: getAuthHeadersSync(),
                 body: JSON.stringify({
                     ruleId: rule.id,
                     name: rule.name,
@@ -90,7 +90,7 @@ const SplinteringManagement = () => {
             try {
                 const response = await fetch(getApiUrl(`/api/admin/splintering-rules/${ruleId}`), {
                     method: 'DELETE',
-                    headers: getAuthHeaders(),
+                    headers: getAuthHeadersSync(),
                 });
 
                 if (response.ok) {
@@ -110,7 +110,7 @@ const SplinteringManagement = () => {
         try {
             const response = await fetch(getApiUrl(`/api/admin/splintering-rules/${ruleId}/toggle`), {
                 method: 'POST',
-                headers: getAuthHeaders(),
+                headers: getAuthHeadersSync(),
             });
 
             if (response.ok) {

@@ -11,7 +11,7 @@ import IconRefresh from '../../../components/Icon/IconRefresh';
 import IconX from '../../../components/Icon/IconX';
 import { getStatusBadge } from '../../../utils/statusBadges';
 import { getApiUrl } from '../../../config/api';
-import { getAuthHeaders } from '../../../utils/api';
+import { getAuthHeadersSync } from '../../../utils/api';
 
 const MySwal = withReactContent(Swal);
 
@@ -92,7 +92,7 @@ const AssignRequests = () => {
 
     // Fetch data function (can be called to refresh inbox/officers)
     const buildHeaders = () => {
-        const headers = getAuthHeaders();
+        const headers = getAuthHeadersSync();
         if (currentUserId) headers['x-user-id'] = String(currentUserId);
         return headers;
     };

@@ -11,7 +11,7 @@ import Swal from 'sweetalert2';
 import { useTranslation } from 'react-i18next';
 import { evaluationService, type CreateEvaluationDTO } from '../../../services/evaluationService';
 import { getApiUrl } from '../../../config/api';
-import { getAuthHeaders } from '../../../utils/api';
+import { getAuthHeadersSync } from '../../../utils/api';
 
 const NewEvaluation = () => {
     const dispatch = useDispatch();
@@ -40,7 +40,7 @@ const NewEvaluation = () => {
             try {
                 setLoadingCombinedRequest(true);
                 const response = await fetch(getApiUrl(`/api/requests/combine/${combinedRequestIdState}`), {
-                    headers: getAuthHeaders(),
+                    headers: getAuthHeadersSync(),
                 });
 
                 if (!response.ok) throw new Error('Failed to fetch combined request');
@@ -72,7 +72,7 @@ const NewEvaluation = () => {
             if (!requestIdParam) return;
             try {
                 const response = await fetch(getApiUrl(`/api/requests/${requestIdParam}`), {
-                    headers: getAuthHeaders(),
+                    headers: getAuthHeadersSync(),
                 });
 
                 if (!response.ok) throw new Error('Failed to fetch request');
@@ -570,7 +570,7 @@ const NewEvaluation = () => {
             // Load users for selection
             try {
                 const resp = await fetch(getApiUrl('/api/admin/users'), {
-                    headers: getAuthHeaders(),
+                    headers: getAuthHeadersSync(),
                 });
                 if (resp.ok) {
                     const users = await resp.json();

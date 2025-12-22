@@ -22,14 +22,25 @@ const ForgotPassword = () => {
         setIsLoading(true);
 
         try {
-            // Simulate API call
-            await new Promise(resolve => setTimeout(resolve, 1500));
+            const response = await fetch('/api/auth/forgot-password', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ email }),
+            });
 
-            // Mock validation
-            if (email) {
-                setIsSuccess(true);
+            const data = await response.json();
+
+            if (!response.ok) {
+                // Check if this is an LDAP user who needs to contact admin
+                if (data.isLdapUser) {
+                    setError(data.message || 'This account uses LDAP authentication. Please contact your system administrator.');
+                } else {
+                    setError(data.message || 'Failed to send reset link. Please try again.');
+                }
             } else {
-                setError('Please enter a valid email address');
+                setIsSuccess(true);
             }
         } catch (err) {
             setError('Failed to send reset link. Please try again.');
@@ -57,9 +68,7 @@ const ForgotPassword = () => {
                             </div>
                         </div>
                         <h1 className="text-5xl font-bold mb-6">Forgot Your Password?</h1>
-                        <p className="text-xl text-white/90 mb-8">
-                            Don't worry! It happens. Enter your email address and we'll send you a link to reset your password.
-                        </p>
+                        <p className="text-xl text-white/90 mb-8">Don't worry! It happens. Enter your email address and we'll send you a link to reset your password.</p>
                         <div className="space-y-4">
                             <div className="flex items-start gap-3">
                                 <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center flex-shrink-0 mt-1">
@@ -112,16 +121,10 @@ const ForgotPassword = () => {
                                     Back to Login
                                 </Link>
                                 <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Reset Password</h2>
-                                <p className="text-gray-600 dark:text-gray-400">
-                                    Enter your email address and we'll send you instructions to reset your password
-                                </p>
+                                <p className="text-gray-600 dark:text-gray-400">Enter your email address and we'll send you instructions to reset your password</p>
                             </div>
 
-                            {error && (
-                                <div className="mb-6 p-4 bg-danger-light/10 border border-danger rounded-lg text-danger text-sm">
-                                    {error}
-                                </div>
-                            )}
+                            {error && <div className="mb-6 p-4 bg-danger-light/10 border border-danger rounded-lg text-danger text-sm">{error}</div>}
 
                             <form onSubmit={handleSubmit} className="space-y-6">
                                 <div>
@@ -144,11 +147,7 @@ const ForgotPassword = () => {
                                     </div>
                                 </div>
 
-                                <button
-                                    type="submit"
-                                    disabled={isLoading}
-                                    className="btn btn-primary w-full py-3 text-base font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
+                                <button type="submit" disabled={isLoading} className="btn btn-primary w-full py-3 text-base font-semibold disabled:opacity-50 disabled:cursor-not-allowed">
                                     {isLoading ? (
                                         <span className="flex items-center justify-center gap-2">
                                             <span className="animate-spin border-2 border-white border-l-transparent rounded-full w-5 h-5 inline-block"></span>
@@ -177,14 +176,19 @@ const ForgotPassword = () => {
                         <div className="text-center">
                             <div className="w-20 h-20 bg-success/10 rounded-full flex items-center justify-center mx-auto mb-6">
                                 <svg className="w-10 h-10 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 19v-8.93a2 2 0 01.89-1.664l7-4.666a2 2 0 012.22 0l7 4.666A2 2 0 0121 10.07V19M3 19a2 2 0 002 2h14a2 2 0 002-2M3 19l6.75-4.5M21 19l-6.75-4.5M3 10l6.75 4.5M21 10l-6.75 4.5m0 0l-1.14.76a2 2 0 01-2.22 0l-1.14-.76" />
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M3 19v-8.93a2 2 0 01.89-1.664l7-4.666a2 2 0 012.22 0l7 4.666A2 2 0 0121 10.07V19M3 19a2 2 0 002 2h14a2 2 0 002-2M3 19l6.75-4.5M21 19l-6.75-4.5M3 10l6.75 4.5M21 10l-6.75 4.5m0 0l-1.14.76a2 2 0 01-2.22 0l-1.14-.76"
+                                    />
                                 </svg>
                             </div>
                             <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-3">Check Your Email</h2>
                             <p className="text-gray-600 dark:text-gray-400 mb-6">
                                 We've sent password reset instructions to <strong className="text-gray-900 dark:text-white">{email}</strong>
                             </p>
-                            
+
                             <div className="space-y-4">
                                 <div className="p-4 bg-warning-light/10 border border-warning rounded-lg text-left">
                                     <p className="text-sm text-gray-700 dark:text-gray-300">
@@ -192,10 +196,7 @@ const ForgotPassword = () => {
                                     </p>
                                 </div>
 
-                                <button
-                                    onClick={() => setIsSuccess(false)}
-                                    className="btn btn-outline-primary w-full py-3"
-                                >
+                                <button onClick={() => setIsSuccess(false)} className="btn btn-outline-primary w-full py-3">
                                     Send Another Link
                                 </button>
 

@@ -55,6 +55,9 @@ class AuthService {
             if (data.token) {
                 localStorage.setItem('token', data.token);
             }
+            if (data.refreshToken) {
+                localStorage.setItem('refreshToken', data.refreshToken);
+            }
             // Persist user snapshot for downstream services (adminService, etc.)
             try {
                 if (data.user) {

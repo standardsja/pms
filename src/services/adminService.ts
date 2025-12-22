@@ -49,7 +49,7 @@ function getCurrentUserId(): number | null {
 }
 
 import { getApiBaseUrl } from '../config/api';
-import { getAuthHeaders } from '../utils/api';
+import { getAuthHeadersSync } from '../utils/api';
 
 const API_BASE = getApiBaseUrl();
 // Decide whether to prefix; if API_BASE provided and path is relative, join.
@@ -61,7 +61,7 @@ function buildUrl(path: string) {
 
 async function apiGet<T = any>(path: string): Promise<T> {
     const url = buildUrl(path);
-    const headers = getAuthHeaders();
+    const headers = getAuthHeadersSync();
     const res = await fetch(url, { headers });
     if (!res.ok) {
         const text = await res.text();
@@ -72,7 +72,7 @@ async function apiGet<T = any>(path: string): Promise<T> {
 
 async function apiPost<T = any>(path: string, body: any): Promise<T> {
     const url = buildUrl(path);
-    const headers = getAuthHeaders();
+    const headers = getAuthHeadersSync();
     const res = await fetch(url, {
         method: 'POST',
         headers,
@@ -94,7 +94,7 @@ async function apiPost<T = any>(path: string, body: any): Promise<T> {
 
 async function apiPut<T = any>(path: string, body: any): Promise<T> {
     const url = buildUrl(path);
-    const headers = getAuthHeaders();
+    const headers = getAuthHeadersSync();
     const res = await fetch(url, {
         method: 'PUT',
         headers,
@@ -116,7 +116,7 @@ async function apiPut<T = any>(path: string, body: any): Promise<T> {
 
 async function apiDelete<T = any>(path: string): Promise<T> {
     const url = buildUrl(path);
-    const headers = getAuthHeaders();
+    const headers = getAuthHeadersSync();
     const res = await fetch(url, {
         method: 'DELETE',
         headers,

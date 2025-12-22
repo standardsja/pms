@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { setPageTitle } from '../../../store/themeConfigSlice';
 import { getApiUrl } from '../../../config/api';
-import { getAuthHeaders } from '../../../utils/api';
+import { getAuthHeadersSync } from '../../../utils/api';
 import IconLoader from '../../../components/Icon/IconLoader';
 import IconSquareCheck from '../../../components/Icon/IconSquareCheck';
 import IconAlertCircle from '../../../components/Icon/IconAlertCircle';
@@ -57,7 +57,7 @@ const RolePermissionManagement = () => {
     const loadData = async () => {
         setLoading(true);
         try {
-            const authHeaders = getAuthHeaders();
+            const authHeaders = getAuthHeadersSync();
 
             const [rolesRes, permsRes] = await Promise.all([
                 fetch(getApiUrl('/api/admin/roles'), { headers: authHeaders }).catch(() => null),
@@ -135,7 +135,7 @@ const RolePermissionManagement = () => {
 
     const loadRolePermissions = async (roleId: string | number) => {
         try {
-            const authHeaders = getAuthHeaders();
+            const authHeaders = getAuthHeadersSync();
             const response = await fetch(getApiUrl(`/api/admin/roles/${roleId}/permissions`), {
                 headers: authHeaders,
             });
@@ -160,7 +160,7 @@ const RolePermissionManagement = () => {
 
         setProcessing(true);
         try {
-            const authHeaders = getAuthHeaders();
+            const authHeaders = getAuthHeadersSync();
             let response;
 
             if (editingRole) {
@@ -257,7 +257,7 @@ const RolePermissionManagement = () => {
 
         setProcessing(true);
         try {
-            const authHeaders = getAuthHeaders();
+            const authHeaders = getAuthHeadersSync();
             const response = await fetch(getApiUrl(`/api/admin/roles/${id}`), {
                 method: 'DELETE',
                 headers: authHeaders,

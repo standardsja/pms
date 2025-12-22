@@ -149,7 +149,7 @@ router.get(
 
 /**
  * GET /api/v1/reports
- * Fetch reports for HOD's division (mock implementation)
+ * Fetch reports for HOD's division (real data from requests)
  */
 router.get(
     '/reports',
@@ -174,30 +174,86 @@ router.get(
             });
         }
 
-        // Mock reports data until reports table is created
-        const mockReports = [
+        // Get real report data from requests and related tables
+        const departmentId = division ? parseInt(division) : hodUser.departmentId;
+
+        // Request statistics by status
+        const requestsByStatus = await prisma.request.groupBy({
+            by: ['status'],
+            where: {
+                departmentId: departmentId || undefined,
+            },
+            _count: {
+                id: true,
+            },
+        });
+
+        // Total spending by department
+        const totalSpending = await prisma.request.aggregate({
+            where: {
+                departmentId: departmentId || undefined,
+                status: {
+                    in: ['FINANCE_APPROVED', 'SENT_TO_VENDOR', 'CLOSED'],
+                },
+            },
+            _sum: {
+                totalEstimated: true,
+            },
+        });
+
+        // Recent requests
+        const recentRequests = await prisma.request.findMany({
+            where: {
+                departmentId: departmentId || undefined,
+            },
+            orderBy: {
+                createdAt: 'desc',
+            },
+            take: 10,
+            select: {
+                reference: true,
+                title: true,
+                status: true,
+                totalEstimated: true,
+                createdAt: true,
+            },
+        });
+
+        // Generate report objects based on real data
+        const currentDate = new Date();
+        const reports = [
             {
                 id: '1',
-                title: 'Procurement Summary - Q4 2024',
+                title: `Procurement Summary - ${currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`,
                 type: 'Procurement Summary',
-                generatedBy: 'John Smith',
-                period: 'Q4 2024',
+                generatedBy: hodUser.name || hodUser.email,
+                period: currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
                 status: 'Completed',
-                createdAt: new Date('2024-12-01').toISOString(),
-                fileUrl: '/reports/procurement-q4-2024.pdf',
+                createdAt: currentDate.toISOString(),
+                data: {
+                    requestsByStatus: requestsByStatus.map((item) => ({
+                        status: item.status,
+                        count: item._count.id,
+                    })),
+                    totalSpending: Number(totalSpending._sum.totalEstimated || 0),
+                    recentRequests: recentRequests.map((req) => ({
+                        reference: req.reference,
+                        title: req.title,
+                        status: req.status,
+                        amount: Number(req.totalEstimated || 0),
+                        date: req.createdAt.toISOString(),
+                    })),
+                },
             },
-            {
-                id: '2',
-                title: 'Budget Utilization Report - December 2024',
-                type: 'Budget Report',
-                generatedBy: 'Sarah Johnson',
-                period: 'December 2024',
-                status: 'Completed',
-                createdAt: new Date('2024-12-05').toISOString(),
-                fileUrl: '/reports/budget-dec-2024.pdf',
-            },
-            {
-                id: '3',
+        ];
+
+        res.json({
+            success: true,
+            reports,
+            count: reports.length,
+        });
+    })
+);
                 title: 'Department Performance Analysis',
                 type: 'Performance Report',
                 generatedBy: 'Michael Chen',

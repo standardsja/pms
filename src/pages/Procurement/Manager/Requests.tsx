@@ -10,7 +10,7 @@ import IconPrinter from '../../../components/Icon/IconPrinter';
 import IconUsersGroup from '../../../components/Icon/IconUsersGroup';
 import { getStatusBadge } from '../../../utils/statusBadges';
 import { getApiUrl } from '../../../config/api';
-import { getAuthHeaders } from '../../../utils/api';
+import { getAuthHeadersSync } from '../../../utils/api';
 
 const MySwal = withReactContent(Swal);
 
@@ -91,7 +91,7 @@ const ProcurementManagerRequests = () => {
             setError(null);
 
             try {
-                const baseHeaders = getAuthHeaders();
+                const baseHeaders = getAuthHeadersSync();
                 const res = await fetch(getApiUrl('/api/requests'), {
                     headers: {
                         ...baseHeaders,
@@ -183,7 +183,7 @@ const ProcurementManagerRequests = () => {
 
         if (result.isConfirmed) {
             try {
-                const baseHeaders = getAuthHeaders();
+                const baseHeaders = getAuthHeadersSync();
                 const res = await fetch(getApiUrl(`/api/requests/${req.id}/assign`), {
                     method: 'POST',
                     headers: {
@@ -246,7 +246,7 @@ const ProcurementManagerRequests = () => {
         const comment = (result.value as string) || '';
 
         try {
-            const baseHeaders = getAuthHeaders();
+            const baseHeaders = getAuthHeadersSync();
             const res = await fetch(getApiUrl(`/api/requests/${req.id}/action`), {
                 method: 'POST',
                 headers: {

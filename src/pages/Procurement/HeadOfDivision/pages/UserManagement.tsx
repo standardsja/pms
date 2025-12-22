@@ -4,7 +4,7 @@ import { setPageTitle } from '../../../../store/themeConfigSlice';
 import { selectUser } from '../../../../store/authSlice';
 import IconPlus from '../../../../components/Icon/IconPlus';
 import IconSearch from '../../../../components/Icon/IconSearch';
-import { getApiUrl, getAuthHeaders } from '../../../../utils/api';
+import { getApiUrl, getAuthHeadersSync } from '../../../../utils/api';
 import { showConfirm, showError, showInfo, showSuccess } from '../../../../utils/notifications';
 
 interface User {
@@ -50,7 +50,7 @@ const HODUserManagement: React.FC = () => {
             const hodId = currentUser?.id;
 
             const url = getApiUrl(`/api/v1/users?department=${encodeURIComponent(String(userDepartment))}&excludeRole=HEAD_OF_DIVISION&hod=${encodeURIComponent(String(hodId || ''))}`);
-            const response = await fetch(url, { headers: getAuthHeaders() });
+            const response = await fetch(url, { headers: getAuthHeadersSync() });
 
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);

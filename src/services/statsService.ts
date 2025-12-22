@@ -4,7 +4,7 @@
  */
 
 import { getApiUrl } from '../config/api';
-import { getAuthHeaders } from '../utils/api';
+import { getAuthHeadersSync } from '../utils/api';
 
 export interface SystemStats {
     activeUsers: number;
@@ -80,7 +80,7 @@ class StatsService {
             // In production, use full API URL
             const url = import.meta.env.DEV ? '/api/stats/dashboard' : getApiUrl('/api/stats/dashboard');
 
-            const headers = getAuthHeaders();
+            const headers = getAuthHeadersSync();
 
             const response = await fetch(url, {
                 method: 'GET',
