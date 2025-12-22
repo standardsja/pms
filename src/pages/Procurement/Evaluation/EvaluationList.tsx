@@ -17,7 +17,7 @@ import { useTranslation } from 'react-i18next';
 import Swal from 'sweetalert2';
 import { evaluationService, type Evaluation, type EvaluationStatus } from '../../../services/evaluationService';
 import { getUser } from '../../../utils/auth';
-import { SkeletonStats, SkeletonTableRow } from '../../../components/SkeletonLoading';
+import { SkeletonLine, SkeletonStats, SkeletonTableRow } from '../../../components/SkeletonLoading';
 
 type DisplayStatus = 'Pending' | 'In Progress' | 'Committee Review' | 'Completed' | 'Validated' | 'Rejected';
 
@@ -208,14 +208,6 @@ const EvaluationList = () => {
         return new Date(dateString).toLocaleDateString();
     };
 
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center h-64">
-                <div className="text-lg">Loading evaluations...</div>
-            </div>
-        );
-    }
-
     if (error) {
         return (
             <div className="panel">
@@ -263,68 +255,72 @@ const EvaluationList = () => {
             </div>
 
             {/* Stats Dashboard */}
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-                <div className="panel bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900 border-l-4 border-slate-500">
-                    <div className="flex items-center justify-between mb-3">
-                        <div className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase">{t('evaluation.stats.total', 'Total')}</div>
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-500/20">
-                            <IconClipboardText className="h-5 w-5 text-slate-600 dark:text-slate-400" />
+            {loading ? (
+                <SkeletonStats count={6} />
+            ) : (
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+                    <div className="panel bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900 border-l-4 border-slate-500">
+                        <div className="flex items-center justify-between mb-3">
+                            <div className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase">{t('evaluation.stats.total', 'Total')}</div>
+                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-500/20">
+                                <IconClipboardText className="h-5 w-5 text-slate-600 dark:text-slate-400" />
+                            </div>
                         </div>
+                        <div className="text-3xl font-bold text-slate-700 dark:text-slate-300">{stats.total}</div>
+                        <p className="text-xs text-slate-500 mt-1">All evaluations</p>
                     </div>
-                    <div className="text-3xl font-bold text-slate-700 dark:text-slate-300">{stats.total}</div>
-                    <p className="text-xs text-slate-500 mt-1">All evaluations</p>
-                </div>
-                <div className="panel bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border-l-4 border-blue-500">
-                    <div className="flex items-center justify-between mb-3">
-                        <div className="text-sm font-semibold text-blue-600 dark:text-blue-400 uppercase">{t('evaluation.stats.pending', 'Pending')}</div>
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-500/20">
-                            <IconClipboardText className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                    <div className="panel bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border-l-4 border-blue-500">
+                        <div className="flex items-center justify-between mb-3">
+                            <div className="text-sm font-semibold text-blue-600 dark:text-blue-400 uppercase">{t('evaluation.stats.pending', 'Pending')}</div>
+                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-500/20">
+                                <IconClipboardText className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                            </div>
                         </div>
+                        <div className="text-3xl font-bold text-blue-700 dark:text-blue-300">{stats.pending}</div>
+                        <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Awaiting start</p>
                     </div>
-                    <div className="text-3xl font-bold text-blue-700 dark:text-blue-300">{stats.pending}</div>
-                    <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Awaiting start</p>
-                </div>
-                <div className="panel bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-900/20 dark:to-amber-800/20 border-l-4 border-amber-500">
-                    <div className="flex items-center justify-between mb-3">
-                        <div className="text-sm font-semibold text-amber-600 dark:text-amber-400 uppercase">{t('evaluation.stats.inProgress', 'In Progress')}</div>
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-500/20">
-                            <IconEdit className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                    <div className="panel bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-900/20 dark:to-amber-800/20 border-l-4 border-amber-500">
+                        <div className="flex items-center justify-between mb-3">
+                            <div className="text-sm font-semibold text-amber-600 dark:text-amber-400 uppercase">{t('evaluation.stats.inProgress', 'In Progress')}</div>
+                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-500/20">
+                                <IconEdit className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                            </div>
                         </div>
+                        <div className="text-3xl font-bold text-amber-700 dark:text-amber-300">{stats.inProgress}</div>
+                        <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">Being drafted</p>
                     </div>
-                    <div className="text-3xl font-bold text-amber-700 dark:text-amber-300">{stats.inProgress}</div>
-                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">Being drafted</p>
-                </div>
-                <div className="panel bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 border-l-4 border-orange-500">
-                    <div className="flex items-center justify-between mb-3">
-                        <div className="text-sm font-semibold text-orange-600 dark:text-orange-400 uppercase">Committee Review</div>
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-orange-500/20">
-                            <IconUsersGroup className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+                    <div className="panel bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 border-l-4 border-orange-500">
+                        <div className="flex items-center justify-between mb-3">
+                            <div className="text-sm font-semibold text-orange-600 dark:text-orange-400 uppercase">Committee Review</div>
+                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-orange-500/20">
+                                <IconUsersGroup className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+                            </div>
                         </div>
+                        <div className="text-3xl font-bold text-orange-700 dark:text-orange-300">{stats.committeeReview}</div>
+                        <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">Under review</p>
                     </div>
-                    <div className="text-3xl font-bold text-orange-700 dark:text-orange-300">{stats.committeeReview}</div>
-                    <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">Under review</p>
-                </div>
-                <div className="panel bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border-l-4 border-green-500">
-                    <div className="flex items-center justify-between mb-3">
-                        <div className="text-sm font-semibold text-green-600 dark:text-green-400 uppercase">{t('evaluation.stats.completed', 'Completed')}</div>
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-500/20">
-                            <IconChecks className="h-5 w-5 text-green-600 dark:text-green-400" />
+                    <div className="panel bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border-l-4 border-green-500">
+                        <div className="flex items-center justify-between mb-3">
+                            <div className="text-sm font-semibold text-green-600 dark:text-green-400 uppercase">{t('evaluation.stats.completed', 'Completed')}</div>
+                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-500/20">
+                                <IconChecks className="h-5 w-5 text-green-600 dark:text-green-400" />
+                            </div>
                         </div>
+                        <div className="text-3xl font-bold text-green-700 dark:text-green-300">{stats.completed}</div>
+                        <p className="text-xs text-green-600 dark:text-green-400 mt-1">Verified</p>
                     </div>
-                    <div className="text-3xl font-bold text-green-700 dark:text-green-300">{stats.completed}</div>
-                    <p className="text-xs text-green-600 dark:text-green-400 mt-1">Verified</p>
-                </div>
-                <div className="panel bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 border-l-4 border-purple-500">
-                    <div className="flex items-center justify-between mb-3">
-                        <div className="text-sm font-semibold text-purple-600 dark:text-purple-400 uppercase">{t('evaluation.stats.validated', 'Validated')}</div>
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-500/20">
-                            <IconFile className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                    <div className="panel bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 border-l-4 border-purple-500">
+                        <div className="flex items-center justify-between mb-3">
+                            <div className="text-sm font-semibold text-purple-600 dark:text-purple-400 uppercase">{t('evaluation.stats.validated', 'Validated')}</div>
+                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-500/20">
+                                <IconFile className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                            </div>
                         </div>
+                        <div className="text-3xl font-bold text-purple-700 dark:text-purple-300">{stats.validated}</div>
+                        <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">Executive approved</p>
                     </div>
-                    <div className="text-3xl font-bold text-purple-700 dark:text-purple-300">{stats.validated}</div>
-                    <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">Executive approved</p>
                 </div>
-            </div>
+            )}
 
             {/* Evaluations Table */}
             <div className="panel">
@@ -376,7 +372,35 @@ const EvaluationList = () => {
                     </div>
                 </div>
 
-                {filteredEvaluations.length === 0 ? (
+                {loading ? (
+                    <div className="overflow-visible">
+                        <div className="mb-5 flex items-center justify-between">
+                            <div className="space-y-2">
+                                <SkeletonLine className="w-48" />
+                                <SkeletonLine className="w-32" />
+                            </div>
+                            <SkeletonLine className="w-32" />
+                        </div>
+                        <table className="table-hover w-full">
+                            <thead>
+                                <tr>
+                                    <th className="whitespace-nowrap w-[120px]">{t('evaluation.col.evalNumber', 'Evaluation #')}</th>
+                                    <th className="whitespace-nowrap w-[120px]">{t('evaluation.col.rfqNumber', 'RFQ #')}</th>
+                                    <th className="w-auto min-w-[200px]">{t('evaluation.col.description', 'Description')}</th>
+                                    <th className="whitespace-nowrap w-[150px]">{t('evaluation.col.evaluator', 'Evaluator')}</th>
+                                    <th className="whitespace-nowrap w-[110px]">{t('evaluation.col.dueDate', 'Due Date')}</th>
+                                    <th className="whitespace-nowrap w-[180px]">{t('evaluation.col.status', 'Status')}</th>
+                                    <th className="whitespace-nowrap w-[140px]">{t('evaluation.col.actions', 'Actions')}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {[...Array(5)].map((_, idx) => (
+                                    <SkeletonTableRow key={idx} columns={7} />
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                ) : filteredEvaluations.length === 0 ? (
                     <div className="text-center py-16">
                         <svg className="w-20 h-20 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path
@@ -419,123 +443,110 @@ const EvaluationList = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {loading ? (
-                                    <>
-                                        <SkeletonTableRow columns={7} />
-                                        <SkeletonTableRow columns={7} />
-                                        <SkeletonTableRow columns={7} />
-                                        <SkeletonTableRow columns={7} />
-                                        <SkeletonTableRow columns={7} />
-                                    </>
-                                ) : (
-                                    filteredEvaluations.map((evaluation) => (
-                                        <tr key={evaluation.id}>
-                                            <td className="whitespace-nowrap">
+                                {filteredEvaluations.map((evaluation) => (
+                                    <tr key={evaluation.id}>
+                                        <td className="whitespace-nowrap">
+                                            <button onClick={() => handleViewDetails(evaluation.id)} className="font-semibold text-primary hover:underline bg-transparent border-0 p-0 cursor-pointer">
+                                                {evaluation.evalNumber}
+                                            </button>
+                                        </td>
+                                        <td className="whitespace-nowrap">
+                                            <span className="text-info">{evaluation.rfqNumber}</span>
+                                        </td>
+                                        <td>
+                                            <div className="max-w-[300px]" title={evaluation.rfqTitle}>
+                                                <div className="line-clamp-2">{evaluation.rfqTitle}</div>
+                                            </div>
+                                            {evaluation.description && <div className="text-xs text-white-dark line-clamp-1">{evaluation.description}</div>}
+                                            {(evaluation.requestId || evaluation.combinedRequestId) && (
+                                                <div className="mt-1 inline-flex items-center gap-1 text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
+                                                    <IconTxtFile className="h-3 w-3" />
+                                                    <span>Linked Request</span>
+                                                </div>
+                                            )}
+                                        </td>
+                                        <td className="whitespace-nowrap">{evaluation.evaluator || evaluation.creator.name || '-'}</td>
+                                        <td className="whitespace-nowrap">{formatDate(evaluation.dueDate)}</td>
+                                        <td>
+                                            <div className="flex flex-wrap items-center gap-1">
+                                                <span className={`badge ${getStatusBadge(evaluation.status)} whitespace-nowrap`}>{statusMap[evaluation.status]}</span>
+                                                {isCommittee && hasNewSubmissions(evaluation) && (
+                                                    <span className="badge bg-info whitespace-nowrap" title="Submitted sections awaiting committee review">
+                                                        New
+                                                    </span>
+                                                )}
+                                                {isProcurement && hasReturnedSections(evaluation) && (
+                                                    <span className="badge bg-warning whitespace-nowrap" title="Sections returned by committee; needs updates">
+                                                        Returned
+                                                    </span>
+                                                )}
+                                                {hasStartedEditing(evaluation) && (
+                                                    <span className="badge bg-secondary whitespace-nowrap" title="First edits saved; not yet submitted">
+                                                        Edited
+                                                    </span>
+                                                )}
+                                                {isProcurement && evaluation.status === 'COMPLETED' && (
+                                                    <span className="badge bg-success animate-pulse whitespace-nowrap" title="All sections verified; evaluation completed">
+                                                        ✓ Verified
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div className="flex flex-wrap gap-1">
                                                 <button
                                                     onClick={() => handleViewDetails(evaluation.id)}
-                                                    className="font-semibold text-primary hover:underline bg-transparent border-0 p-0 cursor-pointer"
+                                                    className="btn btn-sm btn-outline-primary"
+                                                    title={t('evaluation.actions.viewDetails', 'View Details')}
                                                 >
-                                                    {evaluation.evalNumber}
+                                                    <IconEye className="h-4 w-4" />
                                                 </button>
-                                            </td>
-                                            <td className="whitespace-nowrap">
-                                                <span className="text-info">{evaluation.rfqNumber}</span>
-                                            </td>
-                                            <td>
-                                                <div className="max-w-[300px]" title={evaluation.rfqTitle}>
-                                                    <div className="line-clamp-2">{evaluation.rfqTitle}</div>
-                                                </div>
-                                                {evaluation.description && <div className="text-xs text-white-dark line-clamp-1">{evaluation.description}</div>}
+                                                {/* View linked request button */}
                                                 {(evaluation.requestId || evaluation.combinedRequestId) && (
-                                                    <div className="mt-1 inline-flex items-center gap-1 text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
-                                                        <IconTxtFile className="h-3 w-3" />
-                                                        <span>Linked Request</span>
-                                                    </div>
-                                                )}
-                                            </td>
-                                            <td className="whitespace-nowrap">{evaluation.evaluator || evaluation.creator.name || '-'}</td>
-                                            <td className="whitespace-nowrap">{formatDate(evaluation.dueDate)}</td>
-                                            <td>
-                                                <div className="flex flex-wrap items-center gap-1">
-                                                    <span className={`badge ${getStatusBadge(evaluation.status)} whitespace-nowrap`}>{statusMap[evaluation.status]}</span>
-                                                    {isCommittee && hasNewSubmissions(evaluation) && (
-                                                        <span className="badge bg-info whitespace-nowrap" title="Submitted sections awaiting committee review">
-                                                            New
-                                                        </span>
-                                                    )}
-                                                    {isProcurement && hasReturnedSections(evaluation) && (
-                                                        <span className="badge bg-warning whitespace-nowrap" title="Sections returned by committee; needs updates">
-                                                            Returned
-                                                        </span>
-                                                    )}
-                                                    {hasStartedEditing(evaluation) && (
-                                                        <span className="badge bg-secondary whitespace-nowrap" title="First edits saved; not yet submitted">
-                                                            Edited
-                                                        </span>
-                                                    )}
-                                                    {isProcurement && evaluation.status === 'COMPLETED' && (
-                                                        <span className="badge bg-success animate-pulse whitespace-nowrap" title="All sections verified; evaluation completed">
-                                                            ✓ Verified
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </td>
-                                            <td>
-                                                <div className="flex flex-wrap gap-1">
                                                     <button
-                                                        onClick={() => handleViewDetails(evaluation.id)}
-                                                        className="btn btn-sm btn-outline-primary"
-                                                        title={t('evaluation.actions.viewDetails', 'View Details')}
+                                                        onClick={() => {
+                                                            if (evaluation.requestId) {
+                                                                navigate(`/apps/requests/edit/${evaluation.requestId}`);
+                                                            } else if (evaluation.combinedRequestId) {
+                                                                Swal.fire({
+                                                                    icon: 'info',
+                                                                    title: 'Combined Request',
+                                                                    text: `This evaluation is linked to Combined Request #${evaluation.combinedRequestId}`,
+                                                                    customClass: { popup: 'sweet-alerts' },
+                                                                });
+                                                            }
+                                                        }}
+                                                        className="btn btn-sm btn-outline-success"
+                                                        title="View Linked Request"
                                                     >
-                                                        <IconEye className="h-4 w-4" />
+                                                        <IconTxtFile className="h-4 w-4" />
                                                     </button>
-                                                    {/* View linked request button */}
-                                                    {(evaluation.requestId || evaluation.combinedRequestId) && (
-                                                        <button
-                                                            onClick={() => {
-                                                                if (evaluation.requestId) {
-                                                                    navigate(`/apps/requests/edit/${evaluation.requestId}`);
-                                                                } else if (evaluation.combinedRequestId) {
-                                                                    Swal.fire({
-                                                                        icon: 'info',
-                                                                        title: 'Combined Request',
-                                                                        text: `This evaluation is linked to Combined Request #${evaluation.combinedRequestId}`,
-                                                                        customClass: { popup: 'sweet-alerts' },
-                                                                    });
-                                                                }
-                                                            }}
-                                                            className="btn btn-sm btn-outline-success"
-                                                            title="View Linked Request"
-                                                        >
-                                                            <IconTxtFile className="h-4 w-4" />
-                                                        </button>
-                                                    )}
-                                                    {/* Edit button for Procurement when sections are returned */}
-                                                    {isProcurement && hasReturnedSections(evaluation) && (
-                                                        <Link to={`/procurement/evaluation/${evaluation.id}/edit`} className="btn btn-sm btn-outline-warning" title="Edit Returned Sections">
-                                                            <IconEdit className="h-4 w-4" />
-                                                        </Link>
-                                                    )}
-                                                    {isCommittee && (
-                                                        <Link to={`/evaluation/${evaluation.id}/committee`} className="btn btn-sm btn-outline-info" title="Committee Verification">
-                                                            <IconUsersGroup className="h-4 w-4" />
-                                                        </Link>
-                                                    )}
-                                                    {(evaluation.status === 'COMPLETED' || evaluation.status === 'VALIDATED') && (
-                                                        <button className="btn btn-sm btn-success" title={t('evaluation.actions.generateReport', 'Download Report')}>
-                                                            <IconFile className="h-4 w-4" />
-                                                        </button>
-                                                    )}
-                                                    {isExecutive && evaluation.status === 'COMPLETED' && (
-                                                        <button onClick={() => handleValidate(evaluation.id)} className="btn btn-sm btn-primary" title="Validate Evaluation">
-                                                            <IconChecks className="h-4 w-4" />
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))
-                                )}
+                                                )}
+                                                {/* Edit button for Procurement when sections are returned */}
+                                                {isProcurement && hasReturnedSections(evaluation) && (
+                                                    <Link to={`/procurement/evaluation/${evaluation.id}/edit`} className="btn btn-sm btn-outline-warning" title="Edit Returned Sections">
+                                                        <IconEdit className="h-4 w-4" />
+                                                    </Link>
+                                                )}
+                                                {isCommittee && (
+                                                    <Link to={`/evaluation/${evaluation.id}/committee`} className="btn btn-sm btn-outline-info" title="Committee Verification">
+                                                        <IconUsersGroup className="h-4 w-4" />
+                                                    </Link>
+                                                )}
+                                                {(evaluation.status === 'COMPLETED' || evaluation.status === 'VALIDATED') && (
+                                                    <button className="btn btn-sm btn-success" title={t('evaluation.actions.generateReport', 'Download Report')}>
+                                                        <IconFile className="h-4 w-4" />
+                                                    </button>
+                                                )}
+                                                {isExecutive && evaluation.status === 'COMPLETED' && (
+                                                    <button onClick={() => handleValidate(evaluation.id)} className="btn btn-sm btn-primary" title="Validate Evaluation">
+                                                        <IconChecks className="h-4 w-4" />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
                             </tbody>
                         </table>
                     </div>

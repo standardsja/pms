@@ -12,7 +12,7 @@ import { searchRequests, filterRequests, onlyMine, paginate, formatDate, sortReq
 import RequestDetailsContent from '../../../components/RequestDetailsContent';
 import { checkExecutiveThreshold, getThresholdBadge, shouldShowThresholdNotification } from '../../../utils/thresholdUtils';
 import { getApiUrl } from '../../../config/api';
-import { SkeletonStats, SkeletonTableRow } from '../../../components/SkeletonLoading';
+import { SkeletonTableRow } from '../../../components/SkeletonLoading';
 
 const MySwal = withReactContent(Swal);
 

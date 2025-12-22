@@ -6,7 +6,7 @@ import IconChecks from '../../../components/Icon/IconChecks';
 import IconEye from '../../../components/Icon/IconEye';
 import { getAuthHeaders } from '../../../utils/api';
 import { getApiUrl } from '../../../config/api';
-import { SkeletonStats, SkeletonTableRow, SkeletonCard } from '../../../components/SkeletonLoading';
+import { SkeletonStats, SkeletonTableRow } from '../../../components/SkeletonLoading';
 
 const ReviewList = () => {
     const dispatch = useDispatch();

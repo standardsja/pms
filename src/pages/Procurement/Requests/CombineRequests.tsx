@@ -11,6 +11,7 @@ import IconCircleCheck from '../../../components/Icon/IconCircleCheck';
 import { getApiUrl } from '../../../config/api';
 import { Request } from '../../../types/request.types';
 import { getStatusBadge } from '../../../utils/statusBadges';
+import { SkeletonCard, SkeletonTableRow } from '../../../components/SkeletonLoading';
 import {
     CombinableRequest,
     CombineRequestsConfig,
@@ -44,9 +45,6 @@ const CombineRequests = () => {
     const [filterPriority, setFilterPriority] = useState<string>('ALL');
     const [filterStatus, setFilterStatus] = useState<string>('ALL');
     const [filterDepartment, setFilterDepartment] = useState<string>('ALL');
-
-    // Track initial load to show skeletons elegantly
-    const [initialLoad, setInitialLoad] = useState(true);
 
     // Combine configuration state
     const [config, setConfig] = useState<CombineRequestsConfig>({
@@ -121,7 +119,6 @@ const CombineRequests = () => {
                 setError(err instanceof Error ? err.message : 'Failed to load requests');
             } finally {
                 setIsLoading(false);
-                setInitialLoad(false);
             }
         };
 
@@ -535,15 +532,7 @@ const CombineRequests = () => {
                             </tr>
                         </thead>
                         <tbody>
-                            {initialLoad &&
-                                isLoading &&
-                                [...Array(5)].map((_, i) => (
-                                    <tr key={i}>
-                                        <td colSpan={10} className="py-3">
-                                            <div className="h-4 w-full animate-pulse bg-gray-200 rounded" />
-                                        </td>
-                                    </tr>
-                                ))}
+                            {isLoading && [...Array(5)].map((_, i) => <SkeletonTableRow key={i} columns={10} />)}
                             {!isLoading && filteredRequests.length === 0 && (
                                 <tr>
                                     <td colSpan={10} className="text-center py-6 text-sm text-gray-500">

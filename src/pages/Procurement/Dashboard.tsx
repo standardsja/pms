@@ -22,7 +22,7 @@ import { getApiUrl } from '../../config/api';
 import { detectUserRoles } from '../../utils/roleDetection';
 import Swal from 'sweetalert2';
 import { statsService, type DashboardStats } from '../../services/statsService';
-import { SkeletonStats, SkeletonChart, SkeletonCard } from '../../components/SkeletonLoading';
+import { SkeletonStats, SkeletonChart, SkeletonCard, SkeletonTableRow } from '../../components/SkeletonLoading';
 
 const ProcurementOfficerDashboard = () => {
     const dispatch = useDispatch();
@@ -335,60 +335,60 @@ const ProcurementOfficerDashboard = () => {
             {statsLoading ? (
                 <SkeletonStats count={4} />
             ) : (
-            <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                {/* Total Requests This Month */}
-                <div className="panel">
-                    <div className="mb-4 flex items-center justify-between">
-                        <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                            <IconInbox className="h-5 w-5" />
+                <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    {/* Total Requests This Month */}
+                    <div className="panel">
+                        <div className="mb-4 flex items-center justify-between">
+                            <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                                <IconInbox className="h-5 w-5" />
+                            </div>
+                            <Link to="/procurement/requests" className="text-xs font-semibold text-primary hover:underline">
+                                View All
+                            </Link>
                         </div>
-                        <Link to="/procurement/requests" className="text-xs font-semibold text-primary hover:underline">
-                            View All
-                        </Link>
+                        <div className="text-2xl font-bold text-primary">{metrics.requestsThisMonth || 0}</div>
+                        <div className="text-sm font-semibold">Requests This Month</div>
                     </div>
-                    <div className="text-2xl font-bold text-primary">{metrics.requestsThisMonth || 0}</div>
-                    <div className="text-sm font-semibold">Requests This Month</div>
-                </div>
 
-                {/* Pending Approvals Count */}
-                <div className="panel">
-                    <div className="mb-4 flex items-center justify-between">
-                        <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-warning/10 text-warning">
-                            <IconClock className="h-5 w-5" />
+                    {/* Pending Approvals Count */}
+                    <div className="panel">
+                        <div className="mb-4 flex items-center justify-between">
+                            <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-warning/10 text-warning">
+                                <IconClock className="h-5 w-5" />
+                            </div>
+                            <Link to="/procurement/requests?status=SUBMITTED" className="text-xs font-semibold text-warning hover:underline">
+                                View All
+                            </Link>
                         </div>
-                        <Link to="/procurement/requests?status=SUBMITTED" className="text-xs font-semibold text-warning hover:underline">
-                            View All
-                        </Link>
+                        <div className="text-2xl font-bold text-warning">{pendingApprovals.length}</div>
+                        <div className="text-sm font-semibold">Pending Approvals</div>
                     </div>
-                    <div className="text-2xl font-bold text-warning">{pendingApprovals.length}</div>
-                    <div className="text-sm font-semibold">Pending Approvals</div>
-                </div>
 
-                {/* Evaluations */}
-                <div className="panel">
-                    <div className="mb-4 flex items-center justify-between">
-                        <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-info/10 text-info">
-                            <IconClipboardText className="h-5 w-5" />
+                    {/* Evaluations */}
+                    <div className="panel">
+                        <div className="mb-4 flex items-center justify-between">
+                            <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-info/10 text-info">
+                                <IconClipboardText className="h-5 w-5" />
+                            </div>
+                            <Link to="/procurement/evaluation" className="text-xs font-semibold text-info hover:underline">
+                                View All
+                            </Link>
                         </div>
-                        <Link to="/procurement/evaluation" className="text-xs font-semibold text-info hover:underline">
-                            View All
-                        </Link>
+                        <div className="text-2xl font-bold text-info">{metrics.pendingEvaluations}</div>
+                        <div className="text-sm font-semibold">Pending Evaluations</div>
                     </div>
-                    <div className="text-2xl font-bold text-info">{metrics.pendingEvaluations}</div>
-                    <div className="text-sm font-semibold">Pending Evaluations</div>
-                </div>
 
-                {/* Active Users */}
-                <div className="panel">
-                    <div className="mb-4 flex items-center justify-between">
-                        <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-success/10 text-success">
-                            <IconUser className="h-5 w-5" />
+                    {/* Active Users */}
+                    <div className="panel">
+                        <div className="mb-4 flex items-center justify-between">
+                            <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-success/10 text-success">
+                                <IconUser className="h-5 w-5" />
+                            </div>
                         </div>
+                        <div className="text-2xl font-bold text-success">{liveStats?.activeUsers || 0}</div>
+                        <div className="text-sm font-semibold">Active Users Today</div>
                     </div>
-                    <div className="text-2xl font-bold text-success">{liveStats?.activeUsers || 0}</div>
-                    <div className="text-sm font-semibold">Active Users Today</div>
                 </div>
-            </div>
             )}
 
             {/* Charts Row */}
@@ -398,90 +398,90 @@ const ProcurementOfficerDashboard = () => {
                     <SkeletonChart height="h-96" />
                 </div>
             ) : (
-            <div className="mb-6 grid gap-6 lg:grid-cols-2">
-                {/* Procurement Spend Chart */}
-                <div className="panel h-full">
-                    <div className="mb-5 flex items-center justify-between">
-                        <h5 className="text-lg font-semibold dark:text-white-light">Procurement Spend vs Budget</h5>
+                <div className="mb-6 grid gap-6 lg:grid-cols-2">
+                    {/* Procurement Spend Chart */}
+                    <div className="panel h-full">
+                        <div className="mb-5 flex items-center justify-between">
+                            <h5 className="text-lg font-semibold dark:text-white-light">Procurement Spend vs Budget</h5>
+                        </div>
+                        <div className="rounded-lg bg-white dark:bg-black">
+                            {chartLoading ? (
+                                <div className="flex items-center justify-center py-20">
+                                    <p className="text-white-dark">Loading chart data...</p>
+                                </div>
+                            ) : (
+                                <ReactApexChart series={procurementSpendChart.series} options={procurementSpendChart.options} type="area" height={300} />
+                            )}
+                        </div>
                     </div>
-                    <div className="rounded-lg bg-white dark:bg-black">
+
+                    {/* Budget Utilization Summary */}
+                    <div className="panel h-full">
+                        <div className="mb-5 flex items-center justify-between">
+                            <h5 className="text-lg font-semibold dark:text-white-light">Budget Utilization</h5>
+                        </div>
                         {chartLoading ? (
                             <div className="flex items-center justify-center py-20">
-                                <p className="text-white-dark">Loading chart data...</p>
+                                <p className="text-white-dark">Loading budget data...</p>
                             </div>
                         ) : (
-                            <ReactApexChart series={procurementSpendChart.series} options={procurementSpendChart.options} type="area" height={300} />
+                            <div className="space-y-4">
+                                {/* Annual Summary */}
+                                <div className="rounded-lg bg-gradient-to-r from-primary/10 to-primary/5 p-4">
+                                    <div className="mb-1 text-xs font-semibold text-white-dark">Annual Budget (2024)</div>
+                                    <div className="mb-3 text-2xl font-bold text-primary">${spendChartData?.annualBudget?.toLocaleString() || '600,000'}</div>
+                                    <div className="mb-2 flex justify-between text-xs">
+                                        <span className="text-white-dark">Total Spent</span>
+                                        <span className="font-semibold">${spendChartData?.totalSpent?.toLocaleString() || '0'}</span>
+                                    </div>
+                                    <div className="h-2 w-full overflow-hidden rounded-full bg-dark-light dark:bg-dark/40">
+                                        <div
+                                            className="h-full rounded-full bg-gradient-to-r from-primary to-primary-light transition-all duration-500"
+                                            style={{
+                                                width: `${Math.min(((spendChartData?.totalSpent || 0) / (spendChartData?.annualBudget || 600000)) * 100, 100)}%`,
+                                            }}
+                                        ></div>
+                                    </div>
+                                    <div className="mt-1 text-right text-xs font-semibold text-primary">
+                                        {(((spendChartData?.totalSpent || 0) / (spendChartData?.annualBudget || 600000)) * 100).toFixed(1)}% Utilized
+                                    </div>
+                                </div>
+
+                                {/* Monthly Stats */}
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="rounded-lg border border-white-light p-3 dark:border-white/10">
+                                        <div className="mb-1 flex items-center gap-2">
+                                            <IconDollarSignCircle className="h-4 w-4 text-success" />
+                                            <span className="text-xs font-semibold text-white-dark">This Month</span>
+                                        </div>
+                                        <div className="text-lg font-bold text-success">${spendChartData?.currentMonthSpend?.toLocaleString() || '0'}</div>
+                                        <div className="mt-1 text-xs text-white-dark">of $50K budget</div>
+                                    </div>
+                                    <div className="rounded-lg border border-white-light p-3 dark:border-white/10">
+                                        <div className="mb-1 flex items-center gap-2">
+                                            <IconInbox className="h-4 w-4 text-info" />
+                                            <span className="text-xs font-semibold text-white-dark">Avg/Month</span>
+                                        </div>
+                                        <div className="text-lg font-bold text-info">${spendChartData?.avgMonthlySpend?.toLocaleString() || '0'}</div>
+                                        <div className="mt-1 text-xs text-white-dark">last 12 months</div>
+                                    </div>
+                                </div>
+
+                                {/* Remaining Budget */}
+                                <div className="rounded-lg border border-white-light p-3 dark:border-white/10">
+                                    <div className="mb-1 flex items-center justify-between">
+                                        <span className="text-xs font-semibold text-white-dark">Remaining Budget</span>
+                                        <span className={`text-xs font-semibold ${(spendChartData?.remainingBudget || 0) < 100000 ? 'text-danger' : 'text-success'}`}>
+                                            {(spendChartData?.remainingBudget || 0) < 100000 ? 'Low' : 'Healthy'}
+                                        </span>
+                                    </div>
+                                    <div className="text-xl font-bold">${spendChartData?.remainingBudget?.toLocaleString() || '600,000'}</div>
+                                    <div className="mt-1 text-xs text-white-dark">Available for procurement</div>
+                                </div>
+                            </div>
                         )}
                     </div>
                 </div>
-
-                {/* Budget Utilization Summary */}
-                <div className="panel h-full">
-                    <div className="mb-5 flex items-center justify-between">
-                        <h5 className="text-lg font-semibold dark:text-white-light">Budget Utilization</h5>
-                    </div>
-                    {chartLoading ? (
-                        <div className="flex items-center justify-center py-20">
-                            <p className="text-white-dark">Loading budget data...</p>
-                        </div>
-                    ) : (
-                        <div className="space-y-4">
-                            {/* Annual Summary */}
-                            <div className="rounded-lg bg-gradient-to-r from-primary/10 to-primary/5 p-4">
-                                <div className="mb-1 text-xs font-semibold text-white-dark">Annual Budget (2024)</div>
-                                <div className="mb-3 text-2xl font-bold text-primary">${spendChartData?.annualBudget?.toLocaleString() || '600,000'}</div>
-                                <div className="mb-2 flex justify-between text-xs">
-                                    <span className="text-white-dark">Total Spent</span>
-                                    <span className="font-semibold">${spendChartData?.totalSpent?.toLocaleString() || '0'}</span>
-                                </div>
-                                <div className="h-2 w-full overflow-hidden rounded-full bg-dark-light dark:bg-dark/40">
-                                    <div
-                                        className="h-full rounded-full bg-gradient-to-r from-primary to-primary-light transition-all duration-500"
-                                        style={{
-                                            width: `${Math.min(((spendChartData?.totalSpent || 0) / (spendChartData?.annualBudget || 600000)) * 100, 100)}%`,
-                                        }}
-                                    ></div>
-                                </div>
-                                <div className="mt-1 text-right text-xs font-semibold text-primary">
-                                    {(((spendChartData?.totalSpent || 0) / (spendChartData?.annualBudget || 600000)) * 100).toFixed(1)}% Utilized
-                                </div>
-                            </div>
-
-                            {/* Monthly Stats */}
-                            <div className="grid grid-cols-2 gap-3">
-                                <div className="rounded-lg border border-white-light p-3 dark:border-white/10">
-                                    <div className="mb-1 flex items-center gap-2">
-                                        <IconDollarSignCircle className="h-4 w-4 text-success" />
-                                        <span className="text-xs font-semibold text-white-dark">This Month</span>
-                                    </div>
-                                    <div className="text-lg font-bold text-success">${spendChartData?.currentMonthSpend?.toLocaleString() || '0'}</div>
-                                    <div className="mt-1 text-xs text-white-dark">of $50K budget</div>
-                                </div>
-                                <div className="rounded-lg border border-white-light p-3 dark:border-white/10">
-                                    <div className="mb-1 flex items-center gap-2">
-                                        <IconInbox className="h-4 w-4 text-info" />
-                                        <span className="text-xs font-semibold text-white-dark">Avg/Month</span>
-                                    </div>
-                                    <div className="text-lg font-bold text-info">${spendChartData?.avgMonthlySpend?.toLocaleString() || '0'}</div>
-                                    <div className="mt-1 text-xs text-white-dark">last 12 months</div>
-                                </div>
-                            </div>
-
-                            {/* Remaining Budget */}
-                            <div className="rounded-lg border border-white-light p-3 dark:border-white/10">
-                                <div className="mb-1 flex items-center justify-between">
-                                    <span className="text-xs font-semibold text-white-dark">Remaining Budget</span>
-                                    <span className={`text-xs font-semibold ${(spendChartData?.remainingBudget || 0) < 100000 ? 'text-danger' : 'text-success'}`}>
-                                        {(spendChartData?.remainingBudget || 0) < 100000 ? 'Low' : 'Healthy'}
-                                    </span>
-                                </div>
-                                <div className="text-xl font-bold">${spendChartData?.remainingBudget?.toLocaleString() || '600,000'}</div>
-                                <div className="mt-1 text-xs text-white-dark">Available for procurement</div>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            </div>
             )}
 
             <div className="grid gap-6 lg:grid-cols-2">
@@ -544,9 +544,22 @@ const ProcurementOfficerDashboard = () => {
                     </div>
                     <div className="table-responsive">
                         {approvalsLoading ? (
-                            <div className="flex items-center justify-center py-8">
-                                <p className="text-white-dark">Loading approvals...</p>
-                            </div>
+                            <table className="table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Type</th>
+                                        <th>Number</th>
+                                        <th>Description</th>
+                                        <th>Amount</th>
+                                        <th>Due Date</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {[...Array(4)].map((_, idx) => (
+                                        <SkeletonTableRow key={idx} columns={5} />
+                                    ))}
+                                </tbody>
+                            </table>
                         ) : pendingApprovals.length === 0 ? (
                             <div className="flex items-center justify-center py-8">
                                 <p className="text-white-dark">No pending approvals</p>
