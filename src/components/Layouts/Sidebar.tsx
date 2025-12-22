@@ -82,6 +82,7 @@ const Sidebar = () => {
         isAdmin,
         isHeadOfDivision,
         isInnovationCommittee,
+        isEvaluationCommittee,
         isExecutiveDirector,
         isSeniorDirector,
         isDepartmentHead,
@@ -103,18 +104,25 @@ const Sidebar = () => {
 
     const isDeptManagerHere = isDeptManagerFor((currentUser as any)?.department?.code || '');
 
-    // Determine if we're in Innovation Hub
-    const isInnovationHub = location.pathname.startsWith('/innovation');
-
     const procurementLocked = moduleLocks.procurement.locked;
     const innovationLocked = moduleLocks.innovation.locked;
     const committeeLocked = moduleLocks.committee.locked;
 
-    // Only show procurement menus when procurement is the active module and not locked
-    // Also hide when the pinned module is innovation (even if on non-module routes like /profile)
+    // Determine if we're in Innovation Hub
+    // Priority: If on /innovation route, ALWAYS show innovation sidebar
+    // Otherwise, check pinnedModule preference for shared routes
+    const isInnovationHub = useMemo(() => {
+        if (location.pathname.startsWith('/innovation')) {
+            return true; // Always show Innovation sidebar when on Innovation routes
+        }
+        // For shared routes (profile, settings, etc), use pinned preference
+        return pinnedModule === 'innovation';
+    }, [location.pathname, pinnedModule]);
+
+    // Only show procurement menus when NOT in innovation hub and not locked
     const showProcurementMenus = useMemo(() => {
-        return pinnedModule === 'procurement' && !procurementLocked && !isInnovationHub;
-    }, [pinnedModule, procurementLocked, isInnovationHub]);
+        return !isInnovationHub && !procurementLocked;
+    }, [isInnovationHub, procurementLocked]);
 
     // Compute dashboard path for logo/home based on pinnedModule
     const dashboardPath = useMemo(() => {
@@ -301,8 +309,8 @@ const Sidebar = () => {
                         </NavLink>
                     </div>
 
-                    <PerfectScrollbar className="h-[calc(100vh-80px)] relative overflow-y-auto">
-                        <ul className="relative font-semibold space-y-0.5 p-4 py-0 pb-10">
+                    <PerfectScrollbar className="h-[calc(100vh-80px)] relative">
+                        <ul className="relative font-semibold space-y-0.5 p-4 py-0">
                             {/* Show ADMIN section for admin users only */}
                             {isAdmin && (
                                 <>
@@ -537,6 +545,15 @@ const Sidebar = () => {
                                                             </div>
                                                         </NavLink>
                                                     </li>
+
+                                                    <li className="nav-item">
+                                                        <NavLink to="/evaluation/committee/dashboard" className="group">
+                                                            <div className="flex items-center">
+                                                                <IconMenuDashboard className="group-hover:!text-primary shrink-0" />
+                                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Evaluation Committee</span>
+                                                            </div>
+                                                        </NavLink>
+                                                    </li>
                                                 </>
                                             )}
                                         </>
@@ -603,6 +620,26 @@ const Sidebar = () => {
                                     </li>
                                 </>
                             )}
+
+                            {/* Show EVALUATION_COMMITTEE section */}
+                            {isEvaluationCommittee && !committeeLocked && (
+                                // Evaluation Committee Menu
+                                <>
+                                    <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
+                                        <IconMinus className="w-4 h-5 flex-none hidden" />
+                                        <span>Committee Verification</span>
+                                    </h2>
+                                    <li className="nav-item">
+                                        <NavLink to="/evaluation/committee/dashboard" className="group">
+                                            <div className="flex items-center">
+                                                <IconMenuDashboard className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Dashboard</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+                                </>
+                            )}
+
                             {/* Show INNOVATION_COMMITTEE section (forced by route or role) */}
                             {showCommitteeSidebar && !committeeLocked && (
                                 // Innovation Committee Menu
@@ -658,8 +695,9 @@ const Sidebar = () => {
                                     </li>
                                 </>
                             )}
+
                             {/* Show INNOVATION_HUB section when in innovation context and not a committee member */}
-                            {!showCommitteeSidebar && isInnovationHub && !innovationLocked && (
+                            {!showCommitteeSidebar && !isEvaluationCommittee && isInnovationHub && (
                                 // Innovation Hub Menu
                                 <>
                                     <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
@@ -722,6 +760,7 @@ const Sidebar = () => {
                                     </li>
                                 </>
                             )}
+
                             {/* Show SUPPLIER section */}
                             {isSupplier && (
                                 // Supplier Only Menu
@@ -740,6 +779,7 @@ const Sidebar = () => {
                                     </li>
                                 </>
                             )}
+
                             {/* Show REQUESTER section - hide for admins; only when procurement is active and unlocked */}
                             {isRequester && !isAdmin && showProcurementMenus && (
                                 // Requester Only Menu
@@ -766,6 +806,7 @@ const Sidebar = () => {
                                     </li>
                                 </>
                             )}
+
                             {/* Show DEPARTMENT_MANAGER section - only when procurement module is active and unlocked */}
                             {(isDepartmentManager || isDeptManagerHere) && !isAdmin && showProcurementMenus && (
                                 // Department Manager Menu
@@ -803,6 +844,7 @@ const Sidebar = () => {
                                     </li>
                                 </>
                             )}
+
                             {/* Show PROCUREMENT_OFFICER section - only when procurement module is active and unlocked */}
                             {isProcurementOfficer && !isAdmin && showProcurementMenus && (
                                 // Procurement Officer Only Menu
@@ -890,6 +932,15 @@ const Sidebar = () => {
                                     </li>
 
                                     <li className="nav-item">
+                                        <NavLink to="/procurement/forms" className="group">
+                                            <div className="flex items-center">
+                                                <IconFile className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Forms</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+
+                                    <li className="nav-item">
                                         <NavLink to="/procurement/catalog" className="group">
                                             <div className="flex items-center">
                                                 <IconBook className="group-hover:!text-primary shrink-0" />
@@ -926,6 +977,7 @@ const Sidebar = () => {
                                     </li>
                                 </>
                             )}
+
                             {/* Show PROCUREMENT_MANAGER section - hide for admins and when in Innovation Hub */}
                             {isProcurementManager && !isAdmin && !isInnovationHub && !procurementLocked && (
                                 // Procurement Manager Only Menu
@@ -1010,8 +1062,18 @@ const Sidebar = () => {
                                             </div>
                                         </NavLink>
                                     </li>
+
+                                    <li className="nav-item">
+                                        <NavLink to="/procurement/forms" className="group">
+                                            <div className="flex items-center">
+                                                <IconFile className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Forms</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
                                 </>
                             )}
+
                             {/* Show FINANCE_MANAGER or BUDGET_MANAGER section - limited access to USER and FINANCE only */}
                             {/* Show FINANCE_OFFICER section - limited access to USER and FINANCE only */}
                             {can('VIEW_FINANCE') && !isAdmin && !isProcurementManager && !isInnovationHub && !procurementLocked && (
@@ -1057,6 +1119,7 @@ const Sidebar = () => {
                                     )}
                                 </>
                             )}
+
                             {can('VIEW_FINANCE') && can('APPROVE_PAYMENTS') && !isAdmin && !isProcurementManager && !isInnovationHub && !procurementLocked && (
                                 <>
                                     <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
@@ -1111,6 +1174,7 @@ const Sidebar = () => {
                                     </li>
                                 </>
                             )}
+
                             {/* Show Budget Manager section - same menu as Finance Manager */}
                             {isBudgetManager && !isAdmin && !isInnovationHub && !procurementLocked && (
                                 <>

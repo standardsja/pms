@@ -197,35 +197,51 @@ export function getHealthStatus(): {
         uptime: { status: string; value: number };
     };
 } {
-    const errorRate = metrics.requests.total > 0 ? (metrics.requests.errors / metrics.requests.total) * 100 : 0;
+    const uptimeSeconds = Math.floor((Date.now() - metrics.startTime.getTime()) / 1000);
+    const isWarmingUp = uptimeSeconds < 30 || metrics.requests.total < 10; // Warmup grace period
 
+    const errorRate = metrics.requests.total > 0 ? (metrics.requests.errors / metrics.requests.total) * 100 : 0;
     const slowQueryRate = metrics.database.queries > 0 ? (metrics.database.slowQueries / metrics.database.queries) * 100 : 0;
 
-    const uptimeSeconds = Math.floor((Date.now() - metrics.startTime.getTime()) / 1000);
+    // More lenient cache hit rate check during warmup or if cache not widely used
+    const cacheTotal = metrics.cache.hits + metrics.cache.misses;
+    const cacheHitRateCheck =
+        cacheTotal < 10 || isWarmingUp
+            ? 'pass' // Skip cache check if not enough data
+            : metrics.cache.hitRate > 60
+            ? 'pass'
+            : metrics.cache.hitRate > 40
+            ? 'warn'
+            : 'fail';
 
     const checks = {
         requestErrorRate: {
-            status: errorRate < 5 ? 'pass' : errorRate < 10 ? 'warn' : 'fail',
+            status: errorRate < 10 ? 'pass' : errorRate < 20 ? 'warn' : 'fail',
             value: Math.round(errorRate * 100) / 100,
         },
         cacheHitRate: {
-            status: metrics.cache.hitRate > 70 ? 'pass' : metrics.cache.hitRate > 50 ? 'warn' : 'fail',
+            status: cacheHitRateCheck,
             value: Math.round(metrics.cache.hitRate * 100) / 100,
         },
         slowQueries: {
-            status: slowQueryRate < 5 ? 'pass' : slowQueryRate < 15 ? 'warn' : 'fail',
+            status: slowQueryRate < 10 ? 'pass' : slowQueryRate < 25 ? 'warn' : 'fail',
             value: Math.round(slowQueryRate * 100) / 100,
         },
         uptime: {
-            status: uptimeSeconds > 60 ? 'pass' : 'warn',
+            status: uptimeSeconds > 30 ? 'pass' : 'warn',
             value: uptimeSeconds,
         },
     };
 
+    // During warmup, be more lenient
+    if (isWarmingUp) {
+        return { status: 'healthy', checks };
+    }
+
     const failCount = Object.values(checks).filter((c) => c.status === 'fail').length;
     const warnCount = Object.values(checks).filter((c) => c.status === 'warn').length;
 
-    const status = failCount > 0 ? 'unhealthy' : warnCount > 1 ? 'degraded' : 'healthy';
+    const status = failCount > 1 ? 'unhealthy' : failCount > 0 || warnCount > 2 ? 'degraded' : 'healthy';
 
     return { status, checks };
 }
