@@ -38,7 +38,7 @@ const NewEvaluation = () => {
             try {
                 setLoadingCombinedRequest(true);
                 const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
-                const response = await fetch(getApiUrl(`/api/requests/combine/${combinedRequestIdState}`), {
+                const response = await fetch(getApiUrl(`/api/requests/combinable/${combinedRequestIdState}`), {
                     headers: {
                         Authorization: `Bearer ${token}`,
                         'Content-Type': 'application/json',

@@ -68,7 +68,7 @@ const CombinedRequestDetail = () => {
             try {
                 setIsLoading(true);
                 const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
-                const response = await fetch(getApiUrl(`/api/requests/combine/${id}`), {
+                const response = await fetch(getApiUrl(`/api/requests/combinable/${id}`), {
                     headers: {
                         Authorization: `Bearer ${token}`,
                         'Content-Type': 'application/json',
