@@ -17,6 +17,7 @@ import { useTranslation } from 'react-i18next';
 import Swal from 'sweetalert2';
 import { evaluationService, type Evaluation, type EvaluationStatus } from '../../../services/evaluationService';
 import { getUser } from '../../../utils/auth';
+import { SkeletonStats, SkeletonTableRow } from '../../../components/SkeletonLoading';
 
 type DisplayStatus = 'Pending' | 'In Progress' | 'Committee Review' | 'Completed' | 'Validated' | 'Rejected';
 
@@ -418,110 +419,123 @@ const EvaluationList = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {filteredEvaluations.map((evaluation) => (
-                                    <tr key={evaluation.id}>
-                                        <td className="whitespace-nowrap">
-                                            <button onClick={() => handleViewDetails(evaluation.id)} className="font-semibold text-primary hover:underline bg-transparent border-0 p-0 cursor-pointer">
-                                                {evaluation.evalNumber}
-                                            </button>
-                                        </td>
-                                        <td className="whitespace-nowrap">
-                                            <span className="text-info">{evaluation.rfqNumber}</span>
-                                        </td>
-                                        <td>
-                                            <div className="max-w-[300px]" title={evaluation.rfqTitle}>
-                                                <div className="line-clamp-2">{evaluation.rfqTitle}</div>
-                                            </div>
-                                            {evaluation.description && <div className="text-xs text-white-dark line-clamp-1">{evaluation.description}</div>}
-                                            {(evaluation.requestId || evaluation.combinedRequestId) && (
-                                                <div className="mt-1 inline-flex items-center gap-1 text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
-                                                    <IconTxtFile className="h-3 w-3" />
-                                                    <span>Linked Request</span>
-                                                </div>
-                                            )}
-                                        </td>
-                                        <td className="whitespace-nowrap">{evaluation.evaluator || evaluation.creator.name || '-'}</td>
-                                        <td className="whitespace-nowrap">{formatDate(evaluation.dueDate)}</td>
-                                        <td>
-                                            <div className="flex flex-wrap items-center gap-1">
-                                                <span className={`badge ${getStatusBadge(evaluation.status)} whitespace-nowrap`}>{statusMap[evaluation.status]}</span>
-                                                {isCommittee && hasNewSubmissions(evaluation) && (
-                                                    <span className="badge bg-info whitespace-nowrap" title="Submitted sections awaiting committee review">
-                                                        New
-                                                    </span>
-                                                )}
-                                                {isProcurement && hasReturnedSections(evaluation) && (
-                                                    <span className="badge bg-warning whitespace-nowrap" title="Sections returned by committee; needs updates">
-                                                        Returned
-                                                    </span>
-                                                )}
-                                                {hasStartedEditing(evaluation) && (
-                                                    <span className="badge bg-secondary whitespace-nowrap" title="First edits saved; not yet submitted">
-                                                        Edited
-                                                    </span>
-                                                )}
-                                                {isProcurement && evaluation.status === 'COMPLETED' && (
-                                                    <span className="badge bg-success animate-pulse whitespace-nowrap" title="All sections verified; evaluation completed">
-                                                        ✓ Verified
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <div className="flex flex-wrap gap-1">
+                                {loading ? (
+                                    <>
+                                        <SkeletonTableRow columns={7} />
+                                        <SkeletonTableRow columns={7} />
+                                        <SkeletonTableRow columns={7} />
+                                        <SkeletonTableRow columns={7} />
+                                        <SkeletonTableRow columns={7} />
+                                    </>
+                                ) : (
+                                    filteredEvaluations.map((evaluation) => (
+                                        <tr key={evaluation.id}>
+                                            <td className="whitespace-nowrap">
                                                 <button
                                                     onClick={() => handleViewDetails(evaluation.id)}
-                                                    className="btn btn-sm btn-outline-primary"
-                                                    title={t('evaluation.actions.viewDetails', 'View Details')}
+                                                    className="font-semibold text-primary hover:underline bg-transparent border-0 p-0 cursor-pointer"
                                                 >
-                                                    <IconEye className="h-4 w-4" />
+                                                    {evaluation.evalNumber}
                                                 </button>
-                                                {/* View linked request button */}
+                                            </td>
+                                            <td className="whitespace-nowrap">
+                                                <span className="text-info">{evaluation.rfqNumber}</span>
+                                            </td>
+                                            <td>
+                                                <div className="max-w-[300px]" title={evaluation.rfqTitle}>
+                                                    <div className="line-clamp-2">{evaluation.rfqTitle}</div>
+                                                </div>
+                                                {evaluation.description && <div className="text-xs text-white-dark line-clamp-1">{evaluation.description}</div>}
                                                 {(evaluation.requestId || evaluation.combinedRequestId) && (
+                                                    <div className="mt-1 inline-flex items-center gap-1 text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
+                                                        <IconTxtFile className="h-3 w-3" />
+                                                        <span>Linked Request</span>
+                                                    </div>
+                                                )}
+                                            </td>
+                                            <td className="whitespace-nowrap">{evaluation.evaluator || evaluation.creator.name || '-'}</td>
+                                            <td className="whitespace-nowrap">{formatDate(evaluation.dueDate)}</td>
+                                            <td>
+                                                <div className="flex flex-wrap items-center gap-1">
+                                                    <span className={`badge ${getStatusBadge(evaluation.status)} whitespace-nowrap`}>{statusMap[evaluation.status]}</span>
+                                                    {isCommittee && hasNewSubmissions(evaluation) && (
+                                                        <span className="badge bg-info whitespace-nowrap" title="Submitted sections awaiting committee review">
+                                                            New
+                                                        </span>
+                                                    )}
+                                                    {isProcurement && hasReturnedSections(evaluation) && (
+                                                        <span className="badge bg-warning whitespace-nowrap" title="Sections returned by committee; needs updates">
+                                                            Returned
+                                                        </span>
+                                                    )}
+                                                    {hasStartedEditing(evaluation) && (
+                                                        <span className="badge bg-secondary whitespace-nowrap" title="First edits saved; not yet submitted">
+                                                            Edited
+                                                        </span>
+                                                    )}
+                                                    {isProcurement && evaluation.status === 'COMPLETED' && (
+                                                        <span className="badge bg-success animate-pulse whitespace-nowrap" title="All sections verified; evaluation completed">
+                                                            ✓ Verified
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div className="flex flex-wrap gap-1">
                                                     <button
-                                                        onClick={() => {
-                                                            if (evaluation.requestId) {
-                                                                navigate(`/apps/requests/edit/${evaluation.requestId}`);
-                                                            } else if (evaluation.combinedRequestId) {
-                                                                Swal.fire({
-                                                                    icon: 'info',
-                                                                    title: 'Combined Request',
-                                                                    text: `This evaluation is linked to Combined Request #${evaluation.combinedRequestId}`,
-                                                                    customClass: { popup: 'sweet-alerts' },
-                                                                });
-                                                            }
-                                                        }}
-                                                        className="btn btn-sm btn-outline-success"
-                                                        title="View Linked Request"
+                                                        onClick={() => handleViewDetails(evaluation.id)}
+                                                        className="btn btn-sm btn-outline-primary"
+                                                        title={t('evaluation.actions.viewDetails', 'View Details')}
                                                     >
-                                                        <IconTxtFile className="h-4 w-4" />
+                                                        <IconEye className="h-4 w-4" />
                                                     </button>
-                                                )}
-                                                {/* Edit button for Procurement when sections are returned */}
-                                                {isProcurement && hasReturnedSections(evaluation) && (
-                                                    <Link to={`/procurement/evaluation/${evaluation.id}/edit`} className="btn btn-sm btn-outline-warning" title="Edit Returned Sections">
-                                                        <IconEdit className="h-4 w-4" />
-                                                    </Link>
-                                                )}
-                                                {isCommittee && (
-                                                    <Link to={`/evaluation/${evaluation.id}/committee`} className="btn btn-sm btn-outline-info" title="Committee Verification">
-                                                        <IconUsersGroup className="h-4 w-4" />
-                                                    </Link>
-                                                )}
-                                                {(evaluation.status === 'COMPLETED' || evaluation.status === 'VALIDATED') && (
-                                                    <button className="btn btn-sm btn-success" title={t('evaluation.actions.generateReport', 'Download Report')}>
-                                                        <IconFile className="h-4 w-4" />
-                                                    </button>
-                                                )}
-                                                {isExecutive && evaluation.status === 'COMPLETED' && (
-                                                    <button onClick={() => handleValidate(evaluation.id)} className="btn btn-sm btn-primary" title="Validate Evaluation">
-                                                        <IconChecks className="h-4 w-4" />
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
+                                                    {/* View linked request button */}
+                                                    {(evaluation.requestId || evaluation.combinedRequestId) && (
+                                                        <button
+                                                            onClick={() => {
+                                                                if (evaluation.requestId) {
+                                                                    navigate(`/apps/requests/edit/${evaluation.requestId}`);
+                                                                } else if (evaluation.combinedRequestId) {
+                                                                    Swal.fire({
+                                                                        icon: 'info',
+                                                                        title: 'Combined Request',
+                                                                        text: `This evaluation is linked to Combined Request #${evaluation.combinedRequestId}`,
+                                                                        customClass: { popup: 'sweet-alerts' },
+                                                                    });
+                                                                }
+                                                            }}
+                                                            className="btn btn-sm btn-outline-success"
+                                                            title="View Linked Request"
+                                                        >
+                                                            <IconTxtFile className="h-4 w-4" />
+                                                        </button>
+                                                    )}
+                                                    {/* Edit button for Procurement when sections are returned */}
+                                                    {isProcurement && hasReturnedSections(evaluation) && (
+                                                        <Link to={`/procurement/evaluation/${evaluation.id}/edit`} className="btn btn-sm btn-outline-warning" title="Edit Returned Sections">
+                                                            <IconEdit className="h-4 w-4" />
+                                                        </Link>
+                                                    )}
+                                                    {isCommittee && (
+                                                        <Link to={`/evaluation/${evaluation.id}/committee`} className="btn btn-sm btn-outline-info" title="Committee Verification">
+                                                            <IconUsersGroup className="h-4 w-4" />
+                                                        </Link>
+                                                    )}
+                                                    {(evaluation.status === 'COMPLETED' || evaluation.status === 'VALIDATED') && (
+                                                        <button className="btn btn-sm btn-success" title={t('evaluation.actions.generateReport', 'Download Report')}>
+                                                            <IconFile className="h-4 w-4" />
+                                                        </button>
+                                                    )}
+                                                    {isExecutive && evaluation.status === 'COMPLETED' && (
+                                                        <button onClick={() => handleValidate(evaluation.id)} className="btn btn-sm btn-primary" title="Validate Evaluation">
+                                                            <IconChecks className="h-4 w-4" />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
                             </tbody>
                         </table>
                     </div>

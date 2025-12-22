@@ -22,6 +22,7 @@ import { getApiUrl } from '../../config/api';
 import { detectUserRoles } from '../../utils/roleDetection';
 import Swal from 'sweetalert2';
 import { statsService, type DashboardStats } from '../../services/statsService';
+import { SkeletonStats, SkeletonChart, SkeletonCard } from '../../components/SkeletonLoading';
 
 const ProcurementOfficerDashboard = () => {
     const dispatch = useDispatch();
@@ -64,12 +65,9 @@ const ProcurementOfficerDashboard = () => {
     const [evaluationCount, setEvaluationCount] = useState<number>(0);
     const [evaluationsLoading, setEvaluationsLoading] = useState<boolean>(false);
 
-    // Mock statistics
+    // Base statistics with defaults
     const baseStats = useMemo(
         () => ({
-            activeRFQs: 12,
-            pendingQuotes: 8,
-            procurementReviews: 7,
             catalogItems: 856,
             monthlyReports: 3,
             workflowTemplates: 12,
@@ -83,7 +81,6 @@ const ProcurementOfficerDashboard = () => {
             ...baseStats,
             pendingEvaluations: evaluationCount || 0,
             catalogItems: liveStats?.catalogItems ?? baseStats.catalogItems,
-            procurementReviews: liveStats?.procurementReviews ?? baseStats.procurementReviews,
             workflowTemplates: liveStats?.workflowTemplates ?? baseStats.workflowTemplates,
             monthlyReports: liveStats?.monthlyReports ?? baseStats.monthlyReports,
             requestsThisMonth: liveStats?.requestsThisMonth ?? baseStats.requestsThisMonth,
@@ -335,6 +332,9 @@ const ProcurementOfficerDashboard = () => {
             </div>
 
             {/* Key Metrics Grid */}
+            {statsLoading ? (
+                <SkeletonStats count={4} />
+            ) : (
             <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 {/* Total Requests This Month */}
                 <div className="panel">
@@ -389,8 +389,15 @@ const ProcurementOfficerDashboard = () => {
                     <div className="text-sm font-semibold">Active Users Today</div>
                 </div>
             </div>
+            )}
 
             {/* Charts Row */}
+            {chartLoading ? (
+                <div className="mb-6 grid gap-6 lg:grid-cols-2">
+                    <SkeletonChart height="h-96" />
+                    <SkeletonChart height="h-96" />
+                </div>
+            ) : (
             <div className="mb-6 grid gap-6 lg:grid-cols-2">
                 {/* Procurement Spend Chart */}
                 <div className="panel h-full">
@@ -475,6 +482,7 @@ const ProcurementOfficerDashboard = () => {
                     )}
                 </div>
             </div>
+            )}
 
             <div className="grid gap-6 lg:grid-cols-2">
                 {/* Recent Activities */}
@@ -490,8 +498,10 @@ const ProcurementOfficerDashboard = () => {
                     <PerfectScrollbar className="relative h-[400px] pr-3 -mr-3">
                         <div className="space-y-4">
                             {activitiesLoading ? (
-                                <div className="flex items-center justify-center h-full py-8">
-                                    <p className="text-white-dark">Loading activities...</p>
+                                <div className="space-y-3">
+                                    <SkeletonCard className="h-16" />
+                                    <SkeletonCard className="h-16" />
+                                    <SkeletonCard className="h-16" />
                                 </div>
                             ) : recentActivities.length === 0 ? (
                                 <div className="flex items-center justify-center h-full py-8">
