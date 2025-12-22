@@ -11,6 +11,7 @@ import IconRefresh from '../../../components/Icon/IconRefresh';
 import IconX from '../../../components/Icon/IconX';
 import { getStatusBadge } from '../../../utils/statusBadges';
 import { getApiUrl } from '../../../config/api';
+import { getAuthHeaders } from '../../../utils/api';
 
 const MySwal = withReactContent(Swal);
 
@@ -58,6 +59,16 @@ const AssignRequests = () => {
     const [viewingOfficerRequests, setViewingOfficerRequests] = useState<number | null>(null);
     const [isProcurementManager, setIsProcurementManager] = useState<boolean>(false);
 
+    const toast = (title: string, icon: 'success' | 'error' | 'info' | 'warning' = 'info') =>
+        MySwal.fire({
+            toast: true,
+            icon,
+            title,
+            position: 'top-end',
+            timer: 2500,
+            showConfirmButton: false,
+        });
+
     // Get current user from modern auth storage
     const getUserProfile = () => {
         try {
@@ -80,19 +91,20 @@ const AssignRequests = () => {
     }, [dispatch]);
 
     // Fetch data function (can be called to refresh inbox/officers)
+    const buildHeaders = () => {
+        const headers = getAuthHeaders();
+        if (currentUserId) headers['x-user-id'] = String(currentUserId);
+        return headers;
+    };
+
     const fetchData = async () => {
         setLoading(true);
         setError(null);
 
         try {
-            const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
-            const currentUserId = userProfile?.id || userProfile?.userId || null;
-
             // Fetch procurement officers
             const officersRes = await fetch(getApiUrl('/api/users/procurement-officers'), {
-                headers: {
-                    'x-user-id': String(currentUserId || ''),
-                },
+                headers: buildHeaders(),
             });
             if (!officersRes.ok) throw new Error('Failed to fetch procurement officers');
             const officersData = await officersRes.json();
@@ -107,9 +119,7 @@ const AssignRequests = () => {
 
             // Fetch requests at PROCUREMENT_REVIEW status
             const requestsRes = await fetch(getApiUrl('/api/requests'), {
-                headers: {
-                    'x-user-id': String(currentUserId || ''),
-                },
+                headers: buildHeaders(),
             });
             if (!requestsRes.ok) throw new Error('Failed to fetch requests');
             const requestsData = await requestsRes.json();
@@ -126,6 +136,7 @@ const AssignRequests = () => {
         } catch (err: any) {
             console.error('Error fetching data:', err);
             setError(err.message || 'Failed to load data');
+            toast(err.message || 'Failed to load data', 'error');
         } finally {
             setLoading(false);
         }
@@ -247,14 +258,10 @@ const AssignRequests = () => {
 
         if (result.isConfirmed) {
             try {
-                const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
-                const currentUserId = userProfile?.id || userProfile?.userId || null;
-
                 const res = await fetch(getApiUrl(`/api/requests/${reqId}/assign`), {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
-                        'x-user-id': String(currentUserId || ''),
+                        ...buildHeaders(),
                     },
                     body: JSON.stringify({
                         assigneeId: assigneeId,
@@ -287,20 +294,10 @@ const AssignRequests = () => {
                     })
                 );
 
-                MySwal.fire({
-                    icon: 'success',
-                    title: 'Request Assigned',
-                    text: `The request has been assigned to ${officer.name}.`,
-                    timer: 2000,
-                    showConfirmButton: false,
-                });
+                toast(`Request assigned to ${officer.name}`, 'success');
             } catch (err: any) {
                 console.error('Error assigning request:', err);
-                MySwal.fire({
-                    icon: 'error',
-                    title: 'Assignment Failed',
-                    text: err.message || 'Failed to assign the request. Please try again.',
-                });
+                toast(err.message || 'Failed to assign the request', 'error');
             }
         }
     };

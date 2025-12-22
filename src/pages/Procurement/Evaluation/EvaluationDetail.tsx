@@ -38,6 +38,16 @@ const EvaluationDetail = () => {
     const [selectedAssignSections, setSelectedAssignSections] = useState<string[]>([]);
     const [completingAssignment, setCompletingAssignment] = useState<boolean>(false);
 
+    const toast = (title: string, icon: 'success' | 'error' | 'info' | 'warning' = 'info') =>
+        Swal.fire({
+            toast: true,
+            icon,
+            title,
+            position: 'top-end',
+            timer: 2500,
+            showConfirmButton: false,
+        });
+
     // Add print styles
     useEffect(() => {
         const style = document.createElement('style');
@@ -213,6 +223,7 @@ const EvaluationDetail = () => {
         } catch (err: any) {
             console.error('Failed to load evaluation:', err);
             setError(err.message || 'Failed to load evaluation');
+            toast(err.message || 'Failed to load evaluation', 'error');
         } finally {
             setLoading(false);
         }
@@ -251,24 +262,27 @@ const EvaluationDetail = () => {
     const handleCompleteAssignment = async () => {
         if (!evaluation || !myAssignment) return;
 
-        if (!confirm('Are you sure you want to mark your evaluation as complete? The procurement officer will be notified.')) {
-            return;
-        }
+        const confirmResult = await Swal.fire({
+            title: 'Mark assignment complete?',
+            text: 'The procurement officer will be notified.',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, complete',
+            cancelButtonText: 'Cancel',
+        });
+
+        if (!confirmResult.isConfirmed) return;
 
         try {
             setCompletingAssignment(true);
             await evaluationService.completeAssignment(evaluation.id);
-            alert('Your evaluation has been marked as complete. The procurement officer has been notified.');
-            // Reload to update assignment status
-            loadEvaluation();
-            // Reload assignment
+            toast('Evaluation marked complete', 'success');
+            await loadEvaluation();
             const assignments = await evaluationService.getMyAssignments();
             const forThisEval = assignments.filter((a: any) => String(a.evaluationId) === String(id));
-            if (forThisEval.length > 0) {
-                setMyAssignment(forThisEval[0]);
-            }
+            if (forThisEval.length > 0) setMyAssignment(forThisEval[0]);
         } catch (err: any) {
-            alert(err.message || 'Failed to complete assignment');
+            toast(err.message || 'Failed to complete assignment', 'error');
         } finally {
             setCompletingAssignment(false);
         }

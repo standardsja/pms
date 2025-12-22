@@ -47,6 +47,16 @@ const EvaluationList = () => {
     const [isProcurement, setIsProcurement] = useState(false);
     const [isExecutive, setIsExecutive] = useState(false);
 
+    const toast = (title: string, icon: 'success' | 'error' | 'info' | 'warning' = 'info') =>
+        Swal.fire({
+            toast: true,
+            icon,
+            title,
+            position: 'top-end',
+            timer: 2500,
+            showConfirmButton: false,
+        });
+
     useEffect(() => {
         dispatch(setPageTitle(t('evaluation.pageTitle', 'BSJ Evaluation Reports')));
     }, [dispatch, t]);
@@ -91,6 +101,7 @@ const EvaluationList = () => {
         } catch (err: any) {
             console.error('Failed to load evaluations:', err);
             setError(err.message || 'Failed to load evaluations');
+            toast(err.message || 'Failed to load evaluations', 'error');
         } finally {
             setLoading(false);
         }
@@ -163,8 +174,10 @@ const EvaluationList = () => {
             setLoading(true);
             const updated = await evaluationService.validateEvaluation(evaluationId);
             setEvaluations((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
+            toast('Evaluation validated', 'success');
         } catch (err: any) {
             setError(err.message || 'Failed to validate evaluation');
+            toast(err.message || 'Failed to validate evaluation', 'error');
         } finally {
             setLoading(false);
         }

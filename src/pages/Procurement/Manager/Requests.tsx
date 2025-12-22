@@ -10,6 +10,7 @@ import IconPrinter from '../../../components/Icon/IconPrinter';
 import IconUsersGroup from '../../../components/Icon/IconUsersGroup';
 import { getStatusBadge } from '../../../utils/statusBadges';
 import { getApiUrl } from '../../../config/api';
+import { getAuthHeaders } from '../../../utils/api';
 
 const MySwal = withReactContent(Swal);
 
@@ -48,6 +49,16 @@ const ProcurementManagerRequests = () => {
     const [filterDepartment, setFilterDepartment] = useState<string>('ALL');
     const [filterPriority, setFilterPriority] = useState<string>('ALL');
 
+    const toast = (title: string, icon: 'success' | 'error' | 'info' | 'warning' = 'info') =>
+        MySwal.fire({
+            toast: true,
+            icon,
+            title,
+            position: 'top-end',
+            timer: 2500,
+            showConfirmButton: false,
+        });
+
     // Get current user profile - with error handling
     let userProfile: any = {};
     let currentUserId: number | null = null;
@@ -80,9 +91,11 @@ const ProcurementManagerRequests = () => {
             setError(null);
 
             try {
+                const baseHeaders = getAuthHeaders();
                 const res = await fetch(getApiUrl('/api/requests'), {
                     headers: {
-                        'x-user-id': String(currentUserId || ''),
+                        ...baseHeaders,
+                        ...(currentUserId ? { 'x-user-id': String(currentUserId) } : {}),
                     },
                 });
 
@@ -103,6 +116,7 @@ const ProcurementManagerRequests = () => {
             } catch (err: any) {
                 console.error('Error fetching procurement requests:', err);
                 setError(err.message || 'Failed to load requests');
+                toast(err.message || 'Failed to load requests', 'error');
             } finally {
                 setLoading(false);
                 setInitialLoad(false);
@@ -169,11 +183,12 @@ const ProcurementManagerRequests = () => {
 
         if (result.isConfirmed) {
             try {
+                const baseHeaders = getAuthHeaders();
                 const res = await fetch(getApiUrl(`/api/requests/${req.id}/assign`), {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
-                        'x-user-id': String(currentUserId || ''),
+                        ...baseHeaders,
+                        ...(currentUserId ? { 'x-user-id': String(currentUserId) } : {}),
                     },
                     body: JSON.stringify({
                         assigneeId: currentUserId,
@@ -188,20 +203,10 @@ const ProcurementManagerRequests = () => {
                 // Remove from list after successful assignment
                 setRequests((prev) => prev.filter((r) => r.id !== req.id));
 
-                MySwal.fire({
-                    icon: 'success',
-                    title: 'Request Assigned',
-                    text: 'The request has been assigned to you.',
-                    timer: 2000,
-                    showConfirmButton: false,
-                });
+                toast('Request assigned to you', 'success');
             } catch (err: any) {
                 console.error('Error assigning request:', err);
-                MySwal.fire({
-                    icon: 'error',
-                    title: 'Assignment Failed',
-                    text: err.message || 'Failed to assign the request. Please try again.',
-                });
+                toast(err.message || 'Failed to assign the request', 'error');
             }
         }
     };
@@ -241,11 +246,12 @@ const ProcurementManagerRequests = () => {
         const comment = (result.value as string) || '';
 
         try {
+            const baseHeaders = getAuthHeaders();
             const res = await fetch(getApiUrl(`/api/requests/${req.id}/action`), {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'x-user-id': String(currentUserId || ''),
+                    ...baseHeaders,
+                    ...(currentUserId ? { 'x-user-id': String(currentUserId) } : {}),
                 },
                 body: JSON.stringify({ action: 'REJECT', comment: comment.trim() || undefined }),
             });
@@ -268,7 +274,7 @@ const ProcurementManagerRequests = () => {
             });
         } catch (err: any) {
             console.error('Error returning request:', err);
-            MySwal.fire({ icon: 'error', title: 'Return Failed', text: err.message || 'Failed to return the request. Please try again.' });
+            toast(err.message || 'Failed to return the request', 'error');
         }
     };
 

@@ -15,6 +15,7 @@ interface RequestItem {
     unitOfMeasure: string;
     unitCost: number;
     partNumber: string;
+    accountCode?: string | null;
 }
 
 /**

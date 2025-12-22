@@ -449,7 +449,7 @@ const RolePermissionManagement = () => {
                                 <div className="flex flex-wrap gap-2">
                                     {(role.permissions || []).length > 0 ? (
                                         (role.permissions || []).map((permId) => {
-                                            const perm = permissions.find((p) => p.id === permId || p.id === parseInt(permId as any));
+                                            const perm = permissions.find((p) => p.id === String(permId));
                                             return perm ? (
                                                 <span key={permId} className="badge badge-outline-primary text-xs">
                                                     {perm.name}

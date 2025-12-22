@@ -261,7 +261,7 @@ const HeadOfDivisionDashboard = () => {
                                         <td className="px-6 py-4 text-sm font-medium text-gray-700 dark:text-gray-300">${req.amount.toLocaleString()}</td>
                                         <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{dateFmt(req.submitDate)}</td>
                                         <td className="px-6 py-4 text-sm">
-                                            <Link to={`/procurement/requests/${req.id}`} className="text-blue-600 dark:text-blue-400 hover:underline font-medium">
+                                            <Link to={`/apps/requests/edit/${req.id}`} className="text-blue-600 dark:text-blue-400 hover:underline font-medium">
                                                 Review
                                             </Link>
                                         </td>

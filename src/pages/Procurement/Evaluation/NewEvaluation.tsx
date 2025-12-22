@@ -7,9 +7,11 @@ import IconSave from '../../../components/Icon/IconSave';
 import IconArrowLeft from '../../../components/Icon/IconArrowLeft';
 import IconChecks from '../../../components/Icon/IconChecks';
 import { getUser } from '../../../utils/auth';
+import Swal from 'sweetalert2';
 import { useTranslation } from 'react-i18next';
 import { evaluationService, type CreateEvaluationDTO } from '../../../services/evaluationService';
 import { getApiUrl } from '../../../config/api';
+import { getAuthHeaders } from '../../../utils/api';
 
 const NewEvaluation = () => {
     const dispatch = useDispatch();
@@ -37,12 +39,8 @@ const NewEvaluation = () => {
 
             try {
                 setLoadingCombinedRequest(true);
-                const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
                 const response = await fetch(getApiUrl(`/api/requests/combine/${combinedRequestIdState}`), {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        'Content-Type': 'application/json',
-                    },
+                    headers: getAuthHeaders(),
                 });
 
                 if (!response.ok) throw new Error('Failed to fetch combined request');
@@ -59,8 +57,7 @@ const NewEvaluation = () => {
                 }));
             } catch (error) {
                 console.error('Error fetching combined request:', error);
-                setAlertMessage('Failed to load combined request data');
-                setShowErrorAlert(true);
+                toast('Failed to load combined request data', 'error');
             } finally {
                 setLoadingCombinedRequest(false);
             }
@@ -74,12 +71,8 @@ const NewEvaluation = () => {
         const fetchRequest = async () => {
             if (!requestIdParam) return;
             try {
-                const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
                 const response = await fetch(getApiUrl(`/api/requests/${requestIdParam}`), {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        'Content-Type': 'application/json',
-                    },
+                    headers: getAuthHeaders(),
                 });
 
                 if (!response.ok) throw new Error('Failed to fetch request');
@@ -115,6 +108,7 @@ const NewEvaluation = () => {
                 }
             } catch (err) {
                 console.error('Error fetching request for evaluation prefill:', err);
+                toast('Failed to prefill request details', 'error');
             }
         };
 
@@ -190,11 +184,19 @@ const NewEvaluation = () => {
     });
 
     const [currentStep, setCurrentStep] = useState(1);
-    const [showSuccessAlert, setShowSuccessAlert] = useState(false);
     const [showErrorAlert, setShowErrorAlert] = useState(false);
-    const [alertMessage, setAlertMessage] = useState('');
     const [errorFields, setErrorFields] = useState<string[]>([]);
     const [loading, setLoading] = useState(false);
+
+    const toast = (title: string, icon: 'success' | 'error' | 'info' | 'warning' = 'info') =>
+        Swal.fire({
+            toast: true,
+            icon,
+            title,
+            position: 'top-end',
+            timer: 2500,
+            showConfirmButton: false,
+        });
 
     // Send-to-evaluators modal state
     const [showAssignModal, setShowAssignModal] = useState(false);
@@ -563,14 +565,12 @@ const NewEvaluation = () => {
             const result = await evaluationService.createEvaluation(evaluationData);
 
             setCreatedEvaluationId(result.id);
-            setAlertMessage(`BSJ Evaluation ${evalNumber} created successfully! Now assign technical evaluators for Section B.`);
-            setShowSuccessAlert(true);
+            toast(`BSJ Evaluation ${evalNumber} created successfully. Assign technical evaluators for Section B.`, 'success');
 
             // Load users for selection
             try {
-                const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
                 const resp = await fetch(getApiUrl('/api/admin/users'), {
-                    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    headers: getAuthHeaders(),
                 });
                 if (resp.ok) {
                     const users = await resp.json();
@@ -592,12 +592,7 @@ const NewEvaluation = () => {
             setShowAssignModal(true);
         } catch (error: any) {
             console.error('Failed to create evaluation:', error);
-            setErrorFields([error.message || 'Failed to create evaluation. Please try again.']);
-            setShowErrorAlert(true);
-
-            setTimeout(() => {
-                setShowErrorAlert(false);
-            }, 5000);
+            toast(error.message || 'Failed to create evaluation. Please try again.', 'error');
         } finally {
             setLoading(false);
         }
@@ -634,9 +629,7 @@ const NewEvaluation = () => {
             const userIds = Array.from(new Set([...baseIds, ...manualIds])).filter((n) => Number.isFinite(n));
 
             if (userIds.length === 0 && manualEmails.length === 0) {
-                setAlertMessage('Please select at least one valid user or enter an email/ID');
-                setShowErrorAlert(true);
-                setTimeout(() => setShowErrorAlert(false), 4000);
+                toast('Please select at least one valid user or enter an email/ID', 'error');
                 return;
             }
 
@@ -648,14 +641,12 @@ const NewEvaluation = () => {
                 userEmails: manualEmails.length > 0 ? manualEmails : undefined,
                 sections: sectionsWithC,
             });
+            toast('Assignments sent successfully', 'success');
             setShowAssignModal(false);
             setManualRecipient('');
             navigate('/procurement/evaluation');
         } catch (err: any) {
-            // Surface structured error message
-            setAlertMessage(err?.message || 'Failed to send assignments');
-            setShowErrorAlert(true);
-            setTimeout(() => setShowErrorAlert(false), 4000);
+            toast(err?.message || 'Failed to send assignments', 'error');
         } finally {
             setLoading(false);
         }
@@ -710,23 +701,6 @@ const NewEvaluation = () => {
                                     ))}
                                 </ul>
                             </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Success Alert Modal */}
-            {showSuccessAlert && (
-                <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/60">
-                    <div className="panel w-full max-w-lg overflow-hidden rounded-lg p-0">
-                        <div className="flex items-center p-3.5 rounded-t text-success bg-success-light dark:bg-success-dark-light">
-                            <span className="ltr:pr-2 rtl:pl-2 flex-1">
-                                <strong className="ltr:mr-1 rtl:ml-1 text-lg">{t('common.success', 'Success!')}</strong>
-                                {alertMessage}
-                            </span>
-                            <button type="button" className="ltr:ml-auto rtl:mr-auto hover:opacity-80" onClick={() => setShowSuccessAlert(false)}>
-                                <IconX className="h-5 w-5" />
-                            </button>
                         </div>
                     </div>
                 </div>

@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { setPageTitle } from '../../../store/themeConfigSlice';
-import { getApiUrl } from '../../../config/api';
 import IconSettings from '../../../components/Icon/IconSettings';
 import IconUserPlus from '../../../components/Icon/IconUserPlus';
 import IconUsers from '../../../components/Icon/IconUsers';
@@ -12,7 +11,7 @@ import IconLoader from '../../../components/Icon/IconLoader';
 import IconSquareCheck from '../../../components/Icon/IconSquareCheck';
 import IconInfoCircle from '../../../components/Icon/IconInfoCircle';
 import adminService, { type AdminUser } from '../../../services/adminService';
-import { getUser } from '../../../utils/auth';
+import { z } from 'zod';
 
 const AdminDashboard = () => {
     const dispatch = useDispatch();
@@ -37,6 +36,8 @@ const AdminDashboard = () => {
 
     const [showSuccess, setShowSuccess] = useState(false);
     const [successMessage, setSuccessMessage] = useState('');
+    const [showError, setShowError] = useState(false);
+    const [errorMessage, setErrorMessage] = useState('');
 
     // Load initial data
     useEffect(() => {
@@ -46,12 +47,14 @@ const AdminDashboard = () => {
     const loadAllData = async () => {
         setLoading(true);
         try {
-            const [usersData, rolesData, deptsData] = await Promise.all([adminService.getUsers(), adminService.getAllRoles(), fetch(getApiUrl('/api/departments')).then((r) => r.json())]);
+            const [usersData, rolesData, deptsData] = await Promise.all([adminService.getUsers(), adminService.getAllRoles(), adminService.getDepartments()]);
             setUsers(usersData);
             setAllRoles(rolesData);
             setAllDepartments(deptsData);
         } catch (error) {
             console.error('Failed to load data:', error);
+            setErrorMessage('Failed to load admin data. Please try again.');
+            setShowError(true);
         } finally {
             setLoading(false);
         }
@@ -87,6 +90,23 @@ const AdminDashboard = () => {
     // Save changes
     const handleSaveChanges = async () => {
         if (!selectedUser) return;
+
+        // Validate payload using zod
+        const roleNames = allRoles.map((r) => r.name);
+        const schema = z.object({
+            roles: z
+                .array(z.string())
+                .nonempty('Select at least one role')
+                .refine((arr) => arr.every((r) => roleNames.includes(r)), 'One or more roles are invalid'),
+            departmentId: z.number().int().positive().nullable(),
+        });
+        const parsed = schema.safeParse({ roles: editingRoles, departmentId: editingDept });
+        if (!parsed.success) {
+            const first = parsed.error.issues[0]?.message || 'Invalid input';
+            setErrorMessage(first);
+            setShowError(true);
+            return;
+        }
 
         setSaving(true);
         try {
@@ -131,7 +151,8 @@ const AdminDashboard = () => {
             setEditingRoles([]);
             setEditingDept(null);
         } catch (error: any) {
-            alert(error?.message || 'Failed to update user');
+            setErrorMessage(error?.message || 'Failed to update user');
+            setShowError(true);
         } finally {
             setSaving(false);
         }
@@ -162,7 +183,8 @@ const AdminDashboard = () => {
             setShowSuccess(true);
             setTimeout(() => setShowSuccess(false), 2000);
         } catch (error: any) {
-            alert(error?.message || 'Failed to add role');
+            setErrorMessage(error?.message || 'Failed to add role');
+            setShowError(true);
         }
     };
 
@@ -193,7 +215,8 @@ const AdminDashboard = () => {
             setShowSuccess(true);
             setTimeout(() => setShowSuccess(false), 2000);
         } catch (error: any) {
-            alert(error?.message || 'Failed to remove role');
+            setErrorMessage(error?.message || 'Failed to remove role');
+            setShowError(true);
         }
     };
 
@@ -227,6 +250,19 @@ const AdminDashboard = () => {
                     <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-lg px-4 py-3 shadow-lg">
                         <IconSquareCheck className="w-5 h-5 text-green-600" />
                         <span className="text-green-800 font-medium">{successMessage}</span>
+                    </div>
+                </div>
+            )}
+
+            {/* Error Toast */}
+            {showError && (
+                <div className="fixed top-36 right-6 z-50 animate-[fadeIn_0.3s_ease-in-out]">
+                    <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-lg px-4 py-3 shadow-lg">
+                        <IconInfoCircle className="w-5 h-5 text-red-600" />
+                        <span className="text-red-800 font-medium">{errorMessage}</span>
+                        <button aria-label="Dismiss error" className="ml-2 text-red-600 hover:text-red-800" onClick={() => setShowError(false)}>
+                            <IconX className="w-4 h-4" />
+                        </button>
                     </div>
                 </div>
             )}

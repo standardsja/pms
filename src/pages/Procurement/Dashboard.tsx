@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { IRootState } from '../../store';
@@ -19,6 +19,8 @@ import IconClock from '../../components/Icon/IconClock';
 import IconTrendingUp from '../../components/Icon/IconTrendingUp';
 import { getUser } from '../../utils/auth';
 import { detectUserRoles } from '../../utils/roleDetection';
+import Swal from 'sweetalert2';
+import { statsService, type DashboardStats } from '../../services/statsService';
 
 const ProcurementOfficerDashboard = () => {
     const dispatch = useDispatch();
@@ -33,6 +35,16 @@ const ProcurementOfficerDashboard = () => {
         return <Navigate to="/finance" replace />;
     }
 
+    const toast = (title: string, icon: 'success' | 'error' | 'info' | 'warning' = 'info') =>
+        Swal.fire({
+            toast: true,
+            icon,
+            title,
+            position: 'top-end',
+            timer: 2500,
+            showConfirmButton: false,
+        });
+
     useEffect(() => {
         dispatch(setPageTitle('Procurement Officer Dashboard'));
     }, [dispatch]);
@@ -40,19 +52,59 @@ const ProcurementOfficerDashboard = () => {
     const isDark = useSelector((state: IRootState) => state.themeConfig.theme === 'dark' || state.themeConfig.isDarkMode);
     const isRtl = useSelector((state: IRootState) => state.themeConfig.rtlClass) === 'rtl' ? true : false;
 
+    const [liveStats, setLiveStats] = useState<DashboardStats | null>(null);
+    const [statsLoading, setStatsLoading] = useState<boolean>(false);
+
     // Mock statistics
-    const stats = {
-        activeRFQs: 12,
-        pendingQuotes: 8,
-        pendingEvaluations: 5,
-        procurementReviews: 7,
-        activePOs: 25,
-        activeContracts: 15,
-        totalSuppliers: 142,
-        catalogItems: 856,
-        monthlyReports: 3,
-        workflowTemplates: 12,
-    };
+    const baseStats = useMemo(
+        () => ({
+            activeRFQs: 12,
+            pendingQuotes: 8,
+            pendingEvaluations: 5,
+            procurementReviews: 7,
+            activePOs: 25,
+            activeContracts: 15,
+            totalSuppliers: 142,
+            catalogItems: 856,
+            monthlyReports: 3,
+            workflowTemplates: 12,
+            requestsThisMonth: 0,
+        }),
+        []
+    );
+
+    const metrics = useMemo(
+        () => ({
+            ...baseStats,
+            pendingEvaluations: liveStats?.pendingEvaluations ?? liveStats?.pendingApprovals ?? baseStats.pendingEvaluations,
+            activePOs: liveStats?.activePOs ?? baseStats.activePOs,
+            activeContracts: liveStats?.activeContracts ?? baseStats.activeContracts,
+            totalSuppliers: liveStats?.totalSuppliers ?? baseStats.totalSuppliers,
+            catalogItems: liveStats?.catalogItems ?? baseStats.catalogItems,
+            procurementReviews: liveStats?.procurementReviews ?? baseStats.procurementReviews,
+            workflowTemplates: liveStats?.workflowTemplates ?? baseStats.workflowTemplates,
+            monthlyReports: liveStats?.monthlyReports ?? baseStats.monthlyReports,
+            requestsThisMonth: liveStats?.requestsThisMonth ?? baseStats.requestsThisMonth,
+        }),
+        [baseStats, liveStats]
+    );
+
+    useEffect(() => {
+        const loadStats = async () => {
+            try {
+                setStatsLoading(true);
+                const data = await statsService.getDashboardStats();
+                setLiveStats(data);
+            } catch (error) {
+                console.error('Failed to fetch dashboard stats:', error);
+                toast('Unable to load live metrics', 'error');
+            } finally {
+                setStatsLoading(false);
+            }
+        };
+
+        loadStats();
+    }, []);
 
     // Recent activities (RFQ/Quote references removed)
     const recentActivities = [
@@ -166,6 +218,9 @@ const ProcurementOfficerDashboard = () => {
             <div className="mb-6">
                 <h2 className="text-2xl font-bold">Procurement Officer Dashboard</h2>
                 <p className="text-white-dark">Comprehensive procurement management overview</p>
+                <p className="text-xs text-white-dark mt-1">
+                    {statsLoading ? 'Loading live metrics…' : liveStats ? `Live metrics · updated ${new Date(liveStats.timestamp).toLocaleString()}` : 'Using default metrics'}
+                </p>
             </div>
 
             {/* Key Metrics Grid */}
@@ -182,7 +237,7 @@ const ProcurementOfficerDashboard = () => {
                             View All
                         </Link>
                     </div>
-                    <div className="text-2xl font-bold text-info">{stats.pendingEvaluations}</div>
+                    <div className="text-2xl font-bold text-info">{metrics.pendingEvaluations}</div>
                     <div className="text-sm font-semibold">Evaluations</div>
                 </div>
 
@@ -196,7 +251,7 @@ const ProcurementOfficerDashboard = () => {
                             View All
                         </Link>
                     </div>
-                    <div className="text-2xl font-bold text-success">{stats.activePOs}</div>
+                    <div className="text-2xl font-bold text-success">{metrics.activePOs}</div>
                     <div className="text-sm font-semibold">Active POs</div>
                 </div>
 
@@ -210,7 +265,7 @@ const ProcurementOfficerDashboard = () => {
                             View All
                         </Link>
                     </div>
-                    <div className="text-2xl font-bold text-secondary">{stats.totalSuppliers}</div>
+                    <div className="text-2xl font-bold text-secondary">{metrics.totalSuppliers}</div>
                     <div className="text-sm font-semibold">Total Suppliers</div>
                 </div>
             </div>
@@ -276,7 +331,7 @@ const ProcurementOfficerDashboard = () => {
                             <IconFolder className="h-6 w-6" />
                         </div>
                         <h6 className="mb-1 font-semibold">Catalog</h6>
-                        <p className="text-xs text-white-dark">{stats.catalogItems} items available</p>
+                        <p className="text-xs text-white-dark">{metrics.catalogItems} items available</p>
                     </Link>
 
                     {/* Reports */}

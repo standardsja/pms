@@ -4,7 +4,8 @@ import { setPageTitle } from '../../../../store/themeConfigSlice';
 import { selectUser } from '../../../../store/authSlice';
 import IconPlus from '../../../../components/Icon/IconPlus';
 import IconSearch from '../../../../components/Icon/IconSearch';
-import Swal from 'sweetalert2';
+import { getApiUrl, getAuthHeaders } from '../../../../utils/api';
+import { showError, showInfo } from '../../../../utils/notifications';
 
 interface Department {
     id: string;
@@ -50,12 +51,8 @@ const HODDepartments: React.FC = () => {
             const userId = user?.id;
 
             // Fetch real-time data from API
-            const response = await fetch(`/api/v1/departments?division=${userDepartment}&hod=${userId}`, {
-                headers: {
-                    Authorization: `Bearer ${sessionStorage.getItem('token') || localStorage.getItem('token')}`,
-                    'Content-Type': 'application/json',
-                },
-            });
+            const url = getApiUrl(`/api/v1/departments?division=${encodeURIComponent(String(userDepartment))}&hod=${encodeURIComponent(String(userId || ''))}`);
+            const response = await fetch(url, { headers: getAuthHeaders() });
 
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
@@ -69,6 +66,7 @@ const HODDepartments: React.FC = () => {
             setFilteredDepartments(filteredData);
         } catch (error) {
             console.error('Error fetching departments:', error);
+            showError('Failed to load departments', error instanceof Error ? error.message : undefined);
             // Fallback to mock data if API unavailable
             const mockData: Department[] = [
                 {
@@ -119,7 +117,7 @@ const HODDepartments: React.FC = () => {
     };
 
     const handleViewDetails = (id: string) => {
-        Swal.fire('Department Details', `View details for department ${id}`, 'info');
+        showInfo('Department Details', `View details for department ${id}`);
     };
 
     return (

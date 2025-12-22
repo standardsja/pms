@@ -3,9 +3,9 @@ import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { setPageTitle } from '../../../store/themeConfigSlice';
 import IconArrowLeft from '../../../components/Icon/IconArrowLeft';
-import IconX from '../../../components/Icon/IconX';
 import { getUser } from '../../../utils/auth';
-import { evaluationService, type Evaluation } from '../../../services/evaluationService';
+import Swal from 'sweetalert2';
+import { evaluationService, type Evaluation, type SectionA, type SectionB, type SectionD, type SectionE } from '../../../services/evaluationService';
 
 const EvaluationEdit = () => {
     const dispatch = useDispatch();
@@ -17,16 +17,23 @@ const EvaluationEdit = () => {
     const [evaluation, setEvaluation] = useState<Evaluation | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [showSuccessAlert, setShowSuccessAlert] = useState(false);
-    const [showErrorAlert, setShowErrorAlert] = useState(false);
-    const [alertMessage, setAlertMessage] = useState('');
     const [currentSection, setCurrentSection] = useState<'A' | 'B' | 'C' | 'D' | 'E' | null>(null);
 
     // Section forms
-    const [sectionAForm, setSectionAForm] = useState<any>(null);
-    const [sectionBForm, setSectionBForm] = useState<any>(null);
-    const [sectionDForm, setSectionDForm] = useState<any>(null);
-    const [sectionEForm, setSectionEForm] = useState<any>(null);
+    const [sectionAForm, setSectionAForm] = useState<SectionA | null>(null);
+    const [sectionBForm, setSectionBForm] = useState<SectionB | null>(null);
+    const [sectionDForm, setSectionDForm] = useState<SectionD | null>(null);
+    const [sectionEForm, setSectionEForm] = useState<SectionE | null>(null);
+
+    const toast = (title: string, icon: 'success' | 'error' | 'info' | 'warning' = 'info') =>
+        Swal.fire({
+            toast: true,
+            icon,
+            title,
+            position: 'top-end',
+            timer: 2500,
+            showConfirmButton: false,
+        });
 
     useEffect(() => {
         dispatch(setPageTitle('Edit Returned Evaluation'));
@@ -65,6 +72,40 @@ const EvaluationEdit = () => {
         );
     }
 
+    const updateSectionAField = <K extends keyof SectionA>(key: K, value: SectionA[K]) => {
+        setSectionAForm((prev) => ({ ...(prev ?? {}), [key]: value } as SectionA));
+    };
+
+    const updateSectionDField = <K extends keyof SectionD>(key: K, value: SectionD[K]) => {
+        setSectionDForm((prev) => ({ ...(prev ?? {}), [key]: value } as SectionD));
+    };
+
+    const updateSectionEField = <K extends keyof SectionE>(key: K, value: SectionE[K]) => {
+        setSectionEForm((prev) => ({ ...(prev ?? {}), [key]: value } as SectionE));
+    };
+
+    const updateSectionBBidderField = (bidderIndex: number, field: 'bidderName', value: string) => {
+        setSectionBForm((prev) => {
+            if (!prev) return prev;
+            const bidders = prev.bidders.map((bidder, idx) => (idx === bidderIndex ? { ...bidder, [field]: value } : bidder));
+            return { ...prev, bidders };
+        });
+    };
+
+    const updateSectionBTableCell = (bidderIndex: number, table: 'eligibilityRequirements' | 'complianceMatrix' | 'technicalEvaluation', rowId: string, columnId: string, value: string) => {
+        setSectionBForm((prev) => {
+            if (!prev) return prev;
+            const bidders = prev.bidders.map((bidder, idx) => {
+                if (idx !== bidderIndex) return bidder;
+                const targetTable = bidder[table];
+                if (!targetTable) return bidder;
+                const rows = targetTable.rows.map((row) => (row.id === rowId ? { ...row, data: { ...row.data, [columnId]: value } } : row));
+                return { ...bidder, [table]: { ...targetTable, rows } };
+            });
+            return { ...prev, bidders };
+        });
+    };
+
     const loadEvaluation = async () => {
         if (!id) return;
         try {
@@ -74,10 +115,10 @@ const EvaluationEdit = () => {
             setEvaluation(data);
 
             // Initialize forms with existing data
-            if (data.sectionA) setSectionAForm(data.sectionA);
-            if (data.sectionB) setSectionBForm(data.sectionB);
-            if (data.sectionD) setSectionDForm(data.sectionD);
-            if (data.sectionE) setSectionEForm(data.sectionE);
+            setSectionAForm(data.sectionA ?? null);
+            setSectionBForm(data.sectionB ?? null);
+            setSectionDForm(data.sectionD ?? null);
+            setSectionEForm(data.sectionE ?? null);
 
             // Auto-select first returned section
             if (data.sectionAStatus === 'RETURNED') setCurrentSection('A');
@@ -86,7 +127,9 @@ const EvaluationEdit = () => {
             else if (data.sectionEStatus === 'RETURNED') setCurrentSection('E');
         } catch (err: any) {
             console.error('Failed to load evaluation:', err);
-            setError(err.message || 'Failed to load evaluation');
+            const message = err.message || 'Failed to load evaluation';
+            setError(message);
+            toast(message, 'error');
         } finally {
             setLoading(false);
         }
@@ -108,14 +151,10 @@ const EvaluationEdit = () => {
             }
 
             await evaluationService.updateSection(evaluation.id, section, sectionData);
-            setAlertMessage(`Section ${section} updated successfully`);
-            setShowSuccessAlert(true);
+            toast(`Section ${section} updated successfully`, 'success');
             await loadEvaluation();
-            setTimeout(() => setShowSuccessAlert(false), 3000);
         } catch (err: any) {
-            setAlertMessage(err.message || `Failed to update Section ${section}`);
-            setShowErrorAlert(true);
-            setTimeout(() => setShowErrorAlert(false), 5000);
+            toast(err.message || `Failed to update Section ${section}`, 'error');
         } finally {
             setLoading(false);
         }
@@ -127,14 +166,10 @@ const EvaluationEdit = () => {
         try {
             setLoading(true);
             await evaluationService.submitSection(evaluation.id, section);
-            setAlertMessage(`Section ${section} resubmitted to committee for review`);
-            setShowSuccessAlert(true);
+            toast(`Section ${section} resubmitted to committee for review`, 'success');
             const updatedEval = await evaluationService.getEvaluationById(evaluation.id);
             setEvaluation(updatedEval);
-
             setTimeout(() => {
-                setShowSuccessAlert(false);
-                // Check updated evaluation for remaining returned sections
                 const hasReturned =
                     updatedEval.sectionAStatus === 'RETURNED' || updatedEval.sectionBStatus === 'RETURNED' || updatedEval.sectionDStatus === 'RETURNED' || updatedEval.sectionEStatus === 'RETURNED';
                 if (!hasReturned) {
@@ -144,9 +179,7 @@ const EvaluationEdit = () => {
                 }
             }, 2000);
         } catch (err: any) {
-            setAlertMessage(err.message || `Failed to submit Section ${section}`);
-            setShowErrorAlert(true);
-            setTimeout(() => setShowErrorAlert(false), 5000);
+            toast(err.message || `Failed to submit Section ${section}`, 'error');
         } finally {
             setLoading(false);
         }
@@ -211,40 +244,6 @@ const EvaluationEdit = () => {
 
     return (
         <div className="space-y-6">
-            {/* Success Alert */}
-            {showSuccessAlert && (
-                <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/60">
-                    <div className="panel w-full max-w-lg overflow-hidden rounded-lg p-0">
-                        <div className="flex items-center p-3.5 rounded-t text-success bg-success-light dark:bg-success-dark-light">
-                            <span className="ltr:pr-2 rtl:pl-2 flex-1">
-                                <strong className="ltr:mr-1 rtl:ml-1 text-lg">Success!</strong>
-                                {alertMessage}
-                            </span>
-                            <button type="button" className="ltr:ml-auto rtl:mr-auto hover:opacity-80" onClick={() => setShowSuccessAlert(false)}>
-                                <IconX className="h-5 w-5" />
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Error Alert */}
-            {showErrorAlert && (
-                <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/60">
-                    <div className="panel w-full max-w-lg overflow-hidden rounded-lg p-0">
-                        <div className="flex items-center p-3.5 rounded-t text-danger bg-danger-light dark:bg-danger-dark-light">
-                            <span className="ltr:pr-2 rtl:pl-2 flex-1">
-                                <strong className="ltr:mr-1 rtl:ml-1 text-lg">Error!</strong>
-                                {alertMessage}
-                            </span>
-                            <button type="button" className="ltr:ml-auto rtl:mr-auto hover:opacity-80" onClick={() => setShowErrorAlert(false)}>
-                                <IconX className="h-5 w-5" />
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
             {/* Header */}
             <div className="panel">
                 <div className="flex items-center justify-between">
@@ -289,12 +288,206 @@ const EvaluationEdit = () => {
                     <h5 className="text-lg font-semibold mb-4">Editing: Section {currentSection}</h5>
                     <div className="mb-4 p-4 bg-info/10 border border-info rounded">
                         <p className="text-sm">
-                            <strong>Note:</strong> Make your changes below, click "Save Changes", then click "Resubmit to Committee" when ready.
+                            <strong>Note:</strong> Update the returned fields below, then Save and Resubmit to send back to the committee.
                         </p>
                     </div>
 
-                    {/* Add section-specific form fields here based on currentSection */}
-                    <div className="text-center text-white-dark">Section {currentSection} editor - Form fields to be implemented</div>
+                    {/* Section-specific forms */}
+                    {currentSection === 'A' && (
+                        <div className="space-y-4">
+                            <div className="grid gap-4 md:grid-cols-2">
+                                <div>
+                                    <label className="block text-sm font-semibold">Comparable Estimate</label>
+                                    <input
+                                        type="number"
+                                        className="form-input"
+                                        value={sectionAForm?.comparableEstimate ?? ''}
+                                        onChange={(e) => {
+                                            const parsed = Number(e.target.value);
+                                            updateSectionAField('comparableEstimate', Number.isFinite(parsed) ? parsed : 0);
+                                        }}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-semibold">Funded By</label>
+                                    <input className="form-input" value={sectionAForm?.fundedBy ?? ''} onChange={(e) => updateSectionAField('fundedBy', e.target.value)} />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-semibold">Tender Closing Date</label>
+                                    <input
+                                        type="date"
+                                        className="form-input"
+                                        value={sectionAForm?.tenderClosingDate ?? ''}
+                                        onChange={(e) => updateSectionAField('tenderClosingDate', e.target.value)}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-semibold">Tender Opening Date</label>
+                                    <input
+                                        type="date"
+                                        className="form-input"
+                                        value={sectionAForm?.tenderOpeningDate ?? ''}
+                                        onChange={(e) => updateSectionAField('tenderOpeningDate', e.target.value)}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-semibold">Number of Bids Requested</label>
+                                    <input
+                                        type="number"
+                                        className="form-input"
+                                        value={sectionAForm?.numberOfBidsRequested ?? ''}
+                                        onChange={(e) => {
+                                            const parsed = Number(e.target.value);
+                                            updateSectionAField('numberOfBidsRequested', Number.isFinite(parsed) ? parsed : 0);
+                                        }}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-semibold">Number of Bids Received</label>
+                                    <input
+                                        type="number"
+                                        className="form-input"
+                                        value={sectionAForm?.numberOfBidsReceived ?? ''}
+                                        onChange={(e) => {
+                                            const parsed = Number(e.target.value);
+                                            updateSectionAField('numberOfBidsReceived', Number.isFinite(parsed) ? parsed : 0);
+                                        }}
+                                    />
+                                </div>
+                            </div>
+                            <div className="grid gap-4 md:grid-cols-2">
+                                <div>
+                                    <label className="block text-sm font-semibold">Bid Validity Days</label>
+                                    <input
+                                        type="number"
+                                        className="form-input"
+                                        value={sectionAForm?.bidValidityDays ?? ''}
+                                        onChange={(e) => {
+                                            const parsed = Number(e.target.value);
+                                            updateSectionAField('bidValidityDays', Number.isFinite(parsed) ? parsed : 0);
+                                        }}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-semibold">Bid Validity Expiration</label>
+                                    <input
+                                        type="date"
+                                        className="form-input"
+                                        value={sectionAForm?.bidValidityExpiration ?? ''}
+                                        onChange={(e) => updateSectionAField('bidValidityExpiration', e.target.value)}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {currentSection === 'B' && sectionBForm && (
+                        <div className="space-y-6">
+                            {(sectionBForm.bidders ?? []).map((bidder, idx) => (
+                                <div key={idx} className="space-y-4 border rounded p-4">
+                                    <div>
+                                        <label className="block text-sm font-semibold">Bidder Name</label>
+                                        <input className="form-input" value={bidder.bidderName} onChange={(e) => updateSectionBBidderField(idx, 'bidderName', e.target.value)} />
+                                    </div>
+
+                                    {bidder.eligibilityRequirements && (
+                                        <div className="space-y-2">
+                                            <h6 className="text-sm font-semibold">Eligibility Requirements</h6>
+                                            {bidder.eligibilityRequirements.rows.map((row) => (
+                                                <div key={row.id} className="grid md:grid-cols-2 gap-2">
+                                                    {bidder.eligibilityRequirements?.columns.map((col) => (
+                                                        <div key={col.id}>
+                                                            <label className="block text-[11px] font-semibold text-white-dark">{col.name}</label>
+                                                            <input
+                                                                className="form-input text-sm"
+                                                                value={row.data[col.id] ?? ''}
+                                                                onChange={(e) => updateSectionBTableCell(idx, 'eligibilityRequirements', row.id, col.id, e.target.value)}
+                                                            />
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {bidder.complianceMatrix && (
+                                        <div className="space-y-2">
+                                            <h6 className="text-sm font-semibold">Compliance Matrix</h6>
+                                            {bidder.complianceMatrix.rows.map((row) => (
+                                                <div key={row.id} className="grid md:grid-cols-2 gap-2">
+                                                    {bidder.complianceMatrix?.columns.map((col) => (
+                                                        <div key={col.id}>
+                                                            <label className="block text-[11px] font-semibold text-white-dark">{col.name}</label>
+                                                            <input
+                                                                className="form-input text-sm"
+                                                                value={row.data[col.id] ?? ''}
+                                                                onChange={(e) => updateSectionBTableCell(idx, 'complianceMatrix', row.id, col.id, e.target.value)}
+                                                            />
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {bidder.technicalEvaluation && (
+                                        <div className="space-y-2">
+                                            <h6 className="text-sm font-semibold">Technical Evaluation</h6>
+                                            {bidder.technicalEvaluation.rows.map((row) => (
+                                                <div key={row.id} className="grid md:grid-cols-2 gap-2">
+                                                    {bidder.technicalEvaluation?.columns.map((col) => (
+                                                        <div key={col.id}>
+                                                            <label className="block text-[11px] font-semibold text-white-dark">{col.name}</label>
+                                                            <input
+                                                                className="form-input text-sm"
+                                                                value={row.data[col.id] ?? ''}
+                                                                onChange={(e) => updateSectionBTableCell(idx, 'technicalEvaluation', row.id, col.id, e.target.value)}
+                                                            />
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    {currentSection === 'D' && (
+                        <div className="space-y-3">
+                            <label className="block text-sm font-semibold">Summary</label>
+                            <textarea className="form-textarea" rows={6} value={sectionDForm?.summary ?? ''} onChange={(e) => updateSectionDField('summary', e.target.value)} />
+                        </div>
+                    )}
+
+                    {currentSection === 'E' && (
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-semibold">Final Recommendation</label>
+                                <textarea
+                                    className="form-textarea"
+                                    rows={5}
+                                    value={sectionEForm?.finalRecommendation ?? ''}
+                                    onChange={(e) => updateSectionEField('finalRecommendation', e.target.value)}
+                                />
+                            </div>
+                            <div className="grid md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-semibold">Prepared By</label>
+                                    <input className="form-input" value={sectionEForm?.preparedBy ?? ''} onChange={(e) => updateSectionEField('preparedBy', e.target.value)} />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-semibold">Approval Date</label>
+                                    <input type="date" className="form-input" value={sectionEForm?.approvalDate ?? ''} onChange={(e) => updateSectionEField('approvalDate', e.target.value)} />
+                                </div>
+                            </div>
+                            <label className="flex items-center gap-2 text-sm font-semibold">
+                                <input type="checkbox" className="form-checkbox" checked={sectionEForm?.approved ?? false} onChange={(e) => updateSectionEField('approved', e.target.checked)} />
+                                Recommendation Approved
+                            </label>
+                        </div>
+                    )}
 
                     <div className="flex gap-3 mt-6">
                         <button onClick={() => handleUpdateSection(currentSection)} className="btn btn-primary" disabled={loading}>

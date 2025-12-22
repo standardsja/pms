@@ -4,6 +4,7 @@
  */
 
 import { getApiUrl } from '../config/api';
+import { getAuthHeaders } from '../utils/api';
 
 export interface SystemStats {
     activeUsers: number;
@@ -21,6 +22,14 @@ export interface DashboardStats {
     innovationIdeas: number;
     pendingApprovals: number;
     timestamp: string;
+    pendingEvaluations?: number;
+    activePOs?: number;
+    activeContracts?: number;
+    totalSuppliers?: number;
+    catalogItems?: number;
+    procurementReviews?: number;
+    workflowTemplates?: number;
+    monthlyReports?: number;
 }
 
 class StatsService {
@@ -67,18 +76,15 @@ class StatsService {
      */
     async getDashboardStats(): Promise<DashboardStats> {
         try {
-            const token = localStorage.getItem('token');
-
             // In development, use relative URL to leverage Vite proxy
             // In production, use full API URL
             const url = import.meta.env.DEV ? '/api/stats/dashboard' : getApiUrl('/api/stats/dashboard');
 
+            const headers = getAuthHeaders();
+
             const response = await fetch(url, {
                 method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
-                },
+                headers,
             });
 
             if (!response.ok) {

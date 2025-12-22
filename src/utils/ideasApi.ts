@@ -7,7 +7,7 @@ export type Idea = {
     description: string;
     descriptionHtml?: string | null;
     category: string;
-    status: 'DRAFT' | 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED' | 'PROMOTED_TO_PROJECT';
+    status: 'DRAFT' | 'PENDING_REVIEW' | 'UNDER_REVIEW' | 'APPROVED' | 'REJECTED' | 'PROMOTED_TO_PROJECT' | 'IMPLEMENTED';
     submittedBy: string;
     submittedById?: number;
     submittedAt: string;

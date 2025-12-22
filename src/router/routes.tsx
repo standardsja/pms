@@ -26,6 +26,7 @@ const HeadOfDivisionDashboard = lazy(() => import('../pages/Procurement/HeadOfDi
 const HODDepartments = lazy(() => import('../pages/Procurement/HeadOfDivision/pages/Departments'));
 const HODUserManagement = lazy(() => import('../pages/Procurement/HeadOfDivision/pages/UserManagement'));
 const HODReports = lazy(() => import('../pages/Procurement/HeadOfDivision/pages/Reports'));
+const HODPendingApprovals = lazy(() => import('../pages/Procurement/HeadOfDivision/pages/PendingApprovals'));
 const ProcurementManagerRequests = lazy(() => import('../pages/Procurement/Manager/Requests'));
 const ProcurementManagerAssignRequests = lazy(() => import('../pages/Procurement/Manager/AssignRequests'));
 const ProcurementManagerLoadBalancingSettings = lazy(() => import('../pages/Procurement/Manager/LoadBalancingSettings'));
@@ -407,28 +408,60 @@ const routes = [
         ),
     },
     {
+        path: '/procurement/hod/pending-approvals',
+        element: (
+            <RoleDashboardGuard allowedRoles={['HEAD_OF_DIVISION']}>
+                <HODPendingApprovals />
+            </RoleDashboardGuard>
+        ),
+    },
+    {
         path: '/procurement/manager',
-        element: <ProcurementManagerDashboard />,
+        element: (
+            <RoleDashboardGuard allowedRoles={['PROCUREMENT_MANAGER']}>
+                <ProcurementManagerDashboard />
+            </RoleDashboardGuard>
+        ),
     },
     {
         path: '/procurement/manager/requests',
-        element: <ProcurementManagerRequests />,
+        element: (
+            <RoleDashboardGuard allowedRoles={['PROCUREMENT_MANAGER']}>
+                <ProcurementManagerRequests />
+            </RoleDashboardGuard>
+        ),
     },
     {
         path: '/procurement/manager/assign',
-        element: <ProcurementManagerAssignRequests />,
+        element: (
+            <RoleDashboardGuard allowedRoles={['PROCUREMENT_MANAGER']}>
+                <ProcurementManagerAssignRequests />
+            </RoleDashboardGuard>
+        ),
     },
     {
         path: '/procurement/manager/settings',
-        element: <ProcurementManagerLoadBalancingSettings />,
+        element: (
+            <RoleDashboardGuard allowedRoles={['PROCUREMENT_MANAGER']}>
+                <ProcurementManagerLoadBalancingSettings />
+            </RoleDashboardGuard>
+        ),
     },
     {
         path: '/procurement/manager/rfqs-awaiting',
-        element: <RFQsAwaitingApproval />,
+        element: (
+            <RoleDashboardGuard allowedRoles={['PROCUREMENT_MANAGER']}>
+                <RFQsAwaitingApproval />
+            </RoleDashboardGuard>
+        ),
     },
     {
         path: '/procurement/manager/evaluations-to-validate',
-        element: <EvaluationsToValidate />,
+        element: (
+            <RoleDashboardGuard allowedRoles={['PROCUREMENT_MANAGER']}>
+                <EvaluationsToValidate />
+            </RoleDashboardGuard>
+        ),
     },
     {
         path: '/procurement/rfq/list',
@@ -480,83 +513,164 @@ const routes = [
     },
     {
         path: '/procurement/approvals',
-        element: <ApprovalsList />,
+        element: (
+            <ProcurementRoute>
+                <ApprovalsList />
+            </ProcurementRoute>
+        ),
     },
     {
         path: '/procurement/purchase-orders',
-        element: <PurchaseOrderList />,
+        element: (
+            <ProcurementRoute>
+                <PurchaseOrderList />
+            </ProcurementRoute>
+        ),
     },
     {
         path: '/procurement/purchase-orders/new',
-        element: <NewPurchaseOrder />,
+        element: (
+            <ProcurementRoute>
+                <NewPurchaseOrder />
+            </ProcurementRoute>
+        ),
     },
     {
         path: '/procurement/purchase-orders/:id',
-        element: <PurchaseOrderDetail />,
+        element: (
+            <ProcurementRoute>
+                <PurchaseOrderDetail />
+            </ProcurementRoute>
+        ),
     },
     {
         path: '/procurement/suppliers',
-        element: <SupplierList />,
+        element: (
+            <ProcurementRoute>
+                <SupplierList />
+            </ProcurementRoute>
+        ),
     },
     {
         path: '/supplier',
-        element: <SupplierDashboard />,
+        element: (
+            <RoleDashboardGuard allowedRoles={['SUPPLIER']}>
+                <SupplierDashboard />
+            </RoleDashboardGuard>
+        ),
     },
     {
         path: '/procurement/suppliers/new',
-        element: <NewSupplier />,
+        element: (
+            <ProcurementRoute>
+                <NewSupplier />
+            </ProcurementRoute>
+        ),
     },
     {
         path: '/procurement/suppliers/:id',
-        element: <SupplierDetail />,
+        element: (
+            <ProcurementRoute>
+                <SupplierDetail />
+            </ProcurementRoute>
+        ),
     },
     {
         path: '/procurement/suppliers/:id/edit',
-        element: <EditSupplier />,
+        element: (
+            <ProcurementRoute>
+                <EditSupplier />
+            </ProcurementRoute>
+        ),
     },
     {
         path: '/procurement/catalog',
-        element: <CatalogList />,
+        element: (
+            <ProcurementRoute>
+                <CatalogList />
+            </ProcurementRoute>
+        ),
     },
     {
         path: '/procurement/catalog/new',
-        element: <NewCatalogItem />,
+        element: (
+            <ProcurementRoute>
+                <NewCatalogItem />
+            </ProcurementRoute>
+        ),
     },
     {
         path: '/procurement/catalog/:id',
-        element: <CatalogItemDetail />,
+        element: (
+            <ProcurementRoute>
+                <CatalogItemDetail />
+            </ProcurementRoute>
+        ),
     },
     {
         path: '/procurement/catalog/:id/edit',
-        element: <EditCatalogItem />,
+        element: (
+            <ProcurementRoute>
+                <EditCatalogItem />
+            </ProcurementRoute>
+        ),
     },
     {
         path: '/procurement/reports',
-        element: <ReportsList />,
+        element: (
+            <ProcurementRoute>
+                <ReportsList />
+            </ProcurementRoute>
+        ),
     },
     {
         path: '/procurement/reports/generate',
-        element: <NewReport />,
+        element: (
+            <ProcurementRoute>
+                <NewReport />
+            </ProcurementRoute>
+        ),
     },
     {
         path: '/procurement/payments',
-        element: <PaymentsList />,
+        element: (
+            <ProcurementRoute>
+                <PaymentsList />
+            </ProcurementRoute>
+        ),
     },
+    // Finance Dashboard guarded for finance roles
     {
         path: '/finance',
-        element: <FinanceDashboard />,
+        element: (
+            <RoleDashboardGuard allowedRoles={['FINANCE_OFFICER', 'FINANCE_MANAGER', 'BUDGET_MANAGER', 'FINANCE_PAYMENT_STAGE']} fallbackPath="/procurement/dashboard">
+                <FinanceDashboard />
+            </RoleDashboardGuard>
+        ),
     },
     {
         path: '/finance/requests',
-        element: <FinanceRequests />,
+        element: (
+            <RoleDashboardGuard allowedRoles={['FINANCE_OFFICER', 'FINANCE_MANAGER', 'BUDGET_MANAGER', 'FINANCE_PAYMENT_STAGE']} fallbackPath="/procurement/dashboard">
+                <FinanceRequests />
+            </RoleDashboardGuard>
+        ),
     },
     {
         path: '/finance/awaiting-delivery',
-        element: <AwaitingDelivery />,
+        element: (
+            <RoleDashboardGuard allowedRoles={['FINANCE_OFFICER', 'FINANCE_MANAGER', 'BUDGET_MANAGER', 'FINANCE_PAYMENT_STAGE']} fallbackPath="/procurement/dashboard">
+                <AwaitingDelivery />
+            </RoleDashboardGuard>
+        ),
     },
     {
         path: '/finance/payments-to-process',
-        element: <PaymentsToProcess />,
+        element: (
+            <RoleDashboardGuard allowedRoles={['FINANCE_OFFICER', 'FINANCE_MANAGER', 'BUDGET_MANAGER', 'FINANCE_PAYMENT_STAGE']} fallbackPath="/procurement/dashboard">
+                <PaymentsToProcess />
+            </RoleDashboardGuard>
+        ),
     },
     {
         path: '/procurement/payments/:id',
@@ -568,19 +682,24 @@ const routes = [
     // ============================================
     {
         path: '/procurement/department-head-dashboard',
-        element: <DepartmentHeadDashboard />,
+        element: (
+            <RoleDashboardGuard allowedRoles={['DEPARTMENT_HEAD']} fallbackPath="/procurement/dashboard">
+                <DepartmentHeadDashboard />
+            </RoleDashboardGuard>
+        ),
     },
     {
         path: '/procurement/department-head/evaluations',
         element: <DepartmentHeadEvaluationReview />,
     },
     {
-        path: '/procurement/department-head/reports',
-        element: <DepartmentHeadReportReview />,
+        path: '/finance/manager',
+        element: (
+            <RoleDashboardGuard allowedRoles={['FINANCE_MANAGER', 'BUDGET_MANAGER']} fallbackPath="/procurement/dashboard">
+                <FinanceManagerDashboard />
+            </RoleDashboardGuard>
+        ),
     },
-
-    // ============================================
-    // EXECUTIVE DIRECTOR ROUTES
     // ============================================
     {
         path: '/procurement/executive-director-dashboard',

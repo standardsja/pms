@@ -5,7 +5,8 @@ import { selectUser } from '../../../../store/authSlice';
 import IconPlus from '../../../../components/Icon/IconPlus';
 import IconSearch from '../../../../components/Icon/IconSearch';
 import IconDownload from '../../../../components/Icon/IconDownload';
-import Swal from 'sweetalert2';
+import { getApiUrl, getAuthHeaders } from '../../../../utils/api';
+import { showError, showInfo, showSuccess } from '../../../../utils/notifications';
 
 interface Report {
     id: string;
@@ -51,12 +52,10 @@ const HODReports: React.FC = () => {
             const userDepartment = user?.department_id || user?.department_name || 'all';
             const hodId = user?.id;
 
-            const response = await fetch(`/api/v1/reports?division=${userDepartment}&hod=${hodId}&status=Completed,In%20Progress`, {
-                headers: {
-                    Authorization: `Bearer ${sessionStorage.getItem('token') || localStorage.getItem('token')}`,
-                    'Content-Type': 'application/json',
-                },
-            });
+            const url = getApiUrl(
+                `/api/v1/reports?division=${encodeURIComponent(String(userDepartment))}&hod=${encodeURIComponent(String(hodId || ''))}&status=${encodeURIComponent('Completed,In Progress')}`
+            );
+            const response = await fetch(url, { headers: getAuthHeaders() });
 
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
@@ -72,6 +71,7 @@ const HODReports: React.FC = () => {
             setFilteredReports(sortedReports);
         } catch (error) {
             console.error('Error fetching reports:', error);
+            showError('Failed to load reports', error instanceof Error ? error.message : undefined);
             // Fallback to mock data
             const mockData: Report[] = [
                 {
@@ -135,15 +135,15 @@ const HODReports: React.FC = () => {
     };
 
     const handleDownload = (id: string) => {
-        Swal.fire('Success', `Downloading report ${id}`, 'success');
+        showSuccess('Downloading', `Report ${id}`);
     };
 
     const handleViewDetails = (id: string) => {
-        Swal.fire('Report Details', `View details for report ${id}`, 'info');
+        showInfo('Report Details', `View details for report ${id}`);
     };
 
     const handleGenerateReport = () => {
-        Swal.fire('Generate Report', 'Select report type and period', 'info');
+        showInfo('Generate Report', 'Select report type and period');
     };
 
     return (

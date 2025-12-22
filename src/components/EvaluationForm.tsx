@@ -598,9 +598,9 @@ export const EvaluationForm: React.FC<Props> = ({
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {(sectionB.bidders[0]?.complianceMatrix?.rows ?? []).map((row: any) => (
+                                        {(sectionB?.bidders?.[0]?.complianceMatrix?.rows ?? []).map((row: any) => (
                                             <tr key={row.id}>
-                                                {sectionB.bidders[0].complianceMatrix.columns.map((col: any) => (
+                                                {(sectionB?.bidders?.[0]?.complianceMatrix?.columns ?? []).map((col: any) => (
                                                     <td key={col.id} className="border px-2 py-2">
                                                         {/* Compliance table is read-only for evaluators, only procurement can edit */}
                                                         {col.cellType === 'radio' && canEditStructure('B') ? (
@@ -725,7 +725,7 @@ export const EvaluationForm: React.FC<Props> = ({
                                 <table className="table-auto w-full border-collapse border border-gray-300 dark:border-gray-600">
                                     <thead>
                                         <tr className="bg-gray-100 dark:bg-gray-800">
-                                            {sectionB.bidders[0].technicalEvaluation.columns.map((col: any) => (
+                                            {(sectionB?.bidders?.[0]?.technicalEvaluation?.columns ?? []).map((col: any) => (
                                                 <th key={col.id} className="border border-gray-300 dark:border-gray-600 px-2 py-2">
                                                     {canEditStructure('B') ? (
                                                         <div className="flex flex-col gap-2">
@@ -798,9 +798,9 @@ export const EvaluationForm: React.FC<Props> = ({
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {(sectionB.bidders[0]?.technicalEvaluation?.rows ?? []).map((row: any) => (
+                                        {(sectionB?.bidders?.[0]?.technicalEvaluation?.rows ?? []).map((row: any) => (
                                             <tr key={row.id}>
-                                                {sectionB.bidders[0].technicalEvaluation.columns.map((col: any) => (
+                                                {(sectionB?.bidders?.[0]?.technicalEvaluation?.columns ?? []).map((col: any) => (
                                                     <td key={col.id} className="border px-2 py-2">
                                                         {/* Technical evaluation table is editable by evaluators */}
                                                         {col.cellType === 'radio' && canEditTechnical() ? (
