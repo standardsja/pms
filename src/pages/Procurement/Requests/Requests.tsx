@@ -100,7 +100,7 @@ const Requests = () => {
                     })
                 ) {
                     try {
-                        const combinedRes = await fetch(getApiUrl('/api/requests/combine'), {
+                        const combinedRes = await fetch(getApiUrl('/api/requests/combinable'), {
                             headers,
                             signal: controller.signal,
                         });
