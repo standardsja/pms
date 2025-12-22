@@ -589,20 +589,19 @@ app.get('/api/notifications', authMiddleware, async (req, res) => {
                 },
             });
         } catch (err: any) {
-            // Handle cases where DB contains enum values not present in the Prisma schema
-            const msg = String(err?.message || '');
-            if (msg.toLowerCase().includes('not found in enum') || msg.toLowerCase().includes('invalid enum')) {
-                console.warn('Prisma enum mismatch when fetching notifications, falling back to raw query:', msg);
-                try {
-                    // Use a raw SQL query to avoid Prisma enum coercion errors. Results will be raw rows.
-                    const rows: any = await prisma.$queryRawUnsafe(`SELECT * FROM "Notification" WHERE "userId" = $1 ORDER BY "createdAt" DESC LIMIT 50`, userId);
-                    notifications = rows || [];
-                } catch (rawErr) {
-                    console.error('Raw fallback for notifications failed:', rawErr);
-                    throw rawErr;
-                }
-            } else {
-                throw err;
+            // Handle cases where DB contains enum values not present in the Prisma schema or other drift
+            console.warn('Prisma fetch notifications failed, falling back to raw query:', err?.message || err);
+            try {
+                // MySQL-compatible raw query (parameterized)
+                const rows: any = await prisma.$queryRawUnsafe(
+                    `SELECT * FROM Notification WHERE userId = ? ORDER BY createdAt DESC LIMIT 50`,
+                    userId
+                );
+                notifications = rows || [];
+            } catch (rawErr) {
+                console.error('Raw fallback for notifications failed:', rawErr);
+                // Return empty array instead of breaking the page
+                return res.json({ success: true, data: [] , meta: { fallback: true, error: String(rawErr?.message || rawErr) } });
             }
         }
 
@@ -723,27 +722,48 @@ app.get('/api/messages', authMiddleware, async (req, res) => {
         }
 
         // Fetch messages where user is the recipient
-        const messages = await prisma.message.findMany({
-            where: { toUserId: userId },
-            orderBy: { createdAt: 'desc' },
-            take: 50,
-            include: {
-                fromUser: {
-                    select: {
-                        id: true,
-                        name: true,
-                        email: true,
+        let messages;
+        try {
+            messages = await prisma.message.findMany({
+                where: { toUserId: userId },
+                orderBy: { createdAt: 'desc' },
+                take: 50,
+                include: {
+                    fromUser: {
+                        select: {
+                            id: true,
+                            name: true,
+                            email: true,
+                        },
+                    },
+                    toUser: {
+                        select: {
+                            id: true,
+                            name: true,
+                            email: true,
+                        },
                     },
                 },
-                toUser: {
-                    select: {
-                        id: true,
-                        name: true,
-                        email: true,
-                    },
-                },
-            },
-        });
+            });
+        } catch (err) {
+            console.warn('Prisma fetch messages failed, falling back to raw query:', err instanceof Error ? err.message : err);
+            try {
+                const rows: any = await prisma.$queryRawUnsafe(
+                    `SELECT m.*, fu.name as fromUserName, fu.email as fromUserEmail, tu.name as toUserName, tu.email as toUserEmail
+                     FROM Message m
+                     LEFT JOIN User fu ON m.fromUserId = fu.id
+                     LEFT JOIN User tu ON m.toUserId = tu.id
+                     WHERE m.toUserId = ?
+                     ORDER BY m.createdAt DESC
+                     LIMIT 50`,
+                    userId
+                );
+                messages = rows || [];
+            } catch (rawErr) {
+                console.error('Raw fallback for messages failed:', rawErr);
+                return res.json({ success: true, data: [], meta: { fallback: true, error: String(rawErr?.message || rawErr) } });
+            }
+        }
 
         res.json({
             success: true,
@@ -5751,6 +5771,63 @@ app.get(
                 },
             }));
             return res.json({ success: true, data: mapped, meta: { fallback: true } });
+        }
+    })
+);
+
+// GET /api/evaluations/:id/assignments - List all assignments for a specific evaluation (procurement only)
+app.get(
+    '/api/evaluations/:id/assignments',
+    authMiddleware,
+    requireRole('PROCUREMENT', 'PROCUREMENT_OFFICER', 'PROCUREMENT_MANAGER'),
+    asyncHandler(async (req, res) => {
+        if (!hasEvaluationDelegate()) {
+            return res.status(501).json({ success: false, message: 'Assignments require Prisma model; please run migrations' });
+        }
+
+        const { id } = req.params;
+        const evaluationId = parseInt(id);
+        if (!Number.isFinite(evaluationId)) throw new BadRequestError('Invalid evaluation ID');
+
+        try {
+            const assignments = await (prisma as any).evaluationAssignment.findMany({
+                where: { evaluationId },
+                include: {
+                    user: { select: { id: true, name: true, email: true } },
+                    evaluation: { select: { id: true, evalNumber: true, rfqTitle: true } },
+                },
+                orderBy: { createdAt: 'desc' },
+            });
+            return res.json({ success: true, data: assignments });
+        } catch (e) {
+            console.warn('Prisma fetch assignments failed, using raw fallback:', e instanceof Error ? e.message : e);
+            try {
+                const rows = await prisma.$queryRawUnsafe<any>(
+                    `SELECT ea.*, u.id AS userId, u.name AS userName, u.email AS userEmail, e.evalNumber, e.rfqTitle
+                     FROM EvaluationAssignment ea
+                     JOIN Evaluation e ON ea.evaluationId = e.id
+                     JOIN User u ON ea.userId = u.id
+                     WHERE ea.evaluationId = ?
+                     ORDER BY ea.createdAt DESC`,
+                    evaluationId
+                );
+                const mapped = rows.map((r: any) => ({
+                    id: r.id,
+                    evaluationId: r.evaluationId,
+                    userId: r.userId,
+                    sections: r.sections,
+                    status: r.status,
+                    submittedAt: r.submittedAt ?? null,
+                    createdAt: r.createdAt,
+                    updatedAt: r.updatedAt,
+                    evaluation: { id: r.evaluationId, evalNumber: r.evalNumber, rfqTitle: r.rfqTitle },
+                    user: { id: r.userId, name: r.userName, email: r.userEmail },
+                }));
+                return res.json({ success: true, data: mapped, meta: { fallback: true } });
+            } catch (rawErr) {
+                console.error('Raw fallback for assignments failed:', rawErr);
+                return res.json({ success: true, data: [], meta: { fallback: true, error: String(rawErr?.message || rawErr) } });
+            }
         }
     })
 );

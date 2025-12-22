@@ -274,10 +274,36 @@ export const EvaluationForm: React.FC<Props> = ({
                 <div className="p-5 space-y-6">
                     {/* Show message if no tables exist */}
                     {!sectionB?.bidders?.[0] && (
-                        <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded">
-                            <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                        <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded flex items-center justify-between gap-4">
+                            <p className="text-sm text-yellow-800 dark:text-yellow-200 m-0">
                                 <strong>No tables created yet.</strong> The procurement officer needs to create the eligibility, compliance, and technical tables first.
                             </p>
+                            {canEditStructure('B') && (
+                                <button
+                                    type="button"
+                                    className="btn btn-warning btn-sm whitespace-nowrap"
+                                    onClick={() => {
+                                        const copy = { ...(sectionB as any) };
+                                        if (!copy.bidders || copy.bidders.length === 0) {
+                                            copy.bidders = [
+                                                {
+                                                    bidderName: 'Bidder 1',
+                                                    eligibilityRequirements: { columns: [], rows: [] },
+                                                    complianceMatrix: { columns: [], rows: [] },
+                                                    technicalEvaluation: { columns: [], rows: [] },
+                                                },
+                                            ];
+                                        } else {
+                                            if (!copy.bidders[0].eligibilityRequirements) copy.bidders[0].eligibilityRequirements = { columns: [], rows: [] };
+                                            if (!copy.bidders[0].complianceMatrix) copy.bidders[0].complianceMatrix = { columns: [], rows: [] };
+                                            if (!copy.bidders[0].technicalEvaluation) copy.bidders[0].technicalEvaluation = { columns: [], rows: [] };
+                                        }
+                                        setSectionB(copy);
+                                    }}
+                                >
+                                    Initialize Tables
+                                </button>
+                            )}
                         </div>
                     )}
 

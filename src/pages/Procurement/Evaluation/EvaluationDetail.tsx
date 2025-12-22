@@ -60,12 +60,25 @@ const EvaluationDetail = () => {
                 /* Make panels print-friendly */
                 .panel {
                     page-break-inside: avoid;
-                    border: 1px solid #ddd;
-                    margin-bottom: 1rem;
+                    border: 1px solid #d9d9d9;
+                    margin-bottom: 14px;
+                    border-radius: 6px;
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+                    background: #fff;
                 }
                 /* Ensure tables fit on page */
                 table {
                     font-size: 10pt;
+                    width: 100%;
+                    border-collapse: collapse;
+                }
+                table th, table td {
+                    border: 1px solid #d9d9d9;
+                    padding: 6px 8px;
+                }
+                table th {
+                    background: #f5f7fa;
+                    font-weight: 600;
                 }
                 /* Add page breaks between major sections */
                 .panel:has(h5:contains('Section')) {
@@ -79,6 +92,14 @@ const EvaluationDetail = () => {
                 #print-footer .signature-block { text-align: right; min-width: 420px; margin-top: 40px; }
                 #print-footer .signature-line { margin-bottom: 36px; border-bottom: 1px solid #000; width: 320px; }
                 #print-footer .signature-meta { font-size: 9pt; color: #222; display: none; }
+                /* Add breathing room below fixed header and center content */
+                .evaluation-print-root { margin: 32px auto 24px; padding: 0 12px; max-width: 900px; }
+                /* Nudge first panel down slightly */
+                .evaluation-print-root .panel:first-of-type { margin-top: 12px; }
+                /* Typography refinements */
+                .evaluation-print-root h2 { font-size: 18px; margin: 0 0 6px; }
+                .evaluation-print-root p { margin: 0 0 6px; font-size: 11pt; }
+                .evaluation-print-root .text-sm { font-size: 10pt; }
             }
         `;
         document.head.appendChild(style);
@@ -158,10 +179,8 @@ const EvaluationDetail = () => {
         const loadUsersAndAssignments = async () => {
             if (!isProcurement || !id) return;
             try {
-                // Load all assignments for this evaluation
                 const allAssignments = await evaluationService.getAllAssignments(parseInt(id));
                 setCurrentAssignments(allAssignments || []);
-
                 // Disable structure editing if there are any assignments (evaluators have been assigned)
                 // This prevents procurement from changing table structure after sending to evaluators
                 if (allAssignments && allAssignments.length > 0) {
@@ -279,7 +298,7 @@ const EvaluationDetail = () => {
     };
 
     return (
-        <div>
+        <div className="evaluation-print-root">
             {/* Page Header with Linked Request Info */}
             {evaluation && (
                 <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
