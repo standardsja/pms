@@ -503,7 +503,9 @@ const EvaluationDetail = () => {
                                     <div class="field-value">${evaluation.evalNumber}</div>
                                 </div>
                             </div>
-                            ${evaluation.sectionA ? `
+                            ${
+                                evaluation.sectionA
+                                    ? `
                             <div class="field-row">
                                 <div class="field">
                                     <div class="field-label">Procurement Method</div>
@@ -524,19 +526,27 @@ const EvaluationDetail = () => {
                                     <div class="field-value">${evaluation.sectionA.numberOfBidsReceived || '0'}</div>
                                 </div>
                             </div>
-                            ` : '<p style="color: #999;">Section A data not yet entered</p>'}
+                            `
+                                    : '<p style="color: #999;">Section A data not yet entered</p>'
+                            }
                         </div>
                     </div>
 
                     <!-- Section B: Bidder Evaluation -->
-                    ${evaluation.sectionB && evaluation.sectionB.bidders && evaluation.sectionB.bidders.length > 0 ? `
+                    ${
+                        evaluation.sectionB && evaluation.sectionB.bidders && evaluation.sectionB.bidders.length > 0
+                            ? `
                     <div class="section">
                         <div class="section-title">Section B: Bidder Evaluation</div>
                         <div class="content">
-                            ${evaluation.sectionB.bidders.map((bidder: any, idx: number) => `
+                            ${evaluation.sectionB.bidders
+                                .map(
+                                    (bidder: any, idx: number) => `
                                 <h4 style="margin: 12px 0 8px; color: #2563eb; font-size: 11px;"><strong>Bidder ${idx + 1}: ${bidder.bidderName || 'N/A'}</strong></h4>
                                 
-                                ${bidder.eligibilityRequirements && bidder.eligibilityRequirements.rows && bidder.eligibilityRequirements.rows.length > 0 ? `
+                                ${
+                                    bidder.eligibilityRequirements && bidder.eligibilityRequirements.rows && bidder.eligibilityRequirements.rows.length > 0
+                                        ? `
                                     <h5 style="font-size: 10px; margin: 8px 0 4px; color: #1e40af;">Eligibility Requirements</h5>
                                     <table>
                                         <thead>
@@ -545,18 +555,30 @@ const EvaluationDetail = () => {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            ${bidder.eligibilityRequirements.rows.map((row: any) => `
+                                            ${bidder.eligibilityRequirements.rows
+                                                .map(
+                                                    (row: any) => `
                                                 <tr>
-                                                    ${bidder.eligibilityRequirements.columns.map((col: any) => `
+                                                    ${bidder.eligibilityRequirements.columns
+                                                        .map(
+                                                            (col: any) => `
                                                         <td>${row.data[col.id] || '-'}</td>
-                                                    `).join('')}
+                                                    `
+                                                        )
+                                                        .join('')}
                                                 </tr>
-                                            `).join('')}
+                                            `
+                                                )
+                                                .join('')}
                                         </tbody>
                                     </table>
-                                ` : ''}
+                                `
+                                        : ''
+                                }
                                 
-                                ${bidder.complianceMatrix && bidder.complianceMatrix.rows && bidder.complianceMatrix.rows.length > 0 ? `
+                                ${
+                                    bidder.complianceMatrix && bidder.complianceMatrix.rows && bidder.complianceMatrix.rows.length > 0
+                                        ? `
                                     <h5 style="font-size: 10px; margin: 8px 0 4px; color: #1e40af;">Compliance Matrix</h5>
                                     <table>
                                         <thead>
@@ -565,18 +587,30 @@ const EvaluationDetail = () => {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            ${bidder.complianceMatrix.rows.map((row: any) => `
+                                            ${bidder.complianceMatrix.rows
+                                                .map(
+                                                    (row: any) => `
                                                 <tr>
-                                                    ${bidder.complianceMatrix.columns.map((col: any) => `
+                                                    ${bidder.complianceMatrix.columns
+                                                        .map(
+                                                            (col: any) => `
                                                         <td>${row.data[col.id] || '-'}</td>
-                                                    `).join('')}
+                                                    `
+                                                        )
+                                                        .join('')}
                                                 </tr>
-                                            `).join('')}
+                                            `
+                                                )
+                                                .join('')}
                                         </tbody>
                                     </table>
-                                ` : ''}
+                                `
+                                        : ''
+                                }
                                 
-                                ${bidder.technicalEvaluation && bidder.technicalEvaluation.rows && bidder.technicalEvaluation.rows.length > 0 ? `
+                                ${
+                                    bidder.technicalEvaluation && bidder.technicalEvaluation.rows && bidder.technicalEvaluation.rows.length > 0
+                                        ? `
                                     <h5 style="font-size: 10px; margin: 8px 0 4px; color: #1e40af;">Technical Evaluation</h5>
                                     <table>
                                         <thead>
@@ -585,67 +619,105 @@ const EvaluationDetail = () => {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            ${bidder.technicalEvaluation.rows.map((row: any) => `
+                                            ${bidder.technicalEvaluation.rows
+                                                .map(
+                                                    (row: any) => `
                                                 <tr>
-                                                    ${bidder.technicalEvaluation.columns.map((col: any) => `
+                                                    ${bidder.technicalEvaluation.columns
+                                                        .map(
+                                                            (col: any) => `
                                                         <td>${row.data[col.id] || '-'}</td>
-                                                    `).join('')}
+                                                    `
+                                                        )
+                                                        .join('')}
                                                 </tr>
-                                            `).join('')}
+                                            `
+                                                )
+                                                .join('')}
                                         </tbody>
                                     </table>
-                                ` : ''}
-                            `).join('')}
+                                `
+                                        : ''
+                                }
+                            `
+                                )
+                                .join('')}
                         </div>
                     </div>
-                    ` : ''}
+                    `
+                            : ''
+                    }
 
                     <!-- Section C: Evaluation Comments -->
-                    ${evaluation.sectionC ? `
+                    ${
+                        evaluation.sectionC
+                            ? `
                     <div class="section">
                         <div class="section-title">Section C: Evaluation Comments</div>
                         <div class="content">
-                            ${evaluation.sectionC.recommendedSupplier ? `
+                            ${
+                                evaluation.sectionC.recommendedSupplier
+                                    ? `
                             <div class="field">
                                 <div class="field-label">Recommended Supplier</div>
                                 <div class="field-value">${evaluation.sectionC.recommendedSupplier}</div>
                             </div>
-                            ` : ''}
-                            ${evaluation.sectionC.comments ? `
+                            `
+                                    : ''
+                            }
+                            ${
+                                evaluation.sectionC.comments
+                                    ? `
                             <div class="field">
                                 <div class="field-label">Comments</div>
                                 <div class="field-value" style="white-space: pre-wrap;">${evaluation.sectionC.comments}</div>
                             </div>
-                            ` : ''}
+                            `
+                                    : ''
+                            }
                         </div>
                     </div>
-                    ` : ''}
+                    `
+                            : ''
+                    }
 
                     <!-- Section D: Summary -->
-                    ${evaluation.sectionD?.summary ? `
+                    ${
+                        evaluation.sectionD?.summary
+                            ? `
                     <div class="section">
                         <div class="section-title">Section D: Evaluation Summary</div>
                         <div class="summary-box">
                             ${evaluation.sectionD.summary}
                         </div>
                     </div>
-                    ` : ''}
+                    `
+                            : ''
+                    }
 
                     <!-- Section E: Final Recommendation -->
-                    ${evaluation.sectionE?.finalRecommendation ? `
+                    ${
+                        evaluation.sectionE?.finalRecommendation
+                            ? `
                     <div class="section">
                         <div class="section-title">Section E: Final Recommendation</div>
                         <div class="summary-box">
                             ${evaluation.sectionE.finalRecommendation}
                         </div>
-                        ${evaluation.sectionE.preparedBy ? `
+                        ${
+                            evaluation.sectionE.preparedBy
+                                ? `
                         <div style="margin-top: 15px; text-align: right; font-size: 10px;">
                             <p><strong>Prepared By:</strong> ${evaluation.sectionE.preparedBy}</p>
                             ${evaluation.sectionE.approvalDate ? `<p><strong>Date:</strong> ${new Date(evaluation.sectionE.approvalDate).toLocaleDateString()}</p>` : ''}
                         </div>
-                        ` : ''}
+                        `
+                                : ''
+                        }
                     </div>
-                    ` : ''}
+                    `
+                            : ''
+                    }
 
                     <div class="footer">
                         <p>This is an automatically generated evaluation report from the Procurement Management System (SPINX)</p>
@@ -923,7 +995,13 @@ const EvaluationDetail = () => {
                             </button>
                             <button type="button" className="btn btn-info gap-2" onClick={handlePrintFormattedReport}>
                                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                    <path d="M9 12H15M9 16H15M17 3H7C5.89543 3 5 3.89543 5 5V19C5 20.1046 5.89543 21 7 21H17C18.1046 21 19 20.1046 19 19V5C19 3.89543 18.1046 3 17 3Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                    <path
+                                        d="M9 12H15M9 16H15M17 3H7C5.89543 3 5 3.89543 5 5V19C5 20.1046 5.89543 21 7 21H17C18.1046 21 19 20.1046 19 19V5C19 3.89543 18.1046 3 17 3Z"
+                                        stroke="currentColor"
+                                        strokeWidth="1.5"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                    />
                                 </svg>
                                 Formatted Report
                             </button>
