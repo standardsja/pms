@@ -578,38 +578,6 @@ const Sidebar = () => {
                                             </div>
                                         </NavLink>
                                     </li>
-
-                                    <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1 mt-4">
-                                        <IconMinus className="w-4 h-5 flex-none hidden" />
-                                        <span>Management</span>
-                                    </h2>
-
-                                    <li className="nav-item">
-                                        <NavLink to="/procurement/hod/departments" className="group">
-                                            <div className="flex items-center">
-                                                <IconUsersGroup className="group-hover:!text-primary shrink-0" />
-                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Departments</span>
-                                            </div>
-                                        </NavLink>
-                                    </li>
-
-                                    <li className="nav-item">
-                                        <NavLink to="/procurement/hod/users" className="group">
-                                            <div className="flex items-center">
-                                                <IconUser className="group-hover:!text-primary shrink-0" />
-                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">User Management</span>
-                                            </div>
-                                        </NavLink>
-                                    </li>
-
-                                    <li className="nav-item">
-                                        <NavLink to="/procurement/hod/reports" className="group">
-                                            <div className="flex items-center">
-                                                <IconBarChart className="group-hover:!text-primary shrink-0" />
-                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Reports</span>
-                                            </div>
-                                        </NavLink>
-                                    </li>
                                 </>
                             )}
 

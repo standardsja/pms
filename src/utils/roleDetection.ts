@@ -52,7 +52,7 @@ export interface DetectedRoles {
  * @param userRoles Array of role names from user (can be strings or objects with 'name' property)
  * @returns Normalized role detection object
  */
-export function detectUserRoles(userRoles: (string | { name: string } | any)[] = []): DetectedRoles {
+export function detectUserRoles(userRoles: Array<string | { name: string } | null | undefined> = []): DetectedRoles {
     // Normalize all role names to uppercase for comparison
     // Handle both string arrays and objects with 'name' property
     const normalizedRoles = userRoles
@@ -112,7 +112,7 @@ export function detectUserRoles(userRoles: (string | { name: string } | any)[] =
         return (role.includes('DEPT') || role.includes('DEPARTMENT')) && role.includes('PROCUREMENT');
     });
 
-    const finalIsDepartmentManager = isDepartmentManager || isCompoundDeptProcurement;
+    const effectiveDepartmentManager = isDepartmentManager || isCompoundDeptProcurement;
 
     // 6. COMMITTEE ROLES
     const isInnovationCommittee = hasRole('INNOVATION_COMMITTEE');
@@ -149,7 +149,7 @@ export function detectUserRoles(userRoles: (string | { name: string } | any)[] =
         primaryRole = 'PROCUREMENT_MANAGER';
     } else if (isProcurementOfficer) {
         primaryRole = 'PROCUREMENT_OFFICER';
-    } else if (isDepartmentManager) {
+    } else if (effectiveDepartmentManager) {
         primaryRole = 'DEPARTMENT_MANAGER';
     } else if (isSupplier) {
         primaryRole = 'SUPPLIER';
@@ -167,13 +167,13 @@ export function detectUserRoles(userRoles: (string | { name: string } | any)[] =
         isFinanceOfficer,
         isFinancePaymentStage,
         isDepartmentHead,
-        isDepartmentManager,
+        isDepartmentManager: effectiveDepartmentManager,
         isInnovationCommittee,
         isAuditor,
         isSupplier,
         isRequester,
         primaryRole,
-        allRoles: userRoles,
+        allRoles: normalizedRoles,
     };
 }
 
@@ -230,7 +230,7 @@ export function getDashboardPath(roles: DetectedRoles, currentPathname: string =
         return '/procurement/dashboard';
     }
     if (roles.isDepartmentManager) {
-        return '/apps/requests/pending-approval';
+        return '/procurement/dashboard/department-manager';
     }
     if (roles.isSupplier) {
         return '/supplier';

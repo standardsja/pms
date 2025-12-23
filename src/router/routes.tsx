@@ -1,4 +1,5 @@
-import { lazy } from 'react';
+import React, { lazy } from 'react';
+import { Navigate } from 'react-router-dom';
 import OnboardingGuard from '../components/OnboardingGuard';
 import AdminRoute from '../components/AdminRoute';
 import CommitteeRoute from '../components/CommitteeRoute';
@@ -6,9 +7,22 @@ import ProcurementRoute from '../components/ProcurementRoute';
 import InnovationRoute from '../components/InnovationRoute';
 import ModuleRoute from '../components/ModuleRoute';
 import RoleDashboardGuard from '../components/RoleDashboardGuard';
+import { getUser } from '../utils/auth';
+import { detectUserRoles, getDashboardPath } from '../utils/roleDetection';
+
+const RoleDashboardRedirect: React.FC = () => {
+    const currentUser = getUser();
+
+    if (!currentUser) {
+        return <Navigate to="/auth/login" replace />;
+    }
+
+    const roles = detectUserRoles(currentUser.roles || (currentUser.role ? [currentUser.role] : []));
+    const target = getDashboardPath(roles, typeof window !== 'undefined' ? window.location.pathname : '');
+    return <Navigate to={target} replace />;
+};
 
 // Main Pages
-const Index = lazy(() => import('../pages/Index'));
 const LandingPage = lazy(() => import('../pages/LandingPage'));
 const Error = lazy(() => import('../components/Error'));
 const NotFound = lazy(() => import('../pages/Procurement/NotFound'));
@@ -183,7 +197,7 @@ const routes = [
     // Keep legacy dashboard route for direct access
     {
         path: '/dashboard',
-        element: <Index />,
+        element: <RoleDashboardRedirect />,
     },
     // Module selector removed; onboarding handles initial module choice
 
@@ -328,14 +342,6 @@ const routes = [
         ),
     },
     {
-        path: '/finance',
-        element: (
-            <RoleDashboardGuard allowedRoles={['FINANCE_MANAGER', 'BUDGET_MANAGER']} fallbackPath="/procurement/dashboard">
-                <FinanceManagerDashboard />
-            </RoleDashboardGuard>
-        ),
-    },
-    {
         path: '/procurement/dashboard/auditor',
         element: (
             <RoleDashboardGuard allowedRoles={['AUDITOR']} fallbackPath="/procurement/dashboard">
@@ -365,7 +371,7 @@ const routes = [
     // ============================================
     {
         path: '/procurement',
-        element: <ProcurementDashboard />,
+        element: <RoleDashboardRedirect />,
     },
 
     // ============================================
@@ -373,7 +379,7 @@ const routes = [
     // ============================================
     {
         path: '/procurement/dashboard',
-        element: <ProcurementDashboard />,
+        element: <RoleDashboardRedirect />,
     },
     {
         path: '/procurement/hod',
