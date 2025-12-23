@@ -379,7 +379,11 @@ const routes = [
     // ============================================
     {
         path: '/procurement/dashboard',
-        element: <RoleDashboardRedirect />,
+        element: (
+            <RoleDashboardGuard allowedRoles={['PROCUREMENT_OFFICER', 'PROCUREMENT']}>
+                <ProcurementDashboard />
+            </RoleDashboardGuard>
+        ),
     },
     {
         path: '/procurement/hod',

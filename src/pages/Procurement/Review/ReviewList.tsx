@@ -32,26 +32,29 @@ const ReviewList = () => {
             setLoading(true);
             const headers = await getAuthHeaders();
 
-            // Fetch evaluations with PROCUREMENT_REVIEW status
-            const res = await fetch(getApiUrl('/api/evaluations?status=PROCUREMENT_REVIEW,COMPLETED'), {
-                headers,
-            });
+            // Fetch evaluations and filter client-side for supported statuses
+            const res = await fetch(getApiUrl('/api/evaluations'), { headers });
 
             if (!res.ok) throw new Error('Failed to fetch reviews');
             const data = await res.json();
 
-            const evaluations = data.data || data || [];
+            const evaluations = (data.data || data || []) as Array<any>;
+
+            const filtered = evaluations.filter((e) => {
+                const s = String(e.status || '').toUpperCase();
+                return s === 'PROCUREMENT_REVIEW' || s === 'COMPLETED';
+            });
 
             // Transform evaluations to review format
-            const reviewsData = evaluations.map((evaluation: any) => ({
+            const reviewsData = filtered.map((evaluation: any) => ({
                 id: evaluation.id,
-                reviewNumber: evaluation.evaluationNumber || `REV-${evaluation.id}`,
+                reviewNumber: evaluation.evaluationNumber || evaluation.evalNumber || `REV-${evaluation.id}`,
                 evalId: evaluation.id,
-                evalNumber: evaluation.evaluationNumber || `EVAL-${evaluation.id}`,
-                description: evaluation.rfq?.title || evaluation.title || 'N/A',
+                evalNumber: evaluation.evaluationNumber || evaluation.evalNumber || `EVAL-${evaluation.id}`,
+                description: evaluation.rfq?.title || evaluation.rfqTitle || evaluation.title || evaluation.description || 'N/A',
                 recommendedSupplier: evaluation.recommendedSupplier || 'TBD',
                 amount: evaluation.recommendedAmount || 0,
-                reviewer: evaluation.evaluatedBy?.name || 'Unknown',
+                reviewer: evaluation.evaluatedBy?.name || evaluation.validator?.name || 'Unknown',
                 reviewDate: evaluation.evaluatedAt ? new Date(evaluation.evaluatedAt).toLocaleDateString() : 'N/A',
                 status: evaluation.status === 'COMPLETED' ? 'Approved' : evaluation.status === 'PROCUREMENT_REVIEW' ? 'Pending Approval' : 'In Review',
             }));

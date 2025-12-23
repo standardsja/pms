@@ -218,12 +218,16 @@ const ProcurementOfficerDashboard = () => {
             try {
                 setEvaluationsLoading(true);
                 const headers = await getAuthHeaders();
-                const res = await fetch(getApiUrl('/api/evaluations?status=PENDING,IN_PROGRESS'), {
-                    headers,
-                });
+                // Backend expects a single status filter; fetch all and filter client-side
+                const res = await fetch(getApiUrl('/api/evaluations'), { headers });
                 if (!res.ok) throw new Error('Failed to fetch evaluations');
                 const data = await res.json();
-                setEvaluationCount((data.data || data || []).length);
+                const list: Array<{ status?: string }> = (data?.data || []) as Array<{ status?: string }>;
+                const count = list.filter((e) => {
+                    const s = (e.status || '').toUpperCase();
+                    return s === 'PENDING' || s === 'IN_PROGRESS';
+                }).length;
+                setEvaluationCount(count);
             } catch (error) {
                 console.error('Failed to fetch evaluations:', error);
                 setEvaluationCount(0);
