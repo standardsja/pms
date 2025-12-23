@@ -55,7 +55,7 @@ const NewEvaluation = () => {
                     ...prev,
                     rfqNumber: data.reference || '',
                     rfqTitle: data.title,
-                    description: data.description || '',
+                    description: data.description || data.budgetComments || data.procurementComments || '',
                 }));
             } catch (error) {
                 console.error('Error fetching combined request:', error);
@@ -101,11 +101,14 @@ const NewEvaluation = () => {
                 }
 
                 // Prefill basic evaluation fields from the request
+                // Use description, budgetComments, procurementComments, or any available justification
+                const justification = data.description || data.budgetComments || data.procurementComments || data.justification || '';
                 setFormData((prev) => ({
                     ...prev,
                     rfqNumber: data.reference || data.code || '',
                     rfqTitle: data.title || '',
-                    description: data.description || data.justification || '',
+                    description: justification,
+                    background: justification,
                     comparableEstimate: totalEstimate > 0 ? totalEstimate.toFixed(2) : '',
                 }));
 

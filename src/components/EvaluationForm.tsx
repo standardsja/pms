@@ -133,6 +133,14 @@ export const EvaluationForm: React.FC<Props> = ({
                                 </div>
                             </div>
                         )}
+                        {evaluation.description && (
+                            <div>
+                                <label className="block mb-2 text-sm font-semibold text-lg">COMMENTS / JUSTIFICATION (Why is it needed?)</label>
+                                <div className="p-3 bg-gray-50 dark:bg-gray-900 rounded border">
+                                    <p className="whitespace-pre-wrap">{evaluation.description}</p>
+                                </div>
+                            </div>
+                        )}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label className="block mb-1 text-sm font-semibold">DATE SUBMISSION WAS CONSIDERED:</label>
@@ -775,13 +783,9 @@ export const EvaluationForm: React.FC<Props> = ({
                             const seedRowsIfEmpty = (copy: any, targetRowId: string, mutate: (row: any) => any) => {
                                 const hasRows = (copy.bidders[0].technicalEvaluation.rows || []).length > 0;
                                 if (!hasRows) {
-                                    copy.bidders[0].technicalEvaluation.rows = rowsToRender.map((r: any) =>
-                                        r.id === targetRowId ? mutate({ ...r }) : { ...r }
-                                    );
+                                    copy.bidders[0].technicalEvaluation.rows = rowsToRender.map((r: any) => (r.id === targetRowId ? mutate({ ...r }) : { ...r }));
                                 } else {
-                                    copy.bidders[0].technicalEvaluation.rows = copy.bidders[0].technicalEvaluation.rows.map((r: any) =>
-                                        r.id === targetRowId ? mutate({ ...r }) : r
-                                    );
+                                    copy.bidders[0].technicalEvaluation.rows = copy.bidders[0].technicalEvaluation.rows.map((r: any) => (r.id === targetRowId ? mutate({ ...r }) : r));
                                 }
                             };
                             return (

@@ -355,7 +355,9 @@ const EvaluationEdit = () => {
                             checked={sectionEForm?.approved ?? false}
                             onChange={(e) => setSectionEForm((prev) => ({ ...(prev ?? ({} as SectionE)), approved: e.target.checked }))}
                         />
-                        <label htmlFor="approved" className="text-sm">Approved</label>
+                        <label htmlFor="approved" className="text-sm">
+                            Approved
+                        </label>
                     </div>
                 </div>
                 <div>
@@ -492,12 +494,7 @@ const EvaluationEdit = () => {
                                             </td>
                                         ))}
                                         <td className="border border-gray-200 dark:border-gray-700 px-2 py-1 text-center">
-                                            <button
-                                                type="button"
-                                                className="btn btn-outline-danger btn-xs"
-                                                onClick={() => removeSectionBRow(key, row.id)}
-                                                title="Remove row"
-                                            >
+                                            <button type="button" className="btn btn-outline-danger btn-xs" onClick={() => removeSectionBRow(key, row.id)} title="Remove row">
                                                 Remove
                                             </button>
                                         </td>
