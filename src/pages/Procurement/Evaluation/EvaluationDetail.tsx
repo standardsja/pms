@@ -37,6 +37,7 @@ const EvaluationDetail = () => {
     const [selectedUserId, setSelectedUserId] = useState<string>('');
     const [selectedAssignSections, setSelectedAssignSections] = useState<string[]>([]);
     const [completingAssignment, setCompletingAssignment] = useState<boolean>(false);
+    const [assignmentsRefreshKey, setAssignmentsRefreshKey] = useState(0);
 
     const toast = (title: string, icon: 'success' | 'error' | 'info' | 'warning' = 'info') =>
         Swal.fire({
@@ -164,11 +165,35 @@ const EvaluationDetail = () => {
                     (arr || []).forEach((s: string) => sections.add(String(s).toUpperCase()));
                 });
 
-                // Procurement officers can always edit sections A, D, and E (their sections)
-                if (isProcurement) {
+                // Procurement officers can always edit section A (their section)
+                if (isProcurement && id) {
                     sections.add('A');
-                    sections.add('D');
-                    sections.add('E');
+                    
+                    // Check if evaluators have completed B/C by getting all assignments for this eval
+                    const allAssignments = await evaluationService.getAllAssignments(parseInt(id));
+                    
+                    // Check if there are assignments for B or C, and if all are submitted
+                    const bcAssignments = allAssignments.filter((a: any) => {
+                        const assignedSections = Array.isArray(a.sections)
+                            ? a.sections
+                            : (() => {
+                                  try {
+                                      return JSON.parse(a.sections || '[]');
+                                  } catch {
+                                      return [];
+                                  }
+                              })();
+                        return assignedSections.some((s: string) => ['B', 'C'].includes(String(s).toUpperCase()));
+                    });
+                    
+                    // If there are B/C assignments and ALL of them are submitted, grant D/E access
+                    const allBCSubmitted = bcAssignments.length > 0 && bcAssignments.every((a: any) => a.status === 'SUBMITTED');
+                    
+                    // If no B/C assignments exist yet OR all B/C assignments are submitted, allow D/E editing
+                    if (bcAssignments.length === 0 || allBCSubmitted) {
+                        sections.add('D');
+                        sections.add('E');
+                    }
                 }
 
                 setCanEditSections(Array.from(sections));
@@ -182,7 +207,7 @@ const EvaluationDetail = () => {
             }
         };
         if (id) loadAssignments();
-    }, [id, isProcurement]);
+    }, [id, isProcurement, assignmentsRefreshKey]);
 
     // Load available users and all assignments for procurement
     useEffect(() => {
@@ -300,6 +325,8 @@ const EvaluationDetail = () => {
             const assignments = await evaluationService.getMyAssignments();
             const forThisEval = assignments.filter((a: any) => String(a.evaluationId) === String(id));
             if (forThisEval.length > 0) setMyAssignment(forThisEval[0]);
+            // Trigger refresh of editable sections
+            setAssignmentsRefreshKey((prev) => prev + 1);
         } catch (err: any) {
             toast(err.message || 'Failed to complete assignment', 'error');
         } finally {
@@ -309,6 +336,35 @@ const EvaluationDetail = () => {
 
     const handlePrintEvaluation = () => {
         window.print();
+    };
+
+    const handleCompleteEvaluation = async () => {
+        if (!evaluation) return;
+
+        // Check if sections D and E are completed
+        if (!evaluation.sectionD?.summary || !evaluation.sectionE?.finalRecommendation) {
+            toast('Please complete Sections D and E before marking the evaluation as completed', 'warning');
+            return;
+        }
+
+        const confirmResult = await Swal.fire({
+            title: 'Mark evaluation as completed?',
+            text: 'This will finalize the evaluation. You can still edit it later if needed.',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, complete',
+            cancelButtonText: 'Cancel',
+        });
+
+        if (!confirmResult.isConfirmed) return;
+
+        try {
+            await evaluationService.updateEvaluation(evaluation.id, { status: 'COMPLETED' });
+            toast('Evaluation marked as completed', 'success');
+            await loadEvaluation();
+        } catch (err: any) {
+            toast(err.message || 'Failed to complete evaluation', 'error');
+        }
     };
 
     return (
@@ -440,6 +496,8 @@ const EvaluationDetail = () => {
                                         setSelectedUserId('');
                                         setSelectedAssignSections([]);
                                         alert('Evaluator assigned successfully');
+                                        // Trigger refresh of editable sections
+                                        setAssignmentsRefreshKey((prev) => prev + 1);
                                     } catch (err: any) {
                                         alert(err?.message || 'Failed to assign evaluator');
                                     }
@@ -534,6 +592,24 @@ const EvaluationDetail = () => {
                                 <path d="M18 14H6V22H18V14Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                             </svg>
                             Print/Export Evaluation
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Procurement Officer: Complete Evaluation */}
+            {isProcurement && evaluation && canEditSections.includes('D') && canEditSections.includes('E') && evaluation.status !== 'COMPLETED' && (
+                <div className="panel mb-4 bg-gradient-to-r from-success/10 to-primary/10 border-2 border-success no-print">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <h6 className="font-semibold text-success mb-1">Finalize Evaluation</h6>
+                            <p className="text-sm text-white-dark">Mark this evaluation as completed after reviewing all sections and finalizing D & E.</p>
+                        </div>
+                        <button type="button" className="btn btn-success gap-2" onClick={handleCompleteEvaluation}>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M20 6L9 17L4 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                            Complete Evaluation
                         </button>
                     </div>
                 </div>
