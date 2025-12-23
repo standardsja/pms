@@ -484,6 +484,8 @@ const NewEvaluation = () => {
                 rfqNumber: evalNumber,
                 rfqTitle: formData.evaluationTitle || 'BSJ Evaluation Report',
                 description: formData.background || undefined,
+                dateSubmissionConsidered: formData.dateSubmissionConsidered || null,
+                reportCompletionDate: formData.reportCompletionDate || null,
                 evaluator: formData.evaluator || undefined,
                 dueDate: formData.bidValidityExpiration || undefined,
                 combinedRequestId: combinedRequestIdState ? parseInt(combinedRequestIdState) : undefined, // Link to combined request
@@ -536,30 +538,24 @@ const NewEvaluation = () => {
                             bidderName: '', // Can be extracted from table if needed
                             eligibilityRequirements: {
                                 columns: eligibilityColumns,
-                                rows: eligibilityRows
-                                    .filter((row) => Object.values(row.data).some((val) => val.trim() !== ''))
-                                    .map((row) => ({
-                                        id: row.id,
-                                        data: row.data,
-                                    })),
+                                rows: eligibilityRows.map((row) => ({
+                                    id: row.id,
+                                    data: row.data,
+                                })),
                             },
                             complianceMatrix: {
                                 columns: complianceColumns,
-                                rows: complianceRows
-                                    .filter((row) => Object.values(row.data).some((val) => val.trim() !== ''))
-                                    .map((row) => ({
-                                        id: row.id,
-                                        data: row.data,
-                                    })),
+                                rows: complianceRows.map((row) => ({
+                                    id: row.id,
+                                    data: row.data,
+                                })),
                             },
                             technicalEvaluation: {
                                 columns: technicalColumns,
-                                rows: technicalRows
-                                    .filter((row) => Object.values(row.data).some((val) => val.trim() !== ''))
-                                    .map((row) => ({
-                                        id: row.id,
-                                        data: row.data,
-                                    })),
+                                rows: technicalRows.map((row) => ({
+                                    id: row.id,
+                                    data: row.data,
+                                })),
                             },
                         },
                     ],
