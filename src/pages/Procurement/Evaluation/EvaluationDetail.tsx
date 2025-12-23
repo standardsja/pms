@@ -363,6 +363,24 @@ const EvaluationDetail = () => {
                         line-height: 1.6;
                         background: #f5f5f5;
                     }
+                    @page {
+                        margin: 20mm;
+                        @top-center {
+                            content: "Procurement Evaluation Report - ${evaluation.rfqTitle}";
+                            font-size: 10px;
+                            font-weight: bold;
+                            color: #2563eb;
+                            white-space: nowrap;
+                            overflow: hidden;
+                            text-overflow: ellipsis;
+                            max-width: 100%;
+                        }
+                        @bottom-center {
+                            content: "Page " counter(page) " of " counter(pages);
+                            font-size: 9px;
+                            color: #999;
+                        }
+                    }
                     .page {
                         width: 210mm;
                         height: 297mm;
@@ -482,7 +500,7 @@ const EvaluationDetail = () => {
                     <div class="header">
                         <img src="/assets/images/bsj-logo.png" alt="BSJ Logo" class="logo" onerror="this.style.display='none'" />
                         <h1>Bureau of Standards Jamaica</h1>
-                        <p>Procurement Evaluation Report</p>
+                        <p>Procurement Evaluation Report - ${evaluation.rfqTitle}</p>
                         <p style="margin-top: 8px; border-top: 1px solid #ddd; padding-top: 8px;">
                             <strong>Report #:</strong> ${evaluation.evalNumber} | 
                             <strong>RFQ #:</strong> ${evaluation.rfqNumber}
