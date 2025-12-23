@@ -589,9 +589,7 @@ const Header = () => {
                                                         // Mark as read
                                                         if (isUnread) {
                                                             markNotificationAsRead(notification.id);
-                                                            setNotifications(
-                                                                notifications.map((n) => (n.id === notification.id ? { ...n, readAt: new Date().toISOString() } : n))
-                                                            );
+                                                            setNotifications(notifications.map((n) => (n.id === notification.id ? { ...n, readAt: new Date().toISOString() } : n)));
                                                         }
 
                                                         // Navigate based on notification type and data
