@@ -37,7 +37,7 @@ import IconRefresh from '../Icon/IconRefresh';
 import { getUser, getToken, clearAuth } from '../../utils/auth';
 import { detectUserRoles, getDashboardPath } from '../../utils/roleDetection';
 import { heartbeatService } from '../../services/heartbeatService';
-import { fetchNotifications, deleteNotification, Notification } from '../../services/notificationApi';
+import { fetchNotifications, deleteNotification, markNotificationAsRead, Notification } from '../../services/notificationApi';
 import { fetchMessages, deleteMessage, Message } from '../../services/messageApi';
 import { getApiUrl } from '../../config/api';
 import IconLock from '../Icon/IconLock';
@@ -561,75 +561,105 @@ const Header = () => {
                                             {notifications.length ? <span className="badge bg-primary/80">{notifications.filter((n) => !n.readAt).length} New</span> : null}
                                         </div>
                                     </li>
-                                    {notificationsLoading && notifications.length === 0 ? (
-                                        <li onClick={(e) => e.stopPropagation()}>
+                                    <li className="!py-0 !divide-y-0 max-h-96 overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+                                        {notificationsLoading && notifications.length === 0 ? (
                                             <div className="!grid place-content-center hover:!bg-transparent text-lg min-h-[200px]">
                                                 <div className="mx-auto">
                                                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                                                 </div>
                                             </div>
-                                        </li>
-                                    ) : notifications.length > 0 ? (
-                                        <>
-                                            {notifications.map((notification) => {
-                                                const isUnread = !notification.readAt;
-                                                const notificationTypeIcons: Record<
-                                                    'MENTION' | 'STAGE_CHANGED' | 'IDEA_APPROVED' | 'THRESHOLD_EXCEEDED' | 'EVALUATION_VERIFIED' | 'EVALUATION_RETURNED',
-                                                    string
-                                                > = {
-                                                    MENTION: '👤',
-                                                    STAGE_CHANGED: '🔄',
-                                                    IDEA_APPROVED: '✅',
-                                                    THRESHOLD_EXCEEDED: '⚠️',
-                                                    EVALUATION_VERIFIED: '📝',
-                                                    EVALUATION_RETURNED: '↩️',
-                                                };
-                                                const icon = notificationTypeIcons[notification.type] ?? '🔔';
+                                        ) : notifications.length > 0 ? (
+                                            <ul className="!py-0 divide-y dark:divide-white/10">
+                                                {notifications.map((notification) => {
+                                                    const isUnread = !notification.readAt;
+                                                    const notificationTypeIcons: Record<
+                                                        'MENTION' | 'STAGE_CHANGED' | 'IDEA_APPROVED' | 'THRESHOLD_EXCEEDED' | 'EVALUATION_VERIFIED' | 'EVALUATION_RETURNED',
+                                                        string
+                                                    > = {
+                                                        MENTION: '👤',
+                                                        STAGE_CHANGED: '🔄',
+                                                        IDEA_APPROVED: '✅',
+                                                        THRESHOLD_EXCEEDED: '⚠️',
+                                                        EVALUATION_VERIFIED: '📝',
+                                                        EVALUATION_RETURNED: '↩️',
+                                                    };
+                                                    const icon = notificationTypeIcons[notification.type] ?? '🔔';
 
-                                                return (
-                                                    <li key={notification.id} className={`dark:text-white-light/90 ${isUnread ? 'bg-primary/5' : ''}`} onClick={(e) => e.stopPropagation()}>
-                                                        <div className="group flex items-center px-4 py-2">
-                                                            <div className="grid place-content-center rounded">
-                                                                <div className="w-12 h-12 relative flex items-center justify-center bg-primary/10 rounded-full text-2xl">
-                                                                    {icon}
-                                                                    {isUnread && <span className="bg-success w-2 h-2 rounded-full block absolute right-0 bottom-0"></span>}
+                                                    const handleNotificationClick = () => {
+                                                        // Mark as read
+                                                        if (isUnread) {
+                                                            markNotificationAsRead(notification.id);
+                                                            setNotifications(
+                                                                notifications.map((n) => (n.id === notification.id ? { ...n, readAt: new Date().toISOString() } : n))
+                                                            );
+                                                        }
+
+                                                        // Navigate based on notification type and data
+                                                        try {
+                                                            if (notification.data?.requestId) {
+                                                                navigate(`/apps/requests/edit/${notification.data.requestId}`);
+                                                            } else if (notification.data?.evaluationId) {
+                                                                navigate(`/procurement/evaluation/${notification.data.evaluationId}`);
+                                                            } else if (notification.data?.combinedRequestId) {
+                                                                navigate(`/apps/requests/combined/${notification.data.combinedRequestId}`);
+                                                            } else if (notification.data?.innovationId) {
+                                                                navigate(`/innovation-hub/ideas/${notification.data.innovationId}`);
+                                                            }
+                                                        } catch (err) {
+                                                            console.error('Error navigating from notification:', err);
+                                                        }
+                                                    };
+
+                                                    return (
+                                                        <li
+                                                            key={notification.id}
+                                                            className={`dark:text-white-light/90 cursor-pointer transition-colors hover:bg-primary/10 ${isUnread ? 'bg-primary/5' : ''}`}
+                                                            onClick={handleNotificationClick}
+                                                        >
+                                                            <div className="group flex items-center px-4 py-2">
+                                                                <div className="grid place-content-center rounded">
+                                                                    <div className="w-12 h-12 relative flex items-center justify-center bg-primary/10 rounded-full text-2xl">
+                                                                        {icon}
+                                                                        {isUnread && <span className="bg-success w-2 h-2 rounded-full block absolute right-0 bottom-0"></span>}
+                                                                    </div>
+                                                                </div>
+                                                                <div className="ltr:pl-3 rtl:pr-3 flex flex-auto">
+                                                                    <div className="ltr:pr-3 rtl:pl-3">
+                                                                        <h6 className={isUnread ? 'font-semibold' : ''}>{notification.message}</h6>
+                                                                        <span className="text-xs block font-normal dark:text-gray-500">{getRelativeTime(notification.createdAt)}</span>
+                                                                    </div>
+                                                                    <button
+                                                                        type="button"
+                                                                        className="ltr:ml-auto rtl:mr-auto text-neutral-300 hover:text-danger opacity-0 group-hover:opacity-100"
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            removeNotification(notification.id);
+                                                                        }}
+                                                                    >
+                                                                        <IconXCircle />
+                                                                    </button>
                                                                 </div>
                                                             </div>
-                                                            <div className="ltr:pl-3 rtl:pr-3 flex flex-auto">
-                                                                <div className="ltr:pr-3 rtl:pl-3">
-                                                                    <h6 className={isUnread ? 'font-semibold' : ''}>{notification.message}</h6>
-                                                                    <span className="text-xs block font-normal dark:text-gray-500">{getRelativeTime(notification.createdAt)}</span>
-                                                                </div>
-                                                                <button
-                                                                    type="button"
-                                                                    className="ltr:ml-auto rtl:mr-auto text-neutral-300 hover:text-danger opacity-0 group-hover:opacity-100"
-                                                                    onClick={() => removeNotification(notification.id)}
-                                                                >
-                                                                    <IconXCircle />
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    </li>
-                                                );
-                                            })}
-                                            <li>
-                                                <div className="p-4">
-                                                    <button className="btn btn-primary block w-full btn-small" onClick={loadNotifications} disabled={notificationsLoading}>
-                                                        {notificationsLoading ? 'Refreshing...' : 'Refresh Notifications'}
-                                                    </button>
-                                                </div>
-                                            </li>
-                                        </>
-                                    ) : (
-                                        <li onClick={(e) => e.stopPropagation()}>
-                                            <button type="button" className="!grid place-content-center hover:!bg-transparent text-lg min-h-[200px]">
+                                                        </li>
+                                                    );
+                                                })}
+                                            </ul>
+                                        ) : (
+                                            <button type="button" className="!grid place-content-center hover:!bg-transparent text-lg min-h-[200px] w-full">
                                                 <div className="mx-auto ring-4 ring-primary/30 rounded-full mb-4 text-primary">
                                                     <IconInfoCircle fill={true} className="w-10 h-10" />
                                                 </div>
                                                 No notifications yet.
                                             </button>
-                                        </li>
-                                    )}
+                                        )}
+                                    </li>
+                                    <li onClick={(e) => e.stopPropagation()}>
+                                        <div className="p-4">
+                                            <button className="btn btn-primary block w-full btn-small" onClick={loadNotifications} disabled={notificationsLoading}>
+                                                {notificationsLoading ? 'Refreshing...' : 'Refresh Notifications'}
+                                            </button>
+                                        </div>
+                                    </li>
                                 </ul>
                             </Dropdown>
                         </div>
