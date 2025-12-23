@@ -168,10 +168,10 @@ const EvaluationDetail = () => {
                 // Procurement officers can always edit section A (their section)
                 if (isProcurement && id) {
                     sections.add('A');
-                    
+
                     // Check if evaluators have completed B/C by getting all assignments for this eval
                     const allAssignments = await evaluationService.getAllAssignments(parseInt(id));
-                    
+
                     // Check if there are assignments for B or C, and if all are submitted
                     const bcAssignments = allAssignments.filter((a: any) => {
                         const assignedSections = Array.isArray(a.sections)
@@ -185,10 +185,10 @@ const EvaluationDetail = () => {
                               })();
                         return assignedSections.some((s: string) => ['B', 'C'].includes(String(s).toUpperCase()));
                     });
-                    
+
                     // If there are B/C assignments and ALL of them are submitted, grant D/E access
                     const allBCSubmitted = bcAssignments.length > 0 && bcAssignments.every((a: any) => a.status === 'SUBMITTED');
-                    
+
                     // If no B/C assignments exist yet OR all B/C assignments are submitted, allow D/E editing
                     if (bcAssignments.length === 0 || allBCSubmitted) {
                         sections.add('D');
