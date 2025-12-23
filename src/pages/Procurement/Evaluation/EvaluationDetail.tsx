@@ -338,6 +338,333 @@ const EvaluationDetail = () => {
         window.print();
     };
 
+    const handlePrintFormattedReport = () => {
+        if (!evaluation) return;
+
+        // Create a new window for the formatted report
+        const reportWindow = window.open('', '_blank');
+        if (!reportWindow) return;
+
+        // Build the HTML content
+        const html = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Evaluation Report - ${evaluation.evalNumber}</title>
+                <style>
+                    * {
+                        margin: 0;
+                        padding: 0;
+                        box-sizing: border-box;
+                    }
+                    body {
+                        font-family: 'Arial', sans-serif;
+                        color: #333;
+                        line-height: 1.6;
+                        background: #f5f5f5;
+                    }
+                    .page {
+                        width: 210mm;
+                        height: 297mm;
+                        margin: 10mm auto;
+                        padding: 20mm;
+                        background: white;
+                        box-shadow: 0 0 10px rgba(0,0,0,0.1);
+                        page-break-after: always;
+                    }
+                    .header {
+                        text-align: center;
+                        border-bottom: 3px solid #2563eb;
+                        padding-bottom: 15px;
+                        margin-bottom: 20px;
+                    }
+                    .logo {
+                        width: 80px;
+                        height: auto;
+                        margin: 0 auto 10px;
+                    }
+                    .header h1 {
+                        font-size: 18px;
+                        color: #1e40af;
+                        margin-bottom: 5px;
+                    }
+                    .header p {
+                        font-size: 11px;
+                        color: #666;
+                        margin: 3px 0;
+                    }
+                    .section {
+                        margin-bottom: 20px;
+                    }
+                    .section-title {
+                        background: #2563eb;
+                        color: white;
+                        padding: 8px 12px;
+                        font-size: 13px;
+                        font-weight: bold;
+                        margin-bottom: 10px;
+                        border-radius: 3px;
+                    }
+                    .content {
+                        padding: 0 10px;
+                        font-size: 11px;
+                    }
+                    .field-row {
+                        display: flex;
+                        margin-bottom: 8px;
+                        gap: 20px;
+                    }
+                    .field {
+                        flex: 1;
+                    }
+                    .field-label {
+                        font-weight: bold;
+                        color: #2563eb;
+                        font-size: 10px;
+                        text-transform: uppercase;
+                    }
+                    .field-value {
+                        color: #333;
+                        margin-top: 3px;
+                        word-break: break-word;
+                    }
+                    table {
+                        width: 100%;
+                        border-collapse: collapse;
+                        margin: 10px 0;
+                        font-size: 10px;
+                    }
+                    table th {
+                        background: #e0e7ff;
+                        border: 1px solid #c7d2fe;
+                        padding: 6px;
+                        text-align: left;
+                        font-weight: bold;
+                        color: #1e40af;
+                    }
+                    table td {
+                        border: 1px solid #e5e7eb;
+                        padding: 6px;
+                    }
+                    table tr:nth-child(even) {
+                        background: #f9fafb;
+                    }
+                    .summary-box {
+                        background: #f0f4ff;
+                        border-left: 4px solid #2563eb;
+                        padding: 10px;
+                        margin: 10px 0;
+                        font-size: 11px;
+                        white-space: pre-wrap;
+                        word-wrap: break-word;
+                    }
+                    .footer {
+                        text-align: center;
+                        margin-top: 30px;
+                        font-size: 9px;
+                        color: #999;
+                        border-top: 1px solid #ddd;
+                        padding-top: 10px;
+                    }
+                    @media print {
+                        body {
+                            background: white;
+                        }
+                        .page {
+                            margin: 0;
+                            box-shadow: none;
+                        }
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="page">
+                    <div class="header">
+                        <img src="/assets/images/bsj-logo.png" alt="BSJ Logo" class="logo" onerror="this.style.display='none'" />
+                        <h1>Bureau of Standards Jamaica</h1>
+                        <p>Procurement Evaluation Report</p>
+                        <p style="margin-top: 8px; border-top: 1px solid #ddd; padding-top: 8px;">
+                            <strong>Report #:</strong> ${evaluation.evalNumber} | 
+                            <strong>RFQ #:</strong> ${evaluation.rfqNumber}
+                        </p>
+                    </div>
+
+                    <!-- Section A: Procurement Information -->
+                    <div class="section">
+                        <div class="section-title">Section A: Procurement Information</div>
+                        <div class="content">
+                            <div class="field-row">
+                                <div class="field">
+                                    <div class="field-label">RFQ Title</div>
+                                    <div class="field-value">${evaluation.rfqTitle}</div>
+                                </div>
+                                <div class="field">
+                                    <div class="field-label">Evaluation #</div>
+                                    <div class="field-value">${evaluation.evalNumber}</div>
+                                </div>
+                            </div>
+                            ${evaluation.sectionA ? `
+                            <div class="field-row">
+                                <div class="field">
+                                    <div class="field-label">Procurement Method</div>
+                                    <div class="field-value">${evaluation.sectionA.procurementMethod || 'N/A'}</div>
+                                </div>
+                                <div class="field">
+                                    <div class="field-label">Contract Type</div>
+                                    <div class="field-value">${evaluation.sectionA.contractType || 'N/A'}</div>
+                                </div>
+                            </div>
+                            <div class="field-row">
+                                <div class="field">
+                                    <div class="field-label">Comparable Estimate</div>
+                                    <div class="field-value">$${evaluation.sectionA.comparableEstimate?.toLocaleString() || '0'}</div>
+                                </div>
+                                <div class="field">
+                                    <div class="field-label">Number of Bids Received</div>
+                                    <div class="field-value">${evaluation.sectionA.numberOfBidsReceived || '0'}</div>
+                                </div>
+                            </div>
+                            ` : '<p style="color: #999;">Section A data not yet entered</p>'}
+                        </div>
+                    </div>
+
+                    <!-- Section B: Bidder Evaluation -->
+                    ${evaluation.sectionB && evaluation.sectionB.bidders && evaluation.sectionB.bidders.length > 0 ? `
+                    <div class="section">
+                        <div class="section-title">Section B: Bidder Evaluation</div>
+                        <div class="content">
+                            ${evaluation.sectionB.bidders.map((bidder: any, idx: number) => `
+                                <h4 style="margin: 12px 0 8px; color: #2563eb; font-size: 11px;"><strong>Bidder ${idx + 1}: ${bidder.bidderName || 'N/A'}</strong></h4>
+                                
+                                ${bidder.eligibilityRequirements && bidder.eligibilityRequirements.rows && bidder.eligibilityRequirements.rows.length > 0 ? `
+                                    <h5 style="font-size: 10px; margin: 8px 0 4px; color: #1e40af;">Eligibility Requirements</h5>
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                ${bidder.eligibilityRequirements.columns.map((col: any) => `<th>${col.name}</th>`).join('')}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${bidder.eligibilityRequirements.rows.map((row: any) => `
+                                                <tr>
+                                                    ${bidder.eligibilityRequirements.columns.map((col: any) => `
+                                                        <td>${row.data[col.id] || '-'}</td>
+                                                    `).join('')}
+                                                </tr>
+                                            `).join('')}
+                                        </tbody>
+                                    </table>
+                                ` : ''}
+                                
+                                ${bidder.complianceMatrix && bidder.complianceMatrix.rows && bidder.complianceMatrix.rows.length > 0 ? `
+                                    <h5 style="font-size: 10px; margin: 8px 0 4px; color: #1e40af;">Compliance Matrix</h5>
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                ${bidder.complianceMatrix.columns.map((col: any) => `<th>${col.name}</th>`).join('')}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${bidder.complianceMatrix.rows.map((row: any) => `
+                                                <tr>
+                                                    ${bidder.complianceMatrix.columns.map((col: any) => `
+                                                        <td>${row.data[col.id] || '-'}</td>
+                                                    `).join('')}
+                                                </tr>
+                                            `).join('')}
+                                        </tbody>
+                                    </table>
+                                ` : ''}
+                                
+                                ${bidder.technicalEvaluation && bidder.technicalEvaluation.rows && bidder.technicalEvaluation.rows.length > 0 ? `
+                                    <h5 style="font-size: 10px; margin: 8px 0 4px; color: #1e40af;">Technical Evaluation</h5>
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                ${bidder.technicalEvaluation.columns.map((col: any) => `<th>${col.name}</th>`).join('')}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${bidder.technicalEvaluation.rows.map((row: any) => `
+                                                <tr>
+                                                    ${bidder.technicalEvaluation.columns.map((col: any) => `
+                                                        <td>${row.data[col.id] || '-'}</td>
+                                                    `).join('')}
+                                                </tr>
+                                            `).join('')}
+                                        </tbody>
+                                    </table>
+                                ` : ''}
+                            `).join('')}
+                        </div>
+                    </div>
+                    ` : ''}
+
+                    <!-- Section C: Evaluation Comments -->
+                    ${evaluation.sectionC ? `
+                    <div class="section">
+                        <div class="section-title">Section C: Evaluation Comments</div>
+                        <div class="content">
+                            ${evaluation.sectionC.recommendedSupplier ? `
+                            <div class="field">
+                                <div class="field-label">Recommended Supplier</div>
+                                <div class="field-value">${evaluation.sectionC.recommendedSupplier}</div>
+                            </div>
+                            ` : ''}
+                            ${evaluation.sectionC.comments ? `
+                            <div class="field">
+                                <div class="field-label">Comments</div>
+                                <div class="field-value" style="white-space: pre-wrap;">${evaluation.sectionC.comments}</div>
+                            </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                    ` : ''}
+
+                    <!-- Section D: Summary -->
+                    ${evaluation.sectionD?.summary ? `
+                    <div class="section">
+                        <div class="section-title">Section D: Evaluation Summary</div>
+                        <div class="summary-box">
+                            ${evaluation.sectionD.summary}
+                        </div>
+                    </div>
+                    ` : ''}
+
+                    <!-- Section E: Final Recommendation -->
+                    ${evaluation.sectionE?.finalRecommendation ? `
+                    <div class="section">
+                        <div class="section-title">Section E: Final Recommendation</div>
+                        <div class="summary-box">
+                            ${evaluation.sectionE.finalRecommendation}
+                        </div>
+                        ${evaluation.sectionE.preparedBy ? `
+                        <div style="margin-top: 15px; text-align: right; font-size: 10px;">
+                            <p><strong>Prepared By:</strong> ${evaluation.sectionE.preparedBy}</p>
+                            ${evaluation.sectionE.approvalDate ? `<p><strong>Date:</strong> ${new Date(evaluation.sectionE.approvalDate).toLocaleDateString()}</p>` : ''}
+                        </div>
+                        ` : ''}
+                    </div>
+                    ` : ''}
+
+                    <div class="footer">
+                        <p>This is an automatically generated evaluation report from the Procurement Management System (SPINX)</p>
+                        <p>Generated on ${new Date().toLocaleString()}</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+        `;
+
+        reportWindow.document.write(html);
+        reportWindow.document.close();
+
+        // Auto-print after content loads
+        reportWindow.onload = () => {
+            reportWindow.print();
+        };
+    };
+
     const handleCompleteEvaluation = async () => {
         if (!evaluation) return;
 
@@ -579,20 +906,28 @@ const EvaluationDetail = () => {
                             <h6 className="font-semibold text-primary mb-1">Ready to Print?</h6>
                             <p className="text-sm text-white-dark">Print the complete evaluation document with all sections consolidated.</p>
                         </div>
-                        <button type="button" className="btn btn-primary gap-2" onClick={handlePrintEvaluation}>
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M6 9V2H18V9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                                <path
-                                    d="M6 18H4C3.46957 18 2.96086 17.7893 2.58579 17.4142C2.21071 17.0391 2 16.5304 2 16V11C2 10.4696 2.21071 9.96086 2.58579 9.58579C2.96086 9.21071 3.46957 9 4 9H20C20.5304 9 21.0391 9.21071 21.4142 9.58579C21.7893 9.96086 22 10.4696 22 11V16C22 16.5304 21.7893 17.0391 21.4142 17.4142C21.0391 17.7893 20.5304 18 20 18H18"
-                                    stroke="currentColor"
-                                    strokeWidth="1.5"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                />
-                                <path d="M18 14H6V22H18V14Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
-                            Print/Export Evaluation
-                        </button>
+                        <div className="flex gap-2">
+                            <button type="button" className="btn btn-primary gap-2" onClick={handlePrintEvaluation}>
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M6 9V2H18V9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                    <path
+                                        d="M6 18H4C3.46957 18 2.96086 17.7893 2.58579 17.4142C2.21071 17.0391 2 16.5304 2 16V11C2 10.4696 2.21071 9.96086 2.58579 9.58579C2.96086 9.21071 3.46957 9 4 9H20C20.5304 9 21.0391 9.21071 21.4142 9.58579C21.7893 9.96086 22 10.4696 22 11V16C22 16.5304 21.7893 17.0391 21.4142 17.4142C21.0391 17.7893 20.5304 18 20 18H18"
+                                        stroke="currentColor"
+                                        strokeWidth="1.5"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                    />
+                                    <path d="M18 14H6V22H18V14Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                                Print/Export Evaluation
+                            </button>
+                            <button type="button" className="btn btn-info gap-2" onClick={handlePrintFormattedReport}>
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M9 12H15M9 16H15M17 3H7C5.89543 3 5 3.89543 5 5V19C5 20.1046 5.89543 21 7 21H17C18.1046 21 19 20.1046 19 19V5C19 3.89543 18.1046 3 17 3Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                                Formatted Report
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
