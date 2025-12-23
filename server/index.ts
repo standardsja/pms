@@ -1542,7 +1542,8 @@ app.post('/api/ideas', authMiddleware, ideaCreationLimiter, upload.single('image
         }
 
         if (req.file) {
-            const fileUrl = `http://localhost:4000/uploads/${req.file.filename}`;
+            // Use relative path that works in production
+            const fileUrl = `/uploads/${req.file.filename}`;
             await prisma.ideaAttachment.create({
                 data: {
                     ideaId: idea.id,
@@ -2247,7 +2248,7 @@ app.post(
             if (req.files && Array.isArray(req.files) && req.files.length > 0) {
                 console.log('[POST /requests] Processing', req.files.length, 'file attachments');
                 for (const file of req.files) {
-                    const fileUrl = `http://localhost:4000/uploads/${file.filename}`;
+                    const fileUrl = `/uploads/${file.filename}`;
                     console.log('[POST /requests] Creating attachment:', file.originalname);
                     await prisma.requestAttachment.create({
                         data: {
