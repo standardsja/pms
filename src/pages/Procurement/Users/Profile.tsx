@@ -367,7 +367,7 @@ const Profile = () => {
                                 <div className="relative group mb-4 transition-transform duration-300 hover:scale-105">
                                     {displayUser?.profileImage && !imageError ? (
                                         <img
-                                            src={resolveProfileImageUrl(displayUser.profileImage)}
+                                            src={resolveProfileImageUrl(displayUser.profileImage) ?? undefined}
                                             alt="profile"
                                             className="w-24 h-24 rounded-full object-cover ring-4 ring-primary/30 shadow-lg transition-shadow duration-300 group-hover:ring-primary/50"
                                             onError={() => setImageError(true)}

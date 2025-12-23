@@ -4,7 +4,8 @@ import { setPageTitle } from '../../../../store/themeConfigSlice';
 import { selectUser } from '../../../../store/authSlice';
 import IconPlus from '../../../../components/Icon/IconPlus';
 import IconSearch from '../../../../components/Icon/IconSearch';
-import Swal from 'sweetalert2';
+import { getApiUrl, getAuthHeadersSync } from '../../../../utils/api';
+import { showConfirm, showError, showInfo, showSuccess } from '../../../../utils/notifications';
 
 interface User {
     id: string;
@@ -48,12 +49,8 @@ const HODUserManagement: React.FC = () => {
             const userDepartment = currentUser?.department_id || currentUser?.department_name || 'all';
             const hodId = currentUser?.id;
 
-            const response = await fetch(`/api/v1/users?department=${userDepartment}&excludeRole=HEAD_OF_DIVISION&hod=${hodId}`, {
-                headers: {
-                    Authorization: `Bearer ${sessionStorage.getItem('token') || localStorage.getItem('token')}`,
-                    'Content-Type': 'application/json',
-                },
-            });
+            const url = getApiUrl(`/api/v1/users?department=${encodeURIComponent(String(userDepartment))}&excludeRole=HEAD_OF_DIVISION&hod=${encodeURIComponent(String(hodId || ''))}`);
+            const response = await fetch(url, { headers: getAuthHeadersSync() });
 
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
@@ -66,6 +63,7 @@ const HODUserManagement: React.FC = () => {
             setFilteredUsers(userData);
         } catch (error) {
             console.error('Error fetching users:', error);
+            showError('Failed to load users', error instanceof Error ? error.message : undefined);
             // Fallback to mock data
             const mockData: User[] = [
                 {
@@ -129,17 +127,14 @@ const HODUserManagement: React.FC = () => {
     };
 
     const handleEditUser = (id: string) => {
-        Swal.fire('Edit User', `Edit user ${id}`, 'info');
+        showInfo('Edit User', `Edit user ${id}`);
     };
 
     const handleDeactivateUser = (id: string) => {
-        Swal.fire({
-            title: 'Deactivate User?',
-            text: 'This action cannot be easily reversed.',
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonText: 'Deactivate',
-            cancelButtonText: 'Cancel',
+        showConfirm('Deactivate User?', 'This action cannot be easily reversed.').then((res) => {
+            if (res.isConfirmed) {
+                showSuccess('User deactivated');
+            }
         });
     };
 

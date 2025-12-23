@@ -148,8 +148,284 @@ router.get(
 );
 
 /**
+ * GET /api/v1/dashboard-stats
+ * Fetch comprehensive dashboard statistics for HOD
+ */
+router.get(
+    '/dashboard-stats',
+    authMiddleware,
+    verifyHOD,
+    asyncHandler(async (req: Request, res: Response) => {
+        const hodId = (req as any).user?.sub;
+
+        logger.info(`Fetching dashboard stats for HOD ${hodId}`);
+
+        // Get HOD's department
+        const hodUser = await prisma.user.findUnique({
+            where: { id: hodId as any },
+            include: { department: true },
+        });
+
+        if (!hodUser) {
+            return res.status(404).json({
+                success: false,
+                message: 'HOD user not found',
+            });
+        }
+
+        const departmentId = hodUser.departmentId;
+
+        // 1. Total requests count
+        const totalRequests = await prisma.request.count({
+            where: departmentId ? { departmentId } : undefined,
+        });
+
+        // 2. Pending approvals count (requests at HOD_REVIEW status)
+        const pendingApprovals = await prisma.request.count({
+            where: {
+                ...(departmentId ? { departmentId } : {}),
+                status: 'HOD_REVIEW',
+            },
+        });
+
+        // 3. Approved requests count
+        const approvedRequests = await prisma.request.count({
+            where: {
+                ...(departmentId ? { departmentId } : {}),
+                status: {
+                    in: ['FINANCE_REVIEW', 'FINANCE_APPROVED', 'SENT_TO_VENDOR', 'CLOSED'],
+                },
+            },
+        });
+
+        // 4. Rejected requests count
+        const rejectedRequests = await prisma.request.count({
+            where: {
+                ...(departmentId ? { departmentId } : {}),
+                status: 'REJECTED',
+            },
+        });
+
+        // 5. Budget statistics
+        const budgetStats = await prisma.request.aggregate({
+            where: departmentId ? { departmentId } : undefined,
+            _sum: {
+                totalEstimated: true,
+            },
+        });
+
+        const approvedBudget = await prisma.request.aggregate({
+            where: {
+                ...(departmentId ? { departmentId } : {}),
+                status: {
+                    in: ['FINANCE_APPROVED', 'SENT_TO_VENDOR', 'CLOSED'],
+                },
+            },
+            _sum: {
+                totalEstimated: true,
+            },
+        });
+
+        const pendingBudget = await prisma.request.aggregate({
+            where: {
+                ...(departmentId ? { departmentId } : {}),
+                status: 'HOD_REVIEW',
+            },
+            _sum: {
+                totalEstimated: true,
+            },
+        });
+
+        // 6. Department count
+        const departmentCount = await prisma.department.count();
+
+        // 7. Active users in the department
+        const activeUsers = await prisma.user.count({
+            where: departmentId ? { departmentId } : undefined,
+        });
+
+        // 8. Average approval time (in days) - calculate from actionDate
+        const approvedWithDates = await prisma.request.findMany({
+            where: {
+                ...(departmentId ? { departmentId } : {}),
+                status: {
+                    in: ['FINANCE_REVIEW', 'FINANCE_APPROVED', 'SENT_TO_VENDOR', 'CLOSED'],
+                },
+                actionDate: { not: null },
+                createdAt: { not: null },
+            },
+            select: {
+                createdAt: true,
+                actionDate: true,
+            },
+        });
+
+        const averageApprovalTime =
+            approvedWithDates.length > 0
+                ? approvedWithDates.reduce((sum, req) => {
+                      const days = Math.floor((req.actionDate!.getTime() - req.createdAt.getTime()) / (1000 * 60 * 60 * 24));
+                      return sum + days;
+                  }, 0) / approvedWithDates.length
+                : 0;
+
+        // 9. Trend data (submissions and approvals over last 7 days)
+        const last7Days = Array.from({ length: 7 }, (_, i) => {
+            const date = new Date();
+            date.setDate(date.getDate() - (6 - i));
+            date.setHours(0, 0, 0, 0);
+            return date;
+        });
+
+        const trendSubmissions = await Promise.all(
+            last7Days.map(async (date) => {
+                const nextDay = new Date(date);
+                nextDay.setDate(nextDay.getDate() + 1);
+                return await prisma.request.count({
+                    where: {
+                        ...(departmentId ? { departmentId } : {}),
+                        createdAt: {
+                            gte: date,
+                            lt: nextDay,
+                        },
+                    },
+                });
+            })
+        );
+
+        const trendApprovals = await Promise.all(
+            last7Days.map(async (date) => {
+                const nextDay = new Date(date);
+                nextDay.setDate(nextDay.getDate() + 1);
+                return await prisma.request.count({
+                    where: {
+                        ...(departmentId ? { departmentId } : {}),
+                        actionDate: {
+                            gte: date,
+                            lt: nextDay,
+                        },
+                        status: {
+                            in: ['FINANCE_REVIEW', 'FINANCE_APPROVED', 'SENT_TO_VENDOR', 'CLOSED'],
+                        },
+                    },
+                });
+            })
+        );
+
+        // 10. Department performance
+        const departments = await prisma.department.findMany({
+            select: {
+                name: true,
+                requests: {
+                    select: {
+                        status: true,
+                    },
+                },
+            },
+        });
+
+        const departmentPerformance = departments.map((dept) => ({
+            name: dept.name,
+            pending: dept.requests.filter((r) => r.status === 'HOD_REVIEW').length,
+            approved: dept.requests.filter((r) => ['FINANCE_REVIEW', 'FINANCE_APPROVED', 'SENT_TO_VENDOR', 'CLOSED'].includes(r.status)).length,
+        }));
+
+        res.json({
+            success: true,
+            stats: {
+                totalRequests,
+                pendingApprovals,
+                approvedRequests,
+                rejectedRequests,
+                totalBudgetRequested: Number(budgetStats._sum.totalEstimated || 0),
+                approvedAmount: Number(approvedBudget._sum.totalEstimated || 0),
+                pendingAmount: Number(pendingBudget._sum.totalEstimated || 0),
+                departmentCount,
+                activeUsers,
+                averageApprovalTime: Math.round(averageApprovalTime * 10) / 10,
+                trendSubmissions,
+                trendApprovals,
+                departmentPerformance,
+            },
+            timestamp: new Date().toISOString(),
+        });
+    })
+);
+
+/**
+ * GET /api/v1/pending-approvals
+ * Fetch pending approval requests for HOD
+ */
+router.get(
+    '/pending-approvals',
+    authMiddleware,
+    verifyHOD,
+    asyncHandler(async (req: Request, res: Response) => {
+        const hodId = (req as any).user?.sub;
+        const limit = parseInt(req.query.limit as string) || 10;
+
+        logger.info(`Fetching pending approvals for HOD ${hodId}`);
+
+        // Get HOD's department
+        const hodUser = await prisma.user.findUnique({
+            where: { id: hodId as any },
+            include: { department: true },
+        });
+
+        if (!hodUser) {
+            return res.status(404).json({
+                success: false,
+                message: 'HOD user not found',
+            });
+        }
+
+        const departmentId = hodUser.departmentId;
+
+        // Fetch pending requests at HOD_REVIEW stage
+        const pendingRequests = await prisma.request.findMany({
+            where: {
+                ...(departmentId ? { departmentId } : {}),
+                status: 'HOD_REVIEW',
+            },
+            include: {
+                department: {
+                    select: {
+                        name: true,
+                    },
+                },
+                assignedUser: {
+                    select: {
+                        name: true,
+                        email: true,
+                    },
+                },
+            },
+            orderBy: {
+                createdAt: 'desc',
+            },
+            take: limit,
+        });
+
+        const formattedRequests = pendingRequests.map((req) => ({
+            id: req.id.toString(),
+            title: req.title,
+            department: req.department?.name || 'Unknown',
+            requester: req.assignedUser?.name || req.assignedUser?.email || 'Unknown',
+            status: req.status,
+            amount: Number(req.totalEstimated || 0),
+            submitDate: req.createdAt.toISOString(),
+        }));
+
+        res.json({
+            success: true,
+            requests: formattedRequests,
+            count: formattedRequests.length,
+        });
+    })
+);
+
+/**
  * GET /api/v1/reports
- * Fetch reports for HOD's division (mock implementation)
+ * Fetch reports for HOD's division (real data from requests)
  */
 router.get(
     '/reports',
@@ -174,30 +450,86 @@ router.get(
             });
         }
 
-        // Mock reports data until reports table is created
-        const mockReports = [
+        // Get real report data from requests and related tables
+        const departmentId = division ? parseInt(division) : hodUser.departmentId;
+
+        // Request statistics by status
+        const requestsByStatus = await prisma.request.groupBy({
+            by: ['status'],
+            where: {
+                departmentId: departmentId || undefined,
+            },
+            _count: {
+                id: true,
+            },
+        });
+
+        // Total spending by department
+        const totalSpending = await prisma.request.aggregate({
+            where: {
+                departmentId: departmentId || undefined,
+                status: {
+                    in: ['FINANCE_APPROVED', 'SENT_TO_VENDOR', 'CLOSED'],
+                },
+            },
+            _sum: {
+                totalEstimated: true,
+            },
+        });
+
+        // Recent requests
+        const recentRequests = await prisma.request.findMany({
+            where: {
+                departmentId: departmentId || undefined,
+            },
+            orderBy: {
+                createdAt: 'desc',
+            },
+            take: 10,
+            select: {
+                reference: true,
+                title: true,
+                status: true,
+                totalEstimated: true,
+                createdAt: true,
+            },
+        });
+
+        // Generate report objects based on real data
+        const currentDate = new Date();
+        const reports = [
             {
                 id: '1',
-                title: 'Procurement Summary - Q4 2024',
+                title: `Procurement Summary - ${currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`,
                 type: 'Procurement Summary',
-                generatedBy: 'John Smith',
-                period: 'Q4 2024',
+                generatedBy: hodUser.name || hodUser.email,
+                period: currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
                 status: 'Completed',
-                createdAt: new Date('2024-12-01').toISOString(),
-                fileUrl: '/reports/procurement-q4-2024.pdf',
+                createdAt: currentDate.toISOString(),
+                data: {
+                    requestsByStatus: requestsByStatus.map((item) => ({
+                        status: item.status,
+                        count: item._count.id,
+                    })),
+                    totalSpending: Number(totalSpending._sum.totalEstimated || 0),
+                    recentRequests: recentRequests.map((req) => ({
+                        reference: req.reference,
+                        title: req.title,
+                        status: req.status,
+                        amount: Number(req.totalEstimated || 0),
+                        date: req.createdAt.toISOString(),
+                    })),
+                },
             },
-            {
-                id: '2',
-                title: 'Budget Utilization Report - December 2024',
-                type: 'Budget Report',
-                generatedBy: 'Sarah Johnson',
-                period: 'December 2024',
-                status: 'Completed',
-                createdAt: new Date('2024-12-05').toISOString(),
-                fileUrl: '/reports/budget-dec-2024.pdf',
-            },
-            {
-                id: '3',
+        ];
+
+        res.json({
+            success: true,
+            reports,
+            count: reports.length,
+        });
+    })
+);
                 title: 'Department Performance Analysis',
                 type: 'Performance Report',
                 generatedBy: 'Michael Chen',

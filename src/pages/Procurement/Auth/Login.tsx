@@ -70,7 +70,7 @@ const Login = () => {
             const res = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, password }),
+                body: JSON.stringify({ email, password, rememberMe }),
             });
 
             const data = await res.json().catch(() => null);
@@ -80,8 +80,13 @@ const Login = () => {
                 throw new Error(msg);
             }
 
-            const { token, user } = data || {};
+            const { token, refreshToken, user } = data || {};
             if (!token || !user) throw new Error('Invalid login response');
+
+            // Store refresh token if provided
+            if (refreshToken) {
+                localStorage.setItem('refreshToken', refreshToken);
+            }
 
             // Clear Redux module state before setting new auth (forces re-initialization with new user)
             dispatch(clearModule());

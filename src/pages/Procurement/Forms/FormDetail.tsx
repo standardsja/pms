@@ -397,6 +397,118 @@ export default function FormDetail() {
         }
     };
 
+    const handleDownloadPDF = async () => {
+        if (!form) {
+            alert('Error: Form not loaded');
+            return;
+        }
+
+        try {
+            // Dynamically import html2pdf
+            const html2pdf = (await import('html2pdf.js')).default;
+
+            // Create a clean PDF-formatted HTML structure
+            const pdfContent = document.createElement('div');
+            pdfContent.innerHTML = `
+                <style>
+                    * { margin: 0; padding: 0; }
+                    body { font-family: Arial, sans-serif; color: #333; background: white; }
+                    .pdf-header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #333; padding-bottom: 15px; }
+                    .pdf-logo { max-width: 120px; height: auto; margin-bottom: 10px; }
+                    .pdf-title { font-size: 14px; font-weight: bold; margin: 8px 0; }
+                    .pdf-subtitle { font-size: 11px; color: #666; margin: 4px 0; }
+                    .pdf-section { margin-bottom: 16px; page-break-inside: avoid; }
+                    .pdf-section-title { font-size: 12px; font-weight: bold; background: #e8e8e8; padding: 8px; margin: 0 0 10px 0; border-left: 3px solid #333; }
+                    .pdf-section-desc { font-size: 10px; color: #777; margin-bottom: 8px; }
+                    .pdf-field { margin-bottom: 8px; page-break-inside: avoid; }
+                    .pdf-label { font-size: 10px; font-weight: 600; color: #333; margin-bottom: 2px; }
+                    .pdf-field-value { font-size: 10px; color: #555; border-bottom: 1px solid #ccc; padding: 4px 0; min-height: 14px; }
+                    .required { color: #d32f2f; }
+                </style>
+
+                <div class="pdf-header">
+                    <img src="/assets/images/bsj-logo.png" alt="BSJ" class="pdf-logo">
+                    <div class="pdf-title">${form.name}</div>
+                    <div class="pdf-subtitle">Code: ${form.code}</div>
+                    <div class="pdf-subtitle">${form.description}</div>
+                </div>
+            `;
+
+            const container = document.getElementById('form-content') as HTMLElement | null;
+
+            // Add form sections
+            form.sections.forEach((section) => {
+                const sectionDiv = document.createElement('div');
+                sectionDiv.className = 'pdf-section';
+
+                sectionDiv.innerHTML = `
+                    <div class="pdf-section-title">${section.title}</div>
+                    <div class="pdf-section-desc">${section.content}</div>
+                `;
+
+                if (section.fields) {
+                    section.fields.forEach((field) => {
+                        const fieldDiv = document.createElement('div');
+                        fieldDiv.className = 'pdf-field';
+
+                        let value = '';
+                        if (container) {
+                            const el = container.querySelector(`[data-field-id="${field.id}"]`) as HTMLElement | null;
+                            if (el) {
+                                const tag = el.tagName.toLowerCase();
+                                if (tag === 'select') {
+                                    const sel = el as HTMLSelectElement;
+                                    value = sel.selectedOptions[0]?.text || sel.value || '';
+                                } else if ((el as HTMLInputElement).type === 'checkbox') {
+                                    value = (el as HTMLInputElement).checked ? 'Yes' : 'No';
+                                } else if (tag === 'input' || tag === 'textarea') {
+                                    value = (el as HTMLInputElement | HTMLTextAreaElement).value || '';
+                                }
+                            }
+                        }
+
+                        const requiredMark = field.required ? '<span class="required">*</span>' : '';
+                        fieldDiv.innerHTML = `
+                            <div class="pdf-label">${field.label}${requiredMark}</div>
+                            <div class="pdf-field-value">${(value || '').toString().replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
+                        `;
+                        sectionDiv.appendChild(fieldDiv);
+                    });
+                }
+
+                pdfContent.appendChild(sectionDiv);
+            });
+
+            // Add footer
+            const footer = document.createElement('div');
+            footer.style.cssText = 'border-top: 1px solid #999; margin-top: 15px; padding-top: 8px; font-size: 9px; color: #999; text-align: center;';
+            footer.innerHTML = `Generated on ${new Date().toLocaleDateString()} | Bureau of Standards Jamaica`;
+            pdfContent.appendChild(footer);
+
+            const options = {
+                margin: 10,
+                filename: `${form.code.replace(/\//g, '-')}_${form.name.replace(/\s+/g, '_')}.pdf`,
+                image: { type: 'jpeg' as const, quality: 0.98 },
+                html2canvas: {
+                    scale: 2,
+                    useCORS: true,
+                    backgroundColor: '#ffffff',
+                    logging: false,
+                } as const,
+                jsPDF: {
+                    orientation: 'portrait' as const,
+                    unit: 'mm' as const,
+                    format: 'a4' as const,
+                },
+            } as const;
+
+            html2pdf().set(options).from(pdfContent).save();
+        } catch (error) {
+            console.error('Error generating PDF:', error);
+            alert('Error generating PDF. Please try again.');
+        }
+    };
+
     const handleFieldChange = (field: keyof FormDetail, value: any) => {
         if (editedForm) {
             setEditedForm({
@@ -437,38 +549,155 @@ export default function FormDetail() {
 
     return (
         <div className="space-y-6">
+            {/* Print-specific styles */}
+            <style>{`
+                @media print {
+                    /* Hide navigation and action buttons */
+                    nav, header, .no-print {
+                        display: none !important;
+                    }
+                    
+                    /* Reset page margins */
+                    @page {
+                        margin: 0.5in;
+                        size: letter;
+                    }
+                    
+                    /* Reset body and main container */
+                    body {
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        background: white !important;
+                    }
+                    
+                    /* Ensure form container takes full width */
+                    .space-y-6 {
+                        max-width: 100% !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                    }
+                    
+                    /* Form fields styling */
+                    input, textarea, select {
+                        border: 1px solid #000 !important;
+                        background: white !important;
+                        color: #000 !important;
+                        font-size: 10pt !important;
+                        padding: 4px !important;
+                        print-color-adjust: exact;
+                        -webkit-print-color-adjust: exact;
+                    }
+                    
+                    /* Labels */
+                    label {
+                        font-size: 10pt !important;
+                        font-weight: 600 !important;
+                        color: #000 !important;
+                        margin-bottom: 4px !important;
+                        display: block !important;
+                    }
+                    
+                    /* Section styling */
+                    .panel, [class*="panel"], [class*="border"] {
+                        border: 1px solid #000 !important;
+                        background: white !important;
+                        page-break-inside: avoid;
+                        margin-bottom: 12px !important;
+                        padding: 12px !important;
+                    }
+                    
+                    /* Section titles */
+                    h3 {
+                        font-size: 12pt !important;
+                        font-weight: bold !important;
+                        color: #000 !important;
+                        margin-bottom: 8px !important;
+                    }
+                    
+                    h2 {
+                        font-size: 14pt !important;
+                        font-weight: bold !important;
+                        color: #000 !important;
+                        margin-bottom: 10px !important;
+                    }
+                    
+                    h1 {
+                        font-size: 16pt !important;
+                        font-weight: bold !important;
+                        color: #000 !important;
+                        text-align: center !important;
+                        margin-bottom: 12px !important;
+                    }
+                    
+                    /* Form metadata */
+                    .text-gray-600, .text-gray-400, .dark\\:text-gray-400 {
+                        color: #333 !important;
+                    }
+                    
+                    /* Blue instruction box */
+                    .bg-blue-50 {
+                        background: #e3f2fd !important;
+                        border: 1px solid #2196f3 !important;
+                        padding: 12px !important;
+                        margin-top: 12px !important;
+                        page-break-inside: avoid;
+                    }
+                    
+                    /* Avoid page breaks within sections */
+                    .space-y-4 > div {
+                        page-break-inside: avoid;
+                    }
+                    
+                    /* Grid layouts should stack vertically */
+                    .grid {
+                        display: block !important;
+                    }
+                    
+                    .grid > div {
+                        margin-bottom: 8px !important;
+                    }
+                    
+                    /* Remove shadows and rounded corners */
+                    * {
+                        box-shadow: none !important;
+                        border-radius: 0 !important;
+                    }
+                    
+                    /* Required asterisks */
+                    .text-red-500 {
+                        color: #d32f2f !important;
+                    }
+                    
+                    /* Footer info */
+                    .border-t {
+                        border-top: 2px solid #000 !important;
+                        margin-top: 20px !important;
+                        padding-top: 12px !important;
+                    }
+                }
+            `}</style>
+
             {/* Back Button */}
-            <button onClick={() => navigate('/procurement/forms')} className="flex items-center gap-2 text-primary hover:text-primary-dark transition-colors">
+            <button onClick={() => navigate('/procurement/forms')} className="no-print flex items-center gap-2 text-primary hover:text-primary-dark transition-colors">
                 <IconArrowLeft className="w-5 h-5" />
                 <span>Back to Forms</span>
             </button>
 
             {/* BSJ Form Header - Official Header with Logo */}
-            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-8 text-center">
+            <div className="bg-white dark:bg-gray-800 border-2 border-gray-800 dark:border-gray-400 rounded-lg p-8 text-center">
                 {/* BSJ Logo */}
-                <div className="flex justify-center mb-4">
-                    <div className="text-center">
-                        <div className="text-6xl font-bold mb-2">
-                            <span className="text-gray-400">BSJ</span>
-                        </div>
-                        <div className="text-sm text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            Bureau of
-                            <br />
-                            Standards
-                            <br />
-                            Jamaica
-                        </div>
-                    </div>
+                <div className="flex justify-center mb-6">
+                    <img src="/assets/images/bsj-logo.png" alt="Bureau of Standards Jamaica Logo" className="h-16 drop-shadow-sm" />
                 </div>
 
                 {/* Official Form Title */}
-                <h1 className="text-2xl font-bold text-gray-800 dark:text-white mb-2 uppercase">BUREAU OF STANDARDS JAMAICA</h1>
+                <h1 className="text-lg font-bold text-gray-800 dark:text-white mb-2 uppercase">BUREAU OF STANDARDS JAMAICA</h1>
                 <h2 className="text-xl font-semibold text-gray-700 dark:text-gray-300 mb-2">Head of Entity's Approval Form</h2>
                 <p className="text-gray-600 dark:text-gray-400">Contracts valued at 1¢ up to $2,999k (Goods, Services & Works)</p>
             </div>
 
             {/* Action Buttons */}
-            <div className="flex justify-end gap-2">
+            <div className="no-print flex justify-end gap-2">
                 {!isEditMode ? (
                     <>
                         <button
@@ -485,7 +714,7 @@ export default function FormDetail() {
                             <IconPrinter className="w-5 h-5" />
                             <span>Print</span>
                         </button>
-                        <button className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors">
+                        <button onClick={handleDownloadPDF} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors">
                             <IconDownload className="w-5 h-5" />
                             <span>Download PDF</span>
                         </button>
@@ -512,8 +741,7 @@ export default function FormDetail() {
             </div>
 
             {/* Form Sections */}
-            <div className="space-y-6">
-                <h2 className="text-2xl font-bold text-gray-800 dark:text-white">Form Structure</h2>
+            <div id="form-content" className="space-y-6">
                 {(isEditMode && editedForm ? editedForm.sections : form!.sections).map((section, idx) => (
                     <div
                         key={idx}
@@ -558,6 +786,7 @@ export default function FormDetail() {
                                                         type="text"
                                                         placeholder={field.placeholder}
                                                         defaultValue={field.value}
+                                                        data-field-id={field.id}
                                                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary"
                                                     />
                                                 )}
@@ -567,6 +796,7 @@ export default function FormDetail() {
                                                         type="number"
                                                         placeholder={field.placeholder}
                                                         defaultValue={field.value}
+                                                        data-field-id={field.id}
                                                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary"
                                                     />
                                                 )}
@@ -576,6 +806,7 @@ export default function FormDetail() {
                                                         placeholder={field.placeholder}
                                                         defaultValue={field.value}
                                                         rows={3}
+                                                        data-field-id={field.id}
                                                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary"
                                                     />
                                                 )}
@@ -583,6 +814,7 @@ export default function FormDetail() {
                                                 {field.type === 'select' && (
                                                     <select
                                                         defaultValue={field.value}
+                                                        data-field-id={field.id}
                                                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary"
                                                     >
                                                         <option value="">-- Select --</option>
@@ -598,6 +830,7 @@ export default function FormDetail() {
                                                     <input
                                                         type="checkbox"
                                                         defaultChecked={field.value === 'true'}
+                                                        data-field-id={field.id}
                                                         className="w-4 h-4 text-primary border-gray-300 rounded dark:bg-gray-700 dark:border-gray-600"
                                                     />
                                                 )}
@@ -612,7 +845,7 @@ export default function FormDetail() {
             </div>
 
             {/* Instructions */}
-            <div className="p-6 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+            <div className="no-print p-6 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
                 <h3 className="text-lg font-bold text-blue-900 dark:text-blue-100 mb-2">Instructions</h3>
                 <ul className="space-y-2 text-blue-800 dark:text-blue-200">
                     <li className="flex gap-2">

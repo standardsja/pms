@@ -144,14 +144,7 @@ const SupplierList = () => {
             </div>
 
             {/* Stats Cards */}
-            <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <div className="panel">
-                    <div className="mb-3 flex items-center justify-between">
-                        <div className="text-lg font-semibold">Total Suppliers</div>
-                        <IconUser className="h-6 w-6 text-primary" />
-                    </div>
-                    <div className="text-3xl font-bold text-primary">{stats.total}</div>
-                </div>
+            <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <div className="panel">
                     <div className="mb-3 flex items-center justify-between">
                         <div className="text-lg font-semibold">Active</div>

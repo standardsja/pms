@@ -17,6 +17,7 @@ import { useTranslation } from 'react-i18next';
 import Swal from 'sweetalert2';
 import { evaluationService, type Evaluation, type EvaluationStatus } from '../../../services/evaluationService';
 import { getUser } from '../../../utils/auth';
+import { SkeletonLine, SkeletonStats, SkeletonTableRow } from '../../../components/SkeletonLoading';
 
 type DisplayStatus = 'Pending' | 'In Progress' | 'Committee Review' | 'Completed' | 'Validated' | 'Rejected';
 
@@ -46,6 +47,16 @@ const EvaluationList = () => {
     const [isCommittee, setIsCommittee] = useState(false);
     const [isProcurement, setIsProcurement] = useState(false);
     const [isExecutive, setIsExecutive] = useState(false);
+
+    const toast = (title: string, icon: 'success' | 'error' | 'info' | 'warning' = 'info') =>
+        Swal.fire({
+            toast: true,
+            icon,
+            title,
+            position: 'top-end',
+            timer: 2500,
+            showConfirmButton: false,
+        });
 
     useEffect(() => {
         dispatch(setPageTitle(t('evaluation.pageTitle', 'BSJ Evaluation Reports')));
@@ -91,6 +102,7 @@ const EvaluationList = () => {
         } catch (err: any) {
             console.error('Failed to load evaluations:', err);
             setError(err.message || 'Failed to load evaluations');
+            toast(err.message || 'Failed to load evaluations', 'error');
         } finally {
             setLoading(false);
         }
@@ -163,8 +175,10 @@ const EvaluationList = () => {
             setLoading(true);
             const updated = await evaluationService.validateEvaluation(evaluationId);
             setEvaluations((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
+            toast('Evaluation validated', 'success');
         } catch (err: any) {
             setError(err.message || 'Failed to validate evaluation');
+            toast(err.message || 'Failed to validate evaluation', 'error');
         } finally {
             setLoading(false);
         }
@@ -193,14 +207,6 @@ const EvaluationList = () => {
         if (!dateString) return '-';
         return new Date(dateString).toLocaleDateString();
     };
-
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center h-64">
-                <div className="text-lg">Loading evaluations...</div>
-            </div>
-        );
-    }
 
     if (error) {
         return (
@@ -249,68 +255,72 @@ const EvaluationList = () => {
             </div>
 
             {/* Stats Dashboard */}
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-                <div className="panel bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900 border-l-4 border-slate-500">
-                    <div className="flex items-center justify-between mb-3">
-                        <div className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase">{t('evaluation.stats.total', 'Total')}</div>
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-500/20">
-                            <IconClipboardText className="h-5 w-5 text-slate-600 dark:text-slate-400" />
+            {loading ? (
+                <SkeletonStats count={6} />
+            ) : (
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+                    <div className="panel bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900 border-l-4 border-slate-500">
+                        <div className="flex items-center justify-between mb-3">
+                            <div className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase">{t('evaluation.stats.total', 'Total')}</div>
+                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-500/20">
+                                <IconClipboardText className="h-5 w-5 text-slate-600 dark:text-slate-400" />
+                            </div>
                         </div>
+                        <div className="text-3xl font-bold text-slate-700 dark:text-slate-300">{stats.total}</div>
+                        <p className="text-xs text-slate-500 mt-1">All evaluations</p>
                     </div>
-                    <div className="text-3xl font-bold text-slate-700 dark:text-slate-300">{stats.total}</div>
-                    <p className="text-xs text-slate-500 mt-1">All evaluations</p>
-                </div>
-                <div className="panel bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border-l-4 border-blue-500">
-                    <div className="flex items-center justify-between mb-3">
-                        <div className="text-sm font-semibold text-blue-600 dark:text-blue-400 uppercase">{t('evaluation.stats.pending', 'Pending')}</div>
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-500/20">
-                            <IconClipboardText className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                    <div className="panel bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border-l-4 border-blue-500">
+                        <div className="flex items-center justify-between mb-3">
+                            <div className="text-sm font-semibold text-blue-600 dark:text-blue-400 uppercase">{t('evaluation.stats.pending', 'Pending')}</div>
+                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-500/20">
+                                <IconClipboardText className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                            </div>
                         </div>
+                        <div className="text-3xl font-bold text-blue-700 dark:text-blue-300">{stats.pending}</div>
+                        <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Awaiting start</p>
                     </div>
-                    <div className="text-3xl font-bold text-blue-700 dark:text-blue-300">{stats.pending}</div>
-                    <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Awaiting start</p>
-                </div>
-                <div className="panel bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-900/20 dark:to-amber-800/20 border-l-4 border-amber-500">
-                    <div className="flex items-center justify-between mb-3">
-                        <div className="text-sm font-semibold text-amber-600 dark:text-amber-400 uppercase">{t('evaluation.stats.inProgress', 'In Progress')}</div>
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-500/20">
-                            <IconEdit className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                    <div className="panel bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-900/20 dark:to-amber-800/20 border-l-4 border-amber-500">
+                        <div className="flex items-center justify-between mb-3">
+                            <div className="text-sm font-semibold text-amber-600 dark:text-amber-400 uppercase">{t('evaluation.stats.inProgress', 'In Progress')}</div>
+                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-500/20">
+                                <IconEdit className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                            </div>
                         </div>
+                        <div className="text-3xl font-bold text-amber-700 dark:text-amber-300">{stats.inProgress}</div>
+                        <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">Being drafted</p>
                     </div>
-                    <div className="text-3xl font-bold text-amber-700 dark:text-amber-300">{stats.inProgress}</div>
-                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">Being drafted</p>
-                </div>
-                <div className="panel bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 border-l-4 border-orange-500">
-                    <div className="flex items-center justify-between mb-3">
-                        <div className="text-sm font-semibold text-orange-600 dark:text-orange-400 uppercase">Committee Review</div>
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-orange-500/20">
-                            <IconUsersGroup className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+                    <div className="panel bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 border-l-4 border-orange-500">
+                        <div className="flex items-center justify-between mb-3">
+                            <div className="text-sm font-semibold text-orange-600 dark:text-orange-400 uppercase">Committee Review</div>
+                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-orange-500/20">
+                                <IconUsersGroup className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+                            </div>
                         </div>
+                        <div className="text-3xl font-bold text-orange-700 dark:text-orange-300">{stats.committeeReview}</div>
+                        <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">Under review</p>
                     </div>
-                    <div className="text-3xl font-bold text-orange-700 dark:text-orange-300">{stats.committeeReview}</div>
-                    <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">Under review</p>
-                </div>
-                <div className="panel bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border-l-4 border-green-500">
-                    <div className="flex items-center justify-between mb-3">
-                        <div className="text-sm font-semibold text-green-600 dark:text-green-400 uppercase">{t('evaluation.stats.completed', 'Completed')}</div>
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-500/20">
-                            <IconChecks className="h-5 w-5 text-green-600 dark:text-green-400" />
+                    <div className="panel bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border-l-4 border-green-500">
+                        <div className="flex items-center justify-between mb-3">
+                            <div className="text-sm font-semibold text-green-600 dark:text-green-400 uppercase">{t('evaluation.stats.completed', 'Completed')}</div>
+                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-500/20">
+                                <IconChecks className="h-5 w-5 text-green-600 dark:text-green-400" />
+                            </div>
                         </div>
+                        <div className="text-3xl font-bold text-green-700 dark:text-green-300">{stats.completed}</div>
+                        <p className="text-xs text-green-600 dark:text-green-400 mt-1">Verified</p>
                     </div>
-                    <div className="text-3xl font-bold text-green-700 dark:text-green-300">{stats.completed}</div>
-                    <p className="text-xs text-green-600 dark:text-green-400 mt-1">Verified</p>
-                </div>
-                <div className="panel bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 border-l-4 border-purple-500">
-                    <div className="flex items-center justify-between mb-3">
-                        <div className="text-sm font-semibold text-purple-600 dark:text-purple-400 uppercase">{t('evaluation.stats.validated', 'Validated')}</div>
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-500/20">
-                            <IconFile className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                    <div className="panel bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 border-l-4 border-purple-500">
+                        <div className="flex items-center justify-between mb-3">
+                            <div className="text-sm font-semibold text-purple-600 dark:text-purple-400 uppercase">{t('evaluation.stats.validated', 'Validated')}</div>
+                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-500/20">
+                                <IconFile className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                            </div>
                         </div>
+                        <div className="text-3xl font-bold text-purple-700 dark:text-purple-300">{stats.validated}</div>
+                        <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">Executive approved</p>
                     </div>
-                    <div className="text-3xl font-bold text-purple-700 dark:text-purple-300">{stats.validated}</div>
-                    <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">Executive approved</p>
                 </div>
-            </div>
+            )}
 
             {/* Evaluations Table */}
             <div className="panel">
@@ -362,7 +372,35 @@ const EvaluationList = () => {
                     </div>
                 </div>
 
-                {filteredEvaluations.length === 0 ? (
+                {loading ? (
+                    <div className="overflow-visible">
+                        <div className="mb-5 flex items-center justify-between">
+                            <div className="space-y-2">
+                                <SkeletonLine className="w-48" />
+                                <SkeletonLine className="w-32" />
+                            </div>
+                            <SkeletonLine className="w-32" />
+                        </div>
+                        <table className="table-hover w-full">
+                            <thead>
+                                <tr>
+                                    <th className="whitespace-nowrap w-[120px]">{t('evaluation.col.evalNumber', 'Evaluation #')}</th>
+                                    <th className="whitespace-nowrap w-[120px]">{t('evaluation.col.rfqNumber', 'RFQ #')}</th>
+                                    <th className="w-auto min-w-[200px]">{t('evaluation.col.description', 'Description')}</th>
+                                    <th className="whitespace-nowrap w-[150px]">{t('evaluation.col.evaluator', 'Evaluator')}</th>
+                                    <th className="whitespace-nowrap w-[110px]">{t('evaluation.col.dueDate', 'Due Date')}</th>
+                                    <th className="whitespace-nowrap w-[180px]">{t('evaluation.col.status', 'Status')}</th>
+                                    <th className="whitespace-nowrap w-[140px]">{t('evaluation.col.actions', 'Actions')}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {[...Array(5)].map((_, idx) => (
+                                    <SkeletonTableRow key={idx} columns={7} />
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                ) : filteredEvaluations.length === 0 ? (
                     <div className="text-center py-16">
                         <svg className="w-20 h-20 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path

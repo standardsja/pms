@@ -1,6 +1,6 @@
 import { getUser } from './auth';
 import { getApiUrl } from '../config/api';
-import { getAuthHeaders } from './api';
+import { getAuthHeadersSync } from './api';
 
 export type LockableModuleKey = 'procurement' | 'innovation' | 'committee' | 'budgeting' | 'audit' | 'prime' | 'datapoint' | 'maintenance' | 'asset' | 'project' | 'knowledge';
 
@@ -99,7 +99,7 @@ export const isModuleLocked = (key: LockableModuleKey): boolean => {
 export const fetchModuleLocks = async (): Promise<ModuleLockState> => {
     try {
         const response = await fetch(getApiUrl('/api/admin/module-locks'), {
-            headers: getAuthHeaders(),
+            headers: getAuthHeadersSync(),
         });
 
         if (response.ok) {

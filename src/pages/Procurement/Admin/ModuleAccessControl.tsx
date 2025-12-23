@@ -9,7 +9,7 @@ import IconLoader from '../../../components/Icon/IconLoader';
 import { LOCKABLE_MODULES, type LockableModuleKey, type ModuleLockState } from '../../../utils/moduleLocks';
 import { getUser } from '../../../utils/auth';
 import { getApiUrl } from '../../../config/api';
-import { getAuthHeaders } from '../../../utils/api';
+import { getAuthHeadersSync } from '../../../utils/api';
 
 // Pre-made reason templates
 const PRESET_REASONS = [
@@ -56,7 +56,7 @@ const ModuleAccessControl = () => {
         setLoading(true);
         try {
             const response = await fetch(getApiUrl('/api/admin/module-locks'), {
-                headers: getAuthHeaders(),
+                headers: getAuthHeadersSync(),
             });
             if (response.ok) {
                 const result = await response.json();
@@ -93,7 +93,7 @@ const ModuleAccessControl = () => {
         try {
             const response = await fetch(getApiUrl(`/api/admin/module-locks/${reasonModalModule}`), {
                 method: 'POST',
-                headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+                headers: { ...getAuthHeadersSync(), 'Content-Type': 'application/json' },
                 body: JSON.stringify({ locked: true, reason }),
             });
 
@@ -124,7 +124,7 @@ const ModuleAccessControl = () => {
             try {
                 const response = await fetch(getApiUrl(`/api/admin/module-locks/${key}`), {
                     method: 'POST',
-                    headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+                    headers: { ...getAuthHeadersSync(), 'Content-Type': 'application/json' },
                     body: JSON.stringify({ locked: false }),
                 });
 

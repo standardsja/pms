@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useDispatch } from 'react-redux';
 import { setPageTitle } from '../../../store/themeConfigSlice';
 import { getApiUrl } from '../../../config/api';
-import { getAuthHeaders } from '../../../utils/api';
+import { getAuthHeadersSync } from '../../../utils/api';
 import IconLoader from '../../../components/Icon/IconLoader';
 import IconSquareCheck from '../../../components/Icon/IconSquareCheck';
 import IconAlertCircle from '../../../components/Icon/IconAlertCircle';
@@ -65,7 +65,7 @@ const BulkUserManagement = () => {
     const loadUsers = async () => {
         try {
             const response = await fetch(getApiUrl('/api/admin/users'), {
-                headers: getAuthHeaders(),
+                headers: getAuthHeadersSync(),
             });
             if (response.ok) {
                 const data = await response.json();
@@ -79,7 +79,7 @@ const BulkUserManagement = () => {
     const loadDepartments = async () => {
         try {
             const response = await fetch(getApiUrl('/api/admin/departments'), {
-                headers: getAuthHeaders(),
+                headers: getAuthHeadersSync(),
             });
             if (response.ok) {
                 const data = await response.json();
@@ -93,7 +93,7 @@ const BulkUserManagement = () => {
     const loadRoles = async () => {
         try {
             const response = await fetch(getApiUrl('/api/admin/roles'), {
-                headers: getAuthHeaders(),
+                headers: getAuthHeadersSync(),
             });
             if (response.ok) {
                 const data = await response.json();
@@ -195,7 +195,7 @@ bob.johnson@example.com,Bob Johnson,Finance,User`;
         try {
             const response = await fetch(getApiUrl('/api/admin/bulk-role-assignment'), {
                 method: 'POST',
-                headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+                headers: { ...getAuthHeadersSync(), 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     userIds: selectedUsers.map(String),
                     roleId: selectedRole,
@@ -223,7 +223,7 @@ bob.johnson@example.com,Bob Johnson,Finance,User`;
         try {
             const response = await fetch(getApiUrl('/api/admin/bulk-department-change'), {
                 method: 'POST',
-                headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+                headers: { ...getAuthHeadersSync(), 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     userIds: selectedUsers.map(String),
                     departmentId: selectedDepartment,
@@ -251,7 +251,7 @@ bob.johnson@example.com,Bob Johnson,Finance,User`;
         try {
             const response = await fetch(getApiUrl('/api/admin/bulk-deactivate'), {
                 method: 'POST',
-                headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+                headers: { ...getAuthHeadersSync(), 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     userIds: selectedUsers.map(String),
                     reason: deactivationReason || undefined,
@@ -279,7 +279,7 @@ bob.johnson@example.com,Bob Johnson,Finance,User`;
         try {
             const response = await fetch(getApiUrl('/api/admin/bulk-password-reset'), {
                 method: 'POST',
-                headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+                headers: { ...getAuthHeadersSync(), 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     userIds: selectedUsers.map(String),
                 }),

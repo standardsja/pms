@@ -4,6 +4,7 @@ export interface RequestItem {
     description: string;
     quantity: number;
     unitPrice: number;
+    accountCode?: string | null;
 }
 
 export interface CommentEntry {
@@ -38,6 +39,10 @@ export interface Request {
     justification: string;
     comments: CommentEntry[];
     statusHistory: StatusHistoryEntry[];
+    // Combined request metadata (optional, used by list UI when present)
+    isCombined?: boolean;
+    lotNumber?: string | number;
+    combinedRequestId?: string;
 }
 
 export interface ApiResponse<T = any> {

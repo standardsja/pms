@@ -96,19 +96,24 @@ const ResetPassword = () => {
         setIsLoading(true);
 
         try {
-            // Simulate API call
-            await new Promise(resolve => setTimeout(resolve, 1500));
+            const response = await fetch('/api/auth/reset-password', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ token, password }),
+            });
 
-            // Mock validation
-            if (!token) {
-                setError('Invalid or expired reset token');
-                return;
+            const data = await response.json();
+
+            if (!response.ok) {
+                setError(data.message || 'Failed to reset password. Please try again.');
+            } else {
+                setIsSuccess(true);
+                setTimeout(() => {
+                    navigate('/auth/login');
+                }, 3000);
             }
-
-            setIsSuccess(true);
-            setTimeout(() => {
-                navigate('/auth/login');
-            }, 3000);
         } catch (err) {
             setError('Failed to reset password. Please try again.');
         } finally {
@@ -122,13 +127,16 @@ const ResetPassword = () => {
                 <div className="w-full max-w-md text-center">
                     <div className="w-20 h-20 bg-danger/10 rounded-full flex items-center justify-center mx-auto mb-6">
                         <svg className="w-10 h-10 text-danger" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                            />
                         </svg>
                     </div>
                     <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-3">Invalid Reset Link</h2>
-                    <p className="text-gray-600 dark:text-gray-400 mb-8">
-                        This password reset link is invalid or has expired. Please request a new one.
-                    </p>
+                    <p className="text-gray-600 dark:text-gray-400 mb-8">This password reset link is invalid or has expired. Please request a new one.</p>
                     <Link to="/auth/forgot-password" className="btn btn-primary w-full py-3">
                         Request New Link
                     </Link>
@@ -156,9 +164,7 @@ const ResetPassword = () => {
                             </div>
                         </div>
                         <h1 className="text-5xl font-bold mb-6">Create New Password</h1>
-                        <p className="text-xl text-white/90 mb-8">
-                            Choose a strong, unique password to protect your account. Make sure it's something you can remember!
-                        </p>
+                        <p className="text-xl text-white/90 mb-8">Choose a strong, unique password to protect your account. Make sure it's something you can remember!</p>
                         <div className="space-y-4 bg-white/10 rounded-lg p-6">
                             <h3 className="font-semibold text-lg mb-3">Password Requirements:</h3>
                             <ul className="space-y-2">
@@ -205,16 +211,10 @@ const ResetPassword = () => {
                         <div>
                             <div className="mb-8">
                                 <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Set New Password</h2>
-                                <p className="text-gray-600 dark:text-gray-400">
-                                    Enter your new password below to complete the reset process
-                                </p>
+                                <p className="text-gray-600 dark:text-gray-400">Enter your new password below to complete the reset process</p>
                             </div>
 
-                            {error && (
-                                <div className="mb-6 p-4 bg-danger-light/10 border border-danger rounded-lg text-danger text-sm">
-                                    {error}
-                                </div>
-                            )}
+                            {error && <div className="mb-6 p-4 bg-danger-light/10 border border-danger rounded-lg text-danger text-sm">{error}</div>}
 
                             <form onSubmit={handleSubmit} className="space-y-5">
                                 <div>
@@ -242,15 +242,13 @@ const ResetPassword = () => {
                                             <IconEye className="w-5 h-5" />
                                         </button>
                                     </div>
-                                    
+
                                     {/* Password Strength Indicator */}
                                     {password && (
                                         <div className="mt-2">
                                             <div className="flex items-center justify-between mb-1">
                                                 <span className="text-xs text-gray-600 dark:text-gray-400">Password Strength:</span>
-                                                <span className={`text-xs font-semibold text-${passwordStrength.color}`}>
-                                                    {passwordStrength.text}
-                                                </span>
+                                                <span className={`text-xs font-semibold text-${passwordStrength.color}`}>{passwordStrength.text}</span>
                                             </div>
                                             <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                                                 <div
@@ -287,9 +285,7 @@ const ResetPassword = () => {
                                             <IconEye className="w-5 h-5" />
                                         </button>
                                     </div>
-                                    {confirmPassword && password !== confirmPassword && (
-                                        <p className="mt-1 text-xs text-danger">Passwords do not match</p>
-                                    )}
+                                    {confirmPassword && password !== confirmPassword && <p className="mt-1 text-xs text-danger">Passwords do not match</p>}
                                     {confirmPassword && password === confirmPassword && (
                                         <p className="mt-1 text-xs text-success flex items-center gap-1">
                                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -329,15 +325,11 @@ const ResetPassword = () => {
                                 </svg>
                             </div>
                             <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-3">Password Reset Successfully!</h2>
-                            <p className="text-gray-600 dark:text-gray-400 mb-6">
-                                Your password has been updated. You can now sign in with your new password.
-                            </p>
-                            
+                            <p className="text-gray-600 dark:text-gray-400 mb-6">Your password has been updated. You can now sign in with your new password.</p>
+
                             <div className="space-y-4">
                                 <div className="p-4 bg-success-light/10 border border-success rounded-lg">
-                                    <p className="text-sm text-gray-700 dark:text-gray-300">
-                                        Redirecting you to the login page in a few seconds...
-                                    </p>
+                                    <p className="text-sm text-gray-700 dark:text-gray-300">Redirecting you to the login page in a few seconds...</p>
                                 </div>
 
                                 <Link to="/auth/login" className="btn btn-primary w-full py-3 block">

@@ -12,6 +12,7 @@ import { searchRequests, filterRequests, onlyMine, paginate, formatDate, sortReq
 import RequestDetailsContent from '../../../components/RequestDetailsContent';
 import { checkExecutiveThreshold, getThresholdBadge, shouldShowThresholdNotification } from '../../../utils/thresholdUtils';
 import { getApiUrl } from '../../../config/api';
+import { SkeletonTableRow } from '../../../components/SkeletonLoading';
 
 const MySwal = withReactContent(Swal);
 
@@ -338,113 +339,137 @@ const Requests = () => {
             </div>
 
             <div className="bg-white dark:bg-slate-800 shadow rounded overflow-hidden" aria-busy={isLoading}>
-                {isLoading && <div className="p-6 text-center text-sm text-gray-500">Loading requests…</div>}
+                {isLoading && (
+                    <table className="min-w-full table-auto">
+                        <thead className="bg-slate-50 dark:bg-slate-700 text-sm">
+                            <tr>
+                                <th className="px-4 py-3 text-left">ID</th>
+                                <th className="px-4 py-3 text-left">Title</th>
+                                <th className="px-4 py-3 text-left">Requester</th>
+                                <th className="px-4 py-3 text-left">Department</th>
+                                <th className="px-4 py-3 text-left">Assigned To</th>
+                                <th className="px-4 py-3 text-left">Status</th>
+                                <th className="px-4 py-3 text-left">Date</th>
+                                <th className="px-4 py-3 text-left">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody className="text-sm">
+                            <SkeletonTableRow columns={8} />
+                            <SkeletonTableRow columns={8} />
+                            <SkeletonTableRow columns={8} />
+                            <SkeletonTableRow columns={8} />
+                            <SkeletonTableRow columns={8} />
+                        </tbody>
+                    </table>
+                )}
                 {error && !isLoading && <div className="p-6 text-center text-sm text-red-600">{error}</div>}
                 {!isLoading && !error && filteredRequests.length === 0 && <div className="p-6 text-center text-sm text-gray-500">No requests found.</div>}
-                <table className="min-w-full table-auto">
-                    <thead className="bg-slate-50 dark:bg-slate-700 text-sm">
-                        <tr>
-                            <th className="px-4 py-3 text-left">ID</th>
-                            <th className="px-4 py-3 text-left">Title</th>
-                            <th className="px-4 py-3 text-left">Requester</th>
-                            <th className="px-4 py-3 text-left">Department</th>
-                            <th className="px-4 py-3 text-left">Assigned To</th>
-                            <th className="px-4 py-3 text-left">Status</th>
-                            <th className="px-4 py-3 text-left">Date</th>
-                            <th className="px-4 py-3 text-left">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody className="text-sm">
-                        {paged.map((r) => {
-                            const badge = getStatusBadge(r.status);
+                {!isLoading && (
+                    <table className="min-w-full table-auto">
+                        <thead className="bg-slate-50 dark:bg-slate-700 text-sm">
+                            <tr>
+                                <th className="px-4 py-3 text-left">ID</th>
+                                <th className="px-4 py-3 text-left">Title</th>
+                                <th className="px-4 py-3 text-left">Requester</th>
+                                <th className="px-4 py-3 text-left">Department</th>
+                                <th className="px-4 py-3 text-left">Assigned To</th>
+                                <th className="px-4 py-3 text-left">Status</th>
+                                <th className="px-4 py-3 text-left">Date</th>
+                                <th className="px-4 py-3 text-left">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody className="text-sm">
+                            {paged.map((r) => {
+                                const badge = getStatusBadge(r.status);
 
-                            // Check if this request exceeds executive threshold
-                            const procurementTypes = Array.isArray(r.procurementType) ? r.procurementType : [];
-                            const thresholdAlert = checkExecutiveThreshold(r.totalEstimated || 0, procurementTypes);
-                            const thresholdBadge = getThresholdBadge(thresholdAlert);
-                            const showThresholdAlert = shouldShowThresholdNotification(currentUserRoles) && thresholdAlert.isRequired;
+                                // Check if this request exceeds executive threshold
+                                const procurementTypes = Array.isArray(r.procurementType) ? r.procurementType : [];
+                                const thresholdAlert = checkExecutiveThreshold(r.totalEstimated || 0, procurementTypes);
+                                const thresholdBadge = getThresholdBadge(thresholdAlert);
+                                const showThresholdAlert = shouldShowThresholdNotification(currentUserRoles) && thresholdAlert.isRequired;
 
-                            return (
-                                <tr key={r.id} className="border-t last:border-b hover:bg-slate-50 dark:hover:bg-slate-700">
-                                    <td className="px-4 py-3 font-medium">{r.id}</td>
-                                    <td className="px-4 py-3">
-                                        <div className="flex flex-col gap-1">
-                                            <span>{r.title}</span>
-                                            {showThresholdAlert && (
-                                                <div className="flex items-center gap-1">
-                                                    <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium border ${thresholdBadge.className}`}>
-                                                        <span>{thresholdBadge.icon}</span>
-                                                        {thresholdBadge.text}
-                                                    </span>
-                                                </div>
+                                return (
+                                    <tr key={r.id} className="border-t last:border-b hover:bg-slate-50 dark:hover:bg-slate-700">
+                                        <td className="px-4 py-3 font-medium">{r.id}</td>
+                                        <td className="px-4 py-3">
+                                            <div className="flex flex-col gap-1">
+                                                <span>{r.title}</span>
+                                                {showThresholdAlert && (
+                                                    <div className="flex items-center gap-1">
+                                                        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium border ${thresholdBadge.className}`}>
+                                                            <span>{thresholdBadge.icon}</span>
+                                                            {thresholdBadge.text}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                                {r.isCombined && r.lotNumber && (
+                                                    <div className="flex items-center gap-1">
+                                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-purple-100 text-purple-800 border border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-700">
+                                                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                <path
+                                                                    strokeLinecap="round"
+                                                                    strokeLinejoin="round"
+                                                                    strokeWidth={2}
+                                                                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                                                                />
+                                                            </svg>
+                                                            LOT-{r.lotNumber}
+                                                            {r.combinedRequestId && (
+                                                                <button
+                                                                    type="button"
+                                                                    className="ml-1 hover:underline"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        navigate(`/apps/requests/combined/${r.combinedRequestId}`);
+                                                                    }}
+                                                                    title="View combined request"
+                                                                >
+                                                                    →
+                                                                </button>
+                                                            )}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="px-4 py-3">{r.requester}</td>
+                                        <td className="px-4 py-3">{r.department}</td>
+                                        <td className="px-4 py-3">
+                                            {r.currentAssigneeName ? (
+                                                <span className="text-blue-600 dark:text-blue-400 font-medium">{r.currentAssigneeName}</span>
+                                            ) : (
+                                                <span className="text-gray-400 dark:text-gray-500 italic">—</span>
                                             )}
-                                            {r.isCombined && r.lotNumber && (
-                                                <div className="flex items-center gap-1">
-                                                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-purple-100 text-purple-800 border border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-700">
-                                                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path
-                                                                strokeLinecap="round"
-                                                                strokeLinejoin="round"
-                                                                strokeWidth={2}
-                                                                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-                                                            />
-                                                        </svg>
-                                                        LOT-{r.lotNumber}
-                                                        {r.combinedRequestId && (
-                                                            <button
-                                                                type="button"
-                                                                className="ml-1 hover:underline"
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    navigate(`/apps/requests/combined/${r.combinedRequestId}`);
-                                                                }}
-                                                                title="View combined request"
-                                                            >
-                                                                →
-                                                            </button>
-                                                        )}
-                                                    </span>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </td>
-                                    <td className="px-4 py-3">{r.requester}</td>
-                                    <td className="px-4 py-3">{r.department}</td>
-                                    <td className="px-4 py-3">
-                                        {r.currentAssigneeName ? (
-                                            <span className="text-blue-600 dark:text-blue-400 font-medium">{r.currentAssigneeName}</span>
-                                        ) : (
-                                            <span className="text-gray-400 dark:text-gray-500 italic">—</span>
-                                        )}
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${badge.bg} ${badge.text}`} aria-label={`Status: ${badge.label}`}>
-                                            {badge.label}
-                                        </span>
-                                    </td>
-                                    <td className="px-4 py-3">{formatDate(r.date)}</td>
-                                    <td className="px-4 py-3">
-                                        <div className="flex items-center gap-2">
-                                            <button
-                                                className="p-1.5 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600"
-                                                onClick={() => viewDetails(r)}
-                                                title="View Details"
-                                                aria-label={`View details for ${r.id}`}
-                                            >
-                                                <IconEye className="w-5 h-5" />
-                                            </button>
-                                            {currentUserId && r.currentAssigneeId != null && Number(r.currentAssigneeId) === Number(currentUserId) && (
-                                                <button className="px-3 py-1 rounded bg-blue-600 text-white text-sm hover:bg-blue-700" onClick={() => navigate(`/apps/requests/edit/${r.id}`)}>
-                                                    Review
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${badge.bg} ${badge.text}`} aria-label={`Status: ${badge.label}`}>
+                                                {badge.label}
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-3">{formatDate(r.date)}</td>
+                                        <td className="px-4 py-3">
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    className="p-1.5 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600"
+                                                    onClick={() => viewDetails(r)}
+                                                    title="View Details"
+                                                    aria-label={`View details for ${r.id}`}
+                                                >
+                                                    <IconEye className="w-5 h-5" />
                                                 </button>
-                                            )}
-                                        </div>
-                                    </td>
-                                </tr>
-                            );
-                        })}
-                    </tbody>
-                </table>
+                                                {currentUserId && r.currentAssigneeId != null && Number(r.currentAssigneeId) === Number(currentUserId) && (
+                                                    <button className="px-3 py-1 rounded bg-blue-600 text-white text-sm hover:bg-blue-700" onClick={() => navigate(`/apps/requests/edit/${r.id}`)}>
+                                                        Review
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                )}
                 {/* Pagination */}
                 {!isLoading && !error && filteredRequests.length > pageSize && (
                     <div className="flex items-center justify-between p-3 text-sm">

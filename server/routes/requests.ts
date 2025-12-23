@@ -1,35 +1,87 @@
 /**
  * Procurement Requests Routes
- * Handles procurement request operations
+ * Handles procurement request operations with Prisma database
  */
 import { Router } from 'express';
-import { authMiddleware } from '../middleware/auth.js';
+import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { logger } from '../config/logger.js';
+import { prisma } from '../prismaClient.js';
+import { RequestStatus } from '@prisma/client';
 
 const router = Router();
 
-// Mock data for now - in a real implementation, this would use a database
-let mockRequests: any[] = [
-    {
-        id: 'REQ-20251117-1001',
-        title: 'Office Supplies',
-        department: 'IT',
-        requestedBy: 'John Doe',
-        status: 'Pending Finance',
-        totalAmount: 2400,
-        createdAt: new Date().toISOString(),
-        items: [{ description: 'Laptop (14")', quantity: 2, unitPrice: 1200 }],
-    },
-];
-
-// Get all requests
+// Get all requests (with optional filtering)
 router.get(
     '/',
     authMiddleware,
     asyncHandler(async (req, res) => {
-        logger.info('Fetching procurement requests');
-        res.json(mockRequests);
+        const authenticatedReq = req as AuthenticatedRequest;
+        const userId = authenticatedReq.user.sub;
+        const userRoles = authenticatedReq.user.roles || [];
+
+        logger.info('Fetching procurement requests', { userId, roles: userRoles });
+
+        // Build where clause based on user role
+        const whereClause: any = {};
+
+        // Non-admin users see only their department or assigned requests
+        if (!userRoles.includes('ADMIN') && !userRoles.includes('PROCUREMENT_OFFICER')) {
+            const user = await prisma.user.findUnique({
+                where: { id: userId },
+                select: { departmentId: true },
+            });
+
+            whereClause.OR = [{ requesterId: userId }, { departmentId: user?.departmentId || 0 }, { currentAssigneeId: userId }];
+        }
+
+        const requests = await prisma.request.findMany({
+            where: whereClause,
+            include: {
+                requester: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                    },
+                },
+                department: {
+                    select: {
+                        id: true,
+                        name: true,
+                        code: true,
+                    },
+                },
+                items: true,
+                statusHistory: {
+                    orderBy: {
+                        createdAt: 'desc',
+                    },
+                    take: 1,
+                },
+            },
+            orderBy: {
+                createdAt: 'desc',
+            },
+        });
+
+        // Format response to match frontend expectations
+        const formattedRequests = requests.map((req) => ({
+            id: req.reference,
+            title: req.title,
+            department: req.department?.name || 'N/A',
+            requestedBy: req.requester.name || req.requester.email,
+            status: req.status,
+            totalAmount: Number(req.totalEstimated || 0),
+            createdAt: req.createdAt.toISOString(),
+            items: req.items.map((item) => ({
+                description: item.description,
+                quantity: item.quantity,
+                unitPrice: Number(item.unitPrice),
+            })),
+        }));
+
+        res.json(formattedRequests);
     })
 );
 
@@ -39,13 +91,95 @@ router.get(
     authMiddleware,
     asyncHandler(async (req, res) => {
         const { id } = req.params;
-        const request = mockRequests.find((r) => r.id === id);
+        const authenticatedReq = req as AuthenticatedRequest;
+        const userId = authenticatedReq.user.sub;
+
+        const request = await prisma.request.findUnique({
+            where: { reference: id },
+            include: {
+                requester: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                    },
+                },
+                department: {
+                    select: {
+                        id: true,
+                        name: true,
+                        code: true,
+                    },
+                },
+                items: true,
+                statusHistory: {
+                    include: {
+                        changedBy: {
+                            select: {
+                                id: true,
+                                name: true,
+                                email: true,
+                            },
+                        },
+                    },
+                    orderBy: {
+                        createdAt: 'asc',
+                    },
+                },
+                attachments: true,
+                currentAssignee: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                    },
+                },
+            },
+        });
 
         if (!request) {
             return res.status(404).json({ error: 'Request not found' });
         }
 
-        res.json(request);
+        // Format response
+        const formatted = {
+            id: request.reference,
+            title: request.title,
+            description: request.description,
+            department: request.department?.name || 'N/A',
+            requestedBy: request.requester.name || request.requester.email,
+            status: request.status,
+            totalAmount: Number(request.totalEstimated || 0),
+            createdAt: request.createdAt.toISOString(),
+            submittedAt: request.submittedAt?.toISOString(),
+            items: request.items.map((item) => ({
+                id: item.id,
+                description: item.description,
+                quantity: item.quantity,
+                unitPrice: Number(item.unitPrice),
+                totalPrice: Number(item.totalPrice),
+            })),
+            statusHistory: request.statusHistory.map((history) => ({
+                status: history.newStatus,
+                date: history.createdAt.toISOString(),
+                actor: history.changedBy?.name || 'System',
+                note: history.notes || '',
+            })),
+            attachments: request.attachments.map((att) => ({
+                id: att.id,
+                filename: att.filename,
+                url: att.url,
+            })),
+            currentAssignee: request.currentAssignee
+                ? {
+                      id: request.currentAssignee.id,
+                      name: request.currentAssignee.name,
+                      email: request.currentAssignee.email,
+                  }
+                : null,
+        };
+
+        res.json(formatted);
     })
 );
 
@@ -54,17 +188,95 @@ router.post(
     '/',
     authMiddleware,
     asyncHandler(async (req, res) => {
-        const newRequest = {
-            id: `REQ-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Date.now()}`,
-            ...req.body,
-            createdAt: new Date().toISOString(),
-            status: 'Draft',
-        };
+        const authenticatedReq = req as AuthenticatedRequest;
+        const userId = authenticatedReq.user.sub;
+        const { title, description, items, fundingSource, budgetCode, departmentId } = req.body;
 
-        mockRequests.push(newRequest);
-        logger.info('Created new procurement request', { requestId: newRequest.id });
+        logger.info('Creating new procurement request', { userId, title });
 
-        res.status(201).json(newRequest);
+        // Validate required fields
+        if (!title || !items || items.length === 0) {
+            return res.status(400).json({ error: 'Title and items are required' });
+        }
+
+        // Generate reference number (format: REQ-YYYYMMDD-XXXX)
+        const today = new Date();
+        const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '');
+        const count = await prisma.request.count({
+            where: {
+                reference: {
+                    startsWith: `REQ-${dateStr}`,
+                },
+            },
+        });
+        const reference = `REQ-${dateStr}-${String(count + 1).padStart(4, '0')}`;
+
+        // Calculate total
+        const totalEstimated = items.reduce((sum: number, item: any) => sum + item.quantity * item.unitPrice, 0);
+
+        // Get user's department if not specified
+        let deptId = departmentId;
+        if (!deptId) {
+            const user = await prisma.user.findUnique({
+                where: { id: userId },
+                select: { departmentId: true },
+            });
+            deptId = user?.departmentId;
+        }
+
+        // Create request with items
+        const newRequest = await prisma.request.create({
+            data: {
+                reference,
+                title,
+                description,
+                requesterId: userId,
+                departmentId: deptId,
+                status: RequestStatus.DRAFT,
+                budgetCode,
+                totalEstimated,
+                items: {
+                    create: items.map((item: any) => ({
+                        description: item.description,
+                        quantity: item.quantity,
+                        unitPrice: item.unitPrice,
+                        totalPrice: item.quantity * item.unitPrice,
+                    })),
+                },
+                statusHistory: {
+                    create: {
+                        oldStatus: null,
+                        newStatus: RequestStatus.DRAFT,
+                        changedById: userId,
+                        notes: 'Request created',
+                    },
+                },
+            },
+            include: {
+                items: true,
+                requester: {
+                    select: {
+                        name: true,
+                        email: true,
+                    },
+                },
+                department: {
+                    select: {
+                        name: true,
+                    },
+                },
+            },
+        });
+
+        logger.info('Created new procurement request', { requestId: newRequest.id, reference });
+
+        res.status(201).json({
+            id: newRequest.reference,
+            title: newRequest.title,
+            status: newRequest.status,
+            totalAmount: Number(newRequest.totalEstimated),
+            createdAt: newRequest.createdAt.toISOString(),
+        });
     })
 );
 
@@ -74,20 +286,78 @@ router.put(
     authMiddleware,
     asyncHandler(async (req, res) => {
         const { id } = req.params;
-        const requestIndex = mockRequests.findIndex((r) => r.id === id);
+        const authenticatedReq = req as AuthenticatedRequest;
+        const userId = authenticatedReq.user.sub;
+        const { title, description, items, budgetCode } = req.body;
 
-        if (requestIndex === -1) {
+        const existingRequest = await prisma.request.findUnique({
+            where: { reference: id },
+            include: { items: true },
+        });
+
+        if (!existingRequest) {
             return res.status(404).json({ error: 'Request not found' });
         }
 
-        mockRequests[requestIndex] = {
-            ...mockRequests[requestIndex],
-            ...req.body,
-            updatedAt: new Date().toISOString(),
-        };
+        // Only allow updates if request is in DRAFT status or user is authorized
+        if (existingRequest.status !== RequestStatus.DRAFT && existingRequest.requesterId !== userId) {
+            return res.status(403).json({ error: 'Cannot update request in current status' });
+        }
+
+        // Calculate new total if items changed
+        let totalEstimated = existingRequest.totalEstimated;
+        if (items) {
+            totalEstimated = items.reduce((sum: number, item: any) => sum + item.quantity * item.unitPrice, 0);
+        }
+
+        // Update request
+        const updatedRequest = await prisma.request.update({
+            where: { reference: id },
+            data: {
+                title: title || existingRequest.title,
+                description: description || existingRequest.description,
+                budgetCode: budgetCode || existingRequest.budgetCode,
+                totalEstimated,
+                updatedAt: new Date(),
+            },
+            include: {
+                items: true,
+                requester: {
+                    select: {
+                        name: true,
+                        email: true,
+                    },
+                },
+            },
+        });
+
+        // Update items if provided
+        if (items) {
+            // Delete existing items
+            await prisma.requestItem.deleteMany({
+                where: { requestId: existingRequest.id },
+            });
+
+            // Create new items
+            await prisma.requestItem.createMany({
+                data: items.map((item: any) => ({
+                    requestId: existingRequest.id,
+                    description: item.description,
+                    quantity: item.quantity,
+                    unitPrice: item.unitPrice,
+                    totalPrice: item.quantity * item.unitPrice,
+                })),
+            });
+        }
 
         logger.info('Updated procurement request', { requestId: id });
-        res.json(mockRequests[requestIndex]);
+
+        res.json({
+            id: updatedRequest.reference,
+            title: updatedRequest.title,
+            status: updatedRequest.status,
+            updatedAt: updatedRequest.updatedAt.toISOString(),
+        });
     })
 );
 
@@ -97,17 +367,45 @@ router.post(
     authMiddleware,
     asyncHandler(async (req, res) => {
         const { id } = req.params;
-        const requestIndex = mockRequests.findIndex((r) => r.id === id);
+        const authenticatedReq = req as AuthenticatedRequest;
+        const userId = authenticatedReq.user.sub;
 
-        if (requestIndex === -1) {
+        const request = await prisma.request.findUnique({
+            where: { reference: id },
+        });
+
+        if (!request) {
             return res.status(404).json({ error: 'Request not found' });
         }
 
-        mockRequests[requestIndex].status = 'Pending Finance';
-        mockRequests[requestIndex].submittedAt = new Date().toISOString();
+        if (request.status !== RequestStatus.DRAFT) {
+            return res.status(400).json({ error: 'Only draft requests can be submitted' });
+        }
+
+        // Update status to SUBMITTED
+        const updated = await prisma.request.update({
+            where: { reference: id },
+            data: {
+                status: RequestStatus.SUBMITTED,
+                submittedAt: new Date(),
+                statusHistory: {
+                    create: {
+                        oldStatus: RequestStatus.DRAFT,
+                        newStatus: RequestStatus.SUBMITTED,
+                        changedById: userId,
+                        notes: 'Request submitted for approval',
+                    },
+                },
+            },
+        });
 
         logger.info('Submitted procurement request', { requestId: id });
-        res.json(mockRequests[requestIndex]);
+
+        res.json({
+            id: updated.reference,
+            status: updated.status,
+            submittedAt: updated.submittedAt?.toISOString(),
+        });
     })
 );
 
@@ -118,43 +416,83 @@ router.post(
     asyncHandler(async (req, res) => {
         const { id } = req.params;
         const { action, notes } = req.body;
-        const requestIndex = mockRequests.findIndex((r) => r.id === id);
+        const authenticatedReq = req as AuthenticatedRequest;
+        const userId = authenticatedReq.user.sub;
+        const userRoles = authenticatedReq.user.roles || [];
 
-        if (requestIndex === -1) {
-            return res.status(404).json({ error: 'Request not found' });
-        }
-
-        if (action === 'approve') {
-            mockRequests[requestIndex].status = 'Approved';
-            mockRequests[requestIndex].approvedAt = new Date().toISOString();
-        } else if (action === 'reject') {
-            mockRequests[requestIndex].status = 'Rejected';
-            mockRequests[requestIndex].rejectedAt = new Date().toISOString();
-        }
-
-        if (notes) {
-            mockRequests[requestIndex].notes = notes;
-        }
-
-        logger.info('Processed procurement request action', { requestId: id, action });
-        res.json(mockRequests[requestIndex]);
-    })
-);
-
-// Get PDF (mock)
-router.get(
-    '/:id/pdf',
-    authMiddleware,
-    asyncHandler(async (req, res) => {
-        const { id } = req.params;
-        const request = mockRequests.find((r) => r.id === id);
+        const request = await prisma.request.findUnique({
+            where: { reference: id },
+        });
 
         if (!request) {
             return res.status(404).json({ error: 'Request not found' });
         }
 
-        // In a real implementation, this would generate and return a PDF
-        res.json({ message: 'PDF generation not implemented', requestId: id });
+        // Determine new status based on action and current status
+        let newStatus: RequestStatus;
+        if (action === 'approve') {
+            // Workflow: SUBMITTED → DEPARTMENT_APPROVED → FINANCE_APPROVED
+            if (request.status === RequestStatus.SUBMITTED) {
+                newStatus = RequestStatus.DEPARTMENT_APPROVED;
+            } else if (request.status === RequestStatus.DEPARTMENT_APPROVED) {
+                newStatus = RequestStatus.FINANCE_APPROVED;
+            } else {
+                return res.status(400).json({ error: 'Cannot approve request in current status' });
+            }
+        } else if (action === 'reject') {
+            if (request.status === RequestStatus.SUBMITTED) {
+                newStatus = RequestStatus.DEPARTMENT_RETURNED;
+            } else if (request.status === RequestStatus.DEPARTMENT_APPROVED) {
+                newStatus = RequestStatus.FINANCE_RETURNED;
+            } else {
+                return res.status(400).json({ error: 'Cannot reject request in current status' });
+            }
+        } else {
+            return res.status(400).json({ error: 'Invalid action. Use "approve" or "reject"' });
+        }
+
+        // Update request status
+        const updated = await prisma.request.update({
+            where: { reference: id },
+            data: {
+                status: newStatus,
+                statusHistory: {
+                    create: {
+                        oldStatus: request.status,
+                        newStatus,
+                        changedById: userId,
+                        notes: notes || `Request ${action}ed`,
+                    },
+                },
+            },
+        });
+
+        logger.info('Processed procurement request action', { requestId: id, action, newStatus });
+
+        res.json({
+            id: updated.reference,
+            status: updated.status,
+            updatedAt: updated.updatedAt.toISOString(),
+        });
+    })
+);
+
+// Get PDF (placeholder - implement PDF generation library as needed)
+router.get(
+    '/:id/pdf',
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+        const { id } = req.params;
+        const request = await prisma.request.findUnique({
+            where: { reference: id },
+        });
+
+        if (!request) {
+            return res.status(404).json({ error: 'Request not found' });
+        }
+
+        // TODO: Implement PDF generation using pdfkit or similar
+        res.json({ message: 'PDF generation not yet implemented', requestId: id });
     })
 );
 
