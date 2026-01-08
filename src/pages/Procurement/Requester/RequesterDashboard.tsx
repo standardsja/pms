@@ -71,11 +71,7 @@ const RequesterDashboard = () => {
         },
     ];
 
-    const recentActivities = [
-        { id: 1, action: 'Request Submitted', description: 'REQ-2024-001', status: 'pending', time: '2 hours ago' },
-        { id: 2, action: 'Request Approved', description: 'REQ-2024-002', status: 'approved', time: '1 day ago' },
-        { id: 3, action: 'Evaluation Assigned', description: 'EVAL-2024-001', status: 'active', time: '3 days ago' },
-    ];
+    const recentActivities: Array<{ id: number; action: string; description: string; status: string; time: string }> = [];
 
     return (
         <div className="space-y-6">

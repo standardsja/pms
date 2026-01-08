@@ -35,25 +35,16 @@ const DepartmentManagerDashboard = () => {
                 const response = await fetch('/api/stats/department-manager');
                 if (response.ok) {
                     const data = await response.json();
-                    setStats(data);
-                } else {
-                    // Mock data for demo
                     setStats({
-                        pendingApprovals: 12,
-                        requestsToReview: 8,
-                        approvedThisMonth: 45,
-                        rejectedThisMonth: 3,
+                        pendingApprovals: Number(data.pendingApprovals || 0),
+                        requestsToReview: Number(data.requestsToReview || 0),
+                        approvedThisMonth: Number(data.approvedThisMonth || 0),
+                        rejectedThisMonth: Number(data.rejectedThisMonth || 0),
                     });
                 }
             } catch (error) {
                 console.error('Failed to fetch department manager stats:', error);
-                // Mock data on error
-                setStats({
-                    pendingApprovals: 12,
-                    requestsToReview: 8,
-                    approvedThisMonth: 45,
-                    rejectedThisMonth: 3,
-                });
+                // On error, keep defaults (zeros) and show console error only
             }
         };
         fetchStats();

@@ -200,19 +200,19 @@ export function getDashboardPath(roles: DetectedRoles, currentPathname: string =
         return '/innovation/dashboard';
     }
     if (roles.isExecutiveDirector) {
-        return '/executive/dashboard';
+        return '/procurement/executive-director-dashboard';
     }
     if (roles.isSeniorDirector) {
-        return '/director/dashboard';
+        return '/senior-director/dashboard';
     }
     if (roles.isDepartmentHead) {
-        return '/department-head/dashboard';
+        return '/procurement/dashboard/department-head';
     }
     if (roles.isAuditor) {
-        return '/audit/dashboard';
+        return '/procurement/dashboard/auditor';
     }
     if (roles.isFinancePaymentStage) {
-        return '/payments/dashboard';
+        return '/procurement/dashboard/payment-stage';
     }
     if (roles.isBudgetManager) {
         return '/finance';
