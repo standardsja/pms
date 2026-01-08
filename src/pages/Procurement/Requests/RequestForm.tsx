@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import Select, { type StylesConfig } from 'react-select';
 import { useDispatch } from 'react-redux';
 import { useNavigate, useParams } from 'react-router-dom';
 import { setPageTitle } from '@/store/themeConfigSlice';
@@ -62,6 +63,66 @@ const HEADER_YEAR_BASE = 2025;
 const HEADER_YEAR_SPAN = 11; // number of years from base
 
 const RequestForm = () => {
+    // Shared compact styles for header dropdowns to preserve the yellow bracket look
+    const headerSelectStyles: StylesConfig<{ value: string | number; label: string }, false> = {
+        control: (base, state) => ({
+            ...base,
+            backgroundColor: 'transparent',
+            borderColor: 'transparent',
+            boxShadow: 'none',
+            minHeight: 24,
+            height: 24,
+            cursor: state.isDisabled ? 'not-allowed' : 'pointer',
+        }),
+        valueContainer: (base) => ({
+            ...base,
+            padding: '0 6px',
+        }),
+        singleValue: (base) => ({
+            ...base,
+            color: '#fff',
+            fontWeight: 600,
+            fontSize: '0.875rem',
+            lineHeight: '1.25rem',
+        }),
+        placeholder: (base) => ({
+            ...base,
+            color: '#fff',
+            fontWeight: 600,
+            fontSize: '0.875rem',
+        }),
+        input: (base) => ({
+            ...base,
+            color: '#fff',
+        }),
+        dropdownIndicator: (base) => ({
+            ...base,
+            color: '#fff',
+            padding: 0,
+        }),
+        indicatorSeparator: () => ({ display: 'none' }),
+        menu: (base) => ({
+            ...base,
+            backgroundColor: '#fff',
+            border: '1px solid #e0e6ed',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+            borderRadius: 6,
+            zIndex: 10000,
+        }),
+        menuList: (base) => ({
+            ...base,
+            padding: 0,
+            maxHeight: 200,
+        }),
+        option: (base, state) => ({
+            ...base,
+            fontSize: '0.875rem',
+            padding: '6px 10px',
+            backgroundColor: state.isSelected ? '#f6f6f6' : state.isFocused ? '#f6f6f6' : 'transparent',
+            color: '#000',
+        }),
+        menuPortal: (base) => ({ ...base, zIndex: 10000 }),
+    };
     const dispatch = useDispatch();
     const navigate = useNavigate();
     const { id } = useParams<{ id: string }>();
@@ -1024,56 +1085,68 @@ const RequestForm = () => {
                                 <div className="flex items-center gap-1 text-sm font-semibold">
                                     <span className="inline-flex items-center bg-yellow-600 text-white rounded-sm">
                                         <span className="px-1">[</span>
-                                        <select
-                                            className="bg-transparent border-0 text-white font-semibold text-sm focus:ring-0 px-1 cursor-pointer"
-                                            value={headerDeptCode}
-                                            onChange={(e) => setHeaderDeptCode(e.target.value)}
-                                            disabled={isEditMode}
-                                        >
-                                            <option value="">---</option>
-                                            {DEPARTMENT_CODES.map((code) => (
-                                                <option key={code} value={code}>
-                                                    {code}
-                                                </option>
-                                            ))}
-                                        </select>
+                                        {(() => {
+                                            const deptOptions: { value: string; label: string }[] = DEPARTMENT_CODES.map((code) => ({ value: code, label: code }));
+                                            const deptValue = headerDeptCode ? { value: headerDeptCode, label: headerDeptCode } : null;
+                                            return (
+                                                <Select
+                                                    className="min-w-[5.5rem]"
+                                                    styles={headerSelectStyles}
+                                                    menuPortalTarget={typeof document !== 'undefined' ? document.body : undefined}
+                                                    menuPosition="fixed"
+                                                    isSearchable={false}
+                                                    isDisabled={isEditMode}
+                                                    options={[{ value: '', label: '---' }, ...deptOptions]}
+                                                    value={deptValue || { value: '', label: '---' }}
+                                                    onChange={(opt) => setHeaderDeptCode((opt && 'value' in opt ? opt.value : '') || '')}
+                                                />
+                                            );
+                                        })()}
                                         <span className="px-1">]</span>
                                     </span>
                                     <span className="inline-flex items-center bg-yellow-600 text-white rounded-sm">
                                         <span className="px-1">[</span>
-                                        <select
-                                            className="bg-transparent border-0 text-white font-semibold text-sm focus:ring-0 px-1 cursor-pointer"
-                                            value={headerMonth}
-                                            onChange={(e) => setHeaderMonth(e.target.value)}
-                                            disabled={isEditMode}
-                                        >
-                                            <option value="">---</option>
-                                            {MONTHS.map((m) => (
-                                                <option key={m} value={m}>
-                                                    {m}
-                                                </option>
-                                            ))}
-                                        </select>
+                                        {(() => {
+                                            const monthOptions: { value: string; label: string }[] = MONTHS.map((m) => ({ value: m, label: m }));
+                                            const monthValue = headerMonth ? { value: headerMonth, label: headerMonth } : null;
+                                            return (
+                                                <Select
+                                                    className="min-w-[8rem]"
+                                                    styles={headerSelectStyles}
+                                                    menuPortalTarget={typeof document !== 'undefined' ? document.body : undefined}
+                                                    menuPosition="fixed"
+                                                    isSearchable={false}
+                                                    isDisabled={isEditMode}
+                                                    options={[{ value: '', label: '---' }, ...monthOptions]}
+                                                    value={monthValue || { value: '', label: '---' }}
+                                                    onChange={(opt) => setHeaderMonth((opt && 'value' in opt ? opt.value : '') || '')}
+                                                />
+                                            );
+                                        })()}
                                         <span className="px-1">]</span>
                                     </span>
                                     <span className="inline-flex items-center bg-yellow-600 text-white rounded-sm">
                                         <span className="px-1">[</span>
-                                        <select
-                                            className="bg-transparent border-0 text-white font-semibold text-sm focus:ring-0 px-1 cursor-pointer w-16"
-                                            value={headerYear ?? ''}
-                                            onChange={(e) => setHeaderYear(e.target.value ? parseInt(e.target.value, 10) : null)}
-                                            disabled={isEditMode}
-                                        >
-                                            <option value="">----</option>
-                                            {Array.from({ length: HEADER_YEAR_SPAN }).map((_, i) => {
+                                        {(() => {
+                                            const yearOptions: { value: number; label: string }[] = Array.from({ length: HEADER_YEAR_SPAN }).map((_, i) => {
                                                 const year = HEADER_YEAR_BASE + i;
-                                                return (
-                                                    <option key={year} value={year}>
-                                                        {year}
-                                                    </option>
-                                                );
-                                            })}
-                                        </select>
+                                                return { value: year, label: String(year) };
+                                            });
+                                            const yearValue = headerYear !== null ? { value: headerYear as number, label: String(headerYear) } : null;
+                                            return (
+                                                <Select
+                                                    className="min-w-[5rem]"
+                                                    styles={headerSelectStyles}
+                                                    menuPortalTarget={typeof document !== 'undefined' ? document.body : undefined}
+                                                    menuPosition="fixed"
+                                                    isSearchable={false}
+                                                    isDisabled={isEditMode}
+                                                    options={[{ value: NaN, label: '----' }, ...yearOptions]}
+                                                    value={yearValue || { value: NaN, label: '----' }}
+                                                    onChange={(opt) => setHeaderYear(opt && 'value' in opt && typeof opt.value === 'number' && !Number.isNaN(opt.value) ? opt.value : null)}
+                                                />
+                                            );
+                                        })()}
                                         <span className="px-1">]</span>
                                     </span>
                                     <span className="inline-flex items-center bg-yellow-600 text-white rounded-sm px-2 py-1">
