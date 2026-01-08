@@ -43,7 +43,7 @@ const ExecutiveApprovals = () => {
 
                 const response = await fetch(`${apiUrl}/approvals`, {
                     headers: {
-                        'Authorization': `Bearer ${token}`,
+                        Authorization: `Bearer ${token}`,
                         'Content-Type': 'application/json',
                     },
                 });
@@ -68,9 +68,7 @@ const ExecutiveApprovals = () => {
 
     // Filter approvals based on selected filter and search term
     const filteredApprovals = executiveApprovals.filter((approval: any) => {
-        const matchesFilter = filter === 'all' ||
-            approval.status?.toLowerCase().includes(filter.toLowerCase()) ||
-            approval.procurementType?.toLowerCase().includes(filter.toLowerCase());
+        const matchesFilter = filter === 'all' || approval.status?.toLowerCase().includes(filter.toLowerCase()) || approval.procurementType?.toLowerCase().includes(filter.toLowerCase());
         const matchesSearch =
             approval.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             approval.requestNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -102,22 +100,22 @@ const ExecutiveApprovals = () => {
             Swal.fire('Error', 'Please provide your digital signature/comments', 'error');
             return;
         }
-        
+
         try {
             const apiUrl = getApiUrl();
             const token = getToken();
-            
+
             const response = await fetch(`${apiUrl}/requests/${selectedApproval?.id}/action`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
+                    Authorization: `Bearer ${token}`,
                 },
                 body: JSON.stringify({
                     action: action === 'approve' ? 'APPROVE' : 'REJECT',
                     comments: digitalSignature,
-                    signature: digitalSignature
-                })
+                    signature: digitalSignature,
+                }),
             });
 
             if (!response.ok) throw new Error('Failed to process approval');
@@ -126,7 +124,7 @@ const ExecutiveApprovals = () => {
             setSignOffModal(false);
             setSelectedApproval(null);
             setDigitalSignature('');
-            
+
             // Refresh approvals list
             fetchApprovals();
         } catch (error) {
@@ -254,46 +252,25 @@ const ExecutiveApprovals = () => {
                 {/* Filters and Search */}
                 <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex gap-2">
-                        <button
-                            onClick={() => setFilter('all')}
-                            className={`btn btn-sm ${filter === 'all' ? 'btn-primary' : 'btn-outline-primary'}`}
-                        >
+                        <button onClick={() => setFilter('all')} className={`btn btn-sm ${filter === 'all' ? 'btn-primary' : 'btn-outline-primary'}`}>
                             All
                         </button>
-                        <button
-                            onClick={() => setFilter('pending')}
-                            className={`btn btn-sm ${filter === 'pending' ? 'btn-warning' : 'btn-outline-warning'}`}
-                        >
+                        <button onClick={() => setFilter('pending')} className={`btn btn-sm ${filter === 'pending' ? 'btn-warning' : 'btn-outline-warning'}`}>
                             Pending
                         </button>
-                        <button
-                            onClick={() => setFilter('under review')}
-                            className={`btn btn-sm ${filter === 'under review' ? 'btn-info' : 'btn-outline-info'}`}
-                        >
+                        <button onClick={() => setFilter('under review')} className={`btn btn-sm ${filter === 'under review' ? 'btn-info' : 'btn-outline-info'}`}>
                             Under Review
                         </button>
-                        <button
-                            onClick={() => setFilter('major contract')}
-                            className={`btn btn-sm ${filter === 'major contract' ? 'btn-primary' : 'btn-outline-primary'}`}
-                        >
+                        <button onClick={() => setFilter('major contract')} className={`btn btn-sm ${filter === 'major contract' ? 'btn-primary' : 'btn-outline-primary'}`}>
                             Major Contracts
                         </button>
-                        <button
-                            onClick={() => setFilter('capital')}
-                            className={`btn btn-sm ${filter === 'capital' ? 'btn-success' : 'btn-outline-success'}`}
-                        >
+                        <button onClick={() => setFilter('capital')} className={`btn btn-sm ${filter === 'capital' ? 'btn-success' : 'btn-outline-success'}`}>
                             Capital Expenditure
                         </button>
                     </div>
                     <div className="flex items-center gap-2">
                         <div className="relative">
-                            <input
-                                type="text"
-                                placeholder="Search approvals..."
-                                className="form-input pl-10 pr-4"
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                            />
+                            <input type="text" placeholder="Search approvals..." className="form-input pl-10 pr-4" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                             <IconSearch className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white-dark" />
                         </div>
                     </div>
@@ -307,15 +284,9 @@ const ExecutiveApprovals = () => {
                                 <div className="flex-1">
                                     <div className="mb-2 flex items-center gap-2">
                                         <h5 className="text-lg font-semibold">{approval.approvalNumber}</h5>
-                                        <span className={`badge ${getTypeBadge(approval.type)}`}>
-                                            {approval.type}
-                                        </span>
-                                        <span className={`badge ${getPriorityBadge(approval.priority)}`}>
-                                            {approval.priority}
-                                        </span>
-                                        <span className={`badge ${getStatusBadge(approval.status)}`}>
-                                            {approval.status}
-                                        </span>
+                                        <span className={`badge ${getTypeBadge(approval.type)}`}>{approval.type}</span>
+                                        <span className={`badge ${getPriorityBadge(approval.priority)}`}>{approval.priority}</span>
+                                        <span className={`badge ${getStatusBadge(approval.status)}`}>{approval.status}</span>
                                     </div>
                                     <p className="mb-3 text-lg font-medium">{approval.description}</p>
                                     <p className="mb-3 text-sm text-white-dark">{approval.justification}</p>
@@ -326,26 +297,18 @@ const ExecutiveApprovals = () => {
                                         <div className="text-xs text-white-dark">Contract: {approval.contractPeriod}</div>
                                     </div>
                                     <div className="flex gap-2">
-                                        <button
-                                            onClick={() => handleViewDocuments(approval)}
-                                            className="btn btn-outline-info btn-sm"
-                                            title="View Documents"
-                                        >
+                                        <button onClick={() => handleViewDocuments(approval)} className="btn btn-outline-info btn-sm" title="View Documents">
                                             <IconEye className="h-4 w-4" />
                                         </button>
                                         {approval.status === 'Pending Executive Approval' && (
-                                            <button
-                                                onClick={() => handleSignOff(approval)}
-                                                className="btn btn-success btn-sm"
-                                                title="Digital Sign-off"
-                                            >
+                                            <button onClick={() => handleSignOff(approval)} className="btn btn-success btn-sm" title="Digital Sign-off">
                                                 <IconPencil className="h-4 w-4" />
                                             </button>
                                         )}
                                     </div>
                                 </div>
                             </div>
-                            
+
                             <div className="grid grid-cols-2 gap-6 border-t border-[#e0e6ed] pt-4 dark:border-[#253b5c] lg:grid-cols-4">
                                 <div>
                                     <span className="text-sm font-medium text-white-dark">Vendor</span>
@@ -402,15 +365,11 @@ const ExecutiveApprovals = () => {
                                 <IconPencil />
                                 Executive Digital Sign-off
                             </h4>
-                            <button 
-                                onClick={() => setSignOffModal(false)} 
-                                className="text-white-dark hover:text-danger"
-                                title="Close Modal"
-                            >
+                            <button onClick={() => setSignOffModal(false)} className="text-white-dark hover:text-danger" title="Close Modal">
                                 <IconX />
                             </button>
                         </div>
-                        
+
                         <div className="mb-6 rounded-lg border border-[#e0e6ed] p-4 dark:border-[#253b5c]">
                             <div className="mb-4 grid grid-cols-2 gap-4">
                                 <div>
@@ -422,12 +381,12 @@ const ExecutiveApprovals = () => {
                                     <p className="font-semibold">{selectedApproval.type}</p>
                                 </div>
                             </div>
-                            
+
                             <div className="mb-4">
                                 <label className="text-sm font-medium text-white-dark">Description</label>
                                 <p className="font-semibold">{selectedApproval.description}</p>
                             </div>
-                            
+
                             <div className="mb-4 grid grid-cols-3 gap-4">
                                 <div>
                                     <label className="text-sm font-medium text-white-dark">Vendor</label>
@@ -457,7 +416,7 @@ const ExecutiveApprovals = () => {
                                 </div>
                             </div>
                         </div>
-                        
+
                         <div className="mb-6">
                             <label className="mb-2 block text-sm font-medium">Executive Decision & Digital Signature</label>
                             <textarea
@@ -468,36 +427,21 @@ const ExecutiveApprovals = () => {
                                 placeholder="Enter your decision rationale, comments, conditions, or digital signature..."
                             />
                         </div>
-                        
+
                         <div className="flex items-center justify-end gap-2">
-                            <button
-                                onClick={() => submitDigitalSignature('approve')}
-                                className="btn btn-success"
-                                disabled={!digitalSignature.trim()}
-                            >
+                            <button onClick={() => submitDigitalSignature('approve')} className="btn btn-success" disabled={!digitalSignature.trim()}>
                                 <IconChecks className="mr-2" />
                                 Approve & Sign
                             </button>
-                            <button
-                                onClick={() => submitDigitalSignature('conditional')}
-                                className="btn btn-warning"
-                                disabled={!digitalSignature.trim()}
-                            >
+                            <button onClick={() => submitDigitalSignature('conditional')} className="btn btn-warning" disabled={!digitalSignature.trim()}>
                                 <IconClock className="mr-2" />
                                 Conditional Approval
                             </button>
-                            <button
-                                onClick={() => submitDigitalSignature('reject')}
-                                className="btn btn-danger"
-                                disabled={!digitalSignature.trim()}
-                            >
+                            <button onClick={() => submitDigitalSignature('reject')} className="btn btn-danger" disabled={!digitalSignature.trim()}>
                                 <IconX className="mr-2" />
                                 Reject with Comments
                             </button>
-                            <button
-                                onClick={() => handleViewDocuments(selectedApproval)}
-                                className="btn btn-outline-primary"
-                            >
+                            <button onClick={() => handleViewDocuments(selectedApproval)} className="btn btn-outline-primary">
                                 <IconDownload className="mr-2" />
                                 View Documents
                             </button>
@@ -515,15 +459,11 @@ const ExecutiveApprovals = () => {
                                 <IconFile />
                                 Documents - {selectedDocument.approvalNumber}
                             </h4>
-                            <button 
-                                onClick={() => setDocumentModal(false)} 
-                                className="text-white-dark hover:text-danger"
-                                title="Close Modal"
-                            >
+                            <button onClick={() => setDocumentModal(false)} className="text-white-dark hover:text-danger" title="Close Modal">
                                 <IconX />
                             </button>
                         </div>
-                        
+
                         <div className="mb-4 rounded-lg border border-[#e0e6ed] p-4 dark:border-[#253b5c]">
                             <div className="grid grid-cols-3 gap-4 text-sm">
                                 <div>
@@ -540,12 +480,15 @@ const ExecutiveApprovals = () => {
                                 </div>
                             </div>
                         </div>
-                        
+
                         <div className="flex-1 overflow-hidden">
                             <h6 className="mb-3 font-semibold">Document List</h6>
                             <div className="overflow-y-auto max-h-[400px] space-y-3">
                                 {selectedDocument.documentList?.map((doc: any) => (
-                                    <div key={doc.id} className="flex items-center justify-between rounded-lg border border-[#e0e6ed] p-4 dark:border-[#253b5c] hover:bg-gray-50 dark:hover:bg-gray-800">
+                                    <div
+                                        key={doc.id}
+                                        className="flex items-center justify-between rounded-lg border border-[#e0e6ed] p-4 dark:border-[#253b5c] hover:bg-gray-50 dark:hover:bg-gray-800"
+                                    >
                                         <div className="flex items-center gap-3 flex-1">
                                             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary-light text-primary">
                                                 <IconFile className="h-5 w-5" />
@@ -565,11 +508,7 @@ const ExecutiveApprovals = () => {
                                             </div>
                                         </div>
                                         <div className="flex gap-2">
-                                            <button
-                                                onClick={() => downloadDocument(doc)}
-                                                className="btn btn-outline-primary btn-sm"
-                                                title="Download Document"
-                                            >
+                                            <button onClick={() => downloadDocument(doc)} className="btn btn-outline-primary btn-sm" title="Download Document">
                                                 <IconDownload className="h-4 w-4" />
                                             </button>
                                             <button
@@ -587,7 +526,7 @@ const ExecutiveApprovals = () => {
                                 ))}
                             </div>
                         </div>
-                        
+
                         <div className="mt-4 flex justify-end gap-2 border-t border-[#e0e6ed] pt-4 dark:border-[#253b5c]">
                             <button
                                 onClick={() => {
@@ -599,10 +538,7 @@ const ExecutiveApprovals = () => {
                                 <IconDownload className="mr-2" />
                                 Download All Documents
                             </button>
-                            <button
-                                onClick={() => setDocumentModal(false)}
-                                className="btn btn-outline-secondary"
-                            >
+                            <button onClick={() => setDocumentModal(false)} className="btn btn-outline-secondary">
                                 Close
                             </button>
                         </div>

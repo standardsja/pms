@@ -38,20 +38,18 @@ const ExecutiveDigitalSignoffs = () => {
         try {
             const apiUrl = getApiUrl();
             const token = getToken();
-            
+
             const response = await fetch(`${apiUrl}/approvals`, {
                 headers: {
-                    'Authorization': `Bearer ${token}`
-                }
+                    Authorization: `Bearer ${token}`,
+                },
             });
 
             if (!response.ok) throw new Error('Failed to fetch sign-offs');
 
             const data = await response.json();
-            const executiveSignoffs = data.filter((item: any) => 
-                item.status === 'EXECUTIVE_REVIEW' || item.status === 'FINANCE_APPROVED'
-            );
-            
+            const executiveSignoffs = data.filter((item: any) => item.status === 'EXECUTIVE_REVIEW' || item.status === 'FINANCE_APPROVED');
+
             setDigitalSignoffItems(executiveSignoffs);
         } catch (error) {
             console.error('Error fetching sign-offs:', error);
@@ -100,18 +98,18 @@ const ExecutiveDigitalSignoffs = () => {
         try {
             const apiUrl = getApiUrl();
             const token = getToken();
-            
+
             const response = await fetch(`${apiUrl}/requests/${selectedItem?.id}/action`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
+                    Authorization: `Bearer ${token}`,
                 },
                 body: JSON.stringify({
                     action: action === 'approve' ? 'APPROVE' : 'REJECT',
                     comments: signoffComments,
-                    signature: digitalSignature
-                })
+                    signature: digitalSignature,
+                }),
             });
 
             if (!response.ok) throw new Error('Failed to process sign-off');
@@ -121,7 +119,7 @@ const ExecutiveDigitalSignoffs = () => {
             setSelectedItem(null);
             setDigitalSignature('');
             setSignoffComments('');
-            
+
             // Refresh sign-offs list
             fetchSignoffs();
         } catch (error) {
@@ -242,28 +240,16 @@ const ExecutiveDigitalSignoffs = () => {
 
                 {/* Filters */}
                 <div className="mb-6 flex gap-2">
-                    <button
-                        onClick={() => setFilter('pending')}
-                        className={`btn btn-sm ${filter === 'pending' ? 'btn-warning' : 'btn-outline-warning'}`}
-                    >
+                    <button onClick={() => setFilter('pending')} className={`btn btn-sm ${filter === 'pending' ? 'btn-warning' : 'btn-outline-warning'}`}>
                         Pending Sign-offs
                     </button>
-                    <button
-                        onClick={() => setFilter('signed')}
-                        className={`btn btn-sm ${filter === 'signed' ? 'btn-success' : 'btn-outline-success'}`}
-                    >
+                    <button onClick={() => setFilter('signed')} className={`btn btn-sm ${filter === 'signed' ? 'btn-success' : 'btn-outline-success'}`}>
                         Digitally Signed
                     </button>
-                    <button
-                        onClick={() => setFilter('rejected')}
-                        className={`btn btn-sm ${filter === 'rejected' ? 'btn-danger' : 'btn-outline-danger'}`}
-                    >
+                    <button onClick={() => setFilter('rejected')} className={`btn btn-sm ${filter === 'rejected' ? 'btn-danger' : 'btn-outline-danger'}`}>
                         Rejected
                     </button>
-                    <button
-                        onClick={() => setFilter('all')}
-                        className={`btn btn-sm ${filter === 'all' ? 'btn-primary' : 'btn-outline-primary'}`}
-                    >
+                    <button onClick={() => setFilter('all')} className={`btn btn-sm ${filter === 'all' ? 'btn-primary' : 'btn-outline-primary'}`}>
                         All Items
                     </button>
                 </div>
@@ -276,15 +262,9 @@ const ExecutiveDigitalSignoffs = () => {
                                 <div className="flex-1">
                                     <div className="mb-2 flex items-center gap-2">
                                         <h5 className="text-lg font-semibold">{item.procurementId}</h5>
-                                        <span className={`badge ${getPriorityBadge(item.priority)}`}>
-                                            {item.priority}
-                                        </span>
-                                        <span className={`badge ${getStatusBadge(item.status)}`}>
-                                            {item.status}
-                                        </span>
-                                        <span className={`text-sm font-medium ${getRiskBadge(item.riskLevel)}`}>
-                                            🛡️ {item.riskLevel} Risk
-                                        </span>
+                                        <span className={`badge ${getPriorityBadge(item.priority)}`}>{item.priority}</span>
+                                        <span className={`badge ${getStatusBadge(item.status)}`}>{item.status}</span>
+                                        <span className={`text-sm font-medium ${getRiskBadge(item.riskLevel)}`}>🛡️ {item.riskLevel} Risk</span>
                                     </div>
                                     <p className="mb-2 text-lg font-medium">{item.description}</p>
                                     <p className="mb-3 text-sm text-white-dark">
@@ -299,19 +279,11 @@ const ExecutiveDigitalSignoffs = () => {
                                         <div className="text-sm text-white-dark">{item.contractPeriod}</div>
                                     </div>
                                     <div className="flex gap-2">
-                                        <button
-                                            onClick={() => handleViewDocuments(item)}
-                                            className="btn btn-outline-info btn-sm"
-                                            title="View Documents"
-                                        >
+                                        <button onClick={() => handleViewDocuments(item)} className="btn btn-outline-info btn-sm" title="View Documents">
                                             <IconEye className="h-4 w-4" />
                                         </button>
                                         {item.status === 'Pending Executive Sign-off' && (
-                                            <button
-                                                onClick={() => handleDigitalSignoff(item)}
-                                                className="btn btn-success btn-sm"
-                                                title="Digital Sign-off"
-                                            >
+                                            <button onClick={() => handleDigitalSignoff(item)} className="btn btn-success btn-sm" title="Digital Sign-off">
                                                 <IconPencilPaper className="h-4 w-4 mr-1" />
                                                 Sign
                                             </button>
@@ -325,7 +297,7 @@ const ExecutiveDigitalSignoffs = () => {
                                     </div>
                                 </div>
                             </div>
-                            
+
                             <div className="mb-4 grid grid-cols-1 gap-4 border-t border-[#e0e6ed] pt-4 dark:border-[#253b5c] lg:grid-cols-2">
                                 <div>
                                     <h6 className="mb-2 font-semibold">Business Justification</h6>
@@ -379,15 +351,11 @@ const ExecutiveDigitalSignoffs = () => {
                                 <IconPencilPaper />
                                 Executive Digital Sign-off - {selectedItem.procurementId}
                             </h4>
-                            <button 
-                                onClick={() => setSignoffModal(false)} 
-                                className="text-white-dark hover:text-danger"
-                                title="Close Modal"
-                            >
+                            <button onClick={() => setSignoffModal(false)} className="text-white-dark hover:text-danger" title="Close Modal">
                                 <IconX />
                             </button>
                         </div>
-                        
+
                         <div className="mb-6 space-y-4">
                             {/* Executive Summary */}
                             <div className="rounded-lg border border-primary bg-primary-light p-4 dark:bg-primary-dark-light">
@@ -459,7 +427,7 @@ const ExecutiveDigitalSignoffs = () => {
                                 </div>
                             </div>
                         </div>
-                        
+
                         <div className="mb-4">
                             <label className="mb-2 block text-sm font-medium">Digital Signature *</label>
                             <input
@@ -470,7 +438,7 @@ const ExecutiveDigitalSignoffs = () => {
                                 placeholder="Type your full name as digital signature"
                             />
                         </div>
-                        
+
                         <div className="mb-6">
                             <label className="mb-2 block text-sm font-medium">Executive Comments</label>
                             <textarea
@@ -481,28 +449,17 @@ const ExecutiveDigitalSignoffs = () => {
                                 placeholder="Provide executive comments, approval rationale, or conditions..."
                             />
                         </div>
-                        
+
                         <div className="flex items-center justify-end gap-2 border-t border-[#e0e6ed] pt-4 dark:border-[#253b5c]">
-                            <button
-                                onClick={() => submitDigitalSignature('approve')}
-                                className="btn btn-success"
-                                disabled={!digitalSignature.trim() || !signoffComments.trim()}
-                            >
+                            <button onClick={() => submitDigitalSignature('approve')} className="btn btn-success" disabled={!digitalSignature.trim() || !signoffComments.trim()}>
                                 <IconChecks className="mr-2" />
                                 Approve & Sign Digitally
                             </button>
-                            <button
-                                onClick={() => submitDigitalSignature('reject')}
-                                className="btn btn-danger"
-                                disabled={!digitalSignature.trim() || !signoffComments.trim()}
-                            >
+                            <button onClick={() => submitDigitalSignature('reject')} className="btn btn-danger" disabled={!digitalSignature.trim() || !signoffComments.trim()}>
                                 <IconX className="mr-2" />
                                 Reject with Signature
                             </button>
-                            <button
-                                onClick={() => setSignoffModal(false)}
-                                className="btn btn-outline-secondary"
-                            >
+                            <button onClick={() => setSignoffModal(false)} className="btn btn-outline-secondary">
                                 Cancel
                             </button>
                         </div>
@@ -515,18 +472,12 @@ const ExecutiveDigitalSignoffs = () => {
                 <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black bg-opacity-75">
                     <div className="w-full max-w-5xl rounded-lg bg-white p-6 dark:bg-[#1b2e4b] max-h-[90vh] overflow-y-auto">
                         <div className="mb-4 flex items-center justify-between">
-                            <h4 className="text-lg font-semibold flex items-center gap-2">
-                                📄 Documents - {selectedItem.procurementId}
-                            </h4>
-                            <button 
-                                onClick={() => setDocumentModal(false)} 
-                                className="text-white-dark hover:text-danger"
-                                title="Close Modal"
-                            >
+                            <h4 className="text-lg font-semibold flex items-center gap-2">📄 Documents - {selectedItem.procurementId}</h4>
+                            <button onClick={() => setDocumentModal(false)} className="text-white-dark hover:text-danger" title="Close Modal">
                                 <IconX />
                             </button>
                         </div>
-                        
+
                         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                             {selectedItem.documents.map((doc: string, index: number) => (
                                 <div key={index} className="rounded-lg border border-[#e0e6ed] p-4 dark:border-[#253b5c]">
@@ -546,12 +497,9 @@ const ExecutiveDigitalSignoffs = () => {
                                 </div>
                             ))}
                         </div>
-                        
+
                         <div className="mt-6 flex justify-end">
-                            <button
-                                onClick={() => setDocumentModal(false)}
-                                className="btn btn-outline-secondary"
-                            >
+                            <button onClick={() => setDocumentModal(false)} className="btn btn-outline-secondary">
                                 Close
                             </button>
                         </div>
