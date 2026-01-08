@@ -36,6 +36,7 @@ import { validate, createIdeaSchema, voteSchema, approveRejectIdeaSchema, promot
 import { errorHandler, notFoundHandler, asyncHandler, NotFoundError, BadRequestError } from './middleware/errorHandler.js';
 import statsRouter from './routes/stats.js';
 import combineRouter from './routes/combine.js';
+import approvalsRouter from './routes/approvals.js';
 import { authRoutes } from './routes/auth.js';
 import { adminRoutes as adminRouter } from './routes/admin.js';
 import { ideasRoutes } from './routes/ideas.js';
@@ -6574,6 +6575,9 @@ app.delete(
 
 // Stats API routes
 app.use('/api/stats', statsRouter);
+
+// Approvals API routes
+app.use('/api/approvals', approvalsRouter);
 
 // Auth API routes
 app.use('/api/auth', authRoutes);

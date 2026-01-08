@@ -152,10 +152,11 @@ router.get('/', authMiddleware, async (req, res) => {
             pendingItems = pendingItems.filter((item) => item.type.toLowerCase() === (type as string).toLowerCase());
         }
 
-        res.json(pendingItems);
+        res.json({ success: true, requests: pendingItems });
     } catch (error) {
         console.error('Error fetching approvals:', error);
         res.status(500).json({
+            success: false,
             error: 'Failed to fetch approvals',
             message: error instanceof Error ? error.message : 'Unknown error',
         });

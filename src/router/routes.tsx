@@ -109,15 +109,13 @@ const RequesterDashboard = lazy(() => import('../pages/Procurement/Requester/Req
 const FinanceOfficerDashboard = lazy(() => import('../pages/Procurement/Finance/FinanceOfficerDashboard'));
 const FinanceManagerDashboard = lazy(() => import('../pages/Procurement/Finance/FinanceManagerDashboard'));
 const AuditorDashboard = lazy(() => import('../pages/Procurement/Audit/AuditorDashboard'));
-const DepartmentHeadDashboardNew = lazy(() => import('../pages/Procurement/DepartmentHead/DepartmentHeadDashboardNew'));
+const DepartmentHeadDashboard = lazy(() => import('../pages/Procurement/DepartmentHead/DepartmentHeadDashboardNew'));
 const DepartmentManagerDashboard = lazy(() => import('../pages/Procurement/DepartmentManager/DepartmentManagerDashboard'));
 const ExecutiveDashboard = lazy(() => import('../pages/Procurement/Executive/ExecutiveDashboard'));
 const SeniorDirectorDashboard = lazy(() => import('../pages/Procurement/Director/SeniorDirectorDashboard'));
-const DepartmentHeadDashboard2 = lazy(() => import('../pages/Procurement/Department/DepartmentHeadDashboard'));
 const PaymentStageDashboard = lazy(() => import('../pages/Procurement/Payments/PaymentStageDashboard'));
 
 // Department Head Pages
-const DepartmentHeadDashboard = lazy(() => import('../pages/Procurement/DepartmentHead/DepartmentHeadDashboard'));
 const DepartmentHeadEvaluationReview = lazy(() => import('../pages/Procurement/DepartmentHead/DepartmentHeadEvaluationReview'));
 const DepartmentHeadReportReview = lazy(() => import('../pages/Procurement/DepartmentHead/DepartmentHeadReportReview'));
 
@@ -336,8 +334,16 @@ const routes = [
     {
         path: '/procurement/dashboard/finance-officer',
         element: (
-            <RoleDashboardGuard allowedRoles={['FINANCE_OFFICER', 'FINANCE_PAYMENT_STAGE']} fallbackPath="/procurement/dashboard">
+            <RoleDashboardGuard allowedRoles={['FINANCE_OFFICER']} fallbackPath="/procurement/dashboard">
                 <FinanceOfficerDashboard />
+            </RoleDashboardGuard>
+        ),
+    },
+    {
+        path: '/procurement/dashboard/payment-stage',
+        element: (
+            <RoleDashboardGuard allowedRoles={['FINANCE_PAYMENT_STAGE']} fallbackPath="/procurement/dashboard">
+                <PaymentStageDashboard />
             </RoleDashboardGuard>
         ),
     },
@@ -353,7 +359,7 @@ const routes = [
         path: '/procurement/dashboard/department-head',
         element: (
             <RoleDashboardGuard allowedRoles={['DEPARTMENT_HEAD']} fallbackPath="/procurement/dashboard">
-                <DepartmentHeadDashboardNew />
+                <DepartmentHeadDashboard />
             </RoleDashboardGuard>
         ),
     },
@@ -653,7 +659,7 @@ const routes = [
     {
         path: '/finance',
         element: (
-            <RoleDashboardGuard allowedRoles={['FINANCE_OFFICER', 'FINANCE_MANAGER', 'BUDGET_MANAGER', 'FINANCE_PAYMENT_STAGE']} fallbackPath="/procurement/dashboard">
+            <RoleDashboardGuard allowedRoles={['FINANCE_OFFICER', 'FINANCE_MANAGER', 'BUDGET_MANAGER']} fallbackPath="/procurement/dashboard">
                 <FinanceDashboard />
             </RoleDashboardGuard>
         ),
@@ -661,7 +667,7 @@ const routes = [
     {
         path: '/finance/requests',
         element: (
-            <RoleDashboardGuard allowedRoles={['FINANCE_OFFICER', 'FINANCE_MANAGER', 'BUDGET_MANAGER', 'FINANCE_PAYMENT_STAGE']} fallbackPath="/procurement/dashboard">
+            <RoleDashboardGuard allowedRoles={['FINANCE_OFFICER', 'FINANCE_MANAGER', 'BUDGET_MANAGER']} fallbackPath="/procurement/dashboard">
                 <FinanceRequests />
             </RoleDashboardGuard>
         ),
@@ -669,7 +675,7 @@ const routes = [
     {
         path: '/finance/awaiting-delivery',
         element: (
-            <RoleDashboardGuard allowedRoles={['FINANCE_OFFICER', 'FINANCE_MANAGER', 'BUDGET_MANAGER', 'FINANCE_PAYMENT_STAGE']} fallbackPath="/procurement/dashboard">
+            <RoleDashboardGuard allowedRoles={['FINANCE_OFFICER', 'FINANCE_MANAGER', 'BUDGET_MANAGER']} fallbackPath="/procurement/dashboard">
                 <AwaitingDelivery />
             </RoleDashboardGuard>
         ),
@@ -677,7 +683,7 @@ const routes = [
     {
         path: '/finance/payments-to-process',
         element: (
-            <RoleDashboardGuard allowedRoles={['FINANCE_OFFICER', 'FINANCE_MANAGER', 'BUDGET_MANAGER', 'FINANCE_PAYMENT_STAGE']} fallbackPath="/procurement/dashboard">
+            <RoleDashboardGuard allowedRoles={['FINANCE_OFFICER', 'FINANCE_MANAGER', 'BUDGET_MANAGER']} fallbackPath="/procurement/dashboard">
                 <PaymentsToProcess />
             </RoleDashboardGuard>
         ),
@@ -691,16 +697,12 @@ const routes = [
     // DEPARTMENT HEAD ROUTES
     // ============================================
     {
-        path: '/procurement/department-head-dashboard',
+        path: '/procurement/department-head/evaluations',
         element: (
             <RoleDashboardGuard allowedRoles={['DEPARTMENT_HEAD']} fallbackPath="/procurement/dashboard">
-                <DepartmentHeadDashboard />
+                <DepartmentHeadEvaluationReview />
             </RoleDashboardGuard>
         ),
-    },
-    {
-        path: '/procurement/department-head/evaluations',
-        element: <DepartmentHeadEvaluationReview />,
     },
     {
         path: '/finance/manager',
@@ -713,7 +715,11 @@ const routes = [
     // ============================================
     {
         path: '/procurement/executive-director-dashboard',
-        element: <ExecutiveDirectorDashboard />,
+        element: (
+            <RoleDashboardGuard allowedRoles={['EXECUTIVE_DIRECTOR']} fallbackPath="/procurement/dashboard">
+                <ExecutiveDirectorDashboard />
+            </RoleDashboardGuard>
+        ),
     },
     {
         path: '/procurement/executive/approvals',
@@ -789,35 +795,12 @@ const routes = [
     // ============================================
     // ROLE-SPECIFIC DASHBOARD ROUTES
     // ============================================
+
     {
-        path: '/executive/dashboard',
-        element: (
-            <RoleDashboardGuard allowedRoles={['EXECUTIVE_DIRECTOR']} fallbackPath="/procurement/dashboard">
-                <ExecutiveDashboard />
-            </RoleDashboardGuard>
-        ),
-    },
-    {
-        path: '/director/dashboard',
+        path: '/senior-director/dashboard',
         element: (
             <RoleDashboardGuard allowedRoles={['SENIOR_DIRECTOR']} fallbackPath="/procurement/dashboard">
                 <SeniorDirectorDashboard />
-            </RoleDashboardGuard>
-        ),
-    },
-    {
-        path: '/department-head/dashboard',
-        element: (
-            <RoleDashboardGuard allowedRoles={['DEPARTMENT_HEAD']} fallbackPath="/procurement/dashboard">
-                <DepartmentHeadDashboard2 />
-            </RoleDashboardGuard>
-        ),
-    },
-    {
-        path: '/payments/dashboard',
-        element: (
-            <RoleDashboardGuard allowedRoles={['FINANCE_PAYMENT_STAGE', 'SENIOR_DIRECTOR']} fallbackPath="/procurement/dashboard">
-                <PaymentStageDashboard />
             </RoleDashboardGuard>
         ),
     },

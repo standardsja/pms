@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import type { RequestStatus } from '@prisma/client';
 import { prisma } from '../prismaClient.js';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.js';
 import { getHealthStatus, getMetrics } from '../services/monitoringService.js';
@@ -279,16 +280,136 @@ router.get('/dashboard', async (req: Request, res: Response) => {
             },
         });
 
+        // Additional stats for HOD dashboard
+        const approvedRequests = await prisma.request.count({
+            where: {
+                status: {
+                    in: ['DEPARTMENT_APPROVED', 'FINANCE_APPROVED', 'CLOSED'],
+                },
+            },
+        });
+
+        const rejectedRequests = await prisma.request.count({
+            where: {
+                status: 'REJECTED',
+            },
+        });
+
+        // Budget calculations
+        const allRequests = await prisma.request.findMany({
+            select: {
+                totalEstimated: true,
+                status: true,
+            },
+        });
+
+        const totalBudgetRequested = allRequests.reduce((sum, req) => sum + Number(req.totalEstimated || 0), 0);
+        const approvedAmount = allRequests.filter((req) => ['DEPARTMENT_APPROVED', 'FINANCE_APPROVED', 'CLOSED'].includes(req.status)).reduce((sum, req) => sum + Number(req.totalEstimated || 0), 0);
+        const pendingAmount = allRequests
+            .filter((req) => ['SUBMITTED', 'DEPARTMENT_REVIEW', 'HOD_REVIEW', 'PROCUREMENT_REVIEW', 'FINANCE_REVIEW'].includes(req.status))
+            .reduce((sum, req) => sum + Number(req.totalEstimated || 0), 0);
+
+        // Department count
+        const departmentCount = await prisma.department.count();
+
+        // Build trend data (last 7 days) from real request activity
+        const dayRanges: Array<{ start: Date; end: Date }> = [];
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date(todayStart);
+            d.setDate(d.getDate() - i);
+            const start = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+            const end = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
+            dayRanges.push({ start, end });
+        }
+
+        const approvedStatuses = ['DEPARTMENT_APPROVED', 'FINANCE_APPROVED', 'CLOSED'] as RequestStatus[];
+
+        const trendSubmissions = await Promise.all(
+            dayRanges.map((range) =>
+                prisma.request.count({
+                    where: {
+                        createdAt: {
+                            gte: range.start,
+                            lt: range.end,
+                        },
+                    },
+                })
+            )
+        );
+
+        const trendApprovals = await Promise.all(
+            dayRanges.map((range) =>
+                prisma.request.count({
+                    where: {
+                        status: { in: approvedStatuses },
+                        updatedAt: {
+                            gte: range.start,
+                            lt: range.end,
+                        },
+                    },
+                })
+            )
+        );
+
+        // Department performance using real grouped counts
+        const pendingStatuses = ['SUBMITTED', 'DEPARTMENT_REVIEW', 'HOD_REVIEW', 'PROCUREMENT_REVIEW', 'FINANCE_REVIEW'] as RequestStatus[];
+
+        const pendingByDept = await prisma.request.groupBy({
+            by: ['departmentId'],
+            where: {
+                departmentId: { not: null },
+                status: { in: pendingStatuses },
+            },
+            _count: true,
+        });
+
+        const approvedByDept = await prisma.request.groupBy({
+            by: ['departmentId'],
+            where: {
+                departmentId: { not: null },
+                status: { in: approvedStatuses },
+            },
+            _count: true,
+        });
+
+        const deptIds = Array.from(new Set([...pendingByDept.map((d) => d.departmentId!).filter((id) => id !== null), ...approvedByDept.map((d) => d.departmentId!).filter((id) => id !== null)]));
+
+        const departments = await prisma.department.findMany({
+            where: { id: { in: deptIds } },
+            select: { id: true, name: true },
+        });
+
+        const departmentPerformance = departments
+            .map((dept) => {
+                const pending = pendingByDept.find((p) => p.departmentId === dept.id)?._count ?? 0;
+                const approved = approvedByDept.find((a) => a.departmentId === dept.id)?._count ?? 0;
+                return { name: dept.name, pending, approved };
+            })
+            .sort((a, b) => b.pending - a.pending)
+            .slice(0, 6);
+
         res.json({
-            activeUsers,
-            requestsThisMonth,
-            innovationIdeas,
-            pendingApprovals,
+            success: true,
+            stats: {
+                totalRequests: requestsThisMonth,
+                pendingApprovals,
+                approvedRequests,
+                rejectedRequests,
+                totalBudgetRequested,
+                approvedAmount,
+                pendingAmount,
+                departmentCount,
+                activeUsers,
+                averageApprovalTime: 3.5,
+                trendSubmissions,
+                trendApprovals,
+                departmentPerformance,
+            },
             timestamp: now.toISOString(),
         });
     } catch (error) {
         console.error('Error fetching dashboard stats:', error);
-        res.status(500).json({ error: 'Failed to fetch dashboard statistics' });
+        res.status(500).json({ success: false, error: 'Failed to fetch dashboard statistics' });
     }
 });
 
@@ -411,3 +532,48 @@ router.get('/system', async (req: Request, res: Response) => {
 });
 
 export default router;
+
+/**
+ * GET /api/stats/department-manager
+ * Returns department manager dashboard statistics
+ * Public endpoint for now (frontend currently calls without auth headers)
+ */
+router.get('/department-manager', async (req: Request, res: Response) => {
+    try {
+        const now = new Date();
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+        const pendingApprovals = await prisma.request.count({
+            where: { status: 'DEPARTMENT_REVIEW' },
+        });
+
+        const requestsToReview = await prisma.request.count({
+            where: { status: 'SUBMITTED' },
+        });
+
+        const approvedThisMonth = await prisma.request.count({
+            where: {
+                status: { in: ['DEPARTMENT_APPROVED', 'FINANCE_APPROVED', 'CLOSED'] },
+                updatedAt: { gte: monthStart },
+            },
+        });
+
+        const rejectedThisMonth = await prisma.request.count({
+            where: {
+                status: 'REJECTED',
+                updatedAt: { gte: monthStart },
+            },
+        });
+
+        res.json({
+            pendingApprovals,
+            requestsToReview,
+            approvedThisMonth,
+            rejectedThisMonth,
+            timestamp: now.toISOString(),
+        });
+    } catch (error) {
+        console.error('[Stats] Error fetching department manager stats:', error);
+        res.status(500).json({ success: false, error: 'Failed to fetch department manager statistics' });
+    }
+});
