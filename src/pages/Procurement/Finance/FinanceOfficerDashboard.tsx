@@ -46,28 +46,10 @@ const FinanceOfficerDashboard = () => {
 
     const responsibilities = [
         {
-            icon: '💳',
-            title: 'Process Payments',
-            description: 'Review and approve payment stage requests for approved procurements',
-            link: '/procurement/payments',
-        },
-        {
-            icon: '📋',
+            icon: '�',
             title: 'Review Requests',
             description: 'Approve or reject requests that require financial review',
             link: '/procurement/approvals',
-        },
-        {
-            icon: '📊',
-            title: 'Financial Reports',
-            description: 'Generate and review financial procurement reports',
-            link: '/procurement/reports',
-        },
-        {
-            icon: '🔍',
-            title: 'Audit Logs',
-            description: 'View financial transaction history and audit trails',
-            link: '/procurement/audit',
         },
     ];
 
@@ -85,9 +67,6 @@ const FinanceOfficerDashboard = () => {
                     <h1 className="text-3xl font-bold dark:text-white">Finance Officer Dashboard</h1>
                     <p className="text-gray-600 dark:text-gray-400 mt-1">Manage payments, approvals, and financial reconciliation</p>
                 </div>
-                <Link to="/procurement/payments" className="btn btn-primary flex items-center gap-2">
-                    <IconPlus /> Process Payment
-                </Link>
             </div>
 
             {/* Quick Stats */}
@@ -194,18 +173,6 @@ const FinanceOfficerDashboard = () => {
                         ))}
                     </PerfectScrollbar>
                 </div>
-            </div>
-
-            {/* Help Section */}
-            <div className="bg-gradient-to-r from-green-50 to-green-100 dark:from-green-900/30 dark:to-green-800/30 rounded-lg p-6 border border-green-200 dark:border-green-700">
-                <h3 className="font-semibold text-green-900 dark:text-green-100 mb-2">Your Role</h3>
-                <p className="text-sm text-green-800 dark:text-green-200 mb-3">
-                    As a Finance Officer, you process payments, review financial aspects of procurement requests, and maintain audit compliance. You have approval authority over payment stage
-                    processing.
-                </p>
-                <Link to="/help" className="text-sm font-medium text-green-600 dark:text-green-400 hover:underline">
-                    View Finance Officer Guidelines →
-                </Link>
             </div>
         </div>
     );

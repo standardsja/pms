@@ -216,10 +216,10 @@ export function getDashboardPath(roles: DetectedRoles, currentPathname: string =
         return '/procurement/dashboard/payment-stage';
     }
     if (roles.isBudgetManager) {
-        return '/finance';
+        return '/finance/manager';
     }
     if (roles.isFinanceManager) {
-        return '/finance';
+        return '/finance/manager';
     }
     if (roles.isFinanceOfficer) {
         return '/procurement/dashboard/finance-officer';
@@ -266,7 +266,7 @@ export function getRoleLabel(roles: DetectedRoles): string {
         return 'Finance - Payment Stage';
     }
     if (roles.isFinanceManager) {
-        return 'Finance Manager';
+        return 'Finance Director';
     }
     if (roles.isFinanceOfficer) {
         return 'Finance Officer';

@@ -14,7 +14,7 @@ import IconBarChart from '../../../components/Icon/IconBarChart';
 const FinanceManagerDashboard = () => {
     const dispatch = useDispatch();
     useEffect(() => {
-        dispatch(setPageTitle('Finance Manager Dashboard'));
+        dispatch(setPageTitle('Finance Director Dashboard'));
     }, [dispatch]);
 
     const isDark = useSelector((state: IRootState) => state.themeConfig.theme === 'dark' || state.themeConfig.isDarkMode);
@@ -39,7 +39,7 @@ const FinanceManagerDashboard = () => {
                     setStats(data);
                 }
             } catch (error) {
-                console.error('Failed to fetch finance manager stats:', error);
+                console.error('Failed to fetch finance director stats:', error);
             } finally {
                 setLoading(false);
             }
@@ -99,7 +99,7 @@ const FinanceManagerDashboard = () => {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold dark:text-white">Finance Manager Dashboard</h1>
+                    <h1 className="text-3xl font-bold dark:text-white">Finance Director Dashboard</h1>
                     <p className="text-gray-600 dark:text-gray-400 mt-1">Budget oversight and financial management</p>
                 </div>
             </div>

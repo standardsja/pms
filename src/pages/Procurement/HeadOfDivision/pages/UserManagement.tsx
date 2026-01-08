@@ -90,7 +90,7 @@ const HODUserManagement: React.FC = () => {
                     id: '3',
                     name: 'Carol White',
                     email: 'carol.white@example.com',
-                    role: 'Finance Manager',
+                    role: 'Finance Director',
                     department: 'Finance',
                     status: 'Inactive',
                     createdAt: '2024-02-01',

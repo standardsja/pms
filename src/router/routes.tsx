@@ -243,14 +243,6 @@ const routes = [
         ),
     },
     {
-        path: '/innovation/ideas/all',
-        element: (
-            <InnovationRoute>
-                <ViewIdeas />
-            </InnovationRoute>
-        ),
-    },
-    {
         path: '/innovation/ideas/analytics',
         element: (
             <InnovationRoute>
@@ -655,12 +647,21 @@ const routes = [
             </ProcurementRoute>
         ),
     },
-    // Finance Dashboard guarded for finance roles
+    // Finance Officer Dashboard (separate from Finance Manager)
     {
         path: '/finance',
         element: (
-            <RoleDashboardGuard allowedRoles={['FINANCE_OFFICER', 'FINANCE_MANAGER', 'BUDGET_MANAGER']} fallbackPath="/procurement/dashboard">
-                <FinanceDashboard />
+            <RoleDashboardGuard allowedRoles={['FINANCE_OFFICER']} fallbackPath="/procurement/dashboard">
+                <FinanceOfficerDashboard />
+            </RoleDashboardGuard>
+        ),
+    },
+    // Finance Manager/Director Dashboard
+    {
+        path: '/finance/manager',
+        element: (
+            <RoleDashboardGuard allowedRoles={['FINANCE_MANAGER', 'BUDGET_MANAGER']} fallbackPath="/procurement/dashboard">
+                <FinanceManagerDashboard />
             </RoleDashboardGuard>
         ),
     },
@@ -701,14 +702,6 @@ const routes = [
         element: (
             <RoleDashboardGuard allowedRoles={['DEPARTMENT_HEAD']} fallbackPath="/procurement/dashboard">
                 <DepartmentHeadEvaluationReview />
-            </RoleDashboardGuard>
-        ),
-    },
-    {
-        path: '/finance/manager',
-        element: (
-            <RoleDashboardGuard allowedRoles={['FINANCE_MANAGER', 'BUDGET_MANAGER']} fallbackPath="/procurement/dashboard">
-                <FinanceManagerDashboard />
             </RoleDashboardGuard>
         ),
     },
@@ -963,8 +956,11 @@ const routes = [
     },
 
     // ============================================
-    // PROCUREMENT 404 CATCH-ALL
+    // 404 CATCH-ALLS (MUST BE LAST, BEFORE GLOBAL)
     // ============================================
+    // NOTE: Order matters - specific patterns first, then catch-alls
+    // All specific /procurement, /finance, /innovation, /apps routes are defined above
+    // These catch unmatched paths within those modules
     {
         path: '/procurement/*',
         element: <NotFound />,
@@ -977,10 +973,7 @@ const routes = [
         path: '/apps/*',
         element: <NotFound />,
     },
-
-    // ============================================
-    // ERROR HANDLING - MUST BE LAST
-    // ============================================
+    // Global catch-all MUST be last
     {
         path: '*',
         element: <Error />,
