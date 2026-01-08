@@ -40,6 +40,7 @@ async function main() {
         ensureRole('REQUESTER', 'Department staff who can submit requests'),
         ensureRole('DEPT_MANAGER', 'Department manager - first approval'),
         ensureRole('HEAD_OF_DIVISION', 'Head of Division - second approval'),
+        ensureRole('EXECUTIVE_DIRECTOR', 'Executive Director - final executive approval'),
         ensureRole('PROCUREMENT_OFFICER', 'Procurement officer - basic procurement access'),
         ensureRole('PROCUREMENT_MANAGER', 'Procurement manager - advanced procurement access and management'),
         ensureRole('PROCUREMENT', 'Procurement officer - third review and final processing'),
@@ -246,6 +247,13 @@ async function main() {
         create: { email: 'budget@bsj.gov.jm', name: 'Budget Manager', passwordHash: hash },
     });
 
+    // Executive Director account
+    const executiveDirector = await prisma.user.upsert({
+        where: { email: 'ed@bsj.gov.jm' },
+        update: { passwordHash: hash },
+        create: { email: 'ed@bsj.gov.jm', name: 'Executive Director', passwordHash: hash },
+    });
+
     // Helper: assign role to user if not already
     async function assign(userId: number, roleName: string) {
         const role = roles.find((r) => r.name === roleName);
@@ -266,6 +274,9 @@ async function main() {
 
     // Budget Manager
     await assignRole(budgetManager.id, 'BUDGET_MANAGER', roles);
+
+    // Executive Director
+    await assignRole(executiveDirector.id, 'EXECUTIVE_DIRECTOR', roles);
 
     // Ensure Innovation Committee account exists and has the committee role
     const committeeUser = await prisma.user.upsert({
@@ -345,6 +356,7 @@ async function main() {
         REQUESTER: ['CREATE_REQUEST', 'CREATE_IDEA'],
         DEPT_MANAGER: ['APPROVE_REQUEST', 'VIEW_REPORTS'],
         HEAD_OF_DIVISION: ['APPROVE_REQUEST', 'VIEW_REPORTS'],
+        EXECUTIVE_DIRECTOR: ['APPROVE_REQUEST', 'REJECT_REQUEST', 'VIEW_REPORTS'],
         PROCUREMENT_OFFICER: ['APPROVE_REQUEST', 'VIEW_REPORTS'],
         PROCUREMENT_MANAGER: ['APPROVE_REQUEST', 'REJECT_REQUEST', 'VIEW_REPORTS'],
         PROCUREMENT: ['APPROVE_REQUEST', 'VIEW_REPORTS'],
@@ -393,6 +405,8 @@ async function main() {
     console.log('  fin1@bsj.gov.jm        (Password: Passw0rd!) [FINANCE]');
     console.log('  fin2@bsj.gov.jm        (Password: Passw0rd!) [FINANCE]');
     console.log('  fin3@bsj.gov.jm        (Password: Passw0rd!) [FINANCE]');
+    console.log('\nExecutive Leadership:');
+    console.log('  ed@bsj.gov.jm          (Password: Passw0rd!) [EXECUTIVE_DIRECTOR]');
     console.log('[seed] Complete');
 }
 
