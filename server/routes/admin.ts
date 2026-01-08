@@ -67,6 +67,7 @@ router.get('/users', adminOnly, async (req: Request, res: Response) => {
                 lastLogin: true,
                 failedLogins: true,
                 lastFailedLogin: true,
+                externalId: true, // LDAP identifier
             },
             orderBy: { createdAt: 'desc' },
         });

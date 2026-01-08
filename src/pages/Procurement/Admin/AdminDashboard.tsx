@@ -325,6 +325,77 @@ const AdminDashboard = () => {
                 </div>
             </div>
 
+            {/* Online Users Section */}
+            <div className="panel p-5">
+                <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-xl font-bold text-gray-900 dark:text-white">Online Users (LDAP)</h2>
+                    <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                        <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                            {
+                                users.filter((u) => {
+                                    const isLdap = !!u.externalId; // Only LDAP users
+                                    if (!isLdap) return false;
+                                    const lastActive = u.lastLogin ? new Date(u.lastLogin).getTime() : 0;
+                                    const now = Date.now();
+                                    return now - lastActive < 5 * 60 * 1000; // Online if active within last 5 minutes
+                                }).length
+                            }{' '}
+                            online
+                        </span>
+                    </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {users
+                        .filter((u) => {
+                            const isLdap = !!u.externalId; // Only LDAP users
+                            if (!isLdap) return false;
+                            const lastActive = u.lastLogin ? new Date(u.lastLogin).getTime() : 0;
+                            const now = Date.now();
+                            return now - lastActive < 5 * 60 * 1000;
+                        })
+                        .map((user) => {
+                            const userRoles = (user.roles || []).map((r) => r.role?.name).filter(Boolean);
+                            return (
+                                <div key={user.id} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                                    <div className="relative">
+                                        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
+                                            {user.name?.charAt(0).toUpperCase() || user.email.charAt(0).toUpperCase()}
+                                        </div>
+                                        <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-white dark:border-gray-800"></div>
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{user.name || user.email}</p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{user.email}</p>
+                                        {userRoles.length > 0 && (
+                                            <div className="flex gap-1 mt-1">
+                                                {userRoles.slice(0, 2).map((role) => (
+                                                    <span key={role} className="text-xs px-1.5 py-0.5 rounded bg-primary/10 text-primary">
+                                                        {role}
+                                                    </span>
+                                                ))}
+                                                {userRoles.length > 2 && <span className="text-xs text-gray-400">+{userRoles.length - 2}</span>}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    {users.filter((u) => {
+                        const isLdap = !!u.externalId;
+                        if (!isLdap) return false;
+                        const lastActive = u.lastLogin ? new Date(u.lastLogin).getTime() : 0;
+                        const now = Date.now();
+                        return now - lastActive < 5 * 60 * 1000;
+                    }).length === 0 && (
+                        <div className="col-span-full text-center py-8 text-gray-500 dark:text-gray-400">
+                            <p className="text-sm">No LDAP users currently online</p>
+                            <p className="text-xs mt-1">Only LDAP-authenticated users are shown. Active within last 5 minutes.</p>
+                        </div>
+                    )}
+                </div>
+            </div>
+
             {/* Filters & Search */}
             <div className="panel p-5">
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
