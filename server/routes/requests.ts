@@ -85,6 +85,68 @@ router.get(
     })
 );
 
+// Recent activity feed for the current requester
+router.get(
+    '/activities',
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+        const authenticatedReq = req as AuthenticatedRequest;
+        const userId = authenticatedReq.user.sub;
+
+        // Fetch latest status changes for requests created by this user
+        const history = await prisma.requestStatusHistory.findMany({
+            where: {
+                request: {
+                    requesterId: userId,
+                },
+            },
+            include: {
+                request: {
+                    select: {
+                        reference: true,
+                        title: true,
+                    },
+                },
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 10,
+        });
+
+        const activities = history.map((h) => {
+            let action = 'Status Updated';
+            let statusLabel: 'pending' | 'approved' | 'rejected' | 'active' = 'pending';
+            switch (h.status) {
+                case RequestStatus.SUBMITTED:
+                    action = 'Request Submitted';
+                    statusLabel = 'pending';
+                    break;
+                case RequestStatus.DEPARTMENT_APPROVED:
+                case RequestStatus.FINANCE_APPROVED:
+                case RequestStatus.CLOSED:
+                    action = 'Request Approved';
+                    statusLabel = 'approved';
+                    break;
+                case RequestStatus.REJECTED:
+                    action = 'Request Rejected';
+                    statusLabel = 'rejected';
+                    break;
+                default:
+                    action = `Moved to ${h.status.replaceAll('_', ' ')}`;
+                    statusLabel = 'pending';
+            }
+            return {
+                id: h.id,
+                action,
+                description: `${h.request.title} - ${h.request.reference}`,
+                status: statusLabel,
+                createdAt: h.createdAt.toISOString(),
+            };
+        });
+
+        res.json({ activities });
+    })
+);
+
 // Get request by ID
 router.get(
     '/:id',
