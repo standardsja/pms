@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { setPageTitle } from '../../../store/themeConfigSlice';
+import { getApiUrl, getToken } from '../../../utils/auth';
+import Swal from 'sweetalert2';
 import IconBarChart from '../../../components/Icon/IconBarChart';
 import IconEye from '../../../components/Icon/IconEye';
 import IconChecks from '../../../components/Icon/IconChecks';
@@ -26,61 +28,60 @@ const ExecutiveDirectorReports = () => {
     const [selectedReport, setSelectedReport] = useState<any>(null);
     const [executiveComments, setExecutiveComments] = useState('');
     const [reportViewModal, setReportViewModal] = useState(false);
+    const [executiveReports, setExecutiveReports] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
 
-    // Executive-level strategic reports requiring Executive Director review
-    const executiveReports = [
-        {
-            id: 1,
-            reportNumber: 'EXEC-RPT-2024-001',
-            reportType: 'Strategic Procurement Analysis',
-            title: 'Q3 2024 Enterprise Procurement Performance Report',
-            description: 'Comprehensive analysis of procurement performance, cost optimization, and strategic supplier relationships',
-            department: 'Corporate Strategy',
-            preparedBy: 'Chief Procurement Officer',
-            submittedDate: '2024-10-28',
-            reviewDeadline: '2024-11-05',
-            totalProcurementValue: 2500000,
-            costSavingsAchieved: 325000,
-            numberOfContracts: 45,
-            strategicSuppliers: 12,
-            status: 'Pending Executive Review',
-            priority: 'Critical',
-            confidentialityLevel: 'Executive Only',
-            keyMetrics: {
-                savingsPercentage: 13.0,
-                contractComplianceRate: 96.5,
-                supplierPerformanceScore: 88.2,
-                processEfficiencyGain: 15.8
-            },
-            strategicInsights: [
-                'Cost reduction targets exceeded by 18% through strategic supplier negotiations',
-                'Digital transformation initiatives reduced processing time by 35%',
-                'Supplier diversification improved supply chain resilience by 22%',
-                'ESG compliance metrics show 40% improvement in sustainable sourcing'
-            ],
-            executiveSummary: 'Q3 demonstrates exceptional procurement performance with significant cost savings and operational improvements. Strategic supplier partnerships are delivering measurable value while maintaining quality standards.',
-            recommendations: [
-                'Expand digital procurement platform to additional departments',
-                'Establish preferred supplier framework for critical categories',
-                'Implement advanced analytics for predictive procurement planning',
-                'Develop supplier innovation partnership program'
-            ],
-            riskAssessment: 'Low overall risk with strong supplier relationships and diversified supply base. Monitor geopolitical impacts on key supplier regions.',
-            attachments: ['Executive_Summary.pdf', 'Financial_Analysis.xlsx', 'Supplier_Scorecard.pdf', 'Strategic_Roadmap.pptx']
-        },
-        {
-            id: 2,
-            reportNumber: 'EXEC-RPT-2024-002',
-            reportType: 'Compliance & Risk Assessment',
-            title: 'Enterprise Risk Management - Procurement Focus',
-            description: 'Comprehensive risk assessment of procurement operations and compliance status across all business units',
-            department: 'Risk Management',
-            preparedBy: 'Chief Risk Officer',
-            submittedDate: '2024-10-29',
-            reviewDeadline: '2024-11-08',
-            totalProcurementValue: 1800000,
-            costSavingsAchieved: 180000,
-            numberOfContracts: 32,
+    useEffect(() => {
+        fetchReports();
+    }, []);
+
+    const fetchReports = async () => {
+        try {
+            const apiUrl = getApiUrl();
+            const token = getToken();
+            
+            const response = await fetch(`${apiUrl}/requests`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            if (!response.ok) throw new Error('Failed to fetch reports');
+
+            const data = await response.json();
+            
+            // For reports, we'll fetch all requests to generate analytics
+            setExecutiveReports(data);
+        } catch (error) {
+            console.error('Error fetching reports:', error);
+            Swal.fire('Error', 'Failed to load reports', 'error');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Filter reports based on status
+    const filteredReports = executiveReports.filter((report: any) => {
+        if (filter === 'all') return true;
+        if (filter === 'pending') return report.status === 'EXECUTIVE_REVIEW';
+        if (filter === 'approved') return report.status === 'FINANCE_APPROVED';
+        if (filter === 'rejected') return report.status === 'REJECTED';
+        return true;
+    });
+
+
+    // Statistics - calculated from actual database data
+    const stats = {
+        total: executiveReports.length,
+        pending: executiveReports.filter((r: any) => r.status === 'EXECUTIVE_REVIEW').length,
+        approved: executiveReports.filter((r: any) => r.status === 'FINANCE_APPROVED').length,
+        rejected: executiveReports.filter((r: any) => r.status === 'REJECTED').length,
+        totalValue: executiveReports.reduce((sum: number, r: any) => sum + (r.estimatedValue || 0), 0),
+        totalSavings: 0, // This would need to come from a different endpoint or calculation
+    };
+
+    const handleReviewReport = (report: any) => {
+        setSelectedReport(report);
             strategicSuppliers: 8,
             status: 'Pending Executive Review',
             priority: 'High',
@@ -177,35 +178,25 @@ const ExecutiveDirectorReports = () => {
                 'Predictive analytics enabling proactive supplier risk management',
                 'Digital supplier onboarding accelerated by 75% through automation'
             ],
-            executiveSummary: 'Digital transformation initiatives are delivering significant ROI and operational improvements. Technology investments are positioning the organization for future competitive advantage.',
-            recommendations: [
-                'Accelerate AI implementation across all procurement categories',
-                'Establish center of excellence for procurement technology',
-                'Develop API integrations with strategic supplier systems',
-                'Implement advanced analytics for spend optimization'
-            ],
-            riskAssessment: 'Medium risk due to technology complexity and change management requirements. Strong governance and training programs mitigate implementation risks.',
-            attachments: ['Technology_ROI.pdf', 'Implementation_Timeline.xlsx', 'User_Adoption.pdf', 'Future_Roadmap.pptx']
-        },
-    ];
 
     // Filter reports based on status
-    const filteredReports = executiveReports.filter(report => {
+    const filteredReports = executiveReports.filter((report: any) => {
         if (filter === 'all') return true;
-        if (filter === 'pending') return report.status === 'Pending Executive Review';
-        if (filter === 'approved') return report.status === 'Approved by Executive';
-        if (filter === 'rejected') return report.status === 'Rejected by Executive';
+        if (filter === 'pending') return report.status === 'EXECUTIVE_REVIEW';
+        if (filter === 'approved') return report.status === 'FINANCE_APPROVED';
+        if (filter === 'rejected') return report.status === 'REJECTED';
         return true;
     });
 
-    // Statistics
+
+    // Statistics - calculated from actual database data
     const stats = {
         total: executiveReports.length,
-        pending: executiveReports.filter(r => r.status === 'Pending Executive Review').length,
-        approved: executiveReports.filter(r => r.status === 'Approved by Executive').length,
-        rejected: executiveReports.filter(r => r.status === 'Rejected by Executive').length,
-        totalValue: executiveReports.reduce((sum, r) => sum + r.totalProcurementValue, 0),
-        totalSavings: executiveReports.reduce((sum, r) => sum + r.costSavingsAchieved, 0),
+        pending: executiveReports.filter((r: any) => r.status === 'EXECUTIVE_REVIEW').length,
+        approved: executiveReports.filter((r: any) => r.status === 'FINANCE_APPROVED').length,
+        rejected: executiveReports.filter((r: any) => r.status === 'REJECTED').length,
+        totalValue: executiveReports.reduce((sum: number, r: any) => sum + (r.estimatedValue || 0), 0),
+        totalSavings: 0, // This would need to come from a different endpoint or calculation
     };
 
     const handleReviewReport = (report: any) => {
@@ -219,39 +210,58 @@ const ExecutiveDirectorReports = () => {
         setReportViewModal(true);
     };
 
-    const submitExecutiveReview = (decision: 'approve' | 'reject' | 'request_revision') => {
+    const submitExecutiveReview = async (decision: 'approve' | 'reject' | 'request_revision') => {
         if (!executiveComments.trim()) {
-            alert('Please provide executive comments');
+            Swal.fire('Error', 'Please provide executive comments', 'error');
             return;
         }
 
-        // Process the executive review decision
-        let message = '';
-        switch (decision) {
-            case 'approve':
+        try {
+            const apiUrl = getApiUrl();
+            const token = getToken();
+            
+            const response = await fetch(`${apiUrl}/requests/${selectedReport?.id}/action`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    action: decision === 'approve' ? 'APPROVE' : 'REJECT',
+                    comments: executiveComments
+                })
+            });
+
+            if (!response.ok) throw new Error('Failed to process review');
+
+            await Swal.fire('Success', `Report ${decision}d successfully`, 'success');
+            setReviewModal(false);
+            setSelectedReport(null);
+            setExecutiveComments('');
+            
+            // Refresh reports list
+            fetchReports();
+        } catch (error) {
+            console.error('Error processing review:', error);
+            Swal.fire('Error', 'Failed to process review', 'error');
+        }
                 message = 'Strategic report approved by Executive Director for implementation';
                 break;
             case 'reject':
-                message = 'Strategic report rejected - returned for strategic revision';
-                break;
-            case 'request_revision':
-                message = 'Strategic revision requested - report returned with executive guidance';
-                break;
+            console.error('Error processing review:', error);
+            Swal.fire('Error', 'Failed to process review', 'error');
         }
-        
-        // Show success message (in production, this would be a toast notification)
-        alert(message);
-        setReviewModal(false);
-        setSelectedReport(null);
-        setExecutiveComments('');
     };
 
     const getStatusBadge = (status: string) => {
         switch (status) {
+            case 'EXECUTIVE_REVIEW':
             case 'Pending Executive Review':
                 return 'badge-outline-warning';
+            case 'FINANCE_APPROVED':
             case 'Approved by Executive':
                 return 'badge-outline-success';
+            case 'REJECTED':
             case 'Rejected by Executive':
                 return 'badge-outline-danger';
             default:

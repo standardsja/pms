@@ -5,7 +5,6 @@ import { IRootState } from '@/store';
 import { setPageTitle } from '@/store/themeConfigSlice';
 import ReactApexChart from 'react-apexcharts';
 import PerfectScrollbar from 'react-perfect-scrollbar';
-import { getApiUrl } from '@/config/api';
 import IconDollarSignCircle from '@/components/Icon/IconDollarSignCircle';
 import IconFile from '@/components/Icon/IconFile';
 import IconChecks from '@/components/Icon/IconChecks';
@@ -20,12 +19,97 @@ import IconDownload from '@/components/Icon/IconDownload';
 import IconPencil from '@/components/Icon/IconPencil';
 import IconLock from '@/components/Icon/IconLock';
 import IconCircleCheck from '@/components/Icon/IconCircleCheck';
+import { getApiUrl } from '@/config/api';
+import { getToken } from '@/utils/auth';
 
 const ExecutiveDirectorDashboard = () => {
     const dispatch = useDispatch();
     useEffect(() => {
         dispatch(setPageTitle('Executive Director Dashboard'));
     });
+
+    // Fetch real data from API
+    useEffect(() => {
+        const fetchDashboardData = async () => {
+            try {
+                setLoading(true);
+                const token = getToken();
+                const apiUrl = getApiUrl();
+
+                // Fetch pending executive approvals
+                const approvalsResponse = await fetch(`${apiUrl}/approvals`, {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                });
+
+                if (approvalsResponse.ok) {
+                    const approvalsData = await approvalsResponse.json();
+                    // Filter for EXECUTIVE_REVIEW status
+                    const executiveApprovals = approvalsData.filter((item: any) => item.status === 'EXECUTIVE_REVIEW');
+                    setPendingApprovals(executiveApprovals);
+                }
+
+                // Fetch all requests for statistics
+                const requestsResponse = await fetch(`${apiUrl}/requests`, {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                });
+
+                if (requestsResponse.ok) {
+                    const allRequests = await requestsResponse.json();
+
+                    // Calculate statistics
+                    const pending = allRequests.filter((r: any) => r.status === 'EXECUTIVE_REVIEW').length;
+                    const approved = allRequests.filter((r: any) => r.statusHistory?.some((h: any) => h.status === 'FINANCE_APPROVED' && h.comment?.includes('Executive'))).length;
+
+                    const totalBudget = allRequests.filter((r: any) => r.status === 'EXECUTIVE_REVIEW').reduce((sum: number, r: any) => sum + (Number(r.totalEstimated) || 0), 0);
+
+                    // Get recent approvals (requests that moved from EXECUTIVE_REVIEW to FINANCE_APPROVED)
+                    const recent = allRequests
+                        .filter((r: any) => r.statusHistory?.some((h: any) => h.status === 'FINANCE_APPROVED'))
+                        .sort((a: any, b: any) => {
+                            const aDate = a.statusHistory?.find((h: any) => h.status === 'FINANCE_APPROVED')?.createdAt;
+                            const bDate = b.statusHistory?.find((h: any) => h.status === 'FINANCE_APPROVED')?.createdAt;
+                            return new Date(bDate).getTime() - new Date(aDate).getTime();
+                        })
+                        .slice(0, 5)
+                        .map((r: any) => {
+                            const approvalHistory = r.statusHistory?.find((h: any) => h.status === 'FINANCE_APPROVED');
+                            return {
+                                id: r.id,
+                                action: 'Approved',
+                                description: r.title,
+                                amount: Number(r.totalEstimated) || 0,
+                                signedDate: approvalHistory?.createdAt?.split('T')[0] || '',
+                                vendor: r.vendor || 'N/A',
+                                processing: 'Digital Signature',
+                            };
+                        });
+
+                    setRecentSignOffs(recent);
+
+                    setStats({
+                        pendingSignOffs: pending,
+                        completedApprovals: approved,
+                        totalBudgetValue: totalBudget,
+                        thisQuarterApprovals: approved,
+                        avgProcessingTime: 1.2, // TODO: Calculate from actual data
+                        complianceRate: 98.5, // TODO: Calculate from actual data
+                    });
+                }
+            } catch (error) {
+                console.error('Error fetching executive dashboard data:', error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchDashboardData();
+    }, []);
 
     const isDark = useSelector((state: IRootState) => state.themeConfig.theme === 'dark' || state.themeConfig.isDarkMode);
     const isRtl = useSelector((state: IRootState) => state.themeConfig.rtlClass) === 'rtl' ? true : false;
@@ -35,8 +119,11 @@ const ExecutiveDirectorDashboard = () => {
     const [digitalSignature, setDigitalSignature] = useState('');
     const [documentModal, setDocumentModal] = useState(false);
     const [selectedDocument, setSelectedDocument] = useState<any>(null);
-
+    const [pendingApprovals, setPendingApprovals] = useState<any[]>([]);
+    const [recentSignOffs, setRecentSignOffs] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+
+    // Executive-level statistics
     const [stats, setStats] = useState({
         pendingSignOffs: 0,
         completedApprovals: 0,
@@ -45,58 +132,9 @@ const ExecutiveDirectorDashboard = () => {
         avgProcessingTime: 0,
         complianceRate: 0,
     });
-    const [pendingApprovals, setPendingApprovals] = useState<any[]>([]);
-    const [recentSignOffs, setRecentSignOffs] = useState<any[]>([]);
-    const [approvalTrendsData, setApprovalTrendsData] = useState<any>(null);
 
-    // Load executive dashboard data from backend
-    useEffect(() => {
-        const loadData = async () => {
-            try {
-                setLoading(true);
-                const [statsRes, approvalsRes, signOffsRes, trendsRes] = await Promise.all([
-                    fetch(getApiUrl('/api/stats/executive-director')),
-                    fetch(getApiUrl('/api/approvals/pending-executive')),
-                    fetch(getApiUrl('/api/approvals/recent-signoffs')),
-                    fetch(getApiUrl('/api/approvals/trends')),
-                ]);
-
-                if (statsRes.ok) {
-                    const data = await statsRes.json();
-                    setStats(
-                        data || {
-                            pendingSignOffs: 0,
-                            completedApprovals: 0,
-                            totalBudgetValue: 0,
-                            thisQuarterApprovals: 0,
-                            avgProcessingTime: 0,
-                            complianceRate: 0,
-                        }
-                    );
-                }
-                if (approvalsRes.ok) {
-                    const data = await approvalsRes.json();
-                    setPendingApprovals(Array.isArray(data) ? data : []);
-                }
-                if (signOffsRes.ok) {
-                    const data = await signOffsRes.json();
-                    setRecentSignOffs(Array.isArray(data) ? data : []);
-                }
-                if (trendsRes.ok) {
-                    const data = await trendsRes.json();
-                    setApprovalTrendsData(data);
-                }
-            } catch (error) {
-                console.error('Failed to load executive dashboard data:', error);
-            } finally {
-                setLoading(false);
-            }
-        };
-        loadData();
-    }, []);
-
-    // Construct chart data from backend
-    const approvalTrendsChart = approvalTrendsData || {
+    // Executive approval trends chart
+    const approvalTrendsChart = {
         series: [
             {
                 name: 'Approved Amount ($000s)',
@@ -315,17 +353,6 @@ const ExecutiveDirectorDashboard = () => {
                 return 'badge-outline-secondary';
         }
     };
-
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center min-h-[400px]">
-                <div className="text-center">
-                    <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
-                    <p className="text-gray-500">Loading executive dashboard...</p>
-                </div>
-            </div>
-        );
-    }
 
     return (
         <div>

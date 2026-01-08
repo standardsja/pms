@@ -34,6 +34,7 @@ export interface DetectedRoles {
 
     // Committee roles
     isInnovationCommittee: boolean;
+    isEvaluationCommittee: boolean; // Evaluation Committee role
 
     // Support roles
     isAuditor: boolean;
@@ -116,6 +117,7 @@ export function detectUserRoles(userRoles: Array<string | { name: string } | nul
 
     // 6. COMMITTEE ROLES
     const isInnovationCommittee = hasRole('INNOVATION_COMMITTEE');
+    const isEvaluationCommittee = hasRole('EVALUATION_COMMITTEE');
 
     // 7. SUPPORT ROLES
     const isAuditor = hasRole('AUDITOR');
@@ -130,6 +132,8 @@ export function detectUserRoles(userRoles: Array<string | { name: string } | nul
         primaryRole = 'ADMIN';
     } else if (isInnovationCommittee) {
         primaryRole = 'INNOVATION_COMMITTEE';
+    } else if (isEvaluationCommittee) {
+        primaryRole = 'EVALUATION_COMMITTEE';
     } else if (isExecutiveDirector) {
         primaryRole = 'EXECUTIVE_DIRECTOR';
     } else if (isSeniorDirector) {
@@ -170,6 +174,7 @@ export function detectUserRoles(userRoles: Array<string | { name: string } | nul
         isDepartmentHead,
         isDepartmentManager: effectiveDepartmentManager,
         isInnovationCommittee,
+        isEvaluationCommittee,
         isAuditor,
         isSupplier,
         isRequester,
