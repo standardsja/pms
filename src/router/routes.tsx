@@ -378,7 +378,7 @@ const routes = [
     {
         path: '/procurement/dashboard',
         element: (
-            <RoleDashboardGuard allowedRoles={['PROCUREMENT_OFFICER', 'PROCUREMENT']}>
+            <RoleDashboardGuard allowedRoles={['PROCUREMENT_OFFICER', 'PROCUREMENT']} fallbackPath="/auth/login">
                 <ProcurementDashboard />
             </RoleDashboardGuard>
         ),
@@ -386,7 +386,7 @@ const routes = [
     {
         path: '/procurement/hod',
         element: (
-            <RoleDashboardGuard allowedRoles={['HEAD_OF_DIVISION']}>
+            <RoleDashboardGuard allowedRoles={['HEAD_OF_DIVISION']} fallbackPath="/procurement/dashboard">
                 <HeadOfDivisionDashboard />
             </RoleDashboardGuard>
         ),
@@ -394,7 +394,7 @@ const routes = [
     {
         path: '/procurement/hod/departments',
         element: (
-            <RoleDashboardGuard allowedRoles={['HEAD_OF_DIVISION']}>
+            <RoleDashboardGuard allowedRoles={['HEAD_OF_DIVISION']} fallbackPath="/procurement/hod">
                 <HODDepartments />
             </RoleDashboardGuard>
         ),
@@ -402,7 +402,7 @@ const routes = [
     {
         path: '/procurement/hod/users',
         element: (
-            <RoleDashboardGuard allowedRoles={['HEAD_OF_DIVISION']}>
+            <RoleDashboardGuard allowedRoles={['HEAD_OF_DIVISION']} fallbackPath="/procurement/hod">
                 <HODUserManagement />
             </RoleDashboardGuard>
         ),
@@ -410,7 +410,7 @@ const routes = [
     {
         path: '/procurement/hod/reports',
         element: (
-            <RoleDashboardGuard allowedRoles={['HEAD_OF_DIVISION']}>
+            <RoleDashboardGuard allowedRoles={['HEAD_OF_DIVISION']} fallbackPath="/procurement/hod">
                 <HODReports />
             </RoleDashboardGuard>
         ),
@@ -418,7 +418,7 @@ const routes = [
     {
         path: '/procurement/hod/pending-approvals',
         element: (
-            <RoleDashboardGuard allowedRoles={['HEAD_OF_DIVISION']}>
+            <RoleDashboardGuard allowedRoles={['HEAD_OF_DIVISION']} fallbackPath="/procurement/hod">
                 <HODPendingApprovals />
             </RoleDashboardGuard>
         ),
@@ -426,7 +426,7 @@ const routes = [
     {
         path: '/procurement/manager',
         element: (
-            <RoleDashboardGuard allowedRoles={['PROCUREMENT_MANAGER']}>
+            <RoleDashboardGuard allowedRoles={['PROCUREMENT_MANAGER']} fallbackPath="/procurement/dashboard">
                 <ProcurementManagerDashboard />
             </RoleDashboardGuard>
         ),
@@ -434,7 +434,7 @@ const routes = [
     {
         path: '/procurement/manager/requests',
         element: (
-            <RoleDashboardGuard allowedRoles={['PROCUREMENT_MANAGER']}>
+            <RoleDashboardGuard allowedRoles={['PROCUREMENT_MANAGER']} fallbackPath="/procurement/manager">
                 <ProcurementManagerRequests />
             </RoleDashboardGuard>
         ),
@@ -442,7 +442,7 @@ const routes = [
     {
         path: '/procurement/manager/assign',
         element: (
-            <RoleDashboardGuard allowedRoles={['PROCUREMENT_MANAGER']}>
+            <RoleDashboardGuard allowedRoles={['PROCUREMENT_MANAGER']} fallbackPath="/procurement/manager">
                 <ProcurementManagerAssignRequests />
             </RoleDashboardGuard>
         ),
@@ -450,7 +450,7 @@ const routes = [
     {
         path: '/procurement/manager/settings',
         element: (
-            <RoleDashboardGuard allowedRoles={['PROCUREMENT_MANAGER']}>
+            <RoleDashboardGuard allowedRoles={['PROCUREMENT_MANAGER']} fallbackPath="/procurement/manager">
                 <ProcurementManagerLoadBalancingSettings />
             </RoleDashboardGuard>
         ),
@@ -458,7 +458,7 @@ const routes = [
     {
         path: '/procurement/manager/rfqs-awaiting',
         element: (
-            <RoleDashboardGuard allowedRoles={['PROCUREMENT_MANAGER']}>
+            <RoleDashboardGuard allowedRoles={['PROCUREMENT_MANAGER']} fallbackPath="/procurement/manager">
                 <RFQsAwaitingApproval />
             </RoleDashboardGuard>
         ),
@@ -466,7 +466,7 @@ const routes = [
     {
         path: '/procurement/manager/evaluations-to-validate',
         element: (
-            <RoleDashboardGuard allowedRoles={['PROCUREMENT_MANAGER']}>
+            <RoleDashboardGuard allowedRoles={['PROCUREMENT_MANAGER']} fallbackPath="/procurement/manager">
                 <EvaluationsToValidate />
             </RoleDashboardGuard>
         ),
@@ -562,7 +562,7 @@ const routes = [
     {
         path: '/supplier',
         element: (
-            <RoleDashboardGuard allowedRoles={['SUPPLIER']}>
+            <RoleDashboardGuard allowedRoles={['SUPPLIER']} fallbackPath="/procurement/dashboard">
                 <SupplierDashboard />
             </RoleDashboardGuard>
         ),
