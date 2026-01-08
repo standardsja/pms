@@ -1375,9 +1375,21 @@ function UserRow({
         }
     }
 
+    // Detect conflicting roles
+    const hasConflict = useMemo(() => {
+        const hasRequester = localRoles.includes('REQUESTER');
+        const hasDeptManager = localRoles.includes('DEPT_MANAGER') || localRoles.includes('DEPARTMENT_MANAGER');
+        return hasRequester && hasDeptManager;
+    }, [localRoles]);
+
     return (
         <tr>
-            <td className="font-mono">{user.email}</td>
+            <td className="font-mono">
+                <div>
+                    <p>{user.email}</p>
+                    {hasConflict && <p className="text-xs text-amber-600 dark:text-amber-400 font-semibold mt-1">⚠️ Role conflict detected</p>}
+                </div>
+            </td>
             <td>{user.name}</td>
             <td>
                 <select className="form-select text-xs" value={localDeptId} onChange={(e) => setLocalDeptId(e.target.value)} disabled={savingDept}>
@@ -1395,13 +1407,21 @@ function UserRow({
                 )}
             </td>
             <td>
-                <div className="flex flex-wrap gap-2">
-                    {availableRoles.map((role) => (
-                        <label key={role.name} className="inline-flex items-center gap-1 whitespace-nowrap" title={role.description || ''}>
-                            <input type="checkbox" className="form-checkbox" checked={localRoles.includes(role.name)} onChange={() => toggleRole(role.name)} />
-                            <span className="text-xs">{role.name}</span>
-                        </label>
-                    ))}
+                <div className="space-y-2">
+                    {hasConflict && (
+                        <div className="p-2 rounded bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700/50 text-amber-800 dark:text-amber-200 text-xs">
+                            <p className="font-semibold">⚠️ Conflict Detected</p>
+                            <p>REQUESTER + DEPARTMENT_MANAGER: Only Dept Manager interface will show</p>
+                        </div>
+                    )}
+                    <div className="flex flex-wrap gap-2">
+                        {availableRoles.map((role) => (
+                            <label key={role.name} className="inline-flex items-center gap-1 whitespace-nowrap" title={role.description || ''}>
+                                <input type="checkbox" className="form-checkbox" checked={localRoles.includes(role.name)} onChange={() => toggleRole(role.name)} />
+                                <span className="text-xs">{role.name}</span>
+                            </label>
+                        ))}
+                    </div>
                 </div>
             </td>
             <td>
