@@ -6,8 +6,8 @@ import path from 'path';
 import bcrypt from 'bcryptjs';
 import { PrismaClient } from '@prisma/client';
 
-// Load server prisma .env for DATABASE_URL
-dotenvConfig({ path: path.resolve(process.cwd(), 'server', 'prisma', '.env') });
+// Load .env from project root for DATABASE_URL
+dotenvConfig({ path: path.resolve(process.cwd(), '.env') });
 
 const prisma = new PrismaClient();
 
@@ -40,6 +40,7 @@ async function main() {
         ensureRole('REQUESTER', 'Department staff who can submit requests'),
         ensureRole('DEPT_MANAGER', 'Department manager - first approval'),
         ensureRole('HEAD_OF_DIVISION', 'Head of Division - second approval'),
+        ensureRole('EXECUTIVE_DIRECTOR', 'Executive Director - final approval authority'),
         ensureRole('PROCUREMENT_OFFICER', 'Procurement officer - basic procurement access'),
         ensureRole('PROCUREMENT_MANAGER', 'Procurement manager - advanced procurement access and management'),
         ensureRole('PROCUREMENT', 'Procurement officer - third review and final processing'),
@@ -266,6 +267,15 @@ async function main() {
 
     // Budget Manager
     await assignRole(budgetManager.id, 'BUDGET_MANAGER', roles);
+
+    // Create Executive Director user
+    const executiveDirector = await prisma.user.upsert({
+        where: { email: 'executive@bsj.gov.jm' },
+        update: { passwordHash: hash },
+        create: { email: 'executive@bsj.gov.jm', name: 'Executive Director', passwordHash: hash },
+    });
+    await assignRole(executiveDirector.id, 'EXECUTIVE_DIRECTOR', roles);
+    console.log('[seed] Created executive director user: executive@bsj.gov.jm (Password: Passw0rd!)');
 
     // Ensure Innovation Committee account exists and has the committee role
     const committeeUser = await prisma.user.upsert({

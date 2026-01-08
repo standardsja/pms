@@ -19,12 +19,97 @@ import IconDownload from '@/components/Icon/IconDownload';
 import IconPencil from '@/components/Icon/IconPencil';
 import IconLock from '@/components/Icon/IconLock';
 import IconCircleCheck from '@/components/Icon/IconCircleCheck';
+import { getApiUrl } from '@/config/api';
+import { getToken } from '@/utils/auth';
 
 const ExecutiveDirectorDashboard = () => {
     const dispatch = useDispatch();
     useEffect(() => {
         dispatch(setPageTitle('Executive Director Dashboard'));
     });
+
+    // Fetch real data from API
+    useEffect(() => {
+        const fetchDashboardData = async () => {
+            try {
+                setLoading(true);
+                const token = getToken();
+                const apiUrl = getApiUrl();
+
+                // Fetch pending executive approvals
+                const approvalsResponse = await fetch(`${apiUrl}/approvals`, {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                });
+
+                if (approvalsResponse.ok) {
+                    const approvalsData = await approvalsResponse.json();
+                    // Filter for EXECUTIVE_REVIEW status
+                    const executiveApprovals = approvalsData.filter((item: any) => item.status === 'EXECUTIVE_REVIEW');
+                    setPendingApprovals(executiveApprovals);
+                }
+
+                // Fetch all requests for statistics
+                const requestsResponse = await fetch(`${apiUrl}/requests`, {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                });
+
+                if (requestsResponse.ok) {
+                    const allRequests = await requestsResponse.json();
+
+                    // Calculate statistics
+                    const pending = allRequests.filter((r: any) => r.status === 'EXECUTIVE_REVIEW').length;
+                    const approved = allRequests.filter((r: any) => r.statusHistory?.some((h: any) => h.status === 'FINANCE_APPROVED' && h.comment?.includes('Executive'))).length;
+
+                    const totalBudget = allRequests.filter((r: any) => r.status === 'EXECUTIVE_REVIEW').reduce((sum: number, r: any) => sum + (Number(r.totalEstimated) || 0), 0);
+
+                    // Get recent approvals (requests that moved from EXECUTIVE_REVIEW to FINANCE_APPROVED)
+                    const recent = allRequests
+                        .filter((r: any) => r.statusHistory?.some((h: any) => h.status === 'FINANCE_APPROVED'))
+                        .sort((a: any, b: any) => {
+                            const aDate = a.statusHistory?.find((h: any) => h.status === 'FINANCE_APPROVED')?.createdAt;
+                            const bDate = b.statusHistory?.find((h: any) => h.status === 'FINANCE_APPROVED')?.createdAt;
+                            return new Date(bDate).getTime() - new Date(aDate).getTime();
+                        })
+                        .slice(0, 5)
+                        .map((r: any) => {
+                            const approvalHistory = r.statusHistory?.find((h: any) => h.status === 'FINANCE_APPROVED');
+                            return {
+                                id: r.id,
+                                action: 'Approved',
+                                description: r.title,
+                                amount: Number(r.totalEstimated) || 0,
+                                signedDate: approvalHistory?.createdAt?.split('T')[0] || '',
+                                vendor: r.vendor || 'N/A',
+                                processing: 'Digital Signature',
+                            };
+                        });
+
+                    setRecentSignOffs(recent);
+
+                    setStats({
+                        pendingSignOffs: pending,
+                        completedApprovals: approved,
+                        totalBudgetValue: totalBudget,
+                        thisQuarterApprovals: approved,
+                        avgProcessingTime: 1.2, // TODO: Calculate from actual data
+                        complianceRate: 98.5, // TODO: Calculate from actual data
+                    });
+                }
+            } catch (error) {
+                console.error('Error fetching executive dashboard data:', error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchDashboardData();
+    }, []);
 
     const isDark = useSelector((state: IRootState) => state.themeConfig.theme === 'dark' || state.themeConfig.isDarkMode);
     const isRtl = useSelector((state: IRootState) => state.themeConfig.rtlClass) === 'rtl' ? true : false;
@@ -34,128 +119,19 @@ const ExecutiveDirectorDashboard = () => {
     const [digitalSignature, setDigitalSignature] = useState('');
     const [documentModal, setDocumentModal] = useState(false);
     const [selectedDocument, setSelectedDocument] = useState<any>(null);
+    const [pendingApprovals, setPendingApprovals] = useState<any[]>([]);
+    const [recentSignOffs, setRecentSignOffs] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
 
     // Executive-level statistics
-    const stats = {
-        pendingSignOffs: 6,
-        completedApprovals: 89,
-        totalBudgetValue: 2500000,
-        thisQuarterApprovals: 45,
-        avgProcessingTime: 1.2,
-        complianceRate: 98.5,
-    };
-
-    // High-value procurement items requiring executive sign-off
-    const pendingApprovals = [
-        {
-            id: 1,
-            approvalNumber: 'APP-2024-001',
-            type: 'Major Contract',
-            description: 'Enterprise Software License Renewal',
-            requestor: 'IT Department',
-            departmentHead: 'Jane Smith',
-            amount: 125000,
-            submittedDate: '2024-10-25',
-            priority: 'High',
-            dueDate: '2024-10-30',
-            documents: 8,
-            budgetCode: 'IT-2024-SW',
-            vendor: 'Microsoft Corporation',
-            contractPeriod: '3 Years',
-            status: 'Pending Executive Approval',
-            documentList: [
-                { id: 1, name: 'Software License Agreement.pdf', type: 'Contract', size: '2.4 MB', uploadedBy: 'Jane Smith', uploadedDate: '2024-10-25', category: 'Legal' },
-                { id: 2, name: 'Budget Justification.docx', type: 'Financial', size: '856 KB', uploadedBy: 'John Doe', uploadedDate: '2024-10-25', category: 'Finance' },
-                { id: 3, name: 'Technical Requirements.pdf', type: 'Technical', size: '1.2 MB', uploadedBy: 'Sarah Wilson', uploadedDate: '2024-10-24', category: 'Technical' },
-                { id: 4, name: 'Vendor Comparison Analysis.xlsx', type: 'Analysis', size: '945 KB', uploadedBy: 'Mike Johnson', uploadedDate: '2024-10-24', category: 'Analysis' },
-                { id: 5, name: 'Risk Assessment.pdf', type: 'Risk', size: '678 KB', uploadedBy: 'Lisa Davis', uploadedDate: '2024-10-23', category: 'Risk Management' },
-                { id: 6, name: 'Compliance Checklist.pdf', type: 'Compliance', size: '234 KB', uploadedBy: 'Robert Brown', uploadedDate: '2024-10-23', category: 'Compliance' },
-                { id: 7, name: 'Executive Summary.pdf', type: 'Summary', size: '512 KB', uploadedBy: 'Jane Smith', uploadedDate: '2024-10-25', category: 'Executive' },
-                { id: 8, name: 'Approval Workflow.png', type: 'Workflow', size: '189 KB', uploadedBy: 'System', uploadedDate: '2024-10-25', category: 'Process' }
-            ],
-        },
-        {
-            id: 2,
-            approvalNumber: 'APP-2024-002',
-            type: 'Capital Expenditure',
-            description: 'New Office Equipment & Furniture',
-            requestor: 'Facilities Department',
-            departmentHead: 'Robert Brown',
-            amount: 85000,
-            submittedDate: '2024-10-24',
-            priority: 'Medium',
-            dueDate: '2024-10-29',
-            documents: 5,
-            budgetCode: 'FAC-2024-CE',
-            vendor: 'Office Depot Inc',
-            contractPeriod: '1 Year',
-            status: 'Pending Executive Approval',
-            documentList: [
-                { id: 1, name: 'Equipment Purchase Order.pdf', type: 'Purchase Order', size: '1.8 MB', uploadedBy: 'Robert Brown', uploadedDate: '2024-10-24', category: 'Procurement' },
-                { id: 2, name: 'Budget Authorization.pdf', type: 'Financial', size: '445 KB', uploadedBy: 'Finance Team', uploadedDate: '2024-10-24', category: 'Finance' },
-                { id: 3, name: 'Vendor Quotations.zip', type: 'Quotes', size: '3.2 MB', uploadedBy: 'Procurement Officer', uploadedDate: '2024-10-23', category: 'Vendor' },
-                { id: 4, name: 'Space Planning Layout.dwg', type: 'Technical', size: '2.1 MB', uploadedBy: 'Facilities Team', uploadedDate: '2024-10-23', category: 'Technical' },
-                { id: 5, name: 'Delivery Schedule.xlsx', type: 'Logistics', size: '234 KB', uploadedBy: 'Logistics Coordinator', uploadedDate: '2024-10-24', category: 'Logistics' }
-            ],
-        },
-        {
-            id: 3,
-            approvalNumber: 'APP-2024-003',
-            type: 'Service Contract',
-            description: 'Security Services Annual Contract',
-            requestor: 'Security Department',
-            departmentHead: 'Mike Johnson',
-            amount: 95000,
-            submittedDate: '2024-10-26',
-            priority: 'High',
-            dueDate: '2024-10-31',
-            documents: 6,
-            budgetCode: 'SEC-2024-SV',
-            vendor: 'SecureGuard Solutions',
-            contractPeriod: '1 Year',
-            status: 'Pending Executive Approval',
-            documentList: [
-                { id: 1, name: 'Service Level Agreement.pdf', type: 'Contract', size: '1.5 MB', uploadedBy: 'Mike Johnson', uploadedDate: '2024-10-26', category: 'Legal' },
-                { id: 2, name: 'Security Assessment Report.pdf', type: 'Assessment', size: '2.8 MB', uploadedBy: 'Security Consultant', uploadedDate: '2024-10-25', category: 'Security' },
-                { id: 3, name: 'Insurance Certificate.pdf', type: 'Insurance', size: '567 KB', uploadedBy: 'SecureGuard Solutions', uploadedDate: '2024-10-24', category: 'Insurance' },
-                { id: 4, name: 'Background Check Records.zip', type: 'HR', size: '1.9 MB', uploadedBy: 'HR Department', uploadedDate: '2024-10-25', category: 'Human Resources' },
-                { id: 5, name: 'Cost Breakdown Analysis.xlsx', type: 'Financial', size: '398 KB', uploadedBy: 'Financial Analyst', uploadedDate: '2024-10-26', category: 'Finance' },
-                { id: 6, name: 'Performance Metrics.pdf', type: 'Performance', size: '723 KB', uploadedBy: 'Quality Assurance', uploadedDate: '2024-10-25', category: 'Quality' }
-            ],
-        },
-    ];
-
-    // Recent executive approvals
-    const recentSignOffs = [
-        {
-            id: 1,
-            action: 'Approved',
-            description: 'Marketing Campaign Management Software',
-            amount: 65000,
-            signedDate: '2024-10-25',
-            vendor: 'HubSpot Inc',
-            processing: 'Digital Signature',
-        },
-        {
-            id: 2,
-            action: 'Approved',
-            description: 'Facility Maintenance Contract',
-            amount: 140000,
-            signedDate: '2024-10-24',
-            vendor: 'FaciliCorp Services',
-            processing: 'Digital Signature',
-        },
-        {
-            id: 3,
-            action: 'Conditionally Approved',
-            description: 'Cloud Infrastructure Upgrade',
-            amount: 180000,
-            signedDate: '2024-10-23',
-            vendor: 'Amazon Web Services',
-            processing: 'Digital Signature',
-            condition: 'Budget revision required',
-        },
-    ];
+    const [stats, setStats] = useState({
+        pendingSignOffs: 0,
+        completedApprovals: 0,
+        totalBudgetValue: 0,
+        thisQuarterApprovals: 0,
+        avgProcessingTime: 0,
+        complianceRate: 0,
+    });
 
     // Executive approval trends chart
     const approvalTrendsChart = {
@@ -325,7 +301,7 @@ const ExecutiveDirectorDashboard = () => {
             alert('Please provide your digital signature/comments');
             return;
         }
-        
+
         // Process approval action
         // Implement digital signature logic
         setSignOffModal(false);
@@ -460,26 +436,14 @@ const ExecutiveDirectorDashboard = () => {
                                     <div className="mb-3 flex items-center justify-between">
                                         <div className="flex items-center gap-2">
                                             <h6 className="font-semibold">{approval.approvalNumber}</h6>
-                                            <span className={`badge ${getTypeBadge(approval.type)}`}>
-                                                {approval.type}
-                                            </span>
-                                            <span className={`badge ${getPriorityBadge(approval.priority)}`}>
-                                                {approval.priority}
-                                            </span>
+                                            <span className={`badge ${getTypeBadge(approval.type)}`}>{approval.type}</span>
+                                            <span className={`badge ${getPriorityBadge(approval.priority)}`}>{approval.priority}</span>
                                         </div>
                                         <div className="flex gap-2">
-                                            <button
-                                                onClick={() => handleViewDocuments(approval)}
-                                                className="btn btn-outline-info btn-sm"
-                                                title="View Documents"
-                                            >
+                                            <button onClick={() => handleViewDocuments(approval)} className="btn btn-outline-info btn-sm" title="View Documents">
                                                 <IconEye className="h-4 w-4" />
                                             </button>
-                                            <button
-                                                onClick={() => handleSignOff(approval)}
-                                                className="btn btn-success btn-sm"
-                                                title="Sign Off"
-                                            >
+                                            <button onClick={() => handleSignOff(approval)} className="btn btn-success btn-sm" title="Sign Off">
                                                 <IconPencil className="h-4 w-4" />
                                             </button>
                                         </div>
@@ -491,12 +455,20 @@ const ExecutiveDirectorDashboard = () => {
                                     </div>
                                     <div className="grid grid-cols-2 gap-4 text-xs text-white-dark">
                                         <div>
-                                            <p><strong>Vendor:</strong> {approval.vendor}</p>
-                                            <p><strong>Requestor:</strong> {approval.requestor}</p>
+                                            <p>
+                                                <strong>Vendor:</strong> {approval.vendor}
+                                            </p>
+                                            <p>
+                                                <strong>Requestor:</strong> {approval.requestor}
+                                            </p>
                                         </div>
                                         <div>
-                                            <p><strong>Dept. Head:</strong> {approval.departmentHead}</p>
-                                            <p><strong>Budget Code:</strong> {approval.budgetCode}</p>
+                                            <p>
+                                                <strong>Dept. Head:</strong> {approval.departmentHead}
+                                            </p>
+                                            <p>
+                                                <strong>Budget Code:</strong> {approval.budgetCode}
+                                            </p>
                                         </div>
                                     </div>
                                     <div className="mt-2 flex items-center justify-between text-xs">
@@ -520,21 +492,24 @@ const ExecutiveDirectorDashboard = () => {
                             <div className="space-y-4">
                                 {recentSignOffs.map((signOff) => (
                                     <div key={signOff.id} className="flex items-start gap-3">
-                                        <div className={`flex h-8 w-8 items-center justify-center rounded-full ${
-                                            signOff.action === 'Approved' ? 'bg-success-light text-success' : 
-                                            signOff.action === 'Conditionally Approved' ? 'bg-warning-light text-warning' :
-                                            'bg-danger-light text-danger'
-                                        }`}>
-                                            {signOff.action === 'Approved' || signOff.action === 'Conditionally Approved' ? 
-                                                <IconThumbUp className="h-4 w-4" /> : <IconX className="h-4 w-4" />}
+                                        <div
+                                            className={`flex h-8 w-8 items-center justify-center rounded-full ${
+                                                signOff.action === 'Approved'
+                                                    ? 'bg-success-light text-success'
+                                                    : signOff.action === 'Conditionally Approved'
+                                                    ? 'bg-warning-light text-warning'
+                                                    : 'bg-danger-light text-danger'
+                                            }`}
+                                        >
+                                            {signOff.action === 'Approved' || signOff.action === 'Conditionally Approved' ? <IconThumbUp className="h-4 w-4" /> : <IconX className="h-4 w-4" />}
                                         </div>
                                         <div className="flex-1">
                                             <div className="flex items-center gap-2">
-                                                <span className={`font-semibold ${
-                                                    signOff.action === 'Approved' ? 'text-success' : 
-                                                    signOff.action === 'Conditionally Approved' ? 'text-warning' :
-                                                    'text-danger'
-                                                }`}>
+                                                <span
+                                                    className={`font-semibold ${
+                                                        signOff.action === 'Approved' ? 'text-success' : signOff.action === 'Conditionally Approved' ? 'text-warning' : 'text-danger'
+                                                    }`}
+                                                >
                                                     {signOff.action}
                                                 </span>
                                                 <span className="flex items-center gap-1 text-xs text-white-dark">
@@ -550,9 +525,7 @@ const ExecutiveDirectorDashboard = () => {
                                             <div className="flex items-center justify-between">
                                                 <span className="text-xs text-white-dark">Signed: {signOff.signedDate}</span>
                                             </div>
-                                            {signOff.condition && (
-                                                <p className="text-xs text-warning mt-1">Note: {signOff.condition}</p>
-                                            )}
+                                            {signOff.condition && <p className="text-xs text-warning mt-1">Note: {signOff.condition}</p>}
                                         </div>
                                     </div>
                                 ))}
@@ -571,15 +544,11 @@ const ExecutiveDirectorDashboard = () => {
                                 <IconPencil />
                                 Executive Digital Sign-off
                             </h4>
-                            <button 
-                                onClick={() => setSignOffModal(false)} 
-                                className="text-white-dark hover:text-danger"
-                                title="Close Modal"
-                            >
+                            <button onClick={() => setSignOffModal(false)} className="text-white-dark hover:text-danger" title="Close Modal">
                                 <IconX />
                             </button>
                         </div>
-                        
+
                         <div className="mb-6 rounded-lg border border-[#e0e6ed] p-4 dark:border-[#253b5c]">
                             <div className="mb-4 grid grid-cols-2 gap-4">
                                 <div>
@@ -591,12 +560,12 @@ const ExecutiveDirectorDashboard = () => {
                                     <p className="font-semibold">{selectedApproval.type}</p>
                                 </div>
                             </div>
-                            
+
                             <div className="mb-4">
                                 <label className="text-sm font-medium text-white-dark">Description</label>
                                 <p className="font-semibold">{selectedApproval.description}</p>
                             </div>
-                            
+
                             <div className="mb-4 grid grid-cols-3 gap-4">
                                 <div>
                                     <label className="text-sm font-medium text-white-dark">Vendor</label>
@@ -626,7 +595,7 @@ const ExecutiveDirectorDashboard = () => {
                                 </div>
                             </div>
                         </div>
-                        
+
                         <div className="mb-6">
                             <label className="mb-2 block text-sm font-medium">Digital Signature & Comments</label>
                             <textarea
@@ -637,28 +606,17 @@ const ExecutiveDirectorDashboard = () => {
                                 placeholder="Enter your digital signature, comments, or conditions for this approval..."
                             />
                         </div>
-                        
+
                         <div className="flex items-center justify-end gap-2">
-                            <button
-                                onClick={() => submitDigitalSignature('approve')}
-                                className="btn btn-success"
-                                disabled={!digitalSignature.trim()}
-                            >
+                            <button onClick={() => submitDigitalSignature('approve')} className="btn btn-success" disabled={!digitalSignature.trim()}>
                                 <IconChecks className="mr-2" />
                                 Approve & Sign
                             </button>
-                            <button
-                                onClick={() => submitDigitalSignature('reject')}
-                                className="btn btn-danger"
-                                disabled={!digitalSignature.trim()}
-                            >
+                            <button onClick={() => submitDigitalSignature('reject')} className="btn btn-danger" disabled={!digitalSignature.trim()}>
                                 <IconX className="mr-2" />
                                 Reject with Comments
                             </button>
-                            <button
-                                onClick={() => handleViewDocuments(selectedApproval)}
-                                className="btn btn-outline-primary"
-                            >
+                            <button onClick={() => handleViewDocuments(selectedApproval)} className="btn btn-outline-primary">
                                 <IconDownload className="mr-2" />
                                 View Documents
                             </button>
@@ -677,15 +635,11 @@ const ExecutiveDirectorDashboard = () => {
                                 <IconFile />
                                 Documents - {selectedDocument.approvalNumber}
                             </h4>
-                            <button 
-                                onClick={() => setDocumentModal(false)} 
-                                className="text-white-dark hover:text-danger"
-                                title="Close Modal"
-                            >
+                            <button onClick={() => setDocumentModal(false)} className="text-white-dark hover:text-danger" title="Close Modal">
                                 <IconX />
                             </button>
                         </div>
-                        
+
                         <div className="mb-4 rounded-lg border border-[#e0e6ed] p-4 dark:border-[#253b5c]">
                             <div className="grid grid-cols-3 gap-4 text-sm">
                                 <div>
@@ -702,12 +656,15 @@ const ExecutiveDirectorDashboard = () => {
                                 </div>
                             </div>
                         </div>
-                        
+
                         <div className="flex-1 overflow-hidden">
                             <h6 className="mb-3 font-semibold">Document List</h6>
                             <div className="overflow-y-auto max-h-[400px] space-y-3">
                                 {selectedDocument.documentList?.map((doc: any) => (
-                                    <div key={doc.id} className="flex items-center justify-between rounded-lg border border-[#e0e6ed] p-4 dark:border-[#253b5c] hover:bg-gray-50 dark:hover:bg-gray-800">
+                                    <div
+                                        key={doc.id}
+                                        className="flex items-center justify-between rounded-lg border border-[#e0e6ed] p-4 dark:border-[#253b5c] hover:bg-gray-50 dark:hover:bg-gray-800"
+                                    >
                                         <div className="flex items-center gap-3 flex-1">
                                             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary-light text-primary">
                                                 <IconFile className="h-5 w-5" />
@@ -727,11 +684,7 @@ const ExecutiveDirectorDashboard = () => {
                                             </div>
                                         </div>
                                         <div className="flex gap-2">
-                                            <button
-                                                onClick={() => downloadDocument(doc)}
-                                                className="btn btn-outline-primary btn-sm"
-                                                title="Download Document"
-                                            >
+                                            <button onClick={() => downloadDocument(doc)} className="btn btn-outline-primary btn-sm" title="Download Document">
                                                 <IconDownload className="h-4 w-4" />
                                             </button>
                                             <button
@@ -749,7 +702,7 @@ const ExecutiveDirectorDashboard = () => {
                                 ))}
                             </div>
                         </div>
-                        
+
                         <div className="mt-4 flex justify-end gap-2 border-t border-[#e0e6ed] pt-4 dark:border-[#253b5c]">
                             <button
                                 onClick={() => {
@@ -761,10 +714,7 @@ const ExecutiveDirectorDashboard = () => {
                                 <IconDownload className="mr-2" />
                                 Download All Documents
                             </button>
-                            <button
-                                onClick={() => setDocumentModal(false)}
-                                className="btn btn-outline-secondary"
-                            >
+                            <button onClick={() => setDocumentModal(false)} className="btn btn-outline-secondary">
                                 Close
                             </button>
                         </div>

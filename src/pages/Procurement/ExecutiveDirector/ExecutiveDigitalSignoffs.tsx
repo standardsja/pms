@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { setPageTitle } from '../../../store/themeConfigSlice';
+import { getApiUrl, getToken } from '../../../utils/auth';
+import Swal from 'sweetalert2';
 import IconPencilPaper from '../../../components/Icon/IconPencilPaper';
 import IconEye from '../../../components/Icon/IconEye';
 import IconChecks from '../../../components/Icon/IconChecks';
@@ -25,184 +27,56 @@ const ExecutiveDigitalSignoffs = () => {
     const [digitalSignature, setDigitalSignature] = useState('');
     const [signoffComments, setSignoffComments] = useState('');
     const [documentModal, setDocumentModal] = useState(false);
+    const [digitalSignoffItems, setDigitalSignoffItems] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
 
-    // High-value procurement items requiring Executive Director digital sign-off
-    const digitalSignoffItems = [
-        {
-            id: 1,
-            procurementId: 'PROC-2024-E001',
-            type: 'Major Capital Purchase',
-            description: 'Enterprise Software Licensing - 3 Year Contract',
-            department: 'Information Technology',
-            requestor: 'CTO Office',
-            submittedDate: '2024-10-28',
-            dueDate: '2024-11-05',
-            totalAmount: 250000,
-            supplier: 'Microsoft Corporation',
-            contractPeriod: '36 months',
-            status: 'Pending Executive Sign-off',
-            priority: 'High',
-            riskLevel: 'Low',
-            departmentHeadApproval: {
-                approvedBy: 'John Smith - IT Director',
-                approvedDate: '2024-10-27',
-                comments: 'Critical for digital transformation initiative. Budget allocated and justified.'
-            },
-            procurementOfficerRecommendation: {
-                officer: 'Jane Doe',
-                date: '2024-10-26',
-                recommendation: 'Strongly recommend approval. Competitive pricing and established vendor relationship.',
-                riskAssessment: 'Low risk - tier 1 vendor with strong support structure'
-            },
-            businessJustification: 'Essential upgrade to support 500+ users with enhanced security features and productivity tools. ROI expected within 18 months through efficiency gains.',
-            budgetImpact: 'Within approved IT budget allocation for FY2025-2027',
-            complianceNotes: 'Meets all security and compliance requirements. SOC 2 Type II certified.',
-            documents: ['Contract_Draft.pdf', 'Technical_Specifications.pdf', 'Budget_Analysis.xlsx', 'Risk_Assessment.pdf']
-        },
-        {
-            id: 2,
-            procurementId: 'PROC-2024-E002',
-            type: 'Infrastructure Investment',
-            description: 'Data Center Hardware Refresh',
-            department: 'Information Technology',
-            requestor: 'Infrastructure Team',
-            submittedDate: '2024-10-29',
-            dueDate: '2024-11-08',
-            totalAmount: 180000,
-            supplier: 'Dell Technologies',
-            contractPeriod: '12 months',
-            status: 'Pending Executive Sign-off',
-            priority: 'High',
-            riskLevel: 'Medium',
-            departmentHeadApproval: {
-                approvedBy: 'John Smith - IT Director',
-                approvedDate: '2024-10-28',
-                comments: 'Critical infrastructure upgrade to maintain business continuity and performance.'
-            },
-            procurementOfficerRecommendation: {
-                officer: 'Mike Johnson',
-                date: '2024-10-27',
-                recommendation: 'Recommend approval with extended warranty option.',
-                riskAssessment: 'Medium risk due to implementation complexity - mitigation plan in place'
-            },
-            businessJustification: 'Replace aging servers approaching end-of-life. Prevent potential downtime and maintain service levels.',
-            budgetImpact: 'Capital expenditure within approved infrastructure budget',
-            complianceNotes: 'Meets data protection and security standards. Energy efficient models selected.',
-            documents: ['Hardware_Specifications.pdf', 'Implementation_Plan.pdf', 'Warranty_Terms.pdf', 'Migration_Strategy.pdf']
-        },
-        {
-            id: 3,
-            procurementId: 'PROC-2024-E003',
-            type: 'Professional Services',
-            description: 'Management Consulting Services',
-            department: 'Strategic Planning',
-            requestor: 'CEO Office',
-            submittedDate: '2024-10-30',
-            dueDate: '2024-11-12',
-            totalAmount: 320000,
-            supplier: 'McKinsey & Company',
-            contractPeriod: '6 months',
-            status: 'Pending Executive Sign-off',
-            priority: 'Critical',
-            riskLevel: 'Low',
-            departmentHeadApproval: {
-                approvedBy: 'Sarah Williams - Strategy Director',
-                approvedDate: '2024-10-29',
-                comments: 'Strategic initiative critical for organizational transformation and growth targets.'
-            },
-            procurementOfficerRecommendation: {
-                officer: 'Robert Brown',
-                date: '2024-10-28',
-                recommendation: 'Highly recommended based on proven track record and methodology alignment.',
-                riskAssessment: 'Low risk - tier 1 consulting firm with strong references in our industry'
-            },
-            businessJustification: 'Strategic planning and operational excellence initiative to achieve 15% efficiency improvement and market expansion.',
-            budgetImpact: 'Special project budget approved by board of directors',
-            complianceNotes: 'Confidentiality agreements and IP protection measures in place.',
-            documents: ['SOW_Detailed.pdf', 'Consultant_Profiles.pdf', 'Timeline_Milestones.pdf', 'Confidentiality_Agreement.pdf']
-        },
-        {
-            id: 4,
-            procurementId: 'PROC-2024-E004',
-            type: 'Facility Services',
-            description: 'Office Space Renovation Contract',
-            department: 'Facilities Management',
-            requestor: 'Operations Team',
-            submittedDate: '2024-10-25',
-            dueDate: '2024-11-02',
-            totalAmount: 150000,
-            supplier: 'Modern Spaces Inc.',
-            contractPeriod: '4 months',
-            status: 'Digitally Signed by Executive',
-            priority: 'Medium',
-            riskLevel: 'Medium',
-            signedDate: '2024-10-30',
-            signedBy: 'Executive Director',
-            departmentHeadApproval: {
-                approvedBy: 'Tom Wilson - Facilities Director',
-                approvedDate: '2024-10-24',
-                comments: 'Necessary for employee satisfaction and modern workplace standards.'
-            },
-            procurementOfficerRecommendation: {
-                officer: 'Lisa Martinez',
-                date: '2024-10-23',
-                recommendation: 'Approved contractor with competitive bid and good references.',
-                riskAssessment: 'Medium risk - construction project with timeline dependencies'
-            },
-            businessJustification: 'Modernize workspace to improve employee productivity and attraction/retention of talent.',
-            budgetImpact: 'Within approved facilities improvement budget',
-            complianceNotes: 'All permits obtained. Safety protocols and insurance requirements met.',
-            documents: ['Renovation_Plans.pdf', 'Contractor_License.pdf', 'Insurance_Certificate.pdf', 'Permit_Documentation.pdf']
-        },
-        {
-            id: 5,
-            procurementId: 'PROC-2024-E005',
-            type: 'Legal Services',
-            description: 'M&A Legal Advisory Services',
-            department: 'Legal',
-            requestor: 'General Counsel',
-            submittedDate: '2024-10-31',
-            dueDate: '2024-11-15',
-            totalAmount: 275000,
-            supplier: 'Latham & Watkins LLP',
-            contractPeriod: '8 months',
-            status: 'Pending Executive Sign-off',
-            priority: 'Critical',
-            riskLevel: 'Low',
-            departmentHeadApproval: {
-                approvedBy: 'David Chen - General Counsel',
-                approvedDate: '2024-10-30',
-                comments: 'Critical for upcoming acquisition. Top-tier firm with relevant expertise required.'
-            },
-            procurementOfficerRecommendation: {
-                officer: 'Jennifer Taylor',
-                date: '2024-10-29',
-                recommendation: 'Strongly recommend - leading firm in M&A with excellent track record.',
-                riskAssessment: 'Low risk - established relationship and proven expertise in our industry'
-            },
-            businessJustification: 'Legal expertise essential for successful acquisition execution and risk mitigation.',
-            budgetImpact: 'Special project budget allocated for M&A activities',
-            complianceNotes: 'Conflict checks completed. Engagement letter terms negotiated.',
-            documents: ['Engagement_Letter.pdf', 'Firm_Credentials.pdf', 'Conflict_Check.pdf', 'Fee_Schedule.pdf']
-        },
-    ];
+    useEffect(() => {
+        fetchSignoffs();
+    }, []);
+
+    const fetchSignoffs = async () => {
+        try {
+            const apiUrl = getApiUrl();
+            const token = getToken();
+            
+            const response = await fetch(`${apiUrl}/approvals`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            if (!response.ok) throw new Error('Failed to fetch sign-offs');
+
+            const data = await response.json();
+            const executiveSignoffs = data.filter((item: any) => 
+                item.status === 'EXECUTIVE_REVIEW' || item.status === 'FINANCE_APPROVED'
+            );
+            
+            setDigitalSignoffItems(executiveSignoffs);
+        } catch (error) {
+            console.error('Error fetching sign-offs:', error);
+            Swal.fire('Error', 'Failed to load digital sign-offs', 'error');
+        } finally {
+            setLoading(false);
+        }
+    };
 
     // Filter items based on status
-    const filteredItems = digitalSignoffItems.filter(item => {
+    const filteredItems = digitalSignoffItems.filter((item: any) => {
         if (filter === 'all') return true;
-        if (filter === 'pending') return item.status === 'Pending Executive Sign-off';
-        if (filter === 'signed') return item.status === 'Digitally Signed by Executive';
-        if (filter === 'rejected') return item.status === 'Rejected by Executive';
+        if (filter === 'pending') return item.status === 'EXECUTIVE_REVIEW';
+        if (filter === 'signed') return item.status === 'FINANCE_APPROVED';
+        if (filter === 'rejected') return item.status === 'REJECTED';
         return true;
     });
 
     // Statistics
     const stats = {
         total: digitalSignoffItems.length,
-        pending: digitalSignoffItems.filter(i => i.status === 'Pending Executive Sign-off').length,
-        signed: digitalSignoffItems.filter(i => i.status === 'Digitally Signed by Executive').length,
-        rejected: digitalSignoffItems.filter(i => i.status === 'Rejected by Executive').length,
-        totalValue: digitalSignoffItems.reduce((sum, i) => sum + i.totalAmount, 0),
+        pending: digitalSignoffItems.filter((i: any) => i.status === 'EXECUTIVE_REVIEW').length,
+        signed: digitalSignoffItems.filter((i: any) => i.status === 'FINANCE_APPROVED').length,
+        rejected: digitalSignoffItems.filter((i: any) => i.status === 'REJECTED').length,
+        totalValue: digitalSignoffItems.reduce((sum: number, i: any) => sum + (i.estimatedValue || 0), 0),
     };
 
     const handleDigitalSignoff = (item: any) => {
@@ -217,42 +91,54 @@ const ExecutiveDigitalSignoffs = () => {
         setDocumentModal(true);
     };
 
-    const submitDigitalSignature = (action: 'approve' | 'reject') => {
+    const submitDigitalSignature = async (action: 'approve' | 'reject') => {
         if (!digitalSignature.trim()) {
-            alert('Please provide your digital signature');
-            return;
-        }
-        
-        if (!signoffComments.trim()) {
-            alert('Please provide executive comments');
+            Swal.fire('Error', 'Please provide your digital signature', 'error');
             return;
         }
 
-        // Process the digital signature action
-        let message = '';
-        switch (action) {
-            case 'approve':
-                message = `Procurement ${selectedItem.procurementId} digitally signed and approved for processing`;
-                break;
-            case 'reject':
-                message = `Procurement ${selectedItem.procurementId} rejected and returned for revision`;
-                break;
+        try {
+            const apiUrl = getApiUrl();
+            const token = getToken();
+            
+            const response = await fetch(`${apiUrl}/requests/${selectedItem?.id}/action`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    action: action === 'approve' ? 'APPROVE' : 'REJECT',
+                    comments: signoffComments,
+                    signature: digitalSignature
+                })
+            });
+
+            if (!response.ok) throw new Error('Failed to process sign-off');
+
+            await Swal.fire('Success', `Sign-off ${action}d successfully`, 'success');
+            setSignoffModal(false);
+            setSelectedItem(null);
+            setDigitalSignature('');
+            setSignoffComments('');
+            
+            // Refresh sign-offs list
+            fetchSignoffs();
+        } catch (error) {
+            console.error('Error processing sign-off:', error);
+            Swal.fire('Error', 'Failed to process sign-off', 'error');
         }
-        
-        // Show success message (in production, this would be a toast notification)
-        alert(message);
-        setSignoffModal(false);
-        setSelectedItem(null);
-        setDigitalSignature('');
-        setSignoffComments('');
     };
 
     const getStatusBadge = (status: string) => {
         switch (status) {
+            case 'EXECUTIVE_REVIEW':
             case 'Pending Executive Sign-off':
                 return 'badge-outline-warning';
+            case 'FINANCE_APPROVED':
             case 'Digitally Signed by Executive':
                 return 'badge-outline-success';
+            case 'REJECTED':
             case 'Rejected by Executive':
                 return 'badge-outline-danger';
             default:

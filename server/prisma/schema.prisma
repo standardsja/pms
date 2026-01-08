@@ -7,193 +7,450 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id                           Int                         @id @default(autoincrement())
-  externalId                   String?                     @unique
-  email                        String                      @unique
-  name                         String?
-  passwordHash                 String?
-  profileImage                 String?
-  pinnedModule                 String?                     @default("procurement")
-  ldapDN                       String?
-  employeeId                   String?
-  jobTitle                     String?
-  phone                        String?
-  address                      String?
-  city                         String?
-  country                      String?
-  supervisor                   String?
-  departmentId                 Int?
-  createdAt                    DateTime                    @default(now())
-  updatedAt                    DateTime                    @updatedAt
-  failedLogins                 Int?                        @default(0)
-  lastFailedLogin              DateTime?
-  lastLogin                    DateTime?
-  blocked                      Boolean?                    @default(false)
-  blockedAt                    DateTime?
-  blockedReason                String?
-  blockedBy                    Int?
-  auditLogs                    AuditLog[]
-  managedDepartment            Department?                 @relation("departmentManager")
-  assignedEvaluations          Evaluation[]                @relation("AssignedProcurementOfficer")
-  createdEvaluations           Evaluation[]                @relation("EvaluationCreator")
-  sectionAVerifications        Evaluation[]                @relation("SectionAVerifier")
-  sectionBVerifications        Evaluation[]                @relation("SectionBVerifier")
-  sectionCVerifications        Evaluation[]                @relation("SectionCVerifier")
-  sectionDVerifications        Evaluation[]                @relation("SectionDVerifier")
-  sectionEVerifications        Evaluation[]                @relation("SectionEVerifier")
-  validatedEvaluations         Evaluation[]                @relation("EvaluationValidator")
-  evaluationAssignments        EvaluationAssignment[]
-  ideas                        Idea[]
-  ideaComments                 IdeaComment[]
-  stageHistory                 IdeaStageHistory[]
-  loadBalancingSettingsUpdated LoadBalancingSettings[]     @relation("LoadBalancingUpdater")
-  sentMessages                 Message[]                   @relation("MessagesSent")
-  receivedMessages             Message[]                   @relation("MessagesReceived")
-  notifications                Notification[]
-  performanceMetrics           OfficerPerformanceMetrics[]
-  refreshTokens                RefreshToken[]
-  assignedRequests             Request[]                   @relation("requestAssignee")
-  requests                     Request[]                   @relation("requestRequester")
-  actions                      RequestAction[]             @relation("actionPerformedBy")
-  assignmentLogs               RequestAssignmentLog[]
-  attachmentsUploaded          RequestAttachment[]         @relation("attachmentUploadedBy")
-  statusChanges                RequestStatusHistory[]      @relation("statusChangedBy")
-  approvedRoleRequests         RoleRequest[]               @relation("RoleRequestApprovedBy")
-  submittedRoleRequests        RoleRequest[]               @relation("RoleRequestSubmittedBy")
-  department                   Department?                 @relation("userDepartment", fields: [departmentId], references: [id])
-  roles                        UserRole[]
-  votes                        Vote[]
+model auditlog {
+  id        Int             @id @default(autoincrement())
+  userId    Int?
+  action    auditlog_action
+  entity    String
+  entityId  Int?
+  message   String          @db.Text
+  ipAddress String?
+  userAgent String?         @db.Text
+  metadata  Json?
+  ideaId    Int?
+  createdAt DateTime        @default(now())
+  idea      idea?           @relation(fields: [ideaId], references: [id], map: "AuditLog_ideaId_fkey")
+  user      user?           @relation(fields: [userId], references: [id], map: "AuditLog_userId_fkey")
 
-  @@index([departmentId], map: "User_departmentId_fkey")
+  @@index([action], map: "AuditLog_action_idx")
+  @@index([createdAt], map: "AuditLog_createdAt_idx")
+  @@index([entity, entityId], map: "AuditLog_entity_entityId_idx")
+  @@index([ideaId], map: "AuditLog_ideaId_idx")
+  @@index([userId], map: "AuditLog_userId_idx")
 }
 
-model Department {
-  id           Int           @id @default(autoincrement())
-  name         String
-  code         String?       @unique
-  managerId    Int?          @unique
-  manager      User?         @relation("departmentManager", fields: [managerId], references: [id])
-  requests     Request[]
-  roleRequests RoleRequest[]
-  users        User[]        @relation("userDepartment")
-}
-
-model Role {
-  id          Int              @id @default(autoincrement())
-  name        String           @unique
+model challenge {
+  id          Int       @id @default(autoincrement())
+  title       String
   description String?
-  permissions RolePermission[]
-  users       UserRole[]
+  startAt     DateTime?
+  endAt       DateTime?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  idea        idea[]
 }
 
-model Permission {
-  id          Int              @id @default(autoincrement())
-  name        String           @unique
-  description String?
-  module      String?
-  createdAt   DateTime         @default(now())
-  roles       RolePermission[]
+model combinedrequest {
+  id          Int          @id @default(autoincrement())
+  reference   String       @unique(map: "CombinedRequest_reference_key")
+  title       String
+  description String?      @db.Text
+  config      Json?
+  createdBy   Int
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime
+  evaluation  evaluation[]
+  request     request[]
 
-  @@index([module])
+  @@index([reference], map: "CombinedRequest_reference_idx")
 }
 
-model RolePermission {
-  id           Int        @id @default(autoincrement())
-  roleId       Int
-  permissionId Int
-  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
-  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
-
-  @@unique([roleId, permissionId])
-  @@index([roleId])
-  @@index([permissionId])
+model department {
+  id                                 Int           @id @default(autoincrement())
+  name                               String
+  code                               String?       @unique(map: "Department_code_key")
+  managerId                          Int?          @unique(map: "Department_managerId_key")
+  user_department_managerIdTouser    user?         @relation("department_managerIdTouser", fields: [managerId], references: [id], map: "Department_managerId_fkey")
+  request                            request[]
+  rolerequest                        rolerequest[]
+  user_user_departmentIdTodepartment user[]        @relation("user_departmentIdTodepartment")
 }
 
-model UserRole {
-  id     Int  @id @default(autoincrement())
-  userId Int
-  roleId Int
-  role   Role @relation(fields: [roleId], references: [id])
-  user   User @relation(fields: [userId], references: [id])
+model evaluation {
+  id                                                 Int                       @id @default(autoincrement())
+  evalNumber                                         String                    @unique(map: "Evaluation_evalNumber_key")
+  rfqNumber                                          String
+  rfqTitle                                           String
+  description                                        String?                   @db.Text
+  status                                             evaluation_status         @default(PENDING)
+  assignedProcurementOfficerId                       Int?
+  combinedRequestId                                  Int?
+  requestId                                          Int?
+  sectionA                                           Json?
+  sectionAStatus                                     evaluation_sectionAStatus @default(NOT_STARTED)
+  sectionAVerifiedBy                                 Int?
+  sectionAVerifiedAt                                 DateTime?
+  sectionANotes                                      String?                   @db.Text
+  sectionB                                           Json?
+  sectionBStatus                                     evaluation_sectionBStatus @default(NOT_STARTED)
+  sectionBVerifiedBy                                 Int?
+  sectionBVerifiedAt                                 DateTime?
+  sectionBNotes                                      String?                   @db.Text
+  sectionC                                           Json?
+  sectionCStatus                                     evaluation_sectionCStatus @default(NOT_STARTED)
+  sectionCVerifiedBy                                 Int?
+  sectionCVerifiedAt                                 DateTime?
+  sectionCNotes                                      String?                   @db.Text
+  sectionD                                           Json?
+  sectionDStatus                                     evaluation_sectionDStatus @default(NOT_STARTED)
+  sectionDVerifiedBy                                 Int?
+  sectionDVerifiedAt                                 DateTime?
+  sectionDNotes                                      String?                   @db.Text
+  sectionE                                           Json?
+  sectionEStatus                                     evaluation_sectionEStatus @default(NOT_STARTED)
+  sectionEVerifiedBy                                 Int?
+  sectionEVerifiedAt                                 DateTime?
+  sectionENotes                                      String?                   @db.Text
+  createdBy                                          Int
+  evaluator                                          String?
+  dueDate                                            DateTime?
+  validatedBy                                        Int?
+  validatedAt                                        DateTime?
+  validationNotes                                    String?                   @db.Text
+  createdAt                                          DateTime                  @default(now())
+  updatedAt                                          DateTime
+  dateSubmissionConsidered                           DateTime?
+  reportCompletionDate                               DateTime?
+  user_evaluation_assignedProcurementOfficerIdTouser user?                     @relation("evaluation_assignedProcurementOfficerIdTouser", fields: [assignedProcurementOfficerId], references: [id], map: "Evaluation_assignedProcurementOfficerId_fkey")
+  combinedrequest                                    combinedrequest?          @relation(fields: [combinedRequestId], references: [id], map: "Evaluation_combinedRequestId_fkey")
+  user_evaluation_createdByTouser                    user                      @relation("evaluation_createdByTouser", fields: [createdBy], references: [id], map: "Evaluation_createdBy_fkey")
+  request                                            request?                  @relation(fields: [requestId], references: [id], map: "Evaluation_requestId_fkey")
+  user_evaluation_sectionAVerifiedByTouser           user?                     @relation("evaluation_sectionAVerifiedByTouser", fields: [sectionAVerifiedBy], references: [id], map: "Evaluation_sectionAVerifiedBy_fkey")
+  user_evaluation_sectionBVerifiedByTouser           user?                     @relation("evaluation_sectionBVerifiedByTouser", fields: [sectionBVerifiedBy], references: [id], map: "Evaluation_sectionBVerifiedBy_fkey")
+  user_evaluation_sectionCVerifiedByTouser           user?                     @relation("evaluation_sectionCVerifiedByTouser", fields: [sectionCVerifiedBy], references: [id], map: "Evaluation_sectionCVerifiedBy_fkey")
+  user_evaluation_sectionDVerifiedByTouser           user?                     @relation("evaluation_sectionDVerifiedByTouser", fields: [sectionDVerifiedBy], references: [id], map: "Evaluation_sectionDVerifiedBy_fkey")
+  user_evaluation_sectionEVerifiedByTouser           user?                     @relation("evaluation_sectionEVerifiedByTouser", fields: [sectionEVerifiedBy], references: [id], map: "Evaluation_sectionEVerifiedBy_fkey")
+  user_evaluation_validatedByTouser                  user?                     @relation("evaluation_validatedByTouser", fields: [validatedBy], references: [id], map: "Evaluation_validatedBy_fkey")
+  evaluationassignment                               evaluationassignment[]
 
-  @@unique([userId, roleId])
-  @@index([roleId], map: "UserRole_roleId_fkey")
+  @@index([assignedProcurementOfficerId], map: "Evaluation_assignedProcurementOfficerId_fkey")
+  @@index([combinedRequestId], map: "Evaluation_combinedRequestId_fkey")
+  @@index([createdBy], map: "Evaluation_createdBy_idx")
+  @@index([evalNumber], map: "Evaluation_evalNumber_idx")
+  @@index([requestId], map: "Evaluation_requestId_idx")
+  @@index([rfqNumber], map: "Evaluation_rfqNumber_idx")
+  @@index([sectionAVerifiedBy], map: "Evaluation_sectionAVerifiedBy_fkey")
+  @@index([sectionBVerifiedBy], map: "Evaluation_sectionBVerifiedBy_fkey")
+  @@index([sectionCVerifiedBy], map: "Evaluation_sectionCVerifiedBy_fkey")
+  @@index([sectionDVerifiedBy], map: "Evaluation_sectionDVerifiedBy_fkey")
+  @@index([sectionEVerifiedBy], map: "Evaluation_sectionEVerifiedBy_fkey")
+  @@index([status], map: "Evaluation_status_idx")
+  @@index([validatedBy], map: "Evaluation_validatedBy_fkey")
 }
 
-model FundingSource {
-  id       Int       @id @default(autoincrement())
-  name     String
-  code     String?
-  notes    String?
-  requests Request[]
+model evaluationassignment {
+  id           Int                         @id @default(autoincrement())
+  evaluationId Int
+  userId       Int
+  sections     Json
+  status       evaluationassignment_status @default(PENDING)
+  submittedAt  DateTime?
+  createdAt    DateTime                    @default(now())
+  updatedAt    DateTime
+  evaluation   evaluation                  @relation(fields: [evaluationId], references: [id], map: "EvaluationAssignment_evaluationId_fkey")
+  user         user                        @relation(fields: [userId], references: [id], map: "EvaluationAssignment_userId_fkey")
+
+  @@unique([evaluationId, userId], map: "EvaluationAssignment_evaluationId_userId_key")
+  @@index([userId], map: "EvaluationAssignment_userId_idx")
 }
 
-model Vendor {
-  id        Int       @id @default(autoincrement())
-  name      String
-  contact   Json?
-  address   String?
-  website   String?
-  createdAt DateTime  @default(now())
-  requests  Request[]
+model fundingsource {
+  id      Int       @id @default(autoincrement())
+  name    String
+  code    String?
+  notes   String?
+  request request[]
 }
 
-model Request {
-  id                    Int                    @id @default(autoincrement())
-  reference             String                 @unique
-  title                 String
-  description           String?
-  requesterId           Int
-  departmentId          Int?
-  status                RequestStatus          @default(DRAFT)
-  fundingSourceId       Int?
-  budgetCode            String?
-  totalEstimated        Decimal?               @db.Decimal(12, 2)
-  currency              String?                @default("USD")
-  priority              Priority?              @default(MEDIUM)
-  procurementType       Json?
-  expectedDelivery      DateTime?
-  currentAssigneeId     Int?
-  vendorId              Int?
-  managerName           String?
-  headName              String?
-  managerApproved       Boolean?               @default(false)
-  headApproved          Boolean?               @default(false)
-  commitmentNumber      String?
-  accountingCode        String?
-  budgetComments        String?
-  budgetOfficerName     String?
-  budgetManagerName     String?
-  procurementCaseNumber String?
-  receivedBy            String?
-  dateReceived          String?
-  procurementApproved   Boolean?               @default(false)
-  actionDate            String?
-  procurementComments   String?
-  headerDeptCode        String?
-  headerMonth           String?
-  headerYear            Int?
-  headerSequence        Int?
-  createdAt             DateTime               @default(now())
-  updatedAt             DateTime               @updatedAt
-  submittedAt           DateTime?
-  isCombined            Boolean?               @default(false)
-  combinedRequestId     Int?
-  lotNumber             Int?
-  evaluations           Evaluation[]           @relation("RequestEvaluations")
-  combinedRequest       CombinedRequest?       @relation("CombinedRequestLots", fields: [combinedRequestId], references: [id])
-  currentAssignee       User?                  @relation("requestAssignee", fields: [currentAssigneeId], references: [id])
-  department            Department?            @relation(fields: [departmentId], references: [id])
-  fundingSource         FundingSource?         @relation(fields: [fundingSourceId], references: [id])
-  requester             User                   @relation("requestRequester", fields: [requesterId], references: [id])
-  vendor                Vendor?                @relation(fields: [vendorId], references: [id])
-  actions               RequestAction[]
-  assignmentLogs        RequestAssignmentLog[]
-  attachments           RequestAttachment[]
-  items                 RequestItem[]
-  statusHistory         RequestStatusHistory[]
-  splinteringAlerts     SplinteringAlert[]
+model idea {
+  id               Int                @id @default(autoincrement())
+  title            String
+  description      String             @db.Text
+  descriptionHtml  String?            @db.Text
+  category         idea_category
+  status           idea_status        @default(DRAFT)
+  stage            idea_stage         @default(DISCOVERY)
+  isAnonymous      Boolean            @default(false)
+  challengeId      Int?
+  submittedBy      Int
+  submittedAt      DateTime           @default(now())
+  reviewedBy       Int?
+  reviewedAt       DateTime?
+  reviewNotes      String?            @db.Text
+  promotedAt       DateTime?
+  projectCode      String?            @unique(map: "Idea_projectCode_key")
+  voteCount        Int                @default(0)
+  upvoteCount      Int                @default(0)
+  downvoteCount    Int                @default(0)
+  viewCount        Int                @default(0)
+  trendingScore    Float              @default(0)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime
+  auditlog         auditlog[]
+  challenge        challenge?         @relation(fields: [challengeId], references: [id], map: "Idea_challengeId_fkey")
+  user             user               @relation(fields: [submittedBy], references: [id], map: "Idea_submittedBy_fkey")
+  ideaattachment   ideaattachment[]
+  ideacomment      ideacomment[]
+  ideastagehistory ideastagehistory[]
+  ideatag          ideatag[]
+  vote             vote[]
+
+  @@index([category], map: "Idea_category_idx")
+  @@index([category, status], map: "Idea_category_status_idx")
+  @@index([challengeId], map: "Idea_challengeId_fkey")
+  @@index([createdAt], map: "Idea_createdAt_idx")
+  @@index([promotedAt], map: "Idea_promotedAt_idx")
+  @@index([reviewedBy, reviewedAt], map: "Idea_reviewedBy_reviewedAt_idx")
+  @@index([status, createdAt], map: "Idea_status_createdAt_idx")
+  @@index([status], map: "Idea_status_idx")
+  @@index([status, trendingScore], map: "Idea_status_trendingScore_idx")
+  @@index([status, voteCount], map: "Idea_status_voteCount_idx")
+  @@index([submittedBy], map: "Idea_submittedBy_idx")
+  @@index([submittedBy, status], map: "Idea_submittedBy_status_idx")
+  @@index([trendingScore], map: "Idea_trendingScore_idx")
+  @@index([voteCount], map: "Idea_voteCount_idx")
+}
+
+model ideaattachment {
+  id         Int                       @id @default(autoincrement())
+  ideaId     Int
+  fileName   String
+  fileUrl    String
+  fileSize   Int
+  mimeType   String?
+  safeStatus ideaattachment_safeStatus @default(PENDING)
+  uploadedAt DateTime                  @default(now())
+  idea       idea                      @relation(fields: [ideaId], references: [id], onDelete: Cascade, map: "IdeaAttachment_ideaId_fkey")
+
+  @@index([ideaId], map: "IdeaAttachment_ideaId_idx")
+}
+
+model ideacomment {
+  id                Int           @id @default(autoincrement())
+  ideaId            Int
+  userId            Int
+  text              String        @db.Text
+  parentId          Int?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime
+  idea              idea          @relation(fields: [ideaId], references: [id], onDelete: Cascade, map: "IdeaComment_ideaId_fkey")
+  ideacomment       ideacomment?  @relation("ideacommentToideacomment", fields: [parentId], references: [id], map: "IdeaComment_parentId_fkey")
+  other_ideacomment ideacomment[] @relation("ideacommentToideacomment")
+  user              user          @relation(fields: [userId], references: [id], onDelete: Cascade, map: "IdeaComment_userId_fkey")
+
+  @@index([ideaId], map: "IdeaComment_ideaId_idx")
+  @@index([parentId], map: "IdeaComment_parentId_idx")
+  @@index([userId], map: "IdeaComment_userId_idx")
+}
+
+model ideacount {
+  id        Int              @id @default(autoincrement())
+  status    ideacount_status @unique(map: "IdeaCount_status_key")
+  count     Int              @default(0)
+  updatedAt DateTime         @default(now())
+}
+
+model ideastagehistory {
+  id        Int                         @id @default(autoincrement())
+  ideaId    Int
+  fromStage ideastagehistory_fromStage?
+  toStage   ideastagehistory_toStage
+  note      String?
+  userId    Int?
+  createdAt DateTime                    @default(now())
+  idea      idea                        @relation(fields: [ideaId], references: [id], onDelete: Cascade, map: "IdeaStageHistory_ideaId_fkey")
+  user      user?                       @relation(fields: [userId], references: [id], map: "IdeaStageHistory_userId_fkey")
+
+  @@index([ideaId], map: "IdeaStageHistory_ideaId_idx")
+  @@index([userId], map: "IdeaStageHistory_userId_fkey")
+}
+
+model ideatag {
+  ideaId Int
+  tagId  Int
+  idea   idea @relation(fields: [ideaId], references: [id], onDelete: Cascade, map: "IdeaTag_ideaId_fkey")
+  tag    tag  @relation(fields: [tagId], references: [id], onDelete: Cascade, map: "IdeaTag_tagId_fkey")
+
+  @@id([ideaId, tagId])
+  @@index([tagId], map: "IdeaTag_tagId_idx")
+}
+
+model loadbalancingsettings {
+  id                   Int                            @id @default(autoincrement())
+  enabled              Boolean                        @default(false)
+  strategy             loadbalancingsettings_strategy @default(LEAST_LOADED)
+  autoAssignOnApproval Boolean                        @default(true)
+  splinteringEnabled   Boolean                        @default(false)
+  roundRobinCounter    Int                            @default(0)
+  updatedAt            DateTime
+  updatedBy            Int?
+  aiEnabled            Boolean                        @default(true)
+  lastRoundRobinIndex  Int                            @default(0)
+  learningEnabled      Boolean                        @default(true)
+  minConfidenceScore   Float                          @default(0.6)
+  performanceWeighting Float                          @default(1.5)
+  priorityWeighting    Float                          @default(1)
+  specialtyWeighting   Float                          @default(1.3)
+  workloadWeighting    Float                          @default(1.2)
+  user                 user?                          @relation(fields: [updatedBy], references: [id], map: "LoadBalancingSettings_updatedBy_fkey")
+
+  @@index([updatedBy], map: "LoadBalancingSettings_updatedBy_fkey")
+}
+
+model message {
+  id                            Int       @id @default(autoincrement())
+  fromUserId                    Int
+  toUserId                      Int
+  subject                       String
+  body                          String    @db.Text
+  readAt                        DateTime?
+  createdAt                     DateTime  @default(now())
+  user_message_fromUserIdTouser user      @relation("message_fromUserIdTouser", fields: [fromUserId], references: [id], onDelete: Cascade, map: "Message_fromUserId_fkey")
+  user_message_toUserIdTouser   user      @relation("message_toUserIdTouser", fields: [toUserId], references: [id], onDelete: Cascade, map: "Message_toUserId_fkey")
+
+  @@index([createdAt], map: "Message_createdAt_idx")
+  @@index([fromUserId], map: "Message_fromUserId_idx")
+  @@index([toUserId], map: "Message_toUserId_idx")
+}
+
+model navigationmenu {
+  id           Int      @id @default(autoincrement())
+  menuId       String   @unique(map: "NavigationMenu_menuId_key")
+  label        String
+  icon         String?
+  path         String
+  description  String?  @db.Text
+  displayOrder Int      @default(0)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime
+
+  @@index([displayOrder], map: "NavigationMenu_displayOrder_idx")
+  @@index([isActive], map: "NavigationMenu_isActive_idx")
+}
+
+model notification {
+  id        Int               @id @default(autoincrement())
+  userId    Int
+  type      notification_type
+  message   String
+  data      Json?
+  readAt    DateTime?
+  createdAt DateTime          @default(now())
+  user      user              @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Notification_userId_fkey")
+
+  @@index([createdAt], map: "Notification_createdAt_idx")
+  @@index([userId], map: "Notification_userId_idx")
+}
+
+model officerperformancemetrics {
+  id                       Int       @id @default(autoincrement())
+  officerId                Int
+  activeAssignments        Int       @default(0)
+  completedAssignments     Int       @default(0)
+  averageTurnaroundMinutes Int?
+  lastAssignmentAt         DateTime?
+  loadScore                Float?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime
+  averageCompletionTime    Int       @default(24)
+  categoryExpertise        Json
+  complexityHandling       Float     @default(0.5)
+  currentWorkload          Int       @default(0)
+  efficiencyScore          Float     @default(0.8)
+  lastAssignedAt           DateTime?
+  peakPerformanceHours     Json
+  successRate              Float     @default(0.8)
+  user                     user      @relation(fields: [officerId], references: [id], onDelete: Cascade, map: "OfficerPerformanceMetrics_officerId_fkey")
+
+  @@index([officerId], map: "OfficerPerformanceMetrics_officerId_idx")
+}
+
+model permission {
+  id             Int              @id @default(autoincrement())
+  name           String           @unique(map: "Permission_name_key")
+  description    String?
+  module         String?
+  createdAt      DateTime         @default(now())
+  rolepermission rolepermission[]
+
+  @@index([module], map: "Permission_module_idx")
+}
+
+model refreshtoken {
+  id                 Int            @id @default(autoincrement())
+  tokenHash          String         @unique(map: "RefreshToken_tokenHash_key")
+  userId             Int
+  expiresAt          DateTime
+  revoked            Boolean        @default(false)
+  replacedById       Int?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime
+  refreshtoken       refreshtoken?  @relation("refreshtokenTorefreshtoken", fields: [replacedById], references: [id], map: "RefreshToken_replacedById_fkey")
+  other_refreshtoken refreshtoken[] @relation("refreshtokenTorefreshtoken")
+  user               user           @relation(fields: [userId], references: [id], onDelete: Cascade, map: "RefreshToken_userId_fkey")
+
+  @@index([expiresAt], map: "RefreshToken_expiresAt_idx")
+  @@index([replacedById], map: "RefreshToken_replacedById_fkey")
+  @@index([revoked], map: "RefreshToken_revoked_idx")
+  @@index([userId], map: "RefreshToken_userId_idx")
+}
+
+model request {
+  id                                   Int                    @id @default(autoincrement())
+  reference                            String                 @unique(map: "Request_reference_key")
+  title                                String
+  description                          String?
+  requesterId                          Int
+  departmentId                         Int?
+  status                               request_status         @default(DRAFT)
+  fundingSourceId                      Int?
+  budgetCode                           String?
+  totalEstimated                       Decimal?               @db.Decimal(12, 2)
+  currency                             String?                @default("USD")
+  priority                             request_priority?      @default(MEDIUM)
+  procurementType                      Json?
+  expectedDelivery                     DateTime?
+  currentAssigneeId                    Int?
+  vendorId                             Int?
+  managerName                          String?
+  headName                             String?
+  managerApproved                      Boolean?               @default(false)
+  headApproved                         Boolean?               @default(false)
+  commitmentNumber                     String?
+  accountingCode                       String?
+  budgetComments                       String?
+  budgetOfficerName                    String?
+  budgetManagerName                    String?
+  procurementCaseNumber                String?
+  receivedBy                           String?
+  dateReceived                         String?
+  procurementApproved                  Boolean?               @default(false)
+  actionDate                           String?
+  procurementComments                  String?
+  headerDeptCode                       String?
+  headerMonth                          String?
+  headerYear                           Int?
+  headerSequence                       Int?
+  createdAt                            DateTime               @default(now())
+  updatedAt                            DateTime
+  submittedAt                          DateTime?
+  isCombined                           Boolean?               @default(false)
+  combinedRequestId                    Int?
+  lotNumber                            Int?
+  evaluation                           evaluation[]
+  combinedrequest                      combinedrequest?       @relation(fields: [combinedRequestId], references: [id], map: "Request_combinedRequestId_fkey")
+  user_request_currentAssigneeIdTouser user?                  @relation("request_currentAssigneeIdTouser", fields: [currentAssigneeId], references: [id], map: "Request_currentAssigneeId_fkey")
+  department                           department?            @relation(fields: [departmentId], references: [id], map: "Request_departmentId_fkey")
+  fundingsource                        fundingsource?         @relation(fields: [fundingSourceId], references: [id], map: "Request_fundingSourceId_fkey")
+  user_request_requesterIdTouser       user                   @relation("request_requesterIdTouser", fields: [requesterId], references: [id], map: "Request_requesterId_fkey")
+  vendor                               vendor?                @relation(fields: [vendorId], references: [id], map: "Request_vendorId_fkey")
+  requestaction                        requestaction[]
+  requestassignmentlog                 requestassignmentlog[]
+  requestattachment                    requestattachment[]
+  requestitem                          requestitem[]
+  requeststatushistory                 requeststatushistory[]
+  splinteringalert                     splinteringalert[]
 
   @@index([combinedRequestId], map: "Request_combinedRequestId_fkey")
   @@index([currentAssigneeId], map: "Request_currentAssigneeId_fkey")
@@ -203,22 +460,56 @@ model Request {
   @@index([vendorId], map: "Request_vendorId_fkey")
 }
 
-model CombinedRequest {
-  id          Int          @id @default(autoincrement())
-  reference   String       @unique
-  title       String
-  description String?      @db.Text
-  config      Json?
-  createdBy   Int
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  evaluations Evaluation[] @relation("CombinedRequestEvaluations")
-  lots        Request[]    @relation("CombinedRequestLots")
+model requestaction {
+  id            Int                  @id @default(autoincrement())
+  requestId     Int
+  action        requestaction_action
+  comment       String?
+  performedById Int?
+  metadata      Json?
+  createdAt     DateTime             @default(now())
+  user          user?                @relation(fields: [performedById], references: [id], map: "RequestAction_performedById_fkey")
+  request       request              @relation(fields: [requestId], references: [id], map: "RequestAction_requestId_fkey")
 
-  @@index([reference])
+  @@index([performedById], map: "RequestAction_performedById_fkey")
+  @@index([requestId], map: "RequestAction_requestId_fkey")
 }
 
-model RequestItem {
+model requestassignmentlog {
+  id                      Int                            @id @default(autoincrement())
+  requestId               Int
+  officerId               Int
+  strategy                requestassignmentlog_strategy?
+  previousOfficerId       Int?
+  notes                   String?
+  assignedAt              DateTime                       @default(now())
+  createdAt               DateTime                       @default(now())
+  actualCompletionTime    Float?
+  confidenceScore         Float?
+  predictedCompletionTime Float?
+  user                    user                           @relation(fields: [officerId], references: [id], map: "RequestAssignmentLog_officerId_fkey")
+  request                 request                        @relation(fields: [requestId], references: [id], map: "RequestAssignmentLog_requestId_fkey")
+
+  @@index([officerId], map: "RequestAssignmentLog_officerId_idx")
+  @@index([requestId], map: "RequestAssignmentLog_requestId_idx")
+}
+
+model requestattachment {
+  id           Int      @id @default(autoincrement())
+  requestId    Int
+  filename     String
+  url          String
+  mimeType     String?
+  uploadedById Int?
+  uploadedAt   DateTime @default(now())
+  request      request  @relation(fields: [requestId], references: [id], map: "RequestAttachment_requestId_fkey")
+  user         user?    @relation(fields: [uploadedById], references: [id], map: "RequestAttachment_uploadedById_fkey")
+
+  @@index([requestId], map: "RequestAttachment_requestId_fkey")
+  @@index([uploadedById], map: "RequestAttachment_uploadedById_fkey")
+}
+
+model requestitem {
   id            Int     @id @default(autoincrement())
   requestId     Int
   description   String
@@ -229,437 +520,72 @@ model RequestItem {
   stockLevel    String?
   unitOfMeasure String?
   partNumber    String?
-  request       Request @relation(fields: [requestId], references: [id])
+  request       request @relation(fields: [requestId], references: [id], map: "RequestItem_requestId_fkey")
 
   @@index([requestId], map: "RequestItem_requestId_fkey")
 }
 
-model RequestAttachment {
-  id           Int      @id @default(autoincrement())
-  requestId    Int
-  filename     String
-  url          String
-  mimeType     String?
-  uploadedById Int?
-  uploadedAt   DateTime @default(now())
-  request      Request  @relation(fields: [requestId], references: [id])
-  uploadedBy   User?    @relation("attachmentUploadedBy", fields: [uploadedById], references: [id])
-
-  @@index([requestId], map: "RequestAttachment_requestId_fkey")
-  @@index([uploadedById], map: "RequestAttachment_uploadedById_fkey")
-}
-
-model RequestAction {
-  id            Int               @id @default(autoincrement())
-  requestId     Int
-  action        RequestActionType
-  comment       String?
-  performedById Int?
-  metadata      Json?
-  createdAt     DateTime          @default(now())
-  performedBy   User?             @relation("actionPerformedBy", fields: [performedById], references: [id])
-  request       Request           @relation(fields: [requestId], references: [id])
-
-  @@index([performedById], map: "RequestAction_performedById_fkey")
-  @@index([requestId], map: "RequestAction_requestId_fkey")
-}
-
-model RequestStatusHistory {
-  id          Int           @id @default(autoincrement())
+model requeststatushistory {
+  id          Int                         @id @default(autoincrement())
   requestId   Int
-  status      RequestStatus
+  status      requeststatushistory_status
   changedById Int?
   comment     String?
-  createdAt   DateTime      @default(now())
-  changedBy   User?         @relation("statusChangedBy", fields: [changedById], references: [id])
-  request     Request       @relation(fields: [requestId], references: [id])
+  createdAt   DateTime                    @default(now())
+  user        user?                       @relation(fields: [changedById], references: [id], map: "RequestStatusHistory_changedById_fkey")
+  request     request                     @relation(fields: [requestId], references: [id], map: "RequestStatusHistory_requestId_fkey")
 
   @@index([changedById], map: "RequestStatusHistory_changedById_fkey")
   @@index([requestId], map: "RequestStatusHistory_requestId_fkey")
 }
 
-model Idea {
-  id              Int                @id @default(autoincrement())
-  title           String
-  description     String             @db.Text
-  descriptionHtml String?            @db.Text
-  category        IdeaCategory
-  status          IdeaStatus         @default(DRAFT)
-  stage           Stage              @default(DISCOVERY)
-  isAnonymous     Boolean            @default(false)
-  challengeId     Int?
-  submittedBy     Int
-  submittedAt     DateTime           @default(now())
-  reviewedBy      Int?
-  reviewedAt      DateTime?
-  reviewNotes     String?            @db.Text
-  promotedAt      DateTime?
-  projectCode     String?            @unique
-  voteCount       Int                @default(0)
-  upvoteCount     Int                @default(0)
-  downvoteCount   Int                @default(0)
-  viewCount       Int                @default(0)
-  trendingScore   Float              @default(0)
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
-  auditLogs       AuditLog[]
-  challenge       Challenge?         @relation(fields: [challengeId], references: [id])
-  submitter       User               @relation(fields: [submittedBy], references: [id])
-  attachments     IdeaAttachment[]
-  comments        IdeaComment[]
-  stageHistory    IdeaStageHistory[]
-  tags            IdeaTag[]
-  votes           Vote[]
-
-  @@index([status])
-  @@index([category])
-  @@index([submittedBy])
-  @@index([createdAt])
-  @@index([voteCount])
-  @@index([trendingScore])
-  @@index([status, createdAt])
-  @@index([status, voteCount])
-  @@index([status, trendingScore])
-  @@index([category, status])
-  @@index([submittedBy, status])
-  @@index([promotedAt])
-  @@index([reviewedBy, reviewedAt])
-  @@index([challengeId], map: "Idea_challengeId_fkey")
+model role {
+  id             Int              @id @default(autoincrement())
+  name           String           @unique(map: "Role_name_key")
+  description    String?
+  rolepermission rolepermission[]
+  userrole       userrole[]
 }
 
-model Vote {
-  id        Int      @id @default(autoincrement())
-  ideaId    Int
-  userId    Int
-  voteType  VoteType @default(UPVOTE)
-  createdAt DateTime @default(now())
-  idea      Idea     @relation(fields: [ideaId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+model rolepermission {
+  id           Int        @id @default(autoincrement())
+  roleId       Int
+  permissionId Int
+  permission   permission @relation(fields: [permissionId], references: [id], onDelete: Cascade, map: "RolePermission_permissionId_fkey")
+  role         role       @relation(fields: [roleId], references: [id], onDelete: Cascade, map: "RolePermission_roleId_fkey")
 
-  @@unique([ideaId, userId])
-  @@index([ideaId])
-  @@index([userId])
+  @@unique([roleId, permissionId], map: "RolePermission_roleId_permissionId_key")
+  @@index([permissionId], map: "RolePermission_permissionId_idx")
+  @@index([roleId], map: "RolePermission_roleId_idx")
 }
 
-model IdeaComment {
-  id        Int           @id @default(autoincrement())
-  ideaId    Int
-  userId    Int
-  text      String        @db.Text
-  parentId  Int?
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
-  idea      Idea          @relation(fields: [ideaId], references: [id], onDelete: Cascade)
-  parent    IdeaComment?  @relation("IdeaCommentParent", fields: [parentId], references: [id])
-  replies   IdeaComment[] @relation("IdeaCommentParent")
-  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+model rolerequest {
+  id                                  Int                @id @default(autoincrement())
+  userId                              Int
+  departmentId                        Int?
+  role                                String
+  module                              String
+  status                              rolerequest_status @default(PENDING)
+  reason                              String?            @db.Text
+  notes                               String?            @db.Text
+  approvedById                        Int?
+  approvedAt                          DateTime?
+  rejectedAt                          DateTime?
+  expiresAt                           DateTime?
+  createdAt                           DateTime           @default(now())
+  updatedAt                           DateTime
+  user_rolerequest_approvedByIdTouser user?              @relation("rolerequest_approvedByIdTouser", fields: [approvedById], references: [id], map: "RoleRequest_approvedById_fkey")
+  department                          department?        @relation(fields: [departmentId], references: [id], map: "RoleRequest_departmentId_fkey")
+  user_rolerequest_userIdTouser       user               @relation("rolerequest_userIdTouser", fields: [userId], references: [id], map: "RoleRequest_userId_fkey")
 
-  @@index([ideaId])
-  @@index([userId])
-  @@index([parentId])
-}
-
-model IdeaAttachment {
-  id         Int                  @id @default(autoincrement())
-  ideaId     Int
-  fileName   String
-  fileUrl    String
-  fileSize   Int
-  mimeType   String?
-  safeStatus AttachmentSafeStatus @default(PENDING)
-  uploadedAt DateTime             @default(now())
-  idea       Idea                 @relation(fields: [ideaId], references: [id], onDelete: Cascade)
-
-  @@index([ideaId])
-}
-
-model Tag {
-  id        Int       @id @default(autoincrement())
-  name      String    @unique
-  createdAt DateTime  @default(now())
-  ideas     IdeaTag[]
-}
-
-model IdeaTag {
-  ideaId Int
-  tagId  Int
-  idea   Idea @relation(fields: [ideaId], references: [id], onDelete: Cascade)
-  tag    Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
-
-  @@id([ideaId, tagId])
-  @@index([tagId])
-}
-
-model IdeaCount {
-  id        Int        @id @default(autoincrement())
-  status    IdeaStatus @unique
-  count     Int        @default(0)
-  updatedAt DateTime   @default(now()) @updatedAt
-}
-
-model Challenge {
-  id          Int       @id @default(autoincrement())
-  title       String
-  description String?
-  startAt     DateTime?
-  endAt       DateTime?
-  isActive    Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  ideas       Idea[]
-}
-
-model IdeaStageHistory {
-  id        Int      @id @default(autoincrement())
-  ideaId    Int
-  fromStage Stage?
-  toStage   Stage
-  note      String?
-  userId    Int?
-  createdAt DateTime @default(now())
-  idea      Idea     @relation(fields: [ideaId], references: [id], onDelete: Cascade)
-  user      User?    @relation(fields: [userId], references: [id])
-
-  @@index([ideaId])
-  @@index([userId], map: "IdeaStageHistory_userId_fkey")
-}
-
-model AuditLog {
-  id        Int         @id @default(autoincrement())
-  userId    Int?
-  action    AuditAction
-  entity    String
-  entityId  Int?
-  message   String      @db.Text
-  ipAddress String?
-  userAgent String?     @db.Text
-  metadata  Json?
-  ideaId    Int?
-  createdAt DateTime    @default(now())
-  idea      Idea?       @relation(fields: [ideaId], references: [id])
-  user      User?       @relation(fields: [userId], references: [id])
-
-  @@index([userId])
-  @@index([action])
-  @@index([entity, entityId])
-  @@index([createdAt])
-  @@index([ideaId])
-}
-
-model Notification {
-  id        Int              @id @default(autoincrement())
-  userId    Int
-  type      NotificationType
-  message   String
-  data      Json?
-  readAt    DateTime?
-  createdAt DateTime         @default(now())
-  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([createdAt])
-}
-
-model Message {
-  id         Int       @id @default(autoincrement())
-  fromUserId Int
-  toUserId   Int
-  subject    String
-  body       String    @db.Text
-  readAt     DateTime?
-  createdAt  DateTime  @default(now())
-  fromUser   User      @relation("MessagesSent", fields: [fromUserId], references: [id], onDelete: Cascade)
-  toUser     User      @relation("MessagesReceived", fields: [toUserId], references: [id], onDelete: Cascade)
-
-  @@index([toUserId])
-  @@index([fromUserId])
-  @@index([createdAt])
-}
-
-model Evaluation {
-  id                           Int                       @id @default(autoincrement())
-  evalNumber                   String                    @unique
-  rfqNumber                    String
-  rfqTitle                     String
-  description                  String?                   @db.Text
-  status                       EvaluationStatus          @default(PENDING)
-  assignedProcurementOfficerId Int?
-  combinedRequestId            Int?
-  requestId                    Int?
-  sectionA                     Json?
-  sectionAStatus               SectionVerificationStatus @default(NOT_STARTED)
-  sectionAVerifiedBy           Int?
-  sectionAVerifiedAt           DateTime?
-  sectionANotes                String?                   @db.Text
-  sectionB                     Json?
-  sectionBStatus               SectionVerificationStatus @default(NOT_STARTED)
-  sectionBVerifiedBy           Int?
-  sectionBVerifiedAt           DateTime?
-  sectionBNotes                String?                   @db.Text
-  sectionC                     Json?
-  sectionCStatus               SectionVerificationStatus @default(NOT_STARTED)
-  sectionCVerifiedBy           Int?
-  sectionCVerifiedAt           DateTime?
-  sectionCNotes                String?                   @db.Text
-  sectionD                     Json?
-  sectionDStatus               SectionVerificationStatus @default(NOT_STARTED)
-  sectionDVerifiedBy           Int?
-  sectionDVerifiedAt           DateTime?
-  sectionDNotes                String?                   @db.Text
-  sectionE                     Json?
-  sectionEStatus               SectionVerificationStatus @default(NOT_STARTED)
-  sectionEVerifiedBy           Int?
-  sectionEVerifiedAt           DateTime?
-  sectionENotes                String?                   @db.Text
-  createdBy                    Int
-  evaluator                    String?
-  dueDate                      DateTime?
-  dateSubmissionConsidered     DateTime?
-  reportCompletionDate         DateTime?
-  validatedBy                  Int?
-  validatedAt                  DateTime?
-  validationNotes              String?                   @db.Text
-  createdAt                    DateTime                  @default(now())
-  updatedAt                    DateTime                  @updatedAt
-  assignedProcurementOfficer   User?                     @relation("AssignedProcurementOfficer", fields: [assignedProcurementOfficerId], references: [id])
-  combinedRequest              CombinedRequest?          @relation("CombinedRequestEvaluations", fields: [combinedRequestId], references: [id])
-  creator                      User                      @relation("EvaluationCreator", fields: [createdBy], references: [id])
-  request                      Request?                  @relation("RequestEvaluations", fields: [requestId], references: [id])
-  sectionAVerifier             User?                     @relation("SectionAVerifier", fields: [sectionAVerifiedBy], references: [id])
-  sectionBVerifier             User?                     @relation("SectionBVerifier", fields: [sectionBVerifiedBy], references: [id])
-  sectionCVerifier             User?                     @relation("SectionCVerifier", fields: [sectionCVerifiedBy], references: [id])
-  sectionDVerifier             User?                     @relation("SectionDVerifier", fields: [sectionDVerifiedBy], references: [id])
-  sectionEVerifier             User?                     @relation("SectionEVerifier", fields: [sectionEVerifiedBy], references: [id])
-  validator                    User?                     @relation("EvaluationValidator", fields: [validatedBy], references: [id])
-  assignments                  EvaluationAssignment[]
-
-  @@index([status])
-  @@index([createdBy])
-  @@index([evalNumber])
-  @@index([requestId])
-  @@index([rfqNumber])
-  @@index([assignedProcurementOfficerId], map: "Evaluation_assignedProcurementOfficerId_fkey")
-  @@index([combinedRequestId], map: "Evaluation_combinedRequestId_fkey")
-  @@index([sectionAVerifiedBy], map: "Evaluation_sectionAVerifiedBy_fkey")
-  @@index([sectionBVerifiedBy], map: "Evaluation_sectionBVerifiedBy_fkey")
-  @@index([sectionCVerifiedBy], map: "Evaluation_sectionCVerifiedBy_fkey")
-  @@index([sectionDVerifiedBy], map: "Evaluation_sectionDVerifiedBy_fkey")
-  @@index([sectionEVerifiedBy], map: "Evaluation_sectionEVerifiedBy_fkey")
-  @@index([validatedBy], map: "Evaluation_validatedBy_fkey")
-}
-
-/// Per-user assignment to contribute to an Evaluation
-model EvaluationAssignment {
-  id           Int              @id @default(autoincrement())
-  evaluationId Int
-  userId       Int
-  sections     Json
-  status       AssignmentStatus @default(PENDING)
-  submittedAt  DateTime?
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
-  evaluation   Evaluation       @relation(fields: [evaluationId], references: [id])
-  user         User             @relation(fields: [userId], references: [id])
-
-  @@unique([evaluationId, userId])
-  @@index([userId])
-}
-
-model LoadBalancingSettings {
-  id                   Int                   @id @default(autoincrement())
-  enabled              Boolean               @default(false)
-  strategy             LoadBalancingStrategy @default(LEAST_LOADED)
-  autoAssignOnApproval Boolean               @default(true)
-  splinteringEnabled   Boolean               @default(false)
-  roundRobinCounter    Int                   @default(0)
-  updatedAt            DateTime              @updatedAt
-  updatedBy            Int?
-  aiEnabled            Boolean               @default(true)
-  lastRoundRobinIndex  Int                   @default(0)
-  learningEnabled      Boolean               @default(true)
-  minConfidenceScore   Float                 @default(0.6)
-  performanceWeighting Float                 @default(1.5)
-  priorityWeighting    Float                 @default(1)
-  specialtyWeighting   Float                 @default(1.3)
-  workloadWeighting    Float                 @default(1.2)
-  user                 User?                 @relation("LoadBalancingUpdater", fields: [updatedBy], references: [id])
-
-  @@index([updatedBy], map: "LoadBalancingSettings_updatedBy_fkey")
-}
-
-/// Performance metrics for procurement officers (used by advanced load balancing / analytics)
-model OfficerPerformanceMetrics {
-  id                       Int       @id @default(autoincrement())
-  officerId                Int
-  activeAssignments        Int       @default(0)
-  completedAssignments     Int       @default(0)
-  averageTurnaroundMinutes Int?
-  lastAssignmentAt         DateTime?
-  loadScore                Float?
-  createdAt                DateTime  @default(now())
-  updatedAt                DateTime  @updatedAt
-  averageCompletionTime    Int       @default(24)
-  categoryExpertise        Json
-  complexityHandling       Float     @default(0.5)
-  currentWorkload          Int       @default(0)
-  efficiencyScore          Float     @default(0.8)
-  lastAssignedAt           DateTime?
-  peakPerformanceHours     Json
-  successRate              Float     @default(0.8)
-  officer                  User      @relation(fields: [officerId], references: [id], onDelete: Cascade)
-
-  @@index([officerId])
-}
-
-/// Log of request assignment events for auditing and future ML feature engineering
-model RequestAssignmentLog {
-  id                      Int                    @id @default(autoincrement())
-  requestId               Int
-  officerId               Int
-  strategy                LoadBalancingStrategy?
-  previousOfficerId       Int?
-  notes                   String?
-  assignedAt              DateTime               @default(now())
-  createdAt               DateTime               @default(now())
-  actualCompletionTime    Float?
-  confidenceScore         Float?
-  predictedCompletionTime Float?
-  officer                 User                   @relation(fields: [officerId], references: [id])
-  request                 Request                @relation(fields: [requestId], references: [id])
-
-  @@index([requestId])
-  @@index([officerId])
-}
-
-/// Role request model for tracking user role assignment requests
-/// Users request access to modules like Procurement, admins approve/reject
-model RoleRequest {
-  id           Int               @id @default(autoincrement())
-  userId       Int
-  departmentId Int?
-  role         String
-  module       String
-  status       RoleRequestStatus @default(PENDING)
-  reason       String?           @db.Text
-  notes        String?           @db.Text
-  approvedById Int?
-  approvedAt   DateTime?
-  rejectedAt   DateTime?
-  expiresAt    DateTime?
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
-  approvedBy   User?             @relation("RoleRequestApprovedBy", fields: [approvedById], references: [id])
-  department   Department?       @relation(fields: [departmentId], references: [id])
-  user         User              @relation("RoleRequestSubmittedBy", fields: [userId], references: [id])
-
-  @@index([userId])
-  @@index([status])
-  @@index([createdAt])
   @@index([approvedById], map: "RoleRequest_approvedById_fkey")
+  @@index([createdAt], map: "RoleRequest_createdAt_idx")
   @@index([departmentId], map: "RoleRequest_departmentId_fkey")
+  @@index([status], map: "RoleRequest_status_idx")
+  @@index([userId], map: "RoleRequest_userId_idx")
 }
 
-/// Splintering Detection Alert - tracks potential procurement splitting attempts
-model SplinteringAlert {
+model splinteringalert {
   id         Int       @id @default(autoincrement())
   requestId  Int?
   alertType  String
@@ -672,75 +598,150 @@ model SplinteringAlert {
   reviewedAt DateTime?
   resolution String?   @db.Text
   createdAt  DateTime  @default(now())
-  request    Request?  @relation(fields: [requestId], references: [id])
+  request    request?  @relation(fields: [requestId], references: [id], map: "SplinteringAlert_requestId_fkey")
 
-  @@index([requestId])
-  @@index([alertType])
-  @@index([severity])
-  @@index([createdAt])
-  @@index([wasBlocked])
+  @@index([alertType], map: "SplinteringAlert_alertType_idx")
+  @@index([createdAt], map: "SplinteringAlert_createdAt_idx")
+  @@index([requestId], map: "SplinteringAlert_requestId_idx")
+  @@index([severity], map: "SplinteringAlert_severity_idx")
+  @@index([wasBlocked], map: "SplinteringAlert_wasBlocked_idx")
 }
 
-/// *
-/// * System Configuration
-/// * Stores system-wide settings and configuration
-model SystemConfig {
-  id          Int      @id @default(autoincrement())
-  key         String   @unique
-  value       String   @db.Text
-  valueType   String   @default("string")
-  description String?  @db.Text
-  updatedBy   Int?
-  updatedAt   DateTime @updatedAt
-  createdAt   DateTime @default(now())
-
-  @@index([key])
-  @@index([updatedAt])
-}
-
-/// *
-/// * Anti-Splintering Rules
-/// * Defines rules for detecting procurement splintering attempts
-model SplinteringRule {
+model splinteringrule {
   id              Int      @id @default(autoincrement())
-  ruleId          String   @unique
+  ruleId          String   @unique(map: "SplinteringRule_ruleId_key")
   name            String
   description     String?  @db.Text
   thresholdAmount Decimal  @db.Decimal(12, 2)
   timeWindowDays  Int      @default(90)
   enabled         Boolean  @default(true)
   createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  updatedAt       DateTime
 
-  @@index([enabled])
-  @@index([ruleId])
+  @@index([enabled], map: "SplinteringRule_enabled_idx")
+  @@index([ruleId], map: "SplinteringRule_ruleId_idx")
 }
 
-/// *
-/// * Workflow Status
-/// * Defines possible workflow states in the procurement process
-model WorkflowStatus {
-  id           Int      @id @default(autoincrement())
-  statusId     String   @unique
-  name         String
-  description  String?  @db.Text
-  color        String   @default("#3B82F6")
-  icon         String?
-  isActive     Boolean  @default(true)
-  displayOrder Int      @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  @@index([isActive])
-  @@index([displayOrder])
-}
-
-/// *
-/// * Workflow SLA
-/// * Service Level Agreements for workflow transitions
-model WorkflowSLA {
+model systemconfig {
   id          Int      @id @default(autoincrement())
-  slaId       String   @unique
+  key         String   @unique(map: "SystemConfig_key_key")
+  value       String   @db.Text
+  valueType   String   @default("string")
+  description String?  @db.Text
+  updatedBy   Int?
+  updatedAt   DateTime
+  createdAt   DateTime @default(now())
+
+  @@index([key], map: "SystemConfig_key_idx")
+  @@index([updatedAt], map: "SystemConfig_updatedAt_idx")
+}
+
+model tag {
+  id        Int       @id @default(autoincrement())
+  name      String    @unique(map: "Tag_name_key")
+  createdAt DateTime  @default(now())
+  ideatag   ideatag[]
+}
+
+model user {
+  id                                                       Int                         @id @default(autoincrement())
+  externalId                                               String?                     @unique(map: "User_externalId_key")
+  email                                                    String                      @unique(map: "User_email_key")
+  name                                                     String?
+  passwordHash                                             String?
+  profileImage                                             String?
+  pinnedModule                                             String?                     @default("procurement")
+  ldapDN                                                   String?
+  employeeId                                               String?
+  jobTitle                                                 String?
+  phone                                                    String?
+  address                                                  String?
+  city                                                     String?
+  country                                                  String?
+  supervisor                                               String?
+  departmentId                                             Int?
+  createdAt                                                DateTime                    @default(now())
+  updatedAt                                                DateTime
+  failedLogins                                             Int?                        @default(0)
+  lastFailedLogin                                          DateTime?
+  lastLogin                                                DateTime?
+  blocked                                                  Boolean?                    @default(false)
+  blockedAt                                                DateTime?
+  blockedReason                                            String?
+  blockedBy                                                Int?
+  auditlog                                                 auditlog[]
+  department_department_managerIdTouser                    department?                 @relation("department_managerIdTouser")
+  evaluation_evaluation_assignedProcurementOfficerIdTouser evaluation[]                @relation("evaluation_assignedProcurementOfficerIdTouser")
+  evaluation_evaluation_createdByTouser                    evaluation[]                @relation("evaluation_createdByTouser")
+  evaluation_evaluation_sectionAVerifiedByTouser           evaluation[]                @relation("evaluation_sectionAVerifiedByTouser")
+  evaluation_evaluation_sectionBVerifiedByTouser           evaluation[]                @relation("evaluation_sectionBVerifiedByTouser")
+  evaluation_evaluation_sectionCVerifiedByTouser           evaluation[]                @relation("evaluation_sectionCVerifiedByTouser")
+  evaluation_evaluation_sectionDVerifiedByTouser           evaluation[]                @relation("evaluation_sectionDVerifiedByTouser")
+  evaluation_evaluation_sectionEVerifiedByTouser           evaluation[]                @relation("evaluation_sectionEVerifiedByTouser")
+  evaluation_evaluation_validatedByTouser                  evaluation[]                @relation("evaluation_validatedByTouser")
+  evaluationassignment                                     evaluationassignment[]
+  idea                                                     idea[]
+  ideacomment                                              ideacomment[]
+  ideastagehistory                                         ideastagehistory[]
+  loadbalancingsettings                                    loadbalancingsettings[]
+  message_message_fromUserIdTouser                         message[]                   @relation("message_fromUserIdTouser")
+  message_message_toUserIdTouser                           message[]                   @relation("message_toUserIdTouser")
+  notification                                             notification[]
+  officerperformancemetrics                                officerperformancemetrics[]
+  refreshtoken                                             refreshtoken[]
+  request_request_currentAssigneeIdTouser                  request[]                   @relation("request_currentAssigneeIdTouser")
+  request_request_requesterIdTouser                        request[]                   @relation("request_requesterIdTouser")
+  requestaction                                            requestaction[]
+  requestassignmentlog                                     requestassignmentlog[]
+  requestattachment                                        requestattachment[]
+  requeststatushistory                                     requeststatushistory[]
+  rolerequest_rolerequest_approvedByIdTouser               rolerequest[]               @relation("rolerequest_approvedByIdTouser")
+  rolerequest_rolerequest_userIdTouser                     rolerequest[]               @relation("rolerequest_userIdTouser")
+  department_user_departmentIdTodepartment                 department?                 @relation("user_departmentIdTodepartment", fields: [departmentId], references: [id], map: "User_departmentId_fkey")
+  userrole                                                 userrole[]
+  vote                                                     vote[]
+
+  @@index([departmentId], map: "User_departmentId_fkey")
+}
+
+model userrole {
+  id     Int  @id @default(autoincrement())
+  userId Int
+  roleId Int
+  role   role @relation(fields: [roleId], references: [id], map: "UserRole_roleId_fkey")
+  user   user @relation(fields: [userId], references: [id], map: "UserRole_userId_fkey")
+
+  @@unique([userId, roleId], map: "UserRole_userId_roleId_key")
+  @@index([roleId], map: "UserRole_roleId_fkey")
+}
+
+model vendor {
+  id        Int       @id @default(autoincrement())
+  name      String
+  contact   Json?
+  address   String?
+  website   String?
+  createdAt DateTime  @default(now())
+  request   request[]
+}
+
+model vote {
+  id        Int           @id @default(autoincrement())
+  ideaId    Int
+  userId    Int
+  voteType  vote_voteType @default(UPVOTE)
+  createdAt DateTime      @default(now())
+  idea      idea          @relation(fields: [ideaId], references: [id], onDelete: Cascade, map: "Vote_ideaId_fkey")
+  user      user          @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Vote_userId_fkey")
+
+  @@unique([ideaId, userId], map: "Vote_ideaId_userId_key")
+  @@index([ideaId], map: "Vote_ideaId_idx")
+  @@index([userId], map: "Vote_userId_idx")
+}
+
+model workflowsla {
+  id          Int      @id @default(autoincrement())
+  slaId       String   @unique(map: "WorkflowSLA_slaId_key")
   name        String
   description String?  @db.Text
   fromStatus  String
@@ -748,89 +749,29 @@ model WorkflowSLA {
   slaHours    Int
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  updatedAt   DateTime
 
-  @@unique([fromStatus, toStatus])
-  @@index([isActive])
+  @@unique([fromStatus, toStatus], map: "WorkflowSLA_fromStatus_toStatus_key")
+  @@index([isActive], map: "WorkflowSLA_isActive_idx")
 }
 
-/// *
-/// * Navigation Menu
-/// * Stores menu items displayed in application headers/sidebars
-model NavigationMenu {
+model workflowstatus {
   id           Int      @id @default(autoincrement())
-  menuId       String   @unique
-  label        String
-  icon         String?
-  path         String
+  statusId     String   @unique(map: "WorkflowStatus_statusId_key")
+  name         String
   description  String?  @db.Text
-  displayOrder Int      @default(0)
+  color        String   @default("#3B82F6")
+  icon         String?
   isActive     Boolean  @default(true)
+  displayOrder Int      @default(0)
   createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  updatedAt    DateTime
 
-  @@index([isActive])
-  @@index([displayOrder])
+  @@index([displayOrder], map: "WorkflowStatus_displayOrder_idx")
+  @@index([isActive], map: "WorkflowStatus_isActive_idx")
 }
 
-/// Refresh token model for JWT token rotation
-model RefreshToken {
-  id             Int            @id @default(autoincrement())
-  tokenHash      String         @unique
-  userId         Int
-  expiresAt      DateTime
-  revoked        Boolean        @default(false)
-  replacedById   Int?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  replacedBy     RefreshToken?  @relation("replacedByRelation", fields: [replacedById], references: [id])
-  replacedTokens RefreshToken[] @relation("replacedByRelation")
-  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([expiresAt])
-  @@index([revoked])
-  @@index([replacedById], map: "RefreshToken_replacedById_fkey")
-}
-
-/// *
-/// * ===== Enums =====
-enum RequestStatus {
-  DRAFT
-  SUBMITTED
-  DEPARTMENT_REVIEW
-  DEPARTMENT_RETURNED
-  DEPARTMENT_APPROVED
-  EXECUTIVE_REVIEW
-  HOD_REVIEW
-  PROCUREMENT_REVIEW
-  FINANCE_REVIEW
-  FINANCE_RETURNED
-  BUDGET_MANAGER_REVIEW
-  FINANCE_APPROVED
-  SENT_TO_VENDOR
-  CLOSED
-  REJECTED
-}
-
-enum RequestActionType {
-  SUBMIT
-  APPROVE
-  RETURN
-  ASSIGN
-  EDIT_BUDGET
-  COMMENT
-  SEND_TO_VENDOR
-}
-
-enum Priority {
-  LOW
-  MEDIUM
-  HIGH
-  URGENT
-}
-
-enum IdeaStatus {
+enum ideacount_status {
   DRAFT
   PENDING_REVIEW
   APPROVED
@@ -838,40 +779,7 @@ enum IdeaStatus {
   PROMOTED_TO_PROJECT
 }
 
-enum IdeaCategory {
-  PROCESS_IMPROVEMENT
-  TECHNOLOGY
-  CUSTOMER_SERVICE
-  SUSTAINABILITY
-  COST_REDUCTION
-  PRODUCT_INNOVATION
-  OTHER
-}
-
-enum Stage {
-  DISCOVERY
-  EVALUATION
-  INCUBATION
-  IMPLEMENTATION
-  COMPLETED
-}
-
-enum AttachmentSafeStatus {
-  PENDING
-  CLEAN
-  INFECTED
-}
-
-enum NotificationType {
-  MENTION
-  STAGE_CHANGED
-  IDEA_APPROVED
-  THRESHOLD_EXCEEDED
-  EVALUATION_VERIFIED
-  EVALUATION_RETURNED
-}
-
-enum AuditAction {
+enum auditlog_action {
   USER_LOGIN
   USER_LOGOUT
   USER_LOGIN_FAILED
@@ -922,7 +830,15 @@ enum AuditAction {
   DATA_EXPORTED
 }
 
-enum LoadBalancingStrategy {
+enum ideastagehistory_fromStage {
+  DISCOVERY
+  EVALUATION
+  INCUBATION
+  IMPLEMENTATION
+  COMPLETED
+}
+
+enum loadbalancingsettings_strategy {
   LEAST_LOADED
   ROUND_ROBIN
   RANDOM
@@ -931,19 +847,81 @@ enum LoadBalancingStrategy {
   PREDICTIVE
 }
 
-enum RoleRequestStatus {
-  PENDING
-  APPROVED
-  REJECTED
-  CANCELLED
+enum notification_type {
+  MENTION
+  STAGE_CHANGED
+  IDEA_APPROVED
+  THRESHOLD_EXCEEDED
+  EVALUATION_VERIFIED
+  EVALUATION_RETURNED
 }
 
-enum VoteType {
+enum requestaction_action {
+  SUBMIT
+  APPROVE
+  RETURN
+  ASSIGN
+  EDIT_BUDGET
+  COMMENT
+  SEND_TO_VENDOR
+}
+
+enum requeststatushistory_status {
+  DRAFT
+  SUBMITTED
+  DEPARTMENT_REVIEW
+  DEPARTMENT_RETURNED
+  DEPARTMENT_APPROVED
+  EXECUTIVE_REVIEW
+  HOD_REVIEW
+  PROCUREMENT_REVIEW
+  FINANCE_REVIEW
+  FINANCE_RETURNED
+  BUDGET_MANAGER_REVIEW
+  FINANCE_APPROVED
+  SENT_TO_VENDOR
+  CLOSED
+  REJECTED
+}
+
+enum ideastagehistory_toStage {
+  DISCOVERY
+  EVALUATION
+  INCUBATION
+  IMPLEMENTATION
+  COMPLETED
+}
+
+enum requestassignmentlog_strategy {
+  LEAST_LOADED
+  ROUND_ROBIN
+  RANDOM
+  AI_SMART
+  SKILL_BASED
+  PREDICTIVE
+}
+
+enum vote_voteType {
   UPVOTE
   DOWNVOTE
 }
 
-enum EvaluationStatus {
+enum evaluationassignment_status {
+  PENDING
+  SUBMITTED
+}
+
+enum idea_category {
+  PROCESS_IMPROVEMENT
+  TECHNOLOGY
+  CUSTOMER_SERVICE
+  SUSTAINABILITY
+  COST_REDUCTION
+  PRODUCT_INNOVATION
+  OTHER
+}
+
+enum evaluation_status {
   PENDING
   IN_PROGRESS
   COMMITTEE_REVIEW
@@ -952,7 +930,54 @@ enum EvaluationStatus {
   REJECTED
 }
 
-enum SectionVerificationStatus {
+enum idea_status {
+  DRAFT
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+  PROMOTED_TO_PROJECT
+}
+
+enum rolerequest_status {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum idea_stage {
+  DISCOVERY
+  EVALUATION
+  INCUBATION
+  IMPLEMENTATION
+  COMPLETED
+}
+
+enum ideaattachment_safeStatus {
+  PENDING
+  CLEAN
+  INFECTED
+}
+
+enum request_status {
+  DRAFT
+  SUBMITTED
+  DEPARTMENT_REVIEW
+  DEPARTMENT_RETURNED
+  DEPARTMENT_APPROVED
+  EXECUTIVE_REVIEW
+  HOD_REVIEW
+  PROCUREMENT_REVIEW
+  FINANCE_REVIEW
+  FINANCE_RETURNED
+  BUDGET_MANAGER_REVIEW
+  FINANCE_APPROVED
+  SENT_TO_VENDOR
+  CLOSED
+  REJECTED
+}
+
+enum evaluation_sectionAStatus {
   NOT_STARTED
   IN_PROGRESS
   SUBMITTED
@@ -960,7 +985,41 @@ enum SectionVerificationStatus {
   VERIFIED
 }
 
-enum AssignmentStatus {
-  PENDING
+enum request_priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum evaluation_sectionBStatus {
+  NOT_STARTED
+  IN_PROGRESS
   SUBMITTED
+  RETURNED
+  VERIFIED
+}
+
+enum evaluation_sectionCStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  SUBMITTED
+  RETURNED
+  VERIFIED
+}
+
+enum evaluation_sectionDStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  SUBMITTED
+  RETURNED
+  VERIFIED
+}
+
+enum evaluation_sectionEStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  SUBMITTED
+  RETURNED
+  VERIFIED
 }
