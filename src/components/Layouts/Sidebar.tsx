@@ -802,6 +802,15 @@ const Sidebar = () => {
                                     </h2>
 
                                     <li className="nav-item">
+                                        <NavLink to="/procurement/dashboard" className="group">
+                                            <div className="flex items-center">
+                                                <IconMenuDashboard className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Dashboard</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+
+                                    <li className="nav-item">
                                         <NavLink to="/apps/requests" className="group">
                                             <div className="flex items-center">
                                                 <IconFile className="group-hover:!text-primary shrink-0" />
@@ -815,15 +824,6 @@ const Sidebar = () => {
                                             <div className="flex items-center">
                                                 <IconPlusCircle className="group-hover:!text-primary shrink-0" />
                                                 <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Combine Requests</span>
-                                            </div>
-                                        </NavLink>
-                                    </li>
-
-                                    <li className="nav-item">
-                                        <NavLink to="/procurement/dashboard" className="group">
-                                            <div className="flex items-center">
-                                                <IconMenuDashboard className="group-hover:!text-primary shrink-0" />
-                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Dashboard</span>
                                             </div>
                                         </NavLink>
                                     </li>
@@ -870,6 +870,15 @@ const Sidebar = () => {
                                     </h2>
 
                                     <li className="nav-item">
+                                        <NavLink to="/procurement/manager" className="group">
+                                            <div className="flex items-center">
+                                                <IconMenuDashboard className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Manager Dashboard</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+
+                                    <li className="nav-item">
                                         <NavLink to="/apps/requests" className="group">
                                             <div className="flex items-center">
                                                 <IconFile className="group-hover:!text-primary shrink-0" />
@@ -883,15 +892,6 @@ const Sidebar = () => {
                                             <div className="flex items-center">
                                                 <IconPlusCircle className="group-hover:!text-primary shrink-0" />
                                                 <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Combine Requests</span>
-                                            </div>
-                                        </NavLink>
-                                    </li>
-
-                                    <li className="nav-item">
-                                        <NavLink to="/procurement/manager" className="group">
-                                            <div className="flex items-center">
-                                                <IconMenuDashboard className="group-hover:!text-primary shrink-0" />
-                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Manager Dashboard</span>
                                             </div>
                                         </NavLink>
                                     </li>
