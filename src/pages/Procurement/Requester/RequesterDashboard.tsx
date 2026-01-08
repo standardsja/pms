@@ -13,6 +13,7 @@ import IconInbox from '../../../components/Icon/IconInbox';
 import IconInfoCircle from '../../../components/Icon/IconInfoCircle';
 import IconTrendingUp from '../../../components/Icon/IconTrendingUp';
 import IconArrowForward from '../../../components/Icon/IconArrowForward';
+import { getAuthHeaders } from '../../../utils/api';
 
 const RequesterDashboard = () => {
     const dispatch = useDispatch();
@@ -63,15 +64,60 @@ const RequesterDashboard = () => {
             description: 'Participate in supplier evaluation process',
             link: '/procurement/evaluation',
         },
-        {
-            icon: '📈',
-            title: 'Track Budget',
-            description: 'Monitor your department budget allocation',
-            link: '/apps/requests',
-        },
     ];
 
-    const recentActivities: Array<{ id: number; action: string; description: string; status: string; time: string }> = [];
+    interface ActivityApi {
+        id: number;
+        action: string;
+        description: string;
+        status: string;
+        createdAt: string;
+    }
+    const [recentActivities, setRecentActivities] = useState<Array<{ id: number; action: string; description: string; status: string; time: string }>>([]);
+
+    const formatRelativeTime = (iso: string): string => {
+        const dt = new Date(iso);
+        const diffMs = Date.now() - dt.getTime();
+        const minutes = Math.floor(diffMs / 60000);
+        if (minutes < 1) return 'just now';
+        if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'} ago`;
+        const hours = Math.floor(minutes / 60);
+        if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`;
+        const days = Math.floor(hours / 24);
+        return `${days} day${days === 1 ? '' : 's'} ago`;
+    };
+
+    const isActivityApi = (x: unknown): x is ActivityApi => {
+        if (!x || typeof x !== 'object') return false;
+        const obj = x as Record<string, unknown>;
+        return typeof obj.id === 'number' && typeof obj.action === 'string' && typeof obj.description === 'string' && typeof obj.status === 'string' && typeof obj.createdAt === 'string';
+    };
+
+    useEffect(() => {
+        const fetchActivities = async () => {
+            try {
+                const headers = await getAuthHeaders();
+                const res = await fetch('/api/requests/activities', { headers });
+                if (res.ok) {
+                    const data = await res.json();
+                    const list: unknown = (data as { activities?: unknown }).activities;
+                    const mapped = Array.isArray(list)
+                        ? list.filter(isActivityApi).map((a) => ({
+                              id: a.id,
+                              action: a.action,
+                              description: a.description,
+                              status: a.status,
+                              time: formatRelativeTime(a.createdAt),
+                          }))
+                        : [];
+                    setRecentActivities(mapped);
+                }
+            } catch (err) {
+                console.error('Failed to fetch activities:', err);
+            }
+        };
+        fetchActivities();
+    }, []);
 
     return (
         <div className="space-y-6">
