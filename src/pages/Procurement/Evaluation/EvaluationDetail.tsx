@@ -666,9 +666,41 @@ const EvaluationDetail = () => {
                             : ''
                     }
 
-                    <!-- Section C: Evaluation Comments -->
+                    <!-- Section C: Evaluation Comments (supports multiple evaluators) -->
                     ${
-                        evaluation.sectionC
+                        Array.isArray(evaluation.sectionC)
+                            ? evaluation.sectionC
+                                  .map(
+                                      (entry: any, idx: number) => `
+                    <div class="section">
+                        <div class="section-title">Section C: Evaluation Comments ${entry?.userName ? `– ${entry.userName}` : `#${idx + 1}`}</div>
+                        <div class="content">
+                            ${
+                                entry?.data?.recommendedSupplier
+                                    ? `
+                            <div class="field">
+                                <div class="field-label">Recommended Supplier</div>
+                                <div class="field-value">${entry.data.recommendedSupplier}</div>
+                            </div>
+                            `
+                                    : ''
+                            }
+                            ${
+                                entry?.data?.comments
+                                    ? `
+                            <div class="field">
+                                <div class="field-label">Comments</div>
+                                <div class="field-value" style="white-space: pre-wrap;">${entry.data.comments}</div>
+                            </div>
+                            `
+                                    : ''
+                            }
+                        </div>
+                    </div>
+                    `
+                                  )
+                                  .join('')
+                            : evaluation.sectionC
                             ? `
                     <div class="section">
                         <div class="section-title">Section C: Evaluation Comments</div>

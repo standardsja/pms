@@ -92,6 +92,13 @@ export interface SectionC {
     evaluationDate: string;
 }
 
+// When multiple evaluators contribute Section C, store entries per user
+export interface SectionCEntry {
+    userId: number;
+    userName?: string | null;
+    data: SectionC;
+}
+
 export interface SectionD {
     summary: string;
 }
@@ -142,7 +149,7 @@ export interface Evaluation {
     sectionBVerifiedAt?: string;
     sectionBNotes?: string;
 
-    sectionC?: SectionC;
+    sectionC?: SectionC | SectionCEntry[];
     sectionCStatus: SectionVerificationStatus;
     sectionCVerifiedBy?: number;
     sectionCVerifier?: { id: number; name: string | null; email: string };
@@ -194,7 +201,7 @@ export interface CreateEvaluationDTO {
     requestId?: number; // Optional link to a single Request (ID)
     sectionA?: SectionA;
     sectionB?: SectionB;
-    sectionC?: SectionC;
+    sectionC?: SectionC | SectionCEntry[];
     sectionD?: SectionD;
     sectionE?: SectionE;
     evaluator?: string;
@@ -206,7 +213,7 @@ export interface UpdateEvaluationDTO {
     status?: EvaluationStatus;
     sectionA?: SectionA;
     sectionB?: SectionB;
-    sectionC?: SectionC;
+    sectionC?: SectionC | SectionCEntry[];
     sectionD?: SectionD;
     sectionE?: SectionE;
     validationNotes?: string;
@@ -400,6 +407,14 @@ class EvaluationService {
             method: 'POST',
         });
         return result;
+    }
+
+    async returnAssignments(evaluationId: number, payload: { userIds: number[]; sections?: Array<'A' | 'B' | 'C' | 'D' | 'E'>; notes?: string }) {
+        const result = await this.fetchWithAuth(`/api/evaluations/${evaluationId}/assignments/return`, {
+            method: 'POST',
+            body: JSON.stringify(payload),
+        });
+        return result.data;
     }
 }
 

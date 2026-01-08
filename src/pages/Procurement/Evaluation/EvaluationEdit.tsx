@@ -21,6 +21,9 @@ const EvaluationEdit = () => {
     const [showErrorAlert, setShowErrorAlert] = useState(false);
     const [alertMessage, setAlertMessage] = useState('');
     const [currentSection, setCurrentSection] = useState<'A' | 'B' | 'C' | 'D' | 'E' | null>(null);
+    const [assignments, setAssignments] = useState<Array<{ id: number; evaluationId: number; userId: number; user?: { id: number; name: string | null; email: string }; sections: string[]; status: string }>>([]);
+    const [selectedReturnUserIds, setSelectedReturnUserIds] = useState<number[]>([]);
+    const [returnNotes, setReturnNotes] = useState('');
 
     // Section forms
     const [sectionAForm, setSectionAForm] = useState<SectionA | null>(null);
@@ -84,6 +87,14 @@ const EvaluationEdit = () => {
             else if (data.sectionBStatus === 'RETURNED') setCurrentSection('B');
             else if (data.sectionDStatus === 'RETURNED') setCurrentSection('D');
             else if (data.sectionEStatus === 'RETURNED') setCurrentSection('E');
+
+            // Load assignments for evaluator selection
+            try {
+                const list = await evaluationService.getAllAssignments(parseInt(id || '0'));
+                setAssignments(list);
+            } catch (e) {
+                console.warn('Failed to load assignments:', e);
+            }
         } catch (err: any) {
             console.error('Failed to load evaluation:', err);
             setError(err.message || 'Failed to load evaluation');
@@ -171,6 +182,32 @@ const EvaluationEdit = () => {
         }
 
         return sections;
+    };
+
+    const handleReturnToEvaluators = async () => {
+        if (!evaluation) return;
+        if (selectedReturnUserIds.length === 0) {
+            setAlertMessage('Select at least one evaluator');
+            setShowErrorAlert(true);
+            setTimeout(() => setShowErrorAlert(false), 2500);
+            return;
+        }
+        try {
+            setLoading(true);
+            await evaluationService.returnAssignments(evaluation.id, { userIds: selectedReturnUserIds, sections: ['C'], notes: returnNotes });
+            setAlertMessage('Returned Section C to selected evaluators');
+            setShowSuccessAlert(true);
+            setSelectedReturnUserIds([]);
+            setReturnNotes('');
+            await loadEvaluation();
+            setTimeout(() => setShowSuccessAlert(false), 2500);
+        } catch (err: any) {
+            setAlertMessage(err.message || 'Failed to return assignments');
+            setShowErrorAlert(true);
+            setTimeout(() => setShowErrorAlert(false), 3500);
+        } finally {
+            setLoading(false);
+        }
     };
 
     const renderSectionAEditor = () => {
@@ -622,6 +659,51 @@ const EvaluationEdit = () => {
                             </div>
                         </div>
                     ))}
+
+                    {/* Return Section C to selected evaluators */}
+                    <div className="border rounded-lg p-4 bg-blue-50 dark:bg-blue-900/20">
+                        <div className="flex items-center justify-between mb-2">
+                            <h6 className="font-semibold text-primary">Return Section C to Evaluators</h6>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div>
+                                <label className="block text-xs font-semibold mb-1">Evaluators (assigned to Section C)</label>
+                                <div className="max-h-40 overflow-auto space-y-2 p-2 border rounded">
+                                    {assignments
+                                        .filter((a) => Array.isArray(a.sections) && a.sections.map((s) => s.toUpperCase()).includes('C'))
+                                        .map((a) => (
+                                            <label key={a.id} className="flex items-center gap-2 text-sm">
+                                                <input
+                                                    type="checkbox"
+                                                    className="form-checkbox"
+                                                    checked={selectedReturnUserIds.includes(a.userId)}
+                                                    onChange={(e) => {
+                                                        const uid = a.userId;
+                                                        setSelectedReturnUserIds((prev) =>
+                                                            e.target.checked ? Array.from(new Set([...prev, uid])) : prev.filter((id) => id !== uid)
+                                                        );
+                                                    }}
+                                                />
+                                                <span>{a.user?.name || a.user?.email || `User #${a.userId}`}</span>
+                                                <span className="text-xs text-white-dark">({a.status})</span>
+                                            </label>
+                                        ))}
+                                    {assignments.filter((a) => Array.isArray(a.sections) && a.sections.map((s) => s.toUpperCase()).includes('C')).length === 0 && (
+                                        <div className="text-xs text-white-dark">No evaluators assigned to Section C.</div>
+                                    )}
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-semibold mb-1">Notes to Evaluators (optional)</label>
+                                <textarea className="form-textarea w-full" rows={3} value={returnNotes} onChange={(e) => setReturnNotes(e.target.value)} placeholder="Provide guidance for Section C" />
+                            </div>
+                        </div>
+                        <div className="mt-3">
+                            <button onClick={handleReturnToEvaluators} className="btn btn-primary btn-sm" disabled={selectedReturnUserIds.length === 0}>
+                                Return Section C to Selected Evaluators
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
 

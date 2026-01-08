@@ -5575,9 +5575,9 @@ app.post(
         ];
 
         const values = [
-            `'${evalNumber}'`,
-            `'${rfqNumber}'`,
-            `'${rfqTitle}'`,
+            `'${evalNumber.replace(/'/g, "''")}'`,
+            `'${rfqNumber.replace(/'/g, "''")}'`,
+            `'${rfqTitle.replace(/'/g, "''")}'`,
             `${description ? `'${description.replace(/'/g, "''")}'` : 'NULL'}`,
             `${sectionA ? `'${JSON.stringify(sectionA).replace(/'/g, "''")}'` : 'NULL'}`,
             `${sectionA && submitToCommittee ? "'SUBMITTED'" : "'NOT_STARTED'"}`,
@@ -5622,7 +5622,7 @@ app.post(
         await prisma.$executeRawUnsafe('INSERT INTO Evaluation (' + columnNames.join(', ') + ') VALUES (' + values.join(', ') + ')');
         const createdRow = await prisma.$queryRawUnsafe<any>(
             "SELECT e.*, uc.id AS creatorId, uc.name AS creatorName, uc.email AS creatorEmail FROM Evaluation e LEFT JOIN User uc ON e.createdBy = uc.id WHERE e.evalNumber='" +
-                evalNumber +
+                evalNumber.replace(/'/g, "''") +
                 "' LIMIT 1"
         );
         const r = createdRow[0];
@@ -5709,6 +5709,42 @@ app.post(
                 });
             } catch (e) {
                 console.error('Failed to create assignment notification:', e);
+            }
+        }
+
+        // If Section C is among assigned sections, pre-initialize Section C entries per user
+        if (sectionList.includes('C')) {
+            try {
+                // Load current sectionC
+                const evalCurrent = await (prisma as any).evaluation.findUnique({ where: { id: evalId }, select: { sectionC: true } });
+                let entries: Array<{ userId: number; userName?: string | null; data: any }>; // data is flexible JSON
+                const current = evalCurrent?.sectionC ?? null;
+                if (Array.isArray(current)) entries = current as any[];
+                else if (current && typeof current === 'object') entries = [current as any];
+                else entries = [];
+
+                const existingIds = new Set(entries.map((e) => Number(e.userId)));
+                for (const uid of uniqueUserIds) {
+                    if (!existingIds.has(Number(uid))) {
+                        entries.push({ userId: Number(uid), userName: null, data: {} });
+                    }
+                }
+                await (prisma as any).evaluation.update({ where: { id: evalId }, data: { sectionC: entries } });
+            } catch (e) {
+                // Fallback raw update if Prisma fails
+                try {
+                    const row = await prisma.$queryRawUnsafe<any>(`SELECT sectionC FROM Evaluation WHERE id = ${evalId} LIMIT 1`);
+                    const current = row[0]?.sectionC ?? null;
+                    let entries: any[] = [];
+                    if (Array.isArray(current)) entries = current as any[]; else if (current) entries = [current];
+                    const existingIds = new Set(entries.map((e: any) => Number(e?.userId)));
+                    for (const uid of uniqueUserIds) {
+                        if (!existingIds.has(Number(uid))) entries.push({ userId: Number(uid), userName: null, data: {} });
+                    }
+                    await prisma.$executeRawUnsafe(`UPDATE Evaluation SET sectionC='${JSON.stringify(entries).replace(/'/g, "''")}' WHERE id=${evalId}`);
+                } catch (inner) {
+                    console.error('Failed to pre-initialize Section C entries:', inner);
+                }
             }
         }
 
@@ -5829,6 +5865,76 @@ app.get(
                 return res.json({ success: true, data: [], meta: { fallback: true, error: String(rawErr?.message || rawErr) } });
             }
         }
+    })
+);
+
+// POST /api/evaluations/:id/assignments/return - Reopen specific evaluators for selected sections (e.g., Section C)
+app.post(
+    '/api/evaluations/:id/assignments/return',
+    authMiddleware,
+    requireRole('PROCUREMENT', 'PROCUREMENT_OFFICER', 'PROCUREMENT_MANAGER'),
+    asyncHandler(async (req, res) => {
+        const { id } = req.params;
+        const { userIds, sections, notes } = (req.body || {}) as { userIds?: number[]; sections?: string[]; notes?: string };
+
+        if (!hasEvaluationDelegate()) {
+            return res.status(501).json({ success: false, message: 'Assignments require Prisma model; please run migrations' });
+        }
+
+        const evaluationId = parseInt(id);
+        if (!Number.isFinite(evaluationId)) throw new BadRequestError('Invalid evaluation ID');
+
+        const evalRecord = await (prisma as any).evaluation.findUnique({ where: { id: evaluationId } });
+        if (!evalRecord) throw new NotFoundError('Evaluation not found');
+
+        const targetUserIds = Array.isArray(userIds) ? Array.from(new Set(userIds.map((u) => parseInt(String(u), 10)).filter((n) => Number.isFinite(n)))) : [];
+        if (targetUserIds.length === 0) {
+            return res.status(400).json({ success: false, message: 'No valid users provided to return assignments to' });
+        }
+
+        const sectionList = (Array.isArray(sections) && sections.length ? sections : ['C']).map((s) => String(s).toUpperCase());
+        const validSections = new Set(['A', 'B', 'C', 'D', 'E']);
+        for (const s of sectionList) if (!validSections.has(s)) throw new BadRequestError(`Invalid section '${s}'`);
+
+        // Reopen assignments: set status back to PENDING and ensure sections include requested sectionList
+        const reopened: any[] = [];
+        for (const uid of targetUserIds) {
+            const assignment = await (prisma as any).evaluationAssignment.findUnique({
+                where: { evaluationId_userId: { evaluationId, userId: uid } },
+            });
+            const newSections = sectionList; // overwrite for clarity
+            const updated = await (prisma as any).evaluationAssignment.upsert({
+                where: { evaluationId_userId: { evaluationId, userId: uid } },
+                update: { status: 'PENDING', submittedAt: null, sections: newSections },
+                create: { evaluationId, userId: uid, status: 'PENDING', sections: newSections },
+            });
+            reopened.push(updated);
+
+            // Notify each user
+            try {
+                await (prisma as any).notification.create({
+                    data: {
+                        userId: uid,
+                        type: 'EVALUATION_RETURNED',
+                        message: `Evaluation ${evalRecord.evalNumber} requires updates to Section(s) ${sectionList.join(', ')}.`,
+                        data: { evaluationId, evalNumber: evalRecord.evalNumber, rfqTitle: evalRecord.rfqTitle, sections: sectionList, notes: notes || '' },
+                    },
+                });
+            } catch (e) {
+                console.error('Failed to notify returned assignment:', e);
+            }
+        }
+
+        // Mark section statuses as RETURNED so procurement UI reflects editable state
+        const statusUpdates: any = {};
+        for (const s of sectionList) {
+            statusUpdates[`section${s}Status`] = 'RETURNED';
+            statusUpdates[`section${s}Notes`] = notes || null;
+        }
+        statusUpdates.status = 'IN_PROGRESS';
+        const updatedEval = await (prisma as any).evaluation.update({ where: { id: evaluationId }, data: statusUpdates });
+
+        return res.json({ success: true, data: { assignments: reopened, evaluation: updatedEval }, message: 'Assignments returned to selected users' });
     })
 );
 
@@ -6033,7 +6139,10 @@ app.patch(
     authMiddleware,
     asyncHandler(async (req, res) => {
         const { id } = req.params;
-        const { section, data } = req.body;
+        const { section, data } = req.body as { section: string; data: any };
+        const userObj: any = (req as any).user;
+        const actorUserId: number | null = userObj?.sub ? parseInt(userObj.sub) : userObj?.id ? parseInt(userObj.id) : null;
+        const actorUserName: string | null = userObj?.name || userObj?.email || null;
 
         if (!section || !data) {
             throw new BadRequestError('Missing required fields: section, data');
@@ -6049,8 +6158,43 @@ app.patch(
         if (!existing) throw new NotFoundError('Evaluation not found');
 
         const updateData: Prisma.EvaluationUpdateInput = {};
-        const sectionKey = `section${section.toUpperCase()}` as keyof Prisma.EvaluationUpdateInput;
-        updateData[sectionKey] = data;
+        const sectionUpper = section.toUpperCase();
+        const sectionKey = `section${sectionUpper}` as keyof Prisma.EvaluationUpdateInput;
+
+        // Support multiple Section C entries (one per evaluator)
+        if (sectionUpper === 'C') {
+            // Normalize existing Section C to an array of entries
+            const current = (existing as any)?.sectionC ?? null;
+            let entries: Array<{ userId: number; userName?: string | null; data: any }>; // Use any for data shape to avoid tight coupling
+            try {
+                if (Array.isArray(current)) {
+                    entries = current as Array<{ userId: number; userName?: string | null; data: any }>;
+                } else if (current && typeof current === 'object') {
+                    // Legacy single-object -> wrap
+                    entries = [{ userId: actorUserId || 0, userName: actorUserName, data: current }];
+                } else {
+                    entries = [];
+                }
+            } catch {
+                entries = [];
+            }
+
+            // Upsert this actor's entry
+            if (actorUserId !== null && Number.isFinite(actorUserId)) {
+                const idx = entries.findIndex((e) => Number(e.userId) === Number(actorUserId));
+                const newEntry = { userId: actorUserId, userName: actorUserName, data };
+                if (idx >= 0) entries[idx] = newEntry; else entries.push(newEntry);
+            } else {
+                // No user id (unlikely), append anonymous entry
+                entries.push({ userId: 0, userName: actorUserName, data });
+            }
+
+            // Assign merged array to update payload
+            (updateData as any)[sectionKey] = entries as any;
+        } else {
+            // For other sections, keep single object behavior
+            updateData[sectionKey] = data;
+        }
 
         // Workflow: Pending -> In Progress on first edits
         if (existing.status === 'PENDING') {
@@ -6066,8 +6210,21 @@ app.patch(
             return res.json({ success: true, data: evaluation });
         }
         const sets: string[] = [];
-        const sectionField = `section${section.toUpperCase()}`;
-        sets.push(`${sectionField}='${JSON.stringify(data).replace(/'/g, "''")}'`);
+        const sectionField = `section${sectionUpper}`;
+        if (sectionUpper === 'C') {
+            const currentRow = await prisma.$queryRawUnsafe<any>(`SELECT sectionC FROM Evaluation WHERE id = ${parseInt(id)} LIMIT 1`);
+            const current = currentRow[0]?.sectionC ?? null;
+            let entries: any[] = [];
+            try {
+                if (Array.isArray(current)) entries = current as any[]; else if (current) entries = [current];
+            } catch {}
+            const entry = { userId: actorUserId || 0, userName: actorUserName, data };
+            const idx = entries.findIndex((e: any) => Number(e?.userId) === Number(actorUserId || -1));
+            if (idx >= 0) entries[idx] = entry; else entries.push(entry);
+            sets.push(`${sectionField}='${JSON.stringify(entries).replace(/'/g, "''")}'`);
+        } else {
+            sets.push(`${sectionField}='${JSON.stringify(data).replace(/'/g, "''")}'`);
+        }
         if (existing.status === 'PENDING') sets.push(`status='IN_PROGRESS'`);
         sets.push('updatedAt=NOW()');
         await prisma.$executeRawUnsafe(`UPDATE Evaluation SET ${sets.join(', ')} WHERE id=${parseInt(id)}`);

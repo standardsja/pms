@@ -33,6 +33,7 @@ model User {
   blockedAt                    DateTime?
   blockedReason                String?
   blockedBy                    Int?
+  userSource                   User_userSource             @default(LOCAL)
   auditLogs                    AuditLog[]
   managedDepartment            Department?                 @relation("departmentManager")
   assignedEvaluations          Evaluation[]                @relation("AssignedProcurementOfficer")
@@ -111,11 +112,14 @@ model RolePermission {
 }
 
 model UserRole {
-  id     Int  @id @default(autoincrement())
-  userId Int
-  roleId Int
-  role   Role @relation(fields: [roleId], references: [id])
-  user   User @relation(fields: [userId], references: [id])
+  id        Int       @id @default(autoincrement())
+  userId    Int
+  roleId    Int
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @default(now())
+  role      Role      @relation(fields: [roleId], references: [id])
+  user      User      @relation(fields: [userId], references: [id])
 
   @@unique([userId, roleId])
   @@index([roleId], map: "UserRole_roleId_fkey")
@@ -513,13 +517,13 @@ model Evaluation {
   createdBy                    Int
   evaluator                    String?
   dueDate                      DateTime?
-  dateSubmissionConsidered     DateTime?
-  reportCompletionDate         DateTime?
   validatedBy                  Int?
   validatedAt                  DateTime?
   validationNotes              String?                   @db.Text
   createdAt                    DateTime                  @default(now())
   updatedAt                    DateTime                  @updatedAt
+  dateSubmissionConsidered     DateTime?
+  reportCompletionDate         DateTime?
   assignedProcurementOfficer   User?                     @relation("AssignedProcurementOfficer", fields: [assignedProcurementOfficerId], references: [id])
   combinedRequest              CombinedRequest?          @relation("CombinedRequestEvaluations", fields: [combinedRequestId], references: [id])
   creator                      User                      @relation("EvaluationCreator", fields: [createdBy], references: [id])
@@ -963,4 +967,9 @@ enum SectionVerificationStatus {
 enum AssignmentStatus {
   PENDING
   SUBMITTED
+}
+
+enum User_userSource {
+  LDAP
+  LOCAL
 }
