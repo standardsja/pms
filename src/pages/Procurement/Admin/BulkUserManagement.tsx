@@ -529,20 +529,27 @@ bob.johnson@example.com,Bob Johnson,Finance,User`;
 
                             {/* Role Selection (for role assignment) */}
                             {activeModal === 'role' && (
-                                <div>
-                                    <label className="block text-sm font-semibold mb-2">Select Role</label>
-                                    <select
-                                        value={selectedRole || ''}
-                                        onChange={(e) => setSelectedRole(parseInt(e.target.value))}
-                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700"
-                                    >
-                                        <option value="">-- Select Role --</option>
-                                        {roles.map((role) => (
-                                            <option key={role.id} value={role.id}>
-                                                {role.name}
-                                            </option>
-                                        ))}
-                                    </select>
+                                <div className="space-y-3">
+                                    <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/40 text-amber-800 dark:text-amber-200 text-sm">
+                                        <p className="font-semibold mb-1">⚠️ Dual Role Warning</p>
+                                        <p>Assigning multiple roles to the same user can affect dashboard routing and sidebar visibility. Higher-priority roles take precedence.</p>
+                                        <p className="mt-1 text-xs italic">Known conflict: REQUESTER + DEPARTMENT_MANAGER will only show Department Manager interface.</p>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold mb-2">Select Role</label>
+                                        <select
+                                            value={selectedRole || ''}
+                                            onChange={(e) => setSelectedRole(parseInt(e.target.value))}
+                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700"
+                                        >
+                                            <option value="">-- Select Role --</option>
+                                            {roles.map((role) => (
+                                                <option key={role.id} value={role.id}>
+                                                    {role.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
                                 </div>
                             )}
 

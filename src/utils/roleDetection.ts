@@ -120,7 +120,8 @@ export function detectUserRoles(userRoles: Array<string | { name: string } | nul
     // 7. SUPPORT ROLES
     const isAuditor = hasRole('AUDITOR');
     const isSupplier = hasRole('SUPPLIER') || containsAny(['SUPPLIER']);
-    const isRequester = hasRole('REQUESTER') || (containsAny(['REQUEST']) && !isProcurementManager && !isProcurementOfficer && !isFinanceManager && !isDepartmentManager && !isAuditor);
+    // Requester should be suppressed if user has higher-priority roles, even if REQUESTER role exists
+    const isRequester = !isProcurementManager && !isProcurementOfficer && !isFinanceManager && !isDepartmentManager && !isAuditor && (hasRole('REQUESTER') || containsAny(['REQUEST']));
 
     // Determine primary role (in priority order for dashboard routing)
     let primaryRole = 'REQUESTER'; // default

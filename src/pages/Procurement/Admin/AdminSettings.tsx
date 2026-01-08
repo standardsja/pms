@@ -339,6 +339,19 @@ const AdminSettings = () => {
             {/* Users Tab (wired) */}
             {activeTab === 'users' && (
                 <div className="space-y-6">
+                    {/* Dual Role Warning */}
+                    <div className="p-4 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/40 text-amber-800 dark:text-amber-200">
+                        <p className="font-semibold mb-1">⚠️ Dual Role Warning</p>
+                        <p className="text-sm">Assigning multiple roles to the same user can affect dashboard routing and sidebar visibility. Higher-priority roles take precedence.</p>
+                        <p className="text-xs italic mt-1">
+                            Known conflict: REQUESTER + DEPARTMENT_MANAGER will only show Department Manager interface. See{' '}
+                            <a href="/docs/DUAL_ROLE_CONFLICTS.md" target="_blank" className="underline hover:text-amber-700">
+                                docs
+                            </a>{' '}
+                            for details.
+                        </p>
+                    </div>
+
                     {/* User Management Section */}
                     <div className="panel">
                         <div className="mb-4 flex items-center justify-between">
