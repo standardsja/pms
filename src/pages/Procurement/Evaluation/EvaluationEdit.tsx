@@ -21,7 +21,9 @@ const EvaluationEdit = () => {
     const [showErrorAlert, setShowErrorAlert] = useState(false);
     const [alertMessage, setAlertMessage] = useState('');
     const [currentSection, setCurrentSection] = useState<'A' | 'B' | 'C' | 'D' | 'E' | null>(null);
-    const [assignments, setAssignments] = useState<Array<{ id: number; evaluationId: number; userId: number; user?: { id: number; name: string | null; email: string }; sections: string[]; status: string }>>([]);
+    const [assignments, setAssignments] = useState<
+        Array<{ id: number; evaluationId: number; userId: number; user?: { id: number; name: string | null; email: string }; sections: string[]; status: string }>
+    >([]);
     const [selectedReturnUserIds, setSelectedReturnUserIds] = useState<number[]>([]);
     const [returnNotes, setReturnNotes] = useState('');
 
@@ -679,9 +681,7 @@ const EvaluationEdit = () => {
                                                     checked={selectedReturnUserIds.includes(a.userId)}
                                                     onChange={(e) => {
                                                         const uid = a.userId;
-                                                        setSelectedReturnUserIds((prev) =>
-                                                            e.target.checked ? Array.from(new Set([...prev, uid])) : prev.filter((id) => id !== uid)
-                                                        );
+                                                        setSelectedReturnUserIds((prev) => (e.target.checked ? Array.from(new Set([...prev, uid])) : prev.filter((id) => id !== uid)));
                                                     }}
                                                 />
                                                 <span>{a.user?.name || a.user?.email || `User #${a.userId}`}</span>

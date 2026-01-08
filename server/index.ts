@@ -5736,7 +5736,8 @@ app.post(
                     const row = await prisma.$queryRawUnsafe<any>(`SELECT sectionC FROM Evaluation WHERE id = ${evalId} LIMIT 1`);
                     const current = row[0]?.sectionC ?? null;
                     let entries: any[] = [];
-                    if (Array.isArray(current)) entries = current as any[]; else if (current) entries = [current];
+                    if (Array.isArray(current)) entries = current as any[];
+                    else if (current) entries = [current];
                     const existingIds = new Set(entries.map((e: any) => Number(e?.userId)));
                     for (const uid of uniqueUserIds) {
                         if (!existingIds.has(Number(uid))) entries.push({ userId: Number(uid), userName: null, data: {} });
@@ -6183,7 +6184,8 @@ app.patch(
             if (actorUserId !== null && Number.isFinite(actorUserId)) {
                 const idx = entries.findIndex((e) => Number(e.userId) === Number(actorUserId));
                 const newEntry = { userId: actorUserId, userName: actorUserName, data };
-                if (idx >= 0) entries[idx] = newEntry; else entries.push(newEntry);
+                if (idx >= 0) entries[idx] = newEntry;
+                else entries.push(newEntry);
             } else {
                 // No user id (unlikely), append anonymous entry
                 entries.push({ userId: 0, userName: actorUserName, data });
@@ -6216,11 +6218,13 @@ app.patch(
             const current = currentRow[0]?.sectionC ?? null;
             let entries: any[] = [];
             try {
-                if (Array.isArray(current)) entries = current as any[]; else if (current) entries = [current];
+                if (Array.isArray(current)) entries = current as any[];
+                else if (current) entries = [current];
             } catch {}
             const entry = { userId: actorUserId || 0, userName: actorUserName, data };
             const idx = entries.findIndex((e: any) => Number(e?.userId) === Number(actorUserId || -1));
-            if (idx >= 0) entries[idx] = entry; else entries.push(entry);
+            if (idx >= 0) entries[idx] = entry;
+            else entries.push(entry);
             sets.push(`${sectionField}='${JSON.stringify(entries).replace(/'/g, "''")}'`);
         } else {
             sets.push(`${sectionField}='${JSON.stringify(data).replace(/'/g, "''")}'`);
