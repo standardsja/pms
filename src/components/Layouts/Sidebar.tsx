@@ -769,6 +769,15 @@ const Sidebar = () => {
                                     </h2>
 
                                     <li className="nav-item">
+                                        <NavLink to="/procurement/dashboard/department-manager" className="group">
+                                            <div className="flex items-center">
+                                                <IconMenuDashboard className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Dashboard</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+
+                                    <li className="nav-item">
                                         <NavLink to="/apps/requests" className="group">
                                             <div className="flex items-center">
                                                 <IconFile className="group-hover:!text-primary shrink-0" />
@@ -777,14 +786,7 @@ const Sidebar = () => {
                                         </NavLink>
                                     </li>
 
-                                    <li className="nav-item">
-                                        <NavLink to="/apps/requests/pending-approval" className="group">
-                                            <div className="flex items-center">
-                                                <IconInbox className="group-hover:!text-primary shrink-0" />
-                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Pending Approval</span>
-                                            </div>
-                                        </NavLink>
-                                    </li>
+                                    {/* Pending Approval link removed per request */}
 
                                     {/* Innovation Hub link removed for Department Manager */}
                                 </>
