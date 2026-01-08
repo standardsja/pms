@@ -798,7 +798,7 @@ const Sidebar = () => {
                                 <>
                                     <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
                                         <IconMinus className="w-4 h-5 flex-none hidden" />
-                                        <span>USER</span>
+                                        <span>Procurement Officer</span>
                                     </h2>
 
                                     <li className="nav-item">
@@ -818,11 +818,6 @@ const Sidebar = () => {
                                             </div>
                                         </NavLink>
                                     </li>
-
-                                    <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1 mt-4">
-                                        <IconMinus className="w-4 h-5 flex-none hidden" />
-                                        <span>Procurement Officer</span>
-                                    </h2>
 
                                     <li className="nav-item">
                                         <NavLink to="/procurement/dashboard" className="group">
@@ -871,7 +866,7 @@ const Sidebar = () => {
                                 <>
                                     <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1">
                                         <IconMinus className="w-4 h-5 flex-none hidden" />
-                                        <span>USER</span>
+                                        <span>Procurement Manager</span>
                                     </h2>
 
                                     <li className="nav-item">
@@ -891,11 +886,6 @@ const Sidebar = () => {
                                             </div>
                                         </NavLink>
                                     </li>
-
-                                    <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1 mt-4">
-                                        <IconMinus className="w-4 h-5 flex-none hidden" />
-                                        <span>Procurement Manager</span>
-                                    </h2>
 
                                     <li className="nav-item">
                                         <NavLink to="/procurement/manager" className="group">
