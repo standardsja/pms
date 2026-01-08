@@ -109,15 +109,13 @@ const RequesterDashboard = lazy(() => import('../pages/Procurement/Requester/Req
 const FinanceOfficerDashboard = lazy(() => import('../pages/Procurement/Finance/FinanceOfficerDashboard'));
 const FinanceManagerDashboard = lazy(() => import('../pages/Procurement/Finance/FinanceManagerDashboard'));
 const AuditorDashboard = lazy(() => import('../pages/Procurement/Audit/AuditorDashboard'));
-const DepartmentHeadDashboardNew = lazy(() => import('../pages/Procurement/DepartmentHead/DepartmentHeadDashboardNew'));
+const DepartmentHeadDashboard = lazy(() => import('../pages/Procurement/DepartmentHead/DepartmentHeadDashboardNew'));
 const DepartmentManagerDashboard = lazy(() => import('../pages/Procurement/DepartmentManager/DepartmentManagerDashboard'));
 const ExecutiveDashboard = lazy(() => import('../pages/Procurement/Executive/ExecutiveDashboard'));
 const SeniorDirectorDashboard = lazy(() => import('../pages/Procurement/Director/SeniorDirectorDashboard'));
-const DepartmentHeadDashboard2 = lazy(() => import('../pages/Procurement/Department/DepartmentHeadDashboard'));
 const PaymentStageDashboard = lazy(() => import('../pages/Procurement/Payments/PaymentStageDashboard'));
 
 // Department Head Pages
-const DepartmentHeadDashboard = lazy(() => import('../pages/Procurement/DepartmentHead/DepartmentHeadDashboard'));
 const DepartmentHeadEvaluationReview = lazy(() => import('../pages/Procurement/DepartmentHead/DepartmentHeadEvaluationReview'));
 const DepartmentHeadReportReview = lazy(() => import('../pages/Procurement/DepartmentHead/DepartmentHeadReportReview'));
 
@@ -353,7 +351,7 @@ const routes = [
         path: '/procurement/dashboard/department-head',
         element: (
             <RoleDashboardGuard allowedRoles={['DEPARTMENT_HEAD']} fallbackPath="/procurement/dashboard">
-                <DepartmentHeadDashboardNew />
+                <DepartmentHeadDashboard />
             </RoleDashboardGuard>
         ),
     },
@@ -691,16 +689,12 @@ const routes = [
     // DEPARTMENT HEAD ROUTES
     // ============================================
     {
-        path: '/procurement/department-head-dashboard',
+        path: '/procurement/department-head/evaluations',
         element: (
             <RoleDashboardGuard allowedRoles={['DEPARTMENT_HEAD']} fallbackPath="/procurement/dashboard">
-                <DepartmentHeadDashboard />
+                <DepartmentHeadEvaluationReview />
             </RoleDashboardGuard>
         ),
-    },
-    {
-        path: '/procurement/department-head/evaluations',
-        element: <DepartmentHeadEvaluationReview />,
     },
     {
         path: '/finance/manager',
@@ -713,7 +707,11 @@ const routes = [
     // ============================================
     {
         path: '/procurement/executive-director-dashboard',
-        element: <ExecutiveDirectorDashboard />,
+        element: (
+            <RoleDashboardGuard allowedRoles={['EXECUTIVE_DIRECTOR']} fallbackPath="/procurement/dashboard">
+                <ExecutiveDirectorDashboard />
+            </RoleDashboardGuard>
+        ),
     },
     {
         path: '/procurement/executive/approvals',
@@ -802,14 +800,6 @@ const routes = [
         element: (
             <RoleDashboardGuard allowedRoles={['SENIOR_DIRECTOR']} fallbackPath="/procurement/dashboard">
                 <SeniorDirectorDashboard />
-            </RoleDashboardGuard>
-        ),
-    },
-    {
-        path: '/department-head/dashboard',
-        element: (
-            <RoleDashboardGuard allowedRoles={['DEPARTMENT_HEAD']} fallbackPath="/procurement/dashboard">
-                <DepartmentHeadDashboard2 />
             </RoleDashboardGuard>
         ),
     },

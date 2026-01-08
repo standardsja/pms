@@ -71,7 +71,7 @@ const HeadOfDivisionDashboard = () => {
                 const headers = await getAuthHeaders();
 
                 // Fetch dashboard statistics
-                const [statsRes, requestsRes] = await Promise.all([fetch(getApiUrl('/api/v1/dashboard-stats'), { headers }), fetch(getApiUrl('/api/v1/pending-approvals?limit=10'), { headers })]);
+                const [statsRes, requestsRes] = await Promise.all([fetch(getApiUrl('/api/stats/dashboard'), { headers }), fetch(getApiUrl('/api/approvals?limit=10'), { headers })]);
 
                 if (!statsRes.ok) {
                     throw new Error('Failed to fetch dashboard statistics');
