@@ -126,7 +126,7 @@ const ExecutiveDirectorReports = lazy(() => import('../pages/Procurement/Executi
 const ExecutiveDigitalSignoffs = lazy(() => import('../pages/Procurement/ExecutiveDirector/ExecutiveDigitalSignoffs'));
 
 // User Pages
-const Profile = lazy(() => import('../pages/Procurement/Users/Profile'));
+import Profile from '../pages/Procurement/Users/Profile';
 const AccountSetting = lazy(() => import('../pages/Procurement/Users/AccountSetting'));
 const HelpSupport = lazy(() => import('../pages/HelpSupport'));
 
@@ -378,7 +378,7 @@ const routes = [
     {
         path: '/procurement/dashboard',
         element: (
-            <RoleDashboardGuard allowedRoles={['PROCUREMENT_OFFICER', 'PROCUREMENT']} fallbackPath="/auth/login">
+            <RoleDashboardGuard allowedRoles={['PROCUREMENT_OFFICER', 'PROCUREMENT']}>
                 <ProcurementDashboard />
             </RoleDashboardGuard>
         ),

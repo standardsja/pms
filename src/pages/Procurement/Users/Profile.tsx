@@ -803,7 +803,6 @@ const Profile = () => {
                         </div>
                         <div className="space-y-2.5">
                             {/* Innovation Hub quick actions removed per request */}
-                        </div>
                             {/* Committee Actions */}
                             {roleCodes.includes('INNOVATION_COMMITTEE') && (
                                 <Link
