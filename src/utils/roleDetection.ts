@@ -236,8 +236,8 @@ export function getDashboardPath(roles: DetectedRoles, currentPathname: string =
         return '/supplier';
     }
 
-    // Default to requester
-    return '/apps/requests';
+    // Default to requester dashboard
+    return '/procurement/dashboard/requester';
 }
 
 /**
