@@ -3795,6 +3795,215 @@ app.post('/api/admin/requests/:id/override-splinter', requireAdmin, async (req, 
     }
 });
 
+// GET /api/requests/:id/actions - Get all actions (rejections, approvals, etc.) for a request
+app.get('/api/requests/:id/actions', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const userId = req.headers['x-user-id'];
+
+        if (!userId) {
+            return res.status(401).json({ message: 'User ID required' });
+        }
+
+        const requestId = parseInt(id, 10);
+
+        // Verify request exists
+        const request = await prisma.request.findUnique({
+            where: { id: requestId },
+        });
+
+        if (!request) {
+            return res.status(404).json({ message: 'Request not found' });
+        }
+
+        // Fetch all actions for this request
+        const actions = await prisma.requestAction.findMany({
+            where: { requestId },
+            include: {
+                performedBy: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                    },
+                },
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+
+        return res.json({ success: true, data: actions });
+    } catch (e: any) {
+        console.error('GET /api/requests/:id/actions error:', e);
+        return res.status(500).json({ message: e?.message || 'Failed to fetch request actions' });
+    }
+});
+
+// POST /api/requests/:id/reject - Reject a request and send it back to requester
+app.post('/api/requests/:id/reject', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { note } = req.body;
+        const userId = req.headers['x-user-id'];
+
+        if (!userId) {
+            return res.status(401).json({ message: 'User ID required' });
+        }
+
+        if (!note || !note.trim()) {
+            return res.status(400).json({ message: 'Rejection note is required' });
+        }
+
+        const requestId = parseInt(id, 10);
+        const actingUserId = parseInt(String(userId), 10);
+
+        // Fetch the request
+        const request = await prisma.request.findUnique({
+            where: { id: requestId },
+            include: {
+                requester: { select: { id: true, name: true, email: true } },
+                department: { select: { id: true, name: true } },
+            },
+        });
+
+        if (!request) {
+            return res.status(404).json({ message: 'Request not found' });
+        }
+
+        // Verify user is authorized to reject (must be current assignee or have appropriate role)
+        let isAuthorized = request.currentAssigneeId === actingUserId;
+
+        if (!isAuthorized) {
+            try {
+                const actingUser = await prisma.user.findUnique({
+                    where: { id: actingUserId },
+                    include: { roles: { include: { role: true } } },
+                });
+                const roleNames = (actingUser?.roles || []).map((r: any) => String(r.role?.name || '').toUpperCase());
+
+                // Check if user has the required role for the current workflow stage
+                let hasRequiredRole = false;
+
+                if (request.status === 'DEPARTMENT_REVIEW') {
+                    hasRequiredRole = roleNames.includes('DEPT_MANAGER');
+                } else if (request.status === 'HOD_REVIEW') {
+                    hasRequiredRole = roleNames.includes('HEAD_OF_DIVISION') || roleNames.includes('HOD');
+                } else if (request.status === 'FINANCE_REVIEW') {
+                    hasRequiredRole = roleNames.includes('FINANCE') || roleNames.includes('FINANCE_OFFICER');
+                } else if (request.status === 'BUDGET_MANAGER_REVIEW') {
+                    hasRequiredRole = roleNames.includes('BUDGET_MANAGER');
+                } else if (request.status === 'PROCUREMENT_REVIEW') {
+                    hasRequiredRole = roleNames.includes('PROCUREMENT') || roleNames.includes('PROCUREMENT_MANAGER') || roleNames.includes('PROCUREMENT_OFFICER');
+                } else if (request.status === 'EXECUTIVE_REVIEW') {
+                    hasRequiredRole = roleNames.includes('EXECUTIVE_DIRECTOR') || roleNames.includes('EXECUTIVE');
+                }
+
+                if (hasRequiredRole) {
+                    isAuthorized = true;
+                    console.log(`Authorization by role: user ${actingUserId} (${roleNames.join(', ')}) rejecting request ${id} at stage ${request.status}`);
+                }
+            } catch (roleErr) {
+                console.warn('Failed to evaluate acting user roles for rejection authorization:', roleErr);
+            }
+        }
+
+        if (!isAuthorized) {
+            return res.status(403).json({ message: 'Not authorized to reject this request' });
+        }
+
+        // Create the rejection action record
+        await prisma.requestAction.create({
+            data: {
+                requestId,
+                action: 'RETURN',
+                comment: note.trim(),
+                performedById: actingUserId,
+                metadata: {
+                    previousStatus: request.status,
+                    rejectedAt: new Date().toISOString(),
+                },
+            },
+        });
+
+        // Update the request: return to DRAFT status and assign back to requester
+        const updated = await prisma.request.update({
+            where: { id: requestId },
+            data: {
+                status: 'DRAFT',
+                currentAssigneeId: request.requesterId,
+                statusHistory: {
+                    create: {
+                        status: 'DRAFT',
+                        changedById: actingUserId,
+                        comment: `Returned from ${request.status} stage: ${note.trim()}`,
+                    },
+                },
+            },
+            include: {
+                items: true,
+                requester: { select: { id: true, name: true, email: true } },
+                department: { select: { id: true, name: true, code: true } },
+                currentAssignee: { select: { id: true, name: true, email: true } },
+            },
+        });
+
+        // Notify the requester that their request was returned
+        try {
+            if (request.requesterId) {
+                // Get the rejecting user's name
+                const rejectingUser = await prisma.user.findUnique({
+                    where: { id: actingUserId },
+                    select: { name: true },
+                });
+
+                const rejectorName = rejectingUser?.name || 'Unknown';
+                const messageBody = `Your request "${request.reference || request.id}" has been returned for revision.\n\nReason: ${note.trim()}`;
+
+                // Create a message FOR THE REQUESTER (so they see it in their messages)
+                await prisma.message.create({
+                    data: {
+                        fromUserId: actingUserId,
+                        toUserId: request.requesterId,
+                        subject: `Request ${request.reference || request.id} Returned`,
+                        body: messageBody,
+                    },
+                });
+
+                // Create a message FOR THE REJECTOR (so they also see it in their own messages)
+                // This is a record of the rejection they performed
+                await prisma.message.create({
+                    data: {
+                        fromUserId: actingUserId,
+                        toUserId: actingUserId,
+                        subject: `You returned Request ${request.reference || request.id}`,
+                        body: `You returned request "${request.reference || request.id}" for revision.\n\nReason: ${note.trim()}`,
+                    },
+                });
+
+                // Also create a notification for visibility in the notification center
+                await prisma.notification.create({
+                    data: {
+                        userId: request.requesterId,
+                        type: 'STAGE_CHANGED',
+                        message: `Your request ${request.reference || request.id} has been returned for revision: ${note.trim()}`,
+                        data: { requestId: request.id, status: 'DRAFT', rejectionNote: note.trim() },
+                    },
+                });
+            }
+        } catch (notifErr) {
+            console.warn('Failed to create requester notification on rejection:', notifErr);
+        }
+
+        return res.json({
+            success: true,
+            message: 'Request rejected and returned to requester',
+            data: updated,
+        });
+    } catch (e: any) {
+        console.error('POST /api/requests/:id/reject error:', e);
+        return res.status(500).json({ message: e?.message || 'Failed to reject request' });
+    }
+});
+
 // POST /requests/:id/assign - Assign request to specific procurement officer
 app.post('/api/requests/:id/assign', async (req, res) => {
     try {

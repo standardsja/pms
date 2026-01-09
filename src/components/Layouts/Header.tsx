@@ -19,6 +19,7 @@ import IconLaptop from '../Icon/IconLaptop';
 import IconMailDot from '../Icon/IconMailDot';
 import IconArrowLeft from '../Icon/IconArrowLeft';
 import IconInfoCircle from '../Icon/IconInfoCircle';
+import IconX from '../Icon/IconX';
 import IconBellBing from '../Icon/IconBellBing';
 import IconUser from '../Icon/IconUser';
 import IconMail from '../Icon/IconMail';
@@ -38,7 +39,7 @@ import { getUser, getToken, clearAuth } from '../../utils/auth';
 import { detectUserRoles, getDashboardPath } from '../../utils/roleDetection';
 import { heartbeatService } from '../../services/heartbeatService';
 import { fetchNotifications, deleteNotification, markNotificationAsRead, Notification } from '../../services/notificationApi';
-import { fetchMessages, deleteMessage, Message } from '../../services/messageApi';
+import { fetchMessages, deleteMessage, markMessageAsRead, Message } from '../../services/messageApi';
 import { getApiUrl } from '../../config/api';
 import IconLock from '../Icon/IconLock';
 import { fetchModuleLocks, getModuleLocks, defaultModuleLockState, type ModuleLockState } from '../../utils/moduleLocks';
@@ -157,6 +158,7 @@ const Header = () => {
     // Real-time messages from database
     const [messages, setMessages] = useState<Message[]>([]);
     const [messagesLoading, setMessagesLoading] = useState(false);
+    const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
 
     // Fetch messages on mount and periodically
     const loadMessages = async () => {
@@ -176,6 +178,16 @@ const Header = () => {
         const success = await deleteMessage(id);
         if (success) {
             setMessages(messages.filter((m) => m.id !== id));
+        }
+    };
+
+    const openMessage = async (message: Message) => {
+        setSelectedMessage(message);
+        if (!message.readAt) {
+            const ok = await markMessageAsRead(message.id);
+            if (ok) {
+                setMessages((prev) => prev.map((m) => (m.id === message.id ? { ...m, readAt: new Date().toISOString() } : m)));
+            }
         }
     };
 
@@ -491,6 +503,28 @@ const Header = () => {
                                             <h4 className="font-semibold relative z-10 text-lg">
                                                 Messages
                                                 {messages.filter((m) => !m.readAt).length > 0 && <span className="ml-2 badge bg-white/20">{messages.filter((m) => !m.readAt).length} unread</span>}
+                                                {selectedMessage && (
+                                                    <div className="fixed inset-0 bg-black/50 z-[999] flex items-center justify-center px-4" onClick={() => setSelectedMessage(null)}>
+                                                        <div className="bg-white dark:bg-slate-900 rounded-lg shadow-xl max-w-xl w-full p-6" onClick={(e) => e.stopPropagation()}>
+                                                            <div className="flex justify-between items-start mb-4">
+                                                                <div>
+                                                                    <div className="text-xs text-gray-500 dark:text-gray-400">From: {selectedMessage.fromUser?.name || 'Unknown'}</div>
+                                                                    <h3 className="text-lg font-semibold mt-1">{selectedMessage.subject}</h3>
+                                                                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{new Date(selectedMessage.createdAt).toLocaleString()}</div>
+                                                                </div>
+                                                                <button type="button" className="text-gray-400 hover:text-gray-600" onClick={() => setSelectedMessage(null)}>
+                                                                    <IconX />
+                                                                </button>
+                                                            </div>
+                                                            <div className="text-sm leading-relaxed whitespace-pre-line text-gray-700 dark:text-gray-200">{selectedMessage.body}</div>
+                                                            <div className="mt-6 flex justify-end">
+                                                                <button type="button" className="btn btn-primary" onClick={() => setSelectedMessage(null)}>
+                                                                    Close
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </h4>
                                         </div>
                                     </li>
@@ -508,7 +542,21 @@ const Header = () => {
                                                 {messages.map((message) => {
                                                     const isUnread = !message.readAt;
                                                     return (
-                                                        <div key={message.id} className={`flex items-center py-3 px-5 hover:bg-gray-50 dark:hover:bg-gray-800 ${isUnread ? 'bg-primary/5' : ''}`}>
+                                                        <div
+                                                            role="button"
+                                                            tabIndex={0}
+                                                            onClick={() => openMessage(message)}
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === 'Enter' || e.key === ' ') {
+                                                                    e.preventDefault();
+                                                                    openMessage(message);
+                                                                }
+                                                            }}
+                                                            key={message.id}
+                                                            className={`flex w-full text-left items-center py-3 px-5 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer ${
+                                                                isUnread ? 'bg-primary/5' : ''
+                                                            }`}
+                                                        >
                                                             <div className="flex-shrink-0">
                                                                 <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
                                                                     <span className="text-lg">✉️</span>
@@ -523,7 +571,14 @@ const Header = () => {
                                                                 <span className="font-semibold bg-white-dark/20 rounded text-dark/60 px-1 whitespace-pre dark:text-white-dark text-xs">
                                                                     {getRelativeTime(message.createdAt)}
                                                                 </span>
-                                                                <button type="button" className="text-neutral-300 hover:text-danger" onClick={() => removeMessage(message.id)}>
+                                                                <button
+                                                                    type="button"
+                                                                    className="text-neutral-300 hover:text-danger"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        removeMessage(message.id);
+                                                                    }}
+                                                                >
                                                                     <IconXCircle className="w-4 h-4" />
                                                                 </button>
                                                             </div>

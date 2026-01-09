@@ -222,6 +222,16 @@ const RequestForm = () => {
     // Track the original requester id so returned drafts can be resubmitted by the requester
     const [requestRequesterId, setRequestRequesterId] = useState<number | null>(null);
 
+    // Rejection modal state
+    const [showRejectModal, setShowRejectModal] = useState(false);
+    const [rejectionNote, setRejectionNote] = useState('');
+    const [isRejecting, setIsRejecting] = useState(false);
+
+    // Request actions/messages
+    const [requestActions, setRequestActions] = useState<Array<{ id: number; action: string; comment: string | null; performedBy: { name: string } | null; createdAt: string }>>([]);
+    const [showMessagesPanel, setShowMessagesPanel] = useState(false);
+    const [messages, setMessages] = useState<string[]>([]);
+
     // Determine field permissions strictly by workflow stage + assignee
     const isAssignee = !!(isEditMode && requestMeta?.currentAssigneeId && currentUserId && Number(requestMeta.currentAssigneeId) === Number(currentUserId));
     const canEditManagerFields = !!(isAssignee && requestMeta?.status === 'DEPARTMENT_REVIEW');
@@ -416,6 +426,13 @@ const RequestForm = () => {
         fetchRequest();
     }, [id, isEditMode]);
 
+    // Fetch request actions/messages when in edit mode
+    useEffect(() => {
+        if (isEditMode && id) {
+            fetchRequestActions();
+        }
+    }, [isEditMode, id]);
+
     const addItem = () => {
         const newItemNo = items.length + 1;
         setItems([
@@ -487,6 +504,82 @@ const RequestForm = () => {
         } catch (err: any) {
             console.error('Failed to delete attachment', err);
             Swal.fire({ icon: 'error', title: 'Delete failed', text: err?.message || String(err) });
+        }
+    };
+
+    // Fetch request actions/messages
+    const fetchRequestActions = async () => {
+        if (!isEditMode || !id) return;
+        try {
+            const response = await fetch(getApiUrl(`/api/requests/${id}/actions`), {
+                headers: { 'x-user-id': String(currentUserId) },
+            });
+            if (response.ok) {
+                const result = await response.json();
+                setRequestActions(result.data || []);
+            }
+        } catch (err) {
+            console.error('Failed to fetch request actions:', err);
+        }
+    };
+
+    // Handle rejection
+    const handleReject = async () => {
+        if (!rejectionNote.trim()) {
+            Swal.fire({ icon: 'error', title: 'Note Required', text: 'Please provide a reason for rejection.' });
+            return;
+        }
+
+        setIsRejecting(true);
+        try {
+            const response = await fetch(getApiUrl(`/api/requests/${id}/reject`), {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-user-id': String(currentUserId),
+                },
+                body: JSON.stringify({ note: rejectionNote }),
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.message || 'Failed to reject request');
+            }
+
+            const respData = await response.json();
+
+            // Close the rejection modal
+            setShowRejectModal(false);
+
+            // Update local state to reflect the rejection
+            // This creates an optimistic UI update so the user sees it immediately
+            const newRejectionAction = {
+                id: Date.now(), // Temporary ID
+                action: 'RETURN',
+                comment: rejectionNote,
+                performedBy: { name: 'You' },
+                createdAt: new Date().toISOString(),
+            };
+
+            // Clear the note and add the new rejection to the front of the actions list
+            setRejectionNote('');
+            setRequestActions((prev) => [newRejectionAction, ...prev]);
+
+            // Open the messages panel to show the rejection
+            setShowMessagesPanel(true);
+
+            // Show success message
+            Swal.fire({
+                icon: 'success',
+                title: 'Rejected!',
+                text: 'The request has been rejected and returned to the requester. The rejection is now visible in the Messages panel.',
+                confirmButtonText: 'OK',
+            });
+        } catch (err: any) {
+            console.error('Rejection failed:', err);
+            Swal.fire({ icon: 'error', title: 'Rejection Failed', text: err.message || 'An error occurred' });
+        } finally {
+            setIsRejecting(false);
         }
     };
 
@@ -1206,7 +1299,7 @@ const RequestForm = () => {
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                             <div>
                                 <label className="block text-sm font-medium mb-2">Date: {formDate}</label>
-                                <input type="date" value={formDate} onChange={(e) => setFormDate(e.target.value)} className="form-input w-full" required />
+                                <input type="date" value={formDate} disabled className="form-input w-full bg-gray-100" />
                             </div>
                             <div>
                                 <label className="block text-sm font-medium mb-2">Requested by</label>
@@ -1617,6 +1710,22 @@ const RequestForm = () => {
                                                 <label className="block text-xs text-gray-500 mb-1">Date Approved:</label>
                                                 <input type="date" className="form-input w-full" defaultValue={new Date().toISOString().split('T')[0]} />
                                             </div>
+                                            <div className="flex gap-2 mt-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowRejectModal(true)}
+                                                    className="px-3 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded transition"
+                                                >
+                                                    Reject Request
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowMessagesPanel(true)}
+                                                    className="px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded transition"
+                                                >
+                                                    View Messages
+                                                </button>
+                                            </div>
                                         </div>
                                     )}
                                 </div>
@@ -1643,6 +1752,22 @@ const RequestForm = () => {
                                             <div>
                                                 <label className="block text-xs text-gray-500 mb-1">Date Approved:</label>
                                                 <input type="date" className="form-input w-full" defaultValue={new Date().toISOString().split('T')[0]} />
+                                            </div>
+                                            <div className="flex gap-2 mt-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowRejectModal(true)}
+                                                    className="px-3 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded transition"
+                                                >
+                                                    Reject Request
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowMessagesPanel(true)}
+                                                    className="px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded transition"
+                                                >
+                                                    View Messages
+                                                </button>
                                             </div>
                                         </div>
                                     )}
@@ -1719,7 +1844,7 @@ const RequestForm = () => {
                                     disabled={!canApproveBudgetOfficer}
                                 />
                                 <div className="space-y-2">
-                                    <label className="flex items-center cursor-pointer">
+                                    <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
                                         <input
                                             type="checkbox"
                                             checked={budgetOfficerApproved}
@@ -1751,7 +1876,7 @@ const RequestForm = () => {
                                     disabled={!canApproveBudgetManager}
                                 />
                                 <div className="space-y-2">
-                                    <label className="flex items-center cursor-pointer">
+                                    <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
                                         <input
                                             type="checkbox"
                                             checked={budgetManagerApproved}
@@ -1996,6 +2121,80 @@ const RequestForm = () => {
                     </div>
                 </form>
             </div>
+
+            {/* Rejection Modal */}
+            {showRejectModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white dark:bg-slate-800 rounded-lg p-6 max-w-md w-full mx-4">
+                        <h3 className="text-lg font-bold mb-4">Reject Request</h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Please provide a reason for rejecting this request. The requester will be notified and can resubmit.</p>
+                        <textarea className="form-textarea w-full mb-4" rows={4} placeholder="Enter rejection reason..." value={rejectionNote} onChange={(e) => setRejectionNote(e.target.value)} />
+                        <div className="flex gap-3 justify-end">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setShowRejectModal(false);
+                                    setRejectionNote('');
+                                }}
+                                className="px-4 py-2 rounded border border-gray-300 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700"
+                            >
+                                Cancel
+                            </button>
+                            <button type="button" onClick={handleReject} disabled={isRejecting} className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-60">
+                                {isRejecting ? 'Rejecting...' : 'Reject Request'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Messages/Activity Panel */}
+            {showMessagesPanel && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white dark:bg-slate-800 rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-lg font-bold">Request Activity & Messages</h3>
+                            <button type="button" onClick={() => setShowMessagesPanel(false)} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                                <IconX />
+                            </button>
+                        </div>
+                        <div className="overflow-y-auto flex-1">
+                            {requestActions.length === 0 ? (
+                                <p className="text-sm text-gray-500 text-center py-8">No activity yet</p>
+                            ) : (
+                                <div className="space-y-3">
+                                    {requestActions.map((action) => (
+                                        <div key={action.id} className="border border-gray-200 dark:border-gray-700 rounded p-3">
+                                            <div className="flex justify-between items-start mb-1">
+                                                <span className="font-semibold text-sm">
+                                                    {action.action === 'RETURN'
+                                                        ? '↩️ Returned'
+                                                        : action.action === 'APPROVE'
+                                                        ? '✅ Approved'
+                                                        : action.action === 'SUBMIT'
+                                                        ? '📤 Submitted'
+                                                        : action.action === 'ASSIGN'
+                                                        ? '👤 Assigned'
+                                                        : action.action === 'COMMENT'
+                                                        ? '💬 Comment'
+                                                        : action.action === 'EDIT_BUDGET'
+                                                        ? '💰 Budget Edited'
+                                                        : action.action === 'SEND_TO_VENDOR'
+                                                        ? '🚚 Sent to Vendor'
+                                                        : action.action}
+                                                </span>
+                                                <span className="text-xs text-gray-500">{new Date(action.createdAt).toLocaleString()}</span>
+                                            </div>
+                                            {action.performedBy && <p className="text-sm text-gray-600 dark:text-gray-400">By: {action.performedBy.name}</p>}
+                                            {action.comment && <p className="text-sm mt-2 bg-gray-50 dark:bg-gray-900 p-2 rounded">{action.comment}</p>}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
