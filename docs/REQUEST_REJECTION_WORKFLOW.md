@@ -96,7 +96,18 @@ const [showMessagesPanel, setShowMessagesPanel] = useState(false);
 -   Posts rejection to backend
 -   Endpoint: `POST /api/requests/:id/reject`
 -   Payload: `{ note: rejectionNote }`
--   Reloads page on success to show updated status
+-   Re-fetches request actions to populate the Messages panel
+-   Opens the Messages panel automatically to show the rejection
+-   Displays success message to user
+-   Reloads page after user confirms to show updated status
+
+**User Experience Flow:**
+1. User clicks "Reject" button
+2. Enters rejection reason in modal
+3. Clicks "Reject" to confirm
+4. Messages panel opens automatically showing the new rejection action
+5. Success message displays with confirmation
+6. Page reloads to reflect updated status (DRAFT, reassigned to requester)
 
 ## Backend Implementation
 

@@ -230,6 +230,7 @@ const RequestForm = () => {
     // Request actions/messages
     const [requestActions, setRequestActions] = useState<Array<{ id: number; action: string; comment: string | null; performedBy: { name: string } | null; createdAt: string }>>([]);
     const [showMessagesPanel, setShowMessagesPanel] = useState(false);
+    const [messages, setMessages] = useState<string[]>([]);
 
     // Determine field permissions strictly by workflow stage + assignee
     const isAssignee = !!(isEditMode && requestMeta?.currentAssigneeId && currentUserId && Number(requestMeta.currentAssigneeId) === Number(currentUserId));
@@ -545,11 +546,35 @@ const RequestForm = () => {
                 throw new Error(error.message || 'Failed to reject request');
             }
 
-            Swal.fire({ icon: 'success', title: 'Request Rejected', text: 'The request has been returned to the requester.' });
+            const respData = await response.json();
+            
+            // Close the rejection modal
             setShowRejectModal(false);
+            
+            // Update local state to reflect the rejection
+            // This creates an optimistic UI update so the user sees it immediately
+            const newRejectionAction = {
+                id: Date.now(), // Temporary ID
+                action: 'RETURN',
+                comment: rejectionNote,
+                performedBy: { name: 'You' },
+                createdAt: new Date().toISOString(),
+            };
+            
+            // Clear the note and add the new rejection to the front of the actions list
             setRejectionNote('');
-            // Refresh the page to show updated status
-            window.location.reload();
+            setRequestActions(prev => [newRejectionAction, ...prev]);
+            
+            // Open the messages panel to show the rejection
+            setShowMessagesPanel(true);
+            
+            // Show success message
+            Swal.fire({
+                icon: 'success',
+                title: 'Rejected!',
+                text: 'The request has been rejected and returned to the requester. The rejection is now visible in the Messages panel.',
+                confirmButtonText: 'OK'
+            });
         } catch (err: any) {
             console.error('Rejection failed:', err);
             Swal.fire({ icon: 'error', title: 'Rejection Failed', text: err.message || 'An error occurred' });
@@ -1819,7 +1844,7 @@ const RequestForm = () => {
                                     disabled={!canApproveBudgetOfficer}
                                 />
                                 <div className="space-y-2">
-                                    <label className="flex items-center cursor-pointer">
+                                    <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
                                         <input
                                             type="checkbox"
                                             checked={budgetOfficerApproved}
@@ -1851,7 +1876,7 @@ const RequestForm = () => {
                                     disabled={!canApproveBudgetManager}
                                 />
                                 <div className="space-y-2">
-                                    <label className="flex items-center cursor-pointer">
+                                    <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
                                         <input
                                             type="checkbox"
                                             checked={budgetManagerApproved}

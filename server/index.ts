@@ -3949,6 +3949,37 @@ app.post('/api/requests/:id/reject', async (req, res) => {
         // Notify the requester that their request was returned
         try {
             if (request.requesterId) {
+                // Get the rejecting user's name
+                const rejectingUser = await prisma.user.findUnique({
+                    where: { id: actingUserId },
+                    select: { name: true },
+                });
+                
+                const rejectorName = rejectingUser?.name || 'Unknown';
+                const messageBody = `Your request "${request.reference || request.id}" has been returned for revision.\n\nReason: ${note.trim()}`;
+                
+                // Create a message FOR THE REQUESTER (so they see it in their messages)
+                await prisma.message.create({
+                    data: {
+                        fromUserId: actingUserId,
+                        toUserId: request.requesterId,
+                        subject: `Request ${request.reference || request.id} Returned`,
+                        body: messageBody,
+                    },
+                });
+                
+                // Create a message FOR THE REJECTOR (so they also see it in their own messages)
+                // This is a record of the rejection they performed
+                await prisma.message.create({
+                    data: {
+                        fromUserId: actingUserId,
+                        toUserId: actingUserId,
+                        subject: `You returned Request ${request.reference || request.id}`,
+                        body: `You returned request "${request.reference || request.id}" for revision.\n\nReason: ${note.trim()}`,
+                    },
+                });
+                
+                // Also create a notification for visibility in the notification center
                 await prisma.notification.create({
                     data: {
                         userId: request.requesterId,
