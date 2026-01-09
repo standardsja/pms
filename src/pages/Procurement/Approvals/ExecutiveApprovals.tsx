@@ -41,7 +41,7 @@ const ExecutiveApprovals = () => {
                 const token = getToken();
                 const apiUrl = getApiUrl();
 
-                const response = await fetch(`${apiUrl}/approvals`, {
+                const response = await fetch(`${apiUrl}/requests`, {
                     headers: {
                         Authorization: `Bearer ${token}`,
                         'Content-Type': 'application/json',

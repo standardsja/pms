@@ -34,8 +34,15 @@ export function getApiBaseUrl(): string {
  * @param path - API path (e.g., '/api/ideas')
  * @returns Full URL or relative path (in dev mode)
  */
-export function getApiUrl(path: string): string {
+export function getApiUrl(path?: string): string {
     const base = getApiBaseUrl();
+
+    // If no path provided, return API root suitable for building endpoints
+    if (!path) {
+        // In dev, use '/api' to hit Vite proxy; in prod, append '/api' to base
+        return base ? `${base}/api` : '/api';
+    }
+
     const cleanPath = path.startsWith('/') ? path : `/${path}`;
 
     // If base is empty, return just the path (relative URL)

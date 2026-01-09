@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { setPageTitle } from '../../../store/themeConfigSlice';
-import { getApiUrl, getToken } from '../../../utils/auth';
+import { getApiUrl } from '../../../config/api';
+import { getToken } from '../../../utils/auth';
 import Swal from 'sweetalert2';
 import IconPencilPaper from '../../../components/Icon/IconPencilPaper';
 import IconEye from '../../../components/Icon/IconEye';
@@ -39,7 +40,7 @@ const ExecutiveDigitalSignoffs = () => {
             const apiUrl = getApiUrl();
             const token = getToken();
 
-            const response = await fetch(`${apiUrl}/approvals`, {
+            const response = await fetch(`${apiUrl}/requests`, {
                 headers: {
                     Authorization: `Bearer ${token}`,
                 },

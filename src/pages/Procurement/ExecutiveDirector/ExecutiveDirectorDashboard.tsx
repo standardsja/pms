@@ -36,8 +36,8 @@ const ExecutiveDirectorDashboard = () => {
                 const token = getToken();
                 const apiUrl = getApiUrl();
 
-                // Fetch pending executive approvals
-                const approvalsResponse = await fetch(`${apiUrl}/approvals`, {
+                // Fetch requests and derive pending executive approvals
+                const approvalsResponse = await fetch(`${apiUrl}/requests`, {
                     headers: {
                         Authorization: `Bearer ${token}`,
                         'Content-Type': 'application/json',
@@ -51,7 +51,7 @@ const ExecutiveDirectorDashboard = () => {
                     setPendingApprovals(executiveApprovals);
                 }
 
-                // Fetch all requests for statistics
+                // Fetch all requests for statistics (reuse same endpoint)
                 const requestsResponse = await fetch(`${apiUrl}/requests`, {
                     headers: {
                         Authorization: `Bearer ${token}`,
