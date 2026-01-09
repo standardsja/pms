@@ -547,10 +547,10 @@ const RequestForm = () => {
             }
 
             const respData = await response.json();
-            
+
             // Close the rejection modal
             setShowRejectModal(false);
-            
+
             // Update local state to reflect the rejection
             // This creates an optimistic UI update so the user sees it immediately
             const newRejectionAction = {
@@ -560,20 +560,20 @@ const RequestForm = () => {
                 performedBy: { name: 'You' },
                 createdAt: new Date().toISOString(),
             };
-            
+
             // Clear the note and add the new rejection to the front of the actions list
             setRejectionNote('');
-            setRequestActions(prev => [newRejectionAction, ...prev]);
-            
+            setRequestActions((prev) => [newRejectionAction, ...prev]);
+
             // Open the messages panel to show the rejection
             setShowMessagesPanel(true);
-            
+
             // Show success message
             Swal.fire({
                 icon: 'success',
                 title: 'Rejected!',
                 text: 'The request has been rejected and returned to the requester. The rejection is now visible in the Messages panel.',
-                confirmButtonText: 'OK'
+                confirmButtonText: 'OK',
             });
         } catch (err: any) {
             console.error('Rejection failed:', err);

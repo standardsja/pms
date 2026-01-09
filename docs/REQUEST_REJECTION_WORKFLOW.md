@@ -102,6 +102,7 @@ const [showMessagesPanel, setShowMessagesPanel] = useState(false);
 -   Reloads page after user confirms to show updated status
 
 **User Experience Flow:**
+
 1. User clicks "Reject" button
 2. Enters rejection reason in modal
 3. Clicks "Reject" to confirm

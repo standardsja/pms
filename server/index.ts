@@ -3954,10 +3954,10 @@ app.post('/api/requests/:id/reject', async (req, res) => {
                     where: { id: actingUserId },
                     select: { name: true },
                 });
-                
+
                 const rejectorName = rejectingUser?.name || 'Unknown';
                 const messageBody = `Your request "${request.reference || request.id}" has been returned for revision.\n\nReason: ${note.trim()}`;
-                
+
                 // Create a message FOR THE REQUESTER (so they see it in their messages)
                 await prisma.message.create({
                     data: {
@@ -3967,7 +3967,7 @@ app.post('/api/requests/:id/reject', async (req, res) => {
                         body: messageBody,
                     },
                 });
-                
+
                 // Create a message FOR THE REJECTOR (so they also see it in their own messages)
                 // This is a record of the rejection they performed
                 await prisma.message.create({
@@ -3978,7 +3978,7 @@ app.post('/api/requests/:id/reject', async (req, res) => {
                         body: `You returned request "${request.reference || request.id}" for revision.\n\nReason: ${note.trim()}`,
                     },
                 });
-                
+
                 // Also create a notification for visibility in the notification center
                 await prisma.notification.create({
                     data: {
