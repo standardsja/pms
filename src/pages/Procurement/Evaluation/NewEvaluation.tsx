@@ -948,29 +948,16 @@ const NewEvaluation = () => {
                                         name="comparableEstimate"
                                         type="text"
                                         className="form-input w-full pl-8"
-                                        placeholder="1,395,444.02"
+                                        placeholder="1,395,444"
                                         value={
                                             formData.comparableEstimate
-                                                ? parseFloat(formData.comparableEstimate).toLocaleString('en-US', {
-                                                      minimumFractionDigits: 2,
-                                                      maximumFractionDigits: 2,
-                                                  })
+                                                ? String(formData.comparableEstimate).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
                                                 : ''
                                         }
                                         onChange={(e) => {
-                                            // Remove formatting and allow only numbers, decimal point, and minus sign
-                                            const value = e.target.value.replace(/[^0-9.-]/g, '');
-                                            // Prevent multiple decimal points
-                                            const parts = value.split('.');
-                                            const cleanValue = parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : value;
-                                            setFormData({ ...formData, comparableEstimate: cleanValue });
-                                        }}
-                                        onBlur={(e) => {
-                                            // Format with 2 decimal places on blur if value exists
-                                            const numValue = parseFloat(e.target.value.replace(/,/g, ''));
-                                            if (!isNaN(numValue)) {
-                                                setFormData({ ...formData, comparableEstimate: numValue.toFixed(2) });
-                                            }
+                                            // Just remove commas and store the raw number
+                                            const value = e.target.value.replace(/,/g, '');
+                                            setFormData({ ...formData, comparableEstimate: value });
                                         }}
                                         required
                                     />

@@ -1608,22 +1608,17 @@ const RequestForm = () => {
                                         disabled={!canEditManagerFields}
                                     />
                                     {canEditManagerFields && (
-                                        <label className="mt-1 mb-3 flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
-                                            <input type="checkbox" className="form-checkbox" checked={managerApproved} onChange={(e) => setManagerApproved(e.target.checked)} />I approve this
-                                            requisition
-                                        </label>
+                                        <div className="space-y-2">
+                                            <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
+                                                <input type="checkbox" className="form-checkbox" checked={managerApproved} onChange={(e) => setManagerApproved(e.target.checked)} />I approve this
+                                                requisition
+                                            </label>
+                                            <div>
+                                                <label className="block text-xs text-gray-500 mb-1">Date Approved:</label>
+                                                <input type="date" className="form-input w-full" defaultValue={new Date().toISOString().split('T')[0]} />
+                                            </div>
+                                        </div>
                                     )}
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div>
-                                            <label className="block text-xs text-gray-500 mb-1">Signature:</label>
-                                            <input type="text" className="form-input w-full" placeholder="" disabled={!canEditManagerFields} />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs text-gray-500 mb-1">Date:</label>
-                                            <input type="date" className="form-input w-full" defaultValue={new Date().toISOString().split('T')[0]} disabled={!canEditManagerFields} />
-                                        </div>
-                                    </div>
-                                    {/* Duplicate signature/date removed after refining permissions */}
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium mb-2">
@@ -1641,21 +1636,16 @@ const RequestForm = () => {
                                         disabled={!canEditHodFields}
                                     />
                                     {canEditHodFields && (
-                                        <label className="mt-1 mb-3 flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
-                                            <input type="checkbox" className="form-checkbox" checked={headApproved} onChange={(e) => setHeadApproved(e.target.checked)} />I approve this requisition
-                                        </label>
+                                        <div className="space-y-2">
+                                            <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
+                                                <input type="checkbox" className="form-checkbox" checked={headApproved} onChange={(e) => setHeadApproved(e.target.checked)} />I approve this requisition
+                                            </label>
+                                            <div>
+                                                <label className="block text-xs text-gray-500 mb-1">Date Approved:</label>
+                                                <input type="date" className="form-input w-full" defaultValue={new Date().toISOString().split('T')[0]} />
+                                            </div>
+                                        </div>
                                     )}
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div>
-                                            <label className="block text-xs text-gray-500 mb-1">Signature:</label>
-                                            <input type="text" className="form-input w-full" placeholder="" disabled={!canEditHodFields} />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs text-gray-500 mb-1">Date:</label>
-                                            <input type="date" className="form-input w-full" defaultValue={new Date().toISOString().split('T')[0]} disabled={!canEditHodFields} />
-                                        </div>
-                                    </div>
-                                    {/* Duplicate signature/date removed after refining permissions */}
                                 </div>
                             </div>
                         </div>
@@ -1728,7 +1718,7 @@ const RequestForm = () => {
                                     placeholder={canApproveBudgetOfficer ? 'Your name will be auto-filled' : ''}
                                     disabled={!canApproveBudgetOfficer}
                                 />
-                                <div className="mb-3">
+                                <div className="space-y-2">
                                     <label className="flex items-center cursor-pointer">
                                         <input
                                             type="checkbox"
@@ -1739,15 +1729,9 @@ const RequestForm = () => {
                                         />
                                         <span className="ml-2 text-sm font-medium">{budgetOfficerApproved ? '✓ Approved by Chief Accountant' : 'Approve as Chief Accountant'}</span>
                                     </label>
-                                </div>
-                                <div className="grid grid-cols-2 gap-3">
                                     <div>
-                                        <label className="block text-xs text-gray-500 mb-1">Signature:</label>
-                                        <input type="text" className="form-input w-full" placeholder="" disabled={!canEditBudgetSection} />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs text-gray-500 mb-1">Date:</label>
-                                        <input type="date" className="form-input w-full" defaultValue={new Date().toISOString().split('T')[0]} disabled={!canEditBudgetSection} />
+                                        <label className="block text-xs text-gray-500 mb-1">Date Approved:</label>
+                                        <input type="date" className="form-input w-full" defaultValue={new Date().toISOString().split('T')[0]} disabled={!canApproveBudgetOfficer} />
                                     </div>
                                 </div>
                             </div>
@@ -1766,7 +1750,7 @@ const RequestForm = () => {
                                     placeholder={canApproveBudgetManager ? 'Your name will be auto-filled' : ''}
                                     disabled={!canApproveBudgetManager}
                                 />
-                                <div className="mb-3">
+                                <div className="space-y-2">
                                     <label className="flex items-center cursor-pointer">
                                         <input
                                             type="checkbox"
@@ -1777,15 +1761,9 @@ const RequestForm = () => {
                                         />
                                         <span className="ml-2 text-sm font-medium">{budgetManagerApproved ? '✓ Approved by Finance Director' : 'Approve as Finance Director'}</span>
                                     </label>
-                                </div>
-                                <div className="grid grid-cols-2 gap-3">
                                     <div>
-                                        <label className="block text-xs text-gray-500 mb-1">Signature:</label>
-                                        <input type="text" className="form-input w-full" placeholder="" disabled={!canEditBudgetSection} />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs text-gray-500 mb-1">Date:</label>
-                                        <input type="date" className="form-input w-full" defaultValue={new Date().toISOString().split('T')[0]} disabled={!canEditBudgetSection} />
+                                        <label className="block text-xs text-gray-500 mb-1">Date Approved:</label>
+                                        <input type="date" className="form-input w-full" defaultValue={new Date().toISOString().split('T')[0]} disabled={!canApproveBudgetManager} />
                                     </div>
                                 </div>
                             </div>

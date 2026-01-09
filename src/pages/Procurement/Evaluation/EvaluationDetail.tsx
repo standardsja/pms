@@ -676,21 +676,91 @@ const EvaluationDetail = () => {
                         <div class="section-title">Section C: Evaluation Comments ${entry?.userName ? `– ${entry.userName}` : `#${idx + 1}`}</div>
                         <div class="content">
                             ${
+                                entry?.data?.criticalIssues
+                                    ? `
+                            <div class="field">
+                                <div class="field-label">Comments/Critical Issues Examined</div>
+                                <div class="field-value" style="white-space: pre-wrap;">${entry.data.criticalIssues}</div>
+                            </div>
+                            `
+                                    : ''
+                            }
+                            ${
+                                entry?.data?.actionTaken
+                                    ? `
+                            <div class="field">
+                                <div class="field-label">Action Taken</div>
+                                <div class="field-value">${entry.data.actionTaken}</div>
+                            </div>
+                            `
+                                    : ''
+                            }
+                            ${
+                                entry?.data?.rejectionReason
+                                    ? `
+                            <div class="field">
+                                <div class="field-label">Rejection/Deferral Reason</div>
+                                <div class="field-value" style="white-space: pre-wrap;">${entry.data.rejectionReason}</div>
+                            </div>
+                            `
+                                    : ''
+                            }
+                            ${
                                 entry?.data?.recommendedSupplier
                                     ? `
                             <div class="field">
-                                <div class="field-label">Recommended Supplier</div>
+                                <div class="field-label">Recommended Contractor/Supplier</div>
                                 <div class="field-value">${entry.data.recommendedSupplier}</div>
                             </div>
                             `
                                     : ''
                             }
                             ${
-                                entry?.data?.comments
+                                entry?.data?.recommendedAmountInclusiveGCT
                                     ? `
                             <div class="field">
-                                <div class="field-label">Comments</div>
-                                <div class="field-value" style="white-space: pre-wrap;">${entry.data.comments}</div>
+                                <div class="field-label">Recommended Contract Amount (inclusive of GCT)</div>
+                                <div class="field-value">$${parseFloat(entry.data.recommendedAmountInclusiveGCT).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                            </div>
+                            `
+                                    : ''
+                            }
+                            ${
+                                entry?.data?.evaluatorName
+                                    ? `
+                            <div class="field">
+                                <div class="field-label">Evaluator's Name</div>
+                                <div class="field-value">${entry.data.evaluatorName}</div>
+                            </div>
+                            `
+                                    : ''
+                            }
+                            ${
+                                entry?.data?.evaluatorTitle
+                                    ? `
+                            <div class="field">
+                                <div class="field-label">Job Title</div>
+                                <div class="field-value">${entry.data.evaluatorTitle}</div>
+                            </div>
+                            `
+                                    : ''
+                            }
+                            ${
+                                entry?.data?.evaluatorSignature
+                                    ? `
+                            <div class="field">
+                                <div class="field-label">Signature</div>
+                                <div class="field-value">${entry.data.evaluatorSignature}</div>
+                            </div>
+                            `
+                                    : ''
+                            }
+                            ${
+                                entry?.data?.evaluationDate
+                                    ? `
+                            <div class="field">
+                                <div class="field-label">Date</div>
+                                <div class="field-value">${entry.data.evaluationDate}</div>
                             </div>
                             `
                                     : ''
@@ -706,21 +776,91 @@ const EvaluationDetail = () => {
                         <div class="section-title">Section C: Evaluation Comments</div>
                         <div class="content">
                             ${
+                                evaluation.sectionC.criticalIssues
+                                    ? `
+                            <div class="field">
+                                <div class="field-label">Comments/Critical Issues Examined</div>
+                                <div class="field-value" style="white-space: pre-wrap;">${evaluation.sectionC.criticalIssues}</div>
+                            </div>
+                            `
+                                    : ''
+                            }
+                            ${
+                                evaluation.sectionC.actionTaken
+                                    ? `
+                            <div class="field">
+                                <div class="field-label">Action Taken</div>
+                                <div class="field-value">${evaluation.sectionC.actionTaken}</div>
+                            </div>
+                            `
+                                    : ''
+                            }
+                            ${
+                                evaluation.sectionC.rejectionReason
+                                    ? `
+                            <div class="field">
+                                <div class="field-label">Rejection/Deferral Reason</div>
+                                <div class="field-value" style="white-space: pre-wrap;">${evaluation.sectionC.rejectionReason}</div>
+                            </div>
+                            `
+                                    : ''
+                            }
+                            ${
                                 evaluation.sectionC.recommendedSupplier
                                     ? `
                             <div class="field">
-                                <div class="field-label">Recommended Supplier</div>
+                                <div class="field-label">Recommended Contractor/Supplier</div>
                                 <div class="field-value">${evaluation.sectionC.recommendedSupplier}</div>
                             </div>
                             `
                                     : ''
                             }
                             ${
-                                evaluation.sectionC.comments
+                                evaluation.sectionC.recommendedAmountInclusiveGCT
                                     ? `
                             <div class="field">
-                                <div class="field-label">Comments</div>
-                                <div class="field-value" style="white-space: pre-wrap;">${evaluation.sectionC.comments}</div>
+                                <div class="field-label">Recommended Contract Amount (inclusive of GCT)</div>
+                                <div class="field-value">$${parseFloat(evaluation.sectionC.recommendedAmountInclusiveGCT).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                            </div>
+                            `
+                                    : ''
+                            }
+                            ${
+                                evaluation.sectionC.evaluatorName
+                                    ? `
+                            <div class="field">
+                                <div class="field-label">Evaluator's Name</div>
+                                <div class="field-value">${evaluation.sectionC.evaluatorName}</div>
+                            </div>
+                            `
+                                    : ''
+                            }
+                            ${
+                                evaluation.sectionC.evaluatorTitle
+                                    ? `
+                            <div class="field">
+                                <div class="field-label">Job Title</div>
+                                <div class="field-value">${evaluation.sectionC.evaluatorTitle}</div>
+                            </div>
+                            `
+                                    : ''
+                            }
+                            ${
+                                evaluation.sectionC.evaluatorSignature
+                                    ? `
+                            <div class="field">
+                                <div class="field-label">Signature</div>
+                                <div class="field-value">${evaluation.sectionC.evaluatorSignature}</div>
+                            </div>
+                            `
+                                    : ''
+                            }
+                            ${
+                                evaluation.sectionC.evaluationDate
+                                    ? `
+                            <div class="field">
+                                <div class="field-label">Date</div>
+                                <div class="field-value">${evaluation.sectionC.evaluationDate}</div>
                             </div>
                             `
                                     : ''

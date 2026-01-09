@@ -79,15 +79,6 @@ const EvaluationList = () => {
         }
     }, []);
 
-    // Auth gate
-    if (authLoading || !authUser) {
-        return (
-            <div className="flex justify-center items-center min-h-[400px]">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
-        );
-    }
-
     // Fetch evaluations from backend
     useEffect(() => {
         loadEvaluations();
@@ -151,6 +142,18 @@ const EvaluationList = () => {
         } catch {
             return false;
         }
+    };
+
+    const isUserAssignedToSectionC = (evaluation: Evaluation) => {
+        if (!authUser || !authUser.id) return false;
+        
+        // Check if sectionC is array and user has an entry
+        if (Array.isArray(evaluation.sectionC)) {
+            return (evaluation.sectionC as any[]).some((entry: any) => Number(entry?.userId) === Number(authUser.id));
+        }
+        
+        // Legacy: single object sectionC
+        return !!evaluation.sectionC && typeof evaluation.sectionC === 'object';
     };
 
     const hasStartedEditing = (e: Evaluation) => {
@@ -222,7 +225,17 @@ const EvaluationList = () => {
     }
 
     return (
-        <div className="space-y-6">
+        <>
+            {/* Auth gate - show loading if auth is still loading */}
+            {(authLoading || !authUser) && (
+                <div className="flex justify-center items-center min-h-[400px]">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                </div>
+            )}
+
+            {/* Show content only when auth is ready */}
+            {!authLoading && authUser && (
+                <div className="space-y-6">
             {/* Page Header */}
             <div className="panel bg-gradient-to-r from-blue-500 via-indigo-600 to-purple-600 text-white">
                 <div className="flex flex-wrap items-center justify-between gap-4">
@@ -501,6 +514,16 @@ const EvaluationList = () => {
                                                 >
                                                     <IconEye className="h-4 w-4" />
                                                 </button>
+                                                {/* Edit Section C button for assigned evaluators */}
+                                                {isUserAssignedToSectionC(evaluation) && (
+                                                    <button
+                                                        onClick={() => navigate(`/procurement/evaluation/${evaluation.id}/section-c`)}
+                                                        className="btn btn-sm btn-outline-warning"
+                                                        title="Complete Your Section C"
+                                                    >
+                                                        <IconEdit className="h-4 w-4" />
+                                                    </button>
+                                                )}
                                                 {/* View linked request button */}
                                                 {(evaluation.requestId || evaluation.combinedRequestId) && (
                                                     <button
@@ -552,7 +575,9 @@ const EvaluationList = () => {
                     </div>
                 )}
             </div>
-        </div>
+                </div>
+            )}
+        </>
     );
 };
 

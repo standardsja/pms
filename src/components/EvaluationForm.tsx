@@ -1,6 +1,21 @@
 import React, { useMemo, useState } from 'react';
 import type { Evaluation, SectionA, SectionB, SectionC, SectionD, SectionE } from '../services/evaluationService';
 
+// Utility functions for currency formatting
+const formatNumberWithCommas = (num: number | string): string => {
+    if (num === '' || num === null || num === undefined) return '';
+    const numStr = String(num);
+    const parts = numStr.split('.');
+    const intPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    return parts[1] !== undefined ? `${intPart}.${parts[1]}` : intPart;
+};
+
+const parseNumberInput = (input: string): number => {
+    const cleaned = String(input).replace(/,/g, '');
+    const parsed = parseFloat(cleaned);
+    return isNaN(parsed) ? 0 : parsed;
+};
+
 type Props = {
     mode: 'create' | 'edit';
     evaluation?: Evaluation | null;
@@ -195,11 +210,14 @@ export const EvaluationForm: React.FC<Props> = ({
                         <div>
                             <label className="block mb-1 text-sm font-semibold">Comparable Estimate</label>
                             <input
-                                type="number"
+                                type="text"
                                 className="form-input w-full"
                                 disabled={!canEdit('A')}
-                                value={sectionA?.comparableEstimate ?? ''}
-                                onChange={(e) => setSectionA({ ...(sectionA as any), comparableEstimate: Number(e.target.value) })}
+                                value={formatNumberWithCommas((sectionA as any)?.comparableEstimate ?? '')}
+                                onChange={(e) => {
+                                    setSectionA({ ...(sectionA as any), comparableEstimate: parseNumberInput(e.target.value) });
+                                }}
+                                placeholder="0.00"
                             />
                         </div>
                         <div>
@@ -1007,130 +1025,260 @@ export const EvaluationForm: React.FC<Props> = ({
             </div>
 
             {/* Section C: Evaluator Assessment */}
-            <div className="panel">
-                <div className="mb-5 -m-5 p-5 bg-warning/10 border-l-4 border-warning">
-                    <h5 className="text-lg font-bold text-warning">Section C</h5>
-                    <p className="text-sm mt-1">to be completed by the Evaluator</p>
-                </div>
-                <div className="p-5 space-y-6">
-                    <div>
-                        <label className="block mb-1 text-sm font-semibold">Comments/Critical Issues Examined</label>
-                        <textarea
-                            className="form-textarea w-full"
-                            rows={5}
-                            disabled={!canEdit('C')}
-                            value={sectionC?.criticalIssues || ''}
-                            onChange={(e) => setSectionC({ ...(sectionC as any), criticalIssues: e.target.value })}
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block mb-1 text-sm font-semibold">Action Taken</label>
-                        <div className="flex flex-wrap gap-4">
-                            {[
-                                { label: '(a) Recommended', value: 'RECOMMENDED' },
-                                { label: '(b) Rejected', value: 'REJECTED' },
-                                { label: '(c) Deferred', value: 'DEFERRED' },
-                            ].map((opt) => (
-                                <label key={opt.value} className="flex items-center gap-2 text-sm">
-                                    <input
-                                        type="radio"
-                                        className="form-radio"
-                                        disabled={!canEdit('C')}
-                                        checked={sectionC?.actionTaken === opt.value}
-                                        onChange={() => setSectionC({ ...(sectionC as any), actionTaken: opt.value })}
+            {/* Check if sectionC is an array (multiple evaluators) or single object */}
+            {Array.isArray(sectionC) && sectionC.length > 0 ? (
+                // Multiple evaluators - render one panel per evaluator (read-only for viewing)
+                sectionC.map((entry: any, index: number) => {
+                    const evaluatorData = entry?.data || {};
+                    return (
+                        <div key={entry?.userId || index} className="panel">
+                            <div className="mb-5 -m-5 p-5 bg-warning/10 border-l-4 border-warning">
+                                <h5 className="text-lg font-bold text-warning">
+                                    Section C {entry?.userName ? `- ${entry.userName}` : `- Evaluator ${index + 1}`}
+                                </h5>
+                                <p className="text-sm mt-1">Completed by the Evaluator</p>
+                            </div>
+                            <div className="p-5 space-y-6">
+                                <div>
+                                    <label className="block mb-1 text-sm font-semibold">Comments/Critical Issues Examined</label>
+                                    <textarea
+                                        className="form-textarea w-full bg-gray-50"
+                                        rows={5}
+                                        disabled
+                                        value={evaluatorData?.criticalIssues || ''}
+                                        readOnly
                                     />
-                                    <span>{opt.label}</span>
-                                </label>
-                            ))}
-                        </div>
-                    </div>
+                                </div>
 
-                    {(sectionC?.actionTaken === 'REJECTED' || sectionC?.actionTaken === 'DEFERRED') && (
+                                <div>
+                                    <label className="block mb-1 text-sm font-semibold">Action Taken</label>
+                                    <div className="flex flex-wrap gap-4">
+                                        {[
+                                            { label: '(a) Recommended', value: 'RECOMMENDED' },
+                                            { label: '(b) Rejected', value: 'REJECTED' },
+                                            { label: '(c) Deferred', value: 'DEFERRED' },
+                                        ].map((opt) => (
+                                            <label key={opt.value} className="flex items-center gap-2 text-sm">
+                                                <input
+                                                    type="radio"
+                                                    className="form-radio"
+                                                    disabled
+                                                    checked={evaluatorData?.actionTaken === opt.value}
+                                                    readOnly
+                                                />
+                                                <span>{opt.label}</span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {(evaluatorData?.actionTaken === 'REJECTED' || evaluatorData?.actionTaken === 'DEFERRED') && (
+                                    <div>
+                                        <label className="block mb-1 text-sm font-semibold">If rejected or deferred, please give details below</label>
+                                        <textarea
+                                            className="form-textarea w-full bg-gray-50"
+                                            rows={3}
+                                            disabled
+                                            value={evaluatorData?.rejectionReason || ''}
+                                            readOnly
+                                        />
+                                    </div>
+                                )}
+
+                                <div>
+                                    <label className="block mb-1 text-sm font-semibold">Recommended Contractor/Supplier</label>
+                                    <input
+                                        className="form-input w-full bg-gray-50"
+                                        disabled
+                                        value={evaluatorData?.recommendedSupplier || ''}
+                                        readOnly
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block mb-1 text-sm font-semibold">Recommended Contract Amount (inclusive of GCT)</label>
+                                    <input
+                                        type="number"
+                                        className="form-input w-full bg-gray-50"
+                                        disabled
+                                        value={evaluatorData?.recommendedAmountInclusiveGCT ?? ''}
+                                        readOnly
+                                    />
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block mb-1 text-sm font-semibold">Evaluator's Name</label>
+                                        <input
+                                            className="form-input w-full bg-gray-50"
+                                            disabled
+                                            value={evaluatorData?.evaluatorName || ''}
+                                            readOnly
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block mb-1 text-sm font-semibold">Job Title</label>
+                                        <input
+                                            className="form-input w-full bg-gray-50"
+                                            disabled
+                                            value={evaluatorData?.evaluatorTitle || ''}
+                                            readOnly
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block mb-1 text-sm font-semibold">Signature</label>
+                                        <input
+                                            className="form-input w-full bg-gray-50"
+                                            disabled
+                                            value={evaluatorData?.evaluatorSignature || ''}
+                                            readOnly
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block mb-1 text-sm font-semibold">Date</label>
+                                        <input
+                                            type="date"
+                                            className="form-input w-full bg-gray-50"
+                                            disabled
+                                            value={evaluatorData?.evaluationDate || ''}
+                                            readOnly
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })
+            ) : (
+                // Single evaluator (legacy) or editable view
+                <div className="panel">
+                    <div className="mb-5 -m-5 p-5 bg-warning/10 border-l-4 border-warning">
+                        <h5 className="text-lg font-bold text-warning">Section C</h5>
+                        <p className="text-sm mt-1">to be completed by the Evaluator</p>
+                    </div>
+                    <div className="p-5 space-y-6">
                         <div>
-                            <label className="block mb-1 text-sm font-semibold">If rejected or deferred, please give details below</label>
+                            <label className="block mb-1 text-sm font-semibold">Comments/Critical Issues Examined</label>
                             <textarea
                                 className="form-textarea w-full"
-                                rows={3}
+                                rows={5}
                                 disabled={!canEdit('C')}
-                                value={sectionC?.rejectionReason || ''}
-                                onChange={(e) => setSectionC({ ...(sectionC as any), rejectionReason: e.target.value })}
+                                value={(sectionC as any)?.criticalIssues || ''}
+                                onChange={(e) => setSectionC({ ...(sectionC as any), criticalIssues: e.target.value })}
                             />
+                        </div>
+
+                        <div>
+                            <label className="block mb-1 text-sm font-semibold">Action Taken</label>
+                            <div className="flex flex-wrap gap-4">
+                                {[
+                                    { label: '(a) Recommended', value: 'RECOMMENDED' },
+                                    { label: '(b) Rejected', value: 'REJECTED' },
+                                    { label: '(c) Deferred', value: 'DEFERRED' },
+                                ].map((opt) => (
+                                    <label key={opt.value} className="flex items-center gap-2 text-sm">
+                                        <input
+                                            type="radio"
+                                            className="form-radio"
+                                            disabled={!canEdit('C')}
+                                            checked={(sectionC as any)?.actionTaken === opt.value}
+                                            onChange={() => setSectionC({ ...(sectionC as any), actionTaken: opt.value })}
+                                        />
+                                        <span>{opt.label}</span>
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
+
+                        {((sectionC as any)?.actionTaken === 'REJECTED' || (sectionC as any)?.actionTaken === 'DEFERRED') && (
+                            <div>
+                                <label className="block mb-1 text-sm font-semibold">If rejected or deferred, please give details below</label>
+                                <textarea
+                                    className="form-textarea w-full"
+                                    rows={3}
+                                    disabled={!canEdit('C')}
+                                    value={(sectionC as any)?.rejectionReason || ''}
+                                    onChange={(e) => setSectionC({ ...(sectionC as any), rejectionReason: e.target.value })}
+                                />
+                            </div>
+                        )}
+
+                        <div>
+                            <label className="block mb-1 text-sm font-semibold">Recommended Contractor/Supplier</label>
+                            <input
+                                className="form-input w-full"
+                                disabled={!canEdit('C')}
+                                value={(sectionC as any)?.recommendedSupplier || ''}
+                                onChange={(e) => setSectionC({ ...(sectionC as any), recommendedSupplier: e.target.value })}
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block mb-1 text-sm font-semibold">Recommended Contract Amount (inclusive of GCT)</label>
+                            <input
+                                type="number"
+                                className="form-input w-full"
+                                disabled={!canEdit('C')}
+                                value={(sectionC as any)?.recommendedAmountInclusiveGCT ?? ''}
+                                onChange={(e) => setSectionC({ ...(sectionC as any), recommendedAmountInclusiveGCT: Number(e.target.value) || 0 })}
+                            />
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block mb-1 text-sm font-semibold">Evaluator's Name</label>
+                                <input
+                                    className="form-input w-full"
+                                    disabled={!canEdit('C')}
+                                    value={(sectionC as any)?.evaluatorName || ''}
+                                    onChange={(e) => setSectionC({ ...(sectionC as any), evaluatorName: e.target.value })}
+                                />
+                            </div>
+                            <div>
+                                <label className="block mb-1 text-sm font-semibold">Job Title</label>
+                                <input
+                                    className="form-input w-full"
+                                    disabled={!canEdit('C')}
+                                    value={(sectionC as any)?.evaluatorTitle || ''}
+                                    onChange={(e) => setSectionC({ ...(sectionC as any), evaluatorTitle: e.target.value })}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block mb-1 text-sm font-semibold">Signature</label>
+                                <input
+                                    className="form-input w-full"
+                                    disabled={!canEdit('C')}
+                                    value={(sectionC as any)?.evaluatorSignature || ''}
+                                    onChange={(e) => setSectionC({ ...(sectionC as any), evaluatorSignature: e.target.value })}
+                                />
+                            </div>
+                            <div>
+                                <label className="block mb-1 text-sm font-semibold">Date</label>
+                                <input
+                                    type="date"
+                                    className="form-input w-full"
+                                    disabled={!canEdit('C')}
+                                    value={(sectionC as any)?.evaluationDate ? (sectionC as any).evaluationDate : ''}
+                                    onChange={(e) => setSectionC({ ...(sectionC as any), evaluationDate: e.target.value })}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                    {canEdit('C') && (
+                        <div className="p-5 flex justify-end border-t">
+                            <button className="btn btn-primary" disabled={saving} onClick={() => saveSec('C')}>
+                                {saving ? 'Saving…' : 'Save Section C'}
+                            </button>
                         </div>
                     )}
-
-                    <div>
-                        <label className="block mb-1 text-sm font-semibold">Recommended Contractor/Supplier</label>
-                        <input
-                            className="form-input w-full"
-                            disabled={!canEdit('C')}
-                            value={sectionC?.recommendedSupplier || ''}
-                            onChange={(e) => setSectionC({ ...(sectionC as any), recommendedSupplier: e.target.value })}
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block mb-1 text-sm font-semibold">Recommended Contract Amount (inclusive of GCT)</label>
-                        <input
-                            type="number"
-                            className="form-input w-full"
-                            disabled={!canEdit('C')}
-                            value={sectionC?.recommendedAmountInclusiveGCT ?? ''}
-                            onChange={(e) => setSectionC({ ...(sectionC as any), recommendedAmountInclusiveGCT: Number(e.target.value) || 0 })}
-                        />
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label className="block mb-1 text-sm font-semibold">Evaluator's Name</label>
-                            <input
-                                className="form-input w-full"
-                                disabled={!canEdit('C')}
-                                value={sectionC?.evaluatorName || ''}
-                                onChange={(e) => setSectionC({ ...(sectionC as any), evaluatorName: e.target.value })}
-                            />
-                        </div>
-                        <div>
-                            <label className="block mb-1 text-sm font-semibold">Job Title</label>
-                            <input
-                                className="form-input w-full"
-                                disabled={!canEdit('C')}
-                                value={sectionC?.evaluatorTitle || ''}
-                                onChange={(e) => setSectionC({ ...(sectionC as any), evaluatorTitle: e.target.value })}
-                            />
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label className="block mb-1 text-sm font-semibold">Signature</label>
-                            <input
-                                className="form-input w-full"
-                                disabled={!canEdit('C')}
-                                value={sectionC?.evaluatorSignature || ''}
-                                onChange={(e) => setSectionC({ ...(sectionC as any), evaluatorSignature: e.target.value })}
-                            />
-                        </div>
-                        <div>
-                            <label className="block mb-1 text-sm font-semibold">Date</label>
-                            <input
-                                type="date"
-                                className="form-input w-full"
-                                disabled={!canEdit('C')}
-                                value={sectionC?.evaluationDate ? sectionC.evaluationDate : ''}
-                                onChange={(e) => setSectionC({ ...(sectionC as any), evaluationDate: e.target.value })}
-                            />
-                        </div>
-                    </div>
                 </div>
-                {canEdit('C') && (
-                    <div className="p-5 flex justify-end border-t">
-                        <button className="btn btn-primary" disabled={saving} onClick={() => saveSec('C')}>
-                            {saving ? 'Saving…' : 'Save Section C'}
-                        </button>
-                    </div>
-                )}
-            </div>
+            )}
 
             {/* Section D: Summary */}
             <div className="panel">

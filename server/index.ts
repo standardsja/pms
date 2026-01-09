@@ -6145,6 +6145,13 @@ app.patch(
         const actorUserId: number | null = userObj?.sub ? parseInt(userObj.sub) : userObj?.id ? parseInt(userObj.id) : null;
         const actorUserName: string | null = userObj?.name || userObj?.email || null;
 
+        console.log('=== Backend Committee Section Update Debug ===');
+        console.log('Evaluation ID:', id);
+        console.log('Section:', section);
+        console.log('Actor User ID:', actorUserId);
+        console.log('Actor User Name:', actorUserName);
+        console.log('Data being saved:', data);
+
         if (!section || !data) {
             throw new BadRequestError('Missing required fields: section, data');
         }
@@ -6166,6 +6173,8 @@ app.patch(
         if (sectionUpper === 'C') {
             // Normalize existing Section C to an array of entries
             const current = (existing as any)?.sectionC ?? null;
+            console.log('Current sectionC from DB:', current);
+            
             let entries: Array<{ userId: number; userName?: string | null; data: any }>; // Use any for data shape to avoid tight coupling
             try {
                 if (Array.isArray(current)) {
@@ -6180,16 +6189,25 @@ app.patch(
                 entries = [];
             }
 
+            console.log('Normalized entries (before upsert):', entries);
+
             // Upsert this actor's entry
             if (actorUserId !== null && Number.isFinite(actorUserId)) {
                 const idx = entries.findIndex((e) => Number(e.userId) === Number(actorUserId));
                 const newEntry = { userId: actorUserId, userName: actorUserName, data };
+                
+                console.log(`Finding entry for userId ${actorUserId}... found at index ${idx}`);
+                console.log('New entry to upsert:', newEntry);
+                
                 if (idx >= 0) entries[idx] = newEntry;
                 else entries.push(newEntry);
             } else {
                 // No user id (unlikely), append anonymous entry
                 entries.push({ userId: 0, userName: actorUserName, data });
             }
+
+            console.log('Final entries (after upsert):', entries);
+            console.log('=== End Backend Debug ===');
 
             // Assign merged array to update payload
             (updateData as any)[sectionKey] = entries as any;
