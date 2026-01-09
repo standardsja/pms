@@ -87,9 +87,18 @@ const Header = () => {
         const fetchPinnedModule = async () => {
             try {
                 const token = getToken();
+                if (!token) return;
+
                 const response = await fetch(getApiUrl('/api/auth/me'), {
-                    headers: token ? { Authorization: `Bearer ${token}` } : {},
+                    headers: { Authorization: `Bearer ${token}` },
                 });
+
+                if (response.status === 401) {
+                    clearAuth();
+                    window.location.href = '/auth/login';
+                    return;
+                }
+
                 if (response.ok) {
                     const data = await response.json();
                     setPinnedModule(data.pinnedModule || 'procurement');
@@ -230,6 +239,12 @@ const Header = () => {
                     },
                 });
 
+                if (response.status === 401) {
+                    clearAuth();
+                    window.location.href = '/auth/login';
+                    return;
+                }
+
                 if (response.ok) {
                     const data = await response.json();
 
@@ -241,6 +256,11 @@ const Header = () => {
                                     Authorization: `Bearer ${token}`,
                                 },
                             });
+                            if (photoResponse.status === 401) {
+                                clearAuth();
+                                window.location.href = '/auth/login';
+                                return;
+                            }
                             if (photoResponse.ok) {
                                 const photoData = await photoResponse.json();
                                 if (photoData.success && photoData.data?.profileImage) {
@@ -253,7 +273,6 @@ const Header = () => {
                     }
 
                     setProfileImage(resolveProfileImageUrl(data.profileImage));
-                } else {
                 }
             } catch (error) {}
         };

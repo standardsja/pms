@@ -3,7 +3,7 @@
  * Sends periodic heartbeat signals to track active user sessions per module
  */
 
-import { getToken } from '../utils/auth';
+import { getToken, clearAuth } from '../utils/auth';
 import { getApiUrl } from '../config/api';
 
 type ModuleType = 'pms' | 'ih';
@@ -70,8 +70,11 @@ class HeartbeatService {
                 body: JSON.stringify({ module }),
             });
 
-            if (!response.ok) {
-                const errorText = await response.text();
+            if (response.status === 401) {
+                this.stopHeartbeat();
+                clearAuth();
+                window.location.href = '/auth/login';
+                return;
             }
         } catch (error) {
             // Silent fail
