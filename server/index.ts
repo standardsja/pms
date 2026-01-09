@@ -6174,7 +6174,7 @@ app.patch(
             // Normalize existing Section C to an array of entries
             const current = (existing as any)?.sectionC ?? null;
             console.log('Current sectionC from DB:', current);
-            
+
             let entries: Array<{ userId: number; userName?: string | null; data: any }>; // Use any for data shape to avoid tight coupling
             try {
                 if (Array.isArray(current)) {
@@ -6195,10 +6195,10 @@ app.patch(
             if (actorUserId !== null && Number.isFinite(actorUserId)) {
                 const idx = entries.findIndex((e) => Number(e.userId) === Number(actorUserId));
                 const newEntry = { userId: actorUserId, userName: actorUserName, data };
-                
+
                 console.log(`Finding entry for userId ${actorUserId}... found at index ${idx}`);
                 console.log('New entry to upsert:', newEntry);
-                
+
                 if (idx >= 0) entries[idx] = newEntry;
                 else entries.push(newEntry);
             } else {

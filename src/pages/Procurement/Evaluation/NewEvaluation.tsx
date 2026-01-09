@@ -949,11 +949,7 @@ const NewEvaluation = () => {
                                         type="text"
                                         className="form-input w-full pl-8"
                                         placeholder="1,395,444"
-                                        value={
-                                            formData.comparableEstimate
-                                                ? String(formData.comparableEstimate).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
-                                                : ''
-                                        }
+                                        value={formData.comparableEstimate ? String(formData.comparableEstimate).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : ''}
                                         onChange={(e) => {
                                             // Just remove commas and store the raw number
                                             const value = e.target.value.replace(/,/g, '');

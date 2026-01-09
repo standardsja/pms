@@ -100,11 +100,12 @@ const EvaluatorAssignmentDetail = () => {
             if (Array.isArray(data.sectionC)) {
                 const allEntries = data.sectionC as any[];
                 console.log('All Section C entries:', allEntries);
-                
-                userEntry = allEntries.find((e: any) => {
-                    console.log(`Comparing entry userId ${e?.userId} (${typeof e?.userId}) with current userId ${currentUserId} (${typeof currentUserId})`);
-                    return Number(e?.userId) === Number(currentUserId);
-                }) || null;
+
+                userEntry =
+                    allEntries.find((e: any) => {
+                        console.log(`Comparing entry userId ${e?.userId} (${typeof e?.userId}) with current userId ${currentUserId} (${typeof currentUserId})`);
+                        return Number(e?.userId) === Number(currentUserId);
+                    }) || null;
 
                 console.log('Found user entry:', userEntry);
             }
@@ -124,7 +125,7 @@ const EvaluatorAssignmentDetail = () => {
             // Populate form with existing data (or defaults if blank)
             const entryData = userEntry.data || {};
             console.log('Populating form with data:', entryData);
-            
+
             setFormData({
                 criticalIssues: entryData.criticalIssues || '',
                 actionTaken: entryData.actionTaken || '',
@@ -272,15 +273,16 @@ const EvaluatorAssignmentDetail = () => {
                         Action Taken: <span className="text-danger">*</span>
                     </label>
                     <div className="flex gap-6">
-                        {[{label: 'Recommended', value: 'RECOMMENDED'}, {label: 'Rejected', value: 'REJECTED'}, {label: 'Deferred', value: 'DEFERRED'}].map((action, idx) => (
+                        {[
+                            { label: 'Recommended', value: 'RECOMMENDED' },
+                            { label: 'Rejected', value: 'REJECTED' },
+                            { label: 'Deferred', value: 'DEFERRED' },
+                        ].map((action, idx) => (
                             <label key={action.value} className="flex items-center gap-2">
-                                <input
-                                    type="radio"
-                                    className="form-radio"
-                                    checked={formData.actionTaken === action.value}
-                                    onChange={() => handleActionToggle(action.value as any)}
-                                />
-                                <span>({String.fromCharCode(97 + idx)}) {action.label}</span>
+                                <input type="radio" className="form-radio" checked={formData.actionTaken === action.value} onChange={() => handleActionToggle(action.value as any)} />
+                                <span>
+                                    ({String.fromCharCode(97 + idx)}) {action.label}
+                                </span>
                             </label>
                         ))}
                     </div>
@@ -391,31 +393,17 @@ const EvaluatorAssignmentDetail = () => {
                         <label htmlFor="evaluationDate" className="mb-2 block font-semibold">
                             Date:
                         </label>
-                        <input
-                            id="evaluationDate"
-                            name="evaluationDate"
-                            type="date"
-                            className="form-input w-full"
-                            value={formData.evaluationDate}
-                            onChange={handleInputChange}
-                        />
+                        <input id="evaluationDate" name="evaluationDate" type="date" className="form-input w-full" value={formData.evaluationDate} onChange={handleInputChange} />
                     </div>
                 </div>
 
                 {/* Action Buttons */}
                 <div className="flex gap-3 pt-6 border-t">
-                    <button
-                        onClick={() => navigate('/procurement/evaluation')}
-                        className="btn btn-outline-secondary"
-                    >
+                    <button onClick={() => navigate('/procurement/evaluation')} className="btn btn-outline-secondary">
                         <IconArrowLeft className="h-4 w-4 mr-2" />
                         Cancel
                     </button>
-                    <button
-                        onClick={handleSave}
-                        disabled={saving}
-                        className={`btn btn-primary ml-auto ${saving ? 'opacity-60 cursor-not-allowed' : ''}`}
-                    >
+                    <button onClick={handleSave} disabled={saving} className={`btn btn-primary ml-auto ${saving ? 'opacity-60 cursor-not-allowed' : ''}`}>
                         <IconSave className="h-4 w-4 mr-2" />
                         {saving ? 'Saving...' : 'Save Section C'}
                     </button>

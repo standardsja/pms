@@ -1033,21 +1033,13 @@ export const EvaluationForm: React.FC<Props> = ({
                     return (
                         <div key={entry?.userId || index} className="panel">
                             <div className="mb-5 -m-5 p-5 bg-warning/10 border-l-4 border-warning">
-                                <h5 className="text-lg font-bold text-warning">
-                                    Section C {entry?.userName ? `- ${entry.userName}` : `- Evaluator ${index + 1}`}
-                                </h5>
+                                <h5 className="text-lg font-bold text-warning">Section C {entry?.userName ? `- ${entry.userName}` : `- Evaluator ${index + 1}`}</h5>
                                 <p className="text-sm mt-1">Completed by the Evaluator</p>
                             </div>
                             <div className="p-5 space-y-6">
                                 <div>
                                     <label className="block mb-1 text-sm font-semibold">Comments/Critical Issues Examined</label>
-                                    <textarea
-                                        className="form-textarea w-full bg-gray-50"
-                                        rows={5}
-                                        disabled
-                                        value={evaluatorData?.criticalIssues || ''}
-                                        readOnly
-                                    />
+                                    <textarea className="form-textarea w-full bg-gray-50" rows={5} disabled value={evaluatorData?.criticalIssues || ''} readOnly />
                                 </div>
 
                                 <div>
@@ -1059,13 +1051,7 @@ export const EvaluationForm: React.FC<Props> = ({
                                             { label: '(c) Deferred', value: 'DEFERRED' },
                                         ].map((opt) => (
                                             <label key={opt.value} className="flex items-center gap-2 text-sm">
-                                                <input
-                                                    type="radio"
-                                                    className="form-radio"
-                                                    disabled
-                                                    checked={evaluatorData?.actionTaken === opt.value}
-                                                    readOnly
-                                                />
+                                                <input type="radio" className="form-radio" disabled checked={evaluatorData?.actionTaken === opt.value} readOnly />
                                                 <span>{opt.label}</span>
                                             </label>
                                         ))}
@@ -1075,77 +1061,39 @@ export const EvaluationForm: React.FC<Props> = ({
                                 {(evaluatorData?.actionTaken === 'REJECTED' || evaluatorData?.actionTaken === 'DEFERRED') && (
                                     <div>
                                         <label className="block mb-1 text-sm font-semibold">If rejected or deferred, please give details below</label>
-                                        <textarea
-                                            className="form-textarea w-full bg-gray-50"
-                                            rows={3}
-                                            disabled
-                                            value={evaluatorData?.rejectionReason || ''}
-                                            readOnly
-                                        />
+                                        <textarea className="form-textarea w-full bg-gray-50" rows={3} disabled value={evaluatorData?.rejectionReason || ''} readOnly />
                                     </div>
                                 )}
 
                                 <div>
                                     <label className="block mb-1 text-sm font-semibold">Recommended Contractor/Supplier</label>
-                                    <input
-                                        className="form-input w-full bg-gray-50"
-                                        disabled
-                                        value={evaluatorData?.recommendedSupplier || ''}
-                                        readOnly
-                                    />
+                                    <input className="form-input w-full bg-gray-50" disabled value={evaluatorData?.recommendedSupplier || ''} readOnly />
                                 </div>
 
                                 <div>
                                     <label className="block mb-1 text-sm font-semibold">Recommended Contract Amount (inclusive of GCT)</label>
-                                    <input
-                                        type="number"
-                                        className="form-input w-full bg-gray-50"
-                                        disabled
-                                        value={evaluatorData?.recommendedAmountInclusiveGCT ?? ''}
-                                        readOnly
-                                    />
+                                    <input type="number" className="form-input w-full bg-gray-50" disabled value={evaluatorData?.recommendedAmountInclusiveGCT ?? ''} readOnly />
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
                                         <label className="block mb-1 text-sm font-semibold">Evaluator's Name</label>
-                                        <input
-                                            className="form-input w-full bg-gray-50"
-                                            disabled
-                                            value={evaluatorData?.evaluatorName || ''}
-                                            readOnly
-                                        />
+                                        <input className="form-input w-full bg-gray-50" disabled value={evaluatorData?.evaluatorName || ''} readOnly />
                                     </div>
                                     <div>
                                         <label className="block mb-1 text-sm font-semibold">Job Title</label>
-                                        <input
-                                            className="form-input w-full bg-gray-50"
-                                            disabled
-                                            value={evaluatorData?.evaluatorTitle || ''}
-                                            readOnly
-                                        />
+                                        <input className="form-input w-full bg-gray-50" disabled value={evaluatorData?.evaluatorTitle || ''} readOnly />
                                     </div>
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
                                         <label className="block mb-1 text-sm font-semibold">Signature</label>
-                                        <input
-                                            className="form-input w-full bg-gray-50"
-                                            disabled
-                                            value={evaluatorData?.evaluatorSignature || ''}
-                                            readOnly
-                                        />
+                                        <input className="form-input w-full bg-gray-50" disabled value={evaluatorData?.evaluatorSignature || ''} readOnly />
                                     </div>
                                     <div>
                                         <label className="block mb-1 text-sm font-semibold">Date</label>
-                                        <input
-                                            type="date"
-                                            className="form-input w-full bg-gray-50"
-                                            disabled
-                                            value={evaluatorData?.evaluationDate || ''}
-                                            readOnly
-                                        />
+                                        <input type="date" className="form-input w-full bg-gray-50" disabled value={evaluatorData?.evaluationDate || ''} readOnly />
                                     </div>
                                 </div>
                             </div>
