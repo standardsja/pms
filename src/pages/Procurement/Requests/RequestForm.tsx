@@ -1206,7 +1206,7 @@ const RequestForm = () => {
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                             <div>
                                 <label className="block text-sm font-medium mb-2">Date: {formDate}</label>
-                                <input type="date" value={formDate} onChange={(e) => setFormDate(e.target.value)} className="form-input w-full" required />
+                                <input type="date" value={formDate} disabled className="form-input w-full bg-gray-100" />
                             </div>
                             <div>
                                 <label className="block text-sm font-medium mb-2">Requested by</label>
