@@ -32,7 +32,7 @@ const ProcurementOfficerDashboard = () => {
     const userRoles = currentUser?.roles || (currentUser?.role ? [currentUser.role] : []);
     const detected = detectUserRoles(userRoles);
 
-    // Redirect Finance Managers (as detected by centralized utility) to Finance Dashboard
+    // Redirect Finance Directors (as detected by centralized utility) to Finance Dashboard
     if (detected.isFinanceManager && !detected.isProcurementManager) {
         return <Navigate to="/finance" replace />;
     }

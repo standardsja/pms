@@ -15,6 +15,7 @@ export type AdminUser = {
     lastLogin?: string | null;
     failedLogins?: number | null;
     lastFailedLogin?: string | null;
+    externalId?: string | null; // LDAP DN identifier
 };
 
 export type CreateDepartmentInput = {

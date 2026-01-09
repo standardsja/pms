@@ -90,7 +90,7 @@ const HODUserManagement: React.FC = () => {
                     id: '3',
                     name: 'Carol White',
                     email: 'carol.white@example.com',
-                    role: 'Finance Manager',
+                    role: 'Finance Director',
                     department: 'Finance',
                     status: 'Inactive',
                     createdAt: '2024-02-01',
@@ -140,6 +140,13 @@ const HODUserManagement: React.FC = () => {
 
     return (
         <div>
+            {/* Dual Role Warning */}
+            <div className="mb-6 p-4 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/40 text-amber-800 dark:text-amber-200">
+                <p className="font-semibold mb-1">⚠️ Dual Role Warning</p>
+                <p className="text-sm">Assigning multiple roles to the same user can affect dashboard routing and sidebar visibility. Higher-priority roles take precedence.</p>
+                <p className="text-xs italic mt-1">Known conflict: REQUESTER + DEPARTMENT_MANAGER will only show Department Manager interface.</p>
+            </div>
+
             {/* Page Header */}
             <div className="flex items-center justify-between mb-6">
                 <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white">User Management</h1>

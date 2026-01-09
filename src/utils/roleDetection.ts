@@ -34,6 +34,7 @@ export interface DetectedRoles {
 
     // Committee roles
     isInnovationCommittee: boolean;
+    isEvaluationCommittee: boolean; // Evaluation Committee role
 
     // Support roles
     isAuditor: boolean;
@@ -116,11 +117,13 @@ export function detectUserRoles(userRoles: Array<string | { name: string } | nul
 
     // 6. COMMITTEE ROLES
     const isInnovationCommittee = hasRole('INNOVATION_COMMITTEE');
+    const isEvaluationCommittee = hasRole('EVALUATION_COMMITTEE');
 
     // 7. SUPPORT ROLES
     const isAuditor = hasRole('AUDITOR');
     const isSupplier = hasRole('SUPPLIER') || containsAny(['SUPPLIER']);
-    const isRequester = hasRole('REQUESTER') || (containsAny(['REQUEST']) && !isProcurementManager && !isProcurementOfficer && !isFinanceManager && !isDepartmentManager && !isAuditor);
+    // Requester should be suppressed if user has higher-priority roles, even if REQUESTER role exists
+    const isRequester = !isProcurementManager && !isProcurementOfficer && !isFinanceManager && !isDepartmentManager && !isAuditor && (hasRole('REQUESTER') || containsAny(['REQUEST']));
 
     // Determine primary role (in priority order for dashboard routing)
     let primaryRole = 'REQUESTER'; // default
@@ -129,6 +132,8 @@ export function detectUserRoles(userRoles: Array<string | { name: string } | nul
         primaryRole = 'ADMIN';
     } else if (isInnovationCommittee) {
         primaryRole = 'INNOVATION_COMMITTEE';
+    } else if (isEvaluationCommittee) {
+        primaryRole = 'EVALUATION_COMMITTEE';
     } else if (isExecutiveDirector) {
         primaryRole = 'EXECUTIVE_DIRECTOR';
     } else if (isSeniorDirector) {
@@ -169,6 +174,7 @@ export function detectUserRoles(userRoles: Array<string | { name: string } | nul
         isDepartmentHead,
         isDepartmentManager: effectiveDepartmentManager,
         isInnovationCommittee,
+        isEvaluationCommittee,
         isAuditor,
         isSupplier,
         isRequester,
@@ -215,10 +221,10 @@ export function getDashboardPath(roles: DetectedRoles, currentPathname: string =
         return '/procurement/dashboard/payment-stage';
     }
     if (roles.isBudgetManager) {
-        return '/finance';
+        return '/finance/manager';
     }
     if (roles.isFinanceManager) {
-        return '/finance';
+        return '/finance/manager';
     }
     if (roles.isFinanceOfficer) {
         return '/procurement/dashboard/finance-officer';
@@ -265,7 +271,7 @@ export function getRoleLabel(roles: DetectedRoles): string {
         return 'Finance - Payment Stage';
     }
     if (roles.isFinanceManager) {
-        return 'Finance Manager';
+        return 'Finance Director';
     }
     if (roles.isFinanceOfficer) {
         return 'Finance Officer';

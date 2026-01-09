@@ -69,12 +69,7 @@ const DepartmentManagerDashboard = () => {
             description: 'View all requests from your department',
             link: '/apps/requests',
         },
-        {
-            icon: '💡',
-            title: 'Innovation Hub',
-            description: 'Access innovation ideas from your team',
-            link: '/innovation/dashboard',
-        },
+        // Innovation Hub card removed per request
     ];
 
     const recentActivities = [

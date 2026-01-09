@@ -39,14 +39,7 @@ const ProcurementManagerDashboard = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    const initialEvaluations: Evaluation[] = useMemo(
-        () => [
-            { id: 'EV-550', rfqId: 'RFQ-998', title: 'Evaluation: Printers', evaluator: 'Sarah Johnson', score: 86, date: '2025-10-20', status: 'Pending Validation' },
-            { id: 'EV-551', rfqId: 'RFQ-1001', title: 'Evaluation: Software Licenses', evaluator: 'Mark Lee', score: 92, date: '2025-10-23', status: 'Pending Validation' },
-        ],
-        []
-    );
-    const [evaluations, setEvaluations] = useState<Evaluation[]>(initialEvaluations);
+    const [evaluations, setEvaluations] = useState<Evaluation[]>([]);
     const [stats, setStats] = useState<ManagerDashboardStats>({
         pendingApprovals: 0,
         evaluationsToValidate: 0,
@@ -70,10 +63,27 @@ const ProcurementManagerDashboard = () => {
         setValidationNotes('');
     };
 
-    const confirmValidate = () => {
+    const confirmValidate = async () => {
         if (!validateTarget) return;
-        setEvaluations((prev) => prev.map((e) => (e.id === validateTarget.id ? { ...e, status: validationDecision } : e)));
-        setValidateTarget(null);
+        try {
+            const response = await fetch(`${API_BASE}/api/evaluations/${validateTarget.id}/validate`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    status: validationDecision,
+                    notes: validationNotes,
+                }),
+            });
+            if (!response.ok) throw new Error('Failed to update evaluation');
+
+            // Update local state only after successful backend update
+            setEvaluations((prev) => prev.map((e) => (e.id === validateTarget.id ? { ...e, status: validationDecision } : e)));
+            setValidateTarget(null);
+            setValidationNotes('');
+        } catch (error) {
+            console.error('Validation error:', error);
+            alert('Failed to validate evaluation. Please try again.');
+        }
     };
 
     const pendingEvals = evaluations.filter((e) => e.status === 'Pending Validation');
@@ -138,45 +148,61 @@ const ProcurementManagerDashboard = () => {
     useEffect(() => {
         if (authLoading || !authUser) return;
         const controller = new AbortController();
-        const loadStats = async () => {
+        const loadData = async () => {
             try {
-                const resp = await fetch(`${API_BASE}/api/stats/dashboard`, {
+                // Load stats
+                const statsResp = await fetch(`${API_BASE}/api/stats/dashboard`, {
                     method: 'GET',
                     headers: { 'Content-Type': 'application/json' },
                     signal: controller.signal,
                 });
-                if (!resp.ok) throw new Error(`Failed to load stats: ${resp.status}`);
-                const data = (await resp.json()) as unknown as {
-                    procurement?: {
-                        pendingApprovals: number;
-                        evaluationsToValidate: number;
-                        autoAssignQueue: number;
-                        loadBalancingEnabled: boolean;
-                        strategy: ManagerDashboardStats['strategy'];
-                        trendSubmissions: number[];
-                        trendApprovals: number[];
-                        avgPendingEvalScore: number;
+                if (statsResp.ok) {
+                    const data = (await statsResp.json()) as unknown as {
+                        procurement?: {
+                            pendingApprovals: number;
+                            evaluationsToValidate: number;
+                            autoAssignQueue: number;
+                            loadBalancingEnabled: boolean;
+                            strategy: ManagerDashboardStats['strategy'];
+                            trendSubmissions: number[];
+                            trendApprovals: number[];
+                            avgPendingEvalScore: number;
+                        };
                     };
-                };
-                const p = data.procurement;
-                if (p) {
-                    setStats({
-                        pendingApprovals: p.pendingApprovals,
-                        evaluationsToValidate: p.evaluationsToValidate,
-                        autoAssignQueue: p.autoAssignQueue,
-                        loadBalancingEnabled: p.loadBalancingEnabled,
-                        strategy: p.strategy,
-                        trendSubmissions: p.trendSubmissions,
-                        trendApprovals: p.trendApprovals,
-                        avgPendingEvalScore: p.avgPendingEvalScore,
-                    });
+                    const p = data.procurement;
+                    if (p) {
+                        setStats({
+                            pendingApprovals: p.pendingApprovals,
+                            evaluationsToValidate: p.evaluationsToValidate,
+                            autoAssignQueue: p.autoAssignQueue,
+                            loadBalancingEnabled: p.loadBalancingEnabled,
+                            strategy: p.strategy,
+                            trendSubmissions: p.trendSubmissions,
+                            trendApprovals: p.trendApprovals,
+                            avgPendingEvalScore: p.avgPendingEvalScore,
+                        });
+                    }
+                }
+
+                // Load evaluations pending validation
+                const evalsResp = await fetch(`${API_BASE}/api/evaluations/pending-validation`, {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' },
+                    signal: controller.signal,
+                });
+                if (evalsResp.ok) {
+                    const evalsData = (await evalsResp.json()) as Evaluation[];
+                    setEvaluations(evalsData || []);
                 }
             } catch (e) {
                 // Fail silently on dashboard; keep defaults
+                if (!(e instanceof DOMException && e.name === 'AbortError')) {
+                    console.error('Failed to load manager dashboard data:', e);
+                }
             }
         };
-        loadStats();
-        const interval = setInterval(loadStats, 30000);
+        loadData();
+        const interval = setInterval(loadData, 30000);
         return () => {
             controller.abort();
             clearInterval(interval);

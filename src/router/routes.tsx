@@ -123,11 +123,11 @@ const DepartmentHeadReportReview = lazy(() => import('../pages/Procurement/Depar
 // Executive Director Pages
 const ExecutiveDirectorDashboard = lazy(() => import('../pages/Procurement/ExecutiveDirector/ExecutiveDirectorDashboard'));
 const ExecutiveApprovals = lazy(() => import('../pages/Procurement/Approvals/ExecutiveApprovals'));
-const ExecutiveDirectorReports = lazy(() => import('../pages/Procurement/ExecutiveDirector/ExecutiveDirectorReports'));
+import ExecutiveDirectorReports from '../pages/Procurement/ExecutiveDirector/ExecutiveDirectorReports';
 const ExecutiveDigitalSignoffs = lazy(() => import('../pages/Procurement/ExecutiveDirector/ExecutiveDigitalSignoffs'));
 
 // User Pages
-const Profile = lazy(() => import('../pages/Procurement/Users/Profile'));
+import Profile from '../pages/Procurement/Users/Profile';
 const AccountSetting = lazy(() => import('../pages/Procurement/Users/AccountSetting'));
 const HelpSupport = lazy(() => import('../pages/HelpSupport'));
 
@@ -240,14 +240,6 @@ const routes = [
         element: (
             <InnovationRoute>
                 <VoteOnIdeas />
-            </InnovationRoute>
-        ),
-    },
-    {
-        path: '/innovation/ideas/all',
-        element: (
-            <InnovationRoute>
-                <ViewIdeas />
             </InnovationRoute>
         ),
     },
@@ -395,7 +387,7 @@ const routes = [
     {
         path: '/procurement/hod',
         element: (
-            <RoleDashboardGuard allowedRoles={['HEAD_OF_DIVISION']}>
+            <RoleDashboardGuard allowedRoles={['HEAD_OF_DIVISION']} fallbackPath="/procurement/dashboard">
                 <HeadOfDivisionDashboard />
             </RoleDashboardGuard>
         ),
@@ -403,7 +395,7 @@ const routes = [
     {
         path: '/procurement/hod/departments',
         element: (
-            <RoleDashboardGuard allowedRoles={['HEAD_OF_DIVISION']}>
+            <RoleDashboardGuard allowedRoles={['HEAD_OF_DIVISION']} fallbackPath="/procurement/hod">
                 <HODDepartments />
             </RoleDashboardGuard>
         ),
@@ -411,7 +403,7 @@ const routes = [
     {
         path: '/procurement/hod/users',
         element: (
-            <RoleDashboardGuard allowedRoles={['HEAD_OF_DIVISION']}>
+            <RoleDashboardGuard allowedRoles={['HEAD_OF_DIVISION']} fallbackPath="/procurement/hod">
                 <HODUserManagement />
             </RoleDashboardGuard>
         ),
@@ -419,7 +411,7 @@ const routes = [
     {
         path: '/procurement/hod/reports',
         element: (
-            <RoleDashboardGuard allowedRoles={['HEAD_OF_DIVISION']}>
+            <RoleDashboardGuard allowedRoles={['HEAD_OF_DIVISION']} fallbackPath="/procurement/hod">
                 <HODReports />
             </RoleDashboardGuard>
         ),
@@ -427,7 +419,7 @@ const routes = [
     {
         path: '/procurement/hod/pending-approvals',
         element: (
-            <RoleDashboardGuard allowedRoles={['HEAD_OF_DIVISION']}>
+            <RoleDashboardGuard allowedRoles={['HEAD_OF_DIVISION']} fallbackPath="/procurement/hod">
                 <HODPendingApprovals />
             </RoleDashboardGuard>
         ),
@@ -435,7 +427,7 @@ const routes = [
     {
         path: '/procurement/manager',
         element: (
-            <RoleDashboardGuard allowedRoles={['PROCUREMENT_MANAGER']}>
+            <RoleDashboardGuard allowedRoles={['PROCUREMENT_MANAGER']} fallbackPath="/procurement/dashboard">
                 <ProcurementManagerDashboard />
             </RoleDashboardGuard>
         ),
@@ -443,7 +435,7 @@ const routes = [
     {
         path: '/procurement/manager/requests',
         element: (
-            <RoleDashboardGuard allowedRoles={['PROCUREMENT_MANAGER']}>
+            <RoleDashboardGuard allowedRoles={['PROCUREMENT_MANAGER']} fallbackPath="/procurement/manager">
                 <ProcurementManagerRequests />
             </RoleDashboardGuard>
         ),
@@ -451,7 +443,7 @@ const routes = [
     {
         path: '/procurement/manager/assign',
         element: (
-            <RoleDashboardGuard allowedRoles={['PROCUREMENT_MANAGER']}>
+            <RoleDashboardGuard allowedRoles={['PROCUREMENT_MANAGER']} fallbackPath="/procurement/manager">
                 <ProcurementManagerAssignRequests />
             </RoleDashboardGuard>
         ),
@@ -459,7 +451,7 @@ const routes = [
     {
         path: '/procurement/manager/settings',
         element: (
-            <RoleDashboardGuard allowedRoles={['PROCUREMENT_MANAGER']}>
+            <RoleDashboardGuard allowedRoles={['PROCUREMENT_MANAGER']} fallbackPath="/procurement/manager">
                 <ProcurementManagerLoadBalancingSettings />
             </RoleDashboardGuard>
         ),
@@ -467,7 +459,7 @@ const routes = [
     {
         path: '/procurement/manager/rfqs-awaiting',
         element: (
-            <RoleDashboardGuard allowedRoles={['PROCUREMENT_MANAGER']}>
+            <RoleDashboardGuard allowedRoles={['PROCUREMENT_MANAGER']} fallbackPath="/procurement/manager">
                 <RFQsAwaitingApproval />
             </RoleDashboardGuard>
         ),
@@ -475,7 +467,7 @@ const routes = [
     {
         path: '/procurement/manager/evaluations-to-validate',
         element: (
-            <RoleDashboardGuard allowedRoles={['PROCUREMENT_MANAGER']}>
+            <RoleDashboardGuard allowedRoles={['PROCUREMENT_MANAGER']} fallbackPath="/procurement/manager">
                 <EvaluationsToValidate />
             </RoleDashboardGuard>
         ),
@@ -575,7 +567,7 @@ const routes = [
     {
         path: '/supplier',
         element: (
-            <RoleDashboardGuard allowedRoles={['SUPPLIER']}>
+            <RoleDashboardGuard allowedRoles={['SUPPLIER']} fallbackPath="/procurement/dashboard">
                 <SupplierDashboard />
             </RoleDashboardGuard>
         ),
@@ -660,12 +652,21 @@ const routes = [
             </ProcurementRoute>
         ),
     },
-    // Finance Dashboard guarded for finance roles
+    // Finance Officer Dashboard (separate from Finance Manager)
     {
         path: '/finance',
         element: (
-            <RoleDashboardGuard allowedRoles={['FINANCE_OFFICER', 'FINANCE_MANAGER', 'BUDGET_MANAGER']} fallbackPath="/procurement/dashboard">
-                <FinanceDashboard />
+            <RoleDashboardGuard allowedRoles={['FINANCE_OFFICER']} fallbackPath="/procurement/dashboard">
+                <FinanceOfficerDashboard />
+            </RoleDashboardGuard>
+        ),
+    },
+    // Finance Manager/Director Dashboard
+    {
+        path: '/finance/manager',
+        element: (
+            <RoleDashboardGuard allowedRoles={['FINANCE_MANAGER', 'BUDGET_MANAGER']} fallbackPath="/procurement/dashboard">
+                <FinanceManagerDashboard />
             </RoleDashboardGuard>
         ),
     },
@@ -706,14 +707,6 @@ const routes = [
         element: (
             <RoleDashboardGuard allowedRoles={['DEPARTMENT_HEAD']} fallbackPath="/procurement/dashboard">
                 <DepartmentHeadEvaluationReview />
-            </RoleDashboardGuard>
-        ),
-    },
-    {
-        path: '/finance/manager',
-        element: (
-            <RoleDashboardGuard allowedRoles={['FINANCE_MANAGER', 'BUDGET_MANAGER']} fallbackPath="/procurement/dashboard">
-                <FinanceManagerDashboard />
             </RoleDashboardGuard>
         ),
     },
@@ -968,8 +961,11 @@ const routes = [
     },
 
     // ============================================
-    // PROCUREMENT 404 CATCH-ALL
+    // 404 CATCH-ALLS (MUST BE LAST, BEFORE GLOBAL)
     // ============================================
+    // NOTE: Order matters - specific patterns first, then catch-alls
+    // All specific /procurement, /finance, /innovation, /apps routes are defined above
+    // These catch unmatched paths within those modules
     {
         path: '/procurement/*',
         element: <NotFound />,
@@ -982,10 +978,7 @@ const routes = [
         path: '/apps/*',
         element: <NotFound />,
     },
-
-    // ============================================
-    // ERROR HANDLING - MUST BE LAST
-    // ============================================
+    // Global catch-all MUST be last
     {
         path: '*',
         element: <Error />,
