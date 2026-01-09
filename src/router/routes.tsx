@@ -122,7 +122,7 @@ const DepartmentHeadReportReview = lazy(() => import('../pages/Procurement/Depar
 // Executive Director Pages
 const ExecutiveDirectorDashboard = lazy(() => import('../pages/Procurement/ExecutiveDirector/ExecutiveDirectorDashboard'));
 const ExecutiveApprovals = lazy(() => import('../pages/Procurement/Approvals/ExecutiveApprovals'));
-const ExecutiveDirectorReports = lazy(() => import('../pages/Procurement/ExecutiveDirector/ExecutiveDirectorReports'));
+import ExecutiveDirectorReports from '../pages/Procurement/ExecutiveDirector/ExecutiveDirectorReports';
 const ExecutiveDigitalSignoffs = lazy(() => import('../pages/Procurement/ExecutiveDirector/ExecutiveDigitalSignoffs'));
 
 // User Pages

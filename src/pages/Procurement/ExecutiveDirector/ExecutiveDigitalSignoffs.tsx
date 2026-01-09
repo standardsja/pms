@@ -49,7 +49,35 @@ const ExecutiveDigitalSignoffs = () => {
             if (!response.ok) throw new Error('Failed to fetch sign-offs');
 
             const data = await response.json();
-            const executiveSignoffs = data.filter((item: any) => item.status === 'EXECUTIVE_REVIEW' || item.status === 'FINANCE_APPROVED');
+            const executiveSignoffs = data
+                .filter((item: any) => item.status === 'EXECUTIVE_REVIEW' || item.status === 'FINANCE_APPROVED')
+                .map((item: any) => ({
+                    id: item.id,
+                    procurementId: item.referenceNumber || 'N/A',
+                    description: item.description || item.title || 'No description',
+                    priority: item.priority || 'Medium',
+                    status: item.status === 'EXECUTIVE_REVIEW' ? 'Pending Executive Sign-off' : 'Signed',
+                    type: item.type || 'Procurement',
+                    department: item.department?.name || 'N/A',
+                    dueDate: item.dueDate ? new Date(item.dueDate).toLocaleDateString() : 'N/A',
+                    supplier: item.vendor?.name || 'N/A',
+                    totalAmount: item.estimatedValue || 0,
+                    contractPeriod: item.contractDuration || 'N/A',
+                    riskLevel: item.riskLevel || 'Low',
+                    businessJustification: item.businessJustification || 'No justification provided',
+                    budgetImpact: item.budgetImpact || 'No budget impact details',
+                    documents: item.attachments || [],
+                    departmentHeadApproval: {
+                        approvedBy: item.approvedBy?.name || 'N/A',
+                        approvedDate: item.approvedAt ? new Date(item.approvedAt).toLocaleDateString() : 'N/A',
+                        comments: item.departmentHeadComments || 'No comments',
+                    },
+                    procurementOfficerRecommendation: {
+                        officer: item.createdBy?.name || 'N/A',
+                        date: item.createdAt ? new Date(item.createdAt).toLocaleDateString() : 'N/A',
+                        recommendation: item.procurementOfficerComments || 'No recommendation',
+                    },
+                }));
 
             setDigitalSignoffItems(executiveSignoffs);
         } catch (error) {
@@ -63,8 +91,8 @@ const ExecutiveDigitalSignoffs = () => {
     // Filter items based on status
     const filteredItems = digitalSignoffItems.filter((item: any) => {
         if (filter === 'all') return true;
-        if (filter === 'pending') return item.status === 'EXECUTIVE_REVIEW';
-        if (filter === 'signed') return item.status === 'FINANCE_APPROVED';
+        if (filter === 'pending') return item.status === 'Pending Executive Sign-off';
+        if (filter === 'signed') return item.status === 'Signed';
         if (filter === 'rejected') return item.status === 'REJECTED';
         return true;
     });
@@ -72,10 +100,10 @@ const ExecutiveDigitalSignoffs = () => {
     // Statistics
     const stats = {
         total: digitalSignoffItems.length,
-        pending: digitalSignoffItems.filter((i: any) => i.status === 'EXECUTIVE_REVIEW').length,
-        signed: digitalSignoffItems.filter((i: any) => i.status === 'FINANCE_APPROVED').length,
+        pending: digitalSignoffItems.filter((i: any) => i.status === 'Pending Executive Sign-off').length,
+        signed: digitalSignoffItems.filter((i: any) => i.status === 'Signed').length,
         rejected: digitalSignoffItems.filter((i: any) => i.status === 'REJECTED').length,
-        totalValue: digitalSignoffItems.reduce((sum: number, i: any) => sum + (i.estimatedValue || 0), 0),
+        totalValue: digitalSignoffItems.reduce((sum: number, i: any) => sum + (i.totalAmount || 0), 0),
     };
 
     const handleDigitalSignoff = (item: any) => {
