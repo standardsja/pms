@@ -228,7 +228,7 @@ const RequestForm = () => {
     const [isRejecting, setIsRejecting] = useState(false);
 
     // Request actions/messages
-    const [requestActions, setRequestActions] = useState<Array<{id: number; action: string; comment: string | null; performedBy: {name: string} | null; createdAt: string}>>([]);
+    const [requestActions, setRequestActions] = useState<Array<{ id: number; action: string; comment: string | null; performedBy: { name: string } | null; createdAt: string }>>([]);
     const [showMessagesPanel, setShowMessagesPanel] = useState(false);
 
     // Determine field permissions strictly by workflow stage + assignee
@@ -2102,16 +2102,8 @@ const RequestForm = () => {
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
                     <div className="bg-white dark:bg-slate-800 rounded-lg p-6 max-w-md w-full mx-4">
                         <h3 className="text-lg font-bold mb-4">Reject Request</h3>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                            Please provide a reason for rejecting this request. The requester will be notified and can resubmit.
-                        </p>
-                        <textarea
-                            className="form-textarea w-full mb-4"
-                            rows={4}
-                            placeholder="Enter rejection reason..."
-                            value={rejectionNote}
-                            onChange={(e) => setRejectionNote(e.target.value)}
-                        />
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Please provide a reason for rejecting this request. The requester will be notified and can resubmit.</p>
+                        <textarea className="form-textarea w-full mb-4" rows={4} placeholder="Enter rejection reason..." value={rejectionNote} onChange={(e) => setRejectionNote(e.target.value)} />
                         <div className="flex gap-3 justify-end">
                             <button
                                 type="button"
@@ -2123,12 +2115,7 @@ const RequestForm = () => {
                             >
                                 Cancel
                             </button>
-                            <button
-                                type="button"
-                                onClick={handleReject}
-                                disabled={isRejecting}
-                                className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-60"
-                            >
+                            <button type="button" onClick={handleReject} disabled={isRejecting} className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-60">
                                 {isRejecting ? 'Rejecting...' : 'Reject Request'}
                             </button>
                         </div>
@@ -2142,11 +2129,7 @@ const RequestForm = () => {
                     <div className="bg-white dark:bg-slate-800 rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col">
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="text-lg font-bold">Request Activity & Messages</h3>
-                            <button
-                                type="button"
-                                onClick={() => setShowMessagesPanel(false)}
-                                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                            >
+                            <button type="button" onClick={() => setShowMessagesPanel(false)} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
                                 <IconX />
                             </button>
                         </div>
@@ -2159,28 +2142,26 @@ const RequestForm = () => {
                                         <div key={action.id} className="border border-gray-200 dark:border-gray-700 rounded p-3">
                                             <div className="flex justify-between items-start mb-1">
                                                 <span className="font-semibold text-sm">
-                                                    {action.action === 'RETURN' ? '↩️ Returned' : 
-                                                     action.action === 'APPROVE' ? '✅ Approved' : 
-                                                     action.action === 'SUBMIT' ? '📤 Submitted' :
-                                                     action.action === 'ASSIGN' ? '👤 Assigned' :
-                                                     action.action === 'COMMENT' ? '💬 Comment' :
-                                                     action.action === 'EDIT_BUDGET' ? '💰 Budget Edited' :
-                                                     action.action === 'SEND_TO_VENDOR' ? '🚚 Sent to Vendor' : action.action}
+                                                    {action.action === 'RETURN'
+                                                        ? '↩️ Returned'
+                                                        : action.action === 'APPROVE'
+                                                        ? '✅ Approved'
+                                                        : action.action === 'SUBMIT'
+                                                        ? '📤 Submitted'
+                                                        : action.action === 'ASSIGN'
+                                                        ? '👤 Assigned'
+                                                        : action.action === 'COMMENT'
+                                                        ? '💬 Comment'
+                                                        : action.action === 'EDIT_BUDGET'
+                                                        ? '💰 Budget Edited'
+                                                        : action.action === 'SEND_TO_VENDOR'
+                                                        ? '🚚 Sent to Vendor'
+                                                        : action.action}
                                                 </span>
-                                                <span className="text-xs text-gray-500">
-                                                    {new Date(action.createdAt).toLocaleString()}
-                                                </span>
+                                                <span className="text-xs text-gray-500">{new Date(action.createdAt).toLocaleString()}</span>
                                             </div>
-                                            {action.performedBy && (
-                                                <p className="text-sm text-gray-600 dark:text-gray-400">
-                                                    By: {action.performedBy.name}
-                                                </p>
-                                            )}
-                                            {action.comment && (
-                                                <p className="text-sm mt-2 bg-gray-50 dark:bg-gray-900 p-2 rounded">
-                                                    {action.comment}
-                                                </p>
-                                            )}
+                                            {action.performedBy && <p className="text-sm text-gray-600 dark:text-gray-400">By: {action.performedBy.name}</p>}
+                                            {action.comment && <p className="text-sm mt-2 bg-gray-50 dark:bg-gray-900 p-2 rounded">{action.comment}</p>}
                                         </div>
                                     ))}
                                 </div>
