@@ -26,6 +26,7 @@ import { ldapService } from '../services/ldapService.js';
 import { computePermissionsForUser, computeDeptManagerForUser } from '../utils/permissionUtils.js';
 import { syncLDAPUserToDatabase, describeSyncResult } from '../services/ldapRoleSyncService.js';
 import { bulkSyncADUsers, getSyncStatistics } from '../services/ldapBulkSyncService.js';
+import { createRefreshToken as createTokenServiceRefreshToken } from '../services/tokenService.js';
 
 const router = Router();
 
@@ -657,25 +658,12 @@ router.post(
 );
 
 /**
- * Helper function to create and store refresh token
+ * Helper function to create and store refresh token (updated version with rememberMe support)
+ * Falls back to non-persisted token if database unavailable
  */
 async function createRefreshToken(userId: number, rememberMe: boolean = false): Promise<string> {
-    const tokenValue = crypto.randomBytes(32).toString('hex');
-    const tokenHash = crypto.createHash('sha256').update(tokenValue).digest('hex');
-
-    // Remember me: 30 days, otherwise: 7 days
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + (rememberMe ? 30 : 7));
-
-    await prisma.refreshToken.create({
-        data: {
-            tokenHash,
-            userId,
-            expiresAt,
-        },
-    });
-
-    return tokenValue;
+    const ttlDays = rememberMe ? 30 : 7;
+    return createTokenServiceRefreshToken(userId, ttlDays);
 }
 
 /**

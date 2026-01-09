@@ -1,6 +1,21 @@
 import React, { useMemo, useState } from 'react';
 import type { Evaluation, SectionA, SectionB, SectionC, SectionD, SectionE } from '../services/evaluationService';
 
+// Utility functions for currency formatting
+const formatNumberWithCommas = (num: number | string): string => {
+    if (num === '' || num === null || num === undefined) return '';
+    const numStr = String(num);
+    const parts = numStr.split('.');
+    const intPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    return parts[1] !== undefined ? `${intPart}.${parts[1]}` : intPart;
+};
+
+const parseNumberInput = (input: string): number => {
+    const cleaned = String(input).replace(/,/g, '');
+    const parsed = parseFloat(cleaned);
+    return isNaN(parsed) ? 0 : parsed;
+};
+
 type Props = {
     mode: 'create' | 'edit';
     evaluation?: Evaluation | null;
@@ -133,6 +148,14 @@ export const EvaluationForm: React.FC<Props> = ({
                                 </div>
                             </div>
                         )}
+                        {evaluation.description && (
+                            <div>
+                                <label className="block mb-2 text-sm font-semibold text-lg">COMMENTS / JUSTIFICATION (Why is it needed?)</label>
+                                <div className="p-3 bg-gray-50 dark:bg-gray-900 rounded border">
+                                    <p className="whitespace-pre-wrap">{evaluation.description}</p>
+                                </div>
+                            </div>
+                        )}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label className="block mb-1 text-sm font-semibold">DATE SUBMISSION WAS CONSIDERED:</label>
@@ -187,11 +210,14 @@ export const EvaluationForm: React.FC<Props> = ({
                         <div>
                             <label className="block mb-1 text-sm font-semibold">Comparable Estimate</label>
                             <input
-                                type="number"
+                                type="text"
                                 className="form-input w-full"
                                 disabled={!canEdit('A')}
-                                value={sectionA?.comparableEstimate ?? ''}
-                                onChange={(e) => setSectionA({ ...(sectionA as any), comparableEstimate: Number(e.target.value) })}
+                                value={formatNumberWithCommas((sectionA as any)?.comparableEstimate ?? '')}
+                                onChange={(e) => {
+                                    setSectionA({ ...(sectionA as any), comparableEstimate: parseNumberInput(e.target.value) });
+                                }}
+                                placeholder="0.00"
                             />
                         </div>
                         <div>
@@ -274,617 +300,720 @@ export const EvaluationForm: React.FC<Props> = ({
                 <div className="p-5 space-y-6">
                     {/* Show message if no tables exist */}
                     {!sectionB?.bidders?.[0] && (
-                        <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded">
-                            <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                        <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded flex items-center justify-between gap-4">
+                            <p className="text-sm text-yellow-800 dark:text-yellow-200 m-0">
                                 <strong>No tables created yet.</strong> The procurement officer needs to create the eligibility, compliance, and technical tables first.
                             </p>
+                            {canEditStructure('B') && (
+                                <button
+                                    type="button"
+                                    className="btn btn-warning btn-sm whitespace-nowrap"
+                                    onClick={() => {
+                                        const copy = { ...(sectionB as any) };
+                                        if (!copy.bidders || copy.bidders.length === 0) {
+                                            copy.bidders = [
+                                                {
+                                                    bidderName: 'Bidder 1',
+                                                    eligibilityRequirements: { columns: [], rows: [] },
+                                                    complianceMatrix: { columns: [], rows: [] },
+                                                    technicalEvaluation: { columns: [], rows: [] },
+                                                },
+                                            ];
+                                        } else {
+                                            if (!copy.bidders[0].eligibilityRequirements) copy.bidders[0].eligibilityRequirements = { columns: [], rows: [] };
+                                            if (!copy.bidders[0].complianceMatrix) copy.bidders[0].complianceMatrix = { columns: [], rows: [] };
+                                            if (!copy.bidders[0].technicalEvaluation) copy.bidders[0].technicalEvaluation = { columns: [], rows: [] };
+                                        }
+                                        setSectionB(copy);
+                                    }}
+                                >
+                                    Initialize Tables
+                                </button>
+                            )}
                         </div>
                     )}
 
                     {/* Eligibility Table */}
-                    {sectionB?.bidders?.[0]?.eligibilityRequirements && (
-                        <div>
-                            <div className="flex items-center justify-between mb-2">
-                                <h6 className="font-semibold">Eligibility Table</h6>
-                                {canEditStructure('B') && (
-                                    <div className="flex gap-2">
-                                        <button
-                                            type="button"
-                                            className="btn btn-outline-info btn-sm"
-                                            onClick={() => {
-                                                const copy = { ...(sectionB as any) };
-                                                const colId = `col-${Date.now()}`;
-                                                const newCol = { id: colId, name: 'New Column', cellType: 'text' };
-                                                copy.bidders[0].eligibilityRequirements.columns = [...copy.bidders[0].eligibilityRequirements.columns, newCol];
-                                                copy.bidders[0].eligibilityRequirements.rows = copy.bidders[0].eligibilityRequirements.rows.map((r: any) => ({
-                                                    ...r,
-                                                    data: { ...r.data, [colId]: '' },
-                                                }));
-                                                setSectionB(copy);
-                                            }}
-                                        >
-                                            + Add Column
-                                        </button>
-                                        <button
-                                            type="button"
-                                            className="btn btn-outline-primary btn-sm"
-                                            onClick={() => {
-                                                const copy = { ...(sectionB as any) };
-                                                const cols = copy.bidders[0].eligibilityRequirements.columns;
-                                                const newRow = {
-                                                    id: `row-${Date.now()}`,
-                                                    data: Object.fromEntries(cols.map((c: any) => [c.id, ''])),
-                                                };
-                                                copy.bidders[0].eligibilityRequirements.rows = [...copy.bidders[0].eligibilityRequirements.rows, newRow];
-                                                setSectionB(copy);
-                                            }}
-                                        >
-                                            + Add Row
-                                        </button>
+                    {sectionB?.bidders?.[0] &&
+                        (() => {
+                            // Initialize table if it doesn't exist
+                            if (!sectionB.bidders[0].eligibilityRequirements) {
+                                sectionB.bidders[0].eligibilityRequirements = { columns: [], rows: [] };
+                            }
+                            const table = sectionB.bidders[0].eligibilityRequirements;
+                            if (!table.columns) table.columns = [];
+                            if (!table.rows) table.rows = [];
+                            return (
+                                <div>
+                                    <div className="flex items-center justify-between mb-2">
+                                        <h6 className="font-semibold">Eligibility Table</h6>
+                                        {canEditStructure('B') && (
+                                            <div className="flex gap-2">
+                                                <button
+                                                    type="button"
+                                                    className="btn btn-outline-info btn-sm"
+                                                    onClick={() => {
+                                                        const copy = { ...(sectionB as any) };
+                                                        if (!copy.bidders[0].eligibilityRequirements) {
+                                                            copy.bidders[0].eligibilityRequirements = { columns: [], rows: [] };
+                                                        }
+                                                        const colId = `col-${Date.now()}`;
+                                                        const newCol = { id: colId, name: 'New Column', cellType: 'text' };
+                                                        copy.bidders[0].eligibilityRequirements.columns = [...(copy.bidders[0].eligibilityRequirements.columns || []), newCol];
+                                                        copy.bidders[0].eligibilityRequirements.rows = (copy.bidders[0].eligibilityRequirements.rows || []).map((r: any) => ({
+                                                            ...r,
+                                                            data: { ...r.data, [colId]: '' },
+                                                        }));
+                                                        setSectionB(copy);
+                                                    }}
+                                                >
+                                                    + Add Column
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    className="btn btn-outline-primary btn-sm"
+                                                    onClick={() => {
+                                                        const copy = { ...(sectionB as any) };
+                                                        if (!copy.bidders[0].eligibilityRequirements) {
+                                                            copy.bidders[0].eligibilityRequirements = { columns: [], rows: [] };
+                                                        }
+                                                        const cols = copy.bidders[0].eligibilityRequirements.columns || [];
+                                                        const newRow = {
+                                                            id: `row-${Date.now()}`,
+                                                            data: Object.fromEntries(cols.map((c: any) => [c.id, ''])),
+                                                        };
+                                                        copy.bidders[0].eligibilityRequirements.rows = [...(copy.bidders[0].eligibilityRequirements.rows || []), newRow];
+                                                        setSectionB(copy);
+                                                    }}
+                                                >
+                                                    + Add Row
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
-                                )}
-                            </div>
-                            <div className="overflow-x-auto">
-                                <table className="table-auto w-full border-collapse border border-gray-300 dark:border-gray-600">
-                                    <thead>
-                                        <tr className="bg-gray-100 dark:bg-gray-800">
-                                            {sectionB.bidders[0].eligibilityRequirements.columns.map((col: any) => (
-                                                <th key={col.id} className="border border-gray-300 dark:border-gray-600 px-2 py-2">
-                                                    {canEditStructure('B') ? (
-                                                        <div className="flex flex-col gap-2">
-                                                            <div className="flex items-center gap-2">
-                                                                <input
-                                                                    type="text"
-                                                                    className="form-input text-sm font-semibold bg-transparent border-0 p-1 flex-1"
-                                                                    value={col.name}
-                                                                    onChange={(e) => {
+                                    <div className="overflow-x-auto">
+                                        <table className="table-auto w-full border-collapse border border-gray-300 dark:border-gray-600">
+                                            <thead>
+                                                <tr className="bg-gray-100 dark:bg-gray-800">
+                                                    {sectionB.bidders[0].eligibilityRequirements.columns.map((col: any) => (
+                                                        <th key={col.id} className="border border-gray-300 dark:border-gray-600 px-2 py-2">
+                                                            {canEditStructure('B') ? (
+                                                                <div className="flex flex-col gap-2">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <input
+                                                                            type="text"
+                                                                            className="form-input text-sm font-semibold bg-transparent border-0 p-1 flex-1"
+                                                                            value={col.name}
+                                                                            onChange={(e) => {
+                                                                                const copy = { ...(sectionB as any) };
+                                                                                copy.bidders[0].eligibilityRequirements.columns = copy.bidders[0].eligibilityRequirements.columns.map((c: any) =>
+                                                                                    c.id === col.id ? { ...c, name: e.target.value } : c
+                                                                                );
+                                                                                setSectionB(copy);
+                                                                            }}
+                                                                            placeholder="Column name"
+                                                                        />
+                                                                        {(sectionB.bidders[0]?.eligibilityRequirements?.columns?.length ?? 0) > 1 && (
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => {
+                                                                                    const copy = { ...(sectionB as any) };
+                                                                                    copy.bidders[0].eligibilityRequirements.columns = copy.bidders[0].eligibilityRequirements.columns.filter(
+                                                                                        (c: any) => c.id !== col.id
+                                                                                    );
+                                                                                    copy.bidders[0].eligibilityRequirements.rows = copy.bidders[0].eligibilityRequirements.rows.map((r: any) => {
+                                                                                        const newData = { ...r.data };
+                                                                                        delete newData[col.id];
+                                                                                        return { ...r, data: newData };
+                                                                                    });
+                                                                                    setSectionB(copy);
+                                                                                }}
+                                                                                className="text-danger hover:bg-danger hover:text-white p-1 rounded transition-colors"
+                                                                                title="Remove column"
+                                                                            >
+                                                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                                                </svg>
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
+                                                                    <select
+                                                                        className="form-select text-xs py-1 px-2"
+                                                                        value={col.cellType || 'text'}
+                                                                        onChange={(e) => {
+                                                                            const copy = { ...(sectionB as any) };
+                                                                            copy.bidders[0].eligibilityRequirements.columns = copy.bidders[0].eligibilityRequirements.columns.map((c: any) =>
+                                                                                c.id === col.id ? { ...c, cellType: e.target.value } : c
+                                                                            );
+                                                                            if (e.target.value === 'radio') {
+                                                                                copy.bidders[0].eligibilityRequirements.rows = copy.bidders[0].eligibilityRequirements.rows.map((r: any) => {
+                                                                                    const val = r.data[col.id]?.toLowerCase();
+                                                                                    const newVal = val === 'yes' || val === 'no' ? val.charAt(0).toUpperCase() + val.slice(1) : '';
+                                                                                    return { ...r, data: { ...r.data, [col.id]: newVal } };
+                                                                                });
+                                                                            }
+                                                                            setSectionB(copy);
+                                                                        }}
+                                                                    >
+                                                                        <option value="text">Text</option>
+                                                                        <option value="radio">Yes/No</option>
+                                                                    </select>
+                                                                </div>
+                                                            ) : (
+                                                                col.name
+                                                            )}
+                                                        </th>
+                                                    ))}
+                                                    {canEditStructure('B') && <th className="border border-gray-300 dark:border-gray-600 px-3 py-2 w-24">Actions</th>}
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {sectionB.bidders[0].eligibilityRequirements.rows.map((row: any) => (
+                                                    <tr key={row.id}>
+                                                        {sectionB.bidders[0].eligibilityRequirements!.columns.map((col: any) => (
+                                                            <td key={col.id} className="border px-2 py-2">
+                                                                {/* Eligibility table cells are editable by evaluators */}
+                                                                {col.cellType === 'radio' && canEditTechnical() ? (
+                                                                    <div className="flex items-center gap-4 justify-center">
+                                                                        <label className="flex items-center gap-1 cursor-pointer">
+                                                                            <input
+                                                                                type="radio"
+                                                                                name={`${row.id}-${col.id}`}
+                                                                                className="form-radio"
+                                                                                checked={row.data[col.id] === 'Yes'}
+                                                                                onChange={() => {
+                                                                                    const copy = { ...(sectionB as any) };
+                                                                                    copy.bidders[0].eligibilityRequirements.rows = copy.bidders[0].eligibilityRequirements.rows.map((r: any) =>
+                                                                                        r.id === row.id ? { ...r, data: { ...r.data, [col.id]: 'Yes' } } : r
+                                                                                    );
+                                                                                    setSectionB(copy);
+                                                                                }}
+                                                                            />
+                                                                            <span className="text-sm">Yes</span>
+                                                                        </label>
+                                                                        <label className="flex items-center gap-1 cursor-pointer">
+                                                                            <input
+                                                                                type="radio"
+                                                                                name={`${row.id}-${col.id}`}
+                                                                                className="form-radio"
+                                                                                checked={row.data[col.id] === 'No'}
+                                                                                onChange={() => {
+                                                                                    const copy = { ...(sectionB as any) };
+                                                                                    copy.bidders[0].eligibilityRequirements.rows = copy.bidders[0].eligibilityRequirements.rows.map((r: any) =>
+                                                                                        r.id === row.id ? { ...r, data: { ...r.data, [col.id]: 'No' } } : r
+                                                                                    );
+                                                                                    setSectionB(copy);
+                                                                                }}
+                                                                            />
+                                                                            <span className="text-sm">No</span>
+                                                                        </label>
+                                                                    </div>
+                                                                ) : canEditTechnical() ? (
+                                                                    <input
+                                                                        className="form-input w-full"
+                                                                        value={row.data[col.id] || ''}
+                                                                        onChange={(e) => {
+                                                                            const copy = { ...(sectionB as any) };
+                                                                            const table = copy.bidders[0].eligibilityRequirements;
+                                                                            table.rows = table.rows.map((r: any) => (r.id === row.id ? { ...r, data: { ...r.data, [col.id]: e.target.value } } : r));
+                                                                            setSectionB(copy);
+                                                                        }}
+                                                                    />
+                                                                ) : (
+                                                                    <span>{row.data[col.id] || '-'}</span>
+                                                                )}
+                                                            </td>
+                                                        ))}
+                                                        {canEditStructure('B') && (
+                                                            <td className="border px-2 py-2">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
                                                                         const copy = { ...(sectionB as any) };
-                                                                        copy.bidders[0].eligibilityRequirements.columns = copy.bidders[0].eligibilityRequirements.columns.map((c: any) =>
-                                                                            c.id === col.id ? { ...c, name: e.target.value } : c
-                                                                        );
+                                                                        copy.bidders[0].eligibilityRequirements.rows = copy.bidders[0].eligibilityRequirements.rows.filter((r: any) => r.id !== row.id);
                                                                         setSectionB(copy);
                                                                     }}
-                                                                    placeholder="Column name"
-                                                                />
-                                                                {(sectionB.bidders[0]?.eligibilityRequirements?.columns?.length ?? 0) > 1 && (
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => {
-                                                                            const copy = { ...(sectionB as any) };
-                                                                            copy.bidders[0].eligibilityRequirements.columns = copy.bidders[0].eligibilityRequirements.columns.filter(
-                                                                                (c: any) => c.id !== col.id
-                                                                            );
-                                                                            copy.bidders[0].eligibilityRequirements.rows = copy.bidders[0].eligibilityRequirements.rows.map((r: any) => {
-                                                                                const newData = { ...r.data };
-                                                                                delete newData[col.id];
-                                                                                return { ...r, data: newData };
-                                                                            });
-                                                                            setSectionB(copy);
-                                                                        }}
-                                                                        className="text-danger hover:bg-danger hover:text-white p-1 rounded transition-colors"
-                                                                        title="Remove column"
-                                                                    >
-                                                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                                                        </svg>
-                                                                    </button>
-                                                                )}
-                                                            </div>
-                                                            <select
-                                                                className="form-select text-xs py-1 px-2"
-                                                                value={col.cellType || 'text'}
-                                                                onChange={(e) => {
-                                                                    const copy = { ...(sectionB as any) };
-                                                                    copy.bidders[0].eligibilityRequirements.columns = copy.bidders[0].eligibilityRequirements.columns.map((c: any) =>
-                                                                        c.id === col.id ? { ...c, cellType: e.target.value } : c
-                                                                    );
-                                                                    if (e.target.value === 'radio') {
-                                                                        copy.bidders[0].eligibilityRequirements.rows = copy.bidders[0].eligibilityRequirements.rows.map((r: any) => {
-                                                                            const val = r.data[col.id]?.toLowerCase();
-                                                                            const newVal = val === 'yes' || val === 'no' ? val.charAt(0).toUpperCase() + val.slice(1) : '';
-                                                                            return { ...r, data: { ...r.data, [col.id]: newVal } };
-                                                                        });
-                                                                    }
-                                                                    setSectionB(copy);
-                                                                }}
-                                                            >
-                                                                <option value="text">Text</option>
-                                                                <option value="radio">Yes/No</option>
-                                                            </select>
-                                                        </div>
-                                                    ) : (
-                                                        col.name
-                                                    )}
-                                                </th>
-                                            ))}
-                                            {canEditStructure('B') && <th className="border border-gray-300 dark:border-gray-600 px-3 py-2 w-24">Actions</th>}
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {sectionB.bidders[0].eligibilityRequirements.rows.map((row: any) => (
-                                            <tr key={row.id}>
-                                                {sectionB.bidders[0].eligibilityRequirements!.columns.map((col: any) => (
-                                                    <td key={col.id} className="border px-2 py-2">
-                                                        {/* Eligibility table is read-only for evaluators, only procurement can edit */}
-                                                        {col.cellType === 'radio' && canEditStructure('B') ? (
-                                                            <div className="flex items-center gap-4 justify-center">
-                                                                <label className="flex items-center gap-1 cursor-pointer">
-                                                                    <input
-                                                                        type="radio"
-                                                                        name={`${row.id}-${col.id}`}
-                                                                        className="form-radio"
-                                                                        checked={row.data[col.id] === 'Yes'}
-                                                                        onChange={() => {
-                                                                            const copy = { ...(sectionB as any) };
-                                                                            copy.bidders[0].eligibilityRequirements.rows = copy.bidders[0].eligibilityRequirements.rows.map((r: any) =>
-                                                                                r.id === row.id ? { ...r, data: { ...r.data, [col.id]: 'Yes' } } : r
-                                                                            );
-                                                                            setSectionB(copy);
-                                                                        }}
-                                                                    />
-                                                                    <span className="text-sm">Yes</span>
-                                                                </label>
-                                                                <label className="flex items-center gap-1 cursor-pointer">
-                                                                    <input
-                                                                        type="radio"
-                                                                        name={`${row.id}-${col.id}`}
-                                                                        className="form-radio"
-                                                                        checked={row.data[col.id] === 'No'}
-                                                                        onChange={() => {
-                                                                            const copy = { ...(sectionB as any) };
-                                                                            copy.bidders[0].eligibilityRequirements.rows = copy.bidders[0].eligibilityRequirements.rows.map((r: any) =>
-                                                                                r.id === row.id ? { ...r, data: { ...r.data, [col.id]: 'No' } } : r
-                                                                            );
-                                                                            setSectionB(copy);
-                                                                        }}
-                                                                    />
-                                                                    <span className="text-sm">No</span>
-                                                                </label>
-                                                            </div>
-                                                        ) : canEditStructure('B') ? (
-                                                            <input
-                                                                className="form-input w-full"
-                                                                value={row.data[col.id] || ''}
-                                                                onChange={(e) => {
-                                                                    const copy = { ...(sectionB as any) };
-                                                                    const table = copy.bidders[0].eligibilityRequirements;
-                                                                    table.rows = table.rows.map((r: any) => (r.id === row.id ? { ...r, data: { ...r.data, [col.id]: e.target.value } } : r));
-                                                                    setSectionB(copy);
-                                                                }}
-                                                            />
-                                                        ) : (
-                                                            <span>{row.data[col.id] || '-'}</span>
+                                                                    className="text-danger hover:bg-danger hover:text-white p-1 rounded transition-colors"
+                                                                    title="Remove row"
+                                                                >
+                                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                        <path
+                                                                            strokeLinecap="round"
+                                                                            strokeLinejoin="round"
+                                                                            strokeWidth={2}
+                                                                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                                                        />
+                                                                    </svg>
+                                                                </button>
+                                                            </td>
                                                         )}
-                                                    </td>
+                                                    </tr>
                                                 ))}
-                                                {canEditStructure('B') && (
-                                                    <td className="border px-2 py-2">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => {
-                                                                const copy = { ...(sectionB as any) };
-                                                                copy.bidders[0].eligibilityRequirements.rows = copy.bidders[0].eligibilityRequirements.rows.filter((r: any) => r.id !== row.id);
-                                                                setSectionB(copy);
-                                                            }}
-                                                            className="text-danger hover:bg-danger hover:text-white p-1 rounded transition-colors"
-                                                            title="Remove row"
-                                                        >
-                                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                <path
-                                                                    strokeLinecap="round"
-                                                                    strokeLinejoin="round"
-                                                                    strokeWidth={2}
-                                                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                                                                />
-                                                            </svg>
-                                                        </button>
-                                                    </td>
-                                                )}
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            );
+                        })()}
 
                     {/* Compliance Table */}
-                    {sectionB?.bidders?.[0]?.complianceMatrix && (
-                        <div>
-                            <div className="flex items-center justify-between mb-2">
-                                <h6 className="font-semibold">Compliance Table</h6>
-                                {canEditStructure('B') && (
-                                    <div className="flex gap-2">
-                                        <button
-                                            type="button"
-                                            className="btn btn-outline-info btn-sm"
-                                            onClick={() => {
-                                                const copy = { ...(sectionB as any) };
-                                                const colId = `col-${Date.now()}`;
-                                                copy.bidders[0].complianceMatrix.columns = [...copy.bidders[0].complianceMatrix.columns, { id: colId, name: 'New Column', cellType: 'text' }];
-                                                copy.bidders[0].complianceMatrix.rows = copy.bidders[0].complianceMatrix.rows.map((r: any) => ({ ...r, data: { ...r.data, [colId]: '' } }));
-                                                setSectionB(copy);
-                                            }}
-                                        >
-                                            + Add Column
-                                        </button>
-                                        <button
-                                            type="button"
-                                            className="btn btn-outline-primary btn-sm"
-                                            onClick={() => {
-                                                const copy = { ...(sectionB as any) };
-                                                const newRow = { id: `row-${Date.now()}`, data: Object.fromEntries(copy.bidders[0].complianceMatrix.columns.map((c: any) => [c.id, ''])) };
-                                                copy.bidders[0].complianceMatrix.rows = [...copy.bidders[0].complianceMatrix.rows, newRow];
-                                                setSectionB(copy);
-                                            }}
-                                        >
-                                            + Add Row
-                                        </button>
+                    {sectionB?.bidders?.[0] &&
+                        (() => {
+                            // Initialize table if it doesn't exist
+                            if (!sectionB.bidders[0].complianceMatrix) {
+                                sectionB.bidders[0].complianceMatrix = { columns: [], rows: [] };
+                            }
+                            const table = sectionB.bidders[0].complianceMatrix;
+                            if (!table.columns) table.columns = [];
+                            if (!table.rows) table.rows = [];
+                            return (
+                                <div>
+                                    <div className="flex items-center justify-between mb-2">
+                                        <h6 className="font-semibold">Compliance Table</h6>
+                                        {canEditStructure('B') && (
+                                            <div className="flex gap-2">
+                                                <button
+                                                    type="button"
+                                                    className="btn btn-outline-info btn-sm"
+                                                    onClick={() => {
+                                                        const copy = { ...(sectionB as any) };
+                                                        if (!copy.bidders[0].complianceMatrix) {
+                                                            copy.bidders[0].complianceMatrix = { columns: [], rows: [] };
+                                                        }
+                                                        const colId = `col-${Date.now()}`;
+                                                        copy.bidders[0].complianceMatrix.columns = [
+                                                            ...(copy.bidders[0].complianceMatrix.columns || []),
+                                                            { id: colId, name: 'New Column', cellType: 'text' },
+                                                        ];
+                                                        copy.bidders[0].complianceMatrix.rows = (copy.bidders[0].complianceMatrix.rows || []).map((r: any) => ({
+                                                            ...r,
+                                                            data: { ...r.data, [colId]: '' },
+                                                        }));
+                                                        setSectionB(copy);
+                                                    }}
+                                                >
+                                                    + Add Column
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    className="btn btn-outline-primary btn-sm"
+                                                    onClick={() => {
+                                                        const copy = { ...(sectionB as any) };
+                                                        if (!copy.bidders[0].complianceMatrix) {
+                                                            copy.bidders[0].complianceMatrix = { columns: [], rows: [] };
+                                                        }
+                                                        const newRow = {
+                                                            id: `row-${Date.now()}`,
+                                                            data: Object.fromEntries((copy.bidders[0].complianceMatrix.columns || []).map((c: any) => [c.id, ''])),
+                                                        };
+                                                        copy.bidders[0].complianceMatrix.rows = [...(copy.bidders[0].complianceMatrix.rows || []), newRow];
+                                                        setSectionB(copy);
+                                                    }}
+                                                >
+                                                    + Add Row
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
-                                )}
-                            </div>
-                            <div className="overflow-x-auto">
-                                <table className="table-auto w-full border-collapse border border-gray-300 dark:border-gray-600">
-                                    <thead>
-                                        <tr className="bg-gray-100 dark:bg-gray-800">
-                                            {sectionB.bidders[0].complianceMatrix.columns.map((col: any) => (
-                                                <th key={col.id} className="border border-gray-300 dark:border-gray-600 px-2 py-2">
-                                                    {canEditStructure('B') ? (
-                                                        <div className="flex flex-col gap-2">
-                                                            <div className="flex items-center gap-2">
-                                                                <input
-                                                                    type="text"
-                                                                    className="form-input text-sm font-semibold bg-transparent border-0 p-1 flex-1"
-                                                                    value={col.name}
-                                                                    onChange={(e) => {
+                                    <div className="overflow-x-auto">
+                                        <table className="table-auto w-full border-collapse border border-gray-300 dark:border-gray-600">
+                                            <thead>
+                                                <tr className="bg-gray-100 dark:bg-gray-800">
+                                                    {sectionB.bidders[0].complianceMatrix.columns.map((col: any) => (
+                                                        <th key={col.id} className="border border-gray-300 dark:border-gray-600 px-2 py-2">
+                                                            {canEditStructure('B') ? (
+                                                                <div className="flex flex-col gap-2">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <input
+                                                                            type="text"
+                                                                            className="form-input text-sm font-semibold bg-transparent border-0 p-1 flex-1"
+                                                                            value={col.name}
+                                                                            onChange={(e) => {
+                                                                                const copy = { ...(sectionB as any) };
+                                                                                copy.bidders[0].complianceMatrix.columns = copy.bidders[0].complianceMatrix.columns.map((c: any) =>
+                                                                                    c.id === col.id ? { ...c, name: e.target.value } : c
+                                                                                );
+                                                                                setSectionB(copy);
+                                                                            }}
+                                                                            placeholder="Column name"
+                                                                        />
+                                                                        {(sectionB.bidders[0]?.complianceMatrix?.columns?.length ?? 0) > 1 && (
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => {
+                                                                                    const copy = { ...(sectionB as any) };
+                                                                                    copy.bidders[0].complianceMatrix.columns = copy.bidders[0].complianceMatrix.columns.filter(
+                                                                                        (c: any) => c.id !== col.id
+                                                                                    );
+                                                                                    copy.bidders[0].complianceMatrix.rows = copy.bidders[0].complianceMatrix.rows.map((r: any) => {
+                                                                                        const newData = { ...r.data };
+                                                                                        delete newData[col.id];
+                                                                                        return { ...r, data: newData };
+                                                                                    });
+                                                                                    setSectionB(copy);
+                                                                                }}
+                                                                                className="text-danger hover:bg-danger hover:text-white p-1 rounded transition-colors"
+                                                                                title="Remove column"
+                                                                            >
+                                                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                                                </svg>
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
+                                                                    <select
+                                                                        className="form-select text-xs py-1 px-2"
+                                                                        value={col.cellType || 'text'}
+                                                                        onChange={(e) => {
+                                                                            const copy = { ...(sectionB as any) };
+                                                                            copy.bidders[0].complianceMatrix.columns = copy.bidders[0].complianceMatrix.columns.map((c: any) =>
+                                                                                c.id === col.id ? { ...c, cellType: e.target.value } : c
+                                                                            );
+                                                                            if (e.target.value === 'radio') {
+                                                                                copy.bidders[0].complianceMatrix.rows = copy.bidders[0].complianceMatrix.rows.map((r: any) => {
+                                                                                    const val = r.data[col.id]?.toLowerCase();
+                                                                                    const newVal = val === 'yes' || val === 'no' ? val.charAt(0).toUpperCase() + val.slice(1) : '';
+                                                                                    return { ...r, data: { ...r.data, [col.id]: newVal } };
+                                                                                });
+                                                                            }
+                                                                            setSectionB(copy);
+                                                                        }}
+                                                                    >
+                                                                        <option value="text">Text</option>
+                                                                        <option value="radio">Yes/No</option>
+                                                                    </select>
+                                                                </div>
+                                                            ) : (
+                                                                col.name
+                                                            )}
+                                                        </th>
+                                                    ))}
+                                                    {canEditStructure('B') && <th className="border border-gray-300 dark:border-gray-600 px-3 py-2 w-24">Actions</th>}
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {(sectionB.bidders[0]?.complianceMatrix?.rows ?? []).map((row: any) => (
+                                                    <tr key={row.id}>
+                                                        {(sectionB.bidders[0]?.complianceMatrix?.columns ?? []).map((col: any) => (
+                                                            <td key={col.id} className="border px-2 py-2">
+                                                                {/* Compliance table cells are editable by evaluators */}
+                                                                {col.cellType === 'radio' && canEditTechnical() ? (
+                                                                    <div className="flex items-center gap-4 justify-center">
+                                                                        <label className="flex items-center gap-1 cursor-pointer">
+                                                                            <input
+                                                                                type="radio"
+                                                                                name={`${row.id}-${col.id}`}
+                                                                                className="form-radio"
+                                                                                checked={row.data[col.id] === 'Yes'}
+                                                                                onChange={() => {
+                                                                                    const copy = { ...(sectionB as any) };
+                                                                                    copy.bidders[0].complianceMatrix.rows = copy.bidders[0].complianceMatrix.rows.map((r: any) =>
+                                                                                        r.id === row.id ? { ...r, data: { ...r.data, [col.id]: 'Yes' } } : r
+                                                                                    );
+                                                                                    setSectionB(copy);
+                                                                                }}
+                                                                            />
+                                                                            <span className="text-sm">Yes</span>
+                                                                        </label>
+                                                                        <label className="flex items-center gap-1 cursor-pointer">
+                                                                            <input
+                                                                                type="radio"
+                                                                                name={`${row.id}-${col.id}`}
+                                                                                className="form-radio"
+                                                                                checked={row.data[col.id] === 'No'}
+                                                                                onChange={() => {
+                                                                                    const copy = { ...(sectionB as any) };
+                                                                                    copy.bidders[0].complianceMatrix.rows = copy.bidders[0].complianceMatrix.rows.map((r: any) =>
+                                                                                        r.id === row.id ? { ...r, data: { ...r.data, [col.id]: 'No' } } : r
+                                                                                    );
+                                                                                    setSectionB(copy);
+                                                                                }}
+                                                                            />
+                                                                            <span className="text-sm">No</span>
+                                                                        </label>
+                                                                    </div>
+                                                                ) : canEditTechnical() ? (
+                                                                    <input
+                                                                        className="form-input w-full"
+                                                                        value={row.data[col.id] || ''}
+                                                                        onChange={(e) => {
+                                                                            const copy = { ...(sectionB as any) };
+                                                                            copy.bidders[0].complianceMatrix.rows = copy.bidders[0].complianceMatrix.rows.map((r: any) =>
+                                                                                r.id === row.id ? { ...r, data: { ...r.data, [col.id]: e.target.value } } : r
+                                                                            );
+                                                                            setSectionB(copy);
+                                                                        }}
+                                                                    />
+                                                                ) : (
+                                                                    <span>{row.data[col.id] || '-'}</span>
+                                                                )}
+                                                            </td>
+                                                        ))}
+                                                        {canEditStructure('B') && (
+                                                            <td className="border px-2 py-2">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
                                                                         const copy = { ...(sectionB as any) };
-                                                                        copy.bidders[0].complianceMatrix.columns = copy.bidders[0].complianceMatrix.columns.map((c: any) =>
-                                                                            c.id === col.id ? { ...c, name: e.target.value } : c
-                                                                        );
+                                                                        copy.bidders[0].complianceMatrix.rows = copy.bidders[0].complianceMatrix.rows.filter((r: any) => r.id !== row.id);
                                                                         setSectionB(copy);
                                                                     }}
-                                                                    placeholder="Column name"
-                                                                />
-                                                                {(sectionB.bidders[0]?.complianceMatrix?.columns?.length ?? 0) > 1 && (
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => {
-                                                                            const copy = { ...(sectionB as any) };
-                                                                            copy.bidders[0].complianceMatrix.columns = copy.bidders[0].complianceMatrix.columns.filter((c: any) => c.id !== col.id);
-                                                                            copy.bidders[0].complianceMatrix.rows = copy.bidders[0].complianceMatrix.rows.map((r: any) => {
-                                                                                const newData = { ...r.data };
-                                                                                delete newData[col.id];
-                                                                                return { ...r, data: newData };
-                                                                            });
-                                                                            setSectionB(copy);
-                                                                        }}
-                                                                        className="text-danger hover:bg-danger hover:text-white p-1 rounded transition-colors"
-                                                                        title="Remove column"
-                                                                    >
-                                                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                                                        </svg>
-                                                                    </button>
-                                                                )}
-                                                            </div>
-                                                            <select
-                                                                className="form-select text-xs py-1 px-2"
-                                                                value={col.cellType || 'text'}
-                                                                onChange={(e) => {
-                                                                    const copy = { ...(sectionB as any) };
-                                                                    copy.bidders[0].complianceMatrix.columns = copy.bidders[0].complianceMatrix.columns.map((c: any) =>
-                                                                        c.id === col.id ? { ...c, cellType: e.target.value } : c
-                                                                    );
-                                                                    if (e.target.value === 'radio') {
-                                                                        copy.bidders[0].complianceMatrix.rows = copy.bidders[0].complianceMatrix.rows.map((r: any) => {
-                                                                            const val = r.data[col.id]?.toLowerCase();
-                                                                            const newVal = val === 'yes' || val === 'no' ? val.charAt(0).toUpperCase() + val.slice(1) : '';
-                                                                            return { ...r, data: { ...r.data, [col.id]: newVal } };
-                                                                        });
-                                                                    }
-                                                                    setSectionB(copy);
-                                                                }}
-                                                            >
-                                                                <option value="text">Text</option>
-                                                                <option value="radio">Yes/No</option>
-                                                            </select>
-                                                        </div>
-                                                    ) : (
-                                                        col.name
-                                                    )}
-                                                </th>
-                                            ))}
-                                            {canEditStructure('B') && <th className="border border-gray-300 dark:border-gray-600 px-3 py-2 w-24">Actions</th>}
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {(sectionB?.bidders?.[0]?.complianceMatrix?.rows ?? []).map((row: any) => (
-                                            <tr key={row.id}>
-                                                {(sectionB?.bidders?.[0]?.complianceMatrix?.columns ?? []).map((col: any) => (
-                                                    <td key={col.id} className="border px-2 py-2">
-                                                        {/* Compliance table is read-only for evaluators, only procurement can edit */}
-                                                        {col.cellType === 'radio' && canEditStructure('B') ? (
-                                                            <div className="flex items-center gap-4 justify-center">
-                                                                <label className="flex items-center gap-1 cursor-pointer">
-                                                                    <input
-                                                                        type="radio"
-                                                                        name={`${row.id}-${col.id}`}
-                                                                        className="form-radio"
-                                                                        checked={row.data[col.id] === 'Yes'}
-                                                                        onChange={() => {
-                                                                            const copy = { ...(sectionB as any) };
-                                                                            copy.bidders[0].complianceMatrix.rows = copy.bidders[0].complianceMatrix.rows.map((r: any) =>
-                                                                                r.id === row.id ? { ...r, data: { ...r.data, [col.id]: 'Yes' } } : r
-                                                                            );
-                                                                            setSectionB(copy);
-                                                                        }}
-                                                                    />
-                                                                    <span className="text-sm">Yes</span>
-                                                                </label>
-                                                                <label className="flex items-center gap-1 cursor-pointer">
-                                                                    <input
-                                                                        type="radio"
-                                                                        name={`${row.id}-${col.id}`}
-                                                                        className="form-radio"
-                                                                        checked={row.data[col.id] === 'No'}
-                                                                        onChange={() => {
-                                                                            const copy = { ...(sectionB as any) };
-                                                                            copy.bidders[0].complianceMatrix.rows = copy.bidders[0].complianceMatrix.rows.map((r: any) =>
-                                                                                r.id === row.id ? { ...r, data: { ...r.data, [col.id]: 'No' } } : r
-                                                                            );
-                                                                            setSectionB(copy);
-                                                                        }}
-                                                                    />
-                                                                    <span className="text-sm">No</span>
-                                                                </label>
-                                                            </div>
-                                                        ) : canEditStructure('B') ? (
-                                                            <input
-                                                                className="form-input w-full"
-                                                                value={row.data[col.id] || ''}
-                                                                onChange={(e) => {
-                                                                    const copy = { ...(sectionB as any) };
-                                                                    copy.bidders[0].complianceMatrix.rows = copy.bidders[0].complianceMatrix.rows.map((r: any) =>
-                                                                        r.id === row.id ? { ...r, data: { ...r.data, [col.id]: e.target.value } } : r
-                                                                    );
-                                                                    setSectionB(copy);
-                                                                }}
-                                                            />
-                                                        ) : (
-                                                            <span>{row.data[col.id] || '-'}</span>
+                                                                    className="text-danger hover:bg-danger hover:text-white p-1 rounded transition-colors"
+                                                                    title="Remove row"
+                                                                >
+                                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                        <path
+                                                                            strokeLinecap="round"
+                                                                            strokeLinejoin="round"
+                                                                            strokeWidth={2}
+                                                                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                                                        />
+                                                                    </svg>
+                                                                </button>
+                                                            </td>
                                                         )}
-                                                    </td>
+                                                    </tr>
                                                 ))}
-                                                {canEditStructure('B') && (
-                                                    <td className="border px-2 py-2">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => {
-                                                                const copy = { ...(sectionB as any) };
-                                                                copy.bidders[0].complianceMatrix.rows = copy.bidders[0].complianceMatrix.rows.filter((r: any) => r.id !== row.id);
-                                                                setSectionB(copy);
-                                                            }}
-                                                            className="text-danger hover:bg-danger hover:text-white p-1 rounded transition-colors"
-                                                            title="Remove row"
-                                                        >
-                                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                <path
-                                                                    strokeLinecap="round"
-                                                                    strokeLinejoin="round"
-                                                                    strokeWidth={2}
-                                                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                                                                />
-                                                            </svg>
-                                                        </button>
-                                                    </td>
-                                                )}
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            );
+                        })()}
 
                     {/* Technical Table */}
-                    {sectionB?.bidders?.[0]?.technicalEvaluation && (
-                        <div>
-                            <div className="flex items-center justify-between mb-2">
-                                <h6 className="font-semibold">Technical Evaluation Table</h6>
-                                {canEditStructure('B') && (
-                                    <div className="flex gap-2">
-                                        <button
-                                            type="button"
-                                            className="btn btn-outline-info btn-sm"
-                                            onClick={() => {
-                                                const copy = { ...(sectionB as any) };
-                                                const colId = `col-${Date.now()}`;
-                                                copy.bidders[0].technicalEvaluation.columns = [...copy.bidders[0].technicalEvaluation.columns, { id: colId, name: 'New Column', cellType: 'text' }];
-                                                copy.bidders[0].technicalEvaluation.rows = copy.bidders[0].technicalEvaluation.rows.map((r: any) => ({ ...r, data: { ...r.data, [colId]: '' } }));
-                                                setSectionB(copy);
-                                            }}
-                                        >
-                                            + Add Column
-                                        </button>
-                                        <button
-                                            type="button"
-                                            className="btn btn-outline-primary btn-sm"
-                                            onClick={() => {
-                                                const copy = { ...(sectionB as any) };
-                                                const newRow = { id: `row-${Date.now()}`, data: Object.fromEntries(copy.bidders[0].technicalEvaluation.columns.map((c: any) => [c.id, ''])) };
-                                                copy.bidders[0].technicalEvaluation.rows = [...copy.bidders[0].technicalEvaluation.rows, newRow];
-                                                setSectionB(copy);
-                                            }}
-                                        >
-                                            + Add Row
-                                        </button>
+                    {sectionB?.bidders?.[0] &&
+                        (() => {
+                            // Initialize table if it doesn't exist
+                            if (!sectionB.bidders[0].technicalEvaluation) {
+                                sectionB.bidders[0].technicalEvaluation = { columns: [], rows: [] };
+                            }
+                            const table = sectionB.bidders[0].technicalEvaluation;
+                            if (!table.columns) table.columns = [];
+                            if (!table.rows) table.rows = [];
+                            const placeholderRows = [
+                                {
+                                    id: 'temp-row-1',
+                                    data: Object.fromEntries((table.columns || []).map((c: any) => [c.id, ''])),
+                                },
+                            ];
+                            const rowsToRender = (table.rows ?? []).length > 0 ? table.rows : placeholderRows;
+                            const seedRowsIfEmpty = (copy: any, targetRowId: string, mutate: (row: any) => any) => {
+                                const hasRows = (copy.bidders[0].technicalEvaluation.rows || []).length > 0;
+                                if (!hasRows) {
+                                    copy.bidders[0].technicalEvaluation.rows = rowsToRender.map((r: any) => (r.id === targetRowId ? mutate({ ...r }) : { ...r }));
+                                } else {
+                                    copy.bidders[0].technicalEvaluation.rows = copy.bidders[0].technicalEvaluation.rows.map((r: any) => (r.id === targetRowId ? mutate({ ...r }) : r));
+                                }
+                            };
+                            return (
+                                <div>
+                                    <div className="flex items-center justify-between mb-2">
+                                        <h6 className="font-semibold">Technical Evaluation Table</h6>
+                                        {canEditStructure('B') && (
+                                            <div className="flex gap-2">
+                                                <button
+                                                    type="button"
+                                                    className="btn btn-outline-info btn-sm"
+                                                    onClick={() => {
+                                                        const copy = { ...(sectionB as any) };
+                                                        if (!copy.bidders[0].technicalEvaluation) {
+                                                            copy.bidders[0].technicalEvaluation = { columns: [], rows: [] };
+                                                        }
+                                                        const colId = `col-${Date.now()}`;
+                                                        copy.bidders[0].technicalEvaluation.columns = [
+                                                            ...(copy.bidders[0].technicalEvaluation.columns || []),
+                                                            { id: colId, name: 'New Column', cellType: 'text' },
+                                                        ];
+                                                        copy.bidders[0].technicalEvaluation.rows = (copy.bidders[0].technicalEvaluation.rows || []).map((r: any) => ({
+                                                            ...r,
+                                                            data: { ...r.data, [colId]: '' },
+                                                        }));
+                                                        setSectionB(copy);
+                                                    }}
+                                                >
+                                                    + Add Column
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    className="btn btn-outline-primary btn-sm"
+                                                    onClick={() => {
+                                                        const copy = { ...(sectionB as any) };
+                                                        if (!copy.bidders[0].technicalEvaluation) {
+                                                            copy.bidders[0].technicalEvaluation = { columns: [], rows: [] };
+                                                        }
+                                                        const newRow = {
+                                                            id: `row-${Date.now()}`,
+                                                            data: Object.fromEntries((copy.bidders[0].technicalEvaluation.columns || []).map((c: any) => [c.id, ''])),
+                                                        };
+                                                        copy.bidders[0].technicalEvaluation.rows = [...(copy.bidders[0].technicalEvaluation.rows || []), newRow];
+                                                        setSectionB(copy);
+                                                    }}
+                                                >
+                                                    + Add Row
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
-                                )}
-                            </div>
-                            <div className="overflow-x-auto">
-                                <table className="table-auto w-full border-collapse border border-gray-300 dark:border-gray-600">
-                                    <thead>
-                                        <tr className="bg-gray-100 dark:bg-gray-800">
-                                            {(sectionB?.bidders?.[0]?.technicalEvaluation?.columns ?? []).map((col: any) => (
-                                                <th key={col.id} className="border border-gray-300 dark:border-gray-600 px-2 py-2">
-                                                    {canEditStructure('B') ? (
-                                                        <div className="flex flex-col gap-2">
-                                                            <div className="flex items-center gap-2">
-                                                                <input
-                                                                    type="text"
-                                                                    className="form-input text-sm font-semibold bg-transparent border-0 p-1 flex-1"
-                                                                    value={col.name}
-                                                                    onChange={(e) => {
+                                    <div className="overflow-x-auto">
+                                        <table className="table-auto w-full border-collapse border border-gray-300 dark:border-gray-600">
+                                            <thead>
+                                                <tr className="bg-gray-100 dark:bg-gray-800">
+                                                    {sectionB.bidders[0].technicalEvaluation.columns.map((col: any) => (
+                                                        <th key={col.id} className="border border-gray-300 dark:border-gray-600 px-2 py-2">
+                                                            {canEditStructure('B') ? (
+                                                                <div className="flex flex-col gap-2">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <input
+                                                                            type="text"
+                                                                            className="form-input text-sm font-semibold bg-transparent border-0 p-1 flex-1"
+                                                                            value={col.name}
+                                                                            onChange={(e) => {
+                                                                                const copy = { ...(sectionB as any) };
+                                                                                copy.bidders[0].technicalEvaluation.columns = copy.bidders[0].technicalEvaluation.columns.map((c: any) =>
+                                                                                    c.id === col.id ? { ...c, name: e.target.value } : c
+                                                                                );
+                                                                                setSectionB(copy);
+                                                                            }}
+                                                                            placeholder="Column name"
+                                                                        />
+                                                                        {(sectionB.bidders[0]?.technicalEvaluation?.columns?.length ?? 0) > 1 && (
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => {
+                                                                                    const copy = { ...(sectionB as any) };
+                                                                                    copy.bidders[0].technicalEvaluation.columns = copy.bidders[0].technicalEvaluation.columns.filter(
+                                                                                        (c: any) => c.id !== col.id
+                                                                                    );
+                                                                                    copy.bidders[0].technicalEvaluation.rows = copy.bidders[0].technicalEvaluation.rows.map((r: any) => {
+                                                                                        const newData = { ...r.data };
+                                                                                        delete newData[col.id];
+                                                                                        return { ...r, data: newData };
+                                                                                    });
+                                                                                    setSectionB(copy);
+                                                                                }}
+                                                                                className="text-danger hover:bg-danger hover:text-white p-1 rounded transition-colors"
+                                                                                title="Remove column"
+                                                                            >
+                                                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                                                </svg>
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
+                                                                    <select
+                                                                        className="form-select text-xs py-1 px-2"
+                                                                        value={col.cellType || 'text'}
+                                                                        onChange={(e) => {
+                                                                            const copy = { ...(sectionB as any) };
+                                                                            copy.bidders[0].technicalEvaluation.columns = copy.bidders[0].technicalEvaluation.columns.map((c: any) =>
+                                                                                c.id === col.id ? { ...c, cellType: e.target.value } : c
+                                                                            );
+                                                                            if (e.target.value === 'radio') {
+                                                                                copy.bidders[0].technicalEvaluation.rows = copy.bidders[0].technicalEvaluation.rows.map((r: any) => {
+                                                                                    const val = r.data[col.id]?.toLowerCase();
+                                                                                    const newVal = val === 'yes' || val === 'no' ? val.charAt(0).toUpperCase() + val.slice(1) : '';
+                                                                                    return { ...r, data: { ...r.data, [col.id]: newVal } };
+                                                                                });
+                                                                            }
+                                                                            setSectionB(copy);
+                                                                        }}
+                                                                    >
+                                                                        <option value="text">Text</option>
+                                                                        <option value="radio">Yes/No</option>
+                                                                    </select>
+                                                                </div>
+                                                            ) : (
+                                                                col.name
+                                                            )}
+                                                        </th>
+                                                    ))}
+                                                    {canEditStructure('B') && <th className="border border-gray-300 dark:border-gray-600 px-3 py-2 w-24">Actions</th>}
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {rowsToRender.map((row: any) => (
+                                                    <tr key={row.id}>
+                                                        {(sectionB.bidders[0]?.technicalEvaluation?.columns ?? []).map((col: any) => (
+                                                            <td key={col.id} className="border px-2 py-2">
+                                                                {/* Technical evaluation table is editable by evaluators */}
+                                                                {col.cellType === 'radio' && canEditTechnical() ? (
+                                                                    <div className="flex items-center gap-4 justify-center">
+                                                                        <label className="flex items-center gap-1 cursor-pointer">
+                                                                            <input
+                                                                                type="radio"
+                                                                                name={`${row.id}-${col.id}`}
+                                                                                className="form-radio"
+                                                                                checked={row.data[col.id] === 'Yes'}
+                                                                                onChange={() => {
+                                                                                    const copy = { ...(sectionB as any) };
+                                                                                    seedRowsIfEmpty(copy, row.id, (r: any) => ({ ...r, data: { ...r.data, [col.id]: 'Yes' } }));
+                                                                                    setSectionB(copy);
+                                                                                }}
+                                                                            />
+                                                                            <span className="text-sm">Yes</span>
+                                                                        </label>
+                                                                        <label className="flex items-center gap-1 cursor-pointer">
+                                                                            <input
+                                                                                type="radio"
+                                                                                name={`${row.id}-${col.id}`}
+                                                                                className="form-radio"
+                                                                                checked={row.data[col.id] === 'No'}
+                                                                                onChange={() => {
+                                                                                    const copy = { ...(sectionB as any) };
+                                                                                    seedRowsIfEmpty(copy, row.id, (r: any) => ({ ...r, data: { ...r.data, [col.id]: 'No' } }));
+                                                                                    setSectionB(copy);
+                                                                                }}
+                                                                            />
+                                                                            <span className="text-sm">No</span>
+                                                                        </label>
+                                                                    </div>
+                                                                ) : canEditTechnical() ? (
+                                                                    <input
+                                                                        className="form-input w-full"
+                                                                        value={row.data[col.id] || ''}
+                                                                        onChange={(e) => {
+                                                                            const copy = { ...(sectionB as any) };
+                                                                            seedRowsIfEmpty(copy, row.id, (r: any) => ({ ...r, data: { ...r.data, [col.id]: e.target.value } }));
+                                                                            setSectionB(copy);
+                                                                        }}
+                                                                    />
+                                                                ) : (
+                                                                    <span>{row.data[col.id] || '-'}</span>
+                                                                )}
+                                                            </td>
+                                                        ))}
+                                                        {canEditStructure('B') && (
+                                                            <td className="border px-2 py-2">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
                                                                         const copy = { ...(sectionB as any) };
-                                                                        copy.bidders[0].technicalEvaluation.columns = copy.bidders[0].technicalEvaluation.columns.map((c: any) =>
-                                                                            c.id === col.id ? { ...c, name: e.target.value } : c
-                                                                        );
+                                                                        copy.bidders[0].technicalEvaluation.rows = copy.bidders[0].technicalEvaluation.rows.filter((r: any) => r.id !== row.id);
                                                                         setSectionB(copy);
                                                                     }}
-                                                                    placeholder="Column name"
-                                                                />
-                                                                {(sectionB.bidders[0]?.technicalEvaluation?.columns?.length ?? 0) > 1 && (
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => {
-                                                                            const copy = { ...(sectionB as any) };
-                                                                            copy.bidders[0].technicalEvaluation.columns = copy.bidders[0].technicalEvaluation.columns.filter(
-                                                                                (c: any) => c.id !== col.id
-                                                                            );
-                                                                            copy.bidders[0].technicalEvaluation.rows = copy.bidders[0].technicalEvaluation.rows.map((r: any) => {
-                                                                                const newData = { ...r.data };
-                                                                                delete newData[col.id];
-                                                                                return { ...r, data: newData };
-                                                                            });
-                                                                            setSectionB(copy);
-                                                                        }}
-                                                                        className="text-danger hover:bg-danger hover:text-white p-1 rounded transition-colors"
-                                                                        title="Remove column"
-                                                                    >
-                                                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                                                        </svg>
-                                                                    </button>
-                                                                )}
-                                                            </div>
-                                                            <select
-                                                                className="form-select text-xs py-1 px-2"
-                                                                value={col.cellType || 'text'}
-                                                                onChange={(e) => {
-                                                                    const copy = { ...(sectionB as any) };
-                                                                    copy.bidders[0].technicalEvaluation.columns = copy.bidders[0].technicalEvaluation.columns.map((c: any) =>
-                                                                        c.id === col.id ? { ...c, cellType: e.target.value } : c
-                                                                    );
-                                                                    if (e.target.value === 'radio') {
-                                                                        copy.bidders[0].technicalEvaluation.rows = copy.bidders[0].technicalEvaluation.rows.map((r: any) => {
-                                                                            const val = r.data[col.id]?.toLowerCase();
-                                                                            const newVal = val === 'yes' || val === 'no' ? val.charAt(0).toUpperCase() + val.slice(1) : '';
-                                                                            return { ...r, data: { ...r.data, [col.id]: newVal } };
-                                                                        });
-                                                                    }
-                                                                    setSectionB(copy);
-                                                                }}
-                                                            >
-                                                                <option value="text">Text</option>
-                                                                <option value="radio">Yes/No</option>
-                                                            </select>
-                                                        </div>
-                                                    ) : (
-                                                        col.name
-                                                    )}
-                                                </th>
-                                            ))}
-                                            {canEditStructure('B') && <th className="border border-gray-300 dark:border-gray-600 px-3 py-2 w-24">Actions</th>}
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {(sectionB?.bidders?.[0]?.technicalEvaluation?.rows ?? []).map((row: any) => (
-                                            <tr key={row.id}>
-                                                {(sectionB?.bidders?.[0]?.technicalEvaluation?.columns ?? []).map((col: any) => (
-                                                    <td key={col.id} className="border px-2 py-2">
-                                                        {/* Technical evaluation table is editable by evaluators */}
-                                                        {col.cellType === 'radio' && canEditTechnical() ? (
-                                                            <div className="flex items-center gap-4 justify-center">
-                                                                <label className="flex items-center gap-1 cursor-pointer">
-                                                                    <input
-                                                                        type="radio"
-                                                                        name={`${row.id}-${col.id}`}
-                                                                        className="form-radio"
-                                                                        checked={row.data[col.id] === 'Yes'}
-                                                                        onChange={() => {
-                                                                            const copy = { ...(sectionB as any) };
-                                                                            copy.bidders[0].technicalEvaluation.rows = copy.bidders[0].technicalEvaluation.rows.map((r: any) =>
-                                                                                r.id === row.id ? { ...r, data: { ...r.data, [col.id]: 'Yes' } } : r
-                                                                            );
-                                                                            setSectionB(copy);
-                                                                        }}
-                                                                    />
-                                                                    <span className="text-sm">Yes</span>
-                                                                </label>
-                                                                <label className="flex items-center gap-1 cursor-pointer">
-                                                                    <input
-                                                                        type="radio"
-                                                                        name={`${row.id}-${col.id}`}
-                                                                        className="form-radio"
-                                                                        checked={row.data[col.id] === 'No'}
-                                                                        onChange={() => {
-                                                                            const copy = { ...(sectionB as any) };
-                                                                            copy.bidders[0].technicalEvaluation.rows = copy.bidders[0].technicalEvaluation.rows.map((r: any) =>
-                                                                                r.id === row.id ? { ...r, data: { ...r.data, [col.id]: 'No' } } : r
-                                                                            );
-                                                                            setSectionB(copy);
-                                                                        }}
-                                                                    />
-                                                                    <span className="text-sm">No</span>
-                                                                </label>
-                                                            </div>
-                                                        ) : canEditTechnical() ? (
-                                                            <input
-                                                                className="form-input w-full"
-                                                                value={row.data[col.id] || ''}
-                                                                onChange={(e) => {
-                                                                    const copy = { ...(sectionB as any) };
-                                                                    copy.bidders[0].technicalEvaluation.rows = copy.bidders[0].technicalEvaluation.rows.map((r: any) =>
-                                                                        r.id === row.id ? { ...r, data: { ...r.data, [col.id]: e.target.value } } : r
-                                                                    );
-                                                                    setSectionB(copy);
-                                                                }}
-                                                            />
-                                                        ) : (
-                                                            <span>{row.data[col.id] || '-'}</span>
+                                                                    className="text-danger hover:bg-danger hover:text-white p-1 rounded transition-colors"
+                                                                    title="Remove row"
+                                                                >
+                                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                        <path
+                                                                            strokeLinecap="round"
+                                                                            strokeLinejoin="round"
+                                                                            strokeWidth={2}
+                                                                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                                                        />
+                                                                    </svg>
+                                                                </button>
+                                                            </td>
                                                         )}
-                                                    </td>
+                                                    </tr>
                                                 ))}
-                                                {canEditStructure('B') && (
-                                                    <td className="border px-2 py-2">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => {
-                                                                const copy = { ...(sectionB as any) };
-                                                                copy.bidders[0].technicalEvaluation.rows = copy.bidders[0].technicalEvaluation.rows.filter((r: any) => r.id !== row.id);
-                                                                setSectionB(copy);
-                                                            }}
-                                                            className="text-danger hover:bg-danger hover:text-white p-1 rounded transition-colors"
-                                                            title="Remove row"
-                                                        >
-                                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                <path
-                                                                    strokeLinecap="round"
-                                                                    strokeLinejoin="round"
-                                                                    strokeWidth={2}
-                                                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                                                                />
-                                                            </svg>
-                                                        </button>
-                                                    </td>
-                                                )}
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            );
+                        })()}
                 </div>
                 {canEdit('B') && (
                     <div className="p-5 flex justify-end border-t">
@@ -896,130 +1025,208 @@ export const EvaluationForm: React.FC<Props> = ({
             </div>
 
             {/* Section C: Evaluator Assessment */}
-            <div className="panel">
-                <div className="mb-5 -m-5 p-5 bg-warning/10 border-l-4 border-warning">
-                    <h5 className="text-lg font-bold text-warning">Section C</h5>
-                    <p className="text-sm mt-1">to be completed by the Evaluator</p>
-                </div>
-                <div className="p-5 space-y-6">
-                    <div>
-                        <label className="block mb-1 text-sm font-semibold">Comments/Critical Issues Examined</label>
-                        <textarea
-                            className="form-textarea w-full"
-                            rows={5}
-                            disabled={!canEdit('C')}
-                            value={sectionC?.criticalIssues || ''}
-                            onChange={(e) => setSectionC({ ...(sectionC as any), criticalIssues: e.target.value })}
-                        />
-                    </div>
+            {/* Check if sectionC is an array (multiple evaluators) or single object */}
+            {Array.isArray(sectionC) && sectionC.length > 0 ? (
+                // Multiple evaluators - render one panel per evaluator (read-only for viewing)
+                sectionC.map((entry: any, index: number) => {
+                    const evaluatorData = entry?.data || {};
+                    return (
+                        <div key={entry?.userId || index} className="panel">
+                            <div className="mb-5 -m-5 p-5 bg-warning/10 border-l-4 border-warning">
+                                <h5 className="text-lg font-bold text-warning">Section C {entry?.userName ? `- ${entry.userName}` : `- Evaluator ${index + 1}`}</h5>
+                                <p className="text-sm mt-1">Completed by the Evaluator</p>
+                            </div>
+                            <div className="p-5 space-y-6">
+                                <div>
+                                    <label className="block mb-1 text-sm font-semibold">Comments/Critical Issues Examined</label>
+                                    <textarea className="form-textarea w-full bg-gray-50" rows={5} disabled value={evaluatorData?.criticalIssues || ''} readOnly />
+                                </div>
 
-                    <div>
-                        <label className="block mb-1 text-sm font-semibold">Action Taken</label>
-                        <div className="flex flex-wrap gap-4">
-                            {[
-                                { label: '(a) Recommended', value: 'RECOMMENDED' },
-                                { label: '(b) Rejected', value: 'REJECTED' },
-                                { label: '(c) Deferred', value: 'DEFERRED' },
-                            ].map((opt) => (
-                                <label key={opt.value} className="flex items-center gap-2 text-sm">
-                                    <input
-                                        type="radio"
-                                        className="form-radio"
-                                        disabled={!canEdit('C')}
-                                        checked={sectionC?.actionTaken === opt.value}
-                                        onChange={() => setSectionC({ ...(sectionC as any), actionTaken: opt.value })}
-                                    />
-                                    <span>{opt.label}</span>
-                                </label>
-                            ))}
+                                <div>
+                                    <label className="block mb-1 text-sm font-semibold">Action Taken</label>
+                                    <div className="flex flex-wrap gap-4">
+                                        {[
+                                            { label: '(a) Recommended', value: 'RECOMMENDED' },
+                                            { label: '(b) Rejected', value: 'REJECTED' },
+                                            { label: '(c) Deferred', value: 'DEFERRED' },
+                                        ].map((opt) => (
+                                            <label key={opt.value} className="flex items-center gap-2 text-sm">
+                                                <input type="radio" className="form-radio" disabled checked={evaluatorData?.actionTaken === opt.value} readOnly />
+                                                <span>{opt.label}</span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {(evaluatorData?.actionTaken === 'REJECTED' || evaluatorData?.actionTaken === 'DEFERRED') && (
+                                    <div>
+                                        <label className="block mb-1 text-sm font-semibold">If rejected or deferred, please give details below</label>
+                                        <textarea className="form-textarea w-full bg-gray-50" rows={3} disabled value={evaluatorData?.rejectionReason || ''} readOnly />
+                                    </div>
+                                )}
+
+                                <div>
+                                    <label className="block mb-1 text-sm font-semibold">Recommended Contractor/Supplier</label>
+                                    <input className="form-input w-full bg-gray-50" disabled value={evaluatorData?.recommendedSupplier || ''} readOnly />
+                                </div>
+
+                                <div>
+                                    <label className="block mb-1 text-sm font-semibold">Recommended Contract Amount (inclusive of GCT)</label>
+                                    <input type="number" className="form-input w-full bg-gray-50" disabled value={evaluatorData?.recommendedAmountInclusiveGCT ?? ''} readOnly />
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block mb-1 text-sm font-semibold">Evaluator's Name</label>
+                                        <input className="form-input w-full bg-gray-50" disabled value={evaluatorData?.evaluatorName || ''} readOnly />
+                                    </div>
+                                    <div>
+                                        <label className="block mb-1 text-sm font-semibold">Job Title</label>
+                                        <input className="form-input w-full bg-gray-50" disabled value={evaluatorData?.evaluatorTitle || ''} readOnly />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block mb-1 text-sm font-semibold">Signature</label>
+                                        <input className="form-input w-full bg-gray-50" disabled value={evaluatorData?.evaluatorSignature || ''} readOnly />
+                                    </div>
+                                    <div>
+                                        <label className="block mb-1 text-sm font-semibold">Date</label>
+                                        <input type="date" className="form-input w-full bg-gray-50" disabled value={evaluatorData?.evaluationDate || ''} readOnly />
+                                    </div>
+                                </div>
+                            </div>
                         </div>
+                    );
+                })
+            ) : (
+                // Single evaluator (legacy) or editable view
+                <div className="panel">
+                    <div className="mb-5 -m-5 p-5 bg-warning/10 border-l-4 border-warning">
+                        <h5 className="text-lg font-bold text-warning">Section C</h5>
+                        <p className="text-sm mt-1">to be completed by the Evaluator</p>
                     </div>
-
-                    {(sectionC?.actionTaken === 'REJECTED' || sectionC?.actionTaken === 'DEFERRED') && (
+                    <div className="p-5 space-y-6">
                         <div>
-                            <label className="block mb-1 text-sm font-semibold">If rejected or deferred, please give details below</label>
+                            <label className="block mb-1 text-sm font-semibold">Comments/Critical Issues Examined</label>
                             <textarea
                                 className="form-textarea w-full"
-                                rows={3}
+                                rows={5}
                                 disabled={!canEdit('C')}
-                                value={sectionC?.rejectionReason || ''}
-                                onChange={(e) => setSectionC({ ...(sectionC as any), rejectionReason: e.target.value })}
+                                value={(sectionC as any)?.criticalIssues || ''}
+                                onChange={(e) => setSectionC({ ...(sectionC as any), criticalIssues: e.target.value })}
                             />
+                        </div>
+
+                        <div>
+                            <label className="block mb-1 text-sm font-semibold">Action Taken</label>
+                            <div className="flex flex-wrap gap-4">
+                                {[
+                                    { label: '(a) Recommended', value: 'RECOMMENDED' },
+                                    { label: '(b) Rejected', value: 'REJECTED' },
+                                    { label: '(c) Deferred', value: 'DEFERRED' },
+                                ].map((opt) => (
+                                    <label key={opt.value} className="flex items-center gap-2 text-sm">
+                                        <input
+                                            type="radio"
+                                            className="form-radio"
+                                            disabled={!canEdit('C')}
+                                            checked={(sectionC as any)?.actionTaken === opt.value}
+                                            onChange={() => setSectionC({ ...(sectionC as any), actionTaken: opt.value })}
+                                        />
+                                        <span>{opt.label}</span>
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
+
+                        {((sectionC as any)?.actionTaken === 'REJECTED' || (sectionC as any)?.actionTaken === 'DEFERRED') && (
+                            <div>
+                                <label className="block mb-1 text-sm font-semibold">If rejected or deferred, please give details below</label>
+                                <textarea
+                                    className="form-textarea w-full"
+                                    rows={3}
+                                    disabled={!canEdit('C')}
+                                    value={(sectionC as any)?.rejectionReason || ''}
+                                    onChange={(e) => setSectionC({ ...(sectionC as any), rejectionReason: e.target.value })}
+                                />
+                            </div>
+                        )}
+
+                        <div>
+                            <label className="block mb-1 text-sm font-semibold">Recommended Contractor/Supplier</label>
+                            <input
+                                className="form-input w-full"
+                                disabled={!canEdit('C')}
+                                value={(sectionC as any)?.recommendedSupplier || ''}
+                                onChange={(e) => setSectionC({ ...(sectionC as any), recommendedSupplier: e.target.value })}
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block mb-1 text-sm font-semibold">Recommended Contract Amount (inclusive of GCT)</label>
+                            <input
+                                type="number"
+                                className="form-input w-full"
+                                disabled={!canEdit('C')}
+                                value={(sectionC as any)?.recommendedAmountInclusiveGCT ?? ''}
+                                onChange={(e) => setSectionC({ ...(sectionC as any), recommendedAmountInclusiveGCT: Number(e.target.value) || 0 })}
+                            />
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block mb-1 text-sm font-semibold">Evaluator's Name</label>
+                                <input
+                                    className="form-input w-full"
+                                    disabled={!canEdit('C')}
+                                    value={(sectionC as any)?.evaluatorName || ''}
+                                    onChange={(e) => setSectionC({ ...(sectionC as any), evaluatorName: e.target.value })}
+                                />
+                            </div>
+                            <div>
+                                <label className="block mb-1 text-sm font-semibold">Job Title</label>
+                                <input
+                                    className="form-input w-full"
+                                    disabled={!canEdit('C')}
+                                    value={(sectionC as any)?.evaluatorTitle || ''}
+                                    onChange={(e) => setSectionC({ ...(sectionC as any), evaluatorTitle: e.target.value })}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block mb-1 text-sm font-semibold">Signature</label>
+                                <input
+                                    className="form-input w-full"
+                                    disabled={!canEdit('C')}
+                                    value={(sectionC as any)?.evaluatorSignature || ''}
+                                    onChange={(e) => setSectionC({ ...(sectionC as any), evaluatorSignature: e.target.value })}
+                                />
+                            </div>
+                            <div>
+                                <label className="block mb-1 text-sm font-semibold">Date</label>
+                                <input
+                                    type="date"
+                                    className="form-input w-full"
+                                    disabled={!canEdit('C')}
+                                    value={(sectionC as any)?.evaluationDate ? (sectionC as any).evaluationDate : ''}
+                                    onChange={(e) => setSectionC({ ...(sectionC as any), evaluationDate: e.target.value })}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                    {canEdit('C') && (
+                        <div className="p-5 flex justify-end border-t">
+                            <button className="btn btn-primary" disabled={saving} onClick={() => saveSec('C')}>
+                                {saving ? 'Saving…' : 'Save Section C'}
+                            </button>
                         </div>
                     )}
-
-                    <div>
-                        <label className="block mb-1 text-sm font-semibold">Recommended Contractor/Supplier</label>
-                        <input
-                            className="form-input w-full"
-                            disabled={!canEdit('C')}
-                            value={sectionC?.recommendedSupplier || ''}
-                            onChange={(e) => setSectionC({ ...(sectionC as any), recommendedSupplier: e.target.value })}
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block mb-1 text-sm font-semibold">Recommended Contract Amount (inclusive of GCT)</label>
-                        <input
-                            type="number"
-                            className="form-input w-full"
-                            disabled={!canEdit('C')}
-                            value={sectionC?.recommendedAmountInclusiveGCT ?? ''}
-                            onChange={(e) => setSectionC({ ...(sectionC as any), recommendedAmountInclusiveGCT: Number(e.target.value) || 0 })}
-                        />
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label className="block mb-1 text-sm font-semibold">Evaluator's Name</label>
-                            <input
-                                className="form-input w-full"
-                                disabled={!canEdit('C')}
-                                value={sectionC?.evaluatorName || ''}
-                                onChange={(e) => setSectionC({ ...(sectionC as any), evaluatorName: e.target.value })}
-                            />
-                        </div>
-                        <div>
-                            <label className="block mb-1 text-sm font-semibold">Job Title</label>
-                            <input
-                                className="form-input w-full"
-                                disabled={!canEdit('C')}
-                                value={sectionC?.evaluatorTitle || ''}
-                                onChange={(e) => setSectionC({ ...(sectionC as any), evaluatorTitle: e.target.value })}
-                            />
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label className="block mb-1 text-sm font-semibold">Signature</label>
-                            <input
-                                className="form-input w-full"
-                                disabled={!canEdit('C')}
-                                value={sectionC?.evaluatorSignature || ''}
-                                onChange={(e) => setSectionC({ ...(sectionC as any), evaluatorSignature: e.target.value })}
-                            />
-                        </div>
-                        <div>
-                            <label className="block mb-1 text-sm font-semibold">Date</label>
-                            <input
-                                type="date"
-                                className="form-input w-full"
-                                disabled={!canEdit('C')}
-                                value={sectionC?.evaluationDate ? sectionC.evaluationDate : ''}
-                                onChange={(e) => setSectionC({ ...(sectionC as any), evaluationDate: e.target.value })}
-                            />
-                        </div>
-                    </div>
                 </div>
-                {canEdit('C') && (
-                    <div className="p-5 flex justify-end border-t">
-                        <button className="btn btn-primary" disabled={saving} onClick={() => saveSec('C')}>
-                            {saving ? 'Saving…' : 'Save Section C'}
-                        </button>
-                    </div>
-                )}
-            </div>
+            )}
 
             {/* Section D: Summary */}
             <div className="panel">

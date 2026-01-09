@@ -21,6 +21,11 @@ export default function IdeaDetails() {
     const [related, setRelated] = useState<Array<{ id: number; title: string; snippet: string; score: number; firstAttachmentUrl?: string | null }>>([]);
 
     const images = idea?.attachments?.filter((a) => a.mimeType?.startsWith('image/')) || [];
+    const [brokenImages, setBrokenImages] = useState<Set<number>>(new Set());
+
+    const handleImageError = (attachmentId: number) => {
+        setBrokenImages((prev) => new Set(prev).add(attachmentId));
+    };
 
     const closeLightbox = useCallback(() => setLightboxIndex(null), []);
     const showPrev = useCallback(() => {
@@ -259,19 +264,44 @@ export default function IdeaDetails() {
                                 {idea.attachments.map((attachment, idx) => (
                                     <div key={attachment.id} className="group relative overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-shadow">
                                         {attachment.mimeType?.startsWith('image/') ? (
-                                            <button
-                                                type="button"
-                                                aria-label={`Open image ${attachment.fileName} in lightbox`}
-                                                className="block w-full text-left"
-                                                onClick={() => setLightboxIndex(images.findIndex((a) => a.id === attachment.id))}
-                                            >
-                                                <img
-                                                    src={getApiUrl(attachment.fileUrl)}
-                                                    alt={attachment.fileName}
-                                                    className="w-full h-48 object-cover cursor-zoom-in hover:scale-105 transition-transform"
-                                                    loading="lazy"
-                                                />
-                                            </button>
+                                            <>
+                                                {!brokenImages.has(attachment.id) ? (
+                                                    <button
+                                                        type="button"
+                                                        aria-label={`Open image ${attachment.fileName} in lightbox`}
+                                                        className="block w-full text-left"
+                                                        onClick={() => setLightboxIndex(images.findIndex((a) => a.id === attachment.id))}
+                                                    >
+                                                        <img
+                                                            src={getApiUrl(attachment.fileUrl)}
+                                                            alt={attachment.fileName}
+                                                            className="w-full h-48 object-cover cursor-zoom-in hover:scale-105 transition-transform"
+                                                            loading="lazy"
+                                                            onError={() => handleImageError(attachment.id)}
+                                                        />
+                                                    </button>
+                                                ) : (
+                                                    <div className="w-full h-48 bg-gray-100 dark:bg-gray-800 flex flex-col items-center justify-center p-3 text-center">
+                                                        <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path
+                                                                strokeLinecap="round"
+                                                                strokeLinejoin="round"
+                                                                strokeWidth={2}
+                                                                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                                                            />
+                                                        </svg>
+                                                        <span className="mt-2 text-xs text-gray-600 dark:text-gray-300 truncate w-full" title={attachment.fileName}>
+                                                            Image unavailable
+                                                        </span>
+                                                        <a href={getApiUrl(attachment.fileUrl)} download className="mt-2 inline-flex items-center gap-1 text-xs text-primary hover:underline">
+                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 11l5 5 5-5M12 4v12" />
+                                                            </svg>
+                                                            Download
+                                                        </a>
+                                                    </div>
+                                                )}
+                                            </>
                                         ) : (
                                             <div className="w-full h-48 bg-gray-100 dark:bg-gray-800 flex flex-col items-center justify-center p-3 text-center">
                                                 <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -285,7 +315,7 @@ export default function IdeaDetails() {
                                                 <span className="mt-2 text-xs text-gray-600 dark:text-gray-300 truncate w-full" title={attachment.fileName}>
                                                     {attachment.fileName}
                                                 </span>
-                                                <a href={attachment.fileUrl} download className="mt-2 inline-flex items-center gap-1 text-xs text-primary hover:underline">
+                                                <a href={getApiUrl(attachment.fileUrl)} download className="mt-2 inline-flex items-center gap-1 text-xs text-primary hover:underline">
                                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 11l5 5 5-5M12 4v12" />
                                                     </svg>

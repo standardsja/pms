@@ -8,6 +8,26 @@ import IconX from '@/components/Icon/IconX';
 import Swal from 'sweetalert2';
 import { getApiUrl } from '../../../config/api';
 
+/**
+ * Format a number to include thousand separators (commas)
+ */
+const formatNumberWithCommas = (value: number | string): string => {
+    if (typeof value === 'string' && value === '') return '';
+    const num = typeof value === 'string' ? parseFloat(value) : value;
+    if (Number.isNaN(num)) return '';
+    return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
+/**
+ * Parse a number string (removes commas) while allowing flexible input
+ */
+const parseNumberInput = (value: string): number => {
+    if (!value) return 0;
+    const cleanValue = value.replace(/,/g, '');
+    const parsed = parseFloat(cleanValue);
+    return Number.isNaN(parsed) ? 0 : parsed;
+};
+
 interface RequestItem {
     itemNo: number;
     stockLevel: string;
@@ -47,6 +67,7 @@ const DEPARTMENT_CODES: readonly string[] = [
     'TIS(CE)',
     'EE',
     'ME',
+    'M&T',
     'NCRA',
     'NCBJ',
 ];
@@ -138,6 +159,7 @@ const RequestForm = () => {
     const [procurementType, setProcurementType] = useState<string[]>([]);
     const [priority, setPriority] = useState('');
     const [items, setItems] = useState<RequestItem[]>([{ itemNo: 1, stockLevel: '', description: '', quantity: 1, unitOfMeasure: '', unitCost: 0, partNumber: '' }]);
+    const [unitCostDisplay, setUnitCostDisplay] = useState<{ [key: number]: string }>({});
     const [commentsJustification, setCommentsJustification] = useState('');
     const [managerName, setManagerName] = useState('');
     const [headName, setHeadName] = useState('');
@@ -1152,16 +1174,14 @@ const RequestForm = () => {
                                     <span className="inline-flex items-center bg-yellow-600 text-white rounded-sm px-2 py-1">
                                         [
                                         <input
-                                            type="number"
-                                            min="1"
-                                            max="999"
-                                            value={parseInt(headerSequence, 10)}
+                                            type="text"
+                                            value={headerSequence}
                                             onChange={(e) => {
-                                                const num = Math.max(0, Math.min(999, parseInt(e.target.value, 10) || 0));
-                                                setHeaderSequence(String(num).padStart(3, '0'));
+                                                setHeaderSequence(e.target.value);
                                             }}
                                             className="bg-transparent border-0 text-white font-semibold text-sm focus:ring-0 w-10 text-center"
                                             disabled={isEditMode}
+                                            placeholder="0"
                                         />
                                         ]
                                     </span>
@@ -1253,7 +1273,7 @@ const RequestForm = () => {
                                 <label className="block text-sm font-medium mb-2">Estimated Cost (Total)</label>
                                 <div className="flex items-center gap-2">
                                     <span className="font-semibold">{currency} $</span>
-                                    <input type="number" value={estimatedTotal} className="form-input flex-1 bg-gray-50 dark:bg-gray-900" step="0.01" readOnly />
+                                    <input type="text" value={formatNumberWithCommas(estimatedTotal)} className="form-input flex-1 bg-gray-50 dark:bg-gray-900" readOnly />
                                 </div>
                             </div>
                         </div>
@@ -1512,12 +1532,22 @@ const RequestForm = () => {
                                                 </td>
                                                 <td className="px-3 py-2">
                                                     <input
-                                                        type="number"
-                                                        value={item.unitCost}
-                                                        onChange={(e) => updateItem(item.itemNo, 'unitCost', parseFloat(e.target.value) || 0)}
+                                                        type="text"
+                                                        value={unitCostDisplay[item.itemNo] !== undefined ? unitCostDisplay[item.itemNo] : formatNumberWithCommas(item.unitCost)}
+                                                        onChange={(e) => {
+                                                            setUnitCostDisplay({ ...unitCostDisplay, [item.itemNo]: e.target.value });
+                                                            updateItem(item.itemNo, 'unitCost', parseNumberInput(e.target.value));
+                                                        }}
+                                                        onBlur={(e) => {
+                                                            const parsed = parseNumberInput(e.target.value);
+                                                            setUnitCostDisplay({ ...unitCostDisplay, [item.itemNo]: formatNumberWithCommas(parsed) });
+                                                            updateItem(item.itemNo, 'unitCost', parsed);
+                                                        }}
+                                                        onFocus={() => {
+                                                            setUnitCostDisplay({ ...unitCostDisplay, [item.itemNo]: item.unitCost.toString() });
+                                                        }}
                                                         className="form-input w-full"
-                                                        step="0.01"
-                                                        min="0"
+                                                        placeholder="0.00"
                                                     />
                                                 </td>
                                                 <td className="px-3 py-2">
@@ -1578,22 +1608,17 @@ const RequestForm = () => {
                                         disabled={!canEditManagerFields}
                                     />
                                     {canEditManagerFields && (
-                                        <label className="mt-1 mb-3 flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
-                                            <input type="checkbox" className="form-checkbox" checked={managerApproved} onChange={(e) => setManagerApproved(e.target.checked)} />I approve this
-                                            requisition
-                                        </label>
+                                        <div className="space-y-2">
+                                            <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
+                                                <input type="checkbox" className="form-checkbox" checked={managerApproved} onChange={(e) => setManagerApproved(e.target.checked)} />I approve this
+                                                requisition
+                                            </label>
+                                            <div>
+                                                <label className="block text-xs text-gray-500 mb-1">Date Approved:</label>
+                                                <input type="date" className="form-input w-full" defaultValue={new Date().toISOString().split('T')[0]} />
+                                            </div>
+                                        </div>
                                     )}
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div>
-                                            <label className="block text-xs text-gray-500 mb-1">Signature:</label>
-                                            <input type="text" className="form-input w-full" placeholder="" disabled={!canEditManagerFields} />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs text-gray-500 mb-1">Date:</label>
-                                            <input type="date" className="form-input w-full" defaultValue={new Date().toISOString().split('T')[0]} disabled={!canEditManagerFields} />
-                                        </div>
-                                    </div>
-                                    {/* Duplicate signature/date removed after refining permissions */}
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium mb-2">
@@ -1611,21 +1636,16 @@ const RequestForm = () => {
                                         disabled={!canEditHodFields}
                                     />
                                     {canEditHodFields && (
-                                        <label className="mt-1 mb-3 flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
-                                            <input type="checkbox" className="form-checkbox" checked={headApproved} onChange={(e) => setHeadApproved(e.target.checked)} />I approve this requisition
-                                        </label>
+                                        <div className="space-y-2">
+                                            <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
+                                                <input type="checkbox" className="form-checkbox" checked={headApproved} onChange={(e) => setHeadApproved(e.target.checked)} />I approve this requisition
+                                            </label>
+                                            <div>
+                                                <label className="block text-xs text-gray-500 mb-1">Date Approved:</label>
+                                                <input type="date" className="form-input w-full" defaultValue={new Date().toISOString().split('T')[0]} />
+                                            </div>
+                                        </div>
                                     )}
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div>
-                                            <label className="block text-xs text-gray-500 mb-1">Signature:</label>
-                                            <input type="text" className="form-input w-full" placeholder="" disabled={!canEditHodFields} />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs text-gray-500 mb-1">Date:</label>
-                                            <input type="date" className="form-input w-full" defaultValue={new Date().toISOString().split('T')[0]} disabled={!canEditHodFields} />
-                                        </div>
-                                    </div>
-                                    {/* Duplicate signature/date removed after refining permissions */}
                                 </div>
                             </div>
                         </div>
@@ -1654,7 +1674,7 @@ const RequestForm = () => {
                             </div>
                             <div>
                                 <label className="block text-sm font-medium mb-2">
-                                    Accounting Code:
+                                    General Ledger Code:
                                     {canEditBudgetSection && !accountingCode && <span className="ml-2 inline-block px-2 py-0.5 text-xs bg-amber-100 text-amber-800 rounded-full">Required</span>}
                                 </label>
                                 <input
@@ -1685,7 +1705,7 @@ const RequestForm = () => {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
                                 <label className="block text-sm font-medium mb-2">
-                                    Budget Officer's Name:
+                                    Chief Accountant:
                                     {canApproveBudgetOfficer && !budgetOfficerName && <span className="ml-2 inline-block px-2 py-0.5 text-xs bg-amber-100 text-amber-800 rounded-full">Required</span>}
                                 </label>
                                 <input
@@ -1698,7 +1718,7 @@ const RequestForm = () => {
                                     placeholder={canApproveBudgetOfficer ? 'Your name will be auto-filled' : ''}
                                     disabled={!canApproveBudgetOfficer}
                                 />
-                                <div className="mb-3">
+                                <div className="space-y-2">
                                     <label className="flex items-center cursor-pointer">
                                         <input
                                             type="checkbox"
@@ -1707,23 +1727,17 @@ const RequestForm = () => {
                                             disabled={!canApproveBudgetOfficer}
                                             className="form-checkbox text-success rounded"
                                         />
-                                        <span className="ml-2 text-sm font-medium">{budgetOfficerApproved ? '✓ Approved by Budget Officer' : 'Approve as Budget Officer'}</span>
+                                        <span className="ml-2 text-sm font-medium">{budgetOfficerApproved ? '✓ Approved by Chief Accountant' : 'Approve as Chief Accountant'}</span>
                                     </label>
-                                </div>
-                                <div className="grid grid-cols-2 gap-3">
                                     <div>
-                                        <label className="block text-xs text-gray-500 mb-1">Signature:</label>
-                                        <input type="text" className="form-input w-full" placeholder="" disabled={!canEditBudgetSection} />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs text-gray-500 mb-1">Date:</label>
-                                        <input type="date" className="form-input w-full" defaultValue={new Date().toISOString().split('T')[0]} disabled={!canEditBudgetSection} />
+                                        <label className="block text-xs text-gray-500 mb-1">Date Approved:</label>
+                                        <input type="date" className="form-input w-full" defaultValue={new Date().toISOString().split('T')[0]} disabled={!canApproveBudgetOfficer} />
                                     </div>
                                 </div>
                             </div>
                             <div>
                                 <label className="block text-sm font-medium mb-2">
-                                    Budget Manager's Name:
+                                    Finance Director:
                                     {canApproveBudgetManager && !budgetManagerName && <span className="ml-2 inline-block px-2 py-0.5 text-xs bg-amber-100 text-amber-800 rounded-full">Required</span>}
                                 </label>
                                 <input
@@ -1736,7 +1750,7 @@ const RequestForm = () => {
                                     placeholder={canApproveBudgetManager ? 'Your name will be auto-filled' : ''}
                                     disabled={!canApproveBudgetManager}
                                 />
-                                <div className="mb-3">
+                                <div className="space-y-2">
                                     <label className="flex items-center cursor-pointer">
                                         <input
                                             type="checkbox"
@@ -1745,17 +1759,11 @@ const RequestForm = () => {
                                             disabled={!canApproveBudgetManager}
                                             className="form-checkbox text-success rounded"
                                         />
-                                        <span className="ml-2 text-sm font-medium">{budgetManagerApproved ? '✓ Approved by Budget Manager' : 'Approve as Budget Manager'}</span>
+                                        <span className="ml-2 text-sm font-medium">{budgetManagerApproved ? '✓ Approved by Finance Director' : 'Approve as Finance Director'}</span>
                                     </label>
-                                </div>
-                                <div className="grid grid-cols-2 gap-3">
                                     <div>
-                                        <label className="block text-xs text-gray-500 mb-1">Signature:</label>
-                                        <input type="text" className="form-input w-full" placeholder="" disabled={!canEditBudgetSection} />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs text-gray-500 mb-1">Date:</label>
-                                        <input type="date" className="form-input w-full" defaultValue={new Date().toISOString().split('T')[0]} disabled={!canEditBudgetSection} />
+                                        <label className="block text-xs text-gray-500 mb-1">Date Approved:</label>
+                                        <input type="date" className="form-input w-full" defaultValue={new Date().toISOString().split('T')[0]} disabled={!canApproveBudgetManager} />
                                     </div>
                                 </div>
                             </div>

@@ -53,7 +53,7 @@ const NewEvaluation = () => {
                     ...prev,
                     rfqNumber: data.reference || '',
                     rfqTitle: data.title,
-                    description: data.description || '',
+                    description: data.description || data.budgetComments || data.procurementComments || '',
                 }));
             } catch (error) {
                 console.error('Error fetching combined request:', error);
@@ -94,11 +94,14 @@ const NewEvaluation = () => {
                 }
 
                 // Prefill basic evaluation fields from the request
+                // Use description, budgetComments, procurementComments, or any available justification
+                const justification = data.description || data.budgetComments || data.procurementComments || data.justification || '';
                 setFormData((prev) => ({
                     ...prev,
                     rfqNumber: data.reference || data.code || '',
                     rfqTitle: data.title || '',
-                    description: data.description || data.justification || '',
+                    description: justification,
+                    background: justification,
                     comparableEstimate: totalEstimate > 0 ? totalEstimate.toFixed(2) : '',
                 }));
 
@@ -481,6 +484,8 @@ const NewEvaluation = () => {
                 rfqNumber: evalNumber,
                 rfqTitle: formData.evaluationTitle || 'BSJ Evaluation Report',
                 description: formData.background || undefined,
+                dateSubmissionConsidered: formData.dateSubmissionConsidered || null,
+                reportCompletionDate: formData.reportCompletionDate || null,
                 evaluator: formData.evaluator || undefined,
                 dueDate: formData.bidValidityExpiration || undefined,
                 combinedRequestId: combinedRequestIdState ? parseInt(combinedRequestIdState) : undefined, // Link to combined request
@@ -533,30 +538,24 @@ const NewEvaluation = () => {
                             bidderName: '', // Can be extracted from table if needed
                             eligibilityRequirements: {
                                 columns: eligibilityColumns,
-                                rows: eligibilityRows
-                                    .filter((row) => Object.values(row.data).some((val) => val.trim() !== ''))
-                                    .map((row) => ({
-                                        id: row.id,
-                                        data: row.data,
-                                    })),
+                                rows: eligibilityRows.map((row) => ({
+                                    id: row.id,
+                                    data: row.data,
+                                })),
                             },
                             complianceMatrix: {
                                 columns: complianceColumns,
-                                rows: complianceRows
-                                    .filter((row) => Object.values(row.data).some((val) => val.trim() !== ''))
-                                    .map((row) => ({
-                                        id: row.id,
-                                        data: row.data,
-                                    })),
+                                rows: complianceRows.map((row) => ({
+                                    id: row.id,
+                                    data: row.data,
+                                })),
                             },
                             technicalEvaluation: {
                                 columns: technicalColumns,
-                                rows: technicalRows
-                                    .filter((row) => Object.values(row.data).some((val) => val.trim() !== ''))
-                                    .map((row) => ({
-                                        id: row.id,
-                                        data: row.data,
-                                    })),
+                                rows: technicalRows.map((row) => ({
+                                    id: row.id,
+                                    data: row.data,
+                                })),
                             },
                         },
                     ],
@@ -949,29 +948,12 @@ const NewEvaluation = () => {
                                         name="comparableEstimate"
                                         type="text"
                                         className="form-input w-full pl-8"
-                                        placeholder="1,395,444.02"
-                                        value={
-                                            formData.comparableEstimate
-                                                ? parseFloat(formData.comparableEstimate).toLocaleString('en-US', {
-                                                      minimumFractionDigits: 2,
-                                                      maximumFractionDigits: 2,
-                                                  })
-                                                : ''
-                                        }
+                                        placeholder="1,395,444"
+                                        value={formData.comparableEstimate ? String(formData.comparableEstimate).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : ''}
                                         onChange={(e) => {
-                                            // Remove formatting and allow only numbers, decimal point, and minus sign
-                                            const value = e.target.value.replace(/[^0-9.-]/g, '');
-                                            // Prevent multiple decimal points
-                                            const parts = value.split('.');
-                                            const cleanValue = parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : value;
-                                            setFormData({ ...formData, comparableEstimate: cleanValue });
-                                        }}
-                                        onBlur={(e) => {
-                                            // Format with 2 decimal places on blur if value exists
-                                            const numValue = parseFloat(e.target.value.replace(/,/g, ''));
-                                            if (!isNaN(numValue)) {
-                                                setFormData({ ...formData, comparableEstimate: numValue.toFixed(2) });
-                                            }
+                                            // Just remove commas and store the raw number
+                                            const value = e.target.value.replace(/,/g, '');
+                                            setFormData({ ...formData, comparableEstimate: value });
                                         }}
                                         required
                                     />
