@@ -134,8 +134,73 @@ class AuthService {
         if (USE_MOCK_AUTH) {
             return mockAuthService.refreshToken();
         }
-        // TODO: Implement real token refresh endpoint
-        return { success: false, message: 'Token refresh not implemented' };
+
+        // Implement real token refresh endpoint
+        try {
+            const refreshToken = localStorage.getItem('refreshToken');
+            if (!refreshToken) {
+                return { success: false, message: 'No refresh token found' };
+            }
+
+            const response = await fetch(getApiUrl('/api/auth/refresh'), {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ refreshToken }),
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                return {
+                    success: false,
+                    message: errorText || 'Token refresh failed',
+                };
+            }
+
+            const data = await response.json();
+
+            // Store new tokens
+            if (data.token) {
+                localStorage.setItem('token', data.token);
+            }
+            if (data.refreshToken) {
+                localStorage.setItem('refreshToken', data.refreshToken);
+            }
+
+            // Update cached user data
+            if (data.user) {
+                localStorage.setItem('auth_user', JSON.stringify(data.user));
+            }
+
+            // Transform backend user to frontend User type
+            const user = data.user
+                ? {
+                      id: data.user.id,
+                      email: data.user.email,
+                      full_name: data.user.name || data.user.email,
+                      status: 'active' as const,
+                      roles: data.user.roles || [],
+                      department_id: data.user.department?.id,
+                      department_name: data.user.department?.name,
+                  }
+                : undefined;
+
+            return {
+                success: true,
+                user,
+                token: data.token,
+                message: 'Token refreshed successfully',
+            };
+        } catch (error: any) {
+            console.error('Token refresh error:', error);
+            localStorage.removeItem('token');
+            localStorage.removeItem('refreshToken');
+            return {
+                success: false,
+                message: error.message || 'Token refresh failed',
+            };
+        }
     }
 
     getAuthHeaders(): Record<string, string> {

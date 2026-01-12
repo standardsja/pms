@@ -1313,7 +1313,7 @@ const RequestForm = () => {
                                                     isDisabled={isEditMode}
                                                     options={[{ value: '', label: '---' }, ...deptOptions]}
                                                     value={deptValue || { value: '', label: '---' }}
-                                                    onChange={(opt) => setHeaderDeptCode((opt && 'value' in opt ? opt.value : '') || '')}
+                                                    onChange={(opt) => setHeaderDeptCode(String((opt && 'value' in opt ? opt.value : '') || ''))}
                                                 />
                                             );
                                         })()}
@@ -1334,7 +1334,7 @@ const RequestForm = () => {
                                                     isDisabled={isEditMode}
                                                     options={[{ value: '', label: '---' }, ...monthOptions]}
                                                     value={monthValue || { value: '', label: '---' }}
-                                                    onChange={(opt) => setHeaderMonth((opt && 'value' in opt ? opt.value : '') || '')}
+                                                    onChange={(opt) => setHeaderMonth(String((opt && 'value' in opt ? opt.value : '') || ''))}
                                                 />
                                             );
                                         })()}
