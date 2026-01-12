@@ -2095,13 +2095,7 @@ app.get('/api/requests', async (req, res) => {
                     const userRoles = (user.roles || []).map((r) => r.role.name).map((n) => n.toUpperCase());
 
                     // EXECUTIVE_DIRECTOR, EXECUTIVE, and PROCUREMENT roles can see all requests
-                    const canSeeAll = userRoles.some((r) => (
-                        r === 'EXECUTIVE_DIRECTOR' ||
-                        r === 'EXECUTIVE' ||
-                        r === 'PROCUREMENT_OFFICER' ||
-                        r === 'PROCUREMENT_MANAGER' ||
-                        r === 'ADMIN'
-                    ));
+                    const canSeeAll = userRoles.some((r) => r === 'EXECUTIVE_DIRECTOR' || r === 'EXECUTIVE' || r === 'PROCUREMENT_OFFICER' || r === 'PROCUREMENT_MANAGER' || r === 'ADMIN');
 
                     if (!canSeeAll) {
                         // Regular users only see their department's requests
@@ -2172,13 +2166,7 @@ app.get('/api/requests', async (req, res) => {
 
                             if (user) {
                                 const userRoles = (user.roles || []).map((r) => r.role.name).map((n) => n.toUpperCase());
-                                const canSeeAll = userRoles.some((r) => (
-                                    r === 'EXECUTIVE_DIRECTOR' ||
-                                    r === 'EXECUTIVE' ||
-                                    r === 'PROCUREMENT_OFFICER' ||
-                                    r === 'PROCUREMENT_MANAGER' ||
-                                    r === 'ADMIN'
-                                ));
+                                const canSeeAll = userRoles.some((r) => r === 'EXECUTIVE_DIRECTOR' || r === 'EXECUTIVE' || r === 'PROCUREMENT_OFFICER' || r === 'PROCUREMENT_MANAGER' || r === 'ADMIN');
 
                                 if (!canSeeAll && user.departmentId) {
                                     whereClause.departmentId = user.departmentId;
@@ -2481,13 +2469,7 @@ app.get('/api/requests/:id', async (req, res) => {
 
                 if (user) {
                     const userRoles = (user.roles || []).map((r) => r.role.name).map((n) => n.toUpperCase());
-                    const canSeeAll = userRoles.some((r) => (
-                        r === 'EXECUTIVE_DIRECTOR' ||
-                        r === 'EXECUTIVE' ||
-                        r === 'PROCUREMENT_OFFICER' ||
-                        r === 'PROCUREMENT_MANAGER' ||
-                        r === 'ADMIN'
-                    ));
+                    const canSeeAll = userRoles.some((r) => r === 'EXECUTIVE_DIRECTOR' || r === 'EXECUTIVE' || r === 'PROCUREMENT_OFFICER' || r === 'PROCUREMENT_MANAGER' || r === 'ADMIN');
 
                     // If not EXECUTIVE_DIRECTOR/PROCUREMENT, user can only see requests from their department
                     if (!canSeeAll && user.departmentId !== request.departmentId && request.requesterId !== userId && request.currentAssigneeId !== userId) {
