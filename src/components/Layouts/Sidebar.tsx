@@ -35,7 +35,7 @@ import IconThumbUp from '../Icon/IconThumbUp';
 import IconPlusCircle from '../Icon/IconPlusCircle';
 import IconUser from '../Icon/IconUser';
 import IconStar from '../Icon/IconStar';
-import { getUser } from '../../utils/auth';
+import { getUser, clearAuth } from '../../utils/auth';
 import { detectUserRoles, getDashboardPath } from '../../utils/roleDetection';
 import { can, isDeptManagerFor } from '../../utils/permissions';
 import IconLock from '../Icon/IconLock';
@@ -202,9 +202,18 @@ const Sidebar = () => {
         const fetchPinnedModule = async () => {
             try {
                 const token = getToken();
+                if (!token) return;
+
                 const response = await fetch(getApiUrl('/api/auth/me'), {
-                    headers: token ? { Authorization: `Bearer ${token}` } : {},
+                    headers: { Authorization: `Bearer ${token}` },
                 });
+
+                if (response.status === 401) {
+                    clearAuth();
+                    window.location.href = '/auth/login';
+                    return;
+                }
+
                 if (response.ok) {
                     const data = await response.json();
                     let moduleToSet = data.pinnedModule || 'procurement';
@@ -232,14 +241,21 @@ const Sidebar = () => {
             const savePinnedModule = async () => {
                 try {
                     const token = getToken();
-                    await fetch(getApiUrl('/api/auth/me/pinned-module'), {
+                    if (!token) return;
+
+                    const response = await fetch(getApiUrl('/api/auth/me/pinned-module'), {
                         method: 'PUT',
                         headers: {
                             'Content-Type': 'application/json',
-                            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                            Authorization: `Bearer ${token}`,
                         },
                         body: JSON.stringify({ pinnedModule }),
                     });
+
+                    if (response.status === 401) {
+                        clearAuth();
+                        window.location.href = '/auth/login';
+                    }
                 } catch (error) {
                     // Silently fail - user experience not impacted
                 }
