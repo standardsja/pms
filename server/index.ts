@@ -2072,9 +2072,49 @@ app.delete('/api/ideas/:id/vote', authMiddleware, voteLimiter, async (req, res) 
 app.use('/api/requests/combine', combineRouter);
 
 // GET /requests - alias for direct backend access (frontend may call this without /api prefix)
-app.get('/api/requests', async (_req, res) => {
+app.get('/api/requests', async (req, res) => {
     try {
+        // Get user ID from header
+        const userId = req.headers['x-user-id'] ? parseInt(String(req.headers['x-user-id']), 10) : null;
+
+        // Build where clause for department filtering
+        let whereClause: any = {};
+
+        if (userId) {
+            try {
+                // Fetch user with roles to check permissions
+                const user = await prisma.user.findUnique({
+                    where: { id: userId },
+                    include: { roles: { include: { role: true } } },
+                });
+
+                if (user) {
+                    const userRoles = (user.roles || []).map((r) => r.role.name).map((n) => n.toUpperCase());
+
+                    // EXEC and PROCUREMENT roles can see all requests
+                    const canSeeAll = userRoles.some((r) => r.includes('EXEC') || r.includes('PROCUREMENT'));
+
+                    if (!canSeeAll) {
+                        // Regular users only see their department's requests
+                        if (user.departmentId) {
+                            whereClause.departmentId = user.departmentId;
+                        } else {
+                            // User with no department - see only their own requests
+                            whereClause.requesterId = userId;
+                        }
+                    }
+                }
+            } catch (userErr) {
+                console.error('Error fetching user for request filtering:', userErr);
+                // Default to department filtering if user lookup fails
+                if (userId) {
+                    whereClause.requesterId = userId;
+                }
+            }
+        }
+
         const requests = await prisma.request.findMany({
+            where: whereClause,
             orderBy: { createdAt: 'desc' },
             select: {
                 id: true,
@@ -2110,7 +2150,34 @@ app.get('/api/requests', async (_req, res) => {
             const patched = await fixInvalidRequestStatuses();
             if (patched !== null) {
                 try {
+                    // Re-apply filtering logic on retry
+                    const userId = req.headers['x-user-id'] ? parseInt(String(req.headers['x-user-id']), 10) : null;
+                    let whereClause: any = {};
+
+                    if (userId) {
+                        try {
+                            const user = await prisma.user.findUnique({
+                                where: { id: userId },
+                                include: { roles: { include: { role: true } } },
+                            });
+
+                            if (user) {
+                                const userRoles = (user.roles || []).map((r) => r.role.name).map((n) => n.toUpperCase());
+                                const canSeeAll = userRoles.some((r) => r.includes('EXEC') || r.includes('PROCUREMENT'));
+
+                                if (!canSeeAll && user.departmentId) {
+                                    whereClause.departmentId = user.departmentId;
+                                }
+                            }
+                        } catch {
+                            if (userId) {
+                                whereClause.requesterId = userId;
+                            }
+                        }
+                    }
+
                     const requests = await prisma.request.findMany({
+                        where: whereClause,
                         orderBy: { createdAt: 'desc' },
                         select: {
                             id: true,
@@ -2332,6 +2399,8 @@ app.use('/api/requests/combinable', combineRouter);
 app.get('/api/requests/:id', async (req, res) => {
     try {
         const { id } = req.params;
+        const userId = req.headers['x-user-id'] ? parseInt(String(req.headers['x-user-id']), 10) : null;
+
         const request = await prisma.request.findUnique({
             where: { id: parseInt(id, 10) },
             select: {
@@ -2387,6 +2456,29 @@ app.get('/api/requests/:id', async (req, res) => {
             return res.status(404).json({ message: 'Request not found' });
         }
 
+        // Check if user has permission to view this request
+        if (userId) {
+            try {
+                const user = await prisma.user.findUnique({
+                    where: { id: userId },
+                    include: { roles: { include: { role: true } } },
+                });
+
+                if (user) {
+                    const userRoles = (user.roles || []).map((r) => r.role.name).map((n) => n.toUpperCase());
+                    const canSeeAll = userRoles.some((r) => r.includes('EXEC') || r.includes('PROCUREMENT'));
+
+                    // If not EXEC/PROCUREMENT, user can only see requests from their department
+                    if (!canSeeAll && user.departmentId !== request.departmentId && request.requesterId !== userId && request.currentAssigneeId !== userId) {
+                        return res.status(403).json({ message: 'You do not have permission to view this request' });
+                    }
+                }
+            } catch (userErr) {
+                console.error('Error checking permissions for GET /requests/:id:', userErr);
+                // Allow access if permission check fails (fail-open)
+            }
+        }
+
         return res.json(request);
     } catch (e: any) {
         console.error('GET /requests/:id error:', e);
@@ -2396,6 +2488,8 @@ app.get('/api/requests/:id', async (req, res) => {
             if (patched !== null) {
                 try {
                     const { id } = req.params;
+                    const userId = req.headers['x-user-id'] ? parseInt(String(req.headers['x-user-id']), 10) : null;
+
                     const request = await prisma.request.findUnique({
                         where: { id: parseInt(id, 10) },
                         select: {
@@ -4519,76 +4613,6 @@ app.get('/api/challenges', async (_req, res) => {
     } catch (e: any) {
         console.error('GET /api/challenges error:', e);
         res.status(500).json({ message: 'Failed to fetch challenges' });
-    }
-});
-
-// GET /api/requests - list procurement requests (different from /api/requisitions)
-app.get('/api/requests', async (_req, res) => {
-    try {
-        // Select only safe core fields to avoid schema drift issues with legacy databases
-        const requests = await prisma.request.findMany({
-            orderBy: { createdAt: 'desc' },
-            select: {
-                id: true,
-                reference: true,
-                title: true,
-                requesterId: true,
-                departmentId: true,
-                status: true,
-                createdAt: true,
-                updatedAt: true,
-                isCombined: true,
-                combinedRequestId: true,
-                lotNumber: true,
-                requester: { select: { id: true, name: true, email: true } },
-                department: { select: { id: true, name: true, code: true } },
-            },
-        });
-        return res.json(requests);
-    } catch (e: any) {
-        // If a column is missing on the connected database (e.g., P2022), fall back to a raw query
-        console.error('GET /api/requests error:', e);
-        const message = String(e?.message || '');
-        if (message.includes("not found in enum 'RequestStatus'")) {
-            const patched = await fixInvalidRequestStatuses();
-            if (patched !== null) {
-                try {
-                    const requests = await prisma.request.findMany({
-                        orderBy: { createdAt: 'desc' },
-                        select: {
-                            id: true,
-                            reference: true,
-                            title: true,
-                            requesterId: true,
-                            departmentId: true,
-                            status: true,
-                            createdAt: true,
-                            updatedAt: true,
-                            isCombined: true,
-                            combinedRequestId: true,
-                            lotNumber: true,
-                            requester: { select: { id: true, name: true, email: true } },
-                            department: { select: { id: true, name: true, code: true } },
-                        },
-                    });
-                    return res.json(requests);
-                } catch (retryErr: any) {
-                    console.error('GET /api/requests retry after patch failed:', retryErr);
-                }
-            }
-        }
-        if (e?.code === 'P2022') {
-            try {
-                const rows = await prisma.$queryRawUnsafe(
-                    'SELECT id, reference, title, requesterId, departmentId, status, createdAt, updatedAt, isCombined, combinedRequestId, lotNumber FROM Request ORDER BY createdAt DESC'
-                );
-                // rows will not include requester/department objects; return as-is
-                return res.json(rows);
-            } catch (rawErr: any) {
-                console.error('GET /api/requests fallback raw query failed:', rawErr);
-            }
-        }
-        return res.status(500).json({ message: 'Failed to fetch requests' });
     }
 });
 
