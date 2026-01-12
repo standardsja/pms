@@ -3576,7 +3576,7 @@ app.post('/api/requests/:id/action', async (req, res) => {
                             // Fetch recipient details for email
                             const recipient = await prisma.user.findUnique({
                                 where: { id: recipientId },
-                                select: { name: true, email: true }
+                                select: { name: true, email: true },
                             });
 
                             // Create message in system
@@ -7204,16 +7204,16 @@ app.post('/api/admin/test-email', requireAdmin, async (req, res) => {
         }
 
         const success = await emailService.testConfiguration(testEmail);
-        
+
         if (success) {
-            return res.json({ 
-                success: true, 
-                message: 'Test email sent successfully. Check your inbox.' 
+            return res.json({
+                success: true,
+                message: 'Test email sent successfully. Check your inbox.',
             });
         } else {
-            return res.status(500).json({ 
-                success: false, 
-                message: 'Failed to send test email. Check server logs and SMTP configuration.' 
+            return res.status(500).json({
+                success: false,
+                message: 'Failed to send test email. Check server logs and SMTP configuration.',
             });
         }
     } catch (err) {
@@ -7221,7 +7221,6 @@ app.post('/api/admin/test-email', requireAdmin, async (req, res) => {
         res.status(500).json({ message: 'Error testing email configuration', error: String(err) });
     }
 });
-
 
 // DEBUG: List all registered routes (temporary; remove in production)
 app.get('/api/_routes', (req, res) => {

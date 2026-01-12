@@ -106,14 +106,7 @@ class EmailService {
     /**
      * Send request rejection notification email
      */
-    async sendRejectionNotification(
-        recipientEmail: string,
-        recipientName: string,
-        requestId: number,
-        requestRef: string,
-        rejectionReason: string,
-        rejectorName: string
-    ): Promise<boolean> {
+    async sendRejectionNotification(recipientEmail: string, recipientName: string, requestId: number, requestRef: string, rejectionReason: string, rejectorName: string): Promise<boolean> {
         const subject = `Request ${requestRef} Has Been Returned for Revision`;
 
         const html = `
@@ -149,13 +142,7 @@ class EmailService {
     /**
      * Send message notification email
      */
-    async sendMessageNotification(
-        recipientEmail: string,
-        recipientName: string,
-        senderName: string,
-        messageSubject: string,
-        messagePreview: string
-    ): Promise<boolean> {
+    async sendMessageNotification(recipientEmail: string, recipientName: string, senderName: string, messageSubject: string, messagePreview: string): Promise<boolean> {
         const subject = `New Message: ${messageSubject}`;
 
         const html = `
@@ -196,13 +183,9 @@ class EmailService {
         try {
             await this.transporter.verify();
             console.log('[EmailService] SMTP configuration verified successfully');
-            
+
             // Send test email
-            return this.sendEmail(
-                testEmail,
-                'Test Email from Procurement Management System',
-                '<h1>Test Email</h1><p>If you received this, email configuration is working correctly.</p>'
-            );
+            return this.sendEmail(testEmail, 'Test Email from Procurement Management System', '<h1>Test Email</h1><p>If you received this, email configuration is working correctly.</p>');
         } catch (err) {
             console.error('[EmailService] Configuration test failed:', err);
             return false;
