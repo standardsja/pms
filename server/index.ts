@@ -30,6 +30,7 @@ import { checkProcurementThresholds } from './services/thresholdService.js';
 import { checkSplintering } from './services/splinteringService.js';
 import { createThresholdNotifications } from './services/notificationService.js';
 import { getLoadBalancingSettings, updateLoadBalancingSettings, autoAssignRequest, autoAssignFinanceOfficer, shouldAutoAssign } from './services/loadBalancingService.js';
+import { emailService } from './utils/emailService.js';
 import type { Prisma } from '@prisma/client';
 import { requireCommittee as requireCommitteeRole, requireEvaluationCommittee, requireAdmin, requireExecutive, requireRole } from './middleware/rbac.js';
 import { validate, createIdeaSchema, voteSchema, approveRejectIdeaSchema, promoteIdeaSchema, sanitizeInput as sanitize } from './middleware/validation.js';
@@ -3569,9 +3570,16 @@ app.post('/api/requests/:id/action', async (req, res) => {
 
                     console.log(`[REJECTION] Total recipients: ${recipients.length}`, recipients);
 
-                    // Create messages for all recipients
+                    // Create messages and send emails for all recipients
                     for (const recipientId of recipients) {
                         try {
+                            // Fetch recipient details for email
+                            const recipient = await prisma.user.findUnique({
+                                where: { id: recipientId },
+                                select: { name: true, email: true }
+                            });
+
+                            // Create message in system
                             await prisma.message.create({
                                 data: {
                                     fromUserId: actingUserId,
@@ -3581,8 +3589,21 @@ app.post('/api/requests/:id/action', async (req, res) => {
                                 },
                             });
                             console.log(`[REJECTION] Created message for recipient ${recipientId}`);
+
+                            // Send email notification
+                            if (recipient?.email) {
+                                await emailService.sendRejectionNotification(
+                                    recipient.email,
+                                    recipient.name || 'User',
+                                    updated.id,
+                                    updated.reference || String(updated.id),
+                                    comment ? comment.trim() : 'No reason provided',
+                                    rejectorName
+                                );
+                                console.log(`[REJECTION] Sent email notification to ${recipient.email}`);
+                            }
                         } catch (msgErr) {
-                            console.warn(`[REJECTION] Error creating message for ${recipientId}:`, msgErr);
+                            console.warn(`[REJECTION] Error creating message/email for ${recipientId}:`, msgErr);
                         }
                     }
 
@@ -7172,6 +7193,35 @@ app.use('/api/admin', adminRouter);
 
 // TEST: Photo endpoint to verify code changes
 app.use(testPhotoRouter);
+
+// Email Service Test Endpoint (Admin only)
+app.post('/api/admin/test-email', requireAdmin, async (req, res) => {
+    try {
+        const { testEmail } = req.body;
+
+        if (!testEmail || !testEmail.includes('@')) {
+            return res.status(400).json({ message: 'Valid email address required' });
+        }
+
+        const success = await emailService.testConfiguration(testEmail);
+        
+        if (success) {
+            return res.json({ 
+                success: true, 
+                message: 'Test email sent successfully. Check your inbox.' 
+            });
+        } else {
+            return res.status(500).json({ 
+                success: false, 
+                message: 'Failed to send test email. Check server logs and SMTP configuration.' 
+            });
+        }
+    } catch (err) {
+        console.error('Email test error:', err);
+        res.status(500).json({ message: 'Error testing email configuration', error: String(err) });
+    }
+});
+
 
 // DEBUG: List all registered routes (temporary; remove in production)
 app.get('/api/_routes', (req, res) => {
