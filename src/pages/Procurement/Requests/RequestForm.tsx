@@ -874,7 +874,7 @@ const RequestForm = () => {
                     // offer to resubmit the request now (preserving the same form code fields).
                     // Use the fresh currentStatus from the API response, not the stale state
                     const isCurrentlyDraft = currentStatus === 'DRAFT';
-                    
+
                     console.log('[RequestForm] Resubmit check:', {
                         currentStatus,
                         isCurrentlyDraft,
@@ -887,97 +887,97 @@ const RequestForm = () => {
                         if (isCurrentlyDraft && requestRequesterId && Number(requestRequesterId) === Number(userId)) {
                             console.log('[RequestForm] Showing resubmit dialog...');
                             const confirmResubmit = await Swal.fire({
-                            icon: 'question',
-                            title: 'Save and resubmit?',
-                            text: 'This request was returned and is currently a draft. Do you want to save your changes and resubmit it for review now?',
-                            showCancelButton: true,
-                            confirmButtonText: 'Save & Resubmit',
-                            cancelButtonText: 'Save Only',
-                        });
+                                icon: 'question',
+                                title: 'Save and resubmit?',
+                                text: 'This request was returned and is currently a draft. Do you want to save your changes and resubmit it for review now?',
+                                showCancelButton: true,
+                                confirmButtonText: 'Save & Resubmit',
+                                cancelButtonText: 'Save Only',
+                            });
 
-                        if (confirmResubmit.isConfirmed) {
-                            try {
-                                const submitResp = await fetch(getApiUrl(`/api/requests/${id}/submit`), {
-                                    method: 'POST',
-                                    headers: {
-                                        'Content-Type': 'application/json',
-                                        'x-user-id': String(userId),
-                                    },
-                                    body: JSON.stringify({}),
-                                });
-
-                                if (submitResp.status === 409) {
-                                    // Splintering detected — show details and allow override (manager only)
-                                    const body = await submitResp.json().catch(() => ({}));
-                                    const details = body?.details || body;
-                                    const msg = `Suspicious split purchases detected within the last ${details?.windowDays || ''} days. Combined total: ${details?.combined || ''} (threshold ${
-                                        details?.threshold || ''
-                                    }).`;
-
-                                    if (!hasManagerRole) {
-                                        // Non-managers cannot override
-                                        await Swal.fire({
-                                            icon: 'warning',
-                                            title: 'Potential Splintering Detected',
-                                            text: `${msg} This request cannot be submitted and requires manager review. Please contact your department manager or procurement manager.`,
-                                            confirmButtonText: 'OK',
-                                        });
-                                        setIsSubmitting(false);
-                                        return;
-                                    }
-
-                                    const overrideConfirm = await Swal.fire({
-                                        icon: 'warning',
-                                        title: 'Potential Splintering Detected',
-                                        html: `
-                                            <p>${msg}</p>
-                                            <p class="mt-3 text-sm text-gray-600">
-                                                <strong>Manager Override:</strong> You have permission to proceed, but this action will be logged for audit purposes.
-                                            </p>
-                                        `,
-                                        showCancelButton: true,
-                                        confirmButtonText: 'Proceed & Log Override',
-                                        cancelButtonText: 'Cancel',
-                                        confirmButtonColor: '#d33',
-                                    });
-                                    if (!overrideConfirm.isConfirmed) {
-                                        setIsSubmitting(false);
-                                        return;
-                                    }
-
-                                    // Resend with override flag
-                                    const overrideResp = await fetch(getApiUrl(`/api/requests/${id}/submit`), {
+                            if (confirmResubmit.isConfirmed) {
+                                try {
+                                    const submitResp = await fetch(getApiUrl(`/api/requests/${id}/submit`), {
                                         method: 'POST',
                                         headers: {
                                             'Content-Type': 'application/json',
                                             'x-user-id': String(userId),
                                         },
-                                        body: JSON.stringify({ overrideSplinter: true }),
+                                        body: JSON.stringify({}),
                                     });
-                                    if (!overrideResp.ok) {
-                                        const err = await overrideResp.json().catch(() => ({}));
-                                        throw new Error(err.message || err.error || overrideResp.statusText || 'Resubmit failed after override');
-                                    }
-                                } else {
-                                    if (!submitResp.ok) {
-                                        const err = await submitResp.json().catch(() => ({}));
-                                        throw new Error(err.error || submitResp.statusText || 'Resubmit failed');
-                                    }
-                                }
 
-                                Swal.fire({ icon: 'success', title: 'Request resubmitted', text: 'Your request has been sent for review.' });
+                                    if (submitResp.status === 409) {
+                                        // Splintering detected — show details and allow override (manager only)
+                                        const body = await submitResp.json().catch(() => ({}));
+                                        const details = body?.details || body;
+                                        const msg = `Suspicious split purchases detected within the last ${details?.windowDays || ''} days. Combined total: ${details?.combined || ''} (threshold ${
+                                            details?.threshold || ''
+                                        }).`;
+
+                                        if (!hasManagerRole) {
+                                            // Non-managers cannot override
+                                            await Swal.fire({
+                                                icon: 'warning',
+                                                title: 'Potential Splintering Detected',
+                                                text: `${msg} This request cannot be submitted and requires manager review. Please contact your department manager or procurement manager.`,
+                                                confirmButtonText: 'OK',
+                                            });
+                                            setIsSubmitting(false);
+                                            return;
+                                        }
+
+                                        const overrideConfirm = await Swal.fire({
+                                            icon: 'warning',
+                                            title: 'Potential Splintering Detected',
+                                            html: `
+                                            <p>${msg}</p>
+                                            <p class="mt-3 text-sm text-gray-600">
+                                                <strong>Manager Override:</strong> You have permission to proceed, but this action will be logged for audit purposes.
+                                            </p>
+                                        `,
+                                            showCancelButton: true,
+                                            confirmButtonText: 'Proceed & Log Override',
+                                            cancelButtonText: 'Cancel',
+                                            confirmButtonColor: '#d33',
+                                        });
+                                        if (!overrideConfirm.isConfirmed) {
+                                            setIsSubmitting(false);
+                                            return;
+                                        }
+
+                                        // Resend with override flag
+                                        const overrideResp = await fetch(getApiUrl(`/api/requests/${id}/submit`), {
+                                            method: 'POST',
+                                            headers: {
+                                                'Content-Type': 'application/json',
+                                                'x-user-id': String(userId),
+                                            },
+                                            body: JSON.stringify({ overrideSplinter: true }),
+                                        });
+                                        if (!overrideResp.ok) {
+                                            const err = await overrideResp.json().catch(() => ({}));
+                                            throw new Error(err.message || err.error || overrideResp.statusText || 'Resubmit failed after override');
+                                        }
+                                    } else {
+                                        if (!submitResp.ok) {
+                                            const err = await submitResp.json().catch(() => ({}));
+                                            throw new Error(err.error || submitResp.statusText || 'Resubmit failed');
+                                        }
+                                    }
+
+                                    Swal.fire({ icon: 'success', title: 'Request resubmitted', text: 'Your request has been sent for review.' });
+                                    navigate('/apps/requests');
+                                } catch (submitErr: any) {
+                                    console.error('Resubmit after save failed', submitErr);
+                                    Swal.fire({ icon: 'error', title: 'Resubmit failed', text: submitErr?.message || String(submitErr) });
+                                    // Do NOT navigate so user can try resubmitting again
+                                    setIsSubmitting(false);
+                                    return;
+                                }
+                            } else {
+                                Swal.fire({ icon: 'success', title: 'Request updated', text: 'Your information has been saved' });
                                 navigate('/apps/requests');
-                            } catch (submitErr: any) {
-                                console.error('Resubmit after save failed', submitErr);
-                                Swal.fire({ icon: 'error', title: 'Resubmit failed', text: submitErr?.message || String(submitErr) });
-                                // Do NOT navigate so user can try resubmitting again
-                                setIsSubmitting(false);
-                                return;
                             }
-                        } else {
-                            Swal.fire({ icon: 'success', title: 'Request updated', text: 'Your information has been saved' });
-                            navigate('/apps/requests');
-                        }
                         } else {
                             // Not a returned draft, just show success
                             Swal.fire({ icon: 'success', title: 'Request updated', text: 'Your information has been saved' });
