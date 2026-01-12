@@ -3504,43 +3504,161 @@ app.post('/api/requests/:id/action', async (req, res) => {
                 },
             });
 
-            // Notify the next assignee (procurement manager/officer/executive) if present (normal path)
-            try {
-                const assigneeId = updated.currentAssignee?.id || updated.currentAssigneeId || null;
-                if (assigneeId) {
-                    await prisma.notification.create({
+            // Handle rejection: send messages and notifications to requester, manager, and HOD
+            if (action === 'REJECT') {
+                try {
+                    console.log(`[REJECTION] Processing rejection for request ${updated.id}, department: ${updated.department?.id}`);
+
+                    // Get the rejecting user's name
+                    const rejectingUser = await prisma.user.findUnique({
+                        where: { id: actingUserId },
+                        select: { name: true },
+                    });
+
+                    const rejectorName = rejectingUser?.name || 'Unknown';
+                    const messageBody = `Your request "${updated.reference || updated.id}" has been returned for revision.\n\nReason: ${comment ? comment.trim() : 'No reason provided'}`;
+
+                    // Collect all recipients: requester + department manager + HOD
+                    const recipients: number[] = [];
+                    if (updated.requesterId) {
+                        recipients.push(updated.requesterId);
+                        console.log(`[REJECTION] Added requester: ${updated.requesterId}`);
+                    }
+
+                    // Add department manager if available
+                    if (updated.department) {
+                        try {
+                            const deptManager = await prisma.user.findFirst({
+                                where: {
+                                    departmentId: updated.department.id,
+                                    roles: { some: { role: { name: 'DEPT_MANAGER' } } }
+                                },
+                                select: { id: true, name: true }
+                            });
+                            if (deptManager && !recipients.includes(deptManager.id)) {
+                                recipients.push(deptManager.id);
+                                console.log(`[REJECTION] Added dept manager: ${deptManager.id} (${deptManager.name})`);
+                            } else {
+                                console.log(`[REJECTION] No dept manager found for department ${updated.department.id}`);
+                            }
+                        } catch (err) {
+                            console.warn(`[REJECTION] Error finding dept manager:`, err);
+                        }
+                    }
+
+                    // Add HOD (Head of Division) if available
+                    if (updated.department) {
+                        try {
+                            const hod = await prisma.user.findFirst({
+                                where: {
+                                    departmentId: updated.department.id,
+                                    roles: { some: { role: { name: { in: ['HEAD_OF_DIVISION', 'HOD'] } } } }
+                                },
+                                select: { id: true, name: true }
+                            });
+                            if (hod && !recipients.includes(hod.id)) {
+                                recipients.push(hod.id);
+                                console.log(`[REJECTION] Added HOD: ${hod.id} (${hod.name})`);
+                            } else {
+                                console.log(`[REJECTION] No HOD found for department ${updated.department.id}`);
+                            }
+                        } catch (err) {
+                            console.warn(`[REJECTION] Error finding HOD:`, err);
+                        }
+                    }
+
+                    console.log(`[REJECTION] Total recipients: ${recipients.length}`, recipients);
+
+                    // Create messages for all recipients
+                    for (const recipientId of recipients) {
+                        try {
+                            await prisma.message.create({
+                                data: {
+                                    fromUserId: actingUserId,
+                                    toUserId: recipientId,
+                                    subject: `Request ${updated.reference || updated.id} Returned`,
+                                    body: messageBody,
+                                },
+                            });
+                            console.log(`[REJECTION] Created message for recipient ${recipientId}`);
+                        } catch (msgErr) {
+                            console.warn(`[REJECTION] Error creating message for ${recipientId}:`, msgErr);
+                        }
+                    }
+
+                    // Create a message FOR THE REJECTOR (so they also see it in their own messages)
+                    await prisma.message.create({
                         data: {
-                            userId: Number(assigneeId),
-                            type: 'STAGE_CHANGED',
-                            message: `Request ${updated.reference || updated.id} has advanced to ${updated.status} and is assigned to you`,
-                            data: { requestId: updated.id, status: updated.status },
+                            fromUserId: actingUserId,
+                            toUserId: actingUserId,
+                            subject: `You returned Request ${updated.reference || updated.id}`,
+                            body: `You returned request "${updated.reference || updated.id}" for revision.\n\nReason: ${comment ? comment.trim() : 'No reason provided'}`,
                         },
                     });
+                    console.log(`[REJECTION] Created message for rejector ${actingUserId}`);
+
+                    // Also create notifications for all recipients
+                    for (const recipientId of recipients) {
+                        try {
+                            await prisma.notification.create({
+                                data: {
+                                    userId: recipientId,
+                                    type: 'STAGE_CHANGED',
+                                    message: `Request ${updated.reference || updated.id} has been returned for revision`,
+                                    data: { requestId: updated.id, status: 'DRAFT', rejectionReason: comment ? comment.trim() : 'No reason provided' },
+                                },
+                            });
+                            console.log(`[REJECTION] Created notification for recipient ${recipientId}`);
+                        } catch (notifErr) {
+                            console.warn(`[REJECTION] Error creating notification for ${recipientId}:`, notifErr);
+                        }
+                    }
+
+                    console.log(`[REJECTION] Rejection handling completed successfully`);
+                } catch (rejectionErr) {
+                    console.warn(`[REJECTION] Error during rejection notification:`, rejectionErr);
                 }
-            } catch (notifErr) {
-                console.warn('Failed to create notification on approve action:', notifErr);
             }
 
-            // If routed to Executive Director for evaluation, create a direct evaluation link notification
-            try {
-                if (nextStatus === 'EXECUTIVE_REVIEW' && updated.currentAssigneeId) {
-                    // Find or create evaluation for this request context (lightweight pointer)
-                    await prisma.notification.create({
-                        data: {
-                            userId: Number(updated.currentAssigneeId),
-                            type: 'STAGE_CHANGED',
-                            message: `High-value request ${updated.reference || updated.id} requires your evaluation`,
+            // Notify the next assignee (procurement manager/officer/executive) if present (normal path - only for approvals)
+            if (action !== 'REJECT') {
+                try {
+                    const assigneeId = updated.currentAssignee?.id || updated.currentAssigneeId || null;
+                    if (assigneeId) {
+                        await prisma.notification.create({
                             data: {
-                                requestId: updated.id,
-                                action: 'OPEN_EVALUATION',
-                                // Frontend route for creating a new evaluation
-                                url: `/procurement/evaluation/new?requestId=${updated.id}`,
+                                userId: Number(assigneeId),
+                                type: 'STAGE_CHANGED',
+                                message: `Request ${updated.reference || updated.id} has advanced to ${updated.status} and is assigned to you`,
+                                data: { requestId: updated.id, status: updated.status },
                             },
-                        },
-                    });
+                        });
+                    }
+                } catch (notifErr) {
+                    console.warn('Failed to create notification on approve action:', notifErr);
                 }
-            } catch (notifErr) {
-                console.warn('Failed to create executive evaluation notification:', notifErr);
+
+                // If routed to Executive Director for evaluation, create a direct evaluation link notification
+                try {
+                    if (nextStatus === 'EXECUTIVE_REVIEW' && updated.currentAssigneeId) {
+                        // Find or create evaluation for this request context (lightweight pointer)
+                        await prisma.notification.create({
+                            data: {
+                                userId: Number(updated.currentAssigneeId),
+                                type: 'STAGE_CHANGED',
+                                message: `High-value request ${updated.reference || updated.id} requires your evaluation`,
+                                data: {
+                                    requestId: updated.id,
+                                    action: 'OPEN_EVALUATION',
+                                    // Frontend route for creating a new evaluation
+                                    url: `/procurement/evaluation/new?requestId=${updated.id}`,
+                                },
+                            },
+                        });
+                    }
+                } catch (notifErr) {
+                    console.warn('Failed to create executive evaluation notification:', notifErr);
+                }
             }
         } catch (e: any) {
             const msg = String(e?.message || '');
@@ -3946,9 +4064,14 @@ app.post('/api/requests/:id/reject', async (req, res) => {
             },
         });
 
-        // Notify the requester that their request was returned
+        // Notify all relevant parties that their request was returned
+        console.log(`[REJECTION] Request object keys: ${Object.keys(request).join(', ')}`);
+        console.log(`[REJECTION] request.requesterId: ${request.requesterId}, request.requester?.id: ${request.requester?.id}`);
         try {
-            if (request.requesterId) {
+            const requesterId = request.requesterId || request.requester?.id;
+            if (requesterId) {
+                console.log(`[REJECTION] Processing rejection for request ${request.id}, department: ${request.department?.id}`);
+                
                 // Get the rejecting user's name
                 const rejectingUser = await prisma.user.findUnique({
                     where: { id: actingUserId },
@@ -3958,15 +4081,70 @@ app.post('/api/requests/:id/reject', async (req, res) => {
                 const rejectorName = rejectingUser?.name || 'Unknown';
                 const messageBody = `Your request "${request.reference || request.id}" has been returned for revision.\n\nReason: ${note.trim()}`;
 
-                // Create a message FOR THE REQUESTER (so they see it in their messages)
-                await prisma.message.create({
-                    data: {
-                        fromUserId: actingUserId,
-                        toUserId: request.requesterId,
-                        subject: `Request ${request.reference || request.id} Returned`,
-                        body: messageBody,
-                    },
-                });
+                // Collect all recipients: requester + department manager + HOD
+                const recipients: number[] = [requesterId];
+                console.log(`[REJECTION] Starting with requester: ${request.requesterId}`);
+
+                // Add department manager if available
+                if (request.department) {
+                    try {
+                        const deptManager = await prisma.user.findFirst({
+                            where: {
+                                departmentId: request.department.id,
+                                roles: { some: { role: { name: 'DEPT_MANAGER' } } }
+                            },
+                            select: { id: true, name: true }
+                        });
+                        if (deptManager && !recipients.includes(deptManager.id)) {
+                            recipients.push(deptManager.id);
+                            console.log(`[REJECTION] Added dept manager: ${deptManager.id} (${deptManager.name})`);
+                        } else {
+                            console.log(`[REJECTION] No dept manager found for department ${request.department.id}`);
+                        }
+                    } catch (err) {
+                        console.warn(`[REJECTION] Error finding dept manager:`, err);
+                    }
+                }
+
+                // Add HOD (Head of Division) if available
+                if (request.department) {
+                    try {
+                        const hod = await prisma.user.findFirst({
+                            where: {
+                                departmentId: request.department.id,
+                                roles: { some: { role: { name: { in: ['HEAD_OF_DIVISION', 'HOD'] } } } }
+                            },
+                            select: { id: true, name: true }
+                        });
+                        if (hod && !recipients.includes(hod.id)) {
+                            recipients.push(hod.id);
+                            console.log(`[REJECTION] Added HOD: ${hod.id} (${hod.name})`);
+                        } else {
+                            console.log(`[REJECTION] No HOD found for department ${request.department.id}`);
+                        }
+                    } catch (err) {
+                        console.warn(`[REJECTION] Error finding HOD:`, err);
+                    }
+                }
+
+                console.log(`[REJECTION] Total recipients: ${recipients.length}`, recipients);
+
+                // Create messages for all recipients
+                for (const recipientId of recipients) {
+                    try {
+                        await prisma.message.create({
+                            data: {
+                                fromUserId: actingUserId,
+                                toUserId: recipientId,
+                                subject: `Request ${request.reference || request.id} Returned`,
+                                body: messageBody,
+                            },
+                        });
+                        console.log(`[REJECTION] Created message for recipient ${recipientId}`);
+                    } catch (msgErr) {
+                        console.warn(`[REJECTION] Error creating message for ${recipientId}:`, msgErr);
+                    }
+                }
 
                 // Create a message FOR THE REJECTOR (so they also see it in their own messages)
                 // This is a record of the rejection they performed
@@ -3978,19 +4156,29 @@ app.post('/api/requests/:id/reject', async (req, res) => {
                         body: `You returned request "${request.reference || request.id}" for revision.\n\nReason: ${note.trim()}`,
                     },
                 });
+                console.log(`[REJECTION] Created message for rejector ${actingUserId}`);
 
-                // Also create a notification for visibility in the notification center
-                await prisma.notification.create({
-                    data: {
-                        userId: request.requesterId,
-                        type: 'STAGE_CHANGED',
-                        message: `Your request ${request.reference || request.id} has been returned for revision: ${note.trim()}`,
-                        data: { requestId: request.id, status: 'DRAFT', rejectionNote: note.trim() },
-                    },
-                });
+                // Also create notifications for all recipients
+                for (const recipientId of recipients) {
+                    try {
+                        await prisma.notification.create({
+                            data: {
+                                userId: recipientId,
+                                type: 'STAGE_CHANGED',
+                                message: `Request ${request.reference || request.id} has been returned for revision: ${note.trim()}`,
+                                data: { requestId: request.id, status: 'DRAFT', rejectionNote: note.trim() },
+                            },
+                        });
+                        console.log(`[REJECTION] Created notification for recipient ${recipientId}`);
+                    } catch (notifErr) {
+                        console.warn(`[REJECTION] Error creating notification for ${recipientId}:`, notifErr);
+                    }
+                }
+                
+                console.log(`[REJECTION] Completed successfully`);
             }
         } catch (notifErr) {
-            console.warn('Failed to create requester notification on rejection:', notifErr);
+            console.warn('Failed to create rejection notifications:', notifErr);
         }
 
         return res.json({

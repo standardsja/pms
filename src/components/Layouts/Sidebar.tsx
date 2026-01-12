@@ -1144,7 +1144,7 @@ const Sidebar = () => {
                                         <NavLink to="/finance/requests" className="group">
                                             <div className="flex items-center">
                                                 <IconMenuInvoice className="group-hover:!text-primary shrink-0 w-5 h-5" />
-                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Finance Requests</span>
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Active Requests</span>
                                             </div>
                                         </NavLink>
                                     </li>
@@ -1194,7 +1194,7 @@ const Sidebar = () => {
                                         <NavLink to="/finance/requests" className="group">
                                             <div className="flex items-center">
                                                 <IconMenuInvoice className="group-hover:!text-primary shrink-0 w-5 h-5" />
-                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Finance Requests</span>
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Active Requests</span>
                                             </div>
                                         </NavLink>
                                     </li>
