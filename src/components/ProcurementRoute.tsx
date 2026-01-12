@@ -59,8 +59,10 @@ const ProcurementRoute: React.FC<ProcurementRouteProps> = ({ children }) => {
             .filter(Boolean)
             .map((s: string) => String(s).toUpperCase());
 
-        // Check if user has procurement or admin access
-        const isProcurement = rolesFlat.some((role) => role.includes('PROCUREMENT') || role.includes('ADMIN') || role.includes('ADMINISTRATOR'));
+        // Check if user has procurement/admin or executive director access
+        const isProcurement = rolesFlat.some(
+            (role) => role.includes('PROCUREMENT') || role.includes('ADMIN') || role.includes('ADMINISTRATOR') || role.includes('EXECUTIVE_DIRECTOR') || role.includes('EXECUTIVE')
+        );
 
         return { hasToken: !!token, rolesFromStorage: rolesFlat, isProcurementFromStorage: isProcurement };
     }, []);
@@ -68,7 +70,7 @@ const ProcurementRoute: React.FC<ProcurementRouteProps> = ({ children }) => {
     // Determine procurement access using Redux first, then storage fallback
     const reduxIsProcurement = roles?.some((role: any) => {
         const roleStr = String(role).toUpperCase();
-        return roleStr.includes('PROCUREMENT') || roleStr.includes('ADMIN');
+        return roleStr.includes('PROCUREMENT') || roleStr.includes('ADMIN') || roleStr.includes('EXECUTIVE_DIRECTOR') || roleStr.includes('EXECUTIVE');
     });
 
     const allow = (isAuthenticated || hasToken) && (reduxIsProcurement || isProcurementFromStorage);
