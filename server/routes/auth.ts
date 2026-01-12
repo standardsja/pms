@@ -281,6 +281,29 @@ router.post(
                         department: true,
                     },
                 });
+            } else if (!user.externalId) {
+                // Existing user logging in via LDAP for first time - set externalId
+                logger.info('Setting externalId for existing LDAP user', { email, dn: ldapUser.dn });
+                await prisma.user.update({
+                    where: { id: user.id },
+                    data: { externalId: ldapUser.dn },
+                });
+                // Refresh user object to reflect the update
+                user = await prisma.user.findUnique({
+                    where: { id: user.id },
+                    include: {
+                        roles: {
+                            include: {
+                                role: true,
+                            },
+                        },
+                        department: true,
+                    },
+                });
+
+                if (!user) {
+                    throw new UnauthorizedError('User account not found after update.');
+                }
             }
 
             // Check if user is blocked
@@ -611,7 +634,38 @@ router.post(
                 data: {
                     email,
                     name: ldapUser.name || email,
+                    externalId: ldapUser.dn,
                 },
+                select: {
+                    id: true,
+                    email: true,
+                    name: true,
+                    externalId: true,
+                    passwordHash: true,
+                    blocked: true,
+                    blockedAt: true,
+                    blockedReason: true,
+                    failedLogins: true,
+                    lastFailedLogin: true,
+                    lastLogin: true,
+                    roles: {
+                        select: { role: true },
+                    },
+                    department: {
+                        select: { id: true, name: true, code: true },
+                    },
+                },
+            });
+        } else if (!user.externalId) {
+            // Existing user logging in via LDAP for first time - set externalId
+            logger.info('Setting externalId for existing LDAP user (/ldap-login)', { email, dn: ldapUser.dn });
+            await prisma.user.update({
+                where: { id: user.id },
+                data: { externalId: ldapUser.dn },
+            });
+            // Refresh user object to reflect the update
+            user = await prisma.user.findUnique({
+                where: { id: user.id },
                 select: {
                     id: true,
                     email: true,
