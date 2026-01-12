@@ -8,6 +8,8 @@ import { asyncHandler } from '../middleware/errorHandler.js';
 import { logger } from '../config/logger.js';
 import { prisma } from '../prismaClient.js';
 import { RequestStatus } from '@prisma/client';
+import { auditService } from '../services/auditService.js';
+import { getAuditContext } from '../middleware/auditMiddleware.js';
 
 const router = Router();
 
@@ -252,6 +254,7 @@ router.post(
     asyncHandler(async (req, res) => {
         const authenticatedReq = req as AuthenticatedRequest;
         const userId = authenticatedReq.user.sub;
+        const auditContext = getAuditContext(req);
         const { title, description, items, fundingSource, budgetCode, departmentId } = req.body;
 
         logger.info('Creating new procurement request', { userId, title });
@@ -332,6 +335,21 @@ router.post(
 
         logger.info('Created new procurement request', { requestId: newRequest.id, reference });
 
+        await auditService.logRequest({
+            userId,
+            requestId: newRequest.id,
+            action: 'REQUEST_CREATED',
+            message: `Created procurement request ${reference}`,
+            ipAddress: auditContext.ipAddress,
+            userAgent: auditContext.userAgent,
+            metadata: {
+                reference,
+                title: newRequest.title,
+                departmentId: newRequest.department?.name,
+                totalEstimated: Number(newRequest.totalEstimated),
+            },
+        });
+
         res.status(201).json({
             id: newRequest.reference,
             title: newRequest.title,
@@ -350,6 +368,7 @@ router.put(
         const { id } = req.params;
         const authenticatedReq = req as AuthenticatedRequest;
         const userId = authenticatedReq.user.sub;
+        const auditContext = getAuditContext(req);
         const { title, description, items, budgetCode } = req.body;
 
         const existingRequest = await prisma.request.findUnique({
@@ -414,6 +433,20 @@ router.put(
 
         logger.info('Updated procurement request', { requestId: id });
 
+        await auditService.logRequest({
+            userId,
+            requestId: existingRequest.id,
+            action: 'REQUEST_UPDATED',
+            message: `Updated procurement request ${id}`,
+            ipAddress: auditContext.ipAddress,
+            userAgent: auditContext.userAgent,
+            metadata: {
+                title: updatedRequest.title,
+                totalEstimated: Number(updatedRequest.totalEstimated),
+                itemsUpdated: Boolean(items),
+            },
+        });
+
         res.json({
             id: updatedRequest.reference,
             title: updatedRequest.title,
@@ -431,6 +464,7 @@ router.post(
         const { id } = req.params;
         const authenticatedReq = req as AuthenticatedRequest;
         const userId = authenticatedReq.user.sub;
+        const auditContext = getAuditContext(req);
 
         const request = await prisma.request.findUnique({
             where: { reference: id },
@@ -463,6 +497,15 @@ router.post(
 
         logger.info('Submitted procurement request', { requestId: id });
 
+        await auditService.logRequest({
+            userId,
+            requestId: request.id,
+            action: 'REQUEST_SUBMITTED',
+            message: `Submitted procurement request ${id}`,
+            ipAddress: auditContext.ipAddress,
+            userAgent: auditContext.userAgent,
+        });
+
         res.json({
             id: updated.reference,
             status: updated.status,
@@ -481,6 +524,7 @@ router.post(
         const authenticatedReq = req as AuthenticatedRequest;
         const userId = authenticatedReq.user.sub;
         const userRoles = authenticatedReq.user.roles || [];
+        const auditContext = getAuditContext(req);
 
         const request = await prisma.request.findUnique({
             where: { reference: id },
@@ -530,6 +574,16 @@ router.post(
         });
 
         logger.info('Processed procurement request action', { requestId: id, action, newStatus });
+
+        await auditService.logApproval({
+            userId,
+            requestId: request.id,
+            approved: action === 'approve',
+            stage: request.status,
+            comment: notes,
+            ipAddress: auditContext.ipAddress,
+            userAgent: auditContext.userAgent,
+        });
 
         res.json({
             id: updated.reference,

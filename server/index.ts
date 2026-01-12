@@ -35,6 +35,7 @@ import type { Prisma } from '@prisma/client';
 import { requireCommittee as requireCommitteeRole, requireEvaluationCommittee, requireAdmin, requireExecutive, requireRole } from './middleware/rbac.js';
 import { validate, createIdeaSchema, voteSchema, approveRejectIdeaSchema, promoteIdeaSchema, sanitizeInput as sanitize } from './middleware/validation.js';
 import { errorHandler, notFoundHandler, asyncHandler, NotFoundError, BadRequestError } from './middleware/errorHandler.js';
+import { auditMiddleware, auditLogger } from './middleware/auditMiddleware.js';
 import statsRouter from './routes/stats.js';
 import combineRouter from './routes/combine.js';
 import approvalsRouter from './routes/approvals.js';
@@ -153,6 +154,8 @@ app.use(morgan('dev'));
 app.use(requestMonitoringMiddleware); // Performance monitoring
 app.use(sanitize); // Sanitize all inputs
 app.use('/api/', generalLimiter); // Apply general rate limiting to all API routes
+app.use(auditMiddleware); // Attach audit context (ip/user agent/user id if available)
+app.use(auditLogger); // Log mutating API calls globally
 // Static files for uploads
 const UPLOAD_DIR = path.resolve(process.cwd(), 'uploads');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
