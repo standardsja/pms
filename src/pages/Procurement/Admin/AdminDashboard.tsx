@@ -42,6 +42,10 @@ const AdminDashboard = () => {
     // Load initial data
     useEffect(() => {
         loadAllData();
+
+        // Auto-refresh users every 15 seconds so online status updates in real-time
+        const interval = setInterval(loadAllData, 15000);
+        return () => clearInterval(interval);
     }, []);
 
     const loadAllData = async () => {
@@ -391,6 +395,30 @@ const AdminDashboard = () => {
                         <div className="col-span-full text-center py-8 text-gray-500 dark:text-gray-400">
                             <p className="text-sm">No LDAP users currently online</p>
                             <p className="text-xs mt-1">Only LDAP-authenticated users are shown. Active within last 5 minutes.</p>
+
+                            {/* Debug: Show all LDAP users and their timestamps */}
+                            {users.filter((u) => !!u.externalId).length > 0 && (
+                                <div className="mt-4 text-left max-w-md mx-auto p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded text-xs">
+                                    <p className="font-semibold mb-2">All LDAP Users ({users.filter((u) => !!u.externalId).length}):</p>
+                                    {users
+                                        .filter((u) => !!u.externalId)
+                                        .map((u) => {
+                                            const lastActive = u.lastLogin ? new Date(u.lastLogin).getTime() : 0;
+                                            const now = Date.now();
+                                            const minutesAgo = Math.floor((now - lastActive) / 60000);
+                                            return (
+                                                <div key={u.id} className="py-1">
+                                                    <span className="font-medium">{u.email}</span>
+                                                    {u.lastLogin ? (
+                                                        <span className="text-gray-600 dark:text-gray-400"> - {minutesAgo}m ago</span>
+                                                    ) : (
+                                                        <span className="text-gray-600 dark:text-gray-400"> - never</span>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
