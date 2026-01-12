@@ -22,6 +22,8 @@ import { logger } from '../config/logger.js';
 import { asyncHandler, BadRequestError, UnauthorizedError } from '../middleware/errorHandler.js';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.js';
 import { validate, loginSchema } from '../middleware/validation.js';
+import { auditService } from '../services/auditService.js';
+import { getAuditContext } from '../middleware/auditMiddleware.js';
 import { ldapService } from '../services/ldapService.js';
 import { computePermissionsForUser, computeDeptManagerForUser } from '../utils/permissionUtils.js';
 import { syncLDAPUserToDatabase, describeSyncResult } from '../services/ldapRoleSyncService.js';
@@ -101,6 +103,7 @@ router.post(
     validate(loginSchema),
     asyncHandler(async (req, res) => {
         const { email, password, rememberMe } = req.body;
+        const auditContext = getAuditContext(req);
 
         logger.info('Auth login request received', {
             email,
@@ -145,6 +148,15 @@ router.post(
                     email: user.email,
                     blockedAt: user.blockedAt,
                     blockedReason: user.blockedReason,
+                });
+                await auditService.logAuth({
+                    userId: user.id,
+                    email: user.email,
+                    action: 'USER_LOGIN_FAILED',
+                    success: false,
+                    reason: 'Account blocked',
+                    ipAddress: auditContext.ipAddress,
+                    userAgent: auditContext.userAgent,
                 });
                 return res.status(403).json({
                     error: 'Account Blocked',
@@ -279,6 +291,15 @@ router.post(
                     blockedAt: user.blockedAt,
                     blockedReason: user.blockedReason,
                 });
+                await auditService.logAuth({
+                    userId: user.id,
+                    email: user.email,
+                    action: 'USER_LOGIN_FAILED',
+                    success: false,
+                    reason: 'Account blocked',
+                    ipAddress: auditContext.ipAddress,
+                    userAgent: auditContext.userAgent,
+                });
                 return res.status(403).json({
                     error: 'Account Blocked',
                     message: 'Your account has been blocked. Please contact an administrator.',
@@ -345,6 +366,15 @@ router.post(
                 syncMethod: syncResult.appliedFromADGroups ? 'AD_GROUPS' : 'ADMIN_PANEL',
             });
 
+            await auditService.logAuth({
+                userId: user.id,
+                email: user.email,
+                action: 'LDAP_LOGIN',
+                success: true,
+                ipAddress: auditContext.ipAddress,
+                userAgent: auditContext.userAgent,
+            });
+
             return res.json({
                 token,
                 refreshToken,
@@ -368,6 +398,15 @@ router.post(
 
         // If LDAP didn't work or is disabled, try database authentication
         if (!user || !user.passwordHash) {
+            await auditService.logAuth({
+                userId: user?.id,
+                email,
+                action: 'USER_LOGIN_FAILED',
+                success: false,
+                reason: 'Invalid credentials',
+                ipAddress: auditContext.ipAddress,
+                userAgent: auditContext.userAgent,
+            });
             throw new UnauthorizedError('Invalid credentials');
         }
 
@@ -378,6 +417,15 @@ router.post(
                 email: user.email,
                 blockedAt: user.blockedAt,
                 blockedReason: user.blockedReason,
+            });
+            await auditService.logAuth({
+                userId: user.id,
+                email: user.email,
+                action: 'USER_LOGIN_FAILED',
+                success: false,
+                reason: 'Account blocked',
+                ipAddress: auditContext.ipAddress,
+                userAgent: auditContext.userAgent,
             });
             return res.status(403).json({
                 error: 'Account Blocked',
@@ -432,6 +480,16 @@ router.post(
                 blocked: shouldBlock,
             });
 
+            await auditService.logAuth({
+                userId: user.id,
+                email: user.email,
+                action: 'USER_LOGIN_FAILED',
+                success: false,
+                reason: shouldBlock ? `Account blocked after ${maxAttempts} attempts` : 'Invalid credentials',
+                ipAddress: auditContext.ipAddress,
+                userAgent: auditContext.userAgent,
+            });
+
             if (shouldBlock) {
                 throw new UnauthorizedError(`Account blocked after ${maxAttempts} failed login attempts. Please contact an administrator.`);
             }
@@ -464,6 +522,15 @@ router.post(
 
         logger.info('User logged in via database successfully', { userId: user.id, email: user.email });
 
+        await auditService.logAuth({
+            userId: user.id,
+            email: user.email,
+            action: 'USER_LOGIN',
+            success: true,
+            ipAddress: auditContext.ipAddress,
+            userAgent: auditContext.userAgent,
+        });
+
         res.json({
             token,
             user: {
@@ -492,6 +559,7 @@ router.post(
     validate(loginSchema),
     asyncHandler(async (req, res) => {
         const { email, password } = req.body;
+        const auditContext = getAuditContext(req);
 
         // Check if LDAP is enabled
         if (!ldapService.isEnabled()) {
@@ -634,6 +702,15 @@ router.post(
             ldapDN: ldapUser.dn,
             roles,
             syncMethod: syncResult.appliedFromADGroups ? 'AD_GROUPS' : 'ADMIN_PANEL',
+        });
+
+        await auditService.logAuth({
+            userId: user.id,
+            email: user.email,
+            action: 'LDAP_LOGIN',
+            success: true,
+            ipAddress: auditContext.ipAddress,
+            userAgent: auditContext.userAgent,
         });
 
         res.json({
