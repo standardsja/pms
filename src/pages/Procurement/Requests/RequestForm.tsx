@@ -583,6 +583,73 @@ const RequestForm = () => {
         }
     };
 
+    // Handle approval action
+    const handleApprove = async () => {
+        try {
+            const confirmResult = await Swal.fire({
+                title: 'Approve Request?',
+                text: 'This will advance the request to the next stage in the approval workflow.',
+                icon: 'question',
+                input: 'textarea',
+                inputPlaceholder: 'Optional comment...',
+                inputAttributes: {
+                    style: 'width: 100%; height: 80px;',
+                },
+                showCancelButton: true,
+                confirmButtonText: 'Approve',
+                confirmButtonColor: '#10b981',
+                cancelButtonText: 'Cancel',
+            });
+
+            if (!confirmResult.isConfirmed) return;
+
+            setIsSubmitting(true);
+            const response = await fetch(getApiUrl(`/api/requests/${id}/action`), {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-user-id': String(currentUserId),
+                },
+                body: JSON.stringify({
+                    action: 'APPROVE',
+                    comment: confirmResult.value || '',
+                }),
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.message || 'Failed to approve request');
+            }
+
+            await Swal.fire({
+                icon: 'success',
+                title: 'Approved!',
+                text: 'The request has been approved and moved to the next stage.',
+            });
+
+            // Refresh the page to show updated status
+            window.location.reload();
+        } catch (err: any) {
+            console.error('Approval failed:', err);
+            Swal.fire({ icon: 'error', title: 'Approval Failed', text: err.message || 'An error occurred' });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    // Determine if user can approve/reject at various workflow stages
+    const isDeptManager = userRoles.some((r: string) => r === 'DEPT_MANAGER' || r === 'MANAGER');
+    const isHOD = userRoles.some((r: string) => r === 'HEAD_OF_DIVISION' || r === 'HOD');
+
+    const canApproveDeptManager = !!(isAssignee && requestMeta?.status === 'DEPARTMENT_REVIEW' && isDeptManager);
+    const canApproveHOD = !!(isAssignee && requestMeta?.status === 'HOD_REVIEW' && isHOD);
+    const canApproveBudgetOfficerForm = !!(isAssignee && requestMeta?.status === 'FINANCE_REVIEW' && isBudgetOfficer);
+    const canApproveBudgetManagerForm = !!(isAssignee && requestMeta?.status === 'BUDGET_MANAGER_REVIEW' && isBudgetManager);
+    const canApproveProcurementForm = !!(isAssignee && requestMeta?.status === 'PROCUREMENT_REVIEW' && isProcurementRole);
+
+    // Consolidated: Can this user approve/reject the current request on the form?
+    const canApproveOrRejectForm = canApproveDeptManager || canApproveHOD || canApproveBudgetOfficerForm || canApproveBudgetManagerForm || canApproveProcurementForm;
+
     const handleProcurementTypeChange = (type: string) => {
         if (procurementType.includes(type)) {
             setProcurementType(procurementType.filter((t) => t !== type));
@@ -742,11 +809,16 @@ const RequestForm = () => {
                     }
                 }
 
+                // Check if this is a returned draft BEFORE we save
+                // (we need to know this before the PUT request)
+                const isReturnedDraft = requestMeta?.status === 'DRAFT' && requestRequesterId && Number(requestRequesterId) === Number(userId);
+
                 // Debug: log the full payload before sending
                 console.log('[RequestForm] Full updatePayload:', updatePayload);
                 console.log('[RequestForm] canEditProcurementSection:', canEditProcurementSection);
                 console.log('[RequestForm] Current request status:', requestMeta?.status);
                 console.log('[RequestForm] isAssignee:', isAssignee);
+                console.log('[RequestForm] isReturnedDraft:', isReturnedDraft);
 
                 const resp = await fetch(getApiUrl(`/api/requests/${id}`), {
                     method: 'PUT',
@@ -757,7 +829,19 @@ const RequestForm = () => {
                     body: JSON.stringify(updatePayload),
                 });
 
+                // Get the updated request data from the response
+                if (!resp.ok) {
+                    const err = await resp.json().catch(() => ({}));
+                    console.error('[RequestForm] PUT request failed:', err);
+                    throw new Error(err.message || resp.statusText || 'Failed to save request');
+                }
+
+                const updatedRequest = await resp.json();
+                const currentStatus = updatedRequest?.status;
+
                 // Debug log - show what was sent
+                console.log('[RequestForm] PUT response status:', currentStatus);
+                console.log('[RequestForm] PUT response:', updatedRequest);
                 console.log('[RequestForm] PUT payload dates:', {
                     dateReceived: updatePayload.dateReceived,
                     actionDate: updatePayload.actionDate,
@@ -788,105 +872,121 @@ const RequestForm = () => {
                 } else {
                     // If this is a returned draft and the current user is the original requester,
                     // offer to resubmit the request now (preserving the same form code fields).
-                    const requesterId = requestRequesterId;
-                    const isRequesterEditingDraft = requestMeta?.status === 'DRAFT' && requesterId && Number(requesterId) === Number(userId);
+                    // Use the fresh currentStatus from the API response, not the stale state
+                    const isCurrentlyDraft = currentStatus === 'DRAFT';
 
-                    if (isRequesterEditingDraft) {
-                        const confirmResubmit = await Swal.fire({
-                            icon: 'question',
-                            title: 'Save and resubmit?',
-                            text: 'This request was returned and is currently a draft. Do you want to save your changes and resubmit it for review now?',
-                            showCancelButton: true,
-                            confirmButtonText: 'Save & Resubmit',
-                            cancelButtonText: 'Save Only',
-                        });
+                    console.log('[RequestForm] Resubmit check:', {
+                        currentStatus,
+                        isCurrentlyDraft,
+                        requestRequesterId,
+                        currentUserId: userId,
+                        shouldShowDialog: isCurrentlyDraft && requestRequesterId && Number(requestRequesterId) === Number(userId),
+                    });
 
-                        if (confirmResubmit.isConfirmed) {
-                            try {
-                                const submitResp = await fetch(getApiUrl(`/api/requests/${id}/submit`), {
-                                    method: 'POST',
-                                    headers: {
-                                        'Content-Type': 'application/json',
-                                        'x-user-id': String(userId),
-                                    },
-                                    body: JSON.stringify({}),
-                                });
+                    try {
+                        if (isCurrentlyDraft && requestRequesterId && Number(requestRequesterId) === Number(userId)) {
+                            console.log('[RequestForm] Showing resubmit dialog...');
+                            const confirmResubmit = await Swal.fire({
+                                icon: 'question',
+                                title: 'Save and resubmit?',
+                                text: 'This request was returned and is currently a draft. Do you want to save your changes and resubmit it for review now?',
+                                showCancelButton: true,
+                                confirmButtonText: 'Save & Resubmit',
+                                cancelButtonText: 'Save Only',
+                            });
 
-                                if (submitResp.status === 409) {
-                                    // Splintering detected — show details and allow override (manager only)
-                                    const body = await submitResp.json().catch(() => ({}));
-                                    const details = body?.details || body;
-                                    const msg = `Suspicious split purchases detected within the last ${details?.windowDays || ''} days. Combined total: ${details?.combined || ''} (threshold ${
-                                        details?.threshold || ''
-                                    }).`;
-
-                                    if (!hasManagerRole) {
-                                        // Non-managers cannot override
-                                        await Swal.fire({
-                                            icon: 'warning',
-                                            title: 'Potential Splintering Detected',
-                                            text: `${msg} This request cannot be submitted and requires manager review. Please contact your department manager or procurement manager.`,
-                                            confirmButtonText: 'OK',
-                                        });
-                                        setIsSubmitting(false);
-                                        return;
-                                    }
-
-                                    const overrideConfirm = await Swal.fire({
-                                        icon: 'warning',
-                                        title: 'Potential Splintering Detected',
-                                        html: `
-                                            <p>${msg}</p>
-                                            <p class="mt-3 text-sm text-gray-600">
-                                                <strong>Manager Override:</strong> You have permission to proceed, but this action will be logged for audit purposes.
-                                            </p>
-                                        `,
-                                        showCancelButton: true,
-                                        confirmButtonText: 'Proceed & Log Override',
-                                        cancelButtonText: 'Cancel',
-                                        confirmButtonColor: '#d33',
-                                    });
-                                    if (!overrideConfirm.isConfirmed) {
-                                        setIsSubmitting(false);
-                                        return;
-                                    }
-
-                                    // Resend with override flag
-                                    const overrideResp = await fetch(getApiUrl(`/api/requests/${id}/submit`), {
+                            if (confirmResubmit.isConfirmed) {
+                                try {
+                                    const submitResp = await fetch(getApiUrl(`/api/requests/${id}/submit`), {
                                         method: 'POST',
                                         headers: {
                                             'Content-Type': 'application/json',
                                             'x-user-id': String(userId),
                                         },
-                                        body: JSON.stringify({ overrideSplinter: true }),
+                                        body: JSON.stringify({}),
                                     });
-                                    if (!overrideResp.ok) {
-                                        const err = await overrideResp.json().catch(() => ({}));
-                                        throw new Error(err.message || err.error || overrideResp.statusText || 'Resubmit failed after override');
-                                    }
-                                } else {
-                                    if (!submitResp.ok) {
-                                        const err = await submitResp.json().catch(() => ({}));
-                                        throw new Error(err.error || submitResp.statusText || 'Resubmit failed');
-                                    }
-                                }
 
-                                Swal.fire({ icon: 'success', title: 'Request resubmitted', text: 'Your request has been sent for review.' });
+                                    if (submitResp.status === 409) {
+                                        // Splintering detected — show details and allow override (manager only)
+                                        const body = await submitResp.json().catch(() => ({}));
+                                        const details = body?.details || body;
+                                        const msg = `Suspicious split purchases detected within the last ${details?.windowDays || ''} days. Combined total: ${details?.combined || ''} (threshold ${
+                                            details?.threshold || ''
+                                        }).`;
+
+                                        if (!hasManagerRole) {
+                                            // Non-managers cannot override
+                                            await Swal.fire({
+                                                icon: 'warning',
+                                                title: 'Potential Splintering Detected',
+                                                text: `${msg} This request cannot be submitted and requires manager review. Please contact your department manager or procurement manager.`,
+                                                confirmButtonText: 'OK',
+                                            });
+                                            setIsSubmitting(false);
+                                            return;
+                                        }
+
+                                        const overrideConfirm = await Swal.fire({
+                                            icon: 'warning',
+                                            title: 'Potential Splintering Detected',
+                                            html: `
+                                            <p>${msg}</p>
+                                            <p class="mt-3 text-sm text-gray-600">
+                                                <strong>Manager Override:</strong> You have permission to proceed, but this action will be logged for audit purposes.
+                                            </p>
+                                        `,
+                                            showCancelButton: true,
+                                            confirmButtonText: 'Proceed & Log Override',
+                                            cancelButtonText: 'Cancel',
+                                            confirmButtonColor: '#d33',
+                                        });
+                                        if (!overrideConfirm.isConfirmed) {
+                                            setIsSubmitting(false);
+                                            return;
+                                        }
+
+                                        // Resend with override flag
+                                        const overrideResp = await fetch(getApiUrl(`/api/requests/${id}/submit`), {
+                                            method: 'POST',
+                                            headers: {
+                                                'Content-Type': 'application/json',
+                                                'x-user-id': String(userId),
+                                            },
+                                            body: JSON.stringify({ overrideSplinter: true }),
+                                        });
+                                        if (!overrideResp.ok) {
+                                            const err = await overrideResp.json().catch(() => ({}));
+                                            throw new Error(err.message || err.error || overrideResp.statusText || 'Resubmit failed after override');
+                                        }
+                                    } else {
+                                        if (!submitResp.ok) {
+                                            const err = await submitResp.json().catch(() => ({}));
+                                            throw new Error(err.error || submitResp.statusText || 'Resubmit failed');
+                                        }
+                                    }
+
+                                    Swal.fire({ icon: 'success', title: 'Request resubmitted', text: 'Your request has been sent for review.' });
+                                    navigate('/apps/requests');
+                                } catch (submitErr: any) {
+                                    console.error('Resubmit after save failed', submitErr);
+                                    Swal.fire({ icon: 'error', title: 'Resubmit failed', text: submitErr?.message || String(submitErr) });
+                                    // Do NOT navigate so user can try resubmitting again
+                                    setIsSubmitting(false);
+                                    return;
+                                }
+                            } else {
+                                Swal.fire({ icon: 'success', title: 'Request updated', text: 'Your information has been saved' });
                                 navigate('/apps/requests');
-                            } catch (submitErr: any) {
-                                console.error('Resubmit after save failed', submitErr);
-                                Swal.fire({ icon: 'error', title: 'Resubmit failed', text: submitErr?.message || String(submitErr) });
-                                // Do NOT navigate so user can try resubmitting again
-                                setIsSubmitting(false);
-                                return;
                             }
                         } else {
+                            // Not a returned draft, just show success
                             Swal.fire({ icon: 'success', title: 'Request updated', text: 'Your information has been saved' });
                             navigate('/apps/requests');
                         }
-                    } else {
-                        Swal.fire({ icon: 'success', title: 'Request updated', text: 'Your information has been saved' });
-                        navigate('/apps/requests');
+                    } catch (resubmitErr: any) {
+                        console.error('[RequestForm] Error in resubmit block:', resubmitErr);
+                        Swal.fire({ icon: 'error', title: 'Error', text: resubmitErr?.message || String(resubmitErr) });
+                        setIsSubmitting(false);
                     }
                 }
             } else {
@@ -1213,7 +1313,7 @@ const RequestForm = () => {
                                                     isDisabled={isEditMode}
                                                     options={[{ value: '', label: '---' }, ...deptOptions]}
                                                     value={deptValue || { value: '', label: '---' }}
-                                                    onChange={(opt) => setHeaderDeptCode((opt && 'value' in opt ? opt.value : '') || '')}
+                                                    onChange={(opt) => setHeaderDeptCode(String((opt && 'value' in opt ? opt.value : '') || ''))}
                                                 />
                                             );
                                         })()}
@@ -1234,7 +1334,7 @@ const RequestForm = () => {
                                                     isDisabled={isEditMode}
                                                     options={[{ value: '', label: '---' }, ...monthOptions]}
                                                     value={monthValue || { value: '', label: '---' }}
-                                                    onChange={(opt) => setHeaderMonth((opt && 'value' in opt ? opt.value : '') || '')}
+                                                    onChange={(opt) => setHeaderMonth(String((opt && 'value' in opt ? opt.value : '') || ''))}
                                                 />
                                             );
                                         })()}
@@ -2110,6 +2210,27 @@ const RequestForm = () => {
                             >
                                 {isSubmitting ? 'Resubmitting…' : 'Resubmit for Review'}
                             </button>
+                        )}
+                        {/* Approve/Reject buttons for reviewers */}
+                        {isEditMode && canApproveOrRejectForm && (
+                            <>
+                                <button
+                                    type="button"
+                                    onClick={handleApprove}
+                                    disabled={isSubmitting}
+                                    className={`px-6 py-2 rounded bg-green-600 text-white font-medium ${isSubmitting ? 'opacity-60 cursor-not-allowed' : 'hover:bg-green-700'}`}
+                                >
+                                    ✓ Approve
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowRejectModal(true)}
+                                    disabled={isSubmitting}
+                                    className={`px-6 py-2 rounded bg-red-600 text-white font-medium ${isSubmitting ? 'opacity-60 cursor-not-allowed' : 'hover:bg-red-700'}`}
+                                >
+                                    ✗ Reject
+                                </button>
+                            </>
                         )}
                         <button
                             type="button"

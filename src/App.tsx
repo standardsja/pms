@@ -5,6 +5,7 @@ import { toggleRTL, toggleTheme, toggleLocale, toggleMenu, toggleLayout, toggleA
 import { verifyToken } from './store/authSlice';
 import store from './store';
 import { applyHolidayTheme } from './utils/holidayTheme';
+import { refreshTokenIfNeeded } from './utils/apiInterceptor';
 
 function App({ children }: PropsWithChildren) {
     const themeConfig = useSelector((state: IRootState) => state.themeConfig);
@@ -21,9 +22,14 @@ function App({ children }: PropsWithChildren) {
         dispatch(toggleSemidark(localStorage.getItem('semidark') || themeConfig.semidark));
         dispatch(toggleAccent(localStorage.getItem('accent') || (themeConfig as any).accent || 'blue'));
 
-        // Verify existing token on app load
-        const token = localStorage.getItem('token');
-        if (token) {
+        // Verify and restore existing token on app load
+        const token = localStorage.getItem('token') || localStorage.getItem('auth_token');
+        const refreshToken = localStorage.getItem('refreshToken');
+
+        if (token || refreshToken) {
+            // First, check if token is about to expire and refresh if needed
+            refreshTokenIfNeeded();
+            // Then verify the token
             dispatch(verifyToken() as any);
         }
 
@@ -35,7 +41,15 @@ function App({ children }: PropsWithChildren) {
             applyHolidayTheme();
         }, 1000 * 60 * 60 * 24); // Check daily
 
-        return () => clearInterval(holidayInterval);
+        // Proactively refresh token every 20 minutes to maintain session
+        const tokenRefreshInterval = setInterval(async () => {
+            await refreshTokenIfNeeded();
+        }, 20 * 60 * 1000);
+
+        return () => {
+            clearInterval(holidayInterval);
+            clearInterval(tokenRefreshInterval);
+        };
     }, [dispatch, themeConfig.theme, themeConfig.menu, themeConfig.layout, themeConfig.rtlClass, themeConfig.animation, themeConfig.navbar, themeConfig.locale, themeConfig.semidark]);
 
     return (

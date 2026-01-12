@@ -603,7 +603,7 @@ app.get('/api/notifications', authMiddleware, async (req, res) => {
             } catch (rawErr) {
                 console.error('Raw fallback for notifications failed:', rawErr);
                 // Return empty array instead of breaking the page
-                return res.json({ success: true, data: [], meta: { fallback: true, error: String(rawErr?.message || rawErr) } });
+                return res.json({ success: true, data: [], meta: { fallback: true, error: String((rawErr as any)?.message || rawErr) } });
             }
         }
 
@@ -763,7 +763,7 @@ app.get('/api/messages', authMiddleware, async (req, res) => {
                 messages = rows || [];
             } catch (rawErr) {
                 console.error('Raw fallback for messages failed:', rawErr);
-                return res.json({ success: true, data: [], meta: { fallback: true, error: String(rawErr?.message || rawErr) } });
+                return res.json({ success: true, data: [], meta: { fallback: true, error: String((rawErr as any)?.message || rawErr) } });
             }
         }
 
@@ -4923,6 +4923,7 @@ app.get('/api/admin/users', async (req, res) => {
             id: u.id,
             email: u.email,
             name: u.name,
+            externalId: u.externalId,
             department: u.department
                 ? {
                       id: u.department.id,
@@ -6284,7 +6285,7 @@ app.get(
                 return res.json({ success: true, data: mapped, meta: { fallback: true } });
             } catch (rawErr) {
                 console.error('Raw fallback for assignments failed:', rawErr);
-                return res.json({ success: true, data: [], meta: { fallback: true, error: String(rawErr?.message || rawErr) } });
+                return res.json({ success: true, data: [], meta: { fallback: true, error: String((rawErr as any)?.message || rawErr) } });
             }
         }
     })

@@ -371,6 +371,9 @@ const AdminDashboard = () => {
                                     <div className="flex-1 min-w-0">
                                         <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{user.name || user.email}</p>
                                         <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{user.email}</p>
+                                        {user.externalId && (
+                                            <p className="text-xs text-blue-600 dark:text-blue-400 truncate font-mono bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded mt-1">ID: {user.externalId}</p>
+                                        )}
                                         {userRoles.length > 0 && (
                                             <div className="flex gap-1 mt-1">
                                                 {userRoles.slice(0, 2).map((role) => (

@@ -142,7 +142,7 @@ export const EvaluationForm: React.FC<Props> = ({
                     <div className="p-5 space-y-4">
                         {evaluation.description && (
                             <div>
-                                <label className="block mb-2 text-sm font-semibold text-lg">BACKGROUND:</label>
+                                <label className="block mb-2 text-lg font-semibold">BACKGROUND:</label>
                                 <div className="p-3 bg-gray-50 dark:bg-gray-900 rounded border">
                                     <p className="whitespace-pre-wrap">{evaluation.description}</p>
                                 </div>
@@ -150,7 +150,7 @@ export const EvaluationForm: React.FC<Props> = ({
                         )}
                         {evaluation.description && (
                             <div>
-                                <label className="block mb-2 text-sm font-semibold text-lg">COMMENTS / JUSTIFICATION (Why is it needed?)</label>
+                                <label className="block mb-2 text-lg font-semibold">COMMENTS / JUSTIFICATION (Why is it needed?)</label>
                                 <div className="p-3 bg-gray-50 dark:bg-gray-900 rounded border">
                                     <p className="whitespace-pre-wrap">{evaluation.description}</p>
                                 </div>
