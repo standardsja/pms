@@ -3531,9 +3531,9 @@ app.post('/api/requests/:id/action', async (req, res) => {
                             const deptManager = await prisma.user.findFirst({
                                 where: {
                                     departmentId: updated.department.id,
-                                    roles: { some: { role: { name: 'DEPT_MANAGER' } } }
+                                    roles: { some: { role: { name: 'DEPT_MANAGER' } } },
                                 },
-                                select: { id: true, name: true }
+                                select: { id: true, name: true },
                             });
                             if (deptManager && !recipients.includes(deptManager.id)) {
                                 recipients.push(deptManager.id);
@@ -3552,9 +3552,9 @@ app.post('/api/requests/:id/action', async (req, res) => {
                             const hod = await prisma.user.findFirst({
                                 where: {
                                     departmentId: updated.department.id,
-                                    roles: { some: { role: { name: { in: ['HEAD_OF_DIVISION', 'HOD'] } } } }
+                                    roles: { some: { role: { name: { in: ['HEAD_OF_DIVISION', 'HOD'] } } } },
                                 },
-                                select: { id: true, name: true }
+                                select: { id: true, name: true },
                             });
                             if (hod && !recipients.includes(hod.id)) {
                                 recipients.push(hod.id);
@@ -4071,7 +4071,7 @@ app.post('/api/requests/:id/reject', async (req, res) => {
             const requesterId = request.requesterId || request.requester?.id;
             if (requesterId) {
                 console.log(`[REJECTION] Processing rejection for request ${request.id}, department: ${request.department?.id}`);
-                
+
                 // Get the rejecting user's name
                 const rejectingUser = await prisma.user.findUnique({
                     where: { id: actingUserId },
@@ -4091,9 +4091,9 @@ app.post('/api/requests/:id/reject', async (req, res) => {
                         const deptManager = await prisma.user.findFirst({
                             where: {
                                 departmentId: request.department.id,
-                                roles: { some: { role: { name: 'DEPT_MANAGER' } } }
+                                roles: { some: { role: { name: 'DEPT_MANAGER' } } },
                             },
-                            select: { id: true, name: true }
+                            select: { id: true, name: true },
                         });
                         if (deptManager && !recipients.includes(deptManager.id)) {
                             recipients.push(deptManager.id);
@@ -4112,9 +4112,9 @@ app.post('/api/requests/:id/reject', async (req, res) => {
                         const hod = await prisma.user.findFirst({
                             where: {
                                 departmentId: request.department.id,
-                                roles: { some: { role: { name: { in: ['HEAD_OF_DIVISION', 'HOD'] } } } }
+                                roles: { some: { role: { name: { in: ['HEAD_OF_DIVISION', 'HOD'] } } } },
                             },
-                            select: { id: true, name: true }
+                            select: { id: true, name: true },
                         });
                         if (hod && !recipients.includes(hod.id)) {
                             recipients.push(hod.id);
@@ -4174,7 +4174,7 @@ app.post('/api/requests/:id/reject', async (req, res) => {
                         console.warn(`[REJECTION] Error creating notification for ${recipientId}:`, notifErr);
                     }
                 }
-                
+
                 console.log(`[REJECTION] Completed successfully`);
             }
         } catch (notifErr) {
