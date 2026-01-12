@@ -4,6 +4,16 @@ import { prisma } from '../prismaClient.js';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.js';
 import { getHealthStatus, getMetrics } from '../services/monitoringService.js';
 
+// Safe prisma helpers to prevent system stats from failing when DB is unavailable
+const safeCount = async (countFn: () => Promise<number>, label: string): Promise<number> => {
+    try {
+        return await countFn();
+    } catch (error) {
+        console.error(`[Stats] ${label} count failed:`, error);
+        return 0;
+    }
+};
+
 const router = Router();
 
 // Server start time for uptime calculation
@@ -432,29 +442,37 @@ router.get('/system', async (req: Request, res: Response) => {
 
         // Requests this month
         console.log('[Stats] Counting requests this month...');
-        const requestsThisMonth = await prisma.request.count({
-            where: {
-                createdAt: {
-                    gte: monthStart,
-                },
-            },
-        });
+        const requestsThisMonth = await safeCount(
+            () =>
+                prisma.request.count({
+                    where: {
+                        createdAt: {
+                            gte: monthStart,
+                        },
+                    },
+                }),
+            'Requests this month'
+        );
         console.log(`[Stats] Requests this month: ${requestsThisMonth}`);
 
         // Innovation ideas (total)
         console.log('[Stats] Counting innovation ideas...');
-        const innovationIdeas = await prisma.idea.count();
+        const innovationIdeas = await safeCount(() => prisma.idea.count(), 'Innovation ideas');
         console.log(`[Stats] Innovation ideas: ${innovationIdeas}`);
 
         // Pending approvals (requests awaiting approval)
         console.log('[Stats] Counting pending approvals...');
-        const pendingApprovals = await prisma.request.count({
-            where: {
-                status: {
-                    in: ['SUBMITTED', 'DEPARTMENT_REVIEW', 'HOD_REVIEW', 'PROCUREMENT_REVIEW', 'FINANCE_REVIEW'],
-                },
-            },
-        });
+        const pendingApprovals = await safeCount(
+            () =>
+                prisma.request.count({
+                    where: {
+                        status: {
+                            in: ['SUBMITTED', 'DEPARTMENT_REVIEW', 'HOD_REVIEW', 'PROCUREMENT_REVIEW', 'FINANCE_REVIEW'],
+                        },
+                    },
+                }),
+            'Pending approvals'
+        );
         console.log(`[Stats] Pending approvals: ${pendingApprovals}`);
 
         // Get comprehensive health metrics from monitoring service
@@ -463,13 +481,17 @@ router.get('/system', async (req: Request, res: Response) => {
 
         // Total processed requests (all time)
         console.log('[Stats] Counting total processed requests...');
-        const totalProcessedRequests = await prisma.request.count({
-            where: {
-                status: {
-                    in: ['DEPARTMENT_APPROVED', 'FINANCE_APPROVED', 'SENT_TO_VENDOR', 'CLOSED'],
-                },
-            },
-        });
+        const totalProcessedRequests = await safeCount(
+            () =>
+                prisma.request.count({
+                    where: {
+                        status: {
+                            in: ['DEPARTMENT_APPROVED', 'FINANCE_APPROVED', 'SENT_TO_VENDOR', 'CLOSED'],
+                        },
+                    },
+                }),
+            'Total processed requests'
+        );
         console.log(`[Stats] Total processed: ${totalProcessedRequests}`);
 
         const apiResponseTime =

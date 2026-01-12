@@ -4,7 +4,6 @@ import { useDispatch } from 'react-redux';
 import { setPageTitle } from '../../../store/themeConfigSlice';
 import IconArrowLeft from '../../../components/Icon/IconArrowLeft';
 import IconDownload from '../../../components/Icon/IconDownload';
-import IconPrinter from '../../../components/Icon/IconPrinter';
 import IconEdit from '../../../components/Icon/IconEdit';
 import IconCircleCheck from '../../../components/Icon/IconCircleCheck';
 import IconX from '../../../components/Icon/IconX';
@@ -707,13 +706,6 @@ export default function FormDetail() {
                             <IconEdit className="w-5 h-5" />
                             <span>Edit</span>
                         </button>
-                        <button
-                            onClick={() => window.print()}
-                            className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-                        >
-                            <IconPrinter className="w-5 h-5" />
-                            <span>Print</span>
-                        </button>
                         <button onClick={handleDownloadPDF} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors">
                             <IconDownload className="w-5 h-5" />
                             <span>Download PDF</span>
@@ -850,7 +842,7 @@ export default function FormDetail() {
                 <ul className="space-y-2 text-blue-800 dark:text-blue-200">
                     <li className="flex gap-2">
                         <span className="font-semibold">1.</span>
-                        <span>Download the form or print it directly</span>
+                        <span>Download the form to complete and submit</span>
                     </li>
                     <li className="flex gap-2">
                         <span className="font-semibold">2.</span>
