@@ -103,6 +103,17 @@ router.post('/heartbeat', authMiddleware, async (req: Request, res: Response) =>
             lastSeen: new Date(),
         });
 
+        // Also update lastLogin in database so admin dashboard shows users as online
+        // (non-fatal if this fails)
+        try {
+            await prisma.user.update({
+                where: { id: userId },
+                data: { lastLogin: new Date() },
+            });
+        } catch (dbErr: any) {
+            console.warn('[Stats/Heartbeat] Failed to update lastLogin in database:', dbErr?.message);
+        }
+
         console.log('[Stats/Heartbeat] Session updated. Active sessions:', activeSessions.size);
         console.log('[Stats/Heartbeat] Active sessions map:', Array.from(activeSessions.entries()));
 

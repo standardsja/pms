@@ -713,6 +713,24 @@ router.post(
             userAgent: auditContext.userAgent,
         });
 
+        // Update last login and reset failed login counter (non-fatal)
+        try {
+            await prisma.user.update({
+                where: { id: user.id },
+                data: {
+                    lastLogin: new Date(),
+                    failedLogins: 0,
+                    lastFailedLogin: null,
+                },
+            });
+        } catch (updateErr: any) {
+            logger.error('Non-fatal: failed to update user login fields after LDAP login (/ldap-login)', {
+                userId: user.id,
+                email: user.email,
+                error: updateErr?.message || String(updateErr),
+            });
+        }
+
         res.json({
             token,
             user: {
