@@ -73,10 +73,7 @@ async function performTokenRefresh(): Promise<string | null> {
  * Enhanced fetch wrapper that handles token refresh
  * If a request gets a 401, automatically refreshes token and retries
  */
-export async function fetchWithTokenRefresh(
-    url: string,
-    options: RequestInit = {}
-): Promise<Response> {
+export async function fetchWithTokenRefresh(url: string, options: RequestInit = {}): Promise<Response> {
     // Add current token to request
     let token = localStorage.getItem('token');
     const headers = new Headers(options.headers || {});
