@@ -4920,6 +4920,7 @@ app.get('/api/admin/users', async (req, res) => {
             id: u.id,
             email: u.email,
             name: u.name,
+            externalId: u.externalId,
             department: u.department
                 ? {
                       id: u.department.id,
