@@ -55,6 +55,16 @@ const BulkUserManagement = () => {
     const [batchLoading, setBatchLoading] = useState(false);
     const [batchSuccess, setBatchSuccess] = useState('');
 
+    // Individual user creation state
+    const [showCreateUser, setShowCreateUser] = useState(false);
+    const [newUserForm, setNewUserForm] = useState({
+        email: '',
+        name: '',
+        department: '',
+        role: '',
+    });
+    const [createUserLoading, setCreateUserLoading] = useState(false);
+
     useEffect(() => {
         dispatch(setPageTitle('Bulk User Management'));
         loadUsers();
@@ -183,6 +193,43 @@ bob.johnson@example.com,Bob Johnson,Finance,User`;
         setSelectedDepartment(null);
         setDeactivationReason('');
         setBatchSuccess('');
+    };
+
+    const handleCreateUser = async () => {
+        if (!newUserForm.email || !newUserForm.name || !newUserForm.department || !newUserForm.role) {
+            setError('Please fill in all fields');
+            return;
+        }
+
+        setCreateUserLoading(true);
+        try {
+            const response = await fetch(getApiUrl('/api/admin/create-user'), {
+                method: 'POST',
+                headers: { ...getAuthHeadersSync(), 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email: newUserForm.email,
+                    name: newUserForm.name,
+                    department: newUserForm.department,
+                    role: newUserForm.role,
+                }),
+            });
+
+            if (!response.ok) {
+                const errData = await response.json();
+                throw new Error(errData.message || 'Failed to create user');
+            }
+
+            const data = await response.json();
+            setSuccess(`User ${newUserForm.email} created successfully! Default password: Passw0rd!`);
+            setNewUserForm({ email: '', name: '', department: '', role: '' });
+            setShowCreateUser(false);
+            loadUsers(); // Refresh users list
+            setTimeout(() => setSuccess(''), 5000);
+        } catch (e: any) {
+            setError(e.message);
+        } finally {
+            setCreateUserLoading(false);
+        }
     };
 
     const handleBatchRoleAssignment = async () => {
@@ -317,6 +364,86 @@ bob.johnson@example.com,Bob Johnson,Finance,User`;
                     {error}
                 </div>
             )}
+
+            {/* Create Individual User Section */}
+            <div className="panel p-6">
+                <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-xl font-bold">Create Individual User</h2>
+                    <button onClick={() => setShowCreateUser(!showCreateUser)} className={`btn btn-sm ${showCreateUser ? 'btn-outline-primary' : 'btn-primary'}`}>
+                        {showCreateUser ? 'Hide Form' : 'Add User'}
+                    </button>
+                </div>
+
+                {showCreateUser && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                        <div>
+                            <label className="block text-sm font-semibold mb-2">Email Address</label>
+                            <input
+                                type="email"
+                                placeholder="user@example.com"
+                                value={newUserForm.email}
+                                onChange={(e) => setNewUserForm({ ...newUserForm, email: e.target.value })}
+                                className="form-input"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-semibold mb-2">Full Name</label>
+                            <input type="text" placeholder="John Doe" value={newUserForm.name} onChange={(e) => setNewUserForm({ ...newUserForm, name: e.target.value })} className="form-input" />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-semibold mb-2">Department</label>
+                            <select value={newUserForm.department} onChange={(e) => setNewUserForm({ ...newUserForm, department: e.target.value })} className="form-select">
+                                <option value="">Select Department</option>
+                                {departments.map((dept) => (
+                                    <option key={dept.id} value={dept.name}>
+                                        {dept.name}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-semibold mb-2">Role</label>
+                            <select value={newUserForm.role} onChange={(e) => setNewUserForm({ ...newUserForm, role: e.target.value })} className="form-select">
+                                <option value="">Select Role</option>
+                                {roles.map((role) => (
+                                    <option key={role.id} value={role.name}>
+                                        {role.name}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div className="md:col-span-2 flex gap-2">
+                            <button onClick={handleCreateUser} disabled={createUserLoading} className="btn btn-primary flex-1">
+                                {createUserLoading ? (
+                                    <>
+                                        <IconLoader className="w-4 h-4 mr-2 animate-spin" />
+                                        Creating...
+                                    </>
+                                ) : (
+                                    'Create User'
+                                )}
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setShowCreateUser(false);
+                                    setNewUserForm({ email: '', name: '', department: '', role: '' });
+                                }}
+                                className="btn btn-outline-primary"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+
+                        <div className="md:col-span-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/40 rounded text-sm text-blue-800 dark:text-blue-300">
+                            💡 New user will be created with default password: <span className="font-mono font-semibold">Passw0rd!</span>
+                        </div>
+                    </div>
+                )}
+            </div>
 
             {/* Import Section */}
             <div className="panel p-6">

@@ -5,6 +5,7 @@ import express, { Router, Request, Response } from 'express';
 import { prisma } from '../prismaClient.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { logger } from '../config/logger.js';
+import bcryptjs from 'bcryptjs';
 
 const router: Router = express.Router();
 
@@ -536,6 +537,96 @@ router.post('/system-config', adminOnly, async (req: Request, res: Response) => 
 });
 
 /**
+ * POST /api/admin/create-user - Create a single user
+ */
+router.post('/create-user', adminOnly, async (req: Request, res: Response) => {
+    try {
+        const { email, name, department, role } = req.body;
+
+        // Validate input
+        if (!email || !name || !department) {
+            return res.status(400).json({ success: false, message: 'Email, name, and department are required' });
+        }
+
+        // Check if user already exists
+        const existingUser = await prisma.user.findUnique({ where: { email } });
+        if (existingUser) {
+            return res.status(400).json({ success: false, message: 'User with this email already exists' });
+        }
+
+        // Hash default password
+        const defaultPassword = 'Passw0rd!';
+        const passwordHash = await bcryptjs.hash(defaultPassword, 10);
+
+        // Find department by name
+        let dept = await prisma.department.findFirst({
+            where: { name: department },
+        });
+
+        if (!dept) {
+            // Create department if not found
+            dept = await prisma.department.create({
+                data: {
+                    name: department,
+                    code: department.substring(0, 4).toUpperCase(),
+                },
+            });
+        }
+
+        // Create the user
+        const newUser = await prisma.user.create({
+            data: {
+                email,
+                name,
+                passwordHash,
+                departmentId: dept.id,
+            },
+        });
+
+        // Assign role if provided
+        if (role) {
+            try {
+                const roleRecord = await prisma.role.findFirst({
+                    where: { name: role },
+                });
+
+                if (roleRecord) {
+                    await prisma.userRole.upsert({
+                        where: {
+                            userId_roleId: {
+                                userId: newUser.id,
+                                roleId: roleRecord.id,
+                            },
+                        },
+                        create: {
+                            userId: newUser.id,
+                            roleId: roleRecord.id,
+                        },
+                        update: {},
+                    });
+                }
+            } catch (roleErr: any) {
+                // Non-fatal role assignment error
+                logger.warn('Failed to assign role to new user', { error: roleErr, userId: newUser.id, role });
+            }
+        }
+
+        res.status(201).json({
+            success: true,
+            message: `User ${email} created successfully with default password: ${defaultPassword}`,
+            user: newUser,
+        });
+    } catch (error: any) {
+        logger.error('Failed to create user', { error });
+        res.status(500).json({
+            success: false,
+            message: 'Failed to create user',
+            error: error.message,
+        });
+    }
+});
+
+/**
  * POST /api/admin/bulk-import - Import users from CSV
  */
 router.post('/bulk-import', adminOnly, async (req: Request, res: Response) => {
@@ -578,8 +669,7 @@ router.post('/bulk-import', adminOnly, async (req: Request, res: Response) => {
         let successCount = 0;
         let failureCount = 0;
         const details: string[] = [];
-        const bcrypt = await import('bcryptjs');
-        const hash = await bcrypt.hash('Passw0rd!', 10);
+        const hash = await bcryptjs.hash('Passw0rd!', 10);
 
         // Parse data rows
         for (let i = 1; i < lines.length; i++) {
@@ -1856,8 +1946,7 @@ router.post('/users', adminOnly, async (req: Request, res: Response) => {
         // Hash password if provided (optional for dummy users)
         let passwordHash = null;
         if (password) {
-            const bcrypt = await import('bcryptjs');
-            passwordHash = await bcrypt.hash(password, 10);
+            passwordHash = await bcryptjs.hash(password, 10);
         }
 
         // Create user with userSource=LOCAL
