@@ -226,6 +226,7 @@ const RequestForm = () => {
     const [showRejectModal, setShowRejectModal] = useState(false);
     const [rejectionNote, setRejectionNote] = useState('');
     const [isRejecting, setIsRejecting] = useState(false);
+    const [isRejectDisabled, setIsRejectDisabled] = useState(false); // Disable reject button state
 
     // Request actions/messages
     const [requestActions, setRequestActions] = useState<Array<{ id: number; action: string; comment: string | null; performedBy: { name: string } | null; createdAt: string }>>([]);
@@ -577,6 +578,7 @@ const RequestForm = () => {
         }
 
         setIsRejecting(true);
+        setIsRejectDisabled(true); // Disable the reject button
         try {
             const response = await fetch(getApiUrl(`/api/requests/${id}/reject`), {
                 method: 'POST',
@@ -598,7 +600,6 @@ const RequestForm = () => {
             setShowRejectModal(false);
 
             // Update local state to reflect the rejection
-            // This creates an optimistic UI update so the user sees it immediately
             const newRejectionAction = {
                 id: Date.now(), // Temporary ID
                 action: 'RETURN',
@@ -620,12 +621,18 @@ const RequestForm = () => {
                 title: 'Rejected!',
                 text: 'The request has been rejected and returned to the requester. The rejection is now visible in the Messages panel.',
                 confirmButtonText: 'OK',
+            }).then(() => {
+                // Redirect or refresh the page here
+                window.location.reload(); // Refresh the page
+                // Alternatively, you can use a redirect to another page
+                // history.push('/some-other-page'); // Use your routing method
             });
         } catch (err: any) {
             console.error('Rejection failed:', err);
             Swal.fire({ icon: 'error', title: 'Rejection Failed', text: err.message || 'An error occurred' });
         } finally {
             setIsRejecting(false);
+            setIsRejectDisabled(false); // Re-enable the reject button if needed
         }
     };
 
@@ -1002,7 +1009,7 @@ const RequestForm = () => {
                                         });
                                         if (!overrideResp.ok) {
                                             const err = await overrideResp.json().catch(() => ({}));
-                                            throw new Error(err.message || err.error || overrideResp.statusText || 'Resubmit failed after override');
+                                            throw new Error(err.message || overrideResp.statusText || 'Resubmit failed after override');
                                         }
                                     } else {
                                         if (!submitResp.ok) {
@@ -2331,7 +2338,7 @@ const RequestForm = () => {
                             >
                                 Cancel
                             </button>
-                            <button type="button" onClick={handleReject} disabled={isRejecting} className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-60">
+                            <button type="button" onClick={handleReject} disabled={isRejecting || isRejectDisabled} className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-60">
                                 {isRejecting ? 'Rejecting...' : 'Reject Request'}
                             </button>
                         </div>
