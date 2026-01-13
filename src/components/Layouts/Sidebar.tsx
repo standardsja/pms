@@ -152,25 +152,9 @@ const Sidebar = () => {
         </li>
     );
 
-    useEffect(() => {
-        const selector = document.querySelector('.sidebar ul a[href="' + window.location.pathname + '"]');
-        if (selector) {
-            selector.classList.add('active');
-            const ul: any = selector.closest('ul.sub-menu');
-            if (ul) {
-                let ele: any = ul.closest('li.menu').querySelectorAll('.nav-link') || [];
-                if (ele.length) {
-                    ele = ele[0];
-                    setTimeout(() => {
-                        ele.click();
-                    });
-                }
-            }
-        }
-        // Don't auto-click sidebar items for non-module routes (like /profile, /settings)
-        // when a module is locked. This prevents the sidebar from switching away from
-        // the locked module display.
-    }, []);
+    // Removed manual DOM manipulation for active state.
+    // React Router's NavLink with `end` prop handles active state correctly
+    // This prevents multiple menu items showing as active simultaneously
 
     useEffect(() => {
         const syncLocks = () => setModuleLocks(getModuleLocks());
@@ -313,17 +297,19 @@ const Sidebar = () => {
                             <IconCaretsDown className="m-auto rotate-90" />
                         </button>
                     </div>
-                    {/* Quick access to onboarding without module selector */}
-                    <div className="px-4 pb-3">
-                        <NavLink
-                            to="/onboarding?from=sidebar"
-                            state={{ from: 'sidebar' }}
-                            className="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/10 text-primary font-semibold hover:bg-primary/15 transition-colors"
-                        >
-                            <IconMenuMore className="w-5 h-5" />
-                            <span>Onboarding</span>
-                        </NavLink>
-                    </div>
+                    {/* Quick access to onboarding without module selector - only for non-admin users */}
+                    {!isAdmin && (
+                        <div className="px-4 pb-3">
+                            <NavLink
+                                to="/onboarding?from=sidebar"
+                                state={{ from: 'sidebar' }}
+                                className="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/10 text-primary font-semibold hover:bg-primary/15 transition-colors"
+                            >
+                                <IconMenuMore className="w-5 h-5" />
+                                <span>Onboarding</span>
+                            </NavLink>
+                        </div>
+                    )}
 
                     <PerfectScrollbar className="h-[calc(100vh-80px)] relative">
                         <ul className="relative font-semibold space-y-0.5 p-4 py-0">
@@ -336,7 +322,7 @@ const Sidebar = () => {
                                     </h2>
 
                                     <li className="nav-item">
-                                        <NavLink to="/procurement/admin" className="group">
+                                        <NavLink to="/procurement/admin" end className="group">
                                             <div className="flex items-center">
                                                 <IconMenuDashboard className="group-hover:!text-primary shrink-0" />
                                                 <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Settings & Control</span>
@@ -345,7 +331,16 @@ const Sidebar = () => {
                                     </li>
 
                                     <li className="nav-item">
-                                        <NavLink to="/procurement/admin/modules" className="group">
+                                        <NavLink to="/apps/requests" end className="group">
+                                            <div className="flex items-center">
+                                                <IconFile className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">All Requests</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+
+                                    <li className="nav-item">
+                                        <NavLink to="/procurement/admin/modules" end className="group">
                                             <div className="flex items-center">
                                                 <IconLock className="group-hover:!text-primary shrink-0" />
                                                 <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Module Access Control</span>
@@ -354,7 +349,7 @@ const Sidebar = () => {
                                     </li>
 
                                     <li className="nav-item">
-                                        <NavLink to="/procurement/admin/assign-requests" className="group">
+                                        <NavLink to="/procurement/admin/assign-requests" end className="group">
                                             <div className="flex items-center">
                                                 <IconUsersGroup className="group-hover:!text-primary shrink-0" />
                                                 <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Assign Requests</span>
@@ -363,7 +358,7 @@ const Sidebar = () => {
                                     </li>
 
                                     <li className="nav-item">
-                                        <NavLink to="/procurement/admin/system-dashboard" className="group">
+                                        <NavLink to="/procurement/admin/system-dashboard" end className="group">
                                             <div className="flex items-center">
                                                 <IconBarChart className="group-hover:!text-primary shrink-0" />
                                                 <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">System Dashboard</span>
@@ -372,7 +367,7 @@ const Sidebar = () => {
                                     </li>
 
                                     <li className="nav-item">
-                                        <NavLink to="/procurement/admin/departments" className="group">
+                                        <NavLink to="/procurement/admin/departments" end className="group">
                                             <div className="flex items-center">
                                                 <IconBuilding className="group-hover:!text-primary shrink-0" />
                                                 <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Departments</span>
@@ -381,7 +376,7 @@ const Sidebar = () => {
                                     </li>
 
                                     <li className="nav-item">
-                                        <NavLink to="/procurement/admin/user-security" className="group">
+                                        <NavLink to="/procurement/admin/user-security" end className="group">
                                             <div className="flex items-center">
                                                 <IconShield className="group-hover:!text-primary shrink-0" />
                                                 <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">User Security</span>
@@ -390,7 +385,7 @@ const Sidebar = () => {
                                     </li>
 
                                     <li className="nav-item">
-                                        <NavLink to="/procurement/admin/audit-logs" className="group">
+                                        <NavLink to="/procurement/admin/audit-logs" end className="group">
                                             <div className="flex items-center">
                                                 <IconHistory className="group-hover:!text-primary shrink-0" />
                                                 <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Audit & Compliance</span>
@@ -399,7 +394,7 @@ const Sidebar = () => {
                                     </li>
 
                                     <li className="nav-item">
-                                        <NavLink to="/procurement/admin/workflow-config" className="group">
+                                        <NavLink to="/procurement/admin/workflow-config" end className="group">
                                             <div className="flex items-center">
                                                 <IconSettings className="group-hover:!text-primary shrink-0" />
                                                 <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Workflow Config</span>
@@ -408,7 +403,7 @@ const Sidebar = () => {
                                     </li>
 
                                     <li className="nav-item">
-                                        <NavLink to="/procurement/admin/roles-permissions" className="group">
+                                        <NavLink to="/procurement/admin/roles-permissions" end className="group">
                                             <div className="flex items-center">
                                                 <IconKey className="group-hover:!text-primary shrink-0" />
                                                 <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Roles & Permissions</span>
@@ -417,7 +412,7 @@ const Sidebar = () => {
                                     </li>
 
                                     <li className="nav-item">
-                                        <NavLink to="/procurement/admin/bulk-users" className="group">
+                                        <NavLink to="/procurement/admin/bulk-users" end className="group">
                                             <div className="flex items-center">
                                                 <IconUpload className="group-hover:!text-primary shrink-0" />
                                                 <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Bulk Users</span>
@@ -426,7 +421,7 @@ const Sidebar = () => {
                                     </li>
 
                                     <li className="nav-item">
-                                        <NavLink to="/procurement/admin/system-config" className="group">
+                                        <NavLink to="/procurement/admin/system-config" end className="group">
                                             <div className="flex items-center">
                                                 <IconGear className="group-hover:!text-primary shrink-0" />
                                                 <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">System Config</span>
