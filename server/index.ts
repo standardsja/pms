@@ -3715,8 +3715,10 @@ app.post('/api/requests/:id/action', async (req, res) => {
                             // Fetch recipient details for email
                             const recipient = await prisma.user.findUnique({
                                 where: { id: recipientId },
-                                select: { name: true, email: true },
+                                select: { id: true, name: true, email: true },
                             });
+
+                            console.log(`[REJECTION] Recipient ${recipientId} details:`, { id: recipient?.id, name: recipient?.name, email: recipient?.email });
 
                             // Create message in system
                             await prisma.message.create({
@@ -3730,8 +3732,10 @@ app.post('/api/requests/:id/action', async (req, res) => {
                             console.log(`[REJECTION] Created message for recipient ${recipientId}`);
 
                             // Send email notification
+                            console.log(`[REJECTION] Email check - recipient?.email exists: ${!!recipient?.email}`);
                             if (recipient?.email) {
-                                await emailService.sendRejectionNotification(
+                                console.log(`[REJECTION] About to call sendRejectionNotification with email: ${recipient.email}`);
+                                const emailSent = await emailService.sendRejectionNotification(
                                     recipient.email,
                                     recipient.name || 'User',
                                     updated.id,
@@ -3739,7 +3743,9 @@ app.post('/api/requests/:id/action', async (req, res) => {
                                     comment ? comment.trim() : 'No reason provided',
                                     rejectorName
                                 );
-                                console.log(`[REJECTION] Sent email notification to ${recipient.email}`);
+                                console.log(`[REJECTION] Email send result: ${emailSent}`);
+                            } else {
+                                console.warn(`[REJECTION] No email address found for recipient ${recipientId} (${recipient?.name}). Skipping email notification.`);
                             }
                         } catch (msgErr) {
                             console.warn(`[REJECTION] Error creating message/email for ${recipientId}:`, msgErr);
@@ -4289,9 +4295,15 @@ app.post('/api/requests/:id/reject', async (req, res) => {
 
                 console.log(`[REJECTION] Total recipients: ${recipients.length}`, recipients);
 
-                // Create messages for all recipients
+                // Create messages and send emails for all recipients
                 for (const recipientId of recipients) {
                     try {
+                        // Fetch recipient details for email
+                        const recipient = await prisma.user.findUnique({
+                            where: { id: recipientId },
+                            select: { id: true, name: true, email: true },
+                        });
+
                         await prisma.message.create({
                             data: {
                                 fromUserId: actingUserId,
@@ -4301,8 +4313,25 @@ app.post('/api/requests/:id/reject', async (req, res) => {
                             },
                         });
                         console.log(`[REJECTION] Created message for recipient ${recipientId}`);
+
+                        // Send email notification
+                        console.log(`[REJECTION] Email check - recipient?.email exists: ${!!recipient?.email}`);
+                        if (recipient?.email) {
+                            console.log(`[REJECTION] About to call sendRejectionNotification with email: ${recipient.email}`);
+                            const emailSent = await emailService.sendRejectionNotification(
+                                recipient.email,
+                                recipient.name || 'User',
+                                request.id,
+                                request.reference || String(request.id),
+                                note.trim() || 'No reason provided',
+                                rejectorName
+                            );
+                            console.log(`[REJECTION] Email send result: ${emailSent}`);
+                        } else {
+                            console.warn(`[REJECTION] No email address found for recipient ${recipientId} (${recipient?.name}). Skipping email notification.`);
+                        }
                     } catch (msgErr) {
-                        console.warn(`[REJECTION] Error creating message for ${recipientId}:`, msgErr);
+                        console.warn(`[REJECTION] Error creating message/email for ${recipientId}:`, msgErr);
                     }
                 }
 
