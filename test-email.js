@@ -12,7 +12,7 @@ const transporter = nodemailer.createTransport({
         pass: process.env.SMTP_PASSWORD,
     },
     debug: true, // Enable debug output
-    logger: true  // Log to console
+    logger: true, // Log to console
 });
 
 async function testEmail() {
@@ -22,10 +22,10 @@ async function testEmail() {
         console.log('User:', process.env.SMTP_USER);
         console.log('Port:', process.env.SMTP_PORT);
         console.log('Password set:', process.env.SMTP_PASSWORD ? 'YES' : 'NO');
-        
+
         await transporter.verify();
         console.log('✅ SMTP connection verified!');
-        
+
         console.log('\nSending test email...');
         const info = await transporter.sendMail({
             from: process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER,
@@ -34,7 +34,7 @@ async function testEmail() {
             text: 'This is a test email from the procurement management system.',
             html: '<p>This is a <strong>test email</strong> from the procurement management system.</p>',
         });
-        
+
         console.log('✅ Email sent successfully!');
         console.log('Message ID:', info.messageId);
     } catch (error) {
