@@ -453,9 +453,7 @@ const RequestForm = () => {
                 const cleanedSequenceFromRequest = rawSequenceFromRequest.replace(/[^0-9A-Za-z]/g, '');
                 const cleanedSequenceFromTitle = (derivedHeaderFromTitle.sequence || '').replace(/[^0-9A-Za-z]/g, '');
                 const effectiveSequence =
-                    cleanedSequenceFromRequest === '' || cleanedSequenceFromRequest === '0' || cleanedSequenceFromRequest === '000'
-                        ? cleanedSequenceFromTitle
-                        : cleanedSequenceFromRequest;
+                    cleanedSequenceFromRequest === '' || cleanedSequenceFromRequest === '0' || cleanedSequenceFromRequest === '000' ? cleanedSequenceFromTitle : cleanedSequenceFromRequest;
 
                 setHeaderSequence((effectiveSequence || '').padStart(3, '0'));
 
