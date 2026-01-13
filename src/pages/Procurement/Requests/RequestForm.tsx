@@ -2241,13 +2241,15 @@ const RequestForm = () => {
                             type="submit"
                             disabled={isSubmitting || (!isEditMode && (!isFormCodeComplete || headerSequence === '000')) || (isEditMode && !canEditForm)}
                             className={`px-6 py-2 rounded bg-primary text-white font-medium ${
-                                isSubmitting || (!isEditMode && (!isFormCodeComplete || headerSequence === '000')) || (isEditMode && !canEditForm) ? 'opacity-60 cursor-not-allowed' : 'hover:opacity-95'
+                                isSubmitting || (!isEditMode && (!isFormCodeComplete || headerSequence === '000')) || (isEditMode && !canEditForm)
+                                    ? 'opacity-60 cursor-not-allowed'
+                                    : 'hover:opacity-95'
                             }`}
                             title={
-                                !isEditMode && (!isFormCodeComplete || headerSequence === '000') 
-                                    ? 'Complete the form code before submitting' 
-                                    : isEditMode && !canEditForm 
-                                    ? 'You do not have permission to edit this request' 
+                                !isEditMode && (!isFormCodeComplete || headerSequence === '000')
+                                    ? 'Complete the form code before submitting'
+                                    : isEditMode && !canEditForm
+                                    ? 'You do not have permission to edit this request'
                                     : undefined
                             }
                         >

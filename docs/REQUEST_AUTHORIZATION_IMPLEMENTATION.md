@@ -16,11 +16,11 @@ Implemented comprehensive authorization controls ensuring only authorized users 
 1. **Request Creator** - Can edit only when status is `DRAFT`
 2. **Current Assignee** - Can edit at their approval stage
 3. **Full Access Roles** - Can edit at any stage:
-   - `EXECUTIVE_DIRECTOR`
-   - `EXECUTIVE`
-   - `PROCUREMENT_OFFICER`
-   - `PROCUREMENT_MANAGER`
-   - `ADMIN`
+    - `EXECUTIVE_DIRECTOR`
+    - `EXECUTIVE`
+    - `PROCUREMENT_OFFICER`
+    - `PROCUREMENT_MANAGER`
+    - `ADMIN`
 
 ### Who Can Approve/Reject a Request?
 
@@ -29,7 +29,7 @@ Implemented comprehensive authorization controls ensuring only authorized users 
 
 ### Exclusions
 
-- **Evaluation Forms** - NOT restricted (multiple users need to edit after procurement dispatch)
+-   **Evaluation Forms** - NOT restricted (multiple users need to edit after procurement dispatch)
 
 ---
 
@@ -42,23 +42,17 @@ Implemented comprehensive authorization controls ensuring only authorized users 
 
 ```typescript
 const existingRequest = await prisma.procurementRequest.findUnique({
-  where: { id: requestId },
-  include: { requester: true }
+    where: { id: requestId },
+    include: { requester: true },
 });
 
 const actingUser = await prisma.user.findUnique({
-  where: { id: req.user!.userId },
-  include: { roles: true }
+    where: { id: req.user!.userId },
+    include: { roles: true },
 });
 
-const userRoleNames = actingUser?.roles.map(r => r.name) || [];
-const hasFullAccess = userRoleNames.some(r => 
-  r === 'EXECUTIVE_DIRECTOR' || 
-  r === 'EXECUTIVE' || 
-  r === 'PROCUREMENT_OFFICER' || 
-  r === 'PROCUREMENT_MANAGER' || 
-  r === 'ADMIN'
-);
+const userRoleNames = actingUser?.roles.map((r) => r.name) || [];
+const hasFullAccess = userRoleNames.some((r) => r === 'EXECUTIVE_DIRECTOR' || r === 'EXECUTIVE' || r === 'PROCUREMENT_OFFICER' || r === 'PROCUREMENT_MANAGER' || r === 'ADMIN');
 
 const isRequester = existingRequest?.requesterId === req.user!.userId;
 const isDraft = existingRequest?.status === 'DRAFT';
@@ -67,10 +61,10 @@ const isCurrentAssignee = existingRequest?.currentAssigneeId === req.user!.userI
 const canEdit = hasFullAccess || (isRequester && isDraft) || isCurrentAssignee;
 
 if (!canEdit) {
-  logger.warn(`Unauthorized edit attempt on request ${requestId} by user ${req.user!.userId}`);
-  return res.status(403).json({ 
-    message: 'You are not authorized to edit this request' 
-  });
+    logger.warn(`Unauthorized edit attempt on request ${requestId} by user ${req.user!.userId}`);
+    return res.status(403).json({
+        message: 'You are not authorized to edit this request',
+    });
 }
 ```
 
@@ -85,30 +79,24 @@ if (!canEdit) {
 
 ```typescript
 const existingRequest = await prisma.procurementRequest.findUnique({
-  where: { id: requestId },
-  include: { requester: true, currentAssignee: true }
+    where: { id: requestId },
+    include: { requester: true, currentAssignee: true },
 });
 
 const actingUser = await prisma.user.findUnique({
-  where: { id: req.user!.userId },
-  include: { roles: true }
+    where: { id: req.user!.userId },
+    include: { roles: true },
 });
 
-const userRoleNames = actingUser?.roles.map(r => r.name) || [];
-const hasFullAccess = userRoleNames.some(r => 
-  r === 'EXECUTIVE_DIRECTOR' || 
-  r === 'EXECUTIVE' || 
-  r === 'PROCUREMENT_OFFICER' || 
-  r === 'PROCUREMENT_MANAGER' || 
-  r === 'ADMIN'
-);
+const userRoleNames = actingUser?.roles.map((r) => r.name) || [];
+const hasFullAccess = userRoleNames.some((r) => r === 'EXECUTIVE_DIRECTOR' || r === 'EXECUTIVE' || r === 'PROCUREMENT_OFFICER' || r === 'PROCUREMENT_MANAGER' || r === 'ADMIN');
 
 const isCurrentAssignee = existingRequest?.currentAssigneeId === req.user!.userId;
 
 if (!isCurrentAssignee && !hasFullAccess) {
-  return res.status(403).json({
-    message: 'You are not authorized to perform this action. Only the assigned approver can take action on this request.'
-  });
+    return res.status(403).json({
+        message: 'You are not authorized to perform this action. Only the assigned approver can take action on this request.',
+    });
 }
 ```
 
@@ -124,29 +112,23 @@ if (!isCurrentAssignee && !hasFullAccess) {
 
 ```typescript
 const canEditForm = useMemo(() => {
-  // New requests are always editable
-  if (!isEditMode) return true;
+    // New requests are always editable
+    if (!isEditMode) return true;
 
-  // Check if current user is the requester
-  const isRequester = requestRequesterId === currentUserId;
-  const isDraft = currentStatus === 'DRAFT';
-  
-  // Requester can edit their own drafts
-  if (isRequester && isDraft) return true;
+    // Check if current user is the requester
+    const isRequester = requestRequesterId === currentUserId;
+    const isDraft = currentStatus === 'DRAFT';
 
-  // Current assignee can edit at their stage
-  if (isAssignee) return true;
+    // Requester can edit their own drafts
+    if (isRequester && isDraft) return true;
 
-  // Full access roles can always edit
-  const hasFullAccess = userRoles.some(r => 
-    r === 'EXECUTIVE_DIRECTOR' || 
-    r === 'EXECUTIVE' || 
-    r === 'PROCUREMENT_OFFICER' || 
-    r === 'PROCUREMENT_MANAGER' || 
-    r === 'ADMIN'
-  );
+    // Current assignee can edit at their stage
+    if (isAssignee) return true;
 
-  return hasFullAccess || false;
+    // Full access roles can always edit
+    const hasFullAccess = userRoles.some((r) => r === 'EXECUTIVE_DIRECTOR' || r === 'EXECUTIVE' || r === 'PROCUREMENT_OFFICER' || r === 'PROCUREMENT_MANAGER' || r === 'ADMIN');
+
+    return hasFullAccess || false;
 }, [isEditMode, requestMeta, requestRequesterId, currentUserId, isAssignee, userRoles]);
 ```
 
@@ -155,18 +137,21 @@ const canEditForm = useMemo(() => {
 ### 2. Form Field Restrictions
 
 **Updated Fields:**
-- Line 1439: `requestedBy` (Requested By)
-- Line 1510: `institution` (Institution)
-- Line 1522: `division` (Division)
-- Line 1537: `branchUnit` (Branch/Unit)
-- Line 1572: `email` (Email)
+
+-   Line 1439: `requestedBy` (Requested By)
+-   Line 1510: `institution` (Institution)
+-   Line 1522: `division` (Division)
+-   Line 1537: `branchUnit` (Branch/Unit)
+-   Line 1572: `email` (Email)
 
 **Pattern:**
+
 ```typescript
 readOnly={!canEditForm}
 ```
 
 **Before:**
+
 ```typescript
 readOnly={!isEditMode}
 ```
@@ -179,19 +164,20 @@ readOnly={!isEditMode}
 
 ```typescript
 disabled={
-  isSubmitting || 
-  (!isEditMode && (!isFormCodeComplete || headerSequence === '000')) || 
+  isSubmitting ||
+  (!isEditMode && (!isFormCodeComplete || headerSequence === '000')) ||
   (isEditMode && !canEditForm)
 }
 ```
 
 **User Feedback:**
+
 ```typescript
 title={
-  !isEditMode && (!isFormCodeComplete || headerSequence === '000') 
-    ? 'Complete the form code before submitting' 
-    : isEditMode && !canEditForm 
-    ? 'You do not have permission to edit this request' 
+  !isEditMode && (!isFormCodeComplete || headerSequence === '000')
+    ? 'Complete the form code before submitting'
+    : isEditMode && !canEditForm
+    ? 'You do not have permission to edit this request'
     : undefined
 }
 ```
@@ -201,20 +187,23 @@ title={
 ## Security Layers
 
 ### Layer 1: Backend API Validation
-- Validates user identity and roles on every request
-- Fetches request + user data from database
-- Returns 403 with clear error messages
-- Logs unauthorized attempts
+
+-   Validates user identity and roles on every request
+-   Fetches request + user data from database
+-   Returns 403 with clear error messages
+-   Logs unauthorized attempts
 
 ### Layer 2: Frontend Authorization Hook
-- Computes `canEditForm` based on user context
-- Reactive to request status and assignment changes
-- Uses `useMemo` for performance
+
+-   Computes `canEditForm` based on user context
+-   Reactive to request status and assignment changes
+-   Uses `useMemo` for performance
 
 ### Layer 3: UI Field Restrictions
-- Makes form fields read-only when unauthorized
-- Disables submit button with explanatory tooltip
-- Prevents accidental edit attempts
+
+-   Makes form fields read-only when unauthorized
+-   Disables submit button with explanatory tooltip
+-   Prevents accidental edit attempts
 
 ---
 
@@ -224,13 +213,13 @@ The authorization system respects the procurement workflow:
 
 **Creator → Department Head → Executive Director**
 
-- **DRAFT:** Only requester can edit
-- **DEPARTMENT_REVIEW:** Only department manager can approve/reject
-- **HOD_REVIEW:** Only Head of Division can approve/reject
-- **FINANCE_REVIEW:** Only Finance role can approve/reject
-- **BUDGET_MANAGER_REVIEW:** Only Budget Manager can approve/reject
-- **PROCUREMENT_REVIEW:** Only Procurement roles can approve/reject
-- **FINANCE_APPROVED:** Workflow complete
+-   **DRAFT:** Only requester can edit
+-   **DEPARTMENT_REVIEW:** Only department manager can approve/reject
+-   **HOD_REVIEW:** Only Head of Division can approve/reject
+-   **FINANCE_REVIEW:** Only Finance role can approve/reject
+-   **BUDGET_MANAGER_REVIEW:** Only Budget Manager can approve/reject
+-   **PROCUREMENT_REVIEW:** Only Procurement roles can approve/reject
+-   **FINANCE_APPROVED:** Workflow complete
 
 Full access roles can intervene at any stage.
 
@@ -239,21 +228,24 @@ Full access roles can intervene at any stage.
 ## Testing Checklist
 
 ### Backend Tests
-- ✅ PUT /api/requests/:id returns 403 for unauthorized users
-- ✅ POST /api/requests/:id/action returns 403 for non-assignees
-- ✅ Requesters can edit DRAFT requests
-- ✅ Current assignee can edit at their stage
-- ✅ Full access roles can edit any request
-- ✅ 403 errors include clear messages
+
+-   ✅ PUT /api/requests/:id returns 403 for unauthorized users
+-   ✅ POST /api/requests/:id/action returns 403 for non-assignees
+-   ✅ Requesters can edit DRAFT requests
+-   ✅ Current assignee can edit at their stage
+-   ✅ Full access roles can edit any request
+-   ✅ 403 errors include clear messages
 
 ### Frontend Tests
-- ✅ Form fields are read-only for unauthorized users
-- ✅ Submit button is disabled with tooltip
-- ✅ canEditForm hook updates when assignment changes
-- ✅ New requests remain fully editable
-- ✅ No console errors on permission denial
+
+-   ✅ Form fields are read-only for unauthorized users
+-   ✅ Submit button is disabled with tooltip
+-   ✅ canEditForm hook updates when assignment changes
+-   ✅ New requests remain fully editable
+-   ✅ No console errors on permission denial
 
 ### End-to-End Tests
+
 1. Create request as regular user → Submit
 2. Login as unauthorized user → Cannot edit (fields read-only)
 3. Login as assigned approver → Can edit and approve
@@ -265,16 +257,18 @@ Full access roles can intervene at any stage.
 ## Files Modified
 
 ### Backend
-- `/server/index.ts`
-  - Line 2809: Added authorization to PUT /api/requests/:id
-  - Line 3442: Strengthened authorization on POST /api/requests/:id/action
+
+-   `/server/index.ts`
+    -   Line 2809: Added authorization to PUT /api/requests/:id
+    -   Line 3442: Strengthened authorization on POST /api/requests/:id/action
 
 ### Frontend
-- `/src/pages/Procurement/Requests/RequestForm.tsx`
-  - Line 1: Added `useMemo` import
-  - Lines 235-262: Added `canEditForm` authorization hook
-  - Lines 1439, 1510, 1522, 1537, 1572: Updated `readOnly` props
-  - Line 2206: Updated submit button disabled logic with tooltip
+
+-   `/src/pages/Procurement/Requests/RequestForm.tsx`
+    -   Line 1: Added `useMemo` import
+    -   Lines 235-262: Added `canEditForm` authorization hook
+    -   Lines 1439, 1510, 1522, 1537, 1572: Updated `readOnly` props
+    -   Line 2206: Updated submit button disabled logic with tooltip
 
 ---
 
@@ -291,16 +285,19 @@ Full access roles can intervene at any stage.
 ## Maintainer Notes
 
 **When adding new editable fields:**
+
 1. Add to RequestForm.tsx state
 2. Set `readOnly={!canEditForm}` on input element
 3. Backend validation is automatic (validates entire req.body)
 
 **When adding new roles:**
+
 1. Update `hasFullAccess` check in backend (2 locations)
 2. Update `hasFullAccess` check in frontend hook
 3. Ensure role exists in database Role table
 
 **When modifying workflow:**
+
 1. Update workflow status transitions
 2. Update assignment logic
 3. Authorization rules auto-adapt to current assignee
@@ -308,6 +305,7 @@ Full access roles can intervene at any stage.
 ---
 
 ## Related Documentation
-- [PROCUREMENT_WORKFLOW.md](./PROCUREMENT_WORKFLOW.md) - Workflow stages
-- [BACKEND_ENDPOINTS_VERIFICATION.md](./BACKEND_ENDPOINTS_VERIFICATION.md) - API endpoints
-- [BACKEND_MIDDLEWARE_GUIDE.md](./BACKEND_MIDDLEWARE_GUIDE.md) - Authentication middleware
+
+-   [PROCUREMENT_WORKFLOW.md](./PROCUREMENT_WORKFLOW.md) - Workflow stages
+-   [BACKEND_ENDPOINTS_VERIFICATION.md](./BACKEND_ENDPOINTS_VERIFICATION.md) - API endpoints
+-   [BACKEND_MIDDLEWARE_GUIDE.md](./BACKEND_MIDDLEWARE_GUIDE.md) - Authentication middleware

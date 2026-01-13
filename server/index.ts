@@ -2095,7 +2095,10 @@ app.get('/api/requests', async (req, res) => {
                     const userRoles = (user.roles || []).map((r) => r.role.name).map((n) => n.toUpperCase());
 
                     // EXECUTIVE_DIRECTOR, EXECUTIVE, PROCUREMENT, FINANCE, and ADMIN roles can see all requests
-                    const canSeeAll = userRoles.some((r) => r === 'EXECUTIVE_DIRECTOR' || r === 'EXECUTIVE' || r === 'PROCUREMENT_OFFICER' || r === 'PROCUREMENT_MANAGER' || r === 'FINANCE' || r === 'BUDGET_MANAGER' || r === 'ADMIN');
+                    const canSeeAll = userRoles.some(
+                        (r) =>
+                            r === 'EXECUTIVE_DIRECTOR' || r === 'EXECUTIVE' || r === 'PROCUREMENT_OFFICER' || r === 'PROCUREMENT_MANAGER' || r === 'FINANCE' || r === 'BUDGET_MANAGER' || r === 'ADMIN'
+                    );
 
                     if (!canSeeAll) {
                         // Regular users only see their department's requests
@@ -2166,7 +2169,16 @@ app.get('/api/requests', async (req, res) => {
 
                             if (user) {
                                 const userRoles = (user.roles || []).map((r) => r.role.name).map((n) => n.toUpperCase());
-                                const canSeeAll = userRoles.some((r) => r === 'EXECUTIVE_DIRECTOR' || r === 'EXECUTIVE' || r === 'PROCUREMENT_OFFICER' || r === 'PROCUREMENT_MANAGER' || r === 'FINANCE' || r === 'BUDGET_MANAGER' || r === 'ADMIN');
+                                const canSeeAll = userRoles.some(
+                                    (r) =>
+                                        r === 'EXECUTIVE_DIRECTOR' ||
+                                        r === 'EXECUTIVE' ||
+                                        r === 'PROCUREMENT_OFFICER' ||
+                                        r === 'PROCUREMENT_MANAGER' ||
+                                        r === 'FINANCE' ||
+                                        r === 'BUDGET_MANAGER' ||
+                                        r === 'ADMIN'
+                                );
 
                                 if (!canSeeAll && user.departmentId) {
                                     whereClause.departmentId = user.departmentId;
@@ -2469,7 +2481,10 @@ app.get('/api/requests/:id', async (req, res) => {
 
                 if (user) {
                     const userRoles = (user.roles || []).map((r) => r.role.name).map((n) => n.toUpperCase());
-                    const canSeeAll = userRoles.some((r) => r === 'EXECUTIVE_DIRECTOR' || r === 'EXECUTIVE' || r === 'PROCUREMENT_OFFICER' || r === 'PROCUREMENT_MANAGER' || r === 'FINANCE' || r === 'BUDGET_MANAGER' || r === 'ADMIN');
+                    const canSeeAll = userRoles.some(
+                        (r) =>
+                            r === 'EXECUTIVE_DIRECTOR' || r === 'EXECUTIVE' || r === 'PROCUREMENT_OFFICER' || r === 'PROCUREMENT_MANAGER' || r === 'FINANCE' || r === 'BUDGET_MANAGER' || r === 'ADMIN'
+                    );
 
                     // If not EXECUTIVE_DIRECTOR/PROCUREMENT, user can only see requests from their department
                     if (!canSeeAll && user.departmentId !== request.departmentId && request.requesterId !== userId && request.currentAssigneeId !== userId) {
@@ -2844,9 +2859,7 @@ app.put('/api/requests/:id', async (req, res) => {
         }
 
         const userRoles = (actingUser.roles || []).map((r) => r.role.name).map((n) => n.toUpperCase());
-        const hasFullAccess = userRoles.some(
-            (r) => r === 'EXECUTIVE_DIRECTOR' || r === 'EXECUTIVE' || r === 'PROCUREMENT_OFFICER' || r === 'PROCUREMENT_MANAGER' || r === 'ADMIN'
-        );
+        const hasFullAccess = userRoles.some((r) => r === 'EXECUTIVE_DIRECTOR' || r === 'EXECUTIVE' || r === 'PROCUREMENT_OFFICER' || r === 'PROCUREMENT_MANAGER' || r === 'ADMIN');
 
         const isRequester = existingRequest.requesterId === actingUserId;
         const isCurrentAssignee = existingRequest.currentAssigneeId === actingUserId;
@@ -3472,9 +3485,7 @@ app.post('/api/requests/:id/action', async (req, res) => {
         const roleNames = (actingUser.roles || []).map((r: any) => String(r.role?.name || '').toUpperCase());
 
         // Check if user has full access (EXEC, PROCUREMENT, ADMIN)
-        const hasFullAccess = roleNames.some(
-            (r) => r === 'EXECUTIVE_DIRECTOR' || r === 'EXECUTIVE' || r === 'PROCUREMENT_OFFICER' || r === 'PROCUREMENT_MANAGER' || r === 'ADMIN'
-        );
+        const hasFullAccess = roleNames.some((r) => r === 'EXECUTIVE_DIRECTOR' || r === 'EXECUTIVE' || r === 'PROCUREMENT_OFFICER' || r === 'PROCUREMENT_MANAGER' || r === 'ADMIN');
 
         // Check if user is the current assignee
         const isCurrentAssignee = request.currentAssigneeId === actingUserId;
