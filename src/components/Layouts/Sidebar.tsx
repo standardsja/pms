@@ -331,6 +331,15 @@ const Sidebar = () => {
                                     </li>
 
                                     <li className="nav-item">
+                                        <NavLink to="/apps/requests" end className="group">
+                                            <div className="flex items-center">
+                                                <IconFile className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">All Requests</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+
+                                    <li className="nav-item">
                                         <NavLink to="/procurement/admin/modules" end className="group">
                                             <div className="flex items-center">
                                                 <IconLock className="group-hover:!text-primary shrink-0" />
