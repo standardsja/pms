@@ -432,11 +432,32 @@ const RequestForm = () => {
                 if (request.attachments && Array.isArray(request.attachments)) {
                     setExistingAttachments(request.attachments);
                 }
-                // Load header code values
-                setHeaderDeptCode(request.headerDeptCode || request.department?.code || '');
-                setHeaderMonth(request.headerMonth || '');
-                setHeaderYear(request.headerYear || new Date().getFullYear());
-                setHeaderSequence(String(request.headerSequence ?? 0).padStart(3, '0'));
+                // Load header code values; fall back to parsing title if fields are missing
+                const derivedHeaderFromTitle = (() => {
+                    if (!request.title) return {};
+                    const parts = request.title.split('/');
+                    if (parts.length < 4) return {};
+                    return {
+                        dept: parts[0] || '',
+                        month: parts[1] || '',
+                        year: parts[2] ? Number(parts[2]) : undefined,
+                        sequence: parts[3] || '',
+                    };
+                })();
+
+                setHeaderDeptCode(request.headerDeptCode || derivedHeaderFromTitle.dept || request.department?.code || '');
+                setHeaderMonth(request.headerMonth || derivedHeaderFromTitle.month || '');
+                setHeaderYear(request.headerYear || derivedHeaderFromTitle.year || new Date().getFullYear());
+
+                const rawSequenceFromRequest = request.headerSequence !== null && request.headerSequence !== undefined ? String(request.headerSequence) : '';
+                const cleanedSequenceFromRequest = rawSequenceFromRequest.replace(/[^0-9A-Za-z]/g, '');
+                const cleanedSequenceFromTitle = (derivedHeaderFromTitle.sequence || '').replace(/[^0-9A-Za-z]/g, '');
+                const effectiveSequence =
+                    cleanedSequenceFromRequest === '' || cleanedSequenceFromRequest === '0' || cleanedSequenceFromRequest === '000'
+                        ? cleanedSequenceFromTitle
+                        : cleanedSequenceFromRequest;
+
+                setHeaderSequence((effectiveSequence || '').padStart(3, '0'));
 
                 // Track status and assignee for edit gating
                 const assigneeId = request.currentAssignee?.id || request.currentAssigneeId || null;
@@ -1399,7 +1420,8 @@ const RequestForm = () => {
                                             onChange={(e) => {
                                                 setHeaderSequence(e.target.value);
                                             }}
-                                            className="bg-transparent border-0 text-white font-semibold text-sm focus:ring-0 w-10 text-center"
+                                            className="bg-transparent border-0 text-white font-semibold text-sm focus:ring-0 text-center min-w-[2.5rem]"
+                                            style={{ width: `${Math.min(Math.max((headerSequence?.length || 1) + 1, 3), 12)}ch` }}
                                             disabled={isEditMode}
                                             placeholder="0"
                                         />
