@@ -81,7 +81,6 @@ const RequestWorkflowConfiguration = () => {
             setSlas(Array.isArray(slasData) ? slasData : []);
             setError('');
         } catch (e: any) {
-            console.error('Error loading workflow config:', e.message);
             setError(e.message);
         } finally {
             setLoading(false);

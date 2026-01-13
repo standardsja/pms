@@ -4,13 +4,84 @@
  * Provides comprehensive audit logging for all critical system operations.
  * Tracks who did what, when, and on which entity for compliance and security.
  */
-import { Prisma } from '@prisma/client';
+import { Prisma, AuditAction } from '@prisma/client';
 import { prisma } from '../prismaClient.js';
 import { logger } from '../config/logger.js';
 
+/**
+ * Map HTTP routes to AuditAction enum values
+ */
+function mapRouteToAuditAction(method: string, path: string): AuditAction {
+    const normalizedPath = path.toLowerCase();
+
+    // Auth routes
+    if (normalizedPath.includes('/api/auth/login')) {
+        return AuditAction.USER_LOGIN;
+    }
+    if (normalizedPath.includes('/api/auth/logout')) {
+        return AuditAction.USER_LOGOUT;
+    }
+    if (normalizedPath.includes('/api/auth/password') && method === 'PUT') {
+        return AuditAction.PASSWORD_CHANGED;
+    }
+
+    // Request routes
+    if (normalizedPath.includes('/api/requests') || normalizedPath.includes('/api/apps/requests')) {
+        if (method === 'POST') return AuditAction.REQUEST_CREATED;
+        if (method === 'PUT') return AuditAction.REQUEST_UPDATED;
+        if (method === 'DELETE') return AuditAction.REQUEST_DELETED;
+    }
+
+    // Approval routes
+    if (normalizedPath.includes('/api/approvals') || normalizedPath.includes('/api/approve')) {
+        if (method === 'POST') return AuditAction.APPROVAL_GRANTED;
+        if (method === 'DELETE') return AuditAction.APPROVAL_DENIED;
+    }
+
+    // Role routes
+    if (normalizedPath.includes('/api/users') && normalizedPath.includes('role')) {
+        if (method === 'POST') return AuditAction.ROLE_ASSIGNED;
+        if (method === 'DELETE') return AuditAction.ROLE_REMOVED;
+    }
+
+    // PO routes
+    if (normalizedPath.includes('/api/purchase-orders') || normalizedPath.includes('/api/po')) {
+        if (method === 'POST') return AuditAction.PO_CREATED;
+        if (method === 'PUT') return AuditAction.PO_UPDATED;
+    }
+
+    // Evaluation routes
+    if (normalizedPath.includes('/api/evaluations')) {
+        if (method === 'POST') return AuditAction.WORKFLOW_STAGE_CHANGED;
+        if (method === 'PUT') return AuditAction.WORKFLOW_STAGE_CHANGED;
+    }
+
+    // File routes
+    if (normalizedPath.includes('/api/files') || normalizedPath.includes('/upload')) {
+        if (method === 'POST') return AuditAction.FILE_UPLOADED;
+        if (method === 'DELETE') return AuditAction.FILE_DELETED;
+    }
+
+    // Ideas/Innovation hub routes
+    if (normalizedPath.includes('/api/ideas')) {
+        if (method === 'POST') return AuditAction.IDEA_CREATED;
+        if (method === 'PUT') return AuditAction.IDEA_UPDATED;
+        if (method === 'DELETE') return AuditAction.IDEA_DELETED;
+    }
+
+    // Comments routes
+    if (normalizedPath.includes('/api/comments')) {
+        if (method === 'POST') return AuditAction.COMMENT_CREATED;
+        if (method === 'DELETE') return AuditAction.COMMENT_DELETED;
+    }
+
+    // Default fallback - treat as a status change
+    return AuditAction.REQUEST_STATUS_CHANGED;
+}
+
 export interface AuditLogData {
     userId?: number;
-    action: string;
+    action: AuditAction | string; // Accept both enum and string for flexibility
     entity: string;
     entityId?: number;
     message: string;
@@ -28,21 +99,33 @@ class AuditService {
      */
     async createAuditLog(data: AuditLogData): Promise<any> {
         try {
+            // Convert action to valid enum if it's a string
+            let action: AuditAction = data.action as AuditAction;
+
+            if (typeof data.action === 'string' && !Object.values(AuditAction).includes(data.action as AuditAction)) {
+                // If action is not a valid enum value, try to infer it from context
+                // This shouldn't happen in normal operation but provides safety
+                action = AuditAction.REQUEST_STATUS_CHANGED;
+                logger.warn('Action not recognized, defaulting to REQUEST_STATUS_CHANGED', {
+                    originalAction: data.action,
+                });
+            }
+
             const auditLog = await prisma.auditLog.create({
                 data: {
                     userId: data.userId,
-                    action: data.action as any,
+                    action,
                     entity: data.entity as any,
                     entityId: data.entityId as any,
                     message: data.message,
                     ipAddress: data.ipAddress as any,
                     userAgent: data.userAgent as any,
                     metadata: data.metadata ? JSON.parse(JSON.stringify(data.metadata)) : null,
-                } as any,
+                },
             });
 
             logger.info('Audit log created', {
-                action: data.action,
+                action: action,
                 entity: data.entity,
                 entityId: data.entityId,
                 userId: data.userId,

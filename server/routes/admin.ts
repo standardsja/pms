@@ -257,7 +257,6 @@ router.get('/permissions', adminOnly, async (req: Request, res: Response) => {
         res.json(permissions);
     } catch (error: any) {
         logger.error('Failed to fetch permissions', { error: error?.message, stack: error?.stack });
-        console.error('GET /api/admin/permissions error:', error);
         res.status(500).json({ success: false, message: 'Failed to fetch permissions', error: error?.message });
     }
 });
@@ -1002,7 +1001,6 @@ router.get('/roles/:id/permissions', adminOnly, async (req: Request, res: Respon
         });
     } catch (error: any) {
         logger.error('Failed to fetch role permissions', { error: error?.message, stack: error?.stack });
-        console.error('GET /api/admin/roles/:id/permissions error:', error);
         res.status(500).json({ success: false, message: 'Failed to fetch role permissions', error: error?.message });
     }
 });

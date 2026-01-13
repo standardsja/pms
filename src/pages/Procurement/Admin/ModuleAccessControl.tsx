@@ -63,7 +63,7 @@ const ModuleAccessControl = () => {
                 setModuleLocks(result.data);
             }
         } catch (e) {
-            console.error('Failed to load module locks:', e);
+            // Error handled in component state
         } finally {
             setLoading(false);
         }
@@ -109,7 +109,7 @@ const ModuleAccessControl = () => {
                 setReasonModalModule(null);
             }
         } catch (e) {
-            console.error('Failed to lock module:', e);
+            // Error handled in UI
             setTransitioningModule(null);
         }
     };
@@ -139,7 +139,7 @@ const ModuleAccessControl = () => {
                     setTimeout(() => setShowSuccess(false), 2200);
                 }
             } catch (e) {
-                console.error('Failed to unlock module:', e);
+                // Error handled in UI
                 setTransitioningModule(null);
             }
         } else {

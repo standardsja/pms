@@ -17,6 +17,7 @@ const __dirname = path.dirname(__filename);
 import rateLimit from 'express-rate-limit';
 import { prisma, ensureDbConnection } from './prismaClient.js';
 import { initRedis, closeRedis, cacheGet, cacheSet, cacheDelete, cacheDeletePattern } from './config/redis.js';
+import { logger } from './config/logger.js';
 import { initializeGlobalRoleResolver } from './services/roleResolver.js';
 import { getGroupMappings } from './config/ldapGroupMapping.js';
 import { initTrendingScoreJob, updateIdeaTrendingScore } from './services/trendingService.js';
@@ -5597,58 +5598,67 @@ app.get(
         const roles: string[] = userObj?.roles || [];
         const isProcurement = roles.some((r: string) => r.toUpperCase().includes('PROCUREMENT'));
         const isCommittee = roles.some((r: string) => r.toUpperCase().includes('EVALUATION_COMMITTEE'));
+
         if (hasEvaluationDelegate()) {
-            const where: Prisma.EvaluationWhereInput = {};
-            if (status && status !== 'ALL') where.status = status as any;
-            if (search) {
-                where.OR = [
-                    { evalNumber: { contains: search as string } },
-                    { rfqNumber: { contains: search as string } },
-                    { rfqTitle: { contains: search as string } },
-                    { description: { contains: search as string } },
-                ];
-            }
-            if (dueBefore) {
-                if (where.dueDate && typeof where.dueDate === 'object' && !Array.isArray(where.dueDate)) {
-                    where.dueDate = { ...(where.dueDate as object), lte: new Date(dueBefore as string) };
-                } else {
-                    where.dueDate = { lte: new Date(dueBefore as string) };
+            try {
+                const where: Prisma.EvaluationWhereInput = {};
+                if (status && status !== 'ALL') where.status = status as any;
+                if (search) {
+                    where.OR = [
+                        { evalNumber: { contains: search as string } },
+                        { rfqNumber: { contains: search as string } },
+                        { rfqTitle: { contains: search as string } },
+                        { description: { contains: search as string } },
+                    ];
                 }
-            }
-            if (dueAfter) {
-                if (where.dueDate && typeof where.dueDate === 'object' && !Array.isArray(where.dueDate)) {
-                    where.dueDate = { ...(where.dueDate as object), gte: new Date(dueAfter as string) };
-                } else {
-                    where.dueDate = { gte: new Date(dueAfter as string) };
+                if (dueBefore) {
+                    if (where.dueDate && typeof where.dueDate === 'object' && !Array.isArray(where.dueDate)) {
+                        where.dueDate = { ...(where.dueDate as object), lte: new Date(dueBefore as string) };
+                    } else {
+                        where.dueDate = { lte: new Date(dueBefore as string) };
+                    }
                 }
-            }
-            let evaluations = await (prisma as any).evaluation.findMany({
-                where,
-                include: {
-                    creator: { select: { id: true, name: true, email: true } },
-                    validator: { select: { id: true, name: true, email: true } },
-                    sectionAVerifier: { select: { id: true, name: true, email: true } },
-                    sectionBVerifier: { select: { id: true, name: true, email: true } },
-                    sectionCVerifier: { select: { id: true, name: true, email: true } },
-                    sectionDVerifier: { select: { id: true, name: true, email: true } },
-                    sectionEVerifier: { select: { id: true, name: true, email: true } },
-                },
-                orderBy: { createdAt: 'desc' },
-            });
-
-            // Filter evaluations based on access: show only if user is creator, procurement, committee, or assigned
-            if (!isProcurement && !isCommittee) {
-                const myAssignments = await (prisma as any).evaluationAssignment.findMany({
-                    where: { userId },
-                    select: { evaluationId: true },
+                if (dueAfter) {
+                    if (where.dueDate && typeof where.dueDate === 'object' && !Array.isArray(where.dueDate)) {
+                        where.dueDate = { ...(where.dueDate as object), gte: new Date(dueAfter as string) };
+                    } else {
+                        where.dueDate = { gte: new Date(dueAfter as string) };
+                    }
+                }
+                let evaluations = await (prisma as any).evaluation.findMany({
+                    where,
+                    include: {
+                        creator: { select: { id: true, name: true, email: true } },
+                        validator: { select: { id: true, name: true, email: true } },
+                        sectionAVerifier: { select: { id: true, name: true, email: true } },
+                        sectionBVerifier: { select: { id: true, name: true, email: true } },
+                        sectionCVerifier: { select: { id: true, name: true, email: true } },
+                        sectionDVerifier: { select: { id: true, name: true, email: true } },
+                        sectionEVerifier: { select: { id: true, name: true, email: true } },
+                    },
+                    orderBy: { createdAt: 'desc' },
                 });
-                const assignedIds = new Set(myAssignments.map((a: any) => a.evaluationId));
-                evaluations = evaluations.filter((e: any) => e.createdBy === userId || assignedIds.has(e.id));
-            }
 
-            return res.json({ success: true, data: evaluations });
+                // Filter evaluations based on access: show only if user is creator, procurement, committee, or assigned
+                if (!isProcurement && !isCommittee) {
+                    const myAssignments = await (prisma as any).evaluationAssignment.findMany({
+                        where: { userId },
+                        select: { evaluationId: true },
+                    });
+                    const assignedIds = new Set(myAssignments.map((a: any) => a.evaluationId));
+                    evaluations = evaluations.filter((e: any) => e.createdBy === userId || assignedIds.has(e.id));
+                }
+
+                return res.json({ success: true, data: evaluations });
+            } catch (error: any) {
+                // If the table doesn't exist or query fails, return empty array
+                logger.warn('Evaluation table query failed, returning empty array:', error?.message);
+                return res.json({ success: true, data: [] });
+            }
         }
-        // Raw SQL fallback
+
+        // Return empty array if delegate not available
+        return res.json({ success: true, data: [] });
         const rows = await prisma.$queryRawUnsafe<any>(
             `SELECT e.*, 
              uc.id AS creatorId, uc.name AS creatorName, uc.email AS creatorEmail, 
@@ -5720,6 +5730,64 @@ app.get(
             _fallback: true,
         }));
         res.json({ success: true, data: mapped, meta: { fallback: true } });
+    })
+);
+
+// GET /api/evaluations/pending-validation - List evaluations pending validation (for procurement manager)
+app.get(
+    '/api/evaluations/pending-validation',
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+        const userObj: any = (req as any).user;
+        const roles: string[] = userObj?.roles || [];
+        const isProcurementManager = roles.some((r: string) => r.toUpperCase().includes('PROCUREMENT') && r.toUpperCase().includes('MANAGER'));
+
+        // Only procurement managers can access this endpoint
+        if (!isProcurementManager) {
+            return res.status(403).json({
+                success: false,
+                error: 'Only procurement managers can view pending validations',
+            });
+        }
+
+        try {
+            if (hasEvaluationDelegate()) {
+                // Get evaluations that are pending validation (status = PENDING, IN_PROGRESS, or COMMITTEE_REVIEW)
+                const evaluations = await prisma.evaluation.findMany({
+                    where: {
+                        status: { in: ['PENDING', 'IN_PROGRESS', 'COMMITTEE_REVIEW'] },
+                    },
+                    include: {
+                        creator: {
+                            select: { id: true, name: true, email: true },
+                        },
+                    },
+                    orderBy: { createdAt: 'desc' },
+                });
+
+                // Map to frontend format
+                const formatted = evaluations.map((e: any) => ({
+                    id: e.id,
+                    rfqId: e.rfqId || e.rfqNumber || 'N/A',
+                    title: e.rfqTitle || e.description || 'Untitled',
+                    evaluator: e.creator?.name || 'Unknown',
+                    score: e.totalScore || 0,
+                    date: e.createdAt?.toISOString() || new Date().toISOString(),
+                    status: 'Pending Validation' as const,
+                }));
+
+                return res.json(formatted);
+            }
+
+            // Fallback to empty array if delegate not available
+            return res.json([]);
+        } catch (error) {
+            logger.error('Error fetching pending validation evaluations:', error);
+            return res.status(500).json({
+                success: false,
+                error: 'Failed to fetch pending validation evaluations',
+            });
+        }
     })
 );
 

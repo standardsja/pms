@@ -7,6 +7,7 @@ import IconEye from '../../../components/Icon/IconEye';
 import { selectAuthLoading, selectUser } from '../../../store/authSlice';
 import ReactApexChart from 'react-apexcharts';
 import type { ApexOptions } from 'apexcharts';
+import { getAuthHeaders } from '../../../utils/api';
 
 type Evaluation = {
     id: string;
@@ -66,9 +67,10 @@ const ProcurementManagerDashboard = () => {
     const confirmValidate = async () => {
         if (!validateTarget) return;
         try {
+            const headers = await getAuthHeaders();
             const response = await fetch(`${API_BASE}/api/evaluations/${validateTarget.id}/validate`, {
                 method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
+                headers,
                 body: JSON.stringify({
                     status: validationDecision,
                     notes: validationNotes,
@@ -150,10 +152,11 @@ const ProcurementManagerDashboard = () => {
         const controller = new AbortController();
         const loadData = async () => {
             try {
+                const headers = await getAuthHeaders();
                 // Load stats
                 const statsResp = await fetch(`${API_BASE}/api/stats/dashboard`, {
                     method: 'GET',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers,
                     signal: controller.signal,
                 });
                 if (statsResp.ok) {
@@ -187,7 +190,7 @@ const ProcurementManagerDashboard = () => {
                 // Load evaluations pending validation
                 const evalsResp = await fetch(`${API_BASE}/api/evaluations/pending-validation`, {
                     method: 'GET',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers,
                     signal: controller.signal,
                 });
                 if (evalsResp.ok) {

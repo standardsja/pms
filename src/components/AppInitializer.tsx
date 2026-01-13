@@ -5,6 +5,7 @@ import { toggleRTL, toggleTheme, toggleLocale, toggleMenu, toggleLayout, toggleA
 import { verifyToken } from '../store/authSlice';
 import { applyHolidayTheme } from '../utils/holidayTheme';
 import { startInactivityTracking, stopInactivityTracking } from '../utils/inactivityTracker';
+import { startRoleChangeMonitor, stopRoleChangeMonitor } from '../utils/roleChangeMonitor';
 import { isAuthenticated } from '../utils/auth';
 
 /**
@@ -32,9 +33,10 @@ export function AppInitializer() {
             dispatch(verifyToken() as any);
         }
 
-        // Start inactivity tracking for authenticated users
+        // Start inactivity + role change monitoring for authenticated users
         if (isAuthenticated()) {
             startInactivityTracking();
+            startRoleChangeMonitor(dispatch as any);
         }
 
         // Apply holiday theme
@@ -48,6 +50,7 @@ export function AppInitializer() {
         return () => {
             clearInterval(holidayInterval);
             stopInactivityTracking();
+            stopRoleChangeMonitor();
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [dispatch]);

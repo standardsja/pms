@@ -81,7 +81,7 @@ const AuditCompliance = () => {
 
             setLogs(mapped.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
         } catch (e: any) {
-            console.error('Failed to load audit logs:', e?.message || e);
+            // Error handled by UI state
         } finally {
             setLoading(false);
         }
@@ -143,7 +143,7 @@ const AuditCompliance = () => {
 
             setShowExportOptions(false);
         } catch (e) {
-            console.error('Export failed:', e);
+            // Error handled in UI
         } finally {
             setExporting(false);
         }

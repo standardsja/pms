@@ -564,8 +564,6 @@ router.get('/system', async (req: Request, res: Response) => {
     }
 });
 
-export default router;
-
 /**
  * GET /api/stats/department-manager
  * Returns department manager dashboard statistics
@@ -610,3 +608,56 @@ router.get('/department-manager', async (req: Request, res: Response) => {
         res.status(500).json({ success: false, error: 'Failed to fetch department manager statistics' });
     }
 });
+/**
+ * GET /api/stats/requester
+ * Get stats for requester dashboard (counts and metrics)
+ */
+router.get('/requester', authMiddleware, async (req: Request, res: Response) => {
+    try {
+        const authReq = req as AuthenticatedRequest;
+        const userId = authReq.user?.sub;
+
+        if (!userId) {
+            return res.status(401).json({ success: false, error: 'Unauthorized' });
+        }
+
+        // Get counts for the current user's requests
+        const totalRequests = await prisma.request.count({
+            where: { createdById: userId },
+        });
+
+        const pendingRequests = await prisma.request.count({
+            where: {
+                createdById: userId,
+                status: { in: ['pending', 'submitted'] },
+            },
+        });
+
+        const approvedRequests = await prisma.request.count({
+            where: {
+                createdById: userId,
+                status: 'approved',
+            },
+        });
+
+        const rejectedRequests = await prisma.request.count({
+            where: {
+                createdById: userId,
+                status: 'rejected',
+            },
+        });
+
+        res.json({
+            total: totalRequests,
+            pending: pendingRequests,
+            approved: approvedRequests,
+            rejected: rejectedRequests,
+            timestamp: new Date().toISOString(),
+        });
+    } catch (error) {
+        console.error('[Stats] Error fetching requester stats:', error);
+        res.status(500).json({ success: false, error: 'Failed to fetch requester statistics' });
+    }
+});
+
+export default router;

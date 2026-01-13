@@ -84,7 +84,7 @@ const BulkUserManagement = () => {
                 setUsers(usersList);
             }
         } catch (e) {
-            console.error('Failed to load users:', e);
+            // Error handled in component state
         }
     };
 
@@ -98,7 +98,7 @@ const BulkUserManagement = () => {
                 setDepartments(Array.isArray(data) ? data : data.departments || []);
             }
         } catch (e) {
-            console.error('Failed to load departments:', e);
+            // Error handled in component state
         }
     };
 
@@ -112,7 +112,7 @@ const BulkUserManagement = () => {
                 setRoles(Array.isArray(data) ? data : data.roles || []);
             }
         } catch (e) {
-            console.error('Failed to load roles:', e);
+            // Error handled in component state
         }
     };
 

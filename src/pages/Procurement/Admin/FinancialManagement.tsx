@@ -71,7 +71,7 @@ const FinancialManagement = () => {
                 setReports([]);
             }
         } catch (e: any) {
-            console.error('Failed to load financial data:', e.message);
+            // Error handled in UI
             setDepartmentBudgets([]);
             setReports([]);
         } finally {
@@ -104,7 +104,7 @@ const FinancialManagement = () => {
             setShowBudgetForm(false);
             setEditingBudget(null);
         } catch (e: any) {
-            console.error('Failed to save budget:', e.message);
+            // Error handled in UI
         }
     };
 

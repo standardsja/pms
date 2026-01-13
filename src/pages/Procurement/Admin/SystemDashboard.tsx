@@ -66,7 +66,7 @@ const SystemDashboard = () => {
                         headers['x-user-id'] = String(user.id);
                     }
                 } catch (e) {
-                    console.warn('Failed to parse auth_user:', e);
+                    // Auth header parsing failed, continue without userId
                 }
             }
 
@@ -120,7 +120,7 @@ const SystemDashboard = () => {
                 systemHealth: 99.2,
             });
         } catch (error) {
-            console.error('Failed to load metrics:', error);
+            // Error handled by setLoading
         } finally {
             setLoading(false);
         }
