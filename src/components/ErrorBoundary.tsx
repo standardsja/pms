@@ -36,7 +36,12 @@ class ErrorBoundary extends Component<Props, State> {
     }
 
     componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-        console.error('ErrorBoundary caught an error:', error, errorInfo);
+        // Log to error tracking service in production (e.g., Sentry, LogRocket)
+        // For now, silently capture to prevent console spam
+        if (import.meta.env.DEV) {
+            // eslint-disable-next-line no-console
+            console.error('ErrorBoundary caught an error:', error, errorInfo);
+        }
     }
 
     handleReset = () => {

@@ -74,12 +74,14 @@ const BulkUserManagement = () => {
 
     const loadUsers = async () => {
         try {
-            const response = await fetch(getApiUrl('/api/admin/users'), {
+            const response = await fetch(getApiUrl('/api/admin/users?limit=1000'), {
                 headers: getAuthHeadersSync(),
             });
             if (response.ok) {
                 const data = await response.json();
-                setUsers(Array.isArray(data) ? data : data.users || []);
+                // Handle both paginated and legacy format
+                const usersList = data.users || (Array.isArray(data) ? data : []);
+                setUsers(usersList);
             }
         } catch (e) {
             console.error('Failed to load users:', e);
@@ -207,10 +209,10 @@ bob.johnson@example.com,Bob Johnson,Finance,User`;
                 method: 'POST',
                 headers: { ...getAuthHeadersSync(), 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    email: newUserForm.email,
-                    name: newUserForm.name,
-                    department: newUserForm.department,
-                    role: newUserForm.role,
+                    email: newUserForm.email.trim(),
+                    name: newUserForm.name.trim(),
+                    department: newUserForm.department.trim(),
+                    role: newUserForm.role.trim(),
                 }),
             });
 

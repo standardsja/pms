@@ -1,4 +1,5 @@
 import { createClient } from 'redis';
+import { logger } from './logger';
 
 // Redis client for caching
 let redisClient: ReturnType<typeof createClient> | null = null;
@@ -7,7 +8,7 @@ let isRedisConnected = false;
 export async function initRedis() {
     // Skip Redis if not configured
     if (!process.env.REDIS_URL && !process.env.REDIS_HOST) {
-        console.log('[Redis] Not configured - Application will run without caching');
+        logger.info('[Redis] Not configured - Application will run without caching');
         redisClient = null;
         isRedisConnected = false;
         return;
@@ -21,7 +22,7 @@ export async function initRedis() {
             socket: {
                 reconnectStrategy: (retries) => {
                     if (retries > 10) {
-                        console.error('[Redis] Max reconnection attempts reached');
+                        logger.error('[Redis] Max reconnection attempts reached');
                         return new Error('Max reconnection attempts');
                     }
                     // Exponential backoff: 50ms, 100ms, 200ms, etc.
@@ -32,34 +33,34 @@ export async function initRedis() {
 
         // Event handlers
         redisClient.on('error', (err) => {
-            console.error('[Redis] Error:', err);
+            logger.error('[Redis] Error', { error: err });
             isRedisConnected = false;
         });
 
         redisClient.on('connect', () => {
-            console.log('[Redis] Connecting...');
+            logger.info('[Redis] Connecting...');
         });
 
         redisClient.on('ready', () => {
-            console.log('[Redis] Ready - Cache layer active');
+            logger.info('[Redis] Ready - Cache layer active');
             isRedisConnected = true;
         });
 
         redisClient.on('reconnecting', () => {
-            console.log('[Redis] Reconnecting...');
+            logger.info('[Redis] Reconnecting...');
             isRedisConnected = false;
         });
 
         redisClient.on('end', () => {
-            console.log('[Redis] Connection closed');
+            logger.info('[Redis] Connection closed');
             isRedisConnected = false;
         });
 
         // Connect to Redis
         await redisClient.connect();
     } catch (error) {
-        console.error('[Redis] Failed to initialize:', error);
-        console.log('[Redis] Application will run without caching');
+        logger.error('[Redis] Failed to initialize', { error });
+        logger.info('[Redis] Application will run without caching');
         redisClient = null;
         isRedisConnected = false;
     }

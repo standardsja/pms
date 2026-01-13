@@ -116,9 +116,6 @@ export async function fetchIdeas(params?: {
         if (!res.ok) {
             // Handle 401 Unauthorized - log error but don't auto-redirect
             if (res.status === 401) {
-                // Temporarily disabled auto-logout to debug
-                // clearAuth();
-                // window.location.href = '/auth/login';
                 throw new Error('Unauthorized. Check if Innovation Hub token is valid.');
             }
 

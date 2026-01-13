@@ -149,6 +149,7 @@
         "@vitest/coverage-v8": "^4.0.7",
         "@vitest/ui": "^4.0.7",
         "autoprefixer": "^10.4.17",
+        "baseline-browser-mapping": "^2.9.14",
         "dotenv": "^17.2.3",
         "i18next": "^23.13.0",
         "i18next-browser-languagedetector": "^8.0.0",

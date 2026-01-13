@@ -9,6 +9,24 @@ import bcryptjs from 'bcryptjs';
 
 const router: Router = express.Router();
 
+/**
+ * Sanitize CSV cell value to prevent formula injection
+ * Remove dangerous characters that could execute formulas in Excel/Sheets
+ */
+const sanitizeCsvCell = (value: string): string => {
+    if (!value || typeof value !== 'string') return '';
+
+    const trimmed = value.trim();
+
+    // If cell starts with formula characters (=, +, -, @, tab, carriage return)
+    // prepend with single quote to prevent execution
+    if (/^[=+\-@\t\r]/.test(trimmed)) {
+        return "'" + trimmed;
+    }
+
+    return trimmed;
+};
+
 // Middleware to check admin role
 const adminOnly = async (req: Request, res: Response, next: Function) => {
     try {
@@ -45,44 +63,66 @@ const adminOnly = async (req: Request, res: Response, next: Function) => {
 router.use(authMiddleware);
 
 /**
- * GET /api/admin/users - Get all users
+ * GET /api/admin/users - Get all users with pagination
  */
 router.get('/users', adminOnly, async (req: Request, res: Response) => {
     try {
-        const users = await prisma.user.findMany({
-            select: {
-                id: true,
-                email: true,
-                name: true,
-                department: true,
-                roles: {
-                    include: {
-                        role: true,
+        const limit = Math.min(parseInt(req.query.limit as string, 10) || 100, 500);
+        const offset = parseInt(req.query.offset as string, 10) || 0;
+
+        if (isNaN(limit) || isNaN(offset)) {
+            return res.status(400).json({ success: false, message: 'Invalid pagination parameters' });
+        }
+
+        const [users, total] = await Promise.all([
+            prisma.user.findMany({
+                select: {
+                    id: true,
+                    email: true,
+                    name: true,
+                    department: true,
+                    roles: {
+                        include: {
+                            role: true,
+                        },
                     },
+                    // Include security fields
+                    blocked: true,
+                    blockedAt: true,
+                    blockedReason: true,
+                    blockedBy: true,
+                    lastLogin: true,
+                    failedLogins: true,
+                    lastFailedLogin: true,
+                    externalId: true, // LDAP identifier
                 },
-                // Include security fields
-                blocked: true,
-                blockedAt: true,
-                blockedReason: true,
-                blockedBy: true,
-                lastLogin: true,
-                failedLogins: true,
-                lastFailedLogin: true,
-                externalId: true, // LDAP identifier
-            },
-            orderBy: { createdAt: 'desc' },
-        });
+                orderBy: { createdAt: 'desc' },
+                take: limit,
+                skip: offset,
+            }),
+            prisma.user.count(),
+        ]);
 
         logger.info(`GET /api/admin/users returned ${users.length} users`, {
-            firstUser: users[0]?.id,
+            total,
+            limit,
+            offset,
             hasBlockedUser: users.some((u) => u.blocked === true),
             blockedCount: users.filter((u) => u.blocked === true).length,
         });
 
-        res.json(users);
+        res.json({
+            users,
+            pagination: {
+                total,
+                limit,
+                offset,
+                hasMore: offset + users.length < total,
+            },
+        });
     } catch (error) {
-        logger.error('Please try again later', { error });
-        res.status(500).json({ success: false, message: 'Please try again later' });
+        logger.error('Failed to fetch users', { error });
+        res.status(500).json({ success: false, message: 'Failed to fetch users' });
     }
 });
 
@@ -92,7 +132,7 @@ router.get('/users', adminOnly, async (req: Request, res: Response) => {
 router.get('/users/:id', adminOnly, async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const userId = parseInt(id);
+        const userId = parseInt(id, 10);
 
         if (isNaN(userId)) {
             return res.status(400).json({ success: false, message: 'Invalid user ID' });
@@ -282,9 +322,14 @@ router.put('/workflow-statuses/:id', adminOnly, async (req: Request, res: Respon
     try {
         const { id } = req.params;
         const { name, description, color, icon, displayOrder, isActive } = req.body;
+        const statusId = parseInt(id, 10);
+
+        if (isNaN(statusId)) {
+            return res.status(400).json({ success: false, message: 'Invalid status ID' });
+        }
 
         const updatedStatus = await prisma.workflowStatus.update({
-            where: { id: parseInt(id) },
+            where: { id: statusId },
             data: {
                 name: name || undefined,
                 description: description || undefined,
@@ -310,9 +355,14 @@ router.put('/workflow-statuses/:id', adminOnly, async (req: Request, res: Respon
 router.delete('/workflow-statuses/:id', adminOnly, async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
+        const statusId = parseInt(id, 10);
+
+        if (isNaN(statusId)) {
+            return res.status(400).json({ success: false, message: 'Invalid status ID' });
+        }
 
         await prisma.workflowStatus.delete({
-            where: { id: parseInt(id) },
+            where: { id: statusId },
         });
 
         logger.info('Workflow status deleted', { id, userId: res.locals.userId });
@@ -414,9 +464,14 @@ router.put('/workflow-slas/:id', adminOnly, async (req: Request, res: Response) 
 router.delete('/workflow-slas/:id', adminOnly, async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
+        const slaId = parseInt(id, 10);
+
+        if (isNaN(slaId)) {
+            return res.status(400).json({ success: false, message: 'Invalid SLA ID' });
+        }
 
         await prisma.workflowSLA.delete({
-            where: { id: parseInt(id) },
+            where: { id: slaId },
         });
 
         logger.info('Workflow SLA deleted', { id, userId: res.locals.userId });
@@ -548,6 +603,12 @@ router.post('/create-user', adminOnly, async (req: Request, res: Response) => {
             return res.status(400).json({ success: false, message: 'Email, name, and department are required' });
         }
 
+        // Validate email format
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            return res.status(400).json({ success: false, message: 'Invalid email format' });
+        }
+
         // Check if user already exists
         const existingUser = await prisma.user.findUnique({ where: { email } });
         if (existingUser) {
@@ -565,10 +626,21 @@ router.post('/create-user', adminOnly, async (req: Request, res: Response) => {
 
         if (!dept) {
             // Create department if not found
+            // Generate code: ensure minimum 4 characters, handle non-ASCII
+            let deptCode = department
+                .replace(/[^a-zA-Z0-9]/g, '')
+                .substring(0, 4)
+                .toUpperCase();
+
+            // Ensure minimum 4 characters
+            if (deptCode.length < 4) {
+                deptCode = (deptCode + '0000').substring(0, 4);
+            }
+
             dept = await prisma.department.create({
                 data: {
-                    name: department,
-                    code: department.substring(0, 4).toUpperCase(),
+                    name: department.trim(),
+                    code: deptCode,
                 },
             });
         }
@@ -613,7 +685,7 @@ router.post('/create-user', adminOnly, async (req: Request, res: Response) => {
 
         res.status(201).json({
             success: true,
-            message: `User ${email} created successfully with default password: ${defaultPassword}`,
+            message: `User ${email} created successfully. Default password has been set.`,
             user: newUser,
         });
     } catch (error: any) {
@@ -652,6 +724,15 @@ router.post('/bulk-import', adminOnly, async (req: Request, res: Response) => {
             });
         }
 
+        // Enforce maximum row limit
+        const MAX_CSV_ROWS = 1000;
+        if (lines.length - 1 > MAX_CSV_ROWS) {
+            return res.status(400).json({
+                success: false,
+                message: `CSV file exceeds maximum allowed rows. Maximum: ${MAX_CSV_ROWS}, Found: ${lines.length - 1}`,
+            });
+        }
+
         // Parse header
         const headers = lines[0].split(',').map((h: string) => h.trim().toLowerCase());
         const emailIdx = headers.indexOf('email');
@@ -674,7 +755,8 @@ router.post('/bulk-import', adminOnly, async (req: Request, res: Response) => {
         // Parse data rows
         for (let i = 1; i < lines.length; i++) {
             try {
-                const values = lines[i].split(',').map((v: string) => v.trim());
+                // Sanitize CSV cells to prevent formula injection
+                const values = lines[i].split(',').map((v: string) => sanitizeCsvCell(v));
                 const email = values[emailIdx];
                 const name = values[nameIdx];
                 const department = values[deptIdx];
@@ -703,10 +785,21 @@ router.post('/bulk-import', adminOnly, async (req: Request, res: Response) => {
                 });
 
                 if (!dept) {
+                    // Generate code: ensure minimum 4 characters, handle non-ASCII
+                    let deptCode = department
+                        .replace(/[^a-zA-Z0-9]/g, '')
+                        .substring(0, 4)
+                        .toUpperCase();
+
+                    // Ensure minimum 4 characters
+                    if (deptCode.length < 4) {
+                        deptCode = (deptCode + '0000').substring(0, 4);
+                    }
+
                     dept = await prisma.department.create({
                         data: {
-                            name: department,
-                            code: department.substring(0, 4).toUpperCase(),
+                            name: department.trim(),
+                            code: deptCode,
                         },
                     });
                 }
@@ -806,7 +899,11 @@ router.put('/roles/:id', adminOnly, async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
         const { name, description } = req.body;
-        const roleId = parseInt(id);
+        const roleId = parseInt(id, 10);
+
+        if (isNaN(roleId)) {
+            return res.status(400).json({ success: false, message: 'Invalid role ID' });
+        }
 
         const role = await prisma.role.update({
             where: { id: roleId },
@@ -835,7 +932,11 @@ router.put('/roles/:id', adminOnly, async (req: Request, res: Response) => {
 router.delete('/roles/:id', adminOnly, async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const roleId = parseInt(id);
+        const roleId = parseInt(id, 10);
+
+        if (isNaN(roleId)) {
+            return res.status(400).json({ success: false, message: 'Invalid role ID' });
+        }
 
         // Check if role has users
         const role = await prisma.role.findUnique({
@@ -864,7 +965,7 @@ router.delete('/roles/:id', adminOnly, async (req: Request, res: Response) => {
 router.get('/roles/:id/permissions', adminOnly, async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const roleId = parseInt(id);
+        const roleId = parseInt(id, 10);
 
         if (isNaN(roleId)) {
             return res.status(400).json({ success: false, message: 'Invalid role ID' });
@@ -1110,17 +1211,41 @@ router.post('/module-locks/:key', adminOnly, async (req: Request, res: Response)
  */
 router.post('/users/:id/block', adminOnly, async (req: Request, res: Response) => {
     try {
-        const userId = parseInt(req.params.id);
+        const userId = parseInt(req.params.id, 10);
         const { reason } = req.body;
         const adminUser = (req as any).user;
+
+        if (isNaN(userId)) {
+            return res.status(400).json({ success: false, message: 'Invalid user ID' });
+        }
 
         if (!reason || typeof reason !== 'string' || reason.trim().length === 0) {
             return res.status(400).json({ success: false, message: 'Block reason is required' });
         }
 
+        // Sanitize reason - remove potentially harmful characters
+        const sanitizedReason = reason
+            .trim()
+            .replace(/<[^>]*>/g, '')
+            .substring(0, 500);
+
         // Check if user exists
         const userToBlock = await prisma.user.findUnique({ where: { id: userId } });
         if (!userToBlock) {
+            // Log failed attempt
+            await prisma.auditLog
+                .create({
+                    data: {
+                        userId: adminUser.sub,
+                        action: 'USER_BLOCK_FAILED',
+                        entity: 'User',
+                        entityId: userId,
+                        message: `Failed to block user: User not found`,
+                        ipAddress: (req.headers['x-forwarded-for'] as string) || req.ip || req.socket.remoteAddress || null,
+                        metadata: { reason: 'user_not_found', attemptedUserId: userId },
+                    },
+                })
+                .catch(() => {}); // Non-fatal
             return res.status(404).json({ success: false, message: 'User not found' });
         }
 
@@ -1135,7 +1260,7 @@ router.post('/users/:id/block', adminOnly, async (req: Request, res: Response) =
             data: {
                 blocked: true,
                 blockedAt: new Date(),
-                blockedReason: reason.trim(),
+                blockedReason: sanitizedReason,
                 blockedBy: adminUser.sub,
             },
         });
@@ -1192,12 +1317,30 @@ router.post('/users/:id/block', adminOnly, async (req: Request, res: Response) =
  */
 router.post('/users/:id/unblock', adminOnly, async (req: Request, res: Response) => {
     try {
-        const userId = parseInt(req.params.id);
+        const userId = parseInt(req.params.id, 10);
         const adminUser = (req as any).user;
+
+        if (isNaN(userId)) {
+            return res.status(400).json({ success: false, message: 'Invalid user ID' });
+        }
 
         // Check if user exists
         const userToUnblock = await prisma.user.findUnique({ where: { id: userId } });
         if (!userToUnblock) {
+            // Log failed attempt
+            await prisma.auditLog
+                .create({
+                    data: {
+                        userId: adminUser.sub,
+                        action: 'USER_UNBLOCK_FAILED',
+                        entity: 'User',
+                        entityId: userId,
+                        message: `Failed to unblock user: User not found`,
+                        ipAddress: (req.headers['x-forwarded-for'] as string) || req.ip || req.socket.remoteAddress || null,
+                        metadata: { reason: 'user_not_found', attemptedUserId: userId },
+                    },
+                })
+                .catch(() => {}); // Non-fatal
             return res.status(404).json({ success: false, message: 'User not found' });
         }
 
@@ -1298,20 +1441,23 @@ router.post('/users/:id/roles', adminOnly, async (req: Request, res: Response) =
             return roleId;
         });
 
-        // Delete existing roles
-        await prisma.userRole.deleteMany({
-            where: { userId },
-        });
-
-        // Add new roles
-        if (roleIds.length > 0) {
-            await prisma.userRole.createMany({
-                data: roleIds.map((roleId) => ({
-                    userId,
-                    roleId,
-                })),
+        // Use transaction to ensure atomicity - delete and create roles together
+        await prisma.$transaction(async (tx) => {
+            // Delete existing roles
+            await tx.userRole.deleteMany({
+                where: { userId },
             });
-        }
+
+            // Add new roles
+            if (roleIds.length > 0) {
+                await tx.userRole.createMany({
+                    data: roleIds.map((roleId) => ({
+                        userId,
+                        roleId,
+                    })),
+                });
+            }
+        });
 
         // Fetch updated user data
         const updatedUser = await prisma.user.findUnique({
@@ -1372,9 +1518,13 @@ router.post('/users/:id/roles', adminOnly, async (req: Request, res: Response) =
  */
 router.post('/users/:id/department', adminOnly, async (req: Request, res: Response) => {
     try {
-        const userId = parseInt(req.params.id);
+        const userId = parseInt(req.params.id, 10);
         const { departmentId } = req.body;
         const adminUser = (req as any).user;
+
+        if (isNaN(userId)) {
+            return res.status(400).json({ success: false, message: 'Invalid user ID' });
+        }
 
         // Check if user exists
         const userToUpdate = await prisma.user.findUnique({ where: { id: userId } });
@@ -1384,7 +1534,11 @@ router.post('/users/:id/department', adminOnly, async (req: Request, res: Respon
 
         // Validate department if provided
         if (departmentId !== null) {
-            const dept = await prisma.department.findUnique({ where: { id: parseInt(departmentId) } });
+            const deptId = parseInt(departmentId, 10);
+            if (isNaN(deptId)) {
+                return res.status(400).json({ success: false, message: 'Invalid department ID' });
+            }
+            const dept = await prisma.department.findUnique({ where: { id: deptId } });
             if (!dept) {
                 return res.status(404).json({ success: false, message: 'Department not found' });
             }
@@ -1393,7 +1547,7 @@ router.post('/users/:id/department', adminOnly, async (req: Request, res: Respon
         // Update user department
         const updatedUser = await prisma.user.update({
             where: { id: userId },
-            data: { departmentId: departmentId ? parseInt(departmentId) : null },
+            data: { departmentId: departmentId ? parseInt(departmentId, 10) : null },
             include: {
                 department: true,
                 roles: {
@@ -1456,7 +1610,12 @@ router.post('/bulk-role-assignment', adminOnly, async (req: Request, res: Respon
             return res.status(400).json({ success: false, message: 'userIds array and roleId required' });
         }
 
-        const role = await prisma.role.findUnique({ where: { id: parseInt(roleId) } });
+        const parsedRoleId = parseInt(roleId, 10);
+        if (isNaN(parsedRoleId)) {
+            return res.status(400).json({ success: false, message: 'Invalid role ID' });
+        }
+
+        const role = await prisma.role.findUnique({ where: { id: parsedRoleId } });
         if (!role) {
             return res.status(404).json({ success: false, message: 'Role not found' });
         }
@@ -1469,13 +1628,13 @@ router.post('/bulk-role-assignment', adminOnly, async (req: Request, res: Respon
                 await prisma.userRole.upsert({
                     where: {
                         userId_roleId: {
-                            userId: parseInt(userId),
-                            roleId: parseInt(roleId),
+                            userId: parseInt(userId, 10),
+                            roleId: parsedRoleId,
                         },
                     },
                     create: {
-                        userId: parseInt(userId),
-                        roleId: parseInt(roleId),
+                        userId: parseInt(userId, 10),
+                        roleId: parsedRoleId,
                     },
                     update: {},
                 });

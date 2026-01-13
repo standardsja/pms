@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { setPageTitle } from '../../../store/themeConfigSlice';
+import { getApiUrl } from '../../../config/api';
+import { getAuthHeadersSync } from '../../../utils/api';
 import IconSettings from '../../../components/Icon/IconSettings';
 import IconUserPlus from '../../../components/Icon/IconUserPlus';
 import IconUsers from '../../../components/Icon/IconUsers';
@@ -12,6 +14,14 @@ import IconSquareCheck from '../../../components/Icon/IconSquareCheck';
 import IconInfoCircle from '../../../components/Icon/IconInfoCircle';
 import adminService, { type AdminUser } from '../../../services/adminService';
 import { z } from 'zod';
+
+// Utility function to synchronize user data across all storage locations
+const updateUserStorage = (userData: any) => {
+    const userStr = JSON.stringify(userData);
+    localStorage.setItem('auth_user', userStr);
+    sessionStorage.setItem('auth_user', userStr);
+    localStorage.setItem('userProfile', userStr);
+};
 
 const AdminDashboard = () => {
     const dispatch = useDispatch();
@@ -51,8 +61,17 @@ const AdminDashboard = () => {
     const loadAllData = async () => {
         setLoading(true);
         try {
-            const [usersData, rolesData, deptsData] = await Promise.all([adminService.getUsers(), adminService.getAllRoles(), adminService.getDepartments()]);
-            setUsers(usersData);
+            const [usersResponse, rolesData, deptsData] = await Promise.all([
+                fetch(getApiUrl('/api/admin/users?limit=1000'), { headers: getAuthHeadersSync() }),
+                adminService.getAllRoles(),
+                adminService.getDepartments(),
+            ]);
+
+            const usersData = usersResponse.ok ? await usersResponse.json() : { users: [] };
+            // Handle both paginated and legacy format
+            const usersList = usersData.users || (Array.isArray(usersData) ? usersData : []);
+
+            setUsers(usersList);
             setAllRoles(rolesData);
             setAllDepartments(deptsData);
         } catch (error) {
@@ -168,10 +187,8 @@ const AdminDashboard = () => {
 
             // If backend indicates this is the current user, update session from backend data
             if (result?.isCurrentUser && result?.updatedUser) {
-                // Store the user data exactly as returned from backend (trusted source)
-                localStorage.setItem('auth_user', JSON.stringify(result.updatedUser));
-                sessionStorage.setItem('auth_user', JSON.stringify(result.updatedUser));
-                localStorage.setItem('userProfile', JSON.stringify(result.updatedUser));
+                // Store the user data using centralized function
+                updateUserStorage(result.updatedUser);
 
                 // Show message and reload
                 setSuccessMessage(`Added ${roleName} role - Refreshing...`);
@@ -200,10 +217,8 @@ const AdminDashboard = () => {
 
             // If backend indicates this is the current user, update session from backend data
             if (result?.isCurrentUser && result?.updatedUser) {
-                // Store the user data exactly as returned from backend (trusted source)
-                localStorage.setItem('auth_user', JSON.stringify(result.updatedUser));
-                sessionStorage.setItem('auth_user', JSON.stringify(result.updatedUser));
-                localStorage.setItem('userProfile', JSON.stringify(result.updatedUser));
+                // Store the user data using centralized function
+                updateUserStorage(result.updatedUser);
 
                 // Show message and reload
                 setSuccessMessage(`Removed ${roleName} role - Refreshing...`);
