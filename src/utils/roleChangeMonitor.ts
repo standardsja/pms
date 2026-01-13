@@ -75,82 +75,23 @@ export function startRoleChangeMonitor(dispatch: Dispatch) {
                     intervalId = null;
                 }
 
-                // User's role has changed - need to get a fresh token with new roles
-                const refreshToken = localStorage.getItem('refreshToken') || sessionStorage.getItem('refreshToken');
-
-                let tokenRefreshSuccess = false;
-
-                if (refreshToken) {
-                    try {
-                        // Refresh token to get new access token with updated roles
-                        const refreshRes = await fetch(getApiUrl('/api/auth/refresh'), {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ refreshToken }),
-                        });
-
-                        if (refreshRes.ok) {
-                            const refreshData: RefreshResponse = await refreshRes.json();
-                            // Update both token and user data with fresh values including new refresh token
-                            setAuth(refreshData.token, refreshData.user, isRemembered());
-
-                            // Store new refresh token
-                            if (isRemembered()) {
-                                localStorage.setItem('refreshToken', refreshData.refreshToken);
-                            } else {
-                                sessionStorage.setItem('refreshToken', refreshData.refreshToken);
-                            }
-
-                            dispatch(setUser(refreshData.user));
-                            lastConfirmedRoles = serverRoles;
-                            tokenRefreshSuccess = true;
-                        } else {
-                            console.error('Token refresh failed with status:', refreshRes.status);
-                        }
-                    } catch (err) {
-                        console.error('Token refresh error:', err);
-                    }
-                }
-
-                // Only proceed with reload if token was successfully refreshed
-                if (!tokenRefreshSuccess) {
-                    console.warn('Could not refresh token after role change. Will retry on next check.');
-                    // Restart the monitor to try again later instead of forcing logout
-                    const checkAgain = async () => {
-                        await new Promise((resolve) => setTimeout(resolve, 5000)); // Wait 5 seconds before retrying
-                        check();
-                    };
-                    checkAgain();
-                    return;
-                }
-
-                // Ensure localStorage is fully flushed before reload
-                try {
-                    localStorage.setItem('_auth_sync_marker', String(Date.now()));
-                    localStorage.removeItem('_auth_sync_marker');
-                } catch {
-                    // Silently fail if localStorage is full
-                }
-
-                // Determine appropriate dashboard for new role
-                const detectedRoles = detectUserRoles(serverRoles);
-                const targetDashboard = getDashboardPath(detectedRoles, window.location.pathname);
-
+                // Role change detected - show notification and redirect to login
+                // This ensures the user gets a fresh token with their new roles
                 await Swal.fire({
                     title: 'Role Updated',
-                    text: 'Your access has changed. Reloading now…',
+                    text: 'Your roles have been updated. Please log in again to continue.',
                     icon: 'info',
-                    timer: 1200,
+                    timer: 2000,
                     showConfirmButton: false,
                 });
 
-                // Reload to clear all API client caches and reinitialize auth with new token
+                // Clear all stored auth data
+                localStorage.clear();
+                sessionStorage.clear();
+
+                // Redirect to login
                 setTimeout(() => {
-                    if (targetDashboard !== window.location.pathname) {
-                        window.location.href = targetDashboard;
-                    } else {
-                        window.location.reload();
-                    }
+                    window.location.href = '/auth/login';
                 }, 500);
             } else {
                 // No role change detected, update our confirmed roles

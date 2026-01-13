@@ -24,7 +24,7 @@ export async function refreshAccessToken(): Promise<string> {
                 throw new Error('No refresh token available');
             }
 
-            const url = import.meta.env.DEV ? '/api/auth/refresh' : getApiUrl('/api/auth/refresh');
+            const url = getApiUrl('/api/auth/refresh');
             const response = await fetch(url, {
                 method: 'POST',
                 headers: {
