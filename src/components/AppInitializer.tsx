@@ -4,6 +4,8 @@ import { IRootState } from '../store';
 import { toggleRTL, toggleTheme, toggleLocale, toggleMenu, toggleLayout, toggleAnimation, toggleNavbar, toggleSemidark, toggleAccent } from '../store/themeConfigSlice';
 import { verifyToken } from '../store/authSlice';
 import { applyHolidayTheme } from '../utils/holidayTheme';
+import { startInactivityTracking, stopInactivityTracking } from '../utils/inactivityTracker';
+import { isAuthenticated } from '../utils/auth';
 
 /**
  * AppInitializer - Handles global app initialization without rendering anything
@@ -30,6 +32,11 @@ export function AppInitializer() {
             dispatch(verifyToken() as any);
         }
 
+        // Start inactivity tracking for authenticated users
+        if (isAuthenticated()) {
+            startInactivityTracking();
+        }
+
         // Apply holiday theme
         applyHolidayTheme();
 
@@ -38,7 +45,10 @@ export function AppInitializer() {
             applyHolidayTheme();
         }, 1000 * 60 * 60 * 24); // Check daily
 
-        return () => clearInterval(holidayInterval);
+        return () => {
+            clearInterval(holidayInterval);
+            stopInactivityTracking();
+        };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [dispatch]);
 

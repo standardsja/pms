@@ -160,11 +160,12 @@ async function startServer(): Promise<void> {
 
         // Start HTTP server
         const server = httpServer.listen(config.PORT, () => {
+            const apiUrl = config.NODE_ENV === 'production' ? `https://${process.env.DOMAIN || 'api.example.com'}:${config.PORT}` : `http://localhost:${config.PORT}`;
+
             logger.info('Server started successfully', {
                 port: config.PORT,
                 environment: config.NODE_ENV,
-                apiUrl: `http://localhost:${config.PORT}`,
-                healthUrl: `http://localhost:${config.PORT}/health`,
+                apiUrl,
             });
         });
 

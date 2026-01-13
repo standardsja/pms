@@ -1,6 +1,7 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { User, UserRole, LoginCredentials, AuthResponse } from '../types/auth';
 import authService from '../services/authService';
+import { stopInactivityTracking } from '../utils/inactivityTracker';
 
 interface AuthState {
     user: User | null;
@@ -43,11 +44,7 @@ try {
 }
 
 // Support both legacy 'token' and new 'auth_token' keys (session or local storage)
-const cachedToken =
-    sessionStorage.getItem('token') ||
-    localStorage.getItem('token') ||
-    sessionStorage.getItem('auth_token') ||
-    localStorage.getItem('auth_token');
+const cachedToken = sessionStorage.getItem('token') || localStorage.getItem('token') || sessionStorage.getItem('auth_token') || localStorage.getItem('auth_token');
 
 const initialState: AuthState = {
     user: hydratedUser,
@@ -59,47 +56,39 @@ const initialState: AuthState = {
 };
 
 // Async thunks
-export const loginUser = createAsyncThunk(
-    'auth/login',
-    async (credentials: LoginCredentials, { rejectWithValue }) => {
-        try {
-            const response = await authService.login(credentials);
-            if (response.success && response.user && response.token) {
-                localStorage.setItem('token', response.token);
-                return response;
-            } else {
-                return rejectWithValue(response.message || 'Login failed');
-            }
-        } catch (error: any) {
-            return rejectWithValue(error.message || 'Login failed');
-        }
-    }
-);
-
-export const logoutUser = createAsyncThunk(
-    'auth/logout',
-    async (_, { dispatch }) => {
-        localStorage.removeItem('token');
-        return null;
-    }
-);
-
-export const verifyToken = createAsyncThunk(
-    'auth/verifyToken',
-    async (_, { rejectWithValue }) => {
-        try {
-            const token = localStorage.getItem('token');
-            if (!token) {
-                return rejectWithValue('No token found');
-            }
-            const response = await authService.verifyToken(token);
+export const loginUser = createAsyncThunk('auth/login', async (credentials: LoginCredentials, { rejectWithValue }) => {
+    try {
+        const response = await authService.login(credentials);
+        if (response.success && response.user && response.token) {
+            localStorage.setItem('token', response.token);
             return response;
-        } catch (error: any) {
-            localStorage.removeItem('token');
-            return rejectWithValue(error.message || 'Token verification failed');
+        } else {
+            return rejectWithValue(response.message || 'Login failed');
         }
+    } catch (error: any) {
+        return rejectWithValue(error.message || 'Login failed');
     }
-);
+});
+
+export const logoutUser = createAsyncThunk('auth/logout', async (_, { dispatch }) => {
+    stopInactivityTracking();
+    localStorage.removeItem('token');
+    return null;
+});
+
+export const verifyToken = createAsyncThunk('auth/verifyToken', async (_, { rejectWithValue }) => {
+    try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+            return rejectWithValue('No token found');
+        }
+        const response = await authService.verifyToken(token);
+        return response;
+    } catch (error: any) {
+        localStorage.removeItem('token');
+        return rejectWithValue(error.message || 'Token verification failed');
+    }
+});
 
 const authSlice = createSlice({
     name: 'auth',

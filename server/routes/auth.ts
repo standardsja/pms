@@ -1289,19 +1289,21 @@ router.get(
     })
 );
 
-// Simple LDAP test endpoint (development helper) - reports LDAP enabled and connection status
-router.get(
-    '/test-connection',
-    asyncHandler(async (_req, res) => {
-        try {
-            const enabled = ldapService.isEnabled();
-            const connected = enabled ? await ldapService.testConnection() : false;
-            return res.json({ enabled, connected, ldapConfig: enabled ? { url: config.LDAP?.url, searchDN: config.LDAP?.searchDN } : null });
-        } catch (err: any) {
-            return res.status(500).json({ enabled: ldapService.isEnabled(), connected: false, error: err?.message || String(err) });
-        }
-    })
-);
+// LDAP test endpoint (development only)
+if (process.env.NODE_ENV !== 'production') {
+    router.get(
+        '/test-connection',
+        asyncHandler(async (_req, res) => {
+            try {
+                const enabled = ldapService.isEnabled();
+                const connected = enabled ? await ldapService.testConnection() : false;
+                return res.json({ enabled, connected, ldapConfig: enabled ? { url: config.LDAP?.url, searchDN: config.LDAP?.searchDN } : null });
+            } catch (err: any) {
+                return res.status(500).json({ enabled: ldapService.isEnabled(), connected: false, error: err?.message || String(err) });
+            }
+        })
+    );
+}
 
 // Upload profile photo
 router.post(

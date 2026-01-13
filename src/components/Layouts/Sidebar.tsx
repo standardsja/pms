@@ -434,9 +434,9 @@ const Sidebar = () => {
                                         </NavLink>
                                     </li>
 
-                                    {procurementLocked ? (
+                                    {!isAdmin && procurementLocked ? (
                                         renderLockNotice('Procurement module', moduleLocks.procurement.reason)
-                                    ) : (
+                                    ) : !isAdmin ? (
                                         <>
                                             <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1 mt-4">
                                                 <IconMinus className="w-4 h-5 flex-none hidden" />
@@ -520,11 +520,11 @@ const Sidebar = () => {
                                                 </NavLink>
                                             </li>
                                         </>
-                                    )}
+                                    ) : null}
 
-                                    {innovationLocked ? (
+                                    {!isAdmin && innovationLocked ? (
                                         renderLockNotice('Innovation Hub', moduleLocks.innovation.reason)
-                                    ) : (
+                                    ) : !isAdmin ? (
                                         <>
                                             <h2 className="py-3 px-7 flex items-center uppercase font-extrabold bg-white-light/30 dark:bg-dark dark:bg-opacity-[0.08] -mx-4 mb-1 mt-4">
                                                 <IconMinus className="w-4 h-5 flex-none hidden" />
@@ -573,7 +573,7 @@ const Sidebar = () => {
                                                 </>
                                             )}
                                         </>
-                                    )}
+                                    ) : null}
                                 </>
                             )}
 
