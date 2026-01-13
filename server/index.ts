@@ -2094,8 +2094,8 @@ app.get('/api/requests', async (req, res) => {
                 if (user) {
                     const userRoles = (user.roles || []).map((r) => r.role.name).map((n) => n.toUpperCase());
 
-                    // EXECUTIVE_DIRECTOR, EXECUTIVE, and PROCUREMENT roles can see all requests
-                    const canSeeAll = userRoles.some((r) => r === 'EXECUTIVE_DIRECTOR' || r === 'EXECUTIVE' || r === 'PROCUREMENT_OFFICER' || r === 'PROCUREMENT_MANAGER' || r === 'ADMIN');
+                    // EXECUTIVE_DIRECTOR, EXECUTIVE, PROCUREMENT, FINANCE, and ADMIN roles can see all requests
+                    const canSeeAll = userRoles.some((r) => r === 'EXECUTIVE_DIRECTOR' || r === 'EXECUTIVE' || r === 'PROCUREMENT_OFFICER' || r === 'PROCUREMENT_MANAGER' || r === 'FINANCE' || r === 'BUDGET_MANAGER' || r === 'ADMIN');
 
                     if (!canSeeAll) {
                         // Regular users only see their department's requests
@@ -2166,7 +2166,7 @@ app.get('/api/requests', async (req, res) => {
 
                             if (user) {
                                 const userRoles = (user.roles || []).map((r) => r.role.name).map((n) => n.toUpperCase());
-                                const canSeeAll = userRoles.some((r) => r === 'EXECUTIVE_DIRECTOR' || r === 'EXECUTIVE' || r === 'PROCUREMENT_OFFICER' || r === 'PROCUREMENT_MANAGER' || r === 'ADMIN');
+                                const canSeeAll = userRoles.some((r) => r === 'EXECUTIVE_DIRECTOR' || r === 'EXECUTIVE' || r === 'PROCUREMENT_OFFICER' || r === 'PROCUREMENT_MANAGER' || r === 'FINANCE' || r === 'BUDGET_MANAGER' || r === 'ADMIN');
 
                                 if (!canSeeAll && user.departmentId) {
                                     whereClause.departmentId = user.departmentId;
@@ -2469,7 +2469,7 @@ app.get('/api/requests/:id', async (req, res) => {
 
                 if (user) {
                     const userRoles = (user.roles || []).map((r) => r.role.name).map((n) => n.toUpperCase());
-                    const canSeeAll = userRoles.some((r) => r === 'EXECUTIVE_DIRECTOR' || r === 'EXECUTIVE' || r === 'PROCUREMENT_OFFICER' || r === 'PROCUREMENT_MANAGER' || r === 'ADMIN');
+                    const canSeeAll = userRoles.some((r) => r === 'EXECUTIVE_DIRECTOR' || r === 'EXECUTIVE' || r === 'PROCUREMENT_OFFICER' || r === 'PROCUREMENT_MANAGER' || r === 'FINANCE' || r === 'BUDGET_MANAGER' || r === 'ADMIN');
 
                     // If not EXECUTIVE_DIRECTOR/PROCUREMENT, user can only see requests from their department
                     if (!canSeeAll && user.departmentId !== request.departmentId && request.requesterId !== userId && request.currentAssigneeId !== userId) {
@@ -2812,6 +2812,56 @@ app.put('/api/requests/:id', async (req, res) => {
         const updates = req.body || {};
         const actorUserIdRaw = req.headers['x-user-id'];
         const actingUserId = actorUserIdRaw ? parseInt(String(actorUserIdRaw), 10) : null;
+
+        if (!actingUserId) {
+            return res.status(401).json({ message: 'Authentication required' });
+        }
+
+        // Fetch current request state
+        const existingRequest = await prisma.request.findUnique({
+            where: { id: parseInt(id, 10) },
+            select: {
+                id: true,
+                requesterId: true,
+                currentAssigneeId: true,
+                status: true,
+                departmentId: true,
+            },
+        });
+
+        if (!existingRequest) {
+            return res.status(404).json({ message: 'Request not found' });
+        }
+
+        // Get acting user details
+        const actingUser = await prisma.user.findUnique({
+            where: { id: actingUserId },
+            include: { roles: { include: { role: true } } },
+        });
+
+        if (!actingUser) {
+            return res.status(401).json({ message: 'User not found' });
+        }
+
+        const userRoles = (actingUser.roles || []).map((r) => r.role.name).map((n) => n.toUpperCase());
+        const hasFullAccess = userRoles.some(
+            (r) => r === 'EXECUTIVE_DIRECTOR' || r === 'EXECUTIVE' || r === 'PROCUREMENT_OFFICER' || r === 'PROCUREMENT_MANAGER' || r === 'ADMIN'
+        );
+
+        const isRequester = existingRequest.requesterId === actingUserId;
+        const isCurrentAssignee = existingRequest.currentAssigneeId === actingUserId;
+        const isDraft = existingRequest.status === 'DRAFT';
+
+        // Authorization rules:
+        // 1. Requester can edit their own DRAFT requests
+        // 2. Current assignee can edit at their approval stage
+        // 3. Full access roles can always edit
+        const canEdit = hasFullAccess || (isRequester && isDraft) || isCurrentAssignee;
+
+        if (!canEdit) {
+            console.warn(`[PUT /requests/${id}] User ${actingUserId} attempted to edit without authorization`);
+            return res.status(403).json({ message: 'You are not authorized to edit this request' });
+        }
 
         // Debug log incoming dates BEFORE cleanup
         console.log(`[PUT /requests/${id}] Incoming updates:`, {
@@ -3408,53 +3458,33 @@ app.post('/api/requests/:id/action', async (req, res) => {
             return res.status(404).json({ message: 'Request not found' });
         }
 
-        // Verify user is the current assignee OR has the appropriate role for this workflow stage
+        // Get acting user details
         const actingUserId = parseInt(String(userId), 10);
-        let isAuthorized = request.currentAssigneeId === actingUserId;
+        const actingUser = await prisma.user.findUnique({
+            where: { id: actingUserId },
+            include: { roles: { include: { role: true } } },
+        });
 
-        if (!isAuthorized) {
-            try {
-                const actingUser = await prisma.user.findUnique({
-                    where: { id: actingUserId },
-                    include: { roles: { include: { role: true } } },
-                });
-                const roleNames = (actingUser?.roles || []).map((r: any) => String(r.role?.name || '').toUpperCase());
-
-                // Check if user has the required role for the current workflow stage
-                // This allows users with appropriate roles to approve even if not explicitly assigned
-                let hasRequiredRole = false;
-
-                if (request.status === 'DEPARTMENT_REVIEW') {
-                    hasRequiredRole = roleNames.includes('DEPT_MANAGER');
-                } else if (request.status === 'HOD_REVIEW') {
-                    hasRequiredRole = roleNames.includes('HEAD_OF_DIVISION') || roleNames.includes('HOD');
-                } else if (request.status === 'FINANCE_REVIEW') {
-                    hasRequiredRole = roleNames.includes('FINANCE') || roleNames.includes('FINANCE_OFFICER');
-                } else if (request.status === 'BUDGET_MANAGER_REVIEW') {
-                    hasRequiredRole = roleNames.includes('BUDGET_MANAGER');
-                } else if (request.status === 'PROCUREMENT_REVIEW') {
-                    hasRequiredRole = roleNames.includes('PROCUREMENT') || roleNames.includes('PROCUREMENT_MANAGER') || roleNames.includes('PROCUREMENT_OFFICER');
-                }
-
-                // Allow approval if user has the required role for this stage
-                if (hasRequiredRole) {
-                    isAuthorized = true;
-                    console.log(`Authorization by role: user ${actingUserId} (${roleNames.join(', ')}) acting on request ${id} at stage ${request.status}`);
-                }
-
-                // Also maintain backward compatibility: allow procurement managers to override at PROCUREMENT_REVIEW stage
-                const isProcurementManager = roleNames.includes('PROCUREMENT_MANAGER') || roleNames.includes('MANAGER') || roleNames.includes('PROCUREMENT');
-                if (!isAuthorized && isProcurementManager && request.status === 'PROCUREMENT_REVIEW') {
-                    isAuthorized = true;
-                    console.log(`Authorization override: user ${actingUserId} (procurement manager) acting on request ${id}`);
-                }
-            } catch (roleErr) {
-                console.warn('Failed to evaluate acting user roles for authorization:', roleErr);
-            }
+        if (!actingUser) {
+            return res.status(401).json({ message: 'User not found' });
         }
 
-        if (!isAuthorized) {
-            return res.status(403).json({ message: 'Not authorized to approve this request' });
+        const roleNames = (actingUser.roles || []).map((r: any) => String(r.role?.name || '').toUpperCase());
+
+        // Check if user has full access (EXEC, PROCUREMENT, ADMIN)
+        const hasFullAccess = roleNames.some(
+            (r) => r === 'EXECUTIVE_DIRECTOR' || r === 'EXECUTIVE' || r === 'PROCUREMENT_OFFICER' || r === 'PROCUREMENT_MANAGER' || r === 'ADMIN'
+        );
+
+        // Check if user is the current assignee
+        const isCurrentAssignee = request.currentAssigneeId === actingUserId;
+
+        // AUTHORIZATION CHECK: Only current assignee or full-access roles can approve/reject
+        if (!isCurrentAssignee && !hasFullAccess) {
+            console.warn(`[Request Action] User ${actingUserId} attempted ${action} on request ${id} without being assigned`);
+            return res.status(403).json({
+                message: 'You are not authorized to perform this action. Only the assigned approver can take action on this request.',
+            });
         }
 
         let nextStatus = request.status;

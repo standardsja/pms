@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import Select, { type StylesConfig } from 'react-select';
 import { useDispatch } from 'react-redux';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -243,6 +243,33 @@ const RequestForm = () => {
     const canApproveBudgetOfficer = !!(isAssignee && requestMeta?.status === 'FINANCE_REVIEW' && isBudgetOfficer);
     const canApproveBudgetManager = !!(isAssignee && requestMeta?.status === 'BUDGET_MANAGER_REVIEW' && !isBudgetOfficer);
     const canDispatchToVendors = !!(isAssignee && requestMeta?.status === 'FINANCE_APPROVED');
+
+    // Determine if user can edit the form
+    // New requests are always editable
+    // For existing requests:
+    // - Requester can edit DRAFT requests
+    // - Current assignee can edit at their stage
+    // - EXEC/PROCUREMENT/ADMIN can always edit
+    const canEditForm = useMemo(() => {
+        if (!isEditMode) return true; // New requests are always editable
+
+        const currentStatus = requestMeta?.status;
+        const isRequester = requestRequesterId && Number(requestRequesterId) === Number(currentUserId);
+        const isDraft = currentStatus === 'DRAFT';
+
+        // Requester can edit DRAFT requests
+        if (isRequester && isDraft) return true;
+
+        // Current assignee can edit at their stage
+        if (isAssignee) return true;
+
+        // Full access roles can always edit
+        const hasFullAccess = userRoles.some(
+            (r: string) => r === 'EXECUTIVE_DIRECTOR' || r === 'EXECUTIVE' || r === 'PROCUREMENT_OFFICER' || r === 'PROCUREMENT_MANAGER' || r === 'FINANCE' || r === 'BUDGET_MANAGER' || r === 'ADMIN'
+        );
+
+        return hasFullAccess || false;
+    }, [isEditMode, requestMeta, requestRequesterId, currentUserId, isAssignee, userRoles]);
 
     // Load available finance officers if user is Budget Manager and request is in FINANCE_REVIEW
     useEffect(() => {
@@ -1409,7 +1436,7 @@ const RequestForm = () => {
                                     value={requestedBy}
                                     onChange={(e) => setRequestedBy(e.target.value)}
                                     placeholder="Click here to enter text"
-                                    readOnly={!isEditMode}
+                                    readOnly={!canEditForm}
                                     required
                                 />
                             </div>
@@ -1480,7 +1507,7 @@ const RequestForm = () => {
                                     onChange={(e) => setInstitution(e.target.value)}
                                     className="form-input w-full"
                                     placeholder="Choose an item"
-                                    readOnly={!isEditMode}
+                                    readOnly={!canEditForm}
                                     required
                                 />
                             </div>
@@ -1492,7 +1519,7 @@ const RequestForm = () => {
                                     onChange={(e) => setDivision(e.target.value)}
                                     className="form-input w-full"
                                     placeholder="Choose an item"
-                                    readOnly={!isEditMode}
+                                    readOnly={!canEditForm}
                                     required
                                 />
                             </div>
@@ -1507,7 +1534,7 @@ const RequestForm = () => {
                                     onChange={(e) => setBranchUnit(e.target.value)}
                                     className="form-input w-full"
                                     placeholder="Choose an item"
-                                    readOnly={!isEditMode}
+                                    readOnly={!canEditForm}
                                 />
                             </div>
                             <div>
@@ -1542,7 +1569,7 @@ const RequestForm = () => {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                             <div>
                                 <label className="block text-sm font-medium mb-2">E-Mail</label>
-                                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="form-input w-full" placeholder="Enter email" readOnly={!isEditMode} required />
+                                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="form-input w-full" placeholder="Enter email" readOnly={!canEditForm} required />
                             </div>
                             <div>
                                 <label className="block text-sm font-medium mb-2">
@@ -1958,6 +1985,24 @@ const RequestForm = () => {
                                         <label className="block text-xs text-gray-500 mb-1">Date Approved:</label>
                                         <input type="date" className="form-input w-full" defaultValue={new Date().toISOString().split('T')[0]} disabled={!canApproveBudgetOfficer} />
                                     </div>
+                                    {canApproveBudgetOfficer && (
+                                        <div className="flex gap-2 mt-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowRejectModal(true)}
+                                                className="px-3 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded transition"
+                                            >
+                                                Reject Request
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowMessagesPanel(true)}
+                                                className="px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded transition"
+                                            >
+                                                View Messages
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                             <div>
@@ -1990,6 +2035,24 @@ const RequestForm = () => {
                                         <label className="block text-xs text-gray-500 mb-1">Date Approved:</label>
                                         <input type="date" className="form-input w-full" defaultValue={new Date().toISOString().split('T')[0]} disabled={!canApproveBudgetManager} />
                                     </div>
+                                    {canApproveBudgetManager && (
+                                        <div className="flex gap-2 mt-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowRejectModal(true)}
+                                                className="px-3 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded transition"
+                                            >
+                                                Reject Request
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowMessagesPanel(true)}
+                                                className="px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded transition"
+                                            >
+                                                View Messages
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -2176,11 +2239,17 @@ const RequestForm = () => {
                     <div className="flex flex-wrap items-center gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
                         <button
                             type="submit"
-                            disabled={isSubmitting || (!isEditMode && (!isFormCodeComplete || headerSequence === '000'))}
+                            disabled={isSubmitting || (!isEditMode && (!isFormCodeComplete || headerSequence === '000')) || (isEditMode && !canEditForm)}
                             className={`px-6 py-2 rounded bg-primary text-white font-medium ${
-                                isSubmitting || (!isEditMode && (!isFormCodeComplete || headerSequence === '000')) ? 'opacity-60 cursor-not-allowed' : 'hover:opacity-95'
+                                isSubmitting || (!isEditMode && (!isFormCodeComplete || headerSequence === '000')) || (isEditMode && !canEditForm) ? 'opacity-60 cursor-not-allowed' : 'hover:opacity-95'
                             }`}
-                            title={!isEditMode && (!isFormCodeComplete || headerSequence === '000') ? 'Complete the form code before submitting' : undefined}
+                            title={
+                                !isEditMode && (!isFormCodeComplete || headerSequence === '000') 
+                                    ? 'Complete the form code before submitting' 
+                                    : isEditMode && !canEditForm 
+                                    ? 'You do not have permission to edit this request' 
+                                    : undefined
+                            }
                         >
                             {isSubmitting ? (isEditMode ? 'Saving…' : 'Submitting…') : isEditMode ? 'Save Changes' : 'Submit Procurement Request'}
                         </button>
@@ -2210,27 +2279,6 @@ const RequestForm = () => {
                             >
                                 {isSubmitting ? 'Resubmitting…' : 'Resubmit for Review'}
                             </button>
-                        )}
-                        {/* Approve/Reject buttons for reviewers */}
-                        {isEditMode && canApproveOrRejectForm && (
-                            <>
-                                <button
-                                    type="button"
-                                    onClick={handleApprove}
-                                    disabled={isSubmitting}
-                                    className={`px-6 py-2 rounded bg-green-600 text-white font-medium ${isSubmitting ? 'opacity-60 cursor-not-allowed' : 'hover:bg-green-700'}`}
-                                >
-                                    ✓ Approve
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setShowRejectModal(true)}
-                                    disabled={isSubmitting}
-                                    className={`px-6 py-2 rounded bg-red-600 text-white font-medium ${isSubmitting ? 'opacity-60 cursor-not-allowed' : 'hover:bg-red-700'}`}
-                                >
-                                    ✗ Reject
-                                </button>
-                            </>
                         )}
                         <button
                             type="button"
