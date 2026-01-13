@@ -612,4 +612,51 @@ router.get(
     })
 );
 
-export { router as requestsRoutes };
+/**
+ * GET /api/requests/activities
+ * Get recent activities for the current user's requests
+ */
+router.get(
+    '/activities',
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+        const authenticatedReq = req as AuthenticatedRequest;
+        const userId = authenticatedReq.user.sub;
+
+        // Fetch recent request status changes for user's requests
+        const activities = await prisma.requestStatusHistory.findMany({
+            where: {
+                request: {
+                    createdById: userId,
+                },
+            },
+            include: {
+                request: {
+                    select: {
+                        id: true,
+                        reference: true,
+                        title: true,
+                    },
+                },
+                changedBy: {
+                    select: {
+                        name: true,
+                        email: true,
+                    },
+                },
+            },
+            orderBy: { changedAt: 'desc' },
+            take: 10, // Last 10 activities
+        });
+
+        const formatted = activities.map((activity) => ({
+            id: activity.id,
+            action: `Status changed to ${activity.newStatus}`,
+            description: `Request ${activity.request.reference} - ${activity.request.title}`,
+            status: activity.newStatus,
+            createdAt: activity.changedAt.toISOString(),
+        }));
+
+        res.json({ activities: formatted });
+    })
+);
