@@ -77,22 +77,25 @@ export function startRoleChangeMonitor(dispatch: Dispatch) {
 
                 // Role change detected - show notification and redirect to login
                 // This ensures the user gets a fresh token with their new roles
+                const newRolesStr = serverRoles
+                    .map((r: Role) => (typeof r === 'string' ? r : r.name))
+                    .join(', ')
+                    .replace(/_/g, ' ');
+
                 await Swal.fire({
-                    title: 'Role Updated',
-                    text: 'Your roles have been updated. Please log in again to continue.',
+                    title: 'Access Updated',
+                    html: `<p>Your roles have been updated to: <strong>${newRolesStr}</strong></p><p style="margin-top: 10px; font-size: 14px;">Please log in again to access the system with your new permissions.</p>`,
                     icon: 'info',
-                    timer: 2000,
+                    timer: 2500,
                     showConfirmButton: false,
+                    willClose: () => {
+                        // Clear all stored auth data
+                        localStorage.clear();
+                        sessionStorage.clear();
+                        // Redirect to login
+                        window.location.href = '/auth/login';
+                    },
                 });
-
-                // Clear all stored auth data
-                localStorage.clear();
-                sessionStorage.clear();
-
-                // Redirect to login
-                setTimeout(() => {
-                    window.location.href = '/auth/login';
-                }, 500);
             } else {
                 // No role change detected, update our confirmed roles
                 lastConfirmedRoles = serverRoles;

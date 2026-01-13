@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useDispatch } from 'react-redux';
+import Swal from 'sweetalert2';
 import { setPageTitle } from '../../../store/themeConfigSlice';
 import { getApiUrl } from '../../../config/api';
 // Icons grouped by usage context (workflows/templates/roles) - remove unused as needed
@@ -1369,7 +1370,11 @@ function UserRow({
             window.location.reload();
         } catch (e: any) {
             // Error handled in UI
-            alert('Failed to update department');
+            await Swal.fire({
+                title: 'Error',
+                text: 'Failed to update department',
+                icon: 'error',
+            });
         } finally {
             setSavingDept(false);
         }

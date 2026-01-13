@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import Swal from 'sweetalert2';
 import IconSquareCheck from './Icon/IconSquareCheck';
 import IconX from './Icon/IconX';
 import IconClock from './Icon/IconClock';
@@ -70,9 +71,20 @@ export const RoleRequestsAdminDashboard: React.FC = () => {
             setRequests(requests.filter((r) => r.id !== request.id));
             setSelectedRequest(null);
             setApprovalExpiry('');
-            alert('Role request approved successfully');
+
+            await Swal.fire({
+                title: 'Approved',
+                text: `Role request for ${request.user?.name} has been approved successfully.`,
+                icon: 'success',
+                timer: 3000,
+                showConfirmButton: false,
+            });
         } catch (err) {
-            alert(err instanceof Error ? err.message : 'Failed to approve request');
+            await Swal.fire({
+                title: 'Error',
+                text: err instanceof Error ? err.message : 'Failed to approve request',
+                icon: 'error',
+            });
         } finally {
             setProcessing(false);
         }
@@ -80,7 +92,11 @@ export const RoleRequestsAdminDashboard: React.FC = () => {
 
     const handleReject = async (request: RoleRequest) => {
         if (!rejectionNotes.trim()) {
-            alert('Please provide rejection notes');
+            await Swal.fire({
+                title: 'Missing Information',
+                text: 'Please provide rejection notes to explain your decision.',
+                icon: 'warning',
+            });
             return;
         }
 
@@ -90,9 +106,20 @@ export const RoleRequestsAdminDashboard: React.FC = () => {
             setRequests(requests.filter((r) => r.id !== request.id));
             setSelectedRequest(null);
             setRejectionNotes('');
-            alert('Role request rejected successfully');
+
+            await Swal.fire({
+                title: 'Rejected',
+                text: `Role request for ${request.user?.name} has been rejected.`,
+                icon: 'success',
+                timer: 3000,
+                showConfirmButton: false,
+            });
         } catch (err) {
-            alert(err instanceof Error ? err.message : 'Failed to reject request');
+            await Swal.fire({
+                title: 'Error',
+                text: err instanceof Error ? err.message : 'Failed to reject request',
+                icon: 'error',
+            });
         } finally {
             setProcessing(false);
         }

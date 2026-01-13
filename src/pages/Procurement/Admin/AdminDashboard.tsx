@@ -277,9 +277,9 @@ const AdminDashboard = () => {
             {showError && (
                 <div className="fixed top-36 right-6 z-50 animate-[fadeIn_0.3s_ease-in-out]">
                     <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-lg px-4 py-3 shadow-lg">
-                        <IconInfoCircle className="w-5 h-5 text-red-600" />
-                        <span className="text-red-800 font-medium">{errorMessage}</span>
-                        <button aria-label="Dismiss error" className="ml-2 text-red-600 hover:text-red-800" onClick={() => setShowError(false)}>
+                        <IconInfoCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+                        <span className="text-red-800 font-medium flex-1">{errorMessage}</span>
+                        <button aria-label="Dismiss error" className="ml-2 text-red-600 hover:text-red-800 flex-shrink-0 transition-colors" onClick={() => setShowError(false)}>
                             <IconX className="w-4 h-4" />
                         </button>
                     </div>
