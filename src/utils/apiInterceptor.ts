@@ -4,6 +4,7 @@
  */
 
 import { getApiUrl } from '../config/api';
+import { startInactivityTracking, stopInactivityTracking } from './inactivityTracker';
 
 let isRefreshing = false;
 let refreshSubscribers: Array<(token: string) => void> = [];
@@ -57,6 +58,9 @@ async function performTokenRefresh(): Promise<string | null> {
             if (data.user) {
                 localStorage.setItem('auth_user', JSON.stringify(data.user));
             }
+            // Restart inactivity tracking with new token
+            stopInactivityTracking();
+            startInactivityTracking();
             return data.token;
         }
 
