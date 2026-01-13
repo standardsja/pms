@@ -36,7 +36,6 @@ const SplinteringManagement = () => {
                 showError('Failed to load rules', 'Please try again');
             }
         } catch (error) {
-            console.error('Failed to load splintering rules:', error);
             showError('Failed to load rules', 'Please try again');
         } finally {
             setIsLoading(false);
@@ -71,7 +70,6 @@ const SplinteringManagement = () => {
                 showError('Failed to save rule', 'Please try again');
             }
         } catch (error) {
-            console.error('Failed to save rule:', error);
             showError('Failed to save rule', 'Please try again');
         }
     };
@@ -100,7 +98,6 @@ const SplinteringManagement = () => {
                     showError('Failed to delete rule', 'Please try again');
                 }
             } catch (error) {
-                console.error('Failed to delete rule:', error);
                 showError('Failed to delete rule', 'Please try again');
             }
         }
@@ -119,7 +116,6 @@ const SplinteringManagement = () => {
                 showError('Failed to toggle rule', 'Please try again');
             }
         } catch (error) {
-            console.error('Failed to toggle rule:', error);
             showError('Failed to toggle rule', 'Please try again');
         }
     };

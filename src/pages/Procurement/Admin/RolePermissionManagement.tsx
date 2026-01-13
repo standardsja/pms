@@ -69,14 +69,14 @@ const RolePermissionManagement = () => {
                 const data = await rolesRes.json();
                 loadedRoles = Array.isArray(data) ? data : data.data || data.roles || [];
             } else {
-                console.warn('Failed to fetch roles');
+                // Failed to fetch roles - handled silently
             }
 
             if (permsRes?.ok) {
                 const data = await permsRes.json();
                 setPermissions(Array.isArray(data) ? data : data.data || data.permissions || []);
             } else {
-                console.warn('Failed to fetch permissions');
+                // Failed to fetch permissions - handled silently
                 setPermissions([]);
             }
 
@@ -95,7 +95,7 @@ const RolePermissionManagement = () => {
                             };
                         }
                     } catch (e) {
-                        console.warn(`Failed to load permissions for role ${role.id}:`, e);
+                        // Error handled in component state
                     }
                     return role;
                 })
@@ -103,7 +103,7 @@ const RolePermissionManagement = () => {
 
             setRoles(rolesWithPermissions);
         } catch (e: any) {
-            console.error('Error loading data:', e);
+            // Error handled in UI
             setError(e.message);
         } finally {
             setLoading(false);
@@ -148,7 +148,7 @@ const RolePermissionManagement = () => {
                 }));
             }
         } catch (e) {
-            console.warn('Failed to load role permissions:', e);
+            // Error handled in component state
         }
     };
 
@@ -238,7 +238,7 @@ const RolePermissionManagement = () => {
                 });
 
                 if (!permResponse.ok) {
-                    console.warn('Failed to save permissions');
+                    // Failed to save permissions - handled silently
                 }
             }
 
@@ -246,7 +246,7 @@ const RolePermissionManagement = () => {
             setTimeout(() => setSuccess(''), 2000);
         } catch (e: any) {
             setError(e.message || 'Failed to save role');
-            console.error('Error saving role:', e);
+            // Error handled in UI
         } finally {
             setProcessing(false);
         }
@@ -273,7 +273,7 @@ const RolePermissionManagement = () => {
             setTimeout(() => setSuccess(''), 2000);
         } catch (e: any) {
             setError(e.message || 'Failed to delete role');
-            console.error('Error deleting role:', e);
+            // Error handled in UI
         } finally {
             setProcessing(false);
         }

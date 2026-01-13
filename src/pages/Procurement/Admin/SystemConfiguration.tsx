@@ -43,7 +43,7 @@ const SystemConfiguration = () => {
             setConfig(data);
             setError('');
         } catch (e: any) {
-            console.warn('Error loading config:', e.message);
+            // Error handled in UI
             setError(e.message || 'Failed to load configuration');
         } finally {
             setLoading(false);

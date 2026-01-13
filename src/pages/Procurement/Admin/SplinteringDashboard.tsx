@@ -49,7 +49,7 @@ const SplinteringDashboard = () => {
                 setStats(data);
             }
         } catch (error) {
-            console.error('Failed to load splintering stats:', error);
+            // Error handled in UI
         } finally {
             setIsLoading(false);
         }

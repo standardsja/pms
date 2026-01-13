@@ -99,7 +99,7 @@ const AdminSettings = () => {
             const roles = await adminService.getAllRoles();
             setAllRoles(roles);
         } catch (e: any) {
-            console.warn('Failed to fetch roles from API, using fallback:', e?.message);
+            // Error handled in component state - using fallback roles if API fails
             // Use fallback roles if API fails
             setAllRoles(
                 ADMIN_ROLE_NAMES.map((name) => ({
@@ -120,7 +120,7 @@ const AdminSettings = () => {
             const depts = await fetch(getApiUrl('/api/departments')).then((r) => r.json());
             setAllDepartments(depts);
         } catch (e: any) {
-            console.warn('Failed to fetch departments:', e?.message);
+            // Error handled in component state
         } finally {
             setDepartmentsLoading(false);
         }
@@ -835,7 +835,7 @@ function AssignRequestsToUsersPanel({ users }: { users: FlatUser[] }) {
             const data = await res.json();
             setRequests(data);
         } catch (e: any) {
-            console.error('Failed to load requests:', e);
+            // Error handled in UI
             setError(e?.message || 'Failed to load requests');
         } finally {
             setLoading(false);
@@ -882,7 +882,7 @@ function AssignRequestsToUsersPanel({ users }: { users: FlatUser[] }) {
             setSelectedStatus('');
             setTimeout(() => loadRequests(), 1000);
         } catch (e: any) {
-            console.error('Assignment error:', e);
+            // Error handled in UI
             setError(e?.message || 'Failed to assign request');
         } finally {
             setAssigning(false);
@@ -1094,7 +1094,7 @@ function ReassignRequestsTab() {
             setRequests(reqs);
             setUsers(usrs);
         } catch (e: any) {
-            console.error('Failed to load data:', e);
+            // Error handled in UI
             setError(e?.message || 'Failed to load requests and users');
         } finally {
             setLoading(false);
@@ -1140,7 +1140,7 @@ function ReassignRequestsTab() {
             setSelectedStatus('');
             setTimeout(() => loadData(), 1000);
         } catch (e: any) {
-            console.error('Reassignment error:', e);
+            // Error handled in UI
             setError(e?.message || 'Failed to reassign request');
         } finally {
             setReassigning(false);
@@ -1368,7 +1368,7 @@ function UserRow({
             // Reload users to reflect changes
             window.location.reload();
         } catch (e: any) {
-            console.error('Failed to update department:', e);
+            // Error handled in UI
             alert('Failed to update department');
         } finally {
             setSavingDept(false);

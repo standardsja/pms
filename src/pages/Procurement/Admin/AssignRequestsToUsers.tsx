@@ -37,7 +37,7 @@ const AssignRequestsToUsers = () => {
             setUsers(usersData);
             setRequests(requestsData);
         } catch (e: any) {
-            console.error('Failed to load data:', e);
+            // Error handled in UI
             setError(e?.message || 'Failed to load data');
         } finally {
             setLoading(false);
@@ -84,7 +84,7 @@ const AssignRequestsToUsers = () => {
             setSelectedStatus('');
             setTimeout(() => loadInitialData(), 1000);
         } catch (e: any) {
-            console.error('Assignment error:', e);
+            // Error handled in UI
             setError(e?.message || 'Failed to assign request');
         } finally {
             setAssigning(false);
