@@ -38,6 +38,8 @@ export function startRoleChangeMonitor(dispatch: Dispatch) {
     // Avoid duplicate monitors
     if (intervalId) return;
 
+    let lastConfirmedRoles: Role[] = [];
+
     const check = async () => {
         const token = getToken();
         if (!token) {
@@ -60,6 +62,13 @@ export function startRoleChangeMonitor(dispatch: Dispatch) {
             const serverRoles: Role[] = (serverUser.roles as Role[]) || [];
 
             if (rolesChanged(currentRoles, serverRoles)) {
+                // Verify this is a real change, not a temporary inconsistency
+                // by checking if it's different from our last confirmed state
+                if (!rolesChanged(lastConfirmedRoles, serverRoles)) {
+                    // No actual change from what we last confirmed, skip
+                    return;
+                }
+
                 // Stop the monitor immediately to prevent duplicate triggers
                 if (intervalId) {
                     clearInterval(intervalId);
@@ -93,6 +102,7 @@ export function startRoleChangeMonitor(dispatch: Dispatch) {
                             }
 
                             dispatch(setUser(refreshData.user));
+                            lastConfirmedRoles = serverRoles;
                             tokenRefreshSuccess = true;
                         } else {
                             console.error('Token refresh failed with status:', refreshRes.status);
@@ -104,11 +114,13 @@ export function startRoleChangeMonitor(dispatch: Dispatch) {
 
                 // Only proceed with reload if token was successfully refreshed
                 if (!tokenRefreshSuccess) {
-                    console.warn('Could not refresh token after role change. User may need to re-login.');
-                    // Force logout and redirect to login
-                    localStorage.clear();
-                    sessionStorage.clear();
-                    window.location.href = '/auth/login';
+                    console.warn('Could not refresh token after role change. Will retry on next check.');
+                    // Restart the monitor to try again later instead of forcing logout
+                    const checkAgain = async () => {
+                        await new Promise((resolve) => setTimeout(resolve, 5000)); // Wait 5 seconds before retrying
+                        check();
+                    };
+                    checkAgain();
                     return;
                 }
 
@@ -140,6 +152,9 @@ export function startRoleChangeMonitor(dispatch: Dispatch) {
                         window.location.reload();
                     }
                 }, 500);
+            } else {
+                // No role change detected, update our confirmed roles
+                lastConfirmedRoles = serverRoles;
             }
         } catch {
             // Silent failure; will retry on next tick
