@@ -18,7 +18,7 @@ export async function refreshAccessToken(): Promise<string> {
 
     refreshPromise = (async () => {
         try {
-            const refreshToken = localStorage.getItem('refreshToken');
+            const refreshToken = localStorage.getItem('refreshToken') || sessionStorage.getItem('refreshToken');
 
             if (!refreshToken) {
                 throw new Error('No refresh token available');
@@ -43,21 +43,31 @@ export async function refreshAccessToken(): Promise<string> {
                 throw new Error('Invalid refresh response');
             }
 
-            // Update stored tokens
-            localStorage.setItem('token', data.token);
-            localStorage.setItem('refreshToken', data.refreshToken);
-
-            // Update user data if provided
-            if (data.user) {
-                localStorage.setItem('auth_user', JSON.stringify(data.user));
+            // Update stored tokens - use the same storage as the original refresh token
+            const useLocalStorage = !!localStorage.getItem('refreshToken');
+            if (useLocalStorage) {
+                localStorage.setItem('token', data.token);
+                localStorage.setItem('refreshToken', data.refreshToken);
+                if (data.user) {
+                    localStorage.setItem('auth_user', JSON.stringify(data.user));
+                }
+            } else {
+                sessionStorage.setItem('token', data.token);
+                sessionStorage.setItem('refreshToken', data.refreshToken);
+                if (data.user) {
+                    sessionStorage.setItem('auth_user', JSON.stringify(data.user));
+                }
             }
 
             return data.token;
         } catch (error) {
-            // Clear tokens on refresh failure
+            // Clear tokens on refresh failure from both storages
             localStorage.removeItem('token');
             localStorage.removeItem('refreshToken');
             localStorage.removeItem('auth_user');
+            sessionStorage.removeItem('token');
+            sessionStorage.removeItem('refreshToken');
+            sessionStorage.removeItem('auth_user');
             throw error;
         } finally {
             refreshPromise = null;
@@ -71,7 +81,7 @@ export async function refreshAccessToken(): Promise<string> {
  * Check if token is expired or about to expire (within 5 minutes)
  */
 export function isTokenExpiringSoon(): boolean {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('token') || sessionStorage.getItem('token');
     if (!token) return true;
 
     try {

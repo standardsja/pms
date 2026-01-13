@@ -33,7 +33,8 @@ const RequesterDashboard = () => {
     useEffect(() => {
         const fetchStats = async () => {
             try {
-                const response = await fetch('/api/stats/requester');
+                const headers = await getAuthHeaders();
+                const response = await fetch('/api/stats/requester', { headers });
                 if (response.ok) {
                     const data = await response.json();
                     setStats(data);

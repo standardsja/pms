@@ -564,8 +564,6 @@ router.get('/system', async (req: Request, res: Response) => {
     }
 });
 
-export default router;
-
 /**
  * GET /api/stats/department-manager
  * Returns department manager dashboard statistics
