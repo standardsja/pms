@@ -83,6 +83,11 @@ const AdminDashboard = () => {
         }
     };
 
+    // Filter out PROCUREMENT role, keeping PROCUREMENT_OFFICER and PROCUREMENT_MANAGER
+    const displayRoles = useMemo(() => {
+        return allRoles.filter((role) => role.name !== 'PROCUREMENT');
+    }, [allRoles]);
+
     // Filter and search users
     const filteredUsers = useMemo(() => {
         return users.filter((user) => {
@@ -317,7 +322,7 @@ const AdminDashboard = () => {
                     <div className="flex items-center justify-between">
                         <div>
                             <p className="text-sm font-medium text-purple-700 dark:text-purple-300">Roles Available</p>
-                            <p className="text-3xl font-bold text-purple-900 dark:text-purple-100 mt-1">{allRoles.length}</p>
+                            <p className="text-3xl font-bold text-purple-900 dark:text-purple-100 mt-1">{displayRoles.length}</p>
                         </div>
                         <IconSettings className="w-12 h-12 text-purple-300 dark:text-purple-700" />
                     </div>
@@ -436,7 +441,7 @@ const AdminDashboard = () => {
                     <div>
                         <select value={filterRole} onChange={(e) => setFilterRole(e.target.value)} className="form-select py-2.5 w-full">
                             <option value="">All Roles</option>
-                            {allRoles.map((role) => (
+                            {displayRoles.map((role) => (
                                 <option key={role.id} value={role.name}>
                                     {role.name}
                                 </option>
@@ -520,7 +525,7 @@ const AdminDashboard = () => {
                                         </button>
                                         <div className="absolute right-0 mt-1 w-56 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10">
                                             <div className="p-2 space-y-1">
-                                                {allRoles
+                                                {displayRoles
                                                     .filter((role) => !userRoles.includes(role.name))
                                                     .map((role) => (
                                                         <button
@@ -531,7 +536,7 @@ const AdminDashboard = () => {
                                                             {role.name}
                                                         </button>
                                                     ))}
-                                                {allRoles.filter((role) => !userRoles.includes(role.name)).length === 0 && <div className="px-3 py-2 text-sm text-gray-500">All roles assigned</div>}
+                                                {displayRoles.filter((role) => !userRoles.includes(role.name)).length === 0 && <div className="px-3 py-2 text-sm text-gray-500">All roles assigned</div>}
                                             </div>
                                         </div>
                                     </div>
@@ -583,7 +588,7 @@ const AdminDashboard = () => {
                             <div>
                                 <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Roles & Permissions</label>
                                 <div className="space-y-3">
-                                    {allRoles.map((role) => {
+                                    {displayRoles.map((role) => {
                                         const isSelected = editingRoles.includes(role.name);
                                         return (
                                             <div

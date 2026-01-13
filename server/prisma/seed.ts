@@ -78,6 +78,41 @@ async function main() {
             update: { name: 'Research & Development' },
             create: { name: 'Research & Development', code: 'RD' },
         }),
+        prisma.department.upsert({
+            where: { code: 'CHEM' },
+            update: { name: 'Chemistry' },
+            create: { name: 'Chemistry', code: 'CHEM' },
+        }),
+        prisma.department.upsert({
+            where: { code: 'OHOS' },
+            update: { name: 'OHOS' },
+            create: { name: 'OHOS', code: 'OHOS' },
+        }),
+        prisma.department.upsert({
+            where: { code: 'MECH' },
+            update: { name: 'Mechanical' },
+            create: { name: 'Mechanical', code: 'MECH' },
+        }),
+        prisma.department.upsert({
+            where: { code: 'MICRO' },
+            update: { name: 'Micro Biology' },
+            create: { name: 'Micro Biology', code: 'MICRO' },
+        }),
+        prisma.department.upsert({
+            where: { code: 'STD' },
+            update: { name: 'Standards' },
+            create: { name: 'Standards', code: 'STD' },
+        }),
+        prisma.department.upsert({
+            where: { code: 'ELEC' },
+            update: { name: 'Electrical' },
+            create: { name: 'Electrical', code: 'ELEC' },
+        }),
+        prisma.department.upsert({
+            where: { code: 'CIV' },
+            update: { name: 'Civil' },
+            create: { name: 'Civil', code: 'CIV' },
+        }),
     ]);
 
     console.log('[seed] Departments created:', departments.map((d) => d.name).join(', '));
