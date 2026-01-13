@@ -536,7 +536,9 @@ const AdminDashboard = () => {
                                                             {role.name}
                                                         </button>
                                                     ))}
-                                                {displayRoles.filter((role) => !userRoles.includes(role.name)).length === 0 && <div className="px-3 py-2 text-sm text-gray-500">All roles assigned</div>}
+                                                {displayRoles.filter((role) => !userRoles.includes(role.name)).length === 0 && (
+                                                    <div className="px-3 py-2 text-sm text-gray-500">All roles assigned</div>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
