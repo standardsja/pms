@@ -87,6 +87,51 @@ router.get(
     })
 );
 
+// Recent activities for a requester (actions on their requests)
+router.get(
+    '/activities',
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+        const authenticatedReq = req as AuthenticatedRequest;
+        const requesterId = authenticatedReq.user?.sub;
+
+        if (!requesterId) {
+            return res.status(401).json({ message: 'User ID required' });
+        }
+
+        const actions = await prisma.requestAction.findMany({
+            where: {
+                request: {
+                    requesterId,
+                },
+            },
+            include: {
+                request: {
+                    select: { id: true, reference: true },
+                },
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 10,
+        });
+
+        const mapStatus = (action: string): string => {
+            if (action === 'RETURN' || action === 'REJECT') return 'rejected';
+            if (action === 'APPROVE') return 'approved';
+            return 'pending';
+        };
+
+        const activities = actions.map((a) => ({
+            id: a.id,
+            action: a.action,
+            description: `${a.action} for request ${a.request.reference || a.request.id}`,
+            status: mapStatus(a.action),
+            createdAt: a.createdAt.toISOString(),
+        }));
+
+        return res.json({ activities });
+    })
+);
+
 // Get request by ID
 router.get(
     '/:id',

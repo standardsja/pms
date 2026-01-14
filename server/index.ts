@@ -2286,8 +2286,10 @@ app.post(
                 return res.status(400).json({ message: 'Invalid items format', error: parseErr.message });
             }
 
-            // Generate reference
-            const reference = `REQ-${Date.now()}`;
+            // Generate reference using header code when provided; fall back to legacy REQ- timestamp
+            const headerSeqPadded = headerSequence !== null && headerSequence !== undefined ? String(headerSequence).padStart(3, '0') : null;
+            const headerCode = headerDeptCode && headerMonth && headerYear && headerSeqPadded ? `${headerDeptCode}/${headerMonth}/${headerYear}/${headerSeqPadded}` : null;
+            const reference = headerCode || `REQ-${Date.now()}`;
 
             console.log('[POST /requests] Creating request with reference:', reference);
 

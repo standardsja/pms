@@ -262,6 +262,57 @@ router.get('/modules', async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/stats/requester
+ * Dashboard stats for the requester (counts their own requests by status groups)
+ */
+router.get('/requester', authMiddleware, async (req: Request, res: Response) => {
+    try {
+        const authReq = req as AuthenticatedRequest;
+        const requesterId = authReq.user?.sub;
+
+        if (!requesterId) {
+            return res.status(401).json({ message: 'User ID required' });
+        }
+
+        const pendingStatuses: RequestStatus[] = [
+            'SUBMITTED',
+            'DEPARTMENT_REVIEW',
+            'HOD_REVIEW',
+            'FINANCE_REVIEW',
+            'BUDGET_MANAGER_REVIEW',
+            'PROCUREMENT_REVIEW',
+            'EXECUTIVE_REVIEW',
+        ];
+        const approvedStatuses: RequestStatus[] = ['FINANCE_APPROVED', 'SENT_TO_VENDOR', 'CLOSED'];
+
+        const [myRequests, pendingApproval, approved, rejected] = await prisma.$transaction([
+            prisma.request.count({ where: { requesterId } }),
+            prisma.request.count({ where: { requesterId, status: { in: pendingStatuses } } }),
+            prisma.request.count({ where: { requesterId, status: { in: approvedStatuses } } }),
+            prisma.request.count({
+                where: {
+                    requesterId,
+                    OR: [
+                        { status: 'REJECTED' },
+                        {
+                            AND: [
+                                { status: 'DRAFT' },
+                                { actions: { some: { action: 'RETURN' } } },
+                            ],
+                        },
+                    ],
+                },
+            }),
+        ]);
+
+        return res.json({ myRequests, pendingApproval, approved, rejected });
+    } catch (error) {
+        console.error('GET /api/stats/requester error:', error);
+        return res.status(500).json({ message: 'Failed to fetch requester stats' });
+    }
+});
+
+/**
  * GET /api/stats/dashboard
  * Returns comprehensive dashboard statistics
  */
