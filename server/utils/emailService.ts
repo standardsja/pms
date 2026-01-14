@@ -177,6 +177,30 @@ class EmailService {
     }
 
     /**
+     * Send stage assignment/next-step notification email
+     */
+    async sendStageAssignmentNotification(recipientEmail: string, recipientName: string, requestRef: string, nextStage: string, assignerName?: string): Promise<boolean> {
+        const normalizedStage = nextStage.replace(/_/g, ' ').toUpperCase();
+        const subject = `Action Required: Request ${requestRef} - ${normalizedStage}`;
+
+        const html = `
+            <html>
+                <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                    <h2>Action Required</h2>
+                    <p>Dear ${recipientName},</p>
+                    <p>Request <strong>${requestRef}</strong> is now at stage <strong>${normalizedStage}</strong> and has been assigned to you for the next action.</p>
+                    ${assignerName ? `<p><strong>Assigned by:</strong> ${assignerName}</p>` : ''}
+                    <p>Please sign in to the Procurement Management System to review and take action.</p>
+                    <hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
+                    <p style="font-size: 12px; color: #999;">This is an automated message from the Procurement Management System. Please do not reply to this email.</p>
+                </body>
+            </html>
+        `;
+
+        return this.sendEmail(recipientEmail, subject, html);
+    }
+
+    /**
      * Test email configuration
      */
     async testConfiguration(testEmail: string): Promise<boolean> {

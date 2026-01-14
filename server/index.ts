@@ -3379,6 +3379,19 @@ app.post('/api/requests/:id/submit', async (req, res) => {
                         data: { requestId: updated.id, status: updated.status, assignedBy: request.requesterId },
                     },
                 });
+
+                // Email the new assignee
+                if (updated.currentAssignee?.email) {
+                    const requesterName = updated.requester?.name || 'Requester';
+                    const stageLabel = (updated.status || '').replace(/_/g, ' ');
+                    await emailService.sendStageAssignmentNotification(
+                        updated.currentAssignee.email,
+                        updated.currentAssignee.name || 'User',
+                        updated.reference || String(updated.id),
+                        stageLabel,
+                        requesterName
+                    );
+                }
             }
         } catch (notifErr) {
             console.warn('Failed to create notification on submit:', notifErr);
@@ -3799,6 +3812,19 @@ app.post('/api/requests/:id/action', async (req, res) => {
                                 data: { requestId: updated.id, status: updated.status },
                             },
                         });
+
+                        // Email the next assignee
+                        if (updated.currentAssignee?.email) {
+                            const assignerName = actingUser?.name || 'Requester';
+                            const stageLabel = (updated.status || '').replace(/_/g, ' ');
+                            await emailService.sendStageAssignmentNotification(
+                                updated.currentAssignee.email,
+                                updated.currentAssignee.name || 'User',
+                                updated.reference || String(updated.id),
+                                stageLabel,
+                                assignerName
+                            );
+                        }
                     }
                 } catch (notifErr) {
                     console.warn('Failed to create notification on approve action:', notifErr);
@@ -3889,6 +3915,18 @@ app.post('/api/requests/:id/action', async (req, res) => {
                             data: { requestId: updated.id, status: updated.status, autoAssigned: true },
                         },
                     });
+
+                    if (updated.currentAssignee?.email) {
+                        const assignerName = actingUser?.name || 'System';
+                        const stageLabel = (updated.status || '').replace(/_/g, ' ');
+                        await emailService.sendStageAssignmentNotification(
+                            updated.currentAssignee.email,
+                            updated.currentAssignee.name || 'User',
+                            updated.reference || String(updated.id),
+                            stageLabel,
+                            assignerName
+                        );
+                    }
                 } catch (notifErr) {
                     console.warn('Failed to create auto-assignment notification:', notifErr);
                 }
@@ -3920,6 +3958,18 @@ app.post('/api/requests/:id/action', async (req, res) => {
                             data: { requestId: updated.id, status: updated.status, autoAssigned: true },
                         },
                     });
+
+                    if (updated.currentAssignee?.email) {
+                        const assignerName = actingUser?.name || 'System';
+                        const stageLabel = (updated.status || '').replace(/_/g, ' ');
+                        await emailService.sendStageAssignmentNotification(
+                            updated.currentAssignee.email,
+                            updated.currentAssignee.name || 'User',
+                            updated.reference || String(updated.id),
+                            stageLabel,
+                            assignerName
+                        );
+                    }
                 } catch (notifErr) {
                     console.warn('Failed to create finance officer assignment notification:', notifErr);
                 }
