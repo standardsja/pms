@@ -2280,11 +2280,11 @@ app.post(
             if (!priority) {
                 return res.status(400).json({ message: 'Priority is required' });
             }
-            
+
             if (!procurementType) {
                 return res.status(400).json({ message: 'Procurement type is required' });
             }
-            
+
             // Parse procurementType if it's a JSON string
             let parsedProcurementType;
             try {
