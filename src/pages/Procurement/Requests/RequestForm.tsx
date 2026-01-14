@@ -1049,6 +1049,28 @@ const RequestForm = () => {
                     return;
                 }
 
+                // Validate procurement type is selected
+                if (!procurementType || procurementType.length === 0) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Procurement Type Required',
+                        text: 'Please select at least one procurement type (Consulting Service, Goods, Non-Consulting Service, or Works) before submitting.',
+                    });
+                    setIsSubmitting(false);
+                    return;
+                }
+
+                // Validate priority is selected
+                if (!priority) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Priority Required',
+                        text: 'Please select a priority level (Urgent, High, Medium, or Low) before submitting.',
+                    });
+                    setIsSubmitting(false);
+                    return;
+                }
+
                 // Validate form code is filled out
                 if (!headerDeptCode || !headerMonth || !headerYear || !headerSequence || headerSequence === '000') {
                     Swal.fire({

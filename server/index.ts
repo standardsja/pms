@@ -2276,6 +2276,26 @@ app.post(
                 return res.status(400).json({ message: 'Title and department are required' });
             }
 
+            // Validate required fields
+            if (!priority) {
+                return res.status(400).json({ message: 'Priority is required' });
+            }
+            
+            if (!procurementType) {
+                return res.status(400).json({ message: 'Procurement type is required' });
+            }
+            
+            // Parse procurementType if it's a JSON string
+            let parsedProcurementType;
+            try {
+                parsedProcurementType = typeof procurementType === 'string' ? JSON.parse(procurementType) : procurementType;
+                if (!Array.isArray(parsedProcurementType) || parsedProcurementType.length === 0) {
+                    return res.status(400).json({ message: 'At least one procurement type must be selected' });
+                }
+            } catch (parseErr) {
+                return res.status(400).json({ message: 'Invalid procurement type format' });
+            }
+
             // Parse items if it comes as JSON string (from FormData)
             let parsedItems;
             try {
