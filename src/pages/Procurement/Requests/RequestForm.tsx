@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import Select, { type StylesConfig } from 'react-select';
 import { useDispatch } from 'react-redux';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -226,6 +226,7 @@ const RequestForm = () => {
     const [showRejectModal, setShowRejectModal] = useState(false);
     const [rejectionNote, setRejectionNote] = useState('');
     const [isRejecting, setIsRejecting] = useState(false);
+    const [isRejectDisabled, setIsRejectDisabled] = useState(false); // Disable reject button state
 
     // Request actions/messages
     const [requestActions, setRequestActions] = useState<Array<{ id: number; action: string; comment: string | null; performedBy: { name: string } | null; createdAt: string }>>([]);
@@ -243,6 +244,33 @@ const RequestForm = () => {
     const canApproveBudgetOfficer = !!(isAssignee && requestMeta?.status === 'FINANCE_REVIEW' && isBudgetOfficer);
     const canApproveBudgetManager = !!(isAssignee && requestMeta?.status === 'BUDGET_MANAGER_REVIEW' && !isBudgetOfficer);
     const canDispatchToVendors = !!(isAssignee && requestMeta?.status === 'FINANCE_APPROVED');
+
+    // Determine if user can edit the form
+    // New requests are always editable
+    // For existing requests:
+    // - Requester can edit DRAFT requests
+    // - Current assignee can edit at their stage
+    // - EXEC/PROCUREMENT/ADMIN can always edit
+    const canEditForm = useMemo(() => {
+        if (!isEditMode) return true; // New requests are always editable
+
+        const currentStatus = requestMeta?.status;
+        const isRequester = requestRequesterId && Number(requestRequesterId) === Number(currentUserId);
+        const isDraft = currentStatus === 'DRAFT';
+
+        // Requester can edit DRAFT requests
+        if (isRequester && isDraft) return true;
+
+        // Current assignee can edit at their stage
+        if (isAssignee) return true;
+
+        // Full access roles can always edit
+        const hasFullAccess = userRoles.some(
+            (r: string) => r === 'EXECUTIVE_DIRECTOR' || r === 'EXECUTIVE' || r === 'PROCUREMENT_OFFICER' || r === 'PROCUREMENT_MANAGER' || r === 'FINANCE' || r === 'BUDGET_MANAGER' || r === 'ADMIN'
+        );
+
+        return hasFullAccess || false;
+    }, [isEditMode, requestMeta, requestRequesterId, currentUserId, isAssignee, userRoles]);
 
     // Load available finance officers if user is Budget Manager and request is in FINANCE_REVIEW
     useEffect(() => {
@@ -405,11 +433,30 @@ const RequestForm = () => {
                 if (request.attachments && Array.isArray(request.attachments)) {
                     setExistingAttachments(request.attachments);
                 }
-                // Load header code values
-                setHeaderDeptCode(request.headerDeptCode || request.department?.code || '');
-                setHeaderMonth(request.headerMonth || '');
-                setHeaderYear(request.headerYear || new Date().getFullYear());
-                setHeaderSequence(String(request.headerSequence ?? 0).padStart(3, '0'));
+                // Load header code values; fall back to parsing title if fields are missing
+                const derivedHeaderFromTitle = (() => {
+                    if (!request.title) return {};
+                    const parts = request.title.split('/');
+                    if (parts.length < 4) return {};
+                    return {
+                        dept: parts[0] || '',
+                        month: parts[1] || '',
+                        year: parts[2] ? Number(parts[2]) : undefined,
+                        sequence: parts[3] || '',
+                    };
+                })();
+
+                setHeaderDeptCode(request.headerDeptCode || derivedHeaderFromTitle.dept || request.department?.code || '');
+                setHeaderMonth(request.headerMonth || derivedHeaderFromTitle.month || '');
+                setHeaderYear(request.headerYear || derivedHeaderFromTitle.year || new Date().getFullYear());
+
+                const rawSequenceFromRequest = request.headerSequence !== null && request.headerSequence !== undefined ? String(request.headerSequence) : '';
+                const cleanedSequenceFromRequest = rawSequenceFromRequest.replace(/[^0-9A-Za-z]/g, '');
+                const cleanedSequenceFromTitle = (derivedHeaderFromTitle.sequence || '').replace(/[^0-9A-Za-z]/g, '');
+                const effectiveSequence =
+                    cleanedSequenceFromRequest === '' || cleanedSequenceFromRequest === '0' || cleanedSequenceFromRequest === '000' ? cleanedSequenceFromTitle : cleanedSequenceFromRequest;
+
+                setHeaderSequence((effectiveSequence || '').padStart(3, '0'));
 
                 // Track status and assignee for edit gating
                 const assigneeId = request.currentAssignee?.id || request.currentAssigneeId || null;
@@ -531,6 +578,7 @@ const RequestForm = () => {
         }
 
         setIsRejecting(true);
+        setIsRejectDisabled(true); // Disable the reject button
         try {
             const response = await fetch(getApiUrl(`/api/requests/${id}/reject`), {
                 method: 'POST',
@@ -552,7 +600,6 @@ const RequestForm = () => {
             setShowRejectModal(false);
 
             // Update local state to reflect the rejection
-            // This creates an optimistic UI update so the user sees it immediately
             const newRejectionAction = {
                 id: Date.now(), // Temporary ID
                 action: 'RETURN',
@@ -574,12 +621,18 @@ const RequestForm = () => {
                 title: 'Rejected!',
                 text: 'The request has been rejected and returned to the requester. The rejection is now visible in the Messages panel.',
                 confirmButtonText: 'OK',
+            }).then(() => {
+                // Redirect or refresh the page here
+                window.location.reload(); // Refresh the page
+                // Alternatively, you can use a redirect to another page
+                // history.push('/some-other-page'); // Use your routing method
             });
         } catch (err: any) {
             console.error('Rejection failed:', err);
             Swal.fire({ icon: 'error', title: 'Rejection Failed', text: err.message || 'An error occurred' });
         } finally {
             setIsRejecting(false);
+            setIsRejectDisabled(false); // Re-enable the reject button if needed
         }
     };
 
@@ -956,7 +1009,7 @@ const RequestForm = () => {
                                         });
                                         if (!overrideResp.ok) {
                                             const err = await overrideResp.json().catch(() => ({}));
-                                            throw new Error(err.message || err.error || overrideResp.statusText || 'Resubmit failed after override');
+                                            throw new Error(err.message || overrideResp.statusText || 'Resubmit failed after override');
                                         }
                                     } else {
                                         if (!submitResp.ok) {
@@ -1372,7 +1425,8 @@ const RequestForm = () => {
                                             onChange={(e) => {
                                                 setHeaderSequence(e.target.value);
                                             }}
-                                            className="bg-transparent border-0 text-white font-semibold text-sm focus:ring-0 w-10 text-center"
+                                            className="bg-transparent border-0 text-white font-semibold text-sm focus:ring-0 text-center min-w-[2.5rem]"
+                                            style={{ width: `${Math.min(Math.max((headerSequence?.length || 1) + 1, 3), 12)}ch` }}
                                             disabled={isEditMode}
                                             placeholder="0"
                                         />
@@ -1381,7 +1435,7 @@ const RequestForm = () => {
                                 </div>
                             </div>
                             {!isEditMode && !isFormCodeComplete && (
-                                <div className="mt-3 text-sm text-yellow-800 bg-yellow-50 dark:bg-yellow-900/20 rounded p-2">
+                                <div className="mt-3 text-sm text-red-800 bg-red-50 border border-red-200 rounded p-2">
                                     <strong>Form Code Required:</strong> Please complete Department, Month, Year and Sequence before submitting.
                                 </div>
                             )}
@@ -1409,7 +1463,7 @@ const RequestForm = () => {
                                     value={requestedBy}
                                     onChange={(e) => setRequestedBy(e.target.value)}
                                     placeholder="Click here to enter text"
-                                    readOnly={!isEditMode}
+                                    readOnly={!canEditForm}
                                     required
                                 />
                             </div>
@@ -1480,7 +1534,7 @@ const RequestForm = () => {
                                     onChange={(e) => setInstitution(e.target.value)}
                                     className="form-input w-full"
                                     placeholder="Choose an item"
-                                    readOnly={!isEditMode}
+                                    readOnly={!canEditForm}
                                     required
                                 />
                             </div>
@@ -1492,7 +1546,7 @@ const RequestForm = () => {
                                     onChange={(e) => setDivision(e.target.value)}
                                     className="form-input w-full"
                                     placeholder="Choose an item"
-                                    readOnly={!isEditMode}
+                                    readOnly={!canEditForm}
                                     required
                                 />
                             </div>
@@ -1507,7 +1561,7 @@ const RequestForm = () => {
                                     onChange={(e) => setBranchUnit(e.target.value)}
                                     className="form-input w-full"
                                     placeholder="Choose an item"
-                                    readOnly={!isEditMode}
+                                    readOnly={!canEditForm}
                                 />
                             </div>
                             <div>
@@ -1542,7 +1596,7 @@ const RequestForm = () => {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                             <div>
                                 <label className="block text-sm font-medium mb-2">E-Mail</label>
-                                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="form-input w-full" placeholder="Enter email" readOnly={!isEditMode} required />
+                                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="form-input w-full" placeholder="Enter email" readOnly={!canEditForm} required />
                             </div>
                             <div>
                                 <label className="block text-sm font-medium mb-2">
@@ -1958,6 +2012,24 @@ const RequestForm = () => {
                                         <label className="block text-xs text-gray-500 mb-1">Date Approved:</label>
                                         <input type="date" className="form-input w-full" defaultValue={new Date().toISOString().split('T')[0]} disabled={!canApproveBudgetOfficer} />
                                     </div>
+                                    {canApproveBudgetOfficer && (
+                                        <div className="flex gap-2 mt-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowRejectModal(true)}
+                                                className="px-3 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded transition"
+                                            >
+                                                Reject Request
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowMessagesPanel(true)}
+                                                className="px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded transition"
+                                            >
+                                                View Messages
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                             <div>
@@ -1990,6 +2062,24 @@ const RequestForm = () => {
                                         <label className="block text-xs text-gray-500 mb-1">Date Approved:</label>
                                         <input type="date" className="form-input w-full" defaultValue={new Date().toISOString().split('T')[0]} disabled={!canApproveBudgetManager} />
                                     </div>
+                                    {canApproveBudgetManager && (
+                                        <div className="flex gap-2 mt-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowRejectModal(true)}
+                                                className="px-3 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded transition"
+                                            >
+                                                Reject Request
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowMessagesPanel(true)}
+                                                className="px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded transition"
+                                            >
+                                                View Messages
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -2176,11 +2266,19 @@ const RequestForm = () => {
                     <div className="flex flex-wrap items-center gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
                         <button
                             type="submit"
-                            disabled={isSubmitting || (!isEditMode && (!isFormCodeComplete || headerSequence === '000'))}
+                            disabled={isSubmitting || (!isEditMode && (!isFormCodeComplete || headerSequence === '000')) || (isEditMode && !canEditForm)}
                             className={`px-6 py-2 rounded bg-primary text-white font-medium ${
-                                isSubmitting || (!isEditMode && (!isFormCodeComplete || headerSequence === '000')) ? 'opacity-60 cursor-not-allowed' : 'hover:opacity-95'
+                                isSubmitting || (!isEditMode && (!isFormCodeComplete || headerSequence === '000')) || (isEditMode && !canEditForm)
+                                    ? 'opacity-60 cursor-not-allowed'
+                                    : 'hover:opacity-95'
                             }`}
-                            title={!isEditMode && (!isFormCodeComplete || headerSequence === '000') ? 'Complete the form code before submitting' : undefined}
+                            title={
+                                !isEditMode && (!isFormCodeComplete || headerSequence === '000')
+                                    ? 'Complete the form code before submitting'
+                                    : isEditMode && !canEditForm
+                                    ? 'You do not have permission to edit this request'
+                                    : undefined
+                            }
                         >
                             {isSubmitting ? (isEditMode ? 'Saving…' : 'Submitting…') : isEditMode ? 'Save Changes' : 'Submit Procurement Request'}
                         </button>
@@ -2211,27 +2309,6 @@ const RequestForm = () => {
                                 {isSubmitting ? 'Resubmitting…' : 'Resubmit for Review'}
                             </button>
                         )}
-                        {/* Approve/Reject buttons for reviewers */}
-                        {isEditMode && canApproveOrRejectForm && (
-                            <>
-                                <button
-                                    type="button"
-                                    onClick={handleApprove}
-                                    disabled={isSubmitting}
-                                    className={`px-6 py-2 rounded bg-green-600 text-white font-medium ${isSubmitting ? 'opacity-60 cursor-not-allowed' : 'hover:bg-green-700'}`}
-                                >
-                                    ✓ Approve
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setShowRejectModal(true)}
-                                    disabled={isSubmitting}
-                                    className={`px-6 py-2 rounded bg-red-600 text-white font-medium ${isSubmitting ? 'opacity-60 cursor-not-allowed' : 'hover:bg-red-700'}`}
-                                >
-                                    ✗ Reject
-                                </button>
-                            </>
-                        )}
                         <button
                             type="button"
                             onClick={() => navigate('/apps/requests')}
@@ -2261,7 +2338,12 @@ const RequestForm = () => {
                             >
                                 Cancel
                             </button>
-                            <button type="button" onClick={handleReject} disabled={isRejecting} className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-60">
+                            <button
+                                type="button"
+                                onClick={handleReject}
+                                disabled={isRejecting || isRejectDisabled}
+                                className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-60"
+                            >
                                 {isRejecting ? 'Rejecting...' : 'Reject Request'}
                             </button>
                         </div>

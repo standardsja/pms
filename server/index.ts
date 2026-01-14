@@ -2076,9 +2076,52 @@ app.delete('/api/ideas/:id/vote', authMiddleware, voteLimiter, async (req, res) 
 app.use('/api/requests/combine', combineRouter);
 
 // GET /requests - alias for direct backend access (frontend may call this without /api prefix)
-app.get('/api/requests', async (_req, res) => {
+app.get('/api/requests', async (req, res) => {
     try {
+        // Get user ID from header
+        const userId = req.headers['x-user-id'] ? parseInt(String(req.headers['x-user-id']), 10) : null;
+
+        // Build where clause for department filtering
+        let whereClause: any = {};
+
+        if (userId) {
+            try {
+                // Fetch user with roles to check permissions
+                const user = await prisma.user.findUnique({
+                    where: { id: userId },
+                    include: { roles: { include: { role: true } } },
+                });
+
+                if (user) {
+                    const userRoles = (user.roles || []).map((r) => r.role.name).map((n) => n.toUpperCase());
+
+                    // EXECUTIVE_DIRECTOR, EXECUTIVE, PROCUREMENT, FINANCE, and ADMIN roles can see all requests
+                    const canSeeAll = userRoles.some(
+                        (r) =>
+                            r === 'EXECUTIVE_DIRECTOR' || r === 'EXECUTIVE' || r === 'PROCUREMENT_OFFICER' || r === 'PROCUREMENT_MANAGER' || r === 'FINANCE' || r === 'BUDGET_MANAGER' || r === 'ADMIN'
+                    );
+
+                    if (!canSeeAll) {
+                        // Regular users only see their department's requests
+                        if (user.departmentId) {
+                            whereClause.departmentId = user.departmentId;
+                        } else {
+                            // User with no department - see only their own requests
+                            whereClause.requesterId = userId;
+                        }
+                    }
+                }
+            } catch (userErr) {
+                console.error('Error fetching user for request filtering:', userErr);
+                // Default to department filtering if user lookup fails
+                if (userId) {
+                    whereClause.requesterId = userId;
+                }
+            }
+        }
+
         const requests = await prisma.request.findMany({
+            where: whereClause,
             orderBy: { createdAt: 'desc' },
             select: {
                 id: true,
@@ -2114,7 +2157,43 @@ app.get('/api/requests', async (_req, res) => {
             const patched = await fixInvalidRequestStatuses();
             if (patched !== null) {
                 try {
+                    // Re-apply filtering logic on retry
+                    const userId = req.headers['x-user-id'] ? parseInt(String(req.headers['x-user-id']), 10) : null;
+                    let whereClause: any = {};
+
+                    if (userId) {
+                        try {
+                            const user = await prisma.user.findUnique({
+                                where: { id: userId },
+                                include: { roles: { include: { role: true } } },
+                            });
+
+                            if (user) {
+                                const userRoles = (user.roles || []).map((r) => r.role.name).map((n) => n.toUpperCase());
+                                const canSeeAll = userRoles.some(
+                                    (r) =>
+                                        r === 'EXECUTIVE_DIRECTOR' ||
+                                        r === 'EXECUTIVE' ||
+                                        r === 'PROCUREMENT_OFFICER' ||
+                                        r === 'PROCUREMENT_MANAGER' ||
+                                        r === 'FINANCE' ||
+                                        r === 'BUDGET_MANAGER' ||
+                                        r === 'ADMIN'
+                                );
+
+                                if (!canSeeAll && user.departmentId) {
+                                    whereClause.departmentId = user.departmentId;
+                                }
+                            }
+                        } catch {
+                            if (userId) {
+                                whereClause.requesterId = userId;
+                            }
+                        }
+                    }
+
                     const requests = await prisma.request.findMany({
+                        where: whereClause,
                         orderBy: { createdAt: 'desc' },
                         select: {
                             id: true,
@@ -2336,6 +2415,8 @@ app.use('/api/requests/combinable', combineRouter);
 app.get('/api/requests/:id', async (req, res) => {
     try {
         const { id } = req.params;
+        const userId = req.headers['x-user-id'] ? parseInt(String(req.headers['x-user-id']), 10) : null;
+
         const request = await prisma.request.findUnique({
             where: { id: parseInt(id, 10) },
             select: {
@@ -2391,6 +2472,32 @@ app.get('/api/requests/:id', async (req, res) => {
             return res.status(404).json({ message: 'Request not found' });
         }
 
+        // Check if user has permission to view this request
+        if (userId) {
+            try {
+                const user = await prisma.user.findUnique({
+                    where: { id: userId },
+                    include: { roles: { include: { role: true } } },
+                });
+
+                if (user) {
+                    const userRoles = (user.roles || []).map((r) => r.role.name).map((n) => n.toUpperCase());
+                    const canSeeAll = userRoles.some(
+                        (r) =>
+                            r === 'EXECUTIVE_DIRECTOR' || r === 'EXECUTIVE' || r === 'PROCUREMENT_OFFICER' || r === 'PROCUREMENT_MANAGER' || r === 'FINANCE' || r === 'BUDGET_MANAGER' || r === 'ADMIN'
+                    );
+
+                    // If not EXECUTIVE_DIRECTOR/PROCUREMENT, user can only see requests from their department
+                    if (!canSeeAll && user.departmentId !== request.departmentId && request.requesterId !== userId && request.currentAssigneeId !== userId) {
+                        return res.status(403).json({ message: 'You do not have permission to view this request' });
+                    }
+                }
+            } catch (userErr) {
+                console.error('Error checking permissions for GET /requests/:id:', userErr);
+                // Allow access if permission check fails (fail-open)
+            }
+        }
+
         return res.json(request);
     } catch (e: any) {
         console.error('GET /requests/:id error:', e);
@@ -2400,6 +2507,8 @@ app.get('/api/requests/:id', async (req, res) => {
             if (patched !== null) {
                 try {
                     const { id } = req.params;
+                    const userId = req.headers['x-user-id'] ? parseInt(String(req.headers['x-user-id']), 10) : null;
+
                     const request = await prisma.request.findUnique({
                         where: { id: parseInt(id, 10) },
                         select: {
@@ -2719,6 +2828,54 @@ app.put('/api/requests/:id', async (req, res) => {
         const updates = req.body || {};
         const actorUserIdRaw = req.headers['x-user-id'];
         const actingUserId = actorUserIdRaw ? parseInt(String(actorUserIdRaw), 10) : null;
+
+        if (!actingUserId) {
+            return res.status(401).json({ message: 'Authentication required' });
+        }
+
+        // Fetch current request state
+        const existingRequest = await prisma.request.findUnique({
+            where: { id: parseInt(id, 10) },
+            select: {
+                id: true,
+                requesterId: true,
+                currentAssigneeId: true,
+                status: true,
+                departmentId: true,
+            },
+        });
+
+        if (!existingRequest) {
+            return res.status(404).json({ message: 'Request not found' });
+        }
+
+        // Get acting user details
+        const actingUser = await prisma.user.findUnique({
+            where: { id: actingUserId },
+            include: { roles: { include: { role: true } } },
+        });
+
+        if (!actingUser) {
+            return res.status(401).json({ message: 'User not found' });
+        }
+
+        const userRoles = (actingUser.roles || []).map((r) => r.role.name).map((n) => n.toUpperCase());
+        const hasFullAccess = userRoles.some((r) => r === 'EXECUTIVE_DIRECTOR' || r === 'EXECUTIVE' || r === 'PROCUREMENT_OFFICER' || r === 'PROCUREMENT_MANAGER' || r === 'ADMIN');
+
+        const isRequester = existingRequest.requesterId === actingUserId;
+        const isCurrentAssignee = existingRequest.currentAssigneeId === actingUserId;
+        const isDraft = existingRequest.status === 'DRAFT';
+
+        // Authorization rules:
+        // 1. Requester can edit their own DRAFT requests
+        // 2. Current assignee can edit at their approval stage
+        // 3. Full access roles can always edit
+        const canEdit = hasFullAccess || (isRequester && isDraft) || isCurrentAssignee;
+
+        if (!canEdit) {
+            console.warn(`[PUT /requests/${id}] User ${actingUserId} attempted to edit without authorization`);
+            return res.status(403).json({ message: 'You are not authorized to edit this request' });
+        }
 
         // Debug log incoming dates BEFORE cleanup
         console.log(`[PUT /requests/${id}] Incoming updates:`, {
@@ -3222,6 +3379,19 @@ app.post('/api/requests/:id/submit', async (req, res) => {
                         data: { requestId: updated.id, status: updated.status, assignedBy: request.requesterId },
                     },
                 });
+
+                // Email the new assignee
+                if (updated.currentAssignee?.email) {
+                    const requesterName = updated.requester?.name || 'Requester';
+                    const stageLabel = (updated.status || '').replace(/_/g, ' ');
+                    await emailService.sendStageAssignmentNotification(
+                        updated.currentAssignee.email,
+                        updated.currentAssignee.name || 'User',
+                        updated.reference || String(updated.id),
+                        stageLabel,
+                        requesterName
+                    );
+                }
             }
         } catch (notifErr) {
             console.warn('Failed to create notification on submit:', notifErr);
@@ -3315,53 +3485,31 @@ app.post('/api/requests/:id/action', async (req, res) => {
             return res.status(404).json({ message: 'Request not found' });
         }
 
-        // Verify user is the current assignee OR has the appropriate role for this workflow stage
+        // Get acting user details
         const actingUserId = parseInt(String(userId), 10);
-        let isAuthorized = request.currentAssigneeId === actingUserId;
+        const actingUser = await prisma.user.findUnique({
+            where: { id: actingUserId },
+            include: { roles: { include: { role: true } } },
+        });
 
-        if (!isAuthorized) {
-            try {
-                const actingUser = await prisma.user.findUnique({
-                    where: { id: actingUserId },
-                    include: { roles: { include: { role: true } } },
-                });
-                const roleNames = (actingUser?.roles || []).map((r: any) => String(r.role?.name || '').toUpperCase());
-
-                // Check if user has the required role for the current workflow stage
-                // This allows users with appropriate roles to approve even if not explicitly assigned
-                let hasRequiredRole = false;
-
-                if (request.status === 'DEPARTMENT_REVIEW') {
-                    hasRequiredRole = roleNames.includes('DEPT_MANAGER');
-                } else if (request.status === 'HOD_REVIEW') {
-                    hasRequiredRole = roleNames.includes('HEAD_OF_DIVISION') || roleNames.includes('HOD');
-                } else if (request.status === 'FINANCE_REVIEW') {
-                    hasRequiredRole = roleNames.includes('FINANCE') || roleNames.includes('FINANCE_OFFICER');
-                } else if (request.status === 'BUDGET_MANAGER_REVIEW') {
-                    hasRequiredRole = roleNames.includes('BUDGET_MANAGER');
-                } else if (request.status === 'PROCUREMENT_REVIEW') {
-                    hasRequiredRole = roleNames.includes('PROCUREMENT') || roleNames.includes('PROCUREMENT_MANAGER') || roleNames.includes('PROCUREMENT_OFFICER');
-                }
-
-                // Allow approval if user has the required role for this stage
-                if (hasRequiredRole) {
-                    isAuthorized = true;
-                    console.log(`Authorization by role: user ${actingUserId} (${roleNames.join(', ')}) acting on request ${id} at stage ${request.status}`);
-                }
-
-                // Also maintain backward compatibility: allow procurement managers to override at PROCUREMENT_REVIEW stage
-                const isProcurementManager = roleNames.includes('PROCUREMENT_MANAGER') || roleNames.includes('MANAGER') || roleNames.includes('PROCUREMENT');
-                if (!isAuthorized && isProcurementManager && request.status === 'PROCUREMENT_REVIEW') {
-                    isAuthorized = true;
-                    console.log(`Authorization override: user ${actingUserId} (procurement manager) acting on request ${id}`);
-                }
-            } catch (roleErr) {
-                console.warn('Failed to evaluate acting user roles for authorization:', roleErr);
-            }
+        if (!actingUser) {
+            return res.status(401).json({ message: 'User not found' });
         }
 
-        if (!isAuthorized) {
-            return res.status(403).json({ message: 'Not authorized to approve this request' });
+        const roleNames = (actingUser.roles || []).map((r: any) => String(r.role?.name || '').toUpperCase());
+
+        // Check if user has full access (EXEC, PROCUREMENT, ADMIN)
+        const hasFullAccess = roleNames.some((r) => r === 'EXECUTIVE_DIRECTOR' || r === 'EXECUTIVE' || r === 'PROCUREMENT_OFFICER' || r === 'PROCUREMENT_MANAGER' || r === 'ADMIN');
+
+        // Check if user is the current assignee
+        const isCurrentAssignee = request.currentAssigneeId === actingUserId;
+
+        // AUTHORIZATION CHECK: Only current assignee or full-access roles can approve/reject
+        if (!isCurrentAssignee && !hasFullAccess) {
+            console.warn(`[Request Action] User ${actingUserId} attempted ${action} on request ${id} without being assigned`);
+            return res.status(403).json({
+                message: 'You are not authorized to perform this action. Only the assigned approver can take action on this request.',
+            });
         }
 
         let nextStatus = request.status;
@@ -3580,8 +3728,10 @@ app.post('/api/requests/:id/action', async (req, res) => {
                             // Fetch recipient details for email
                             const recipient = await prisma.user.findUnique({
                                 where: { id: recipientId },
-                                select: { name: true, email: true },
+                                select: { id: true, name: true, email: true },
                             });
+
+                            console.log(`[REJECTION] Recipient ${recipientId} details:`, { id: recipient?.id, name: recipient?.name, email: recipient?.email });
 
                             // Create message in system
                             await prisma.message.create({
@@ -3595,8 +3745,10 @@ app.post('/api/requests/:id/action', async (req, res) => {
                             console.log(`[REJECTION] Created message for recipient ${recipientId}`);
 
                             // Send email notification
+                            console.log(`[REJECTION] Email check - recipient?.email exists: ${!!recipient?.email}`);
                             if (recipient?.email) {
-                                await emailService.sendRejectionNotification(
+                                console.log(`[REJECTION] About to call sendRejectionNotification with email: ${recipient.email}`);
+                                const emailSent = await emailService.sendRejectionNotification(
                                     recipient.email,
                                     recipient.name || 'User',
                                     updated.id,
@@ -3604,7 +3756,9 @@ app.post('/api/requests/:id/action', async (req, res) => {
                                     comment ? comment.trim() : 'No reason provided',
                                     rejectorName
                                 );
-                                console.log(`[REJECTION] Sent email notification to ${recipient.email}`);
+                                console.log(`[REJECTION] Email send result: ${emailSent}`);
+                            } else {
+                                console.warn(`[REJECTION] No email address found for recipient ${recipientId} (${recipient?.name}). Skipping email notification.`);
                             }
                         } catch (msgErr) {
                             console.warn(`[REJECTION] Error creating message/email for ${recipientId}:`, msgErr);
@@ -3658,6 +3812,19 @@ app.post('/api/requests/:id/action', async (req, res) => {
                                 data: { requestId: updated.id, status: updated.status },
                             },
                         });
+
+                        // Email the next assignee
+                        if (updated.currentAssignee?.email) {
+                            const assignerName = actingUser?.name || 'Requester';
+                            const stageLabel = (updated.status || '').replace(/_/g, ' ');
+                            await emailService.sendStageAssignmentNotification(
+                                updated.currentAssignee.email,
+                                updated.currentAssignee.name || 'User',
+                                updated.reference || String(updated.id),
+                                stageLabel,
+                                assignerName
+                            );
+                        }
                     }
                 } catch (notifErr) {
                     console.warn('Failed to create notification on approve action:', notifErr);
@@ -3748,6 +3915,18 @@ app.post('/api/requests/:id/action', async (req, res) => {
                             data: { requestId: updated.id, status: updated.status, autoAssigned: true },
                         },
                     });
+
+                    if (updated.currentAssignee?.email) {
+                        const assignerName = actingUser?.name || 'System';
+                        const stageLabel = (updated.status || '').replace(/_/g, ' ');
+                        await emailService.sendStageAssignmentNotification(
+                            updated.currentAssignee.email,
+                            updated.currentAssignee.name || 'User',
+                            updated.reference || String(updated.id),
+                            stageLabel,
+                            assignerName
+                        );
+                    }
                 } catch (notifErr) {
                     console.warn('Failed to create auto-assignment notification:', notifErr);
                 }
@@ -3779,6 +3958,18 @@ app.post('/api/requests/:id/action', async (req, res) => {
                             data: { requestId: updated.id, status: updated.status, autoAssigned: true },
                         },
                     });
+
+                    if (updated.currentAssignee?.email) {
+                        const assignerName = actingUser?.name || 'System';
+                        const stageLabel = (updated.status || '').replace(/_/g, ' ');
+                        await emailService.sendStageAssignmentNotification(
+                            updated.currentAssignee.email,
+                            updated.currentAssignee.name || 'User',
+                            updated.reference || String(updated.id),
+                            stageLabel,
+                            assignerName
+                        );
+                    }
                 } catch (notifErr) {
                     console.warn('Failed to create finance officer assignment notification:', notifErr);
                 }
@@ -4154,9 +4345,15 @@ app.post('/api/requests/:id/reject', async (req, res) => {
 
                 console.log(`[REJECTION] Total recipients: ${recipients.length}`, recipients);
 
-                // Create messages for all recipients
+                // Create messages and send emails for all recipients
                 for (const recipientId of recipients) {
                     try {
+                        // Fetch recipient details for email
+                        const recipient = await prisma.user.findUnique({
+                            where: { id: recipientId },
+                            select: { id: true, name: true, email: true },
+                        });
+
                         await prisma.message.create({
                             data: {
                                 fromUserId: actingUserId,
@@ -4166,8 +4363,25 @@ app.post('/api/requests/:id/reject', async (req, res) => {
                             },
                         });
                         console.log(`[REJECTION] Created message for recipient ${recipientId}`);
+
+                        // Send email notification
+                        console.log(`[REJECTION] Email check - recipient?.email exists: ${!!recipient?.email}`);
+                        if (recipient?.email) {
+                            console.log(`[REJECTION] About to call sendRejectionNotification with email: ${recipient.email}`);
+                            const emailSent = await emailService.sendRejectionNotification(
+                                recipient.email,
+                                recipient.name || 'User',
+                                request.id,
+                                request.reference || String(request.id),
+                                note.trim() || 'No reason provided',
+                                rejectorName
+                            );
+                            console.log(`[REJECTION] Email send result: ${emailSent}`);
+                        } else {
+                            console.warn(`[REJECTION] No email address found for recipient ${recipientId} (${recipient?.name}). Skipping email notification.`);
+                        }
                     } catch (msgErr) {
-                        console.warn(`[REJECTION] Error creating message for ${recipientId}:`, msgErr);
+                        console.warn(`[REJECTION] Error creating message/email for ${recipientId}:`, msgErr);
                     }
                 }
 
@@ -4523,76 +4737,6 @@ app.get('/api/challenges', async (_req, res) => {
     } catch (e: any) {
         console.error('GET /api/challenges error:', e);
         res.status(500).json({ message: 'Failed to fetch challenges' });
-    }
-});
-
-// GET /api/requests - list procurement requests (different from /api/requisitions)
-app.get('/api/requests', async (_req, res) => {
-    try {
-        // Select only safe core fields to avoid schema drift issues with legacy databases
-        const requests = await prisma.request.findMany({
-            orderBy: { createdAt: 'desc' },
-            select: {
-                id: true,
-                reference: true,
-                title: true,
-                requesterId: true,
-                departmentId: true,
-                status: true,
-                createdAt: true,
-                updatedAt: true,
-                isCombined: true,
-                combinedRequestId: true,
-                lotNumber: true,
-                requester: { select: { id: true, name: true, email: true } },
-                department: { select: { id: true, name: true, code: true } },
-            },
-        });
-        return res.json(requests);
-    } catch (e: any) {
-        // If a column is missing on the connected database (e.g., P2022), fall back to a raw query
-        console.error('GET /api/requests error:', e);
-        const message = String(e?.message || '');
-        if (message.includes("not found in enum 'RequestStatus'")) {
-            const patched = await fixInvalidRequestStatuses();
-            if (patched !== null) {
-                try {
-                    const requests = await prisma.request.findMany({
-                        orderBy: { createdAt: 'desc' },
-                        select: {
-                            id: true,
-                            reference: true,
-                            title: true,
-                            requesterId: true,
-                            departmentId: true,
-                            status: true,
-                            createdAt: true,
-                            updatedAt: true,
-                            isCombined: true,
-                            combinedRequestId: true,
-                            lotNumber: true,
-                            requester: { select: { id: true, name: true, email: true } },
-                            department: { select: { id: true, name: true, code: true } },
-                        },
-                    });
-                    return res.json(requests);
-                } catch (retryErr: any) {
-                    console.error('GET /api/requests retry after patch failed:', retryErr);
-                }
-            }
-        }
-        if (e?.code === 'P2022') {
-            try {
-                const rows = await prisma.$queryRawUnsafe(
-                    'SELECT id, reference, title, requesterId, departmentId, status, createdAt, updatedAt, isCombined, combinedRequestId, lotNumber FROM Request ORDER BY createdAt DESC'
-                );
-                // rows will not include requester/department objects; return as-is
-                return res.json(rows);
-            } catch (rawErr: any) {
-                console.error('GET /api/requests fallback raw query failed:', rawErr);
-            }
-        }
-        return res.status(500).json({ message: 'Failed to fetch requests' });
     }
 });
 

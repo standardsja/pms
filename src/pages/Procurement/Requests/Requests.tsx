@@ -338,7 +338,7 @@ const Requests = () => {
                     )}
             </div>
 
-            <div className="bg-white dark:bg-slate-800 shadow rounded overflow-hidden" aria-busy={isLoading}>
+            <div className="bg-white dark:bg-slate-800 shadow rounded overflow-x-auto" aria-busy={isLoading}>
                 {isLoading && (
                     <table className="min-w-full table-auto">
                         <thead className="bg-slate-50 dark:bg-slate-700 text-sm">

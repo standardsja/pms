@@ -488,7 +488,7 @@ const Header = () => {
                                     </span>
                                 }
                             >
-                                <ul className="!py-0 text-dark dark:text-white-dark w-[300px] sm:w-[375px] text-xs">
+                                <ul className="!py-0 text-dark dark:text-white-dark w-[300px] sm:w-[375px] text-xs max-h-[500px] overflow-y-auto">
                                     <li className="mb-5" onClick={(e) => e.stopPropagation()}>
                                         <div className="hover:!bg-transparent overflow-hidden relative rounded-t-md p-5 text-white w-full !h-[68px]">
                                             <div
