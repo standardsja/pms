@@ -45,26 +45,26 @@ const AuditCompliance = () => {
     const normalizeAction = (actionRaw: string | null | undefined): AuditLog['action'] => {
         if (!actionRaw) return 'other';
         const upper = actionRaw.toUpperCase();
-        
+
         // Check for specific procurement actions first
         if (upper.includes('SUBMIT') || upper.includes('SUBMITTED')) return 'create';
         if (upper.includes('APPROV') || upper.includes('APPROVED')) return 'approve';
         if (upper.includes('REJECT') || upper.includes('DENIED') || upper.includes('RETURN') || upper.includes('RETURNED')) return 'reject';
         if (upper.includes('STATUS_CHANGE')) return 'update';
-        
+
         // Then check for general CRUD operations
         if (upper.includes('CREATE')) return 'create';
         if (upper.includes('UPDATE')) return 'update';
         if (upper.includes('DELETE')) return 'delete';
-        
+
         // Authentication actions
         if (upper.includes('LOGIN')) return 'login';
         if (upper.includes('LOGOUT')) return 'logout';
-        
+
         // Administrative actions
         if (upper.includes('ROLE') || upper.includes('PERMISSION')) return 'permission_change';
         if (upper.includes('EXPORT')) return 'export';
-        
+
         return 'other';
     };
 
@@ -345,9 +345,7 @@ const AuditCompliance = () => {
                                     <tr key={log.id} className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-900/20">
                                         <td className="px-4 py-3 text-sm whitespace-nowrap text-gray-600 dark:text-gray-400">{new Date(log.timestamp).toLocaleString()}</td>
                                         <td className="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-white">{log.userName}</td>
-                                        <td className="px-4 py-3 text-sm font-semibold">
-                                            {getActionLabel(log.action)}
-                                        </td>
+                                        <td className="px-4 py-3 text-sm font-semibold">{getActionLabel(log.action)}</td>
                                         <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{log.resource}</td>
                                         <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400 truncate max-w-xs">{log.details}</td>
                                         <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400 font-mono">{log.ipAddress}</td>
