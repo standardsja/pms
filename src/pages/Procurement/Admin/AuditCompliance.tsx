@@ -65,7 +65,7 @@ const AuditCompliance = () => {
 
             const mapped: AuditLog[] = rawLogs.map((log: any) => {
                 const action = normalizeAction(log?.action);
-                
+
                 // Get user name with proper fallbacks
                 let userName = 'Unknown user';
                 if (log?.user?.name && typeof log.user.name === 'string' && log.user.name.trim()) {
