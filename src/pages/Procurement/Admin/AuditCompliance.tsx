@@ -65,14 +65,35 @@ const AuditCompliance = () => {
 
             const mapped: AuditLog[] = rawLogs.map((log: any) => {
                 const action = normalizeAction(log?.action);
+                
+                // Get user name with proper fallbacks
+                let userName = 'Unknown user';
+                if (log?.user?.name && typeof log.user.name === 'string' && log.user.name.trim()) {
+                    userName = log.user.name;
+                } else if (log?.user?.email && typeof log.user.email === 'string' && log.user.email.trim()) {
+                    userName = log.user.email;
+                } else if (log?.userName && typeof log.userName === 'string' && log.userName.trim()) {
+                    userName = log.userName;
+                }
+
+                // Get details from multiple possible sources
+                let details = '';
+                if (log?.message && typeof log.message === 'string' && log.message.trim()) {
+                    details = log.message;
+                } else if (log?.metadata?.message && typeof log.metadata.message === 'string') {
+                    details = log.metadata.message;
+                } else if (log?.details && typeof log.details === 'string') {
+                    details = log.details;
+                }
+
                 return {
                     id: String(log?.id ?? crypto.randomUUID()),
                     timestamp: log?.createdAt || log?.timestamp || new Date().toISOString(),
                     userId: String(log?.userId ?? ''),
-                    userName: log?.user?.name || log?.user?.email || 'Unknown user',
+                    userName,
                     action,
                     resource: log?.entity || log?.resource || 'system',
-                    details: log?.message || log?.details || log?.metadata?.message || '',
+                    details,
                     status: log?.metadata?.status === 'failure' ? 'failure' : 'success',
                     ipAddress: (log?.ipAddress as string) || 'N/A',
                     changes: log?.metadata?.changes,
@@ -82,6 +103,7 @@ const AuditCompliance = () => {
             setLogs(mapped.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
         } catch (e: any) {
             // Error handled by UI state
+            console.error('Failed to load audit logs:', e);
         } finally {
             setLoading(false);
         }

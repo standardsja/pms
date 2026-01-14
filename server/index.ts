@@ -3389,6 +3389,26 @@ app.post('/api/requests/:id/submit', async (req, res) => {
         });
         console.log(`[Submit] Request ${id} updated to ${updated.status}, assignee=${updated.currentAssigneeId || 'none'}`);
 
+        // Create audit log for request submission
+        try {
+            const submissionMessage = `Request ${updated.reference || updated.id} submitted for approval by ${updated.requester?.name || 'Unknown'}`;
+            await prisma.auditLog.create({
+                data: {
+                    action: 'REQUEST_SUBMITTED',
+                    userId: updated.requesterId,
+                    entity: 'Request',
+                    entityId: updated.id,
+                    message: submissionMessage,
+                    ipAddress: (req as any).ip || (req as any).connection?.remoteAddress || 'unknown',
+                    userAgent: req.headers['user-agent'] || 'unknown',
+                },
+            });
+            console.log(`[Audit] Logged request submission`);
+        } catch (auditErr: any) {
+            console.error('[Submit] Failed to create audit log:', auditErr?.message || String(auditErr));
+            // Don't throw - let the submission continue even if audit logging fails
+        }
+
         // Notify the department manager (new assignee) that a request was submitted
         try {
             const assigneeId = updated.currentAssignee?.id || updated.currentAssigneeId || null;
@@ -3850,6 +3870,26 @@ app.post('/api/requests/:id/action', async (req, res) => {
                     }
                 } catch (notifErr) {
                     console.warn('Failed to create notification on approve action:', notifErr);
+                }
+
+                // Create audit log for approval action
+                try {
+                    const approvalMessage = `Request ${updated.reference || updated.id} approved and advanced to ${nextStatus} by ${actingUser?.name || 'Unknown'}`;
+                    await prisma.auditLog.create({
+                        data: {
+                            action: 'REQUEST_APPROVED',
+                            userId: actingUserId,
+                            entity: 'Request',
+                            entityId: updated.id,
+                            message: approvalMessage,
+                            ipAddress: (req as any).ip || (req as any).connection?.remoteAddress || 'unknown',
+                            userAgent: req.headers['user-agent'] || 'unknown',
+                        },
+                    });
+                    console.log(`[Audit] Logged request approval`);
+                } catch (auditErr: any) {
+                    console.error('[Approve] Failed to create audit log:', auditErr?.message || String(auditErr));
+                    // Don't throw - let the approval continue even if audit logging fails
                 }
 
                 // If routed to Executive Director for evaluation, create a direct evaluation link notification
@@ -4434,6 +4474,26 @@ app.post('/api/requests/:id/reject', async (req, res) => {
                     } catch (notifErr) {
                         console.warn(`[REJECTION] Error creating notification for ${recipientId}:`, notifErr);
                     }
+                }
+
+                // Create detailed audit log for rejection
+                try {
+                    const rejectionMessage = `Request ${request.reference || request.id} rejected and returned to requester by ${rejectorName}. Reason: ${note.substring(0, 100)}`;
+                    await prisma.auditLog.create({
+                        data: {
+                            action: 'REQUEST_RETURNED',
+                            userId: actingUserId,
+                            entity: 'Request',
+                            entityId: request.id,
+                            message: rejectionMessage,
+                            ipAddress: (req as any).ip || (req as any).connection?.remoteAddress || 'unknown',
+                            userAgent: req.headers['user-agent'] || 'unknown',
+                        },
+                    });
+                    console.log(`[Audit] Logged request rejection`);
+                } catch (auditErr: any) {
+                    console.error('[REJECTION] Failed to create audit log:', auditErr?.message || String(auditErr));
+                    // Don't throw - let the rejection continue even if audit logging fails
                 }
 
                 console.log(`[REJECTION] Completed successfully`);

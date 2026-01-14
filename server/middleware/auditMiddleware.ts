@@ -133,6 +133,12 @@ export function auditLogger(req: Request, res: Response, next: NextFunction): vo
 
         const context = getAuditContext(req);
         const userId = (req as any).user?.sub as number | undefined;
+        
+        // Skip logging if no authenticated user (prevents 'Unknown user' entries)
+        if (!userId) {
+            return;
+        }
+        
         const durationMs = Date.now() - start;
 
         try {

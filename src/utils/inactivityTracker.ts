@@ -6,8 +6,8 @@
 import Swal from 'sweetalert2';
 import { clearAuth, getToken } from './auth';
 
-const INACTIVITY_TIMEOUT = 15 * 60 * 1000; // 15 minutes
-const WARNING_TIME_BEFORE_EXPIRY = 1 * 60 * 1000; // Show warning 1 minute before expiry
+const INACTIVITY_TIMEOUT = 30 * 60 * 1000; // 30 minutes (increased from 15 for procurement workflows)
+const WARNING_TIME_BEFORE_EXPIRY = 2 * 60 * 1000; // Show warning 2 minutes before expiry
 let inactivityTimer: NodeJS.Timeout | null = null;
 let expirationCheckTimer: NodeJS.Timeout | null = null;
 let lastActivityTime = Date.now();
@@ -78,7 +78,7 @@ async function showExpirationWarning() {
         title: 'Session Expiring Soon',
         html: `
       <div style="text-align: left;">
-        <p>Your session will expire in approximately <strong>1 minute</strong>.</p>
+        <p>Your session will expire in approximately <strong>2 minutes</strong>.</p>
         <p style="margin-top: 10px; color: #666;">
           Move your mouse or interact with the page to stay active.
         </p>
@@ -86,7 +86,7 @@ async function showExpirationWarning() {
     `,
         icon: 'warning',
         confirmButtonText: 'OK',
-        timer: 10000, // Auto-close after 10 seconds
+        timer: 15000, // Auto-close after 15 seconds (increased from 10)
         timerProgressBar: true,
         didOpen: () => {
             // Reset warning flag if user dismisses or timer completes
