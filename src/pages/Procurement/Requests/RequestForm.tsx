@@ -1435,7 +1435,7 @@ const RequestForm = () => {
                                 </div>
                             </div>
                             {!isEditMode && !isFormCodeComplete && (
-                                <div className="mt-3 text-sm text-yellow-800 bg-yellow-50 dark:bg-yellow-900/20 rounded p-2">
+                                <div className="mt-3 text-sm text-red-800 bg-red-50 border border-red-200 rounded p-2">
                                     <strong>Form Code Required:</strong> Please complete Department, Month, Year and Sequence before submitting.
                                 </div>
                             )}
