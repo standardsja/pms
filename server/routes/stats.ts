@@ -274,15 +274,7 @@ router.get('/requester', authMiddleware, async (req: Request, res: Response) => 
             return res.status(401).json({ message: 'User ID required' });
         }
 
-        const pendingStatuses: RequestStatus[] = [
-            'SUBMITTED',
-            'DEPARTMENT_REVIEW',
-            'HOD_REVIEW',
-            'FINANCE_REVIEW',
-            'BUDGET_MANAGER_REVIEW',
-            'PROCUREMENT_REVIEW',
-            'EXECUTIVE_REVIEW',
-        ];
+        const pendingStatuses: RequestStatus[] = ['SUBMITTED', 'DEPARTMENT_REVIEW', 'HOD_REVIEW', 'FINANCE_REVIEW', 'BUDGET_MANAGER_REVIEW', 'PROCUREMENT_REVIEW', 'EXECUTIVE_REVIEW'];
         const approvedStatuses: RequestStatus[] = ['FINANCE_APPROVED', 'SENT_TO_VENDOR', 'CLOSED'];
 
         const [myRequests, pendingApproval, approved, rejected] = await prisma.$transaction([
@@ -295,10 +287,7 @@ router.get('/requester', authMiddleware, async (req: Request, res: Response) => 
                     OR: [
                         { status: 'REJECTED' },
                         {
-                            AND: [
-                                { status: 'DRAFT' },
-                                { actions: { some: { action: 'RETURN' } } },
-                            ],
+                            AND: [{ status: 'DRAFT' }, { actions: { some: { action: 'RETURN' } } }],
                         },
                     ],
                 },
