@@ -11,6 +11,21 @@ import Swal from 'sweetalert2';
 import { evaluationService, type Evaluation, type SectionVerificationStatus } from '../../../services/evaluationService';
 import EvaluationForm from '../../../components/EvaluationForm';
 
+/**
+ * Format date string (YYYY-MM-DD) to locale date without timezone issues
+ * Prevents date picker values from showing as previous day due to UTC conversion
+ */
+const formatDateSafe = (dateString: string): string => {
+    if (!dateString) return '';
+    // If it's a date-only string (YYYY-MM-DD), parse it as local date
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+        const [year, month, day] = dateString.split('-');
+        return new Date(parseInt(year), parseInt(month) - 1, parseInt(day)).toLocaleDateString();
+    }
+    // For full ISO strings with time, use normal parsing
+    return new Date(dateString).toLocaleDateString();
+};
+
 const EvaluationDetail = () => {
     const dispatch = useDispatch();
     const authLoading = useSelector((state: any) => state.auth.isLoading);
@@ -760,7 +775,7 @@ const EvaluationDetail = () => {
                                     ? `
                             <div class="field">
                                 <div class="field-label">Date</div>
-                                <div class="field-value">${entry.data.evaluationDate}</div>
+                                <div class="field-value">${formatDateSafe(entry.data.evaluationDate)}</div>
                             </div>
                             `
                                     : ''
@@ -863,7 +878,7 @@ const EvaluationDetail = () => {
                                     ? `
                             <div class="field">
                                 <div class="field-label">Date</div>
-                                <div class="field-value">${evaluation.sectionC.evaluationDate}</div>
+                                <div class="field-value">${formatDateSafe(evaluation.sectionC.evaluationDate)}</div>
                             </div>
                             `
                                     : ''
@@ -902,7 +917,7 @@ const EvaluationDetail = () => {
                                 ? `
                         <div style="margin-top: 15px; text-align: right; font-size: 10px;">
                             <p><strong>Prepared By:</strong> ${evaluation.sectionE.preparedBy}</p>
-                            ${evaluation.sectionE.approvalDate ? `<p><strong>Date:</strong> ${new Date(evaluation.sectionE.approvalDate).toLocaleDateString()}</p>` : ''}
+                            ${evaluation.sectionE.approvalDate ? `<p><strong>Date:</strong> ${formatDateSafe(evaluation.sectionE.approvalDate)}</p>` : ''}
                         </div>
                         `
                                 : ''
