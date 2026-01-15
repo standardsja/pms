@@ -3569,7 +3569,11 @@ app.post('/api/requests/:id/action', async (req, res) => {
             if (requiredRoles) {
                 const hasRequiredRole = roleNames.some((role) => requiredRoles.includes(role));
                 if (!hasRequiredRole) {
-                    console.warn(`[Request Action] User ${actingUserId} attempted ${action} on ${request.status} but lacks required role. User roles: ${roleNames.join(', ')}, Required: ${requiredRoles.join(' or ')}`);
+                    console.warn(
+                        `[Request Action] User ${actingUserId} attempted ${action} on ${request.status} but lacks required role. User roles: ${roleNames.join(', ')}, Required: ${requiredRoles.join(
+                            ' or '
+                        )}`
+                    );
                     return res.status(403).json({
                         message: `You do not have the required role to approve this stage. This request is in ${request.status.replace(/_/g, ' ')} and requires ${requiredRoles.join(' or ')} role.`,
                     });
