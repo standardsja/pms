@@ -237,7 +237,13 @@ const RequestForm = () => {
     const isAssignee = !!(isEditMode && requestMeta?.currentAssigneeId && currentUserId && Number(requestMeta.currentAssigneeId) === Number(currentUserId));
     const canEditManagerFields = !!(isAssignee && requestMeta?.status === 'DEPARTMENT_REVIEW');
     const canEditHodFields = !!(isAssignee && requestMeta?.status === 'HOD_REVIEW');
-    const canEditProcurementSection = !!(isAssignee && (requestMeta?.status === 'PROCUREMENT_REVIEW' || requestMeta?.status === 'FINANCE_APPROVED'));
+    // Allow procurement section editing in PROCUREMENT_REVIEW, FINANCE_APPROVED, or SENT_TO_VENDOR (after evaluation)
+    const canEditProcurementSection = !!(
+        isAssignee && 
+        (requestMeta?.status === 'PROCUREMENT_REVIEW' || 
+         requestMeta?.status === 'FINANCE_APPROVED' || 
+         requestMeta?.status === 'SENT_TO_VENDOR')
+    );
     const canEditBudgetSection = !!(isAssignee && (requestMeta?.status === 'FINANCE_REVIEW' || requestMeta?.status === 'BUDGET_MANAGER_REVIEW'));
 
     // Budget Officer can only approve as officer (during FINANCE_REVIEW), Budget Manager can only approve as manager (during BUDGET_MANAGER_REVIEW)
@@ -738,7 +744,6 @@ const RequestForm = () => {
                 if (
                     (requestMeta?.status === 'DEPARTMENT_REVIEW' && managerApproved === false) ||
                     (requestMeta?.status === 'HOD_REVIEW' && headApproved === false) ||
-                    (requestMeta?.status === 'PROCUREMENT_REVIEW' && procurementApproved === false) ||
                     (requestMeta?.status === 'FINANCE_REVIEW' && !budgetOfficerApproved) ||
                     (requestMeta?.status === 'BUDGET_MANAGER_REVIEW' && !budgetManagerApproved)
                 ) {
@@ -759,7 +764,6 @@ const RequestForm = () => {
                 if (
                     (requestMeta?.status === 'DEPARTMENT_REVIEW' && managerApproved === true) ||
                     (requestMeta?.status === 'HOD_REVIEW' && headApproved === true) ||
-                    (requestMeta?.status === 'PROCUREMENT_REVIEW' && procurementApproved === true) ||
                     (requestMeta?.status === 'FINANCE_REVIEW' && budgetOfficerApproved) ||
                     (requestMeta?.status === 'BUDGET_MANAGER_REVIEW' && budgetManagerApproved)
                 ) {
@@ -799,13 +803,13 @@ const RequestForm = () => {
                     dateReceived,
                     actionDate,
                     procurementComments,
-                    procurementApproved,
                 };
                 // Determine if this save is also an approval action (reviewer checked approve boxes)
+                // For procurement, auto-approve when saving their section (no checkbox anymore)
                 const isApproving =
                     (requestMeta?.status === 'DEPARTMENT_REVIEW' && managerApproved === true) ||
                     (requestMeta?.status === 'HOD_REVIEW' && headApproved === true) ||
-                    (requestMeta?.status === 'PROCUREMENT_REVIEW' && procurementApproved === true) ||
+                    (requestMeta?.status === 'PROCUREMENT_REVIEW' && canEditProcurementSection) ||
                     (requestMeta?.status === 'FINANCE_REVIEW' && budgetOfficerApproved) ||
                     (requestMeta?.status === 'BUDGET_MANAGER_REVIEW' && budgetManagerApproved);
 
@@ -2229,15 +2233,6 @@ const RequestForm = () => {
                                     disabled={!canEditProcurementSection}
                                 />
                             </div>
-
-                            {canEditProcurementSection && (
-                                <div className="mt-4">
-                                    <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
-                                        <input type="checkbox" className="form-checkbox" checked={procurementApproved} onChange={(e) => setProcurementApproved(e.target.checked)} />I approve this
-                                        requisition and forward to Finance
-                                    </label>
-                                </div>
-                            )}
                         </div>
                     </div>
 

@@ -157,10 +157,469 @@ const ProcurementManagerRequests = () => {
         navigate(`/apps/requests/edit/${req.id}`);
     };
 
-    // Print/Download PDF
-    const downloadPdf = (req: Req) => {
-        const url = getApiUrl(`/requests/${req.id}/pdf`);
-        window.open(url, '_blank');
+    // Print/Download PDF - Modern formatted print
+    const downloadPdf = async (req: Req) => {
+        try {
+            // Fetch full request details including approval history
+            const baseHeaders = getAuthHeadersSync();
+            const res = await fetch(getApiUrl(`/api/requests/${req.id}`), {
+                headers: {
+                    ...baseHeaders,
+                    ...(currentUserId ? { 'x-user-id': String(currentUserId) } : {}),
+                },
+            });
+
+            if (!res.ok) {
+                const errorText = await res.text();
+                console.error('Failed to fetch request:', errorText);
+                throw new Error('Failed to fetch request details');
+            }
+
+            const responseData = await res.json();
+            console.log('Request data:', responseData);
+            const request = responseData.data || responseData;
+
+            // Fetch approval history/actions
+            const actionsRes = await fetch(getApiUrl(`/api/requests/${req.id}/actions`), {
+                headers: {
+                    ...baseHeaders,
+                    ...(currentUserId ? { 'x-user-id': String(currentUserId) } : {}),
+                },
+            });
+
+            let approvalHistory: any[] = [];
+            if (actionsRes.ok) {
+                const actionsData = await actionsRes.json();
+                console.log('Actions data:', actionsData);
+                approvalHistory = actionsData.data || [];
+            } else {
+                console.warn('Could not fetch approval history');
+            }
+
+            // Generate formatted print view
+            printFormattedRequest(request, approvalHistory);
+        } catch (error: any) {
+            console.error('Print error:', error);
+            toast(error.message || 'Failed to generate print view', 'error');
+        }
+    };
+
+    const printFormattedRequest = (request: any, approvalHistory: any[]) => {
+        try {
+            console.log('Generating print view for request:', request);
+            
+            // Helper to format dates without timezone issues
+            const formatDateSafe = (dateString: string | null | undefined): string => {
+                if (!dateString) return '—';
+                try {
+                    if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+                        const [year, month, day] = dateString.split('-');
+                        return new Date(parseInt(year), parseInt(month) - 1, parseInt(day)).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+                    }
+                    return new Date(dateString).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+                } catch (e) {
+                    return '—';
+                }
+            };
+
+            const formatCurrency = (value: any): string => {
+                if (value == null) return '0.00';
+                try {
+                    return parseFloat(String(value)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                } catch (e) {
+                    return '0.00';
+                }
+            };
+
+            // Build approval timeline from history
+            const approvals = approvalHistory
+                .filter((a) => a.action === 'APPROVED' || a.action === 'REVIEWED')
+                .map((a) => ({
+                    role: a.note || 'Approved',
+                    approver: a.performedBy?.name || 'Unknown',
+                    date: formatDateSafe(a.createdAt),
+                }));
+
+            const printWindow = window.open('', '_blank');
+            if (!printWindow) {
+                alert('Please allow popups to print');
+                return;
+            }
+
+            printWindow.document.write(`
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Procurement Request - ${request.reference}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #1f2937;
+            background: #f3f4f6;
+            padding: 20px;
+        }
+        .page {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            border-bottom: 3px solid #6366f1;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            color: #1e40af;
+            font-size: 24px;
+            margin-bottom: 8px;
+        }
+        .header .subtitle {
+            color: #6b7280;
+            font-size: 14px;
+        }
+        .section {
+            margin-bottom: 24px;
+            padding: 16px;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+        }
+        .section-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #6366f1;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #e5e7eb;
+        }
+        .field-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 12px;
+        }
+        .field {
+            margin-bottom: 8px;
+        }
+        .field-label {
+            font-size: 11px;
+            font-weight: 600;
+            color: #6b7280;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+        .field-value {
+            font-size: 13px;
+            color: #1f2937;
+        }
+        .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 12px;
+        }
+        .items-table th {
+            background: #f3f4f6;
+            padding: 10px;
+            text-align: left;
+            font-size: 11px;
+            font-weight: 600;
+            color: #6b7280;
+            border-bottom: 2px solid #e5e7eb;
+        }
+        .items-table td {
+            padding: 10px;
+            font-size: 12px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .items-table tr:last-child td {
+            border-bottom: none;
+        }
+        .approval-timeline {
+            margin-top: 12px;
+        }
+        .approval-item {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            background: #f9fafb;
+            border-left: 4px solid #10b981;
+            margin-bottom: 8px;
+            border-radius: 4px;
+        }
+        .approval-item .icon {
+            width: 32px;
+            height: 32px;
+            background: #10b981;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            margin-right: 12px;
+            font-size: 16px;
+        }
+        .approval-item .content {
+            flex: 1;
+        }
+        .approval-item .role {
+            font-weight: 600;
+            color: #1f2937;
+            font-size: 13px;
+        }
+        .approval-item .approver {
+            color: #6b7280;
+            font-size: 12px;
+        }
+        .approval-item .date {
+            color: #9ca3af;
+            font-size: 11px;
+            text-align: right;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .status-submitted { background: #dbeafe; color: #1e40af; }
+        .status-approved { background: #d1fae5; color: #065f46; }
+        .status-procurement { background: #fef3c7; color: #92400e; }
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 2px solid #e5e7eb;
+            text-align: center;
+            color: #9ca3af;
+            font-size: 11px;
+        }
+        @media print {
+            body { background: white; padding: 0; }
+            .page { box-shadow: none; max-width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <div class="header">
+            <h1>Bureau of Standards Jamaica</h1>
+            <div class="subtitle">Procurement Requisition Form</div>
+            <div style="margin-top: 12px; color: #1e40af; font-weight: 600;">
+                ${request.reference}
+            </div>
+        </div>
+
+        <!-- Basic Information -->
+        <div class="section">
+            <div class="section-title">Request Information</div>
+            <div class="field-row">
+                <div class="field">
+                    <div class="field-label">Reference Number</div>
+                    <div class="field-value">${request.reference || '—'}</div>
+                </div>
+                <div class="field">
+                    <div class="field-label">Status</div>
+                    <div class="field-value">
+                        <span class="status-badge status-${request.status?.toLowerCase().replace(/_/g, '-') || 'submitted'}">
+                            ${request.status || 'SUBMITTED'}
+                        </span>
+                    </div>
+                </div>
+            </div>
+            <div class="field-row">
+                <div class="field">
+                    <div class="field-label">Submitted Date</div>
+                    <div class="field-value">${formatDateSafe(request.submittedAt)}</div>
+                </div>
+                <div class="field">
+                    <div class="field-label">Priority</div>
+                    <div class="field-value">${request.priority || 'NORMAL'}</div>
+                </div>
+            </div>
+            <div class="field-row">
+                <div class="field">
+                    <div class="field-label">Requester</div>
+                    <div class="field-value">${request.requester?.name || '—'}</div>
+                </div>
+                <div class="field">
+                    <div class="field-label">Department</div>
+                    <div class="field-value">${request.department?.name || '—'}</div>
+                </div>
+            </div>
+            <div class="field">
+                <div class="field-label">Title/Description</div>
+                <div class="field-value">${request.title || request.description || '—'}</div>
+            </div>
+        </div>
+
+        <!-- Financial Information -->
+        <div class="section">
+            <div class="section-title">Financial Details</div>
+            <div class="field-row">
+                <div class="field">
+                    <div class="field-label">Currency</div>
+                    <div class="field-value">${request.currency || 'JMD'}</div>
+                </div>
+                <div class="field">
+                    <div class="field-label">Total Estimated Amount</div>
+                    <div class="field-value" style="font-weight: 600; color: #1e40af;">
+                        ${request.currency || 'JMD'} $${formatCurrency(request.totalEstimated)}
+                    </div>
+                </div>
+            </div>
+            ${
+                request.accountingCode || request.commitmentNumber
+                    ? `
+            <div class="field-row">
+                ${request.accountingCode ? `<div class="field"><div class="field-label">Accounting Code</div><div class="field-value">${request.accountingCode}</div></div>` : ''}
+                ${request.commitmentNumber ? `<div class="field"><div class="field-label">Commitment Number</div><div class="field-value">${request.commitmentNumber}</div></div>` : ''}
+            </div>
+            `
+                    : ''
+            }
+        </div>
+
+        <!-- Procurement Information -->
+        ${
+            request.procurementCaseNumber || request.receivedBy || request.dateReceived || request.actionDate || request.procurementComments || request.currentAssignee
+                ? `
+        <div class="section">
+            <div class="section-title">Procurement Processing Details</div>
+            ${
+                request.procurementCaseNumber || request.receivedBy
+                    ? `
+            <div class="field-row">
+                ${request.procurementCaseNumber ? `<div class="field"><div class="field-label">Procurement Case Number</div><div class="field-value">${request.procurementCaseNumber}</div></div>` : ''}
+                ${request.receivedBy ? `<div class="field"><div class="field-label">Received By</div><div class="field-value">${request.receivedBy}</div></div>` : ''}
+            </div>
+            `
+                    : ''
+            }
+            ${
+                request.dateReceived || request.actionDate
+                    ? `
+            <div class="field-row">
+                ${request.dateReceived ? `<div class="field"><div class="field-label">Date Received</div><div class="field-value">${formatDateSafe(request.dateReceived)}</div></div>` : ''}
+                ${request.actionDate ? `<div class="field"><div class="field-label">Action Date</div><div class="field-value">${formatDateSafe(request.actionDate)}</div></div>` : ''}
+            </div>
+            `
+                    : ''
+            }
+            ${
+                request.currentAssignee
+                    ? `
+            <div class="field">
+                <div class="field-label">Currently Assigned To</div>
+                <div class="field-value">${request.currentAssignee.name} (${request.currentAssignee.email || ''})</div>
+            </div>
+            `
+                    : ''
+            }
+            ${
+                request.procurementComments
+                    ? `
+            <div class="field">
+                <div class="field-label">Procurement Comments</div>
+                <div class="field-value" style="white-space: pre-wrap;">${request.procurementComments}</div>
+            </div>
+            `
+                    : ''
+            }
+        </div>
+        `
+                : ''
+        }
+
+        <!-- Items -->
+        ${
+            request.items && request.items.length > 0
+                ? `
+        <div class="section">
+            <div class="section-title">Requested Items</div>
+            <table class="items-table">
+                <thead>
+                    <tr>
+                        <th style="width: 40px;">#</th>
+                        <th>Description</th>
+                        <th style="width: 80px; text-align: center;">Quantity</th>
+                        <th style="width: 120px; text-align: right;">Unit Price</th>
+                        <th style="width: 120px; text-align: right;">Subtotal</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${request.items
+                        .map(
+                            (item: any, idx: number) => `
+                    <tr>
+                        <td>${idx + 1}</td>
+                        <td>${item.description || '—'}</td>
+                        <td style="text-align: center;">${item.quantity || '—'}</td>
+                        <td style="text-align: right;">$${formatCurrency(item.unitPrice)}</td>
+                        <td style="text-align: right;">$${formatCurrency((parseFloat(String(item.quantity || 0)) * parseFloat(String(item.unitPrice || 0))).toFixed(2))}</td>
+                    </tr>
+                    `
+                        )
+                        .join('')}
+                </tbody>
+            </table>
+        </div>
+        `
+                : ''
+        }
+
+        <!-- Approval History -->
+        ${
+            approvals.length > 0
+                ? `
+        <div class="section">
+            <div class="section-title">Approval History</div>
+            <div class="approval-timeline">
+                ${approvals
+                    .map(
+                        (approval: any) => `
+                <div class="approval-item">
+                    <div class="icon">✓</div>
+                    <div class="content">
+                        <div class="role">${approval.role}</div>
+                        <div class="approver">${approval.approver}</div>
+                    </div>
+                    <div class="date">${approval.date}</div>
+                </div>
+                `
+                    )
+                    .join('')}
+            </div>
+        </div>
+        `
+                : ''
+        }
+
+        <div class="footer">
+            <p>This is an automatically generated procurement request form from the Procurement Management System (SPINX)</p>
+            <p>Generated on ${new Date().toLocaleString('en-US')}</p>
+        </div>
+    </div>
+
+    <script>
+        window.onload = () => {
+            window.print();
+        };
+    </script>
+</body>
+</html>
+        `);
+
+            printWindow.document.close();
+        } catch (err) {
+            console.error('Error in printFormattedRequest:', err);
+            toast('Failed to generate print view', 'error');
+        }
     };
 
     const handleSelfAssign = async (req: Req) => {
