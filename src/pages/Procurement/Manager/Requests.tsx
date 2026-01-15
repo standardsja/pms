@@ -207,7 +207,7 @@ const ProcurementManagerRequests = () => {
     const printFormattedRequest = (request: any, approvalHistory: any[]) => {
         try {
             console.log('Generating print view for request:', request);
-            
+
             // Helper to format dates without timezone issues
             const formatDateSafe = (dateString: string | null | undefined): string => {
                 if (!dateString) return '—';

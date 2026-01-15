@@ -238,12 +238,7 @@ const RequestForm = () => {
     const canEditManagerFields = !!(isAssignee && requestMeta?.status === 'DEPARTMENT_REVIEW');
     const canEditHodFields = !!(isAssignee && requestMeta?.status === 'HOD_REVIEW');
     // Allow procurement section editing in PROCUREMENT_REVIEW, FINANCE_APPROVED, or SENT_TO_VENDOR (after evaluation)
-    const canEditProcurementSection = !!(
-        isAssignee && 
-        (requestMeta?.status === 'PROCUREMENT_REVIEW' || 
-         requestMeta?.status === 'FINANCE_APPROVED' || 
-         requestMeta?.status === 'SENT_TO_VENDOR')
-    );
+    const canEditProcurementSection = !!(isAssignee && (requestMeta?.status === 'PROCUREMENT_REVIEW' || requestMeta?.status === 'FINANCE_APPROVED' || requestMeta?.status === 'SENT_TO_VENDOR'));
     const canEditBudgetSection = !!(isAssignee && (requestMeta?.status === 'FINANCE_REVIEW' || requestMeta?.status === 'BUDGET_MANAGER_REVIEW'));
 
     // Budget Officer can only approve as officer (during FINANCE_REVIEW), Budget Manager can only approve as manager (during BUDGET_MANAGER_REVIEW)

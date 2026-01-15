@@ -439,7 +439,7 @@ const Requests = () => {
             <div class="section-title">Request Information</div>
             <div class="field-row">
                 <div class="field"><div class="field-label">Reference</div><div class="field-value">${request.reference || '—'}</div></div>
-                <div class="field"><div class="field-label">Status</div><div class="field-value">${(request.status || '—').toString().replace(/_/g,' ').toUpperCase()}</div></div>
+                <div class="field"><div class="field-label">Status</div><div class="field-value">${(request.status || '—').toString().replace(/_/g, ' ').toUpperCase()}</div></div>
             </div>
             <div class="field-row">
                 <div class="field"><div class="field-label">Requester</div><div class="field-value">${request.requester?.name || '—'}</div></div>
@@ -450,16 +450,20 @@ const Requests = () => {
                 <div class="field"><div class="field-label">Priority</div><div class="field-value">${(request.priority || 'NORMAL').toString()}</div></div>
             </div>
             <div class="field"><div class="field-label">Title / Description</div><div class="field-value">${request.title || request.description || '—'}</div></div>
-            ${Array.isArray(request.procurementType) && request.procurementType.length
-                ? `<div class="field" style="margin-top:8px;"><div class="field-label">Procurement Type</div><div class="field-value">${request.procurementType.join(', ')}</div></div>`
-                : ''}
+            ${
+                Array.isArray(request.procurementType) && request.procurementType.length
+                    ? `<div class="field" style="margin-top:8px;"><div class="field-label">Procurement Type</div><div class="field-value">${request.procurementType.join(', ')}</div></div>`
+                    : ''
+            }
         </div>
 
         <div class="section">
             <div class="section-title">Financial Details</div>
             <div class="field-row">
                 <div class="field"><div class="field-label">Currency</div><div class="field-value">${request.currency || 'JMD'}</div></div>
-                <div class="field"><div class="field-label">Total Amount</div><div class="field-value" style="font-weight: 600; color: #1e40af;">${request.currency || 'JMD'} $${formatCurrency(request.totalEstimated)}</div></div>
+                <div class="field"><div class="field-label">Total Amount</div><div class="field-value" style="font-weight: 600; color: #1e40af;">${request.currency || 'JMD'} $${formatCurrency(
+                request.totalEstimated
+            )}</div></div>
             </div>
         </div>
 
@@ -502,11 +506,15 @@ const Requests = () => {
                 : ''
         }
 
-        ${request.description ? `
+        ${
+            request.description
+                ? `
         <div class="section">
             <div class="section-title">Comments / Justification</div>
             <div class="field-value" style="white-space: pre-wrap;">${request.description}</div>
-        </div>` : ''}
+        </div>`
+                : ''
+        }
 
         ${
             request.procurementCaseNumber || request.receivedBy || request.dateReceived || request.actionDate || request.procurementComments || request.currentAssignee
@@ -564,7 +572,12 @@ const Requests = () => {
         <div class="section">
             <div class="section-title">Approval History</div>
             <div class="approval-timeline">
-                ${approvals.map((a: any) => `<div class="approval-item"><div class="icon">✓</div><div class="content"><div class="role">${a.role}</div><div class="approver">${a.approver}</div></div><div class="date">${a.date}</div></div>`).join('')}
+                ${approvals
+                    .map(
+                        (a: any) =>
+                            `<div class="approval-item"><div class="icon">✓</div><div class="content"><div class="role">${a.role}</div><div class="approver">${a.approver}</div></div><div class="date">${a.date}</div></div>`
+                    )
+                    .join('')}
             </div>
         </div>
         `
