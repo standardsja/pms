@@ -36,8 +36,9 @@ const adminOnly = async (req: Request, res: Response, next: Function) => {
         }
 
         // Check if user has ADMIN role
+        const userId = user.sub || user.id || user.userId;
         const userWithRoles = await prisma.user.findUnique({
-            where: { id: user.sub }, // Use user.sub from JWT payload
+            where: { id: userId },
             include: {
                 roles: {
                     include: {
@@ -1470,10 +1471,13 @@ router.post('/users/:id/roles', adminOnly, async (req: Request, res: Response) =
             },
         });
 
+        // Check if the updated user is the same as the logged-in admin
+        const isCurrentUser = userId === adminUser.sub || userId === adminUser.id || userId === adminUser.userId;
+
         // Create audit log
         await prisma.auditLog.create({
             data: {
-                userId: adminUser.sub,
+                userId: adminUser.sub || adminUser.id || adminUser.userId,
                 action: 'USER_UPDATED',
                 entity: 'User',
                 entityId: userId,
@@ -1492,18 +1496,15 @@ router.post('/users/:id/roles', adminOnly, async (req: Request, res: Response) =
         logger.info('User roles updated', {
             userId,
             email: userToUpdate.email,
-            updatedBy: adminUser.sub,
+            updatedBy: adminUser.sub || adminUser.id || adminUser.userId,
             roles,
         });
-
-        // Check if updating current user
-        const isCurrentUser = userId === adminUser.sub;
 
         res.json({
             success: true,
             message: 'User roles updated successfully',
             updatedUser,
-            isCurrentUser,
+            requiresReauth: isCurrentUser, // Signal frontend to refresh token if user updated their own roles
         });
     } catch (error: any) {
         logger.error('Failed to update user roles', { error, userId: req.params.id });

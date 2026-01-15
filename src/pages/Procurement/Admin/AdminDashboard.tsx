@@ -142,22 +142,19 @@ const AdminDashboard = () => {
                 deptResult = await adminService.updateUserDepartment(selectedUser.id, editingDept);
             }
 
-            // Use the most recent backend response for session update
-            const backendUser = deptResult?.updatedUser || rolesResult?.updatedUser;
-
-            // If backend indicates this is the current user, update session from backend data
-            if ((rolesResult?.isCurrentUser || deptResult?.isCurrentUser) && backendUser) {
-                // Store the user data exactly as returned from backend (trusted source)
-                localStorage.setItem('auth_user', JSON.stringify(backendUser));
-                sessionStorage.setItem('auth_user', JSON.stringify(backendUser));
-                localStorage.setItem('userProfile', JSON.stringify(backendUser));
-
-                // Show success and reload
-                setSuccessMessage(`Successfully updated your account - Refreshing...`);
+            // If backend indicates role change requires re-authentication, force logout
+            if (rolesResult?.requiresReauth || deptResult?.requiresReauth) {
+                setSuccessMessage(`You changed your own roles. Please log in again for changes to take effect.`);
                 setShowSuccess(true);
                 setTimeout(() => {
-                    window.location.reload();
-                }, 1500);
+                    // Clear all auth data
+                    localStorage.removeItem('auth_token');
+                    localStorage.removeItem('auth_user');
+                    sessionStorage.removeItem('auth_user');
+                    localStorage.removeItem('userProfile');
+                    // Redirect to login
+                    window.location.href = '/login';
+                }, 2000);
                 return;
             }
 
@@ -185,17 +182,17 @@ const AdminDashboard = () => {
             const updatedRoles = [...currentRoles, roleName];
             const result = await adminService.updateUserRoles(userId, updatedRoles);
 
-            // If backend indicates this is the current user, update session from backend data
-            if (result?.isCurrentUser && result?.updatedUser) {
-                // Store the user data using centralized function
-                updateUserStorage(result.updatedUser);
-
-                // Show message and reload
-                setSuccessMessage(`Added ${roleName} role - Refreshing...`);
+            // If backend indicates role change requires re-authentication, force logout
+            if (result?.requiresReauth) {
+                setSuccessMessage(`You changed your own roles. Please log in again for changes to take effect.`);
                 setShowSuccess(true);
                 setTimeout(() => {
-                    window.location.reload();
-                }, 1500);
+                    localStorage.removeItem('auth_token');
+                    localStorage.removeItem('auth_user');
+                    sessionStorage.removeItem('auth_user');
+                    localStorage.removeItem('userProfile');
+                    window.location.href = '/login';
+                }, 2000);
                 return;
             }
 
@@ -215,17 +212,17 @@ const AdminDashboard = () => {
             const updatedRoles = currentRoles.filter((r) => r !== roleName);
             const result = await adminService.updateUserRoles(userId, updatedRoles);
 
-            // If backend indicates this is the current user, update session from backend data
-            if (result?.isCurrentUser && result?.updatedUser) {
-                // Store the user data using centralized function
-                updateUserStorage(result.updatedUser);
-
-                // Show message and reload
-                setSuccessMessage(`Removed ${roleName} role - Refreshing...`);
+            // If backend indicates role change requires re-authentication, force logout
+            if (result?.requiresReauth) {
+                setSuccessMessage(`You changed your own roles. Please log in again for changes to take effect.`);
                 setShowSuccess(true);
                 setTimeout(() => {
-                    window.location.reload();
-                }, 1500);
+                    localStorage.removeItem('auth_token');
+                    localStorage.removeItem('auth_user');
+                    sessionStorage.removeItem('auth_user');
+                    localStorage.removeItem('userProfile');
+                    window.location.href = '/login';
+                }, 2000);
                 return;
             }
 

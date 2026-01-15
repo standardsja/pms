@@ -140,21 +140,21 @@ const AdminSettings = () => {
     async function handleSaveRoles(userId: number, roles: string[]) {
         try {
             const result = await adminService.updateUserRoles(userId, roles);
-            await loadUsers();
 
-            // If updating current user, refresh their auth data in storage
-            const currentUserRaw = localStorage.getItem('auth_user') || sessionStorage.getItem('auth_user');
-            if (currentUserRaw) {
-                const currentUser = JSON.parse(currentUserRaw);
-                if (currentUser.id === userId) {
-                    const updated = { ...currentUser, roles: result.roles };
-                    localStorage.setItem('auth_user', JSON.stringify(updated));
-                    sessionStorage.setItem('auth_user', JSON.stringify(updated));
-                    // Force a page reload to update sidebar
-                    window.location.reload();
-                }
+            // If backend indicates role change requires re-authentication, force logout
+            if (result?.requiresReauth) {
+                openModal('success', 'Roles Updated', 'You changed your own roles. Please log in again for changes to take effect.');
+                setTimeout(() => {
+                    localStorage.removeItem('auth_token');
+                    localStorage.removeItem('auth_user');
+                    sessionStorage.removeItem('auth_user');
+                    localStorage.removeItem('userProfile');
+                    window.location.href = '/login';
+                }, 2000);
+                return;
             }
 
+            await loadUsers();
             openModal('success', 'Roles Updated', 'User roles have been updated.');
         } catch (e: any) {
             openModal('danger', 'Update Failed', e?.message || 'Failed to update roles');

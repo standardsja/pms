@@ -3546,12 +3546,35 @@ app.post('/api/requests/:id/action', async (req, res) => {
         // Check if user is the current assignee
         const isCurrentAssignee = request.currentAssigneeId === actingUserId;
 
-        // AUTHORIZATION CHECK: Only current assignee or full-access roles can approve/reject
+        // AUTHORIZATION CHECK 1: Only current assignee or full-access roles can approve/reject
         if (!isCurrentAssignee && !hasFullAccess) {
             console.warn(`[Request Action] User ${actingUserId} attempted ${action} on request ${id} without being assigned`);
             return res.status(403).json({
                 message: 'You are not authorized to perform this action. Only the assigned approver can take action on this request.',
             });
+        }
+
+        // AUTHORIZATION CHECK 2: Verify user has the correct role for the current workflow stage
+        if (!hasFullAccess) {
+            const requiredRolesForStage: Record<string, string[]> = {
+                DEPARTMENT_REVIEW: ['DEPT_MANAGER', 'MANAGER'],
+                HOD_REVIEW: ['HEAD_OF_DIVISION', 'HOD'],
+                FINANCE_REVIEW: ['FINANCE', 'CHIEF_ACCOUNTANT'],
+                BUDGET_MANAGER_REVIEW: ['BUDGET_MANAGER'],
+                PROCUREMENT_REVIEW: ['PROCUREMENT_OFFICER', 'PROCUREMENT_MANAGER', 'PROCUREMENT'],
+                EXECUTIVE_REVIEW: ['EXECUTIVE_DIRECTOR', 'EXECUTIVE'],
+            };
+
+            const requiredRoles = requiredRolesForStage[request.status];
+            if (requiredRoles) {
+                const hasRequiredRole = roleNames.some((role) => requiredRoles.includes(role));
+                if (!hasRequiredRole) {
+                    console.warn(`[Request Action] User ${actingUserId} attempted ${action} on ${request.status} but lacks required role. User roles: ${roleNames.join(', ')}, Required: ${requiredRoles.join(' or ')}`);
+                    return res.status(403).json({
+                        message: `You do not have the required role to approve this stage. This request is in ${request.status.replace(/_/g, ' ')} and requires ${requiredRoles.join(' or ')} role.`,
+                    });
+                }
+            }
         }
 
         let nextStatus = request.status;
