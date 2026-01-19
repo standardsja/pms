@@ -472,11 +472,6 @@ const AssignRequests = () => {
                     ) : (
                         <div className="space-y-2 max-h-[600px] overflow-y-auto pr-2">
                             {displayRequests.map((req) => {
-                                const deptCode = req.headerDeptCode || req.department.code || '---';
-                                const month = req.headerMonth || '---';
-                                const year = req.headerYear || '----';
-                                const sequence = req.headerSequence !== undefined && req.headerSequence !== null ? String(req.headerSequence).padStart(3, '0') : '000';
-                                const formCode = `[${deptCode}]/[${month}]/[${year}]/[${sequence}]`;
                                 const isSelected = selectedRequest === req.id;
 
                                 return (
@@ -510,7 +505,7 @@ const AssignRequests = () => {
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex items-center gap-2 mb-1">
                                                         <span className="inline-flex items-center gap-1 text-xs font-mono font-semibold text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/40 px-2 py-1 rounded">
-                                                            {formCode}
+                                                            {req.reference}
                                                         </span>
                                                     </div>
                                                     <p className="font-semibold text-gray-900 dark:text-white line-clamp-2">{req.title}</p>

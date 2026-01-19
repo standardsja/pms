@@ -77,25 +77,18 @@ router.get('/users', adminOnly, async (req: Request, res: Response) => {
 
         const [users, total] = await Promise.all([
             prisma.user.findMany({
-                select: {
-                    id: true,
-                    email: true,
-                    name: true,
+                include: {
                     department: true,
+                    managedDepartments: {
+                        include: {
+                            department: true,
+                        },
+                    },
                     roles: {
                         include: {
                             role: true,
                         },
                     },
-                    // Include security fields
-                    blocked: true,
-                    blockedAt: true,
-                    blockedReason: true,
-                    blockedBy: true,
-                    lastLogin: true,
-                    failedLogins: true,
-                    lastFailedLogin: true,
-                    externalId: true, // LDAP identifier
                 },
                 orderBy: { createdAt: 'desc' },
                 take: limit,
@@ -110,6 +103,7 @@ router.get('/users', adminOnly, async (req: Request, res: Response) => {
             offset,
             hasBlockedUser: users.some((u) => u.blocked === true),
             blockedCount: users.filter((u) => u.blocked === true).length,
+            firstUserManagedDepts: users[0]?.managedDepartments?.length || 0,
         });
 
         res.json({
@@ -152,6 +146,19 @@ router.get('/users/:id', adminOnly, async (req: Request, res: Response) => {
                     },
                 },
                 department: true,
+                managedDepartments: {
+                    select: {
+                        id: true,
+                        departmentId: true,
+                        department: {
+                            select: {
+                                id: true,
+                                name: true,
+                                code: true,
+                            },
+                        },
+                    },
+                },
             },
             omit: {
                 passwordHash: true,
@@ -1595,6 +1602,169 @@ router.post('/users/:id/department', adminOnly, async (req: Request, res: Respon
     } catch (error) {
         logger.error('Failed to update user department', { error, userId: req.params.id });
         res.status(500).json({ success: false, message: 'Failed to update user department' });
+    }
+});
+
+/**
+ * POST /api/admin/users/:id/managed-departments
+ * Assign multiple departments to a HOD user
+ */
+router.post('/users/:id/managed-departments', adminOnly, async (req: Request, res: Response) => {
+    try {
+        const userId = parseInt(req.params.id, 10);
+        const { departmentIds } = req.body; // Array of department IDs
+        const adminUser = (req as any).user;
+
+        if (isNaN(userId)) {
+            return res.status(400).json({ success: false, message: 'Invalid user ID' });
+        }
+
+        if (!Array.isArray(departmentIds)) {
+            return res.status(400).json({ success: false, message: 'departmentIds must be an array' });
+        }
+
+        // Check if user exists
+        const userToUpdate = await prisma.user.findUnique({
+            where: { id: userId },
+            include: {
+                roles: {
+                    include: {
+                        role: true,
+                    },
+                },
+            },
+        });
+
+        if (!userToUpdate) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        // Verify user has HEAD_OF_DIVISION role
+        const isHOD = userToUpdate.roles.some((ur) => ur.role.name === 'HEAD_OF_DIVISION');
+        if (!isHOD) {
+            return res.status(400).json({
+                success: false,
+                message: 'Only users with HEAD_OF_DIVISION role can manage multiple departments',
+            });
+        }
+
+        // Validate all department IDs
+        const validDepartmentIds: number[] = [];
+        for (const deptId of departmentIds) {
+            const parsedId = parseInt(deptId, 10);
+            if (isNaN(parsedId)) {
+                return res.status(400).json({ success: false, message: `Invalid department ID: ${deptId}` });
+            }
+            const dept = await prisma.department.findUnique({ where: { id: parsedId } });
+            if (!dept) {
+                return res.status(404).json({ success: false, message: `Department not found: ${deptId}` });
+            }
+            validDepartmentIds.push(parsedId);
+        }
+
+        // Remove existing department assignments
+        await prisma.departmentManager.deleteMany({
+            where: { userId },
+        });
+
+        // Create new department assignments
+        if (validDepartmentIds.length > 0) {
+            await prisma.departmentManager.createMany({
+                data: validDepartmentIds.map((deptId) => ({
+                    userId,
+                    departmentId: deptId,
+                })),
+            });
+        }
+
+        // Fetch updated user with managed departments
+        const updatedUser = await prisma.user.findUnique({
+            where: { id: userId },
+            include: {
+                department: true,
+                managedDepartments: {
+                    include: {
+                        department: true,
+                    },
+                },
+                roles: {
+                    include: {
+                        role: true,
+                    },
+                },
+            },
+        });
+
+        // Create audit log
+        await prisma.auditLog.create({
+            data: {
+                userId: adminUser.sub,
+                action: 'USER_UPDATED',
+                entity: 'User',
+                entityId: userId,
+                message: `User ${userToUpdate.email} managed departments updated by admin`,
+                ipAddress: (req.headers['x-forwarded-for'] as string) || req.ip || req.socket.remoteAddress || null,
+                metadata: {
+                    action: 'update_managed_departments',
+                    departmentIds: validDepartmentIds,
+                    updatedUser: userToUpdate.email,
+                    updatedBy: adminUser.email,
+                    status: 'success',
+                },
+            },
+        });
+
+        logger.info('User managed departments updated', {
+            userId,
+            email: userToUpdate.email,
+            updatedBy: adminUser.sub,
+            departmentIds: validDepartmentIds,
+        });
+
+        res.json({
+            success: true,
+            message: 'Managed departments updated successfully',
+            updatedUser,
+            managedDepartments: updatedUser?.managedDepartments || [],
+        });
+    } catch (error) {
+        logger.error('Failed to update managed departments', { error, userId: req.params.id });
+        res.status(500).json({ success: false, message: 'Failed to update managed departments' });
+    }
+});
+
+/**
+ * GET /api/admin/users/:id/managed-departments
+ * Get all departments managed by a HOD user
+ */
+router.get('/users/:id/managed-departments', adminOnly, async (req: Request, res: Response) => {
+    try {
+        const userId = parseInt(req.params.id, 10);
+
+        if (isNaN(userId)) {
+            return res.status(400).json({ success: false, message: 'Invalid user ID' });
+        }
+
+        const managedDepartments = await prisma.departmentManager.findMany({
+            where: { userId },
+            include: {
+                department: true,
+            },
+        });
+
+        res.json({
+            success: true,
+            managedDepartments: managedDepartments.map((dm) => ({
+                id: dm.id,
+                departmentId: dm.departmentId,
+                departmentName: dm.department.name,
+                departmentCode: dm.department.code,
+                createdAt: dm.createdAt,
+            })),
+        });
+    } catch (error) {
+        logger.error('Failed to fetch managed departments', { error, userId: req.params.id });
+        res.status(500).json({ success: false, message: 'Failed to fetch managed departments' });
     }
 });
 

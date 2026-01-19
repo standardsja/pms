@@ -40,9 +40,16 @@ export const EvaluationForm: React.FC<Props> = ({
     structureEditableSections = [],
     onSectionChange,
 }) => {
+    const normalizedSectionC = useMemo<SectionC | undefined>(() => {
+        if (Array.isArray(evaluation?.sectionC)) {
+            return evaluation?.sectionC[0]?.data;
+        }
+        return evaluation?.sectionC;
+    }, [evaluation?.sectionC]);
+
     const [sectionA, setSectionA] = useState<SectionA | undefined>(evaluation?.sectionA);
     const [sectionB, setSectionB] = useState<SectionB | undefined>(evaluation?.sectionB);
-    const [sectionC, setSectionC] = useState<SectionC | undefined>(evaluation?.sectionC);
+    const [sectionC, setSectionC] = useState<SectionC | undefined>(normalizedSectionC);
     const [sectionD, setSectionD] = useState<SectionD | undefined>(evaluation?.sectionD);
     const [sectionE, setSectionE] = useState<SectionE | undefined>(evaluation?.sectionE);
     const [saving, setSaving] = useState(false);
@@ -64,10 +71,10 @@ export const EvaluationForm: React.FC<Props> = ({
     React.useEffect(() => {
         setSectionA(evaluation?.sectionA);
         setSectionB(evaluation?.sectionB);
-        setSectionC(evaluation?.sectionC);
+        setSectionC(normalizedSectionC);
         setSectionD(evaluation?.sectionD);
         setSectionE(evaluation?.sectionE);
-    }, [evaluation?.sectionA, evaluation?.sectionB, evaluation?.sectionC, evaluation?.sectionD, evaluation?.sectionE]);
+    }, [evaluation?.sectionA, evaluation?.sectionB, normalizedSectionC, evaluation?.sectionD, evaluation?.sectionE]);
 
     // Notify parent when Section B changes (for procurement structure edits)
     React.useEffect(() => {

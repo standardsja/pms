@@ -42,6 +42,7 @@ const AdminDashboard = () => {
     const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
     const [editingRoles, setEditingRoles] = useState<string[]>([]);
     const [editingDept, setEditingDept] = useState<number | null>(null);
+    const [editingManagedDepts, setEditingManagedDepts] = useState<number[]>([]);
     const [saving, setSaving] = useState(false);
 
     const [showSuccess, setShowSuccess] = useState(false);
@@ -70,6 +71,9 @@ const AdminDashboard = () => {
             const usersData = usersResponse.ok ? await usersResponse.json() : { users: [] };
             // Handle both paginated and legacy format
             const usersList = usersData.users || (Array.isArray(usersData) ? usersData : []);
+
+            console.log('[AdminDashboard] Loaded users:', usersList.length);
+            console.log('[AdminDashboard] First HOD user:', usersList.find((u: any) => u.roles?.some((r: any) => r.role?.name === 'HEAD_OF_DIVISION')));
 
             setUsers(usersList);
             setAllRoles(rolesData);
@@ -103,11 +107,18 @@ const AdminDashboard = () => {
         const userRoles = (user.roles || []).map((r) => r.role?.name).filter(Boolean) as string[];
         setEditingRoles(userRoles);
         setEditingDept(user.department?.id || null);
+        const managedDepts = (user.managedDepartments || []).map((md) => md.departmentId);
+        setEditingManagedDepts(managedDepts);
     };
 
     // Toggle role in edit modal
     const toggleRole = (roleName: string) => {
         setEditingRoles((prev) => (prev.includes(roleName) ? prev.filter((r) => r !== roleName) : [...prev, roleName]));
+    };
+
+    // Toggle managed department for HOD users
+    const toggleManagedDept = (deptId: number) => {
+        setEditingManagedDepts((prev) => (prev.includes(deptId) ? prev.filter((id) => id !== deptId) : [...prev, deptId]));
     };
 
     // Save changes
@@ -133,6 +144,13 @@ const AdminDashboard = () => {
 
         setSaving(true);
         try {
+            console.log('[AdminDashboard] Saving user changes:', {
+                userId: selectedUser.id,
+                editingRoles,
+                editingDept,
+                editingManagedDepts,
+            });
+
             // Update roles - backend returns updated user data
             const rolesResult = await adminService.updateUserRoles(selectedUser.id, editingRoles);
 
@@ -140,6 +158,12 @@ const AdminDashboard = () => {
             let deptResult = null;
             if (editingDept !== selectedUser.department?.id) {
                 deptResult = await adminService.updateUserDepartment(selectedUser.id, editingDept);
+            }
+
+            // Update managed departments if user has HEAD_OF_DIVISION role
+            if (editingRoles.includes('HEAD_OF_DIVISION')) {
+                console.log('[AdminDashboard] Updating managed departments:', editingManagedDepts);
+                await adminService.updateManagedDepartments(selectedUser.id, editingManagedDepts);
             }
 
             // If backend indicates role change requires re-authentication, force logout
@@ -488,6 +512,20 @@ const AdminDashboard = () => {
                                         </div>
                                     )}
 
+                                    {/* Managed Departments (for HOD) */}
+                                    {user.managedDepartments && user.managedDepartments.length > 0 && (
+                                        <div className="mb-3">
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Managing {user.managedDepartments.length} department(s):</p>
+                                            <div className="flex flex-wrap gap-1">
+                                                {user.managedDepartments.map((md) => (
+                                                    <span key={md.id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                                                        {md.department.name}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
                                     {/* Roles */}
                                     <div className="flex flex-wrap gap-2">
                                         {userRoles.length > 0 ? (
@@ -568,7 +606,7 @@ const AdminDashboard = () => {
                         <div className="p-6 overflow-y-auto max-h-[calc(90vh-180px)]">
                             {/* Department Selection */}
                             <div className="mb-6">
-                                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Department</label>
+                                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Primary Department</label>
                                 <select value={editingDept || ''} onChange={(e) => setEditingDept(e.target.value ? Number(e.target.value) : null)} className="form-select w-full">
                                     <option value="">No Department</option>
                                     {allDepartments.map((dept) => (
@@ -578,6 +616,43 @@ const AdminDashboard = () => {
                                     ))}
                                 </select>
                             </div>
+
+                            {/* Managed Departments (for HOD only) */}
+                            {editingRoles.includes('HEAD_OF_DIVISION') && (
+                                <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                                    <label className="block text-sm font-semibold text-blue-900 dark:text-blue-300 mb-3">
+                                        <IconSettings className="w-4 h-4 inline mr-2" />
+                                        Managed Departments (Head of Division)
+                                    </label>
+                                    <p className="text-xs text-blue-700 dark:text-blue-400 mb-3">Select all departments this Head of Division should manage and approve requests for:</p>
+                                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                                        {allDepartments.map((dept) => {
+                                            const isSelected = editingManagedDepts.includes(dept.id);
+                                            return (
+                                                <div
+                                                    key={dept.id}
+                                                    onClick={() => toggleManagedDept(dept.id)}
+                                                    className={`cursor-pointer rounded-md border p-3 transition-all ${
+                                                        isSelected ? 'border-blue-500 bg-blue-100 dark:bg-blue-900/40' : 'border-gray-200 dark:border-gray-700 hover:border-gray-300'
+                                                    }`}
+                                                >
+                                                    <div className="flex items-center gap-2">
+                                                        <input type="checkbox" checked={isSelected} onChange={() => {}} className="form-checkbox text-blue-600" />
+                                                        <span className="text-sm font-medium text-gray-900 dark:text-white">
+                                                            {dept.name} <span className="text-gray-500">({dept.code})</span>
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                    {editingManagedDepts.length > 0 && (
+                                        <div className="mt-3 text-xs text-blue-700 dark:text-blue-400">
+                                            {editingManagedDepts.length} department{editingManagedDepts.length > 1 ? 's' : ''} selected
+                                        </div>
+                                    )}
+                                </div>
+                            )}
 
                             {/* Role Selection */}
                             <div>

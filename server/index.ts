@@ -2098,13 +2098,33 @@ app.get('/api/requests', async (req, res) => {
                     // EXECUTIVE_DIRECTOR, EXECUTIVE, PROCUREMENT, FINANCE, and ADMIN roles can see all requests
                     const canSeeAll = userRoles.some(
                         (r) =>
-                            r === 'EXECUTIVE_DIRECTOR' || r === 'EXECUTIVE' || r === 'PROCUREMENT_OFFICER' || r === 'PROCUREMENT_MANAGER' || r === 'FINANCE' || r === 'BUDGET_MANAGER' || r === 'ADMIN'
+                            r === 'EXECUTIVE_DIRECTOR' ||
+                            r === 'EXECUTIVE' ||
+                            r === 'PROCUREMENT_OFFICER' ||
+                            r === 'PROCUREMENT_MANAGER' ||
+                            r === 'FINANCE' ||
+                            r === 'BUDGET_MANAGER' ||
+                            r === 'ADMIN'
                     );
 
                     if (!canSeeAll) {
-                        // Regular users only see their department's requests
-                        if (user.departmentId) {
-                            whereClause.departmentId = user.departmentId;
+                        // Department heads can see primary + managed departments
+                        const isDeptHead = userRoles.some((r) => ['DEPARTMENT_HEAD', 'DEPT_MANAGER', 'HEAD_OF_DIVISION'].includes(r));
+                        let managedIds: number[] = [];
+
+                        if (isDeptHead) {
+                            const managed = await prisma.departmentManager.findMany({
+                                where: { userId },
+                                select: { departmentId: true },
+                            });
+                            managedIds = managed.map((dm) => dm.departmentId);
+                        }
+
+                        if (user.departmentId) managedIds.push(user.departmentId);
+                        managedIds = Array.from(new Set(managedIds));
+
+                        if (managedIds.length > 0) {
+                            whereClause.departmentId = { in: managedIds };
                         } else {
                             // User with no department - see only their own requests
                             whereClause.requesterId = userId;
@@ -2181,8 +2201,26 @@ app.get('/api/requests', async (req, res) => {
                                         r === 'ADMIN'
                                 );
 
-                                if (!canSeeAll && user.departmentId) {
-                                    whereClause.departmentId = user.departmentId;
+                                if (!canSeeAll) {
+                                    const isDeptHead = userRoles.some((r) => ['DEPARTMENT_HEAD', 'DEPT_MANAGER', 'HEAD_OF_DIVISION'].includes(r));
+                                    let managedIds: number[] = [];
+
+                                    if (isDeptHead) {
+                                        const managed = await prisma.departmentManager.findMany({
+                                            where: { userId },
+                                            select: { departmentId: true },
+                                        });
+                                        managedIds = managed.map((dm) => dm.departmentId);
+                                    }
+
+                                    if (user.departmentId) managedIds.push(user.departmentId);
+                                    managedIds = Array.from(new Set(managedIds));
+
+                                    if (managedIds.length > 0) {
+                                        whereClause.departmentId = { in: managedIds };
+                                    } else if (userId) {
+                                        whereClause.requesterId = userId;
+                                    }
                                 }
                             }
                         } catch {
@@ -3366,6 +3404,8 @@ app.post('/api/requests/:id/submit', async (req, res) => {
             },
         });
 
+        console.log(`[Submit] Request ${id}: deptId=${request.departmentId}, found DEPT_MANAGER=${deptManager?.id || 'NONE'}`);
+
         const updated = await prisma.request.update({
             where: { id: parseInt(id, 10) },
             data: {
@@ -3588,12 +3628,27 @@ app.post('/api/requests/:id/action', async (req, res) => {
             // Determine next workflow stage based on current status
             if (request.status === 'DEPARTMENT_REVIEW') {
                 // Department Manager approved -> send to HOD
-                const hod = await prisma.user.findFirst({
+                // First try to find HOD who manages this department (via DepartmentManager)
+                // Then fall back to user with departmentId matching
+                let hod = await prisma.user.findFirst({
                     where: {
-                        departmentId: request.departmentId,
+                        managedDepartments: { some: { departmentId: request.departmentId } },
                         roles: { some: { role: { name: 'HEAD_OF_DIVISION' } } },
                     },
                 });
+                
+                // Fallback: find HOD whose primary department is this department
+                if (!hod) {
+                    hod = await prisma.user.findFirst({
+                        where: {
+                            departmentId: request.departmentId,
+                            roles: { some: { role: { name: 'HEAD_OF_DIVISION' } } },
+                        },
+                    });
+                }
+                
+                console.log(`[Action] DEPARTMENT_REVIEW->HOD_REVIEW for request ${id} (dept=${request.departmentId}): found HOD=${hod?.id} (${hod?.name || 'NONE'})`);
+                
                 nextStatus = 'HOD_REVIEW';
                 nextAssigneeId = hod?.id || null;
             } else if (request.status === 'HOD_REVIEW') {
@@ -5168,6 +5223,11 @@ app.get('/api/admin/users', async (req, res) => {
         const users = await prisma.user.findMany({
             include: {
                 department: { select: { id: true, name: true, code: true } },
+                managedDepartments: {
+                    include: {
+                        department: { select: { id: true, name: true, code: true } },
+                    },
+                },
                 roles: { include: { role: true } },
             },
             orderBy: { email: 'asc' },
@@ -5185,6 +5245,11 @@ app.get('/api/admin/users', async (req, res) => {
                       code: u.department.code,
                   }
                 : null,
+            managedDepartments: (u.managedDepartments || []).map((md) => ({
+                id: md.id,
+                departmentId: md.departmentId,
+                department: md.department,
+            })),
             // Return roles in the shape expected by the admin UI: array of objects with `role` property
             roles: (u.roles || []).map((r) => ({ role: r.role })),
             blocked: u.blocked,

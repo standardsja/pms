@@ -414,7 +414,8 @@ const EvaluationEdit = () => {
     };
 
     type TableKey = 'eligibilityRequirements' | 'complianceMatrix' | 'technicalEvaluation';
-    type TableShape = { columns: Array<{ id: string; name: string; cellType?: 'text' | 'radio' }>; rows: Array<{ id: string; data: Record<string, string> }> };
+    type TableColumn = { id: string; name: string; cellType?: 'text' | 'radio' };
+    type TableShape = { columns: TableColumn[]; rows: Array<{ id: string; data: Record<string, string> }> };
 
     const withSectionBTable = (key: TableKey, updater: (table: TableShape) => TableShape) => {
         setSectionBForm((prev) => {
@@ -445,7 +446,7 @@ const EvaluationEdit = () => {
     const addSectionBColumn = (key: TableKey) => {
         withSectionBTable(key, (table) => {
             const colId = `col-${Date.now()}`;
-            const newCol = { id: colId, name: 'New Column', cellType: key === 'technicalEvaluation' ? 'text' : undefined };
+            const newCol: TableColumn = { id: colId, name: 'New Column', cellType: key === 'technicalEvaluation' ? 'text' : undefined };
             const rows = table.rows.map((row) => ({ ...row, data: { ...row.data, [colId]: '' } }));
             return { ...table, columns: [...table.columns, newCol], rows };
         });

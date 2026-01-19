@@ -32,32 +32,54 @@ router.get(
 
         logger.info(`Fetching departments for HOD ${hodId}, division: ${division}`);
 
-        // Get HOD's department first
-        const hodUser = await prisma.user.findUnique({
-            where: { id: hodId as any },
-            include: { department: true },
-        });
-
-        if (!hodUser) {
-            return res.status(404).json({
-                success: false,
-                message: 'HOD user not found',
-            });
-        }
-
-        // Fetch departments - either filter by specific division or HOD's division
-        const departments = await prisma.department.findMany({
-            where: {
-                id: division ? parseInt(division) : hodUser.departmentId || undefined,
-            },
+        // Get all departments managed by this HOD
+        const managedDepartments = await prisma.departmentManager.findMany({
+            where: { userId: hodId as any },
             include: {
-                manager: {
-                    select: {
-                        name: true,
+                department: {
+                    include: {
+                        manager: {
+                            select: {
+                                name: true,
+                            },
+                        },
                     },
                 },
             },
         });
+
+        if (managedDepartments.length === 0) {
+            // Fallback: check if HOD is assigned to a primary department
+            const hodUser = await prisma.user.findUnique({
+                where: { id: hodId as any },
+                include: { department: true },
+            });
+
+            if (!hodUser?.departmentId) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'HOD has no assigned departments',
+                });
+            }
+        }
+
+        // Get departments - filter by division if specified
+        const departments = division
+            ? [
+                  (
+                      await prisma.department.findUnique({
+                          where: { id: parseInt(division) },
+                          include: {
+                              manager: {
+                                  select: {
+                                      name: true,
+                                  },
+                              },
+                          },
+                      })
+                  ),
+              ].filter(Boolean)
+            : managedDepartments.map((dm) => dm.department);
 
         // Format response
         const formattedDepartments = departments.map((dept: any) => ({
@@ -79,7 +101,7 @@ router.get(
 
 /**
  * GET /api/v1/users
- * Fetch users in HOD's department/division
+ * Fetch users in HOD's managed departments
  */
 router.get(
     '/users',
@@ -92,23 +114,34 @@ router.get(
 
         logger.info(`Fetching users for HOD ${hodId}, department: ${department}`);
 
-        // Get HOD's department
-        const hodUser = await prisma.user.findUnique({
-            where: { id: hodId as any },
-            include: { department: true },
+        // Get all departments managed by this HOD
+        const managedDepartments = await prisma.departmentManager.findMany({
+            where: { userId: hodId as any },
+            select: { departmentId: true },
         });
 
-        if (!hodUser) {
-            return res.status(404).json({
-                success: false,
-                message: 'HOD user not found',
+        const managedDeptIds = managedDepartments.map((dm) => dm.departmentId);
+
+        // If no managed departments via DepartmentManager, check primary department
+        if (managedDeptIds.length === 0) {
+            const hodUser = await prisma.user.findUnique({
+                where: { id: hodId as any },
+                select: { departmentId: true },
             });
+            if (hodUser?.departmentId) {
+                managedDeptIds.push(hodUser.departmentId);
+            }
         }
 
-        // Fetch users in the same department
+        // Fetch users in any of the HOD's managed departments
+        const targetDeptId = department ? parseInt(department) : undefined;
         const users = await prisma.user.findMany({
             where: {
-                departmentId: department ? parseInt(department) : hodUser.departmentId || undefined,
+                departmentId: targetDeptId
+                    ? targetDeptId
+                    : {
+                          in: managedDeptIds,
+                      },
             },
             include: {
                 department: {
@@ -160,30 +193,36 @@ router.get(
 
         logger.info(`Fetching dashboard stats for HOD ${hodId}`);
 
-        // Get HOD's department
-        const hodUser = await prisma.user.findUnique({
-            where: { id: hodId as any },
-            include: { department: true },
+        // Get all departments managed by this HOD
+        const managedDepartments = await prisma.departmentManager.findMany({
+            where: { userId: hodId as any },
+            select: { departmentId: true },
         });
 
-        if (!hodUser) {
-            return res.status(404).json({
-                success: false,
-                message: 'HOD user not found',
+        let managedDeptIds = managedDepartments.map((dm) => dm.departmentId);
+
+        // If no managed departments via DepartmentManager, check primary department
+        if (managedDeptIds.length === 0) {
+            const hodUser = await prisma.user.findUnique({
+                where: { id: hodId as any },
+                select: { departmentId: true },
             });
+            if (hodUser?.departmentId) {
+                managedDeptIds = [hodUser.departmentId];
+            }
         }
 
-        const departmentId = hodUser.departmentId;
+        const departmentFilter = managedDeptIds.length > 0 ? { departmentId: { in: managedDeptIds } } : {};
 
         // 1. Total requests count
         const totalRequests = await prisma.request.count({
-            where: departmentId ? { departmentId } : undefined,
+            where: departmentFilter,
         });
 
         // 2. Pending approvals count (requests at HOD_REVIEW status)
         const pendingApprovals = await prisma.request.count({
             where: {
-                ...(departmentId ? { departmentId } : {}),
+                ...departmentFilter,
                 status: 'HOD_REVIEW',
             },
         });
@@ -191,7 +230,7 @@ router.get(
         // 3. Approved requests count
         const approvedRequests = await prisma.request.count({
             where: {
-                ...(departmentId ? { departmentId } : {}),
+                ...departmentFilter,
                 status: {
                     in: ['FINANCE_REVIEW', 'FINANCE_APPROVED', 'SENT_TO_VENDOR', 'CLOSED'],
                 },
@@ -201,14 +240,14 @@ router.get(
         // 4. Rejected requests count
         const rejectedRequests = await prisma.request.count({
             where: {
-                ...(departmentId ? { departmentId } : {}),
+                ...departmentFilter,
                 status: 'REJECTED',
             },
         });
 
         // 5. Budget statistics
         const budgetStats = await prisma.request.aggregate({
-            where: departmentId ? { departmentId } : undefined,
+            where: departmentFilter,
             _sum: {
                 totalEstimated: true,
             },
@@ -216,7 +255,7 @@ router.get(
 
         const approvedBudget = await prisma.request.aggregate({
             where: {
-                ...(departmentId ? { departmentId } : {}),
+                ...departmentFilter,
                 status: {
                     in: ['FINANCE_APPROVED', 'SENT_TO_VENDOR', 'CLOSED'],
                 },
@@ -228,7 +267,7 @@ router.get(
 
         const pendingBudget = await prisma.request.aggregate({
             where: {
-                ...(departmentId ? { departmentId } : {}),
+                ...departmentFilter,
                 status: 'HOD_REVIEW',
             },
             _sum: {
@@ -237,17 +276,17 @@ router.get(
         });
 
         // 6. Department count
-        const departmentCount = await prisma.department.count();
+        const departmentCount = managedDeptIds.length;
 
-        // 7. Active users in the department
+        // 7. Active users in the managed departments
         const activeUsers = await prisma.user.count({
-            where: departmentId ? { departmentId } : undefined,
+            where: departmentFilter,
         });
 
         // 8. Average approval time (in days) - calculate from actionDate
         const approvedWithDates = await prisma.request.findMany({
             where: {
-                ...(departmentId ? { departmentId } : {}),
+                ...departmentFilter,
                 status: {
                     in: ['FINANCE_REVIEW', 'FINANCE_APPROVED', 'SENT_TO_VENDOR', 'CLOSED'],
                 },
@@ -282,7 +321,7 @@ router.get(
                 nextDay.setDate(nextDay.getDate() + 1);
                 return await prisma.request.count({
                     where: {
-                        ...(departmentId ? { departmentId } : {}),
+                        ...departmentFilter,
                         createdAt: {
                             gte: date,
                             lt: nextDay,
@@ -298,7 +337,7 @@ router.get(
                 nextDay.setDate(nextDay.getDate() + 1);
                 return await prisma.request.count({
                     where: {
-                        ...(departmentId ? { departmentId } : {}),
+                        ...departmentFilter,
                         actionDate: {
                             gte: date,
                             lt: nextDay,
@@ -313,6 +352,7 @@ router.get(
 
         // 10. Department performance
         const departments = await prisma.department.findMany({
+            where: managedDeptIds.length > 0 ? { id: { in: managedDeptIds } } : undefined,
             select: {
                 name: true,
                 requests: {
@@ -353,7 +393,7 @@ router.get(
 
 /**
  * GET /api/v1/pending-approvals
- * Fetch pending approval requests for HOD
+ * Fetch pending approval requests for HOD across all managed departments
  */
 router.get(
     '/pending-approvals',
@@ -365,25 +405,31 @@ router.get(
 
         logger.info(`Fetching pending approvals for HOD ${hodId}`);
 
-        // Get HOD's department
-        const hodUser = await prisma.user.findUnique({
-            where: { id: hodId as any },
-            include: { department: true },
+        // Get all departments managed by this HOD
+        const managedDepartments = await prisma.departmentManager.findMany({
+            where: { userId: hodId as any },
+            select: { departmentId: true },
         });
 
-        if (!hodUser) {
-            return res.status(404).json({
-                success: false,
-                message: 'HOD user not found',
+        let managedDeptIds = managedDepartments.map((dm) => dm.departmentId);
+
+        // If no managed departments via DepartmentManager, check primary department
+        if (managedDeptIds.length === 0) {
+            const hodUser = await prisma.user.findUnique({
+                where: { id: hodId as any },
+                select: { departmentId: true },
             });
+            if (hodUser?.departmentId) {
+                managedDeptIds = [hodUser.departmentId];
+            }
         }
 
-        const departmentId = hodUser.departmentId;
+        const departmentFilter = managedDeptIds.length > 0 ? { departmentId: { in: managedDeptIds } } : {};
 
-        // Fetch pending requests at HOD_REVIEW stage
+        // Fetch pending requests at HOD_REVIEW stage across all managed departments
         const pendingRequests = await prisma.request.findMany({
             where: {
-                ...(departmentId ? { departmentId } : {}),
+                ...departmentFilter,
                 status: 'HOD_REVIEW',
             },
             include: {
@@ -392,7 +438,7 @@ router.get(
                         name: true,
                     },
                 },
-                assignedUser: {
+                requester: {
                     select: {
                         name: true,
                         email: true,
@@ -409,7 +455,7 @@ router.get(
             id: req.id.toString(),
             title: req.title,
             department: req.department?.name || 'Unknown',
-            requester: req.assignedUser?.name || req.assignedUser?.email || 'Unknown',
+            requester: req.requester?.name || req.requester?.email || 'Unknown',
             status: req.status,
             amount: Number(req.totalEstimated || 0),
             submitDate: req.createdAt.toISOString(),

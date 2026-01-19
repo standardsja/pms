@@ -6,6 +6,7 @@ export type AdminUser = {
     email: string;
     name?: string | null;
     department?: { id: number; name: string; code: string } | null;
+    managedDepartments?: { id: number; departmentId: number; department: { id: number; name: string; code: string } }[];
     roles?: { role: { id: number; name: string; description?: string | null } }[];
     // User Security fields
     blocked?: boolean | null;
@@ -147,6 +148,8 @@ const BACKEND = {
     getUsers: (): Promise<AdminUser[]> => apiGet('/api/admin/users'),
     updateUserRoles: (userId: number, roles: string[]) => apiPost(`/api/admin/users/${userId}/roles`, { roles }),
     updateUserDepartment: (userId: number, departmentId: number | null) => apiPost(`/api/admin/users/${userId}/department`, { departmentId }),
+    updateManagedDepartments: (userId: number, departmentIds: number[]) => apiPost(`/api/admin/users/${userId}/managed-departments`, { departmentIds }),
+    getManagedDepartments: (userId: number) => apiGet(`/api/admin/users/${userId}/managed-departments`),
 
     // User Security
     blockUser: (userId: number, reason: string) => apiPost(`/api/admin/users/${userId}/block`, { reason }),

@@ -835,7 +835,7 @@ const EvaluationDetail = () => {
                                     ? `
                             <div class="field">
                                 <div class="field-label">Recommended Contract Amount (inclusive of GCT)</div>
-                                <div class="field-value">$${parseFloat(evaluation.sectionC.recommendedAmountInclusiveGCT).toLocaleString('en-US', {
+                                <div class="field-value">$${Number(evaluation.sectionC.recommendedAmountInclusiveGCT).toLocaleString('en-US', {
                                     minimumFractionDigits: 2,
                                     maximumFractionDigits: 2,
                                 })}</div>

@@ -36,6 +36,7 @@ model User {
   userSource                   User_userSource             @default(LOCAL)
   auditLogs                    AuditLog[]
   managedDepartment            Department?                 @relation("departmentManager")
+  managedDepartments           DepartmentManager[]         @relation("ManagerUser")
   assignedEvaluations          Evaluation[]                @relation("AssignedProcurementOfficer")
   createdEvaluations           Evaluation[]                @relation("EvaluationCreator")
   sectionAVerifications        Evaluation[]                @relation("SectionAVerifier")
@@ -70,14 +71,28 @@ model User {
 }
 
 model Department {
-  id           Int           @id @default(autoincrement())
+  id           Int                  @id @default(autoincrement())
   name         String
-  code         String?       @unique
-  managerId    Int?          @unique
-  manager      User?         @relation("departmentManager", fields: [managerId], references: [id])
+  code         String?              @unique
+  managerId    Int?                 @unique
+  manager      User?                @relation("departmentManager", fields: [managerId], references: [id])
   requests     Request[]
   roleRequests RoleRequest[]
-  users        User[]        @relation("userDepartment")
+  users        User[]               @relation("userDepartment")
+  managers     DepartmentManager[]  @relation("ManagerDepartment")
+}
+
+model DepartmentManager {
+  id           Int        @id @default(autoincrement())
+  userId       Int
+  departmentId Int
+  createdAt    DateTime   @default(now())
+  user         User       @relation("ManagerUser", fields: [userId], references: [id], onDelete: Cascade)
+  department   Department @relation("ManagerDepartment", fields: [departmentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, departmentId])
+  @@index([userId])
+  @@index([departmentId])
 }
 
 model Role {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { IRootState } from '../../../store';
@@ -34,37 +34,37 @@ const ExecutiveApprovals = () => {
     const [loading, setLoading] = useState(true);
 
     // Fetch executive-level approvals from API
-    useEffect(() => {
-        const fetchApprovals = async () => {
-            try {
-                setLoading(true);
-                const token = getToken();
-                const apiUrl = getApiUrl();
+    const fetchApprovals = useCallback(async () => {
+        try {
+            setLoading(true);
+            const token = getToken();
+            const apiUrl = getApiUrl();
 
-                const response = await fetch(`${apiUrl}/requests`, {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        'Content-Type': 'application/json',
-                    },
-                });
+            const response = await fetch(`${apiUrl}/requests`, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+            });
 
-                if (response.ok) {
-                    const data = await response.json();
-                    // Filter for EXECUTIVE_REVIEW status
-                    const executiveItems = data.filter((item: any) => item.status === 'EXECUTIVE_REVIEW');
-                    setExecutiveApprovals(executiveItems);
-                } else {
-                    console.error('Failed to fetch approvals');
-                }
-            } catch (error) {
-                console.error('Error fetching executive approvals:', error);
-            } finally {
-                setLoading(false);
+            if (response.ok) {
+                const data = await response.json();
+                // Filter for EXECUTIVE_REVIEW status
+                const executiveItems = data.filter((item: any) => item.status === 'EXECUTIVE_REVIEW');
+                setExecutiveApprovals(executiveItems);
+            } else {
+                console.error('Failed to fetch approvals');
             }
-        };
-
-        fetchApprovals();
+        } catch (error) {
+            console.error('Error fetching executive approvals:', error);
+        } finally {
+            setLoading(false);
+        }
     }, []);
+
+    useEffect(() => {
+        fetchApprovals();
+    }, [fetchApprovals]);
 
     // Filter approvals based on selected filter and search term
     const filteredApprovals = executiveApprovals.filter((approval: any) => {
