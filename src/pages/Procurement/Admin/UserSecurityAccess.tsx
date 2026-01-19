@@ -203,16 +203,22 @@ const UserSecurityAccess = () => {
             </div>
 
             {/* Filters */}
-            <div className="flex gap-4 items-end">
-                <div className="flex-1 relative">
-                    <input type="text" placeholder="Search users by name or email..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="form-input pl-10 w-full" />
-                    <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <div className="flex gap-4 items-end flex-wrap md:flex-nowrap">
+                <div className="flex-1 min-w-[250px]">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Search Users</label>
+                    <div className="relative">
+                        <input type="text" placeholder="Enter name or email..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="form-input pl-10 w-full" />
+                        <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    </div>
                 </div>
-                <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="form-select">
-                    <option value="all">All Users</option>
-                    <option value="active">Active</option>
-                    <option value="blocked">Blocked</option>
-                </select>
+                <div className="min-w-[150px]">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Status</label>
+                    <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="form-select w-full">
+                        <option value="all">All Users</option>
+                        <option value="active">Active</option>
+                        <option value="blocked">Blocked</option>
+                    </select>
+                </div>
                 <button onClick={loadUsers} disabled={loading} className="btn btn-sm btn-primary">
                     {loading ? 'Loading...' : 'Refresh'}
                 </button>
