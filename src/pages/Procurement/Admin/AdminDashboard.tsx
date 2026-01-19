@@ -417,13 +417,14 @@ const AdminDashboard = () => {
 
             {/* Filters & Search */}
             <div className="panel p-5">
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                     {/* Search */}
                     <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Search Users</label>
                         <div className="relative">
                             <input
                                 type="text"
-                                placeholder="Search by name or email..."
+                                placeholder="Enter name or email..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 className="form-input pl-10 pr-4 py-2.5 w-full"
@@ -434,6 +435,7 @@ const AdminDashboard = () => {
 
                     {/* Role Filter */}
                     <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Role</label>
                         <select value={filterRole} onChange={(e) => setFilterRole(e.target.value)} className="form-select py-2.5 w-full">
                             <option value="">All Roles</option>
                             {allRoles.map((role) => (
@@ -446,6 +448,7 @@ const AdminDashboard = () => {
 
                     {/* Department Filter */}
                     <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Department</label>
                         <select value={filterDept} onChange={(e) => setFilterDept(e.target.value)} className="form-select py-2.5 w-full">
                             <option value="">All Departments</option>
                             {allDepartments.map((dept) => (
