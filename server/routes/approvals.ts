@@ -66,12 +66,9 @@ router.get('/', authMiddleware, async (req, res) => {
             const hodReviewRequests = await prisma.request.findMany({
                 where: {
                     status: 'HOD_REVIEW',
-                    OR: [
-                        { currentAssigneeId: Number.isFinite(userIdNum) ? userIdNum : undefined },
-                        managedDeptIds.length > 0
-                            ? { departmentId: { in: managedDeptIds } }
-                            : undefined,
-                    ].filter(Boolean) as any,
+                    OR: [{ currentAssigneeId: Number.isFinite(userIdNum) ? userIdNum : undefined }, managedDeptIds.length > 0 ? { departmentId: { in: managedDeptIds } } : undefined].filter(
+                        Boolean
+                    ) as any,
                 },
                 include: {
                     requester: { select: { name: true, email: true } },
@@ -80,7 +77,11 @@ router.get('/', authMiddleware, async (req, res) => {
                 orderBy: { createdAt: 'desc' },
             });
 
-            console.log('[Approvals HOD] HOD_REVIEW found:', hodReviewRequests.length, hodReviewRequests.map(r => ({ id: r.id, dept: r.department?.name, status: r.status, assignee: r.currentAssigneeId })));
+            console.log(
+                '[Approvals HOD] HOD_REVIEW found:',
+                hodReviewRequests.length,
+                hodReviewRequests.map((r) => ({ id: r.id, dept: r.department?.name, status: r.status, assignee: r.currentAssigneeId }))
+            );
 
             const allRequests = [...departmentReviewRequests, ...hodReviewRequests];
 
@@ -204,17 +205,17 @@ router.get('/', authMiddleware, async (req, res) => {
         }
 
         const response: any = { success: true, requests: pendingItems };
-        
+
         // Add debug info in development
         if (process.env.APP_ENV === 'development') {
             response.debug = {
                 userId,
                 isDepartmentHead: userRoleInfo.isDepartmentHead,
-                departmentReviewCount: pendingItems.filter(p => p.status === 'DEPARTMENT_REVIEW').length,
-                hodReviewCount: pendingItems.filter(p => p.status === 'HOD_REVIEW').length,
+                departmentReviewCount: pendingItems.filter((p) => p.status === 'DEPARTMENT_REVIEW').length,
+                hodReviewCount: pendingItems.filter((p) => p.status === 'HOD_REVIEW').length,
             };
         }
-        
+
         res.json(response);
     } catch (error) {
         console.error('Error fetching approvals:', error);

@@ -73,7 +73,10 @@ const AdminDashboard = () => {
             const usersList = usersData.users || (Array.isArray(usersData) ? usersData : []);
 
             console.log('[AdminDashboard] Loaded users:', usersList.length);
-            console.log('[AdminDashboard] First HOD user:', usersList.find((u: any) => u.roles?.some((r: any) => r.role?.name === 'HEAD_OF_DIVISION')));
+            console.log(
+                '[AdminDashboard] First HOD user:',
+                usersList.find((u: any) => u.roles?.some((r: any) => r.role?.name === 'HEAD_OF_DIVISION'))
+            );
 
             setUsers(usersList);
             setAllRoles(rolesData);
@@ -518,7 +521,10 @@ const AdminDashboard = () => {
                                             <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Managing {user.managedDepartments.length} department(s):</p>
                                             <div className="flex flex-wrap gap-1">
                                                 {user.managedDepartments.map((md) => (
-                                                    <span key={md.id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                                                    <span
+                                                        key={md.id}
+                                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800"
+                                                    >
                                                         {md.department.name}
                                                     </span>
                                                 ))}

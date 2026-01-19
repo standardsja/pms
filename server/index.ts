@@ -2098,13 +2098,7 @@ app.get('/api/requests', async (req, res) => {
                     // EXECUTIVE_DIRECTOR, EXECUTIVE, PROCUREMENT, FINANCE, and ADMIN roles can see all requests
                     const canSeeAll = userRoles.some(
                         (r) =>
-                            r === 'EXECUTIVE_DIRECTOR' ||
-                            r === 'EXECUTIVE' ||
-                            r === 'PROCUREMENT_OFFICER' ||
-                            r === 'PROCUREMENT_MANAGER' ||
-                            r === 'FINANCE' ||
-                            r === 'BUDGET_MANAGER' ||
-                            r === 'ADMIN'
+                            r === 'EXECUTIVE_DIRECTOR' || r === 'EXECUTIVE' || r === 'PROCUREMENT_OFFICER' || r === 'PROCUREMENT_MANAGER' || r === 'FINANCE' || r === 'BUDGET_MANAGER' || r === 'ADMIN'
                     );
 
                     if (!canSeeAll) {
@@ -3636,7 +3630,7 @@ app.post('/api/requests/:id/action', async (req, res) => {
                         roles: { some: { role: { name: 'HEAD_OF_DIVISION' } } },
                     },
                 });
-                
+
                 // Fallback: find HOD whose primary department is this department
                 if (!hod) {
                     hod = await prisma.user.findFirst({
@@ -3646,9 +3640,9 @@ app.post('/api/requests/:id/action', async (req, res) => {
                         },
                     });
                 }
-                
+
                 console.log(`[Action] DEPARTMENT_REVIEW->HOD_REVIEW for request ${id} (dept=${request.departmentId}): found HOD=${hod?.id} (${hod?.name || 'NONE'})`);
-                
+
                 nextStatus = 'HOD_REVIEW';
                 nextAssigneeId = hod?.id || null;
             } else if (request.status === 'HOD_REVIEW') {
