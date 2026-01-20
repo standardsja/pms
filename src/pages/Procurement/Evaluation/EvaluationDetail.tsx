@@ -1199,23 +1199,21 @@ const EvaluationDetail = () => {
                 canEditSections={canEditSections as Array<'A' | 'B' | 'C' | 'D' | 'E'>}
                 structureEditableSections={structureEditEnabled ? (['B'] as Array<'A' | 'B' | 'C' | 'D' | 'E'>) : ([] as Array<'A' | 'B' | 'C' | 'D' | 'E'>)}
                 sectionCActions={
-                    !isProcurement && !isCommittee && myAssignment && myAssignment.status !== 'SUBMITTED'
-                        ? (
-                              <button type="button" className="btn btn-success gap-2" onClick={handleCompleteAssignment} disabled={completingAssignment}>
-                                  {completingAssignment ? (
-                                      <>
-                                          <span className="animate-spin border-2 border-white border-l-transparent rounded-full w-4 h-4 inline-block"></span>
-                                          Completing...
-                                      </>
-                                  ) : (
-                                      <>
-                                          <IconChecks />
-                                          Mark Complete & Return to Procurement
-                                      </>
-                                  )}
-                              </button>
-                          )
-                        : null
+                    !isProcurement && !isCommittee && myAssignment && myAssignment.status !== 'SUBMITTED' ? (
+                        <button type="button" className="btn btn-success gap-2" onClick={handleCompleteAssignment} disabled={completingAssignment}>
+                            {completingAssignment ? (
+                                <>
+                                    <span className="animate-spin border-2 border-white border-l-transparent rounded-full w-4 h-4 inline-block"></span>
+                                    Completing...
+                                </>
+                            ) : (
+                                <>
+                                    <IconChecks />
+                                    Mark Complete & Return to Procurement
+                                </>
+                            )}
+                        </button>
+                    ) : null
                 }
                 onSectionChange={(sec, data) => {
                     if (sec === 'B') {
@@ -1239,23 +1237,27 @@ const EvaluationDetail = () => {
                 onSubmitSection={async (sec) => {
                     if (!evaluation) return;
 
-            {/* Procurement Officer: Complete Evaluation */}
-            {isProcurement && evaluation && canEditSections.includes('D') && canEditSections.includes('E') && evaluation.status !== 'COMPLETED' && (
-                <div className="panel mb-4 bg-gradient-to-r from-success/10 to-primary/10 border-2 border-success no-print">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <h6 className="font-semibold text-success mb-1">Finalize Evaluation</h6>
-                            <p className="text-sm text-white-dark">Mark this evaluation as completed after reviewing all sections and finalizing D & E.</p>
-                        </div>
-                        <button type="button" className="btn btn-success gap-2" onClick={handleCompleteEvaluation}>
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M20 6L9 17L4 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
-                            Complete Evaluation
-                        </button>
-                    </div>
-                </div>
-            )}
+                    {
+                        /* Procurement Officer: Complete Evaluation */
+                    }
+                    {
+                        isProcurement && evaluation && canEditSections.includes('D') && canEditSections.includes('E') && evaluation.status !== 'COMPLETED' && (
+                            <div className="panel mb-4 bg-gradient-to-r from-success/10 to-primary/10 border-2 border-success no-print">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <h6 className="font-semibold text-success mb-1">Finalize Evaluation</h6>
+                                        <p className="text-sm text-white-dark">Mark this evaluation as completed after reviewing all sections and finalizing D & E.</p>
+                                    </div>
+                                    <button type="button" className="btn btn-success gap-2" onClick={handleCompleteEvaluation}>
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M20 6L9 17L4 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                        </svg>
+                                        Complete Evaluation
+                                    </button>
+                                </div>
+                            </div>
+                        );
+                    }
                     const updated = await evaluationService.submitSection(evaluation.id, sec);
                     setEvaluation(updated);
                 }}
