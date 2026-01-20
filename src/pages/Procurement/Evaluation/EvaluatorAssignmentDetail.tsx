@@ -456,12 +456,7 @@ const EvaluatorAssignmentDetail = () => {
                             {saving ? 'Saving...' : 'Save Section C'}
                         </button>
                     </div>
-                    <button
-                        type="button"
-                        className={`btn btn-success gap-2 ${completing ? 'opacity-60 cursor-not-allowed' : ''}`}
-                        onClick={handleCompleteAssignment}
-                        disabled={completing || saving}
-                    >
+                    <button type="button" className={`btn btn-success gap-2 ${completing ? 'opacity-60 cursor-not-allowed' : ''}`} onClick={handleCompleteAssignment} disabled={completing || saving}>
                         {completing ? (
                             <>
                                 <span className="animate-spin border-2 border-white border-l-transparent rounded-full w-4 h-4 inline-block"></span>
