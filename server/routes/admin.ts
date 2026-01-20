@@ -2352,4 +2352,250 @@ router.post('/users', adminOnly, async (req: Request, res: Response) => {
     }
 });
 
+/**
+ * GET /api/admin/requests/hidden
+ * List all hidden requests with filters
+ */
+router.get('/requests/hidden', adminOnly, async (req: Request, res: Response) => {
+    try {
+        const limit = Math.min(parseInt(req.query.limit as string, 10) || 20, 500);
+        const offset = parseInt(req.query.offset as string, 10) || 0;
+        const department = req.query.department as string;
+        const hiddenBy = req.query.hiddenBy as string;
+
+        const filters: any = { hidden: true };
+
+        if (department) {
+            const deptId = parseInt(department, 10);
+            if (!isNaN(deptId)) {
+                filters.departmentId = deptId;
+            }
+        }
+
+        if (hiddenBy) {
+            const userId = parseInt(hiddenBy, 10);
+            if (!isNaN(userId)) {
+                filters.hiddenById = userId;
+            }
+        }
+
+        const [hiddenRequests, total] = await Promise.all([
+            prisma.request.findMany({
+                where: filters,
+                include: {
+                    requester: { select: { id: true, email: true, name: true } },
+                    department: { select: { id: true, name: true, code: true } },
+                    hiddenBy: { select: { id: true, email: true, name: true } },
+                },
+                orderBy: { hiddenAt: 'desc' },
+                take: limit,
+                skip: offset,
+            }),
+            prisma.request.count({ where: filters }),
+        ]);
+
+        logger.info('GET /api/admin/requests/hidden', {
+            total,
+            hidden: hiddenRequests.length,
+            filters,
+        });
+
+        res.json({
+            success: true,
+            data: hiddenRequests,
+            pagination: {
+                total,
+                limit,
+                offset,
+                hasMore: offset + hiddenRequests.length < total,
+            },
+        });
+    } catch (error) {
+        logger.error('Failed to fetch hidden requests', { error });
+        res.status(500).json({ success: false, message: 'Failed to fetch hidden requests' });
+    }
+});
+
+/**
+ * POST /api/admin/requests/:id/hide
+ * Hide a request from normal views with a reason
+ */
+router.post('/requests/:id/hide', adminOnly, async (req: Request, res: Response) => {
+    try {
+        const requestId = parseInt(req.params.id, 10);
+        const { reason } = req.body;
+        const adminUser = (req as any).user;
+
+        if (isNaN(requestId)) {
+            return res.status(400).json({ success: false, message: 'Invalid request ID' });
+        }
+
+        if (!reason || typeof reason !== 'string' || reason.trim().length === 0) {
+            return res.status(400).json({ success: false, message: 'Hide reason is required' });
+        }
+
+        // Sanitize reason
+        const sanitizedReason = reason
+            .trim()
+            .replace(/<[^>]*>/g, '')
+            .substring(0, 500);
+
+        // Check if request exists
+        const request = await prisma.request.findUnique({
+            where: { id: requestId },
+            include: { requester: { select: { email: true, name: true } } },
+        });
+
+        if (!request) {
+            return res.status(404).json({ success: false, message: 'Request not found' });
+        }
+
+        if (request.hidden) {
+            return res.status(400).json({ success: false, message: 'Request is already hidden' });
+        }
+
+        // Hide the request
+        const hiddenRequest = await prisma.request.update({
+            where: { id: requestId },
+            data: {
+                hidden: true,
+                hiddenAt: new Date(),
+                hiddenById: adminUser.sub || adminUser.id || adminUser.userId,
+                hiddenReason: sanitizedReason,
+            },
+            include: {
+                requester: { select: { email: true, name: true } },
+                department: { select: { name: true } },
+                hiddenBy: { select: { email: true, name: true } },
+            },
+        });
+
+        // Create audit log
+        await prisma.auditLog.create({
+            data: {
+                userId: adminUser.sub || adminUser.id || adminUser.userId,
+                action: 'REQUEST_HIDDEN',
+                entity: 'Request',
+                entityId: requestId,
+                message: `Request ${request.referenceNumber} hidden by admin`,
+                ipAddress: (req.headers['x-forwarded-for'] as string) || req.ip || req.socket.remoteAddress || null,
+                metadata: {
+                    requestId,
+                    referenceNumber: request.referenceNumber,
+                    reason: sanitizedReason,
+                    requesterEmail: request.requester.email,
+                    hiddenBy: adminUser.email,
+                    department: request.department?.name,
+                },
+            },
+        });
+
+        logger.info('Request hidden by admin', {
+            requestId,
+            referenceNumber: request.referenceNumber,
+            reason: sanitizedReason,
+            hiddenBy: adminUser.sub,
+        });
+
+        res.json({
+            success: true,
+            message: 'Request has been hidden successfully',
+            data: hiddenRequest,
+        });
+    } catch (error) {
+        logger.error('Failed to hide request', { error, requestId: req.params.id });
+        res.status(500).json({ success: false, message: 'Failed to hide request' });
+    }
+});
+
+/**
+ * POST /api/admin/requests/:id/unhide
+ * Unhide a previously hidden request
+ */
+router.post('/requests/:id/unhide', adminOnly, async (req: Request, res: Response) => {
+    try {
+        const requestId = parseInt(req.params.id, 10);
+        const { reason } = req.body;
+        const adminUser = (req as any).user;
+
+        if (isNaN(requestId)) {
+            return res.status(400).json({ success: false, message: 'Invalid request ID' });
+        }
+
+        // Reason is optional for unhide, but sanitize if provided
+        let sanitizedReason = null;
+        if (reason && typeof reason === 'string') {
+            sanitizedReason = reason
+                .trim()
+                .replace(/<[^>]*>/g, '')
+                .substring(0, 500);
+        }
+
+        // Check if request exists
+        const request = await prisma.request.findUnique({
+            where: { id: requestId },
+            include: { requester: { select: { email: true, name: true } } },
+        });
+
+        if (!request) {
+            return res.status(404).json({ success: false, message: 'Request not found' });
+        }
+
+        if (!request.hidden) {
+            return res.status(400).json({ success: false, message: 'Request is not hidden' });
+        }
+
+        // Unhide the request
+        const unHiddenRequest = await prisma.request.update({
+            where: { id: requestId },
+            data: {
+                hidden: false,
+                hiddenAt: null,
+                hiddenById: null,
+                hiddenReason: null,
+            },
+            include: {
+                requester: { select: { email: true, name: true } },
+                department: { select: { name: true } },
+            },
+        });
+
+        // Create audit log
+        await prisma.auditLog.create({
+            data: {
+                userId: adminUser.sub || adminUser.id || adminUser.userId,
+                action: 'REQUEST_UNHIDDEN',
+                entity: 'Request',
+                entityId: requestId,
+                message: `Request ${request.referenceNumber} unhidden by admin`,
+                ipAddress: (req.headers['x-forwarded-for'] as string) || req.ip || req.socket.remoteAddress || null,
+                metadata: {
+                    requestId,
+                    referenceNumber: request.referenceNumber,
+                    unhideReason: sanitizedReason,
+                    previousReason: request.hiddenReason,
+                    requesterEmail: request.requester.email,
+                    unHiddenBy: adminUser.email,
+                    department: request.department?.name,
+                },
+            },
+        });
+
+        logger.info('Request unhidden by admin', {
+            requestId,
+            referenceNumber: request.referenceNumber,
+            unHiddenBy: adminUser.sub,
+        });
+
+        res.json({
+            success: true,
+            message: 'Request has been unhidden successfully',
+            data: unHiddenRequest,
+        });
+    } catch (error) {
+        logger.error('Failed to unhide request', { error, requestId: req.params.id });
+        res.status(500).json({ success: false, message: 'Failed to unhide request' });
+    }
+});
+
 export { router as adminRoutes };

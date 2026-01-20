@@ -2080,9 +2080,12 @@ app.get('/api/requests', async (req, res) => {
     try {
         // Get user ID from header
         const userId = req.headers['x-user-id'] ? parseInt(String(req.headers['x-user-id']), 10) : null;
+        const includeHidden = req.query.includeHidden === 'true';
 
         // Build where clause for department filtering
-        let whereClause: any = {};
+        let whereClause: any = {
+            hidden: false, // Exclude hidden requests by default
+        };
 
         if (userId) {
             try {
@@ -2094,6 +2097,12 @@ app.get('/api/requests', async (req, res) => {
 
                 if (user) {
                     const userRoles = (user.roles || []).map((r) => r.role.name).map((n) => n.toUpperCase());
+                    const isAdmin = userRoles.includes('ADMIN');
+
+                    // Only admins can see hidden requests
+                    if (includeHidden && isAdmin) {
+                        whereClause.hidden = undefined; // Allow both hidden and non-hidden
+                    }
 
                     // EXECUTIVE_DIRECTOR, EXECUTIVE, PROCUREMENT, FINANCE, and ADMIN roles can see all requests
                     const canSeeAll = userRoles.some(
@@ -2173,7 +2182,10 @@ app.get('/api/requests', async (req, res) => {
                 try {
                     // Re-apply filtering logic on retry
                     const userId = req.headers['x-user-id'] ? parseInt(String(req.headers['x-user-id']), 10) : null;
-                    let whereClause: any = {};
+                    const includeHidden = req.query.includeHidden === 'true';
+                    let whereClause: any = {
+                        hidden: false, // Exclude hidden requests by default
+                    };
 
                     if (userId) {
                         try {
@@ -2184,6 +2196,13 @@ app.get('/api/requests', async (req, res) => {
 
                             if (user) {
                                 const userRoles = (user.roles || []).map((r) => r.role.name).map((n) => n.toUpperCase());
+                                const isAdmin = userRoles.includes('ADMIN');
+
+                                // Only admins can see hidden requests
+                                if (includeHidden && isAdmin) {
+                                    whereClause.hidden = undefined; // Allow both hidden and non-hidden
+                                }
+
                                 const canSeeAll = userRoles.some(
                                     (r) =>
                                         r === 'EXECUTIVE_DIRECTOR' ||

@@ -57,6 +57,7 @@ model User {
   refreshTokens                RefreshToken[]
   assignedRequests             Request[]                   @relation("requestAssignee")
   requests                     Request[]                   @relation("requestRequester")
+  hiddenRequests               Request[]                   @relation("requestHiddenBy")
   actions                      RequestAction[]             @relation("actionPerformedBy")
   assignmentLogs               RequestAssignmentLog[]
   attachmentsUploaded          RequestAttachment[]         @relation("attachmentUploadedBy")
@@ -200,6 +201,10 @@ model Request {
   isCombined            Boolean?               @default(false)
   combinedRequestId     Int?
   lotNumber             Int?
+  hidden                Boolean                @default(false)
+  hiddenAt              DateTime?
+  hiddenById            Int?
+  hiddenReason          String?
   evaluations           Evaluation[]           @relation("RequestEvaluations")
   combinedRequest       CombinedRequest?       @relation("CombinedRequestLots", fields: [combinedRequestId], references: [id])
   currentAssignee       User?                  @relation("requestAssignee", fields: [currentAssigneeId], references: [id])
@@ -207,6 +212,7 @@ model Request {
   fundingSource         FundingSource?         @relation(fields: [fundingSourceId], references: [id])
   requester             User                   @relation("requestRequester", fields: [requesterId], references: [id])
   vendor                Vendor?                @relation(fields: [vendorId], references: [id])
+  hiddenBy              User?                  @relation("requestHiddenBy", fields: [hiddenById], references: [id])
   actions               RequestAction[]
   assignmentLogs        RequestAssignmentLog[]
   attachments           RequestAttachment[]
@@ -220,6 +226,8 @@ model Request {
   @@index([fundingSourceId], map: "Request_fundingSourceId_fkey")
   @@index([requesterId], map: "Request_requesterId_fkey")
   @@index([vendorId], map: "Request_vendorId_fkey")
+  @@index([hiddenById], map: "Request_hiddenById_fkey")
+  @@index([hidden])
 }
 
 model CombinedRequest {

@@ -51,6 +51,7 @@ router.get('/', authMiddleware, async (req, res) => {
             const departmentReviewRequests = await prisma.request.findMany({
                 where: {
                     status: 'DEPARTMENT_REVIEW',
+                    hidden: false,
                     departmentId: managedDeptIds.length > 0 ? { in: managedDeptIds } : undefined,
                 },
                 include: {
@@ -66,6 +67,7 @@ router.get('/', authMiddleware, async (req, res) => {
             const hodReviewRequests = await prisma.request.findMany({
                 where: {
                     status: 'HOD_REVIEW',
+                    hidden: false,
                     OR: [{ currentAssigneeId: Number.isFinite(userIdNum) ? userIdNum : undefined }, managedDeptIds.length > 0 ? { departmentId: { in: managedDeptIds } } : undefined].filter(
                         Boolean
                     ) as any,
@@ -108,6 +110,7 @@ router.get('/', authMiddleware, async (req, res) => {
             const requests = await prisma.request.findMany({
                 where: {
                     status: 'EXECUTIVE_REVIEW',
+                    hidden: false,
                 },
                 include: {
                     requester: { select: { name: true, email: true } },
@@ -139,6 +142,7 @@ router.get('/', authMiddleware, async (req, res) => {
             const requests = await prisma.request.findMany({
                 where: {
                     status: 'PROCUREMENT_REVIEW',
+                    hidden: false,
                 },
                 include: {
                     requester: { select: { name: true, email: true } },
@@ -173,6 +177,7 @@ router.get('/', authMiddleware, async (req, res) => {
             const requests = await prisma.request.findMany({
                 where: {
                     status: 'FINANCE_REVIEW',
+                    hidden: false,
                 },
                 include: {
                     requester: { select: { name: true, email: true } },
