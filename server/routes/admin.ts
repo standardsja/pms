@@ -2,6 +2,7 @@
  * Admin Routes - System management and configuration
  */
 import express, { Router, Request, Response } from 'express';
+import { AuditAction } from '@prisma/client';
 import { prisma } from '../prismaClient.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { logger } from '../config/logger.js';
@@ -2443,7 +2444,10 @@ router.post('/requests/:id/hide', adminOnly, async (req: Request, res: Response)
         // Check if request exists
         const request = await prisma.request.findUnique({
             where: { id: requestId },
-            include: { requester: { select: { email: true, name: true } } },
+            include: {
+                requester: { select: { email: true, name: true } },
+                department: { select: { name: true } },
+            },
         });
 
         if (!request) {
@@ -2474,14 +2478,14 @@ router.post('/requests/:id/hide', adminOnly, async (req: Request, res: Response)
         await prisma.auditLog.create({
             data: {
                 userId: adminUser.sub || adminUser.id || adminUser.userId,
-                action: 'REQUEST_HIDDEN',
+                action: AuditAction.REQUEST_UPDATED,
                 entity: 'Request',
                 entityId: requestId,
-                message: `Request ${request.referenceNumber} hidden by admin`,
+                message: `Request ${request.reference} hidden by admin`,
                 ipAddress: (req.headers['x-forwarded-for'] as string) || req.ip || req.socket.remoteAddress || null,
                 metadata: {
                     requestId,
-                    referenceNumber: request.referenceNumber,
+                    referenceNumber: request.reference,
                     reason: sanitizedReason,
                     requesterEmail: request.requester.email,
                     hiddenBy: adminUser.email,
@@ -2492,7 +2496,7 @@ router.post('/requests/:id/hide', adminOnly, async (req: Request, res: Response)
 
         logger.info('Request hidden by admin', {
             requestId,
-            referenceNumber: request.referenceNumber,
+            referenceNumber: request.reference,
             reason: sanitizedReason,
             hiddenBy: adminUser.sub,
         });
@@ -2534,7 +2538,10 @@ router.post('/requests/:id/unhide', adminOnly, async (req: Request, res: Respons
         // Check if request exists
         const request = await prisma.request.findUnique({
             where: { id: requestId },
-            include: { requester: { select: { email: true, name: true } } },
+            include: {
+                requester: { select: { email: true, name: true } },
+                department: { select: { name: true } },
+            },
         });
 
         if (!request) {
@@ -2564,14 +2571,14 @@ router.post('/requests/:id/unhide', adminOnly, async (req: Request, res: Respons
         await prisma.auditLog.create({
             data: {
                 userId: adminUser.sub || adminUser.id || adminUser.userId,
-                action: 'REQUEST_UNHIDDEN',
+                action: AuditAction.REQUEST_UPDATED,
                 entity: 'Request',
                 entityId: requestId,
-                message: `Request ${request.referenceNumber} unhidden by admin`,
+                message: `Request ${request.reference} unhidden by admin`,
                 ipAddress: (req.headers['x-forwarded-for'] as string) || req.ip || req.socket.remoteAddress || null,
                 metadata: {
                     requestId,
-                    referenceNumber: request.referenceNumber,
+                    referenceNumber: request.reference,
                     unhideReason: sanitizedReason,
                     previousReason: request.hiddenReason,
                     requesterEmail: request.requester.email,
@@ -2583,7 +2590,7 @@ router.post('/requests/:id/unhide', adminOnly, async (req: Request, res: Respons
 
         logger.info('Request unhidden by admin', {
             requestId,
-            referenceNumber: request.referenceNumber,
+            referenceNumber: request.reference,
             unHiddenBy: adminUser.sub,
         });
 
