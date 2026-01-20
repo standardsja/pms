@@ -4,6 +4,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { setPageTitle } from '../../../store/themeConfigSlice';
 import IconArrowLeft from '../../../components/Icon/IconArrowLeft';
 import IconSave from '../../../components/Icon/IconSave';
+import IconChecks from '../../../components/Icon/IconChecks';
 import { getUser } from '../../../utils/auth';
 import Swal from 'sweetalert2';
 import { evaluationService, type Evaluation } from '../../../services/evaluationService';
@@ -35,6 +36,7 @@ const EvaluatorAssignmentDetail = () => {
     const [currentUserEntry, setCurrentUserEntry] = useState<SectionCEntry | null>(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [completing, setCompleting] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     const [formData, setFormData] = useState({
@@ -185,11 +187,6 @@ const EvaluatorAssignmentDetail = () => {
                 timer: 2500,
                 showConfirmButton: false,
             });
-
-            // Optionally navigate back
-            setTimeout(() => {
-                navigate('/procurement/evaluation');
-            }, 1000);
         } catch (err: any) {
             console.error('Failed to save Section C:', err);
             Swal.fire({
@@ -199,6 +196,53 @@ const EvaluatorAssignmentDetail = () => {
             });
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handleCompleteAssignment = async () => {
+        if (!evaluation) return;
+
+        const confirmResult = await Swal.fire({
+            title: 'Mark assignment complete?',
+            text: 'The procurement officer will be notified.',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, complete',
+            cancelButtonText: 'Cancel',
+        });
+
+        if (!confirmResult.isConfirmed) return;
+
+        try {
+            setCompleting(true);
+
+            // First save the current form data
+            await evaluationService.updateCommitteeSection(evaluation.id, 'C', formData);
+
+            // Then mark as complete
+            await evaluationService.completeAssignment(evaluation.id);
+
+            await Swal.fire({
+                toast: true,
+                icon: 'success',
+                title: 'Evaluation marked complete',
+                position: 'top-end',
+                timer: 2500,
+                showConfirmButton: false,
+            });
+
+            // Navigate back after completion
+            setTimeout(() => {
+                navigate('/procurement/evaluation');
+            }, 1000);
+        } catch (err: any) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Failed to complete assignment',
+                text: err.message || 'An error occurred',
+            });
+        } finally {
+            setCompleting(false);
         }
     };
 
@@ -336,8 +380,11 @@ const EvaluatorAssignmentDetail = () => {
                         placeholder="$0.00"
                         value={formData.recommendedAmountInclusiveGCT ? String(formData.recommendedAmountInclusiveGCT).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : ''}
                         onChange={(e) => {
-                            const value = e.target.value.replace(/,/g, '');
-                            handleInputChange({ target: { name: 'recommendedAmountInclusiveGCT', value } } as any);
+                            const rawValue = e.target.value.replace(/,/g, '');
+                            // Only allow numbers and decimal point
+                            if (rawValue === '' || /^\d*\.?\d*$/.test(rawValue)) {
+                                handleInputChange({ target: { name: 'recommendedAmountInclusiveGCT', value: rawValue } } as any);
+                            }
                         }}
                     />
                 </div>
@@ -398,14 +445,34 @@ const EvaluatorAssignmentDetail = () => {
                 </div>
 
                 {/* Action Buttons */}
-                <div className="flex gap-3 pt-6 border-t">
-                    <button onClick={() => navigate('/procurement/evaluation')} className="btn btn-outline-secondary">
-                        <IconArrowLeft className="h-4 w-4 mr-2" />
-                        Cancel
-                    </button>
-                    <button onClick={handleSave} disabled={saving} className={`btn btn-primary ml-auto ${saving ? 'opacity-60 cursor-not-allowed' : ''}`}>
-                        <IconSave className="h-4 w-4 mr-2" />
-                        {saving ? 'Saving...' : 'Save Section C'}
+                <div className="flex flex-col gap-3 pt-6 border-t sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex gap-3">
+                        <button onClick={() => navigate('/procurement/evaluation')} className="btn btn-outline-secondary">
+                            <IconArrowLeft className="h-4 w-4 mr-2" />
+                            Cancel
+                        </button>
+                        <button onClick={handleSave} disabled={saving || completing} className={`btn btn-primary ${saving ? 'opacity-60 cursor-not-allowed' : ''}`}>
+                            <IconSave className="h-4 w-4 mr-2" />
+                            {saving ? 'Saving...' : 'Save Section C'}
+                        </button>
+                    </div>
+                    <button
+                        type="button"
+                        className={`btn btn-success gap-2 ${completing ? 'opacity-60 cursor-not-allowed' : ''}`}
+                        onClick={handleCompleteAssignment}
+                        disabled={completing || saving}
+                    >
+                        {completing ? (
+                            <>
+                                <span className="animate-spin border-2 border-white border-l-transparent rounded-full w-4 h-4 inline-block"></span>
+                                Completing...
+                            </>
+                        ) : (
+                            <>
+                                <IconChecks />
+                                Mark Complete & Return to Procurement
+                            </>
+                        )}
                     </button>
                 </div>
             </div>
