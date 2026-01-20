@@ -103,13 +103,7 @@ const HiddenRequests: React.FC = () => {
                     <p className="text-sm text-gray-500">Admin-only view of requests removed from primary lists.</p>
                 </div>
                 <div className="flex items-center gap-2">
-                    <input
-                        type="text"
-                        value={reasonInput}
-                        onChange={(e) => setReasonInput(e.target.value)}
-                        placeholder="Reason for hide/unhide"
-                        className="form-input w-64"
-                    />
+                    <input type="text" value={reasonInput} onChange={(e) => setReasonInput(e.target.value)} placeholder="Reason for hide/unhide" className="form-input w-64" />
                     <button type="button" className="btn btn-outline-secondary" onClick={fetchHidden} disabled={isLoading}>
                         <IconRefresh className="w-4 h-4" />
                         <span className="ml-2">Refresh</span>
@@ -122,26 +116,14 @@ const HiddenRequests: React.FC = () => {
                     <IconSearch className="w-5 h-5 text-gray-500" />
                     <div className="flex-1">
                         <label className="text-xs text-gray-500">Department ID</label>
-                        <input
-                            type="number"
-                            value={departmentId}
-                            onChange={(e) => setDepartmentId(e.target.value)}
-                            className="form-input w-full"
-                            placeholder="e.g. 5"
-                        />
+                        <input type="number" value={departmentId} onChange={(e) => setDepartmentId(e.target.value)} className="form-input w-full" placeholder="e.g. 5" />
                     </div>
                 </div>
                 <div className="flex items-center gap-2 bg-white dark:bg-dark p-3 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700">
                     <IconFilter className="w-5 h-5 text-gray-500" />
                     <div className="flex-1">
                         <label className="text-xs text-gray-500">Hidden By (User ID)</label>
-                        <input
-                            type="number"
-                            value={hiddenById}
-                            onChange={(e) => setHiddenById(e.target.value)}
-                            className="form-input w-full"
-                            placeholder="e.g. 12"
-                        />
+                        <input type="number" value={hiddenById} onChange={(e) => setHiddenById(e.target.value)} className="form-input w-full" placeholder="e.g. 12" />
                     </div>
                 </div>
                 <div className="bg-white dark:bg-dark p-3 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 flex items-center justify-between">
@@ -186,27 +168,22 @@ const HiddenRequests: React.FC = () => {
                             items.map((req) => (
                                 <tr key={req.id} className="border-t border-gray-100 dark:border-gray-700">
                                     <td className="px-4 py-3 font-semibold">{req.reference}</td>
-                                    <td className="px-4 py-3 max-w-xs truncate" title={req.title}>{req.title}</td>
+                                    <td className="px-4 py-3 max-w-xs truncate" title={req.title}>
+                                        {req.title}
+                                    </td>
                                     <td className="px-4 py-3">{req.department?.name || '—'}</td>
                                     <td className="px-4 py-3">{req.requester?.name || req.requester?.email || '—'}</td>
                                     <td className="px-4 py-3">{req.hiddenBy?.name || req.hiddenBy?.email || '—'}</td>
                                     <td className="px-4 py-3">{formatDate(req.hiddenAt)}</td>
-                                    <td className="px-4 py-3 max-w-xs truncate" title={req.hiddenReason || ''}>{req.hiddenReason || '—'}</td>
+                                    <td className="px-4 py-3 max-w-xs truncate" title={req.hiddenReason || ''}>
+                                        {req.hiddenReason || '—'}
+                                    </td>
                                     <td className="px-4 py-3 space-x-2 whitespace-nowrap">
-                                        <button
-                                            type="button"
-                                            className="btn btn-sm btn-primary"
-                                            onClick={() => handleUnhide(req.id)}
-                                            disabled={actionId === req.id}
-                                        >
+                                        <button type="button" className="btn btn-sm btn-primary" onClick={() => handleUnhide(req.id)} disabled={actionId === req.id}>
                                             <IconRestore className="w-4 h-4" />
                                             <span className="ml-1">Unhide</span>
                                         </button>
-                                        <button
-                                            type="button"
-                                            className="btn btn-sm btn-outline-secondary"
-                                            onClick={() => window.open(`/apps/requests/edit/${req.id}`, '_blank')}
-                                        >
+                                        <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => window.open(`/apps/requests/edit/${req.id}`, '_blank')}>
                                             <IconEye className="w-4 h-4" />
                                         </button>
                                     </td>
@@ -218,7 +195,9 @@ const HiddenRequests: React.FC = () => {
             </div>
 
             <div className="flex items-center justify-between pt-2">
-                <div className="text-sm text-gray-500">Page {page} of {totalPages}</div>
+                <div className="text-sm text-gray-500">
+                    Page {page} of {totalPages}
+                </div>
                 <div className="flex items-center gap-2">
                     <button type="button" className="btn btn-outline-secondary" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
                         Prev
