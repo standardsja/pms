@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import type { RequestStatus } from '@prisma/client';
+import { RequestStatus } from '@prisma/client';
 import { prisma } from '../prismaClient.js';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.js';
 import { getHealthStatus, getMetrics } from '../services/monitoringService.js';
@@ -663,27 +663,37 @@ router.get('/requester', authMiddleware, async (req: Request, res: Response) => 
 
         // Get counts for the current user's requests
         const totalRequests = await prisma.request.count({
-            where: { createdById: userId },
+            where: { requesterId: userId },
         });
 
         const pendingRequests = await prisma.request.count({
             where: {
-                createdById: userId,
-                status: { in: ['pending', 'submitted'] },
+                requesterId: userId,
+                status: {
+                    in: [
+                        RequestStatus.SUBMITTED,
+                        RequestStatus.DEPARTMENT_REVIEW,
+                        RequestStatus.HOD_REVIEW,
+                        RequestStatus.FINANCE_REVIEW,
+                        RequestStatus.BUDGET_MANAGER_REVIEW,
+                        RequestStatus.PROCUREMENT_REVIEW,
+                        RequestStatus.EXECUTIVE_REVIEW,
+                    ],
+                },
             },
         });
 
         const approvedRequests = await prisma.request.count({
             where: {
-                createdById: userId,
-                status: 'approved',
+                requesterId: userId,
+                status: RequestStatus.FINANCE_APPROVED,
             },
         });
 
         const rejectedRequests = await prisma.request.count({
             where: {
-                createdById: userId,
-                status: 'rejected',
+                requesterId: userId,
+                status: RequestStatus.REJECTED,
             },
         });
 

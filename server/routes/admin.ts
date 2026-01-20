@@ -1243,7 +1243,7 @@ router.post('/users/:id/block', adminOnly, async (req: Request, res: Response) =
                 .create({
                     data: {
                         userId: adminUser.sub,
-                        action: 'USER_BLOCK_FAILED',
+                        action: 'USER_UPDATED',
                         entity: 'User',
                         entityId: userId,
                         message: `Failed to block user: User not found`,
@@ -1338,7 +1338,7 @@ router.post('/users/:id/unblock', adminOnly, async (req: Request, res: Response)
                 .create({
                     data: {
                         userId: adminUser.sub,
-                        action: 'USER_UNBLOCK_FAILED',
+                        action: 'USER_UPDATED',
                         entity: 'User',
                         entityId: userId,
                         message: `Failed to unblock user: User not found`,

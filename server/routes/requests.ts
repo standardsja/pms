@@ -207,10 +207,10 @@ router.get(
                 totalPrice: Number(item.totalPrice),
             })),
             statusHistory: request.statusHistory.map((history) => ({
-                status: history.newStatus,
+                status: history.status,
                 date: history.createdAt.toISOString(),
                 actor: history.changedBy?.name || 'System',
-                note: history.notes || '',
+                note: history.comment || '',
             })),
             attachments: request.attachments.map((att) => ({
                 id: att.id,
@@ -293,10 +293,9 @@ router.post(
                 },
                 statusHistory: {
                     create: {
-                        oldStatus: null,
-                        newStatus: RequestStatus.DRAFT,
+                        status: RequestStatus.DRAFT,
                         changedById: userId,
-                        notes: 'Request created',
+                        comment: 'Request created',
                     },
                 },
             },
@@ -328,7 +327,7 @@ router.post(
             metadata: {
                 reference,
                 title: newRequest.title,
-                departmentId: newRequest.department?.name,
+                departmentId: newRequest.departmentId,
                 totalEstimated: Number(newRequest.totalEstimated),
             },
         });
@@ -469,10 +468,9 @@ router.post(
                 submittedAt: new Date(),
                 statusHistory: {
                     create: {
-                        oldStatus: RequestStatus.DRAFT,
-                        newStatus: RequestStatus.SUBMITTED,
+                        status: RequestStatus.SUBMITTED,
                         changedById: userId,
-                        notes: 'Request submitted for approval',
+                        comment: 'Request submitted for approval',
                     },
                 },
             },
@@ -547,10 +545,9 @@ router.post(
                 status: newStatus,
                 statusHistory: {
                     create: {
-                        oldStatus: request.status,
-                        newStatus,
+                        status: newStatus,
                         changedById: userId,
-                        notes: notes || `Request ${action}ed`,
+                        comment: notes || `Request ${action}ed`,
                     },
                 },
             },
@@ -610,7 +607,7 @@ router.get(
         const activities = await prisma.requestStatusHistory.findMany({
             where: {
                 request: {
-                    createdById: userId,
+                    requesterId: userId,
                 },
             },
             include: {
@@ -628,16 +625,16 @@ router.get(
                     },
                 },
             },
-            orderBy: { changedAt: 'desc' },
+            orderBy: { createdAt: 'desc' },
             take: 10, // Last 10 activities
         });
 
         const formatted = activities.map((activity) => ({
             id: activity.id,
-            action: `Status changed to ${activity.newStatus}`,
-            description: `Request ${activity.request.reference} - ${activity.request.title}`,
-            status: activity.newStatus,
-            createdAt: activity.changedAt.toISOString(),
+            action: `Status changed to ${activity.status}`,
+            description: `Request ${activity.request?.reference} - ${activity.request?.title}`,
+            status: activity.status,
+            createdAt: activity.createdAt.toISOString(),
         }));
 
         res.json({ activities: formatted });

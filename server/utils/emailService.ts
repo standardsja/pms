@@ -52,9 +52,10 @@ class EmailService {
      */
     public encryptContent(content: string): string {
         try {
-            const cipher = crypto.createCipher('aes192', ENCRYPTION_KEY);
-            let encrypted = cipher.update(content, 'utf8', 'hex');
-            encrypted += cipher.final('hex');
+            const key = crypto.createHash('sha256').update(ENCRYPTION_KEY).digest();
+            const iv = key.subarray(0, 16); // deterministic IV derived from key for compatibility
+            const cipher = crypto.createCipheriv('aes-256-ctr', key, iv);
+            const encrypted = Buffer.concat([cipher.update(content, 'utf8'), cipher.final()]).toString('hex');
             return encrypted;
         } catch (err) {
             console.warn('[EmailService] Encryption failed, sending unencrypted:', err);
@@ -67,9 +68,10 @@ class EmailService {
      */
     public decryptContent(encryptedContent: string): string {
         try {
-            const decipher = crypto.createDecipher('aes192', ENCRYPTION_KEY);
-            let decrypted = decipher.update(encryptedContent, 'hex', 'utf8');
-            decrypted += decipher.final('utf8');
+            const key = crypto.createHash('sha256').update(ENCRYPTION_KEY).digest();
+            const iv = key.subarray(0, 16);
+            const decipher = crypto.createDecipheriv('aes-256-ctr', key, iv);
+            const decrypted = Buffer.concat([decipher.update(Buffer.from(encryptedContent, 'hex')), decipher.final()]).toString('utf8');
             return decrypted;
         } catch (err) {
             console.warn('[EmailService] Decryption failed:', err);

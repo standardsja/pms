@@ -34,7 +34,7 @@ import { authMiddleware } from './middleware/auth.js';
 import { authRoutes } from './routes/auth.js';
 import { ideasRoutes } from './routes/ideas.js';
 import { innovationRoutes } from './routes/innovation.js';
-import { requestsRoutes } from './routes/requests.js';
+import requestsRoutes from './routes/requests.js';
 import roleRequestsRouter from './routes/roleRequests.js';
 import hodRouter from './routes/hod.js';
 import { adminRoutes } from './routes/admin.js';

@@ -25,7 +25,8 @@ export async function runLdapSyncOnce() {
         for (const u of users) {
             try {
                 // Find user in LDAP by email
-                const ldapUser = await ldapService.lookupUserByEmail?.(u.email);
+                const lookupByEmail = (ldapService as { lookupUserByEmail?: (email: string) => Promise<any> }).lookupUserByEmail;
+                const ldapUser = lookupByEmail ? await lookupByEmail(u.email) : null;
                 if (!ldapUser) continue;
                 await syncLDAPUserToDatabase(ldapUser);
                 processed++;

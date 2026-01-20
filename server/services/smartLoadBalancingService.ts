@@ -667,6 +667,8 @@ async function updateOfficerWorkload(officerId: number) {
             data: {
                 officerId,
                 currentWorkload,
+                categoryExpertise: {},
+                peakPerformanceHours: [],
             },
         });
     }

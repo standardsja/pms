@@ -290,8 +290,6 @@ router.get(
                 status: {
                     in: ['FINANCE_REVIEW', 'FINANCE_APPROVED', 'SENT_TO_VENDOR', 'CLOSED'],
                 },
-                actionDate: { not: null },
-                createdAt: { not: null },
             },
             select: {
                 createdAt: true,
@@ -302,7 +300,13 @@ router.get(
         const averageApprovalTime =
             approvedWithDates.length > 0
                 ? approvedWithDates.reduce((sum, req) => {
-                      const days = Math.floor((req.actionDate!.getTime() - req.createdAt.getTime()) / (1000 * 60 * 60 * 24));
+                      if (!req.actionDate) {
+                          return sum;
+                      }
+
+                      const actionDate = new Date(req.actionDate);
+                      const createdAt = req.createdAt instanceof Date ? req.createdAt : new Date(req.createdAt);
+                      const days = Math.floor((actionDate.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24));
                       return sum + days;
                   }, 0) / approvedWithDates.length
                 : 0;
@@ -339,8 +343,8 @@ router.get(
                     where: {
                         ...departmentFilter,
                         actionDate: {
-                            gte: date,
-                            lt: nextDay,
+                            gte: date.toISOString(),
+                            lt: nextDay.toISOString(),
                         },
                         status: {
                             in: ['FINANCE_REVIEW', 'FINANCE_APPROVED', 'SENT_TO_VENDOR', 'CLOSED'],
@@ -573,33 +577,6 @@ router.get(
             success: true,
             reports,
             count: reports.length,
-        });
-    })
-);
-                title: 'Department Performance Analysis',
-                type: 'Performance Report',
-                generatedBy: 'Michael Chen',
-                period: 'November - December 2024',
-                status: 'In Progress',
-                createdAt: new Date('2024-12-06').toISOString(),
-            },
-            {
-                id: '4',
-                title: 'Supplier Performance Metrics',
-                type: 'Supplier Report',
-                generatedBy: 'Alice Johnson',
-                period: 'Q4 2024',
-                status: 'Completed',
-                createdAt: new Date('2024-12-02').toISOString(),
-                fileUrl: '/reports/supplier-q4-2024.pdf',
-            },
-        ];
-
-        res.json({
-            success: true,
-            reports: mockReports,
-            count: mockReports.length,
-            note: 'Reports are using mock data. Create a reports table in Prisma schema to enable database integration.',
         });
     })
 );

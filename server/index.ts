@@ -32,7 +32,7 @@ import { checkSplintering } from './services/splinteringService.js';
 import { createThresholdNotifications } from './services/notificationService.js';
 import { getLoadBalancingSettings, updateLoadBalancingSettings, autoAssignRequest, autoAssignFinanceOfficer, shouldAutoAssign } from './services/loadBalancingService.js';
 import { emailService } from './utils/emailService.js';
-import type { Prisma } from '@prisma/client';
+import type { Prisma, User } from '@prisma/client';
 import { requireCommittee as requireCommitteeRole, requireEvaluationCommittee, requireAdmin, requireExecutive, requireRole } from './middleware/rbac.js';
 import { validate, createIdeaSchema, voteSchema, approveRejectIdeaSchema, promoteIdeaSchema, sanitizeInput as sanitize } from './middleware/validation.js';
 import { errorHandler, notFoundHandler, asyncHandler, NotFoundError, BadRequestError } from './middleware/errorHandler.js';
@@ -3624,12 +3624,17 @@ app.post('/api/requests/:id/action', async (req, res) => {
                 // Department Manager approved -> send to HOD
                 // First try to find HOD who manages this department (via DepartmentManager)
                 // Then fall back to user with departmentId matching
-                let hod = await prisma.user.findFirst({
-                    where: {
-                        managedDepartments: { some: { departmentId: request.departmentId } },
-                        roles: { some: { role: { name: 'HEAD_OF_DIVISION' } } },
-                    },
-                });
+                let hod = null as User | null;
+
+                // Only search managedDepartments when the request has a departmentId
+                if (request.departmentId !== null) {
+                    hod = await prisma.user.findFirst({
+                        where: {
+                            managedDepartments: { some: { departmentId: request.departmentId } },
+                            roles: { some: { role: { name: 'HEAD_OF_DIVISION' } } },
+                        },
+                    });
+                }
 
                 // Fallback: find HOD whose primary department is this department
                 if (!hod) {
