@@ -66,18 +66,16 @@ router.get(
         // Get departments - filter by division if specified
         const departments = division
             ? [
-                  (
-                      await prisma.department.findUnique({
-                          where: { id: parseInt(division) },
-                          include: {
-                              manager: {
-                                  select: {
-                                      name: true,
-                                  },
+                  await prisma.department.findUnique({
+                      where: { id: parseInt(division) },
+                      include: {
+                          manager: {
+                              select: {
+                                  name: true,
                               },
                           },
-                      })
-                  ),
+                      },
+                  }),
               ].filter(Boolean)
             : managedDepartments.map((dm) => dm.department);
 
