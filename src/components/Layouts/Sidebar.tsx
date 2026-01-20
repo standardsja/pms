@@ -48,6 +48,7 @@ import IconUsers from '../Icon/IconUsers';
 import IconKey from '../Icon/IconKey';
 import IconUpload from '../Icon/IconUpload';
 import IconGear from '../Icon/IconGear';
+import IconArchive from '../Icon/IconArchive';
 import { getApiUrl } from '../../config/api';
 import { getToken } from '../../utils/auth';
 const Sidebar = () => {
@@ -335,6 +336,15 @@ const Sidebar = () => {
                                             <div className="flex items-center">
                                                 <IconFile className="group-hover:!text-primary shrink-0" />
                                                 <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">All Requests</span>
+                                            </div>
+                                        </NavLink>
+                                    </li>
+
+                                    <li className="nav-item">
+                                        <NavLink to="/procurement/admin/hidden-requests" end className="group">
+                                            <div className="flex items-center">
+                                                <IconArchive className="group-hover:!text-primary shrink-0" />
+                                                <span className="ltr:pl-3 rtl:pr-3 text-black dark:text-[#506690] dark:group-hover:text-white-dark">Hidden Requests</span>
                                             </div>
                                         </NavLink>
                                     </li>

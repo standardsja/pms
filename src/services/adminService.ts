@@ -143,6 +143,18 @@ export interface RoleOption {
     description?: string;
 }
 
+export type HiddenRequest = {
+    id: number;
+    reference: string;
+    title: string;
+    status?: string | null;
+    department?: { id: number; name: string; code: string } | null;
+    requester?: { id: number; name: string | null; email: string } | null;
+    hiddenAt?: string | null;
+    hiddenReason?: string | null;
+    hiddenBy?: { id: number; name: string | null; email: string } | null;
+};
+
 const BACKEND = {
     // User Management
     getUsers: (): Promise<AdminUser[]> => apiGet('/api/admin/users'),
@@ -214,6 +226,19 @@ const BACKEND = {
         const suffix = params.toString();
         return apiGet(`/api/admin/audit-log${suffix ? `?${suffix}` : ''}`);
     },
+
+    // Hidden Requests
+    getHiddenRequests: (input: { limit?: number; offset?: number; departmentId?: number; hiddenById?: number }) => {
+        const params = new URLSearchParams();
+        if (input.limit) params.set('limit', String(input.limit));
+        if (input.offset) params.set('offset', String(input.offset));
+        if (input.departmentId) params.set('department', String(input.departmentId));
+        if (input.hiddenById) params.set('hiddenBy', String(input.hiddenById));
+        const suffix = params.toString();
+        return apiGet<{ success: boolean; data: HiddenRequest[]; pagination: { total: number; limit: number; offset: number } }>(`/api/admin/requests/hidden${suffix ? `?${suffix}` : ''}`);
+    },
+    hideRequest: (id: number, reason: string) => apiPost(`/api/admin/requests/${id}/hide`, { reason }),
+    unhideRequest: (id: number, reason?: string) => apiPost(`/api/admin/requests/${id}/unhide`, reason ? { reason } : {}),
 
     // Load Balancing
     getLoadBalancingSettings: () => apiGet('/api/admin/load-balancing-settings'),

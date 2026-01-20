@@ -93,6 +93,7 @@ const VendorManagement = lazy(() => import('../pages/Procurement/Admin/VendorMan
 const RolePermissionManagement = lazy(() => import('../pages/Procurement/Admin/RolePermissionManagement'));
 const BulkUserManagement = lazy(() => import('../pages/Procurement/Admin/BulkUserManagement'));
 const SystemConfiguration = lazy(() => import('../pages/Procurement/Admin/SystemConfiguration'));
+const HiddenRequests = lazy(() => import('../pages/Procurement/Admin/HiddenRequests'));
 
 // Forms Pages
 const FormSelection = lazy(() => import('../pages/Procurement/Forms/FormSelection'));
@@ -843,6 +844,14 @@ const routes = [
         element: (
             <AdminRoute>
                 <AssignRequestsToUsers />
+            </AdminRoute>
+        ),
+    },
+    {
+        path: '/procurement/admin/hidden-requests',
+        element: (
+            <AdminRoute>
+                <HiddenRequests />
             </AdminRoute>
         ),
     },

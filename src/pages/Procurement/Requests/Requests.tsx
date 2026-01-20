@@ -1,10 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { setPageTitle } from '../../../store/themeConfigSlice';
 import IconPlus from '../../../components/Icon/IconPlus';
 import IconEye from '../../../components/Icon/IconEye';
 import IconPrinter from '../../../components/Icon/IconPrinter';
+import IconArchive from '../../../components/Icon/IconArchive';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import { Request, ApiResponse } from '../../../types/request.types';
@@ -31,12 +32,15 @@ const Requests = () => {
     const [combinedRequests, setCombinedRequests] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [hideActionId, setHideActionId] = useState<string | null>(null);
 
     // Current user from localStorage (aligns with RequestForm pattern)
     const [currentUserName, setCurrentUserName] = useState<string>('');
     const [currentUserId, setCurrentUserId] = useState<number | null>(null);
     const [currentUserRoles, setCurrentUserRoles] = useState<string[]>([]);
     const showMineOnly = location.pathname.endsWith('/mine');
+
+    const isAdmin = useMemo(() => currentUserRoles.some((role) => role.toUpperCase().includes('ADMIN')), [currentUserRoles]);
 
     // Load current user (supports session/local storage + legacy userProfile)
     useEffect(() => {
@@ -62,10 +66,8 @@ const Requests = () => {
         }
     }, []);
 
-    // Fetch requests from API
-    useEffect(() => {
-        const controller = new AbortController();
-        const fetchRequests = async () => {
+    const fetchRequests = useCallback(
+        async (signal?: AbortSignal) => {
             setIsLoading(true);
             setError(null);
             try {
@@ -76,10 +78,9 @@ const Requests = () => {
                 if (token) headers['Authorization'] = `Bearer ${token}`;
                 if (user?.id || currentUserId) headers['x-user-id'] = String(user?.id || currentUserId || '');
 
-                // Fetch regular requests
                 const res = await fetch(getApiUrl('/api/requests'), {
                     headers,
-                    signal: controller.signal,
+                    signal,
                 });
                 let payload: any = null;
                 try {
@@ -105,35 +106,38 @@ const Requests = () => {
                     try {
                         const combinedRes = await fetch(getApiUrl('/api/requests/combinable'), {
                             headers,
-                            signal: controller.signal,
+                            signal,
                         });
                         if (combinedRes.ok) {
                             const combinedData = await combinedRes.json();
-                            // The endpoint returns array of combined request objects when no query param
                             setCombinedRequests(combinedData);
                         } else if (combinedRes.status === 403) {
-                            // User doesn't have permission, silently ignore
                             setCombinedRequests([]);
                         }
                     } catch (e) {
-                        // Silently fail - combined requests are optional
-                        console.debug('Combined requests not available:', e);
+                        if (!(e instanceof DOMException && e.name === 'AbortError')) {
+                            console.debug('Combined requests not available:', e);
+                        }
                         setCombinedRequests([]);
                     }
                 }
             } catch (e: unknown) {
-                // Ignore abort errors
                 if (e instanceof DOMException && e.name === 'AbortError') return;
                 const message = e instanceof Error ? e.message : typeof e === 'string' ? e : 'Failed to load requests';
                 setError(String(message));
             } finally {
                 setIsLoading(false);
             }
-        };
+        },
+        [currentUserId, currentUserRoles]
+    );
 
-        fetchRequests();
+    // Fetch requests from API
+    useEffect(() => {
+        const controller = new AbortController();
+        fetchRequests(controller.signal);
         return () => controller.abort();
-    }, [currentUserRoles, currentUserId]);
+    }, [fetchRequests]);
 
     // URL-synced filters/search/page
     const initParams = new URLSearchParams(location.search);
@@ -600,6 +604,59 @@ const Requests = () => {
         }
     };
 
+    const handleHideRequest = useCallback(
+        async (req: Request) => {
+            const { value: reason, isConfirmed } = await MySwal.fire<string>({
+                title: 'Hide request',
+                text: `Hide request ${req.id} from the main list?`,
+                input: 'textarea',
+                inputPlaceholder: 'Provide a reason for hiding this request',
+                inputAttributes: {
+                    'aria-label': 'Reason for hiding request',
+                },
+                showCancelButton: true,
+                confirmButtonText: 'Hide request',
+                confirmButtonColor: '#d97706',
+                preConfirm: (value) => {
+                    const trimmed = (value || '').trim();
+                    if (!trimmed) {
+                        MySwal.showValidationMessage('Reason is required');
+                        return '';
+                    }
+                    return trimmed;
+                },
+            });
+
+            if (!isConfirmed || !reason) return;
+
+            const trimmedReason = reason.trim();
+            if (!trimmedReason) return;
+
+            setHideActionId(req.id);
+            try {
+                const headers = getAuthHeadersSync();
+                if (!headers['x-user-id'] && currentUserId != null) headers['x-user-id'] = String(currentUserId);
+                const res = await fetch(getApiUrl(`/api/admin/requests/${req.id}/hide`), {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify({ reason: trimmedReason }),
+                });
+                const data: ApiResponse = await res.json().catch(() => ({} as ApiResponse));
+                if (!res.ok) {
+                    throw new Error(data?.message || data?.error || 'Failed to hide request');
+                }
+                await fetchRequests();
+                await MySwal.fire({ icon: 'success', title: 'Request hidden', text: 'The request has been moved to Hidden Requests.' });
+            } catch (e: unknown) {
+                const message = e instanceof Error ? e.message : 'Failed to hide request';
+                MySwal.fire({ icon: 'error', title: 'Error', text: message });
+            } finally {
+                setHideActionId(null);
+            }
+        },
+        [currentUserId, fetchRequests]
+    );
+
     return (
         <div className="p-6">
             <div className="flex items-center justify-between mb-6">
@@ -867,6 +924,21 @@ const Requests = () => {
                                                 >
                                                     <IconPrinter className="w-5 h-5" />
                                                 </button>
+                                                {isAdmin && (
+                                                    <button
+                                                        className="p-1.5 rounded-md hover:bg-amber-50 dark:hover:bg-amber-900/20 text-amber-700 dark:text-amber-300 disabled:opacity-60 transition-colors"
+                                                        onClick={() => handleHideRequest(r)}
+                                                        disabled={hideActionId === r.id}
+                                                        title="Hide request"
+                                                        aria-label={`Hide request ${r.id}`}
+                                                    >
+                                                        {hideActionId === r.id ? (
+                                                            <span className="block w-4 h-4 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+                                                        ) : (
+                                                            <IconArchive className="w-5 h-5" />
+                                                        )}
+                                                    </button>
+                                                )}
                                                 {currentUserId && r.currentAssigneeId != null && Number(r.currentAssigneeId) === Number(currentUserId) && (
                                                     <button className="px-3 py-1 rounded bg-blue-600 text-white text-sm hover:bg-blue-700" onClick={() => navigate(`/apps/requests/edit/${r.id}`)}>
                                                         Review
