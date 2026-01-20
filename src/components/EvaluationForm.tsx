@@ -26,6 +26,7 @@ type Props = {
     onReturnSection?: (section: 'A' | 'B' | 'C' | 'D' | 'E', notes: string) => Promise<void> | void;
     structureEditableSections?: Array<'A' | 'B' | 'C' | 'D' | 'E'>;
     onSectionChange?: (section: 'A' | 'B' | 'C' | 'D' | 'E', data: any) => void;
+    sectionCActions?: React.ReactNode;
 };
 
 // Full evaluation form matching NewEvaluation structure with conditional editability
@@ -39,6 +40,7 @@ export const EvaluationForm: React.FC<Props> = ({
     onReturnSection,
     structureEditableSections = [],
     onSectionChange,
+    sectionCActions,
 }) => {
     const normalizedSectionC = useMemo<SectionC | undefined>(() => {
         if (Array.isArray(evaluation?.sectionC)) {
@@ -1226,10 +1228,13 @@ export const EvaluationForm: React.FC<Props> = ({
                         </div>
                     </div>
                     {canEdit('C') && (
-                        <div className="p-5 flex justify-end border-t">
-                            <button className="btn btn-primary" disabled={saving} onClick={() => saveSec('C')}>
-                                {saving ? 'Saving…' : 'Save Section C'}
-                            </button>
+                        <div className="p-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between border-t">
+                            <div>
+                                <button className="btn btn-primary" disabled={saving} onClick={() => saveSec('C')}>
+                                    {saving ? 'Saving…' : 'Save Section C'}
+                                </button>
+                            </div>
+                            {sectionCActions && <div className="flex-shrink-0">{sectionCActions}</div>}
                         </div>
                     )}
                 </div>
