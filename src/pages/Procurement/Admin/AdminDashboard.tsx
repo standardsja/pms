@@ -318,12 +318,7 @@ const AdminDashboard = () => {
                     <p className="text-gray-600 dark:text-gray-400 mt-1">Manage user roles and access permissions</p>
                 </div>
                 <div className="flex items-center gap-3">
-                    <button
-                        type="button"
-                        onClick={() => void loadAllData({ background: true })}
-                        className="btn btn-outline-primary flex items-center gap-2"
-                        disabled={isRefreshing}
-                    >
+                    <button type="button" onClick={() => void loadAllData({ background: true })} className="btn btn-outline-primary flex items-center gap-2" disabled={isRefreshing}>
                         <IconLoader className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
                         <span>{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
                     </button>
