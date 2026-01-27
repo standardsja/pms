@@ -2533,7 +2533,11 @@ app.get('/api/requests/:id', async (req, res) => {
                 accountingCode: true,
                 budgetComments: true,
                 budgetOfficerName: true,
+                budgetOfficerApproved: true,
+                budgetOfficerApprovedAt: true,
                 budgetManagerName: true,
+                budgetManagerApproved: true,
+                budgetManagerApprovedAt: true,
                 procurementCaseNumber: true,
                 receivedBy: true,
                 dateReceived: true,
@@ -2661,8 +2665,8 @@ app.patch('/api/requests/:id', async (req, res) => {
         const { id } = req.params;
         const updates = req.body || {};
 
-        // Remove deprecated fields that no longer exist in schema
-        const { budgetOfficerApproved, budgetManagerApproved, ...cleanUpdates } = updates;
+        // Keep all fields including budget approval fields
+        const cleanUpdates = { ...updates };
 
         // DEBUG: log incoming numeric fields before coercion to help diagnose why strings persist
         try {
@@ -2879,10 +2883,30 @@ app.patch('/api/requests/:id', async (req, res) => {
         // If manager approved, set the approval date
         if (cleanUpdates.managerApproved === true && !cleanUpdates.managerApprovedAt) {
             cleanUpdates.managerApprovedAt = new Date();
+        } else if (cleanUpdates.managerApproved === false) {
+            // Clear date if approval is explicitly false
+            cleanUpdates.managerApprovedAt = null;
         }
         // If head approved, set the approval date
         if (cleanUpdates.headApproved === true && !cleanUpdates.headApprovedAt) {
             cleanUpdates.headApprovedAt = new Date();
+        } else if (cleanUpdates.headApproved === false) {
+            // Clear date if approval is explicitly false
+            cleanUpdates.headApprovedAt = null;
+        }
+        // If budget officer approved, set a default date (will be overridden by client if sent)
+        if (cleanUpdates.budgetOfficerApproved === true && !('budgetOfficerApprovedAt' in cleanUpdates)) {
+            cleanUpdates.budgetOfficerApprovedAt = new Date();
+        } else if (cleanUpdates.budgetOfficerApproved === false) {
+            // Clear date if approval is explicitly false
+            cleanUpdates.budgetOfficerApprovedAt = null;
+        }
+        // If budget manager approved, set a default date (will be overridden by client if sent)
+        if (cleanUpdates.budgetManagerApproved === true && !('budgetManagerApprovedAt' in cleanUpdates)) {
+            cleanUpdates.budgetManagerApprovedAt = new Date();
+        } else if (cleanUpdates.budgetManagerApproved === false) {
+            // Clear date if approval is explicitly false
+            cleanUpdates.budgetManagerApprovedAt = null;
         }
 
         const updated = await prisma.request.update({
@@ -2985,8 +3009,8 @@ app.put('/api/requests/:id', async (req, res) => {
             actionDateType: typeof updates.actionDate,
         });
 
-        // Remove deprecated fields that no longer exist in schema
-        const { budgetOfficerApproved, budgetManagerApproved, ...cleanUpdates } = updates;
+        // Keep all fields including budget approval fields
+        const cleanUpdates = { ...updates };
 
         console.log(`[PUT /requests/${id}] After cleaning:`, {
             dateReceived: cleanUpdates.dateReceived,

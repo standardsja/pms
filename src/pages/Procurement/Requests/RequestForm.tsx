@@ -194,7 +194,9 @@ const RequestForm = () => {
     const [headApprovedDate, setHeadApprovedDate] = useState('');
     const [procurementApproved, setProcurementApproved] = useState(false);
     const [budgetOfficerApproved, setBudgetOfficerApproved] = useState(false);
+    const [budgetOfficerApprovedDate, setBudgetOfficerApprovedDate] = useState('');
     const [budgetManagerApproved, setBudgetManagerApproved] = useState(false);
+    const [budgetManagerApprovedDate, setBudgetManagerApprovedDate] = useState('');
 
     // Current user profile (for edit permissions)
     const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
@@ -432,7 +434,15 @@ const RequestForm = () => {
                 setAccountingCode(request.accountingCode || '');
                 setBudgetComments(request.budgetComments || '');
                 setBudgetOfficerName(request.budgetOfficerName || '');
+                setBudgetOfficerApproved(!!request.budgetOfficerApproved);
+                if (request.budgetOfficerApprovedAt) {
+                    setBudgetOfficerApprovedDate(new Date(request.budgetOfficerApprovedAt).toISOString().split('T')[0]);
+                }
                 setBudgetManagerName(request.budgetManagerName || '');
+                setBudgetManagerApproved(!!request.budgetManagerApproved);
+                if (request.budgetManagerApprovedAt) {
+                    setBudgetManagerApprovedDate(new Date(request.budgetManagerApprovedAt).toISOString().split('T')[0]);
+                }
 
                 // Pre-fill procurement section (if present)
                 setProcurementCaseNumber(request.procurementCaseNumber || '');
@@ -805,19 +815,21 @@ const RequestForm = () => {
                     accountingCode,
                     budgetComments,
                     budgetOfficerName,
-                    budgetManagerName,
-                    // Header code fields
-                    headerDeptCode,
-                    headerMonth,
-                    headerYear: headerYear ? Number(headerYear) : null,
-                    headerSequence: headerSequence ? Number(headerSequence) : null,
                     budgetOfficerApproved,
+                    budgetOfficerApprovedAt: budgetOfficerApproved && budgetOfficerApprovedDate ? new Date(budgetOfficerApprovedDate).toISOString() : null,
+                    budgetManagerName,
                     budgetManagerApproved,
+                    budgetManagerApprovedAt: budgetManagerApproved && budgetManagerApprovedDate ? new Date(budgetManagerApprovedDate).toISOString() : null,
                     procurementCaseNumber,
                     receivedBy,
                     dateReceived,
                     actionDate,
                     procurementComments,
+                    // Header code fields
+                    headerDeptCode,
+                    headerMonth,
+                    headerYear: headerYear ? Number(headerYear) : null,
+                    headerSequence: headerSequence ? Number(headerSequence) : null,
                 };
                 // Determine if this save is also an approval action (reviewer checked approve boxes)
                 // For procurement, auto-approve when saving their section (no checkbox anymore)
@@ -2075,22 +2087,28 @@ const RequestForm = () => {
                                     placeholder={canApproveBudgetOfficer ? 'Your name will be auto-filled' : ''}
                                     disabled={!canApproveBudgetOfficer}
                                 />
-                                <div className="space-y-2">
-                                    <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
-                                        <input
-                                            type="checkbox"
-                                            checked={budgetOfficerApproved}
-                                            onChange={(e) => setBudgetOfficerApproved(e.target.checked)}
-                                            disabled={!canApproveBudgetOfficer}
-                                            className="form-checkbox text-success rounded"
-                                        />
-                                        <span className="ml-2 text-sm font-medium">{budgetOfficerApproved ? '✓ Approved by Chief Accountant' : 'Approve as Chief Accountant'}</span>
-                                    </label>
-                                    <div>
-                                        <label className="block text-xs text-gray-500 mb-1">Date Approved:</label>
-                                        <input type="date" className="form-input w-full" defaultValue={new Date().toISOString().split('T')[0]} disabled={!canApproveBudgetOfficer} />
-                                    </div>
-                                    {canApproveBudgetOfficer && (
+                                {canApproveBudgetOfficer && (
+                                    <div className="space-y-2">
+                                        <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
+                                            <input
+                                                type="checkbox"
+                                                checked={budgetOfficerApproved}
+                                                onChange={(e) => {
+                                                    setBudgetOfficerApproved(e.target.checked);
+                                                    // Set date to today only when user checks the box
+                                                    if (e.target.checked && !budgetOfficerApprovedDate) {
+                                                        setBudgetOfficerApprovedDate(new Date().toISOString().split('T')[0]);
+                                                    }
+                                                }}
+                                                disabled={!canApproveBudgetOfficer}
+                                                className="form-checkbox text-success rounded"
+                                            />
+                                            <span className="ml-2 text-sm font-medium">{budgetOfficerApproved ? '✓ Approved by Chief Accountant' : 'Approve as Chief Accountant'}</span>
+                                        </label>
+                                        <div>
+                                            <label className="block text-xs text-gray-500 mb-1">Date Approved:</label>
+                                            <input type="date" className="form-input w-full" value={budgetOfficerApprovedDate} onChange={(e) => setBudgetOfficerApprovedDate(e.target.value)} disabled={!canApproveBudgetOfficer} />
+                                        </div>
                                         <div className="flex gap-2 mt-2">
                                             <button
                                                 type="button"
@@ -2107,8 +2125,14 @@ const RequestForm = () => {
                                                 View Messages
                                             </button>
                                         </div>
-                                    )}
-                                </div>
+                                    </div>
+                                )}
+                                {!canApproveBudgetOfficer && budgetOfficerApproved && (
+                                    <div className="space-y-1 mt-2">
+                                        <p className="text-xs text-green-600 font-medium">✓ Approved</p>
+                                        <p className="text-xs text-gray-600">Date: {budgetOfficerApprovedDate}</p>
+                                    </div>
+                                )}
                             </div>
                             <div>
                                 <label className="block text-sm font-medium mb-2">
@@ -2125,22 +2149,28 @@ const RequestForm = () => {
                                     placeholder={canApproveBudgetManager ? 'Your name will be auto-filled' : ''}
                                     disabled={!canApproveBudgetManager}
                                 />
-                                <div className="space-y-2">
-                                    <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
-                                        <input
-                                            type="checkbox"
-                                            checked={budgetManagerApproved}
-                                            onChange={(e) => setBudgetManagerApproved(e.target.checked)}
-                                            disabled={!canApproveBudgetManager}
-                                            className="form-checkbox text-success rounded"
-                                        />
-                                        <span className="ml-2 text-sm font-medium">{budgetManagerApproved ? '✓ Approved by Finance Director' : 'Approve as Finance Director'}</span>
-                                    </label>
-                                    <div>
-                                        <label className="block text-xs text-gray-500 mb-1">Date Approved:</label>
-                                        <input type="date" className="form-input w-full" defaultValue={new Date().toISOString().split('T')[0]} disabled={!canApproveBudgetManager} />
-                                    </div>
-                                    {canApproveBudgetManager && (
+                                {canApproveBudgetManager && (
+                                    <div className="space-y-2">
+                                        <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
+                                            <input
+                                                type="checkbox"
+                                                checked={budgetManagerApproved}
+                                                onChange={(e) => {
+                                                    setBudgetManagerApproved(e.target.checked);
+                                                    // Set date to today only when user checks the box
+                                                    if (e.target.checked && !budgetManagerApprovedDate) {
+                                                        setBudgetManagerApprovedDate(new Date().toISOString().split('T')[0]);
+                                                    }
+                                                }}
+                                                disabled={!canApproveBudgetManager}
+                                                className="form-checkbox text-success rounded"
+                                            />
+                                            <span className="ml-2 text-sm font-medium">{budgetManagerApproved ? '✓ Approved by Finance Director' : 'Approve as Finance Director'}</span>
+                                        </label>
+                                        <div>
+                                            <label className="block text-xs text-gray-500 mb-1">Date Approved:</label>
+                                            <input type="date" className="form-input w-full" value={budgetManagerApprovedDate} onChange={(e) => setBudgetManagerApprovedDate(e.target.value)} disabled={!canApproveBudgetManager} />
+                                        </div>
                                         <div className="flex gap-2 mt-2">
                                             <button
                                                 type="button"
@@ -2157,8 +2187,14 @@ const RequestForm = () => {
                                                 View Messages
                                             </button>
                                         </div>
-                                    )}
-                                </div>
+                                    </div>
+                                )}
+                                {!canApproveBudgetManager && budgetManagerApproved && (
+                                    <div className="space-y-1 mt-2">
+                                        <p className="text-xs text-green-600 font-medium">✓ Approved</p>
+                                        <p className="text-xs text-gray-600">Date: {budgetManagerApprovedDate}</p>
+                                    </div>
+                                )}
                             </div>
                         </div>
 

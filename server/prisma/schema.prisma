@@ -195,7 +195,11 @@ model Request {
   accountingCode        String?
   budgetComments        String?
   budgetOfficerName     String?
+  budgetOfficerApproved Boolean?               @default(false)
+  budgetOfficerApprovedAt DateTime?
   budgetManagerName     String?
+  budgetManagerApproved Boolean?               @default(false)
+  budgetManagerApprovedAt DateTime?
   procurementCaseNumber String?
   receivedBy            String?
   dateReceived          String?
