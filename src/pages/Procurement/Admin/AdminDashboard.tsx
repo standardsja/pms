@@ -35,6 +35,7 @@ const AdminDashboard = () => {
     const [allDepartments, setAllDepartments] = useState<Array<{ id: number; name: string; code: string }>>([]);
 
     const [loading, setLoading] = useState(true);
+    const [isRefreshing, setIsRefreshing] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [filterRole, setFilterRole] = useState('');
     const [filterDept, setFilterDept] = useState('');
@@ -52,15 +53,17 @@ const AdminDashboard = () => {
 
     // Load initial data
     useEffect(() => {
-        loadAllData();
-
-        // Auto-refresh users every 15 seconds so online status updates in real-time
-        const interval = setInterval(loadAllData, 15000);
-        return () => clearInterval(interval);
+        void loadAllData();
     }, []);
 
-    const loadAllData = async () => {
-        setLoading(true);
+    const loadAllData = async (options?: { background?: boolean }) => {
+        const useBackgroundRefresh = options?.background === true;
+
+        if (useBackgroundRefresh) {
+            setIsRefreshing(true);
+        } else {
+            setLoading(true);
+        }
         try {
             const [usersResponse, rolesData, deptsData] = await Promise.all([
                 fetch(getApiUrl('/api/admin/users?limit=1000'), { headers: getAuthHeadersSync() }),
@@ -72,12 +75,6 @@ const AdminDashboard = () => {
             // Handle both paginated and legacy format
             const usersList = usersData.users || (Array.isArray(usersData) ? usersData : []);
 
-            console.log('[AdminDashboard] Loaded users:', usersList.length);
-            console.log(
-                '[AdminDashboard] First HOD user:',
-                usersList.find((u: any) => u.roles?.some((r: any) => r.role?.name === 'HEAD_OF_DIVISION'))
-            );
-
             setUsers(usersList);
             setAllRoles(rolesData);
             setAllDepartments(deptsData);
@@ -86,7 +83,11 @@ const AdminDashboard = () => {
             setErrorMessage('Failed to load admin data. Please try again.');
             setShowError(true);
         } finally {
-            setLoading(false);
+            if (useBackgroundRefresh) {
+                setIsRefreshing(false);
+            } else {
+                setLoading(false);
+            }
         }
     };
 
@@ -317,6 +318,15 @@ const AdminDashboard = () => {
                     <p className="text-gray-600 dark:text-gray-400 mt-1">Manage user roles and access permissions</p>
                 </div>
                 <div className="flex items-center gap-3">
+                    <button
+                        type="button"
+                        onClick={() => void loadAllData({ background: true })}
+                        className="btn btn-outline-primary flex items-center gap-2"
+                        disabled={isRefreshing}
+                    >
+                        <IconLoader className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                        <span>{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
+                    </button>
                     <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                         <IconUsers className="w-5 h-5" />
                         <span className="font-semibold">{filteredUsers.length}</span>
