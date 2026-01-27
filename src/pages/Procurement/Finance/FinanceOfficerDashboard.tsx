@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { IRootState } from '../../../store';
 import { setPageTitle } from '../../../store/themeConfigSlice';
+import { getApiUrl } from '../../../config/api';
 import PerfectScrollbar from 'react-perfect-scrollbar';
 import IconPlus from '../../../components/Icon/IconPlus';
 import IconCheckCircle from '../../../components/Icon/IconCircleCheck';
@@ -32,7 +33,7 @@ const FinanceOfficerDashboard = () => {
     useEffect(() => {
         const fetchStats = async () => {
             try {
-                const response = await fetch('/api/stats/finance-officer');
+                const response = await fetch(getApiUrl('/api/stats/finance-officer'));
                 if (response.ok) {
                     const data = await response.json();
                     setStats(data);

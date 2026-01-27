@@ -45,7 +45,16 @@ model User {
   sectionDVerifications        Evaluation[]                @relation("SectionDVerifier")
   sectionEVerifications        Evaluation[]                @relation("SectionEVerifier")
   validatedEvaluations         Evaluation[]                @relation("EvaluationValidator")
+  cancelledEvaluations         Evaluation[]                @relation("EvaluationCanceller")
   evaluationAssignments        EvaluationAssignment[]
+  evaluationAttachments        EvaluationAttachment[]      @relation("EvaluationAttachmentUploader")
+  hodFormsAsHOD                HODForm[]                   @relation("HODFormHOD")
+  hodFormsAsPM                 HODForm[]                   @relation("HODFormPM")
+  hodFormsAsED                 HODForm[]                   @relation("HODFormED")
+  hodFormsAssigned             HODForm[]                   @relation("HODFormAssignee")
+  edFormsSubmitted             EDApprovalForm[]            @relation("EDFormSubmitter")
+  edFormsApproved              EDApprovalForm[]            @relation("EDFormApprover")
+  statusComments               StatusComment[]             @relation("StatusCommentUser")
   ideas                        Idea[]
   ideaComments                 IdeaComment[]
   stageHistory                 IdeaStageHistory[]
@@ -72,15 +81,15 @@ model User {
 }
 
 model Department {
-  id           Int                  @id @default(autoincrement())
+  id           Int                 @id @default(autoincrement())
   name         String
-  code         String?              @unique
-  managerId    Int?                 @unique
-  manager      User?                @relation("departmentManager", fields: [managerId], references: [id])
+  code         String?             @unique
+  managerId    Int?                @unique
+  manager      User?               @relation("departmentManager", fields: [managerId], references: [id])
   requests     Request[]
   roleRequests RoleRequest[]
-  users        User[]               @relation("userDepartment")
-  managers     DepartmentManager[]  @relation("ManagerDepartment")
+  users        User[]              @relation("userDepartment")
+  managers     DepartmentManager[] @relation("ManagerDepartment")
 }
 
 model DepartmentManager {
@@ -179,7 +188,9 @@ model Request {
   managerName           String?
   headName              String?
   managerApproved       Boolean?               @default(false)
+  managerApprovedAt     DateTime?
   headApproved          Boolean?               @default(false)
+  headApprovedAt        DateTime?
   commitmentNumber      String?
   accountingCode        String?
   budgetComments        String?
@@ -206,6 +217,7 @@ model Request {
   hiddenById            Int?
   hiddenReason          String?
   evaluations           Evaluation[]           @relation("RequestEvaluations")
+  edApprovalForms       EDApprovalForm[]       @relation("EDFormRequest")
   combinedRequest       CombinedRequest?       @relation("CombinedRequestLots", fields: [combinedRequestId], references: [id])
   currentAssignee       User?                  @relation("requestAssignee", fields: [currentAssigneeId], references: [id])
   department            Department?            @relation(fields: [departmentId], references: [id])
@@ -558,6 +570,14 @@ model Evaluation {
   sectionEVerifier             User?                     @relation("SectionEVerifier", fields: [sectionEVerifiedBy], references: [id])
   validator                    User?                     @relation("EvaluationValidator", fields: [validatedBy], references: [id])
   assignments                  EvaluationAssignment[]
+  attachments                  EvaluationAttachment[]
+  hodForms                     HODForm[]                 @relation("HODFormEvaluation")
+  edApprovalForms              EDApprovalForm[]          @relation("EDFormEvaluation")
+  cancelledByUser              User?                     @relation("EvaluationCanceller", fields: [cancelledBy], references: [id])
+  cancelled                    Boolean                   @default(false)
+  cancelledAt                  DateTime?
+  cancelledBy                  Int?
+  cancelReason                 String?                   @db.Text
 
   @@index([status])
   @@index([createdBy])
@@ -572,6 +592,8 @@ model Evaluation {
   @@index([sectionDVerifiedBy], map: "Evaluation_sectionDVerifiedBy_fkey")
   @@index([sectionEVerifiedBy], map: "Evaluation_sectionEVerifiedBy_fkey")
   @@index([validatedBy], map: "Evaluation_validatedBy_fkey")
+  @@index([cancelledBy], map: "Evaluation_cancelledBy_fkey")
+  @@index([cancelled])
 }
 
 /// Per-user assignment to contribute to an Evaluation
@@ -582,6 +604,7 @@ model EvaluationAssignment {
   sections     Json
   status       AssignmentStatus @default(PENDING)
   submittedAt  DateTime?
+  allowEditing Boolean          @default(false)
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
   evaluation   Evaluation       @relation(fields: [evaluationId], references: [id])
@@ -589,6 +612,108 @@ model EvaluationAssignment {
 
   @@unique([evaluationId, userId])
   @@index([userId])
+}
+
+model EvaluationAttachment {
+  id           Int        @id @default(autoincrement())
+  evaluationId Int
+  fileName     String
+  originalName String
+  filePath     String
+  fileSize     Int
+  mimeType     String
+  category     String? // 'QUOTE', 'REPORT', 'SUPPORTING_DOC'
+  uploadedById Int
+  uploadedAt   DateTime   @default(now())
+  evaluation   Evaluation @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
+  uploadedBy   User       @relation("EvaluationAttachmentUploader", fields: [uploadedById], references: [id])
+
+  @@index([evaluationId])
+  @@index([uploadedById])
+}
+
+model HODForm {
+  id                   Int              @id @default(autoincrement())
+  formNumber           String           @unique
+  evaluationId         Int
+  rfqNumber            String
+  rfqTitle             String
+  recommendedSupplier  String
+  recommendedAmount    Decimal          @db.Decimal(12, 2)
+  evaluationScore      Int?
+  justification        String?          @db.Text
+  status               HODFormStatus    @default(PENDING_HOD)
+  hodId                Int
+  hodApprovedAt        DateTime?
+  hodComments          String?          @db.Text
+  procurementManagerId Int?
+  pmApprovedAt         DateTime?
+  pmComments           String?          @db.Text
+  executiveDirectorId  Int?
+  edApprovedAt         DateTime?
+  edComments           String?          @db.Text
+  currentAssigneeId    Int?
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  evaluation           Evaluation       @relation("HODFormEvaluation", fields: [evaluationId], references: [id])
+  hod                  User             @relation("HODFormHOD", fields: [hodId], references: [id])
+  procurementMgr       User?            @relation("HODFormPM", fields: [procurementManagerId], references: [id])
+  executiveDir         User?            @relation("HODFormED", fields: [executiveDirectorId], references: [id])
+  currentAssignee      User?            @relation("HODFormAssignee", fields: [currentAssigneeId], references: [id])
+  edForms              EDApprovalForm[]
+
+  @@index([evaluationId])
+  @@index([status])
+  @@index([currentAssigneeId])
+  @@index([hodId])
+  @@index([procurementManagerId])
+  @@index([executiveDirectorId])
+}
+
+model EDApprovalForm {
+  id              Int          @id @default(autoincrement())
+  formNumber      String       @unique
+  requestId       Int?
+  hodFormId       Int?
+  evaluationId    Int?
+  procurementType String // 'GOODS' or 'WORKS'
+  totalAmount     Decimal      @db.Decimal(12, 2)
+  justification   String       @db.Text
+  riskAssessment  String?      @db.Text
+  alternatives    String?      @db.Text
+  status          EDFormStatus @default(PENDING)
+  submittedById   Int
+  approvedById    Int?
+  approvedAt      DateTime?
+  comments        String?      @db.Text
+  createdAt       DateTime     @default(now())
+  request         Request?     @relation("EDFormRequest", fields: [requestId], references: [id])
+  hodForm         HODForm?     @relation(fields: [hodFormId], references: [id])
+  evaluation      Evaluation?  @relation("EDFormEvaluation", fields: [evaluationId], references: [id])
+  submittedBy     User         @relation("EDFormSubmitter", fields: [submittedById], references: [id])
+  approvedBy      User?        @relation("EDFormApprover", fields: [approvedById], references: [id])
+
+  @@index([status])
+  @@index([requestId])
+  @@index([hodFormId])
+  @@index([evaluationId])
+  @@index([submittedById])
+  @@index([approvedById])
+}
+
+model StatusComment {
+  id            Int      @id @default(autoincrement())
+  entityType    String // 'REQUEST', 'EVALUATION', 'HOD_FORM', 'ED_FORM'
+  entityId      Int
+  status        String
+  comment       String   @db.Text
+  commentedById Int
+  createdAt     DateTime @default(now())
+  commentedBy   User     @relation("StatusCommentUser", fields: [commentedById], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@index([commentedById])
 }
 
 model LoadBalancingSettings {
@@ -947,6 +1072,15 @@ enum AuditAction {
   SETTINGS_CHANGED
   REPORT_GENERATED
   DATA_EXPORTED
+  EVALUATION_CANCELLED
+  EVALUATOR_REASSIGNED
+  EVALUATOR_REMOVED
+  HOD_FORM_CREATED
+  HOD_FORM_APPROVED
+  HOD_FORM_REJECTED
+  ED_FORM_CREATED
+  ED_FORM_APPROVED
+  ED_FORM_REJECTED
 }
 
 enum LoadBalancingStrategy {
@@ -977,6 +1111,7 @@ enum EvaluationStatus {
   COMPLETED
   VALIDATED
   REJECTED
+  CANCELLED
 }
 
 enum SectionVerificationStatus {
@@ -990,6 +1125,20 @@ enum SectionVerificationStatus {
 enum AssignmentStatus {
   PENDING
   SUBMITTED
+}
+
+enum HODFormStatus {
+  PENDING_HOD
+  PENDING_PROCUREMENT_MANAGER
+  PENDING_EXECUTIVE_DIRECTOR
+  APPROVED
+  REJECTED
+}
+
+enum EDFormStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 enum User_userSource {

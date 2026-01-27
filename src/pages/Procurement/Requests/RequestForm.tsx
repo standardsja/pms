@@ -189,7 +189,9 @@ const RequestForm = () => {
     // prevent duplicate submissions when network is slow
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [managerApproved, setManagerApproved] = useState(false);
+    const [managerApprovedDate, setManagerApprovedDate] = useState('');
     const [headApproved, setHeadApproved] = useState(false);
+    const [headApprovedDate, setHeadApprovedDate] = useState('');
     const [procurementApproved, setProcurementApproved] = useState(false);
     const [budgetOfficerApproved, setBudgetOfficerApproved] = useState(false);
     const [budgetManagerApproved, setBudgetManagerApproved] = useState(false);
@@ -239,11 +241,17 @@ const RequestForm = () => {
     const canEditHodFields = !!(isAssignee && requestMeta?.status === 'HOD_REVIEW');
     // Allow procurement section editing in PROCUREMENT_REVIEW, FINANCE_APPROVED, or SENT_TO_VENDOR (after evaluation)
     const canEditProcurementSection = !!(isAssignee && (requestMeta?.status === 'PROCUREMENT_REVIEW' || requestMeta?.status === 'FINANCE_APPROVED' || requestMeta?.status === 'SENT_TO_VENDOR'));
+    // Budget section editing: assignee can edit at their stage
     const canEditBudgetSection = !!(isAssignee && (requestMeta?.status === 'FINANCE_REVIEW' || requestMeta?.status === 'BUDGET_MANAGER_REVIEW'));
 
-    // Budget Officer can only approve as officer (during FINANCE_REVIEW), Budget Manager can only approve as manager (during BUDGET_MANAGER_REVIEW)
+    // Approval gating: 
+    // - Finance Officer can approve as Chief Accountant at FINANCE_REVIEW (if assigned)
+    // - Budget Manager can approve as Finance Director at BUDGET_MANAGER_REVIEW (if assigned) OR at FINANCE_REVIEW (if assigned there)
     const canApproveBudgetOfficer = !!(isAssignee && requestMeta?.status === 'FINANCE_REVIEW' && isBudgetOfficer);
-    const canApproveBudgetManager = !!(isAssignee && requestMeta?.status === 'BUDGET_MANAGER_REVIEW' && !isBudgetOfficer);
+    const canApproveBudgetManager = !!(
+        isAssignee && isBudgetManager && 
+        (requestMeta?.status === 'FINANCE_REVIEW' || requestMeta?.status === 'BUDGET_MANAGER_REVIEW')
+    );
     const canDispatchToVendors = !!(isAssignee && requestMeta?.status === 'FINANCE_APPROVED');
 
     // Determine if user can edit the form
@@ -414,6 +422,13 @@ const RequestForm = () => {
                 setHeadName(request.headName || '');
                 setManagerApproved(!!request.managerApproved);
                 setHeadApproved(!!request.headApproved);
+                // Set approval dates if they exist from the database
+                if (request.managerApprovedAt) {
+                    setManagerApprovedDate(new Date(request.managerApprovedAt).toISOString().split('T')[0]);
+                }
+                if (request.headApprovedAt) {
+                    setHeadApprovedDate(new Date(request.headApprovedAt).toISOString().split('T')[0]);
+                }
 
                 // Pre-fill budget section (if present)
                 setCommitmentNumber(request.commitmentNumber || '');
@@ -697,8 +712,15 @@ const RequestForm = () => {
 
     const canApproveDeptManager = !!(isAssignee && requestMeta?.status === 'DEPARTMENT_REVIEW' && isDeptManager);
     const canApproveHOD = !!(isAssignee && requestMeta?.status === 'HOD_REVIEW' && isHOD);
-    const canApproveBudgetOfficerForm = !!(isAssignee && requestMeta?.status === 'FINANCE_REVIEW' && isBudgetOfficer);
-    const canApproveBudgetManagerForm = !!(isAssignee && requestMeta?.status === 'BUDGET_MANAGER_REVIEW' && isBudgetManager);
+    // Mirror Budget Manager override for form-level gating
+    // Budget Manager can approve as Finance Director at either FINANCE_REVIEW or BUDGET_MANAGER_REVIEW if assigned
+    const canApproveBudgetOfficerForm = !!(
+        isAssignee && requestMeta?.status === 'FINANCE_REVIEW' && isBudgetOfficer
+    );
+    const canApproveBudgetManagerForm = !!(
+        isAssignee && isBudgetManager && 
+        (requestMeta?.status === 'FINANCE_REVIEW' || requestMeta?.status === 'BUDGET_MANAGER_REVIEW')
+    );
     const canApproveProcurementForm = !!(isAssignee && requestMeta?.status === 'PROCUREMENT_REVIEW' && isProcurementRole);
 
     // Consolidated: Can this user approve/reject the current request on the form?
@@ -736,12 +758,15 @@ const RequestForm = () => {
                 // Update existing request (manager/procurement/finance filling their sections)
 
                 // Double-confirmation flow: warn on missing approval, confirm when approving
-                if (
+                // At BUDGET_MANAGER_REVIEW, only Budget Manager approval is needed
+                // At FINANCE_REVIEW, we need the appropriate approval (officer or manager if BM is assigned there)
+                const missingApproval = 
                     (requestMeta?.status === 'DEPARTMENT_REVIEW' && managerApproved === false) ||
                     (requestMeta?.status === 'HOD_REVIEW' && headApproved === false) ||
-                    (requestMeta?.status === 'FINANCE_REVIEW' && !budgetOfficerApproved) ||
-                    (requestMeta?.status === 'BUDGET_MANAGER_REVIEW' && !budgetManagerApproved)
-                ) {
+                    (requestMeta?.status === 'FINANCE_REVIEW' && !budgetOfficerApproved && !budgetManagerApproved) ||
+                    (requestMeta?.status === 'BUDGET_MANAGER_REVIEW' && !budgetManagerApproved);
+
+                if (missingApproval) {
                     const confirmMissing = await Swal.fire({
                         icon: 'warning',
                         title: 'Approval not checked',
@@ -756,12 +781,13 @@ const RequestForm = () => {
                     }
                 }
 
-                if (
+                const hasApproval = 
                     (requestMeta?.status === 'DEPARTMENT_REVIEW' && managerApproved === true) ||
                     (requestMeta?.status === 'HOD_REVIEW' && headApproved === true) ||
-                    (requestMeta?.status === 'FINANCE_REVIEW' && budgetOfficerApproved) ||
-                    (requestMeta?.status === 'BUDGET_MANAGER_REVIEW' && budgetManagerApproved)
-                ) {
+                    (requestMeta?.status === 'FINANCE_REVIEW' && (budgetOfficerApproved || budgetManagerApproved)) ||
+                    (requestMeta?.status === 'BUDGET_MANAGER_REVIEW' && budgetManagerApproved);
+
+                if (hasApproval) {
                     const confirmApprove = await Swal.fire({
                         icon: 'question',
                         title: 'Confirm approval',
@@ -780,7 +806,9 @@ const RequestForm = () => {
                     managerName,
                     headName,
                     managerApproved,
+                    managerApprovedAt: managerApproved && managerApprovedDate ? new Date(managerApprovedDate).toISOString() : null,
                     headApproved,
+                    headApprovedAt: headApproved && headApprovedDate ? new Date(headApprovedDate).toISOString() : null,
                     commitmentNumber,
                     accountingCode,
                     budgetComments,
@@ -801,11 +829,13 @@ const RequestForm = () => {
                 };
                 // Determine if this save is also an approval action (reviewer checked approve boxes)
                 // For procurement, auto-approve when saving their section (no checkbox anymore)
+                // At FINANCE_REVIEW, either officer or manager approval triggers workflow
+                // At BUDGET_MANAGER_REVIEW, only manager approval triggers workflow
                 const isApproving =
                     (requestMeta?.status === 'DEPARTMENT_REVIEW' && managerApproved === true) ||
                     (requestMeta?.status === 'HOD_REVIEW' && headApproved === true) ||
                     (requestMeta?.status === 'PROCUREMENT_REVIEW' && canEditProcurementSection) ||
-                    (requestMeta?.status === 'FINANCE_REVIEW' && budgetOfficerApproved) ||
+                    (requestMeta?.status === 'FINANCE_REVIEW' && (budgetOfficerApproved || budgetManagerApproved)) ||
                     (requestMeta?.status === 'BUDGET_MANAGER_REVIEW' && budgetManagerApproved);
 
                 // If the current operation is a requester saving a DRAFT (not approving), include
@@ -1878,12 +1908,22 @@ const RequestForm = () => {
                                     {canEditManagerFields && (
                                         <div className="space-y-2">
                                             <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
-                                                <input type="checkbox" className="form-checkbox" checked={managerApproved} onChange={(e) => setManagerApproved(e.target.checked)} />I approve this
-                                                requisition
+                                                <input 
+                                                    type="checkbox" 
+                                                    className="form-checkbox" 
+                                                    checked={managerApproved} 
+                                                    onChange={(e) => {
+                                                        setManagerApproved(e.target.checked);
+                                                        // Set date to today only when user checks the box
+                                                        if (e.target.checked && !managerApprovedDate) {
+                                                            setManagerApprovedDate(new Date().toISOString().split('T')[0]);
+                                                        }
+                                                    }}
+                                                />I approve this requisition
                                             </label>
                                             <div>
                                                 <label className="block text-xs text-gray-500 mb-1">Date Approved:</label>
-                                                <input type="date" className="form-input w-full" defaultValue={new Date().toISOString().split('T')[0]} />
+                                                <input type="date" className="form-input w-full" value={managerApprovedDate} onChange={(e) => setManagerApprovedDate(e.target.value)} />
                                             </div>
                                             <div className="flex gap-2 mt-2">
                                                 <button
@@ -1901,6 +1941,12 @@ const RequestForm = () => {
                                                     View Messages
                                                 </button>
                                             </div>
+                                        </div>
+                                    )}
+                                    {!canEditManagerFields && managerApproved && (
+                                        <div className="space-y-1 mt-2">
+                                            <p className="text-xs text-green-600 font-medium">✓ Approved</p>
+                                            <p className="text-xs text-gray-600">Date: {managerApprovedDate}</p>
                                         </div>
                                     )}
                                 </div>
@@ -1922,11 +1968,22 @@ const RequestForm = () => {
                                     {canEditHodFields && (
                                         <div className="space-y-2">
                                             <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
-                                                <input type="checkbox" className="form-checkbox" checked={headApproved} onChange={(e) => setHeadApproved(e.target.checked)} />I approve this requisition
+                                                <input 
+                                                    type="checkbox" 
+                                                    className="form-checkbox" 
+                                                    checked={headApproved} 
+                                                    onChange={(e) => {
+                                                        setHeadApproved(e.target.checked);
+                                                        // Set date to today only when user checks the box
+                                                        if (e.target.checked && !headApprovedDate) {
+                                                            setHeadApprovedDate(new Date().toISOString().split('T')[0]);
+                                                        }
+                                                    }}
+                                                />I approve this requisition
                                             </label>
                                             <div>
                                                 <label className="block text-xs text-gray-500 mb-1">Date Approved:</label>
-                                                <input type="date" className="form-input w-full" defaultValue={new Date().toISOString().split('T')[0]} />
+                                                <input type="date" className="form-input w-full" value={headApprovedDate} onChange={(e) => setHeadApprovedDate(e.target.value)} />
                                             </div>
                                             <div className="flex gap-2 mt-2">
                                                 <button
@@ -1944,6 +2001,12 @@ const RequestForm = () => {
                                                     View Messages
                                                 </button>
                                             </div>
+                                        </div>
+                                    )}
+                                    {!canEditHodFields && headApproved && (
+                                        <div className="space-y-1 mt-2">
+                                            <p className="text-xs text-green-600 font-medium">✓ Approved</p>
+                                            <p className="text-xs text-gray-600">Date: {headApprovedDate}</p>
                                         </div>
                                     )}
                                 </div>

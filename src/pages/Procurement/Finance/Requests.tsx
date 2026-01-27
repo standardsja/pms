@@ -210,6 +210,67 @@ const FinanceRequests = () => {
         }
     };
 
+    // Assign to self (Budget Manager / Finance Manager override for finance stages)
+    const assignToSelf = async (req: Req) => {
+        try {
+            if (!currentUserId) throw new Error('User not logged in');
+            const res = await fetch(getApiUrl(`/api/requests/${encodeURIComponent(req.reference)}/assign/self`), {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-user-id': String(currentUserId),
+                },
+            });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({} as any));
+                throw new Error(err.message || 'Failed to assign to self');
+            }
+            const updated = await res.json();
+            // Update currentAssignee client-side by refreshing list
+            setRequests((prev) => prev.map((r) => (r.id === req.id ? { ...r, /* shallow update */ } : r)));
+            await MySwal.fire({ icon: 'success', title: 'Assigned to You', text: 'You are now the assignee for this request.' });
+        } catch (e: any) {
+            MySwal.fire({ icon: 'error', title: 'Assignment Failed', text: e.message || 'Could not assign to yourself.' });
+        }
+    };
+
+    // Assign to specific user (enter user ID)
+    const assignToUser = async (req: Req) => {
+        const result = await MySwal.fire({
+            title: 'Assign to User',
+            html: '<p class="text-left text-sm mb-2">Enter the user ID to assign this request to.</p>',
+            input: 'text',
+            inputLabel: 'User ID',
+            inputPlaceholder: 'e.g. 42',
+            showCancelButton: true,
+            confirmButtonText: 'Assign',
+        });
+        if (!result.isConfirmed) return;
+        const targetIdRaw = (result.value as string) || '';
+        const targetUserId = Number(targetIdRaw);
+        if (!targetUserId || Number.isNaN(targetUserId)) {
+            return MySwal.fire({ icon: 'error', title: 'Invalid User ID', text: 'Please enter a valid numeric user ID.' });
+        }
+        try {
+            if (!currentUserId) throw new Error('User not logged in');
+            const res = await fetch(getApiUrl(`/api/requests/${encodeURIComponent(req.reference)}/assign`), {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-user-id': String(currentUserId),
+                },
+                body: JSON.stringify({ userId: targetUserId }),
+            });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({} as any));
+                throw new Error(err.message || 'Failed to assign to user');
+            }
+            await MySwal.fire({ icon: 'success', title: 'Assigned', text: `Request assigned to user ID ${targetUserId}.` });
+        } catch (e: any) {
+            MySwal.fire({ icon: 'error', title: 'Assignment Failed', text: e.message || 'Could not assign to selected user.' });
+        }
+    };
+
     if (loading) {
         return (
             <div className="p-6">
@@ -339,6 +400,22 @@ const FinanceRequests = () => {
                                                 >
                                                     Return
                                                 </button>
+                                                <div className="ml-2 inline-flex gap-2">
+                                                    <button
+                                                        className="px-2 py-1 rounded bg-indigo-600 text-white hover:bg-indigo-700 text-xs font-medium transition-colors"
+                                                        onClick={() => assignToSelf(r)}
+                                                        title="Assign to Me"
+                                                    >
+                                                        Assign to Me
+                                                    </button>
+                                                    <button
+                                                        className="px-2 py-1 rounded bg-slate-600 text-white hover:bg-slate-700 text-xs font-medium transition-colors"
+                                                        onClick={() => assignToUser(r)}
+                                                        title="Assign to User"
+                                                    >
+                                                        Assign to User
+                                                    </button>
+                                                </div>
                                             </div>
                                         </td>
                                     </tr>

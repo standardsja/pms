@@ -377,6 +377,133 @@ router.put(
         const updatedRequest = await prisma.request.update({
             where: { reference: id },
             data: {
+
+                // Assign current request to self (Budget Manager override for finance stages)
+                router.post(
+                    '/:id/assign/self',
+                    authMiddleware,
+                    asyncHandler(async (req, res) => {
+                        const { id } = req.params;
+                        const authenticatedReq = req as AuthenticatedRequest;
+                        const userId = authenticatedReq.user.sub;
+                        const roleEntries = authenticatedReq.user.roles || [];
+                        const roleNames: string[] = roleEntries.map((r: any) => (typeof r === 'string' ? r : r?.name || '')).map((n) => n.toUpperCase());
+
+                        // Only Budget Manager (or Finance Manager) can self-assign at finance stages
+                        if (!roleNames.includes('BUDGET_MANAGER') && !roleNames.includes('FINANCE_MANAGER')) {
+                            return res.status(403).json({ message: 'Only Budget Manager or Finance Manager may self-assign at finance stages.' });
+                        }
+
+                        const request = await prisma.request.findUnique({
+                            where: { reference: id },
+                            select: { id: true, status: true },
+                        });
+                        if (!request) return res.status(404).json({ message: 'Request not found' });
+
+                        if (!['FINANCE_REVIEW', 'BUDGET_MANAGER_REVIEW'].includes(String(request.status))) {
+                            return res.status(400).json({ message: 'Self-assignment only allowed during finance review stages.' });
+                        }
+
+                        const updated = await prisma.request.update({
+                            where: { id: request.id },
+                            data: {
+                                currentAssigneeId: Number(userId),
+                                statusHistory: {
+                                    create: {
+                                        status: request.status,
+                                        changedById: Number(userId),
+                                        comment: 'Assigned to self by Budget/Finance Manager',
+                                    },
+                                },
+                            },
+                            include: {
+                                requester: { select: { id: true, name: true, email: true } },
+                                department: { select: { id: true, name: true, code: true } },
+                                currentAssignee: { select: { id: true, name: true, email: true } },
+                            },
+                        });
+
+                        // Audit log
+                        try {
+                            const ctx = getAuditContext(authenticatedReq);
+                            await auditService.log({
+                                ...ctx,
+                                action: 'APPROVAL_DELEGATED',
+                                details: { type: 'SELF_ASSIGN', requestId: updated.id, stage: request.status },
+                            });
+                        } catch (e) {
+                            logger.warn('Audit log failed for self-assign', { error: String(e) });
+                        }
+
+                        return res.json(updated);
+                    })
+                );
+
+                // Assign current request to a specific user (Budget Manager finance-stage delegation)
+                router.post(
+                    '/:id/assign',
+                    authMiddleware,
+                    asyncHandler(async (req, res) => {
+                        const { id } = req.params;
+                        const { userId: targetUserId } = req.body as { userId?: number };
+                        const authenticatedReq = req as AuthenticatedRequest;
+                        const actorUserId = authenticatedReq.user.sub;
+                        const roleEntries = authenticatedReq.user.roles || [];
+                        const roleNames: string[] = roleEntries.map((r: any) => (typeof r === 'string' ? r : r?.name || '')).map((n) => n.toUpperCase());
+
+                        if (!targetUserId || Number.isNaN(Number(targetUserId))) {
+                            return res.status(400).json({ message: 'Valid userId is required' });
+                        }
+
+                        // Only Budget Manager (or Finance Manager) can assign during finance stages
+                        if (!roleNames.includes('BUDGET_MANAGER') && !roleNames.includes('FINANCE_MANAGER')) {
+                            return res.status(403).json({ message: 'Only Budget Manager or Finance Manager may assign at finance stages.' });
+                        }
+
+                        const request = await prisma.request.findUnique({
+                            where: { reference: id },
+                            select: { id: true, status: true },
+                        });
+                        if (!request) return res.status(404).json({ message: 'Request not found' });
+
+                        if (!['FINANCE_REVIEW', 'BUDGET_MANAGER_REVIEW'].includes(String(request.status))) {
+                            return res.status(400).json({ message: 'Assignment only allowed during finance review stages.' });
+                        }
+
+                        const updated = await prisma.request.update({
+                            where: { id: request.id },
+                            data: {
+                                currentAssigneeId: Number(targetUserId),
+                                statusHistory: {
+                                    create: {
+                                        status: request.status,
+                                        changedById: Number(actorUserId),
+                                        comment: `Assigned to user ${Number(targetUserId)} by Budget/Finance Manager`,
+                                    },
+                                },
+                            },
+                            include: {
+                                requester: { select: { id: true, name: true, email: true } },
+                                department: { select: { id: true, name: true, code: true } },
+                                currentAssignee: { select: { id: true, name: true, email: true } },
+                            },
+                        });
+
+                        // Audit log
+                        try {
+                            const ctx = getAuditContext(authenticatedReq);
+                            await auditService.log({
+                                ...ctx,
+                                action: 'APPROVAL_DELEGATED',
+                                details: { type: 'ASSIGN', requestId: updated.id, stage: request.status, toUserId: Number(targetUserId) },
+                            });
+                        } catch (e) {
+                            logger.warn('Audit log failed for assign', { error: String(e) });
+                        }
+
+                        return res.json(updated);
+                    })
+                );
                 title: title || existingRequest.title,
                 description: description || existingRequest.description,
                 budgetCode: budgetCode || existingRequest.budgetCode,

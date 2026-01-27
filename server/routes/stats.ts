@@ -649,6 +649,107 @@ router.get('/department-manager', async (req: Request, res: Response) => {
     }
 });
 /**
+ * GET /api/stats/finance-officer
+ * Get stats for finance officer dashboard
+ */
+router.get('/finance-officer', async (req: Request, res: Response) => {
+    try {
+        const now = new Date();
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+        const pendingReview = await prisma.request.count({
+            where: { status: RequestStatus.FINANCE_REVIEW },
+        });
+
+        const approvedThisMonth = await prisma.request.count({
+            where: {
+                status: { in: [RequestStatus.BUDGET_MANAGER_REVIEW, RequestStatus.FINANCE_APPROVED] },
+                updatedAt: { gte: monthStart },
+            },
+        });
+
+        const avgProcessingTime = 2.5; // placeholder - could calculate from statusHistory
+
+        res.json({
+            pendingReview,
+            approvedThisMonth,
+            avgProcessingTime,
+            timestamp: now.toISOString(),
+        });
+    } catch (error) {
+        console.error('[Stats] Error fetching finance officer stats:', error);
+        res.status(500).json({ success: false, error: 'Failed to fetch finance officer statistics' });
+    }
+});
+
+/**
+ * GET /api/stats/finance-manager
+ * Get stats for finance director/budget manager dashboard
+ */
+router.get('/finance-manager', async (req: Request, res: Response) => {
+    try {
+        const now = new Date();
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+        // Calculate total budget allocated (sum of all approved request amounts)
+        const approvedRequests = await prisma.request.findMany({
+            where: {
+                status: { in: [RequestStatus.FINANCE_APPROVED, RequestStatus.CLOSED] },
+            },
+            select: {
+                items: {
+                    select: {
+                        quantity: true,
+                        unitPrice: true,
+                    },
+                },
+            },
+        });
+
+        let totalBudget = 0;
+        let spent = 0;
+
+        for (const req of approvedRequests) {
+            const total = req.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+            totalBudget += total;
+            // For now, assume all approved requests are spent
+            spent += total;
+        }
+
+        const remaining = totalBudget - spent;
+
+        const commitments = await prisma.request.count({
+            where: {
+                status: { in: [RequestStatus.FINANCE_REVIEW, RequestStatus.BUDGET_MANAGER_REVIEW] },
+            },
+        });
+
+        const monthlyBurn = await prisma.request.aggregate({
+            where: {
+                status: RequestStatus.FINANCE_APPROVED,
+                updatedAt: { gte: monthStart },
+            },
+            _count: true,
+        });
+
+        const processingTime = 2.3; // placeholder
+
+        res.json({
+            totalBudget,
+            spent,
+            remaining,
+            commitments,
+            monthlyBurn: monthlyBurn._count,
+            processingTime,
+            timestamp: now.toISOString(),
+        });
+    } catch (error) {
+        console.error('[Stats] Error fetching finance manager stats:', error);
+        res.status(500).json({ success: false, error: 'Failed to fetch finance manager statistics' });
+    }
+});
+
+/**
  * GET /api/stats/requester
  * Get stats for requester dashboard (counts and metrics)
  */

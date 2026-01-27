@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { IRootState } from '../../../store';
 import { setPageTitle } from '../../../store/themeConfigSlice';
+import { getApiUrl } from '../../../config/api';
 import IconPlus from '../../../components/Icon/IconPlus';
 import IconCheckCircle from '../../../components/Icon/IconCircleCheck';
 import IconFileText from '../../../components/Icon/IconFile';
@@ -33,7 +34,7 @@ const FinanceManagerDashboard = () => {
     useEffect(() => {
         const fetchStats = async () => {
             try {
-                const response = await fetch('/api/stats/finance-manager');
+                const response = await fetch(getApiUrl('/api/stats/finance-manager'));
                 if (response.ok) {
                     const data = await response.json();
                     setStats(data);

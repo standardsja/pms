@@ -2357,10 +2357,24 @@ app.post(
                 return res.status(400).json({ message: 'Invalid items format', error: parseErr.message });
             }
 
-            // Generate reference using header code when provided; fall back to legacy REQ- timestamp
+            // Generate reference using header code when provided; fall back to legacy REQ- timestamp + random
             const headerSeqPadded = headerSequence !== null && headerSequence !== undefined ? String(headerSequence).padStart(3, '0') : null;
             const headerCode = headerDeptCode && headerMonth && headerYear && headerSeqPadded ? `${headerDeptCode}/${headerMonth}/${headerYear}/${headerSeqPadded}` : null;
-            const reference = headerCode || `REQ-${Date.now()}`;
+            const randomSuffix = Math.random().toString(36).substring(2, 8).toUpperCase();
+            const reference = headerCode || `REQ-${Date.now()}-${randomSuffix}`;
+
+            // Validate that the reference is unique (required for form codes)
+            if (headerCode) {
+                const existingRequest = await prisma.request.findUnique({
+                    where: { reference: headerCode },
+                });
+                if (existingRequest) {
+                    return res.status(400).json({
+                        message: `Form code ${headerCode} has already been used. Please use a different sequence number or modify the form code.`,
+                        error: 'DUPLICATE_FORM_CODE',
+                    });
+                }
+            }
 
             console.log('[POST /requests] Creating request with reference:', reference);
 
@@ -2512,7 +2526,9 @@ app.get('/api/requests/:id', async (req, res) => {
                 managerName: true,
                 headName: true,
                 managerApproved: true,
+                managerApprovedAt: true,
                 headApproved: true,
+                headApprovedAt: true,
                 commitmentNumber: true,
                 accountingCode: true,
                 budgetComments: true,
@@ -2858,6 +2874,15 @@ app.patch('/api/requests/:id', async (req, res) => {
             }
         } catch (e) {
             return res.status(400).json({ message: 'Invalid numeric field in update' });
+        }
+
+        // If manager approved, set the approval date
+        if (cleanUpdates.managerApproved === true && !cleanUpdates.managerApprovedAt) {
+            cleanUpdates.managerApprovedAt = new Date();
+        }
+        // If head approved, set the approval date
+        if (cleanUpdates.headApproved === true && !cleanUpdates.headApprovedAt) {
+            cleanUpdates.headApprovedAt = new Date();
         }
 
         const updated = await prisma.request.update({
@@ -3598,9 +3623,14 @@ app.post('/api/requests/:id/action', async (req, res) => {
 
         // Check if user is the current assignee
         const isCurrentAssignee = request.currentAssigneeId === actingUserId;
+        // Budget Manager override: may act on finance stages even if not assignee
+        const canFinanceOverride =
+            (request.status === 'FINANCE_REVIEW' || request.status === 'BUDGET_MANAGER_REVIEW') &&
+            roleNames.includes('BUDGET_MANAGER');
 
         // AUTHORIZATION CHECK 1: Only current assignee or full-access roles can approve/reject
-        if (!isCurrentAssignee && !hasFullAccess) {
+        // Allow Budget Manager override on finance stages
+        if (!isCurrentAssignee && !hasFullAccess && !canFinanceOverride) {
             console.warn(`[Request Action] User ${actingUserId} attempted ${action} on request ${id} without being assigned`);
             return res.status(403).json({
                 message: 'You are not authorized to perform this action. Only the assigned approver can take action on this request.',
@@ -3612,7 +3642,7 @@ app.post('/api/requests/:id/action', async (req, res) => {
             const requiredRolesForStage: Record<string, string[]> = {
                 DEPARTMENT_REVIEW: ['DEPT_MANAGER', 'MANAGER'],
                 HOD_REVIEW: ['HEAD_OF_DIVISION', 'HOD'],
-                FINANCE_REVIEW: ['FINANCE', 'CHIEF_ACCOUNTANT'],
+                FINANCE_REVIEW: ['FINANCE', 'CHIEF_ACCOUNTANT', 'BUDGET_MANAGER'], // Budget Manager can approve as Chief Account
                 BUDGET_MANAGER_REVIEW: ['BUDGET_MANAGER'],
                 PROCUREMENT_REVIEW: ['PROCUREMENT_OFFICER', 'PROCUREMENT_MANAGER', 'PROCUREMENT'],
                 EXECUTIVE_REVIEW: ['EXECUTIVE_DIRECTOR', 'EXECUTIVE'],
@@ -3687,22 +3717,38 @@ app.post('/api/requests/:id/action', async (req, res) => {
                     nextAssigneeId = null;
                 }
             } else if (request.status === 'FINANCE_REVIEW') {
-                // Finance Officer approved -> MUST go to Budget Manager (required step)
-                const budgetManager = await prisma.user.findFirst({
-                    where: { roles: { some: { role: { name: 'BUDGET_MANAGER' } } } },
-                });
+                // Finance Officer approved at FINANCE_REVIEW stage
+                // Check if this is a Budget Manager doing dual approval (acting user is Budget Manager AND they filled the Finance Director section)
+                // Only skip if Budget Manager themselves is approving AND has filled their own name in budgetManagerName
+                const isBudgetManagerDualApproval = 
+                    roleNames.includes('BUDGET_MANAGER') && 
+                    request.budgetManagerName && 
+                    request.budgetManagerName.trim().length > 0;
 
-                if (!budgetManager) {
-                    console.error('[Workflow] CRITICAL: No Budget Manager found in system. Request cannot proceed.');
-                    return res.status(500).json({
-                        message: 'No Budget Manager found. Please contact system administrator to assign the BUDGET_MANAGER role to a user.',
-                        error: 'MISSING_BUDGET_MANAGER',
+                if (isBudgetManagerDualApproval) {
+                    // Budget Manager has filled both sections - skip BUDGET_MANAGER_REVIEW and go straight to Procurement
+                    console.log(`[Workflow] Budget Manager dual approval detected (budgetManagerName: "${request.budgetManagerName}") - skipping BUDGET_MANAGER_REVIEW stage`);
+                    nextStatus = 'PROCUREMENT_REVIEW';
+                    nextAssigneeId = null; // Let auto-assignment handle it
+                } else {
+                    // Normal flow: Finance Officer approved -> MUST go to Budget Manager
+                    console.log(`[Workflow] Standard finance approval - proceeding to BUDGET_MANAGER_REVIEW (acting user roles: ${roleNames.join(', ')}, budgetManagerName filled: ${!!request.budgetManagerName})`);
+                    const budgetManager = await prisma.user.findFirst({
+                        where: { roles: { some: { role: { name: 'BUDGET_MANAGER' } } } },
                     });
-                }
 
-                nextStatus = 'BUDGET_MANAGER_REVIEW';
-                nextAssigneeId = budgetManager.id;
-                console.log(`[Workflow] Assigned to Budget Manager: ${budgetManager.name} (ID: ${budgetManager.id})`);
+                    if (!budgetManager) {
+                        console.error('[Workflow] CRITICAL: No Budget Manager found in system. Request cannot proceed.');
+                        return res.status(500).json({
+                            message: 'No Budget Manager found. Please contact system administrator to assign the BUDGET_MANAGER role to a user.',
+                            error: 'MISSING_BUDGET_MANAGER',
+                        });
+                    }
+
+                    nextStatus = 'BUDGET_MANAGER_REVIEW';
+                    nextAssigneeId = budgetManager.id;
+                    console.log(`[Workflow] Assigned to Budget Manager: ${budgetManager.name} (ID: ${budgetManager.id})`);
+                }
             } else if (request.status === 'BUDGET_MANAGER_REVIEW') {
                 // Budget Manager approved -> send to Procurement for final processing
                 nextStatus = 'PROCUREMENT_REVIEW';
@@ -4159,6 +4205,109 @@ app.post('/api/requests/:id/action', async (req, res) => {
     } catch (e: any) {
         console.error('POST /requests/:id/action error:', e);
         return res.status(500).json({ message: e?.message || 'Failed to process action' });
+    }
+});
+
+// POST /api/requests/:id/assign/self - Budget Manager/Finance Manager self-assign during finance stages
+app.post('/api/requests/:id/assign/self', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const actorUserId = req.headers['x-user-id'] ? parseInt(String(req.headers['x-user-id']), 10) : null;
+
+        if (!actorUserId) return res.status(401).json({ message: 'User must be authenticated' });
+
+        const actor = await prisma.user.findUnique({ where: { id: actorUserId }, include: { roles: { include: { role: true } } } });
+        const roleNames = (actor?.roles || []).map((r) => r.role.name.toUpperCase());
+        if (!roleNames.includes('BUDGET_MANAGER') && !roleNames.includes('FINANCE_MANAGER')) {
+            return res.status(403).json({ message: 'Only Budget Manager or Finance Manager may self-assign at finance stages.' });
+        }
+
+        // Support both numeric ID and reference identifier
+        const isNumeric = !Number.isNaN(parseInt(String(id), 10));
+        const request = isNumeric
+            ? await prisma.request.findUnique({ where: { id: parseInt(String(id), 10) }, select: { id: true, status: true } })
+            : await prisma.request.findUnique({ where: { reference: String(id) }, select: { id: true, status: true } });
+
+        if (!request) return res.status(404).json({ message: 'Request not found' });
+        if (!['FINANCE_REVIEW', 'BUDGET_MANAGER_REVIEW'].includes(String(request.status))) {
+            return res.status(400).json({ message: 'Self-assignment only allowed during finance review stages.' });
+        }
+
+        const updated = await prisma.request.update({
+            where: { id: request.id },
+            data: {
+                currentAssigneeId: actorUserId,
+                statusHistory: {
+                    create: {
+                        status: request.status,
+                        changedById: actorUserId,
+                        comment: 'Assigned to self by Budget/Finance Manager',
+                    },
+                },
+            },
+            include: {
+                requester: { select: { id: true, name: true, email: true } },
+                department: { select: { id: true, name: true, code: true } },
+                currentAssignee: { select: { id: true, name: true, email: true } },
+            },
+        });
+
+        return res.json(updated);
+    } catch (e: any) {
+        console.error('POST /api/requests/:id/assign/self error:', e);
+        return res.status(500).json({ message: e?.message || 'Failed to self-assign request' });
+    }
+});
+
+// POST /api/requests/:id/assign - Budget Manager/Finance Manager assign to specific user during finance stages
+app.post('/api/requests/:id/assign', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { userId: targetUserId } = req.body || {};
+        const actorUserId = req.headers['x-user-id'] ? parseInt(String(req.headers['x-user-id']), 10) : null;
+
+        if (!actorUserId) return res.status(401).json({ message: 'User must be authenticated' });
+        if (!targetUserId || Number.isNaN(Number(targetUserId))) return res.status(400).json({ message: 'Valid userId is required' });
+
+        const actor = await prisma.user.findUnique({ where: { id: actorUserId }, include: { roles: { include: { role: true } } } });
+        const roleNames = (actor?.roles || []).map((r) => r.role.name.toUpperCase());
+        if (!roleNames.includes('BUDGET_MANAGER') && !roleNames.includes('FINANCE_MANAGER')) {
+            return res.status(403).json({ message: 'Only Budget Manager or Finance Manager may assign at finance stages.' });
+        }
+
+        const isNumeric = !Number.isNaN(parseInt(String(id), 10));
+        const request = isNumeric
+            ? await prisma.request.findUnique({ where: { id: parseInt(String(id), 10) }, select: { id: true, status: true } })
+            : await prisma.request.findUnique({ where: { reference: String(id) }, select: { id: true, status: true } });
+
+        if (!request) return res.status(404).json({ message: 'Request not found' });
+        if (!['FINANCE_REVIEW', 'BUDGET_MANAGER_REVIEW'].includes(String(request.status))) {
+            return res.status(400).json({ message: 'Assignment only allowed during finance review stages.' });
+        }
+
+        const updated = await prisma.request.update({
+            where: { id: request.id },
+            data: {
+                currentAssigneeId: Number(targetUserId),
+                statusHistory: {
+                    create: {
+                        status: request.status,
+                        changedById: actorUserId,
+                        comment: `Assigned to user ${Number(targetUserId)} by Budget/Finance Manager`,
+                    },
+                },
+            },
+            include: {
+                requester: { select: { id: true, name: true, email: true } },
+                department: { select: { id: true, name: true, code: true } },
+                currentAssignee: { select: { id: true, name: true, email: true } },
+            },
+        });
+
+        return res.json(updated);
+    } catch (e: any) {
+        console.error('POST /api/requests/:id/assign error:', e);
+        return res.status(500).json({ message: e?.message || 'Failed to assign request' });
     }
 });
 
