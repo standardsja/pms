@@ -178,7 +178,7 @@ async function fixInvalidRequestStatuses(): Promise<number | null> {
 
         // 1) NULL or empty -> DRAFT
         const r1: any = await prisma.$executeRawUnsafe("UPDATE Request SET status = 'DRAFT' WHERE status IS NULL OR status = ''");
-        total += typeof r1 === 'number' ? r1 : r1?.rowCount ?? 0;
+        total += typeof r1 === 'number' ? r1 : (r1?.rowCount ?? 0);
 
         // 2) Legacy names -> current enum
         const updates: Array<{ sql: string; desc: string }> = [
@@ -191,7 +191,7 @@ async function fixInvalidRequestStatuses(): Promise<number | null> {
         ];
         for (const u of updates) {
             const r: any = await prisma.$executeRawUnsafe(u.sql);
-            total += typeof r === 'number' ? r : r?.rowCount ?? 0;
+            total += typeof r === 'number' ? r : (r?.rowCount ?? 0);
         }
 
         // 3) Anything still not in the enum -> DRAFT as a safe fallback
@@ -213,7 +213,7 @@ async function fixInvalidRequestStatuses(): Promise<number | null> {
             'REJECTED',
         ];
         const rCatchAll: any = await prisma.$executeRawUnsafe(`UPDATE Request SET status = 'DRAFT' WHERE status IS NOT NULL AND status NOT IN (${allowed.map((s) => `'${s}'`).join(',')})`);
-        total += typeof rCatchAll === 'number' ? rCatchAll : rCatchAll?.rowCount ?? 0;
+        total += typeof rCatchAll === 'number' ? rCatchAll : (rCatchAll?.rowCount ?? 0);
 
         return total;
     } catch (err) {
@@ -759,7 +759,7 @@ app.get('/api/messages', authMiddleware, async (req, res) => {
                      WHERE m.toUserId = ?
                      ORDER BY m.createdAt DESC
                      LIMIT 50`,
-                    userId
+                    userId,
                 );
                 messages = rows || [];
             } catch (rawErr) {
@@ -928,7 +928,7 @@ app.get('/api/ideas', authMiddleware, async (req, res) => {
                       String(t)
                           .split(',')
                           .map((s) => s.trim())
-                          .filter(Boolean)
+                          .filter(Boolean),
                   )
                 : String(tag)
                       .split(',')
@@ -2107,7 +2107,7 @@ app.get('/api/requests', async (req, res) => {
                     // EXECUTIVE_DIRECTOR, EXECUTIVE, PROCUREMENT, FINANCE, and ADMIN roles can see all requests
                     const canSeeAll = userRoles.some(
                         (r) =>
-                            r === 'EXECUTIVE_DIRECTOR' || r === 'EXECUTIVE' || r === 'PROCUREMENT_OFFICER' || r === 'PROCUREMENT_MANAGER' || r === 'FINANCE' || r === 'BUDGET_MANAGER' || r === 'ADMIN'
+                            r === 'EXECUTIVE_DIRECTOR' || r === 'EXECUTIVE' || r === 'PROCUREMENT_OFFICER' || r === 'PROCUREMENT_MANAGER' || r === 'FINANCE' || r === 'BUDGET_MANAGER' || r === 'ADMIN',
                     );
 
                     if (!canSeeAll) {
@@ -2211,7 +2211,7 @@ app.get('/api/requests', async (req, res) => {
                                         r === 'PROCUREMENT_MANAGER' ||
                                         r === 'FINANCE' ||
                                         r === 'BUDGET_MANAGER' ||
-                                        r === 'ADMIN'
+                                        r === 'ADMIN',
                                 );
 
                                 if (!canSeeAll) {
@@ -2492,7 +2492,7 @@ app.post(
             console.error('POST /requests error:', e);
             return res.status(500).json({ message: e?.message || 'Failed to create request' });
         }
-    }
+    },
 );
 
 // Mount dedicated Combine Requests router (handles GET list + POST combine)
@@ -2573,7 +2573,7 @@ app.get('/api/requests/:id', async (req, res) => {
                     const userRoles = (user.roles || []).map((r) => r.role.name).map((n) => n.toUpperCase());
                     const canSeeAll = userRoles.some(
                         (r) =>
-                            r === 'EXECUTIVE_DIRECTOR' || r === 'EXECUTIVE' || r === 'PROCUREMENT_OFFICER' || r === 'PROCUREMENT_MANAGER' || r === 'FINANCE' || r === 'BUDGET_MANAGER' || r === 'ADMIN'
+                            r === 'EXECUTIVE_DIRECTOR' || r === 'EXECUTIVE' || r === 'PROCUREMENT_OFFICER' || r === 'PROCUREMENT_MANAGER' || r === 'FINANCE' || r === 'BUDGET_MANAGER' || r === 'ADMIN',
                     );
 
                     // If not EXECUTIVE_DIRECTOR/PROCUREMENT, user can only see requests from their department
@@ -3121,7 +3121,7 @@ app.get('/api/requests/:id/pdf', async (req, res) => {
           <td style="text-align: center;">${item.quantity || '—'}</td>
           <td style="text-align: right;">${formatCurrency(item.unitPrice)}</td>
           <td style="text-align: right;">${formatCurrency(parseFloat(String(item.quantity || 0)) * parseFloat(String(item.unitPrice || 0)))}</td>
-        </tr>`
+        </tr>`,
             )
             .join('');
 
@@ -3369,7 +3369,7 @@ app.post('/api/requests/:id/submit', async (req, res) => {
 
                     // Check if user has manager role (PROCUREMENT_MANAGER, DEPT_MANAGER, or MANAGER)
                     const hasManagerRole = actingUser.roles.some(
-                        (ur) => ur.role.name === 'PROCUREMENT_MANAGER' || ur.role.name === 'DEPT_MANAGER' || ur.role.name === 'MANAGER' || ur.role.name === 'EXECUTIVE'
+                        (ur) => ur.role.name === 'PROCUREMENT_MANAGER' || ur.role.name === 'DEPT_MANAGER' || ur.role.name === 'MANAGER' || ur.role.name === 'EXECUTIVE',
                     );
 
                     if (!hasManagerRole) {
@@ -3509,7 +3509,7 @@ app.post('/api/requests/:id/submit', async (req, res) => {
                         updated.currentAssignee.name || 'User',
                         updated.reference || String(updated.id),
                         stageLabel,
-                        requesterName
+                        requesterName,
                     );
                 }
             }
@@ -3624,9 +3624,7 @@ app.post('/api/requests/:id/action', async (req, res) => {
         // Check if user is the current assignee
         const isCurrentAssignee = request.currentAssigneeId === actingUserId;
         // Budget Manager override: may act on finance stages even if not assignee
-        const canFinanceOverride =
-            (request.status === 'FINANCE_REVIEW' || request.status === 'BUDGET_MANAGER_REVIEW') &&
-            roleNames.includes('BUDGET_MANAGER');
+        const canFinanceOverride = (request.status === 'FINANCE_REVIEW' || request.status === 'BUDGET_MANAGER_REVIEW') && roleNames.includes('BUDGET_MANAGER');
 
         // AUTHORIZATION CHECK 1: Only current assignee or full-access roles can approve/reject
         // Allow Budget Manager override on finance stages
@@ -3654,8 +3652,8 @@ app.post('/api/requests/:id/action', async (req, res) => {
                 if (!hasRequiredRole) {
                     console.warn(
                         `[Request Action] User ${actingUserId} attempted ${action} on ${request.status} but lacks required role. User roles: ${roleNames.join(', ')}, Required: ${requiredRoles.join(
-                            ' or '
-                        )}`
+                            ' or ',
+                        )}`,
                     );
                     return res.status(403).json({
                         message: `You do not have the required role to approve this stage. This request is in ${request.status.replace(/_/g, ' ')} and requires ${requiredRoles.join(' or ')} role.`,
@@ -3720,10 +3718,7 @@ app.post('/api/requests/:id/action', async (req, res) => {
                 // Finance Officer approved at FINANCE_REVIEW stage
                 // Check if this is a Budget Manager doing dual approval (acting user is Budget Manager AND they filled the Finance Director section)
                 // Only skip if Budget Manager themselves is approving AND has filled their own name in budgetManagerName
-                const isBudgetManagerDualApproval = 
-                    roleNames.includes('BUDGET_MANAGER') && 
-                    request.budgetManagerName && 
-                    request.budgetManagerName.trim().length > 0;
+                const isBudgetManagerDualApproval = roleNames.includes('BUDGET_MANAGER') && request.budgetManagerName && request.budgetManagerName.trim().length > 0;
 
                 if (isBudgetManagerDualApproval) {
                     // Budget Manager has filled both sections - skip BUDGET_MANAGER_REVIEW and go straight to Procurement
@@ -3732,7 +3727,9 @@ app.post('/api/requests/:id/action', async (req, res) => {
                     nextAssigneeId = null; // Let auto-assignment handle it
                 } else {
                     // Normal flow: Finance Officer approved -> MUST go to Budget Manager
-                    console.log(`[Workflow] Standard finance approval - proceeding to BUDGET_MANAGER_REVIEW (acting user roles: ${roleNames.join(', ')}, budgetManagerName filled: ${!!request.budgetManagerName})`);
+                    console.log(
+                        `[Workflow] Standard finance approval - proceeding to BUDGET_MANAGER_REVIEW (acting user roles: ${roleNames.join(', ')}, budgetManagerName filled: ${!!request.budgetManagerName})`,
+                    );
                     const budgetManager = await prisma.user.findFirst({
                         where: { roles: { some: { role: { name: 'BUDGET_MANAGER' } } } },
                     });
@@ -3942,7 +3939,7 @@ app.post('/api/requests/:id/action', async (req, res) => {
                                     updated.id,
                                     updated.reference || String(updated.id),
                                     comment ? comment.trim() : 'No reason provided',
-                                    rejectorName
+                                    rejectorName,
                                 );
                                 console.log(`[REJECTION] Email send result: ${emailSent}`);
                             } else {
@@ -4010,7 +4007,7 @@ app.post('/api/requests/:id/action', async (req, res) => {
                                 updated.currentAssignee.name || 'User',
                                 updated.reference || String(updated.id),
                                 stageLabel,
-                                assignerName
+                                assignerName,
                             );
                         }
                     }
@@ -4132,7 +4129,7 @@ app.post('/api/requests/:id/action', async (req, res) => {
                             updated.currentAssignee.name || 'User',
                             updated.reference || String(updated.id),
                             stageLabel,
-                            assignerName
+                            assignerName,
                         );
                     }
                 } catch (notifErr) {
@@ -4175,7 +4172,7 @@ app.post('/api/requests/:id/action', async (req, res) => {
                             updated.currentAssignee.name || 'User',
                             updated.reference || String(updated.id),
                             stageLabel,
-                            assignerName
+                            assignerName,
                         );
                     }
                 } catch (notifErr) {
@@ -4373,7 +4370,7 @@ app.get('/api/users/procurement-officers', async (req, res) => {
                     department: officer.department,
                     assignedCount,
                 };
-            })
+            }),
         );
 
         return res.json(officersWithWorkload);
@@ -4685,7 +4682,7 @@ app.post('/api/requests/:id/reject', async (req, res) => {
                                 request.id,
                                 request.reference || String(request.id),
                                 note.trim() || 'No reason provided',
-                                rejectorName
+                                rejectorName,
                             );
                             console.log(`[REJECTION] Email send result: ${emailSent}`);
                         } else {
@@ -4973,7 +4970,7 @@ app.post('/api/procurement/load-balancing-settings', async (req, res) => {
                 autoAssignOnApproval: autoAssignOnApproval !== undefined ? autoAssignOnApproval : undefined,
                 splinteringEnabled: splinteringEnabled !== undefined ? splinteringEnabled : undefined,
             },
-            parseInt(String(userId), 10)
+            parseInt(String(userId), 10),
         );
 
         console.log('[LoadBalancing] Settings updated by user', userId, 'roles=', roleNames, 'dept=', user.department?.code, ':', settings);
@@ -5011,7 +5008,7 @@ app.post('/api/admin/load-balancing-settings', requireAdmin, async (req, res) =>
             {
                 splinteringEnabled: splinteringEnabled !== undefined ? splinteringEnabled : undefined,
             },
-            parseInt(String(adminId), 10)
+            parseInt(String(adminId), 10),
         );
 
         console.log('[Admin] Load balancing settings updated by admin', adminId, settings);
@@ -5483,8 +5480,8 @@ app.post('/api/admin/users/:userId/roles', async (req, res) => {
                         userId: parsedUserId,
                         roleId: role.id,
                     },
-                })
-            )
+                }),
+            ),
         );
 
         console.log(`[Admin] Updated roles for user ${parsedUserId}: ${roles.join(', ')}`);
@@ -5776,7 +5773,7 @@ app.get('/api/finance-officers', async (req, res) => {
                     email: officer.email,
                     assignedCount,
                 };
-            })
+            }),
         );
 
         return res.json(officersWithWorkload);
@@ -6096,7 +6093,7 @@ app.get(
              LEFT JOIN User uc_v ON e.sectionCVerifiedBy = uc_v.id
              LEFT JOIN User ud ON e.sectionDVerifiedBy = ud.id
              LEFT JOIN User ue ON e.sectionEVerifiedBy = ue.id
-             ORDER BY e.createdAt DESC`
+             ORDER BY e.createdAt DESC`,
         );
         const mapped = rows.map((r: any) => ({
             id: r.id,
@@ -6150,7 +6147,7 @@ app.get(
             _fallback: true,
         }));
         res.json({ success: true, data: mapped, meta: { fallback: true } });
-    })
+    }),
 );
 
 // GET /api/evaluations/pending-validation - List evaluations pending validation (for procurement manager)
@@ -6208,7 +6205,7 @@ app.get(
                 error: 'Failed to fetch pending validation evaluations',
             });
         }
-    })
+    }),
 );
 
 // GET /api/requests/:id/evaluations - list evaluations linked to a request (directly or via combinedRequest)
@@ -6243,10 +6240,10 @@ app.get(
         const rows = await prisma.$queryRawUnsafe<any>(
             `SELECT e.* FROM Evaluation e WHERE e.requestId = ${parsedId ?? 'NULL'} OR e.combinedRequestId = (SELECT combinedRequestId FROM Request WHERE id = ${
                 parsedId ?? 'NULL'
-            }) ORDER BY e.createdAt DESC`
+            }) ORDER BY e.createdAt DESC`,
         );
         return res.json({ success: true, data: rows, meta: { fallback: true } });
-    })
+    }),
 );
 
 // GET /api/evaluations/:id - Get single evaluation by ID
@@ -6318,7 +6315,7 @@ app.get(
              LEFT JOIN User ue ON e.sectionEVerifiedBy = ue.id
              LEFT JOIN Request req ON e.requestId = req.id
              LEFT JOIN CombinedRequest cr ON e.combinedRequestId = cr.id
-             WHERE e.id = ${parseInt(id)} LIMIT 1`
+             WHERE e.id = ${parseInt(id)} LIMIT 1`,
         );
         const r = rows[0];
         if (!r) throw new NotFoundError('Evaluation not found');
@@ -6384,7 +6381,7 @@ app.get(
             _fallback: true,
         };
         res.json({ success: true, data: mapped, meta: { fallback: true } });
-    })
+    }),
 );
 
 // POST /api/evaluations - Create new evaluation
@@ -6573,10 +6570,10 @@ app.post(
         // Conditionally add date fields only if columns exist (handles schema drift)
         try {
             const hasDateSubmissionCol = await prisma.$queryRawUnsafe<any>(
-                "SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='Evaluation' AND COLUMN_NAME='dateSubmissionConsidered' LIMIT 1"
+                "SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='Evaluation' AND COLUMN_NAME='dateSubmissionConsidered' LIMIT 1",
             );
             const hasReportCompletionCol = await prisma.$queryRawUnsafe<any>(
-                "SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='Evaluation' AND COLUMN_NAME='reportCompletionDate' LIMIT 1"
+                "SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='Evaluation' AND COLUMN_NAME='reportCompletionDate' LIMIT 1",
             );
 
             if (hasDateSubmissionCol && hasDateSubmissionCol[0]) {
@@ -6598,7 +6595,7 @@ app.post(
         const createdRow = await prisma.$queryRawUnsafe<any>(
             "SELECT e.*, uc.id AS creatorId, uc.name AS creatorName, uc.email AS creatorEmail FROM Evaluation e LEFT JOIN User uc ON e.createdBy = uc.id WHERE e.evalNumber='" +
                 evalNumber.replace(/'/g, "''") +
-                "' LIMIT 1"
+                "' LIMIT 1",
         );
         const r = createdRow[0];
         const mapped = {
@@ -6619,7 +6616,7 @@ app.post(
             _fallback: true,
         };
         res.status(201).json({ success: true, data: mapped, meta: { fallback: true } });
-    })
+    }),
 );
 
 // POST /api/evaluations/:id/assign - Assign evaluation sections to users (auto-includes requesters)
@@ -6725,7 +6722,7 @@ app.post(
         }
 
         return res.json({ success: true, data: created, message: 'Assignments saved' });
-    })
+    }),
 );
 
 // GET /api/evaluations/assignments/me - List assignments for current user
@@ -6764,7 +6761,7 @@ app.get(
                  JOIN Evaluation e ON ea.evaluationId = e.id
                  LEFT JOIN User uc ON e.createdBy = uc.id
                  WHERE ea.userId = ${userId}
-                 ORDER BY ea.createdAt DESC`
+                 ORDER BY ea.createdAt DESC`,
             );
             const mapped = rows.map((r: any) => ({
                 id: r.id,
@@ -6784,7 +6781,7 @@ app.get(
             }));
             return res.json({ success: true, data: mapped, meta: { fallback: true } });
         }
-    })
+    }),
 );
 
 // GET /api/evaluations/:id/assignments - List all assignments for a specific evaluation (procurement only)
@@ -6821,7 +6818,7 @@ app.get(
                      JOIN User u ON ea.userId = u.id
                      WHERE ea.evaluationId = ?
                      ORDER BY ea.createdAt DESC`,
-                    evaluationId
+                    evaluationId,
                 );
                 const mapped = rows.map((r: any) => ({
                     id: r.id,
@@ -6841,7 +6838,7 @@ app.get(
                 return res.json({ success: true, data: [], meta: { fallback: true, error: String((rawErr as any)?.message || rawErr) } });
             }
         }
-    })
+    }),
 );
 
 // POST /api/evaluations/:id/assignments/return - Reopen specific evaluators for selected sections (e.g., Section C)
@@ -6911,7 +6908,7 @@ app.post(
         const updatedEval = await (prisma as any).evaluation.update({ where: { id: evaluationId }, data: statusUpdates });
 
         return res.json({ success: true, data: { assignments: reopened, evaluation: updatedEval }, message: 'Assignments returned to selected users' });
-    })
+    }),
 );
 
 // POST /api/evaluations/:id/assignments/complete - Evaluator marks their assignment as complete
@@ -7003,7 +7000,7 @@ app.post(
             success: true,
             message: allSubmitted ? 'All assignments complete! Evaluation returned to procurement for Sections D & E.' : 'Assignment marked as complete and procurement notified',
         });
-    })
+    }),
 );
 
 // PATCH /api/evaluations/:id - Update evaluation
@@ -7075,8 +7072,8 @@ app.patch(
         if (sets.length) await prisma.$executeRawUnsafe(`UPDATE Evaluation SET ${sets.join(', ')} WHERE id=${parseInt(id)}`);
         const row = await prisma.$queryRawUnsafe<any>(
             `SELECT e.*, uc.id AS creatorId, uc.name AS creatorName, uc.email AS creatorEmail, uv.id AS validatorId, uv.name AS validatorName, uv.email AS validatorEmail FROM Evaluation e LEFT JOIN User uc ON e.createdBy = uc.id LEFT JOIN User uv ON e.validatedBy = uv.id WHERE e.id = ${parseInt(
-                id
-            )} LIMIT 1`
+                id,
+            )} LIMIT 1`,
         );
         const r = row[0];
         const mapped = {
@@ -7106,7 +7103,7 @@ app.patch(
             _fallback: true,
         };
         res.json({ success: true, data: mapped, meta: { fallback: true } });
-    })
+    }),
 );
 
 // PATCH /api/evaluations/:id/committee - Update committee section data
@@ -7226,7 +7223,7 @@ app.patch(
         sets.push('updatedAt=NOW()');
         await prisma.$executeRawUnsafe(`UPDATE Evaluation SET ${sets.join(', ')} WHERE id=${parseInt(id)}`);
         const row = await prisma.$queryRawUnsafe<any>(
-            `SELECT e.*, uc.id AS creatorId, uc.name AS creatorName, uc.email AS creatorEmail FROM Evaluation e LEFT JOIN User uc ON e.createdBy = uc.id WHERE e.id = ${parseInt(id)} LIMIT 1`
+            `SELECT e.*, uc.id AS creatorId, uc.name AS creatorName, uc.email AS creatorEmail FROM Evaluation e LEFT JOIN User uc ON e.createdBy = uc.id WHERE e.id = ${parseInt(id)} LIMIT 1`,
         );
         const r = row[0];
         const mapped = {
@@ -7253,7 +7250,7 @@ app.patch(
             _fallback: true,
         };
         res.json({ success: true, data: mapped, meta: { fallback: true } });
-    })
+    }),
 );
 
 // PATCH /api/evaluations/:id/sections/:section - Update a section (for returned sections)
@@ -7347,11 +7344,11 @@ app.patch(
         const jsonData = JSON.stringify(sectionData).replace(/'/g, "''");
         await prisma.$executeRawUnsafe(
             `UPDATE Evaluation SET section${sectionUpper}='${jsonData}', section${sectionUpper}Status='IN_PROGRESS', section${sectionUpper}Notes=NULL, section${sectionUpper}VerifiedAt=NULL, section${sectionUpper}VerifiedBy=NULL, updatedAt=NOW() WHERE id=${parseInt(
-                id
-            )}`
+                id,
+            )}`,
         );
         res.json({ success: true, message: `Section ${sectionUpper} updated`, meta: { fallback: true } });
-    })
+    }),
 );
 
 // POST /api/evaluations/:id/sections/:section/submit - Submit section for committee review
@@ -7442,7 +7439,7 @@ app.post(
         }
         await prisma.$executeRawUnsafe(`UPDATE Evaluation SET ${sets.join(', ')} WHERE id=${parseInt(id)}`);
         res.json({ success: true, message: `Section ${sectionUpper} submitted for review`, meta: { fallback: true } });
-    })
+    }),
 );
 
 // POST /api/evaluations/:id/sections/:section/verify - Committee verifies section (approve)
@@ -7541,7 +7538,7 @@ app.post(
         if (notes) sets.push(`section${sectionUpper}Notes='${notes.replace(/'/g, "''")}'`);
         await prisma.$executeRawUnsafe(`UPDATE Evaluation SET ${sets.join(', ')} WHERE id=${parseInt(id)}`);
         res.json({ success: true, message: `Section ${sectionUpper} verified`, meta: { fallback: true } });
-    })
+    }),
 );
 
 // POST /api/evaluations/:id/sections/:section/return - Committee or Procurement returns section for changes
@@ -7636,7 +7633,7 @@ app.post(
         ];
         await prisma.$executeRawUnsafe(`UPDATE Evaluation SET ${sets.join(', ')} WHERE id=${parseInt(id)}`);
         res.json({ success: true, message: `Section ${sectionUpper} returned for changes`, meta: { fallback: true } });
-    })
+    }),
 );
 
 // POST /api/evaluations/:id/validate - Executive Director validates a completed evaluation
@@ -7700,12 +7697,12 @@ app.post(
         // Fallback: raw SQL path
         const safeNotes = notes ? notes.replace(/'/g, "''") : null;
         await prisma.$executeRawUnsafe(
-            `UPDATE Evaluation SET status='VALIDATED', validatedBy=${userId}, validatedAt=NOW(), validationNotes=${safeNotes ? `'${safeNotes}'` : 'NULL'}, updatedAt=NOW() WHERE id=${parseInt(id)}`
+            `UPDATE Evaluation SET status='VALIDATED', validatedBy=${userId}, validatedAt=NOW(), validationNotes=${safeNotes ? `'${safeNotes}'` : 'NULL'}, updatedAt=NOW() WHERE id=${parseInt(id)}`,
         );
         const row = await prisma.$queryRawUnsafe<any>(`SELECT * FROM Evaluation WHERE id = ${parseInt(id)} LIMIT 1`);
         const updated = row[0];
         res.json({ success: true, data: updated, message: 'Evaluation validated' });
-    })
+    }),
 );
 
 // DELETE /api/evaluations/:id - Delete evaluation
@@ -7724,7 +7721,7 @@ app.delete(
         if (!checkRow[0]) throw new NotFoundError('Evaluation not found');
         await prisma.$executeRawUnsafe(`DELETE FROM Evaluation WHERE id = ${parseInt(id)}`);
         res.json({ success: true, message: 'Evaluation deleted successfully', meta: { fallback: true } });
-    })
+    }),
 );
 
 // Stats API routes

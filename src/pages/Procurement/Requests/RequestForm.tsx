@@ -244,14 +244,11 @@ const RequestForm = () => {
     // Budget section editing: assignee can edit at their stage
     const canEditBudgetSection = !!(isAssignee && (requestMeta?.status === 'FINANCE_REVIEW' || requestMeta?.status === 'BUDGET_MANAGER_REVIEW'));
 
-    // Approval gating: 
+    // Approval gating:
     // - Finance Officer can approve as Chief Accountant at FINANCE_REVIEW (if assigned)
     // - Budget Manager can approve as Finance Director at BUDGET_MANAGER_REVIEW (if assigned) OR at FINANCE_REVIEW (if assigned there)
     const canApproveBudgetOfficer = !!(isAssignee && requestMeta?.status === 'FINANCE_REVIEW' && isBudgetOfficer);
-    const canApproveBudgetManager = !!(
-        isAssignee && isBudgetManager && 
-        (requestMeta?.status === 'FINANCE_REVIEW' || requestMeta?.status === 'BUDGET_MANAGER_REVIEW')
-    );
+    const canApproveBudgetManager = !!(isAssignee && isBudgetManager && (requestMeta?.status === 'FINANCE_REVIEW' || requestMeta?.status === 'BUDGET_MANAGER_REVIEW'));
     const canDispatchToVendors = !!(isAssignee && requestMeta?.status === 'FINANCE_APPROVED');
 
     // Determine if user can edit the form
@@ -275,7 +272,7 @@ const RequestForm = () => {
 
         // Full access roles can always edit
         const hasFullAccess = userRoles.some(
-            (r: string) => r === 'EXECUTIVE_DIRECTOR' || r === 'EXECUTIVE' || r === 'PROCUREMENT_OFFICER' || r === 'PROCUREMENT_MANAGER' || r === 'FINANCE' || r === 'BUDGET_MANAGER' || r === 'ADMIN'
+            (r: string) => r === 'EXECUTIVE_DIRECTOR' || r === 'EXECUTIVE' || r === 'PROCUREMENT_OFFICER' || r === 'PROCUREMENT_MANAGER' || r === 'FINANCE' || r === 'BUDGET_MANAGER' || r === 'ADMIN',
         );
 
         return hasFullAccess || false;
@@ -413,7 +410,7 @@ const RequestForm = () => {
                             unitOfMeasure: item.unitOfMeasure || '',
                             unitCost: Number(item.unitPrice) || 0,
                             partNumber: item.partNumber || '',
-                        }))
+                        })),
                     );
                 }
 
@@ -714,13 +711,8 @@ const RequestForm = () => {
     const canApproveHOD = !!(isAssignee && requestMeta?.status === 'HOD_REVIEW' && isHOD);
     // Mirror Budget Manager override for form-level gating
     // Budget Manager can approve as Finance Director at either FINANCE_REVIEW or BUDGET_MANAGER_REVIEW if assigned
-    const canApproveBudgetOfficerForm = !!(
-        isAssignee && requestMeta?.status === 'FINANCE_REVIEW' && isBudgetOfficer
-    );
-    const canApproveBudgetManagerForm = !!(
-        isAssignee && isBudgetManager && 
-        (requestMeta?.status === 'FINANCE_REVIEW' || requestMeta?.status === 'BUDGET_MANAGER_REVIEW')
-    );
+    const canApproveBudgetOfficerForm = !!(isAssignee && requestMeta?.status === 'FINANCE_REVIEW' && isBudgetOfficer);
+    const canApproveBudgetManagerForm = !!(isAssignee && isBudgetManager && (requestMeta?.status === 'FINANCE_REVIEW' || requestMeta?.status === 'BUDGET_MANAGER_REVIEW'));
     const canApproveProcurementForm = !!(isAssignee && requestMeta?.status === 'PROCUREMENT_REVIEW' && isProcurementRole);
 
     // Consolidated: Can this user approve/reject the current request on the form?
@@ -760,7 +752,7 @@ const RequestForm = () => {
                 // Double-confirmation flow: warn on missing approval, confirm when approving
                 // At BUDGET_MANAGER_REVIEW, only Budget Manager approval is needed
                 // At FINANCE_REVIEW, we need the appropriate approval (officer or manager if BM is assigned there)
-                const missingApproval = 
+                const missingApproval =
                     (requestMeta?.status === 'DEPARTMENT_REVIEW' && managerApproved === false) ||
                     (requestMeta?.status === 'HOD_REVIEW' && headApproved === false) ||
                     (requestMeta?.status === 'FINANCE_REVIEW' && !budgetOfficerApproved && !budgetManagerApproved) ||
@@ -781,7 +773,7 @@ const RequestForm = () => {
                     }
                 }
 
-                const hasApproval = 
+                const hasApproval =
                     (requestMeta?.status === 'DEPARTMENT_REVIEW' && managerApproved === true) ||
                     (requestMeta?.status === 'HOD_REVIEW' && headApproved === true) ||
                     (requestMeta?.status === 'FINANCE_REVIEW' && (budgetOfficerApproved || budgetManagerApproved)) ||
@@ -1147,8 +1139,8 @@ const RequestForm = () => {
                             stockLevel: it.stockLevel || '',
                             unitOfMeasure: it.unitOfMeasure || '',
                             partNumber: it.partNumber || '',
-                        }))
-                    )
+                        })),
+                    ),
                 );
 
                 // Attach files
@@ -1543,7 +1535,7 @@ const RequestForm = () => {
                                                 | 'NZD'
                                                 | 'TTD'
                                                 | 'BBD'
-                                                | 'XCD'
+                                                | 'XCD',
                                         )
                                     }
                                 >
@@ -1908,10 +1900,10 @@ const RequestForm = () => {
                                     {canEditManagerFields && (
                                         <div className="space-y-2">
                                             <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
-                                                <input 
-                                                    type="checkbox" 
-                                                    className="form-checkbox" 
-                                                    checked={managerApproved} 
+                                                <input
+                                                    type="checkbox"
+                                                    className="form-checkbox"
+                                                    checked={managerApproved}
                                                     onChange={(e) => {
                                                         setManagerApproved(e.target.checked);
                                                         // Set date to today only when user checks the box
@@ -1919,7 +1911,8 @@ const RequestForm = () => {
                                                             setManagerApprovedDate(new Date().toISOString().split('T')[0]);
                                                         }
                                                     }}
-                                                />I approve this requisition
+                                                />
+                                                I approve this requisition
                                             </label>
                                             <div>
                                                 <label className="block text-xs text-gray-500 mb-1">Date Approved:</label>
@@ -1968,10 +1961,10 @@ const RequestForm = () => {
                                     {canEditHodFields && (
                                         <div className="space-y-2">
                                             <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
-                                                <input 
-                                                    type="checkbox" 
-                                                    className="form-checkbox" 
-                                                    checked={headApproved} 
+                                                <input
+                                                    type="checkbox"
+                                                    className="form-checkbox"
+                                                    checked={headApproved}
                                                     onChange={(e) => {
                                                         setHeadApproved(e.target.checked);
                                                         // Set date to today only when user checks the box
@@ -1979,7 +1972,8 @@ const RequestForm = () => {
                                                             setHeadApprovedDate(new Date().toISOString().split('T')[0]);
                                                         }
                                                     }}
-                                                />I approve this requisition
+                                                />
+                                                I approve this requisition
                                             </label>
                                             <div>
                                                 <label className="block text-xs text-gray-500 mb-1">Date Approved:</label>
@@ -2351,8 +2345,8 @@ const RequestForm = () => {
                                 !isEditMode && (!isFormCodeComplete || headerSequence === '000')
                                     ? 'Complete the form code before submitting'
                                     : isEditMode && !canEditForm
-                                    ? 'You do not have permission to edit this request'
-                                    : undefined
+                                      ? 'You do not have permission to edit this request'
+                                      : undefined
                             }
                         >
                             {isSubmitting ? (isEditMode ? 'Saving…' : 'Submitting…') : isEditMode ? 'Save Changes' : 'Submit Procurement Request'}
@@ -2448,18 +2442,18 @@ const RequestForm = () => {
                                                     {action.action === 'RETURN'
                                                         ? '↩️ Returned'
                                                         : action.action === 'APPROVE'
-                                                        ? '✅ Approved'
-                                                        : action.action === 'SUBMIT'
-                                                        ? '📤 Submitted'
-                                                        : action.action === 'ASSIGN'
-                                                        ? '👤 Assigned'
-                                                        : action.action === 'COMMENT'
-                                                        ? '💬 Comment'
-                                                        : action.action === 'EDIT_BUDGET'
-                                                        ? '💰 Budget Edited'
-                                                        : action.action === 'SEND_TO_VENDOR'
-                                                        ? '🚚 Sent to Vendor'
-                                                        : action.action}
+                                                          ? '✅ Approved'
+                                                          : action.action === 'SUBMIT'
+                                                            ? '📤 Submitted'
+                                                            : action.action === 'ASSIGN'
+                                                              ? '👤 Assigned'
+                                                              : action.action === 'COMMENT'
+                                                                ? '💬 Comment'
+                                                                : action.action === 'EDIT_BUDGET'
+                                                                  ? '💰 Budget Edited'
+                                                                  : action.action === 'SEND_TO_VENDOR'
+                                                                    ? '🚚 Sent to Vendor'
+                                                                    : action.action}
                                                 </span>
                                                 <span className="text-xs text-gray-500">{new Date(action.createdAt).toLocaleString()}</span>
                                             </div>

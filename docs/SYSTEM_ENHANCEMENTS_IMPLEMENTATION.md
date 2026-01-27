@@ -16,12 +16,14 @@ This document outlines the implementation plan for 12 major system enhancements 
 **Status:** ✅ IMPLEMENTED
 
 **Changes Made:**
+
 - Modified [server/index.ts](../server/index.ts#L3613) to allow `BUDGET_MANAGER` role to approve during `FINANCE_REVIEW` stage
 - Budget Managers can now approve as Chief Account and Budget Manager
 
 **Technical Details:**
+
 ```typescript
-FINANCE_REVIEW: ['FINANCE', 'CHIEF_ACCOUNTANT', 'BUDGET_MANAGER']
+FINANCE_REVIEW: ['FINANCE', 'CHIEF_ACCOUNTANT', 'BUDGET_MANAGER'];
 ```
 
 **Testing:** Test with a user having `BUDGET_MANAGER` role approving a request in `FINANCE_REVIEW` status.
@@ -33,6 +35,7 @@ FINANCE_REVIEW: ['FINANCE', 'CHIEF_ACCOUNTANT', 'BUDGET_MANAGER']
 **Status:** ✅ ALREADY EXISTS
 
 **Implementation:** The `reportCompletionDate` field already exists in:
+
 - Database: `Evaluation.reportCompletionDate` (DateTime nullable)
 - Frontend: [src/pages/Procurement/Evaluation/NewEvaluation.tsx](../src/pages/Procurement/Evaluation/NewEvaluation.tsx#L915)
 - Services: [src/services/evaluationService.ts](../src/services/evaluationService.ts#L122)
@@ -51,6 +54,7 @@ FINANCE_REVIEW: ['FINANCE', 'CHIEF_ACCOUNTANT', 'BUDGET_MANAGER']
 #### Implementation Steps:
 
 **A. Database Schema Addition**
+
 ```prisma
 // Add to schema.prisma
 model EvaluationAttachment {
@@ -64,10 +68,10 @@ model EvaluationAttachment {
   uploadedById Int
   uploadedAt   DateTime   @default(now())
   category     String?    // 'QUOTE', 'REPORT', 'SUPPORTING_DOC'
-  
+
   evaluation   Evaluation @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
   uploadedBy   User       @relation(fields: [uploadedById], references: [id])
-  
+
   @@index([evaluationId])
   @@index([uploadedById])
 }
@@ -80,6 +84,7 @@ model Evaluation {
 ```
 
 **B. Backend API Endpoints**
+
 ```typescript
 // Add to server/index.ts
 
@@ -92,7 +97,7 @@ router.post(
   asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.user.sub;
-    
+
     const attachment = await prisma.evaluationAttachment.create({
       data: {
         evaluationId: parseInt(id),
@@ -105,7 +110,7 @@ router.post(
         category: req.body.category || 'QUOTE'
       }
     });
-    
+
     res.json(attachment);
   })
 );
@@ -119,6 +124,7 @@ router.delete('/api/evaluations/:id/attachments/:attachmentId', authMiddleware, 
 
 **C. Frontend Component**
 Create `src/components/EvaluationAttachmentUpload.tsx`:
+
 ```tsx
 // Upload component with drag-and-drop support
 // Displays uploaded files with download/delete options
@@ -126,6 +132,7 @@ Create `src/components/EvaluationAttachmentUpload.tsx`:
 ```
 
 **D. Integration Points**
+
 - Add to `EvaluationDetail.tsx` in procurement officer view
 - Display attachment list below evaluation sections
 - Show upload button only for procurement roles
@@ -140,70 +147,72 @@ Create `src/components/EvaluationAttachmentUpload.tsx`:
 #### Implementation Steps:
 
 **A. Backend API Enhancement**
+
 ```typescript
 // POST /api/evaluations/:id/assignments/reassign
 router.post(
-  '/api/evaluations/:id/assignments/reassign',
-  authMiddleware,
-  requireRole(['PROCUREMENT_OFFICER', 'PROCUREMENT_MANAGER']),
-  asyncHandler(async (req, res) => {
-    const { id } = req.params;
-    const { oldUserId, newUserId, sections } = req.body;
-    
-    // Delete old assignment
-    await prisma.evaluationAssignment.deleteMany({
-      where: { evaluationId: parseInt(id), userId: oldUserId }
-    });
-    
-    // Create new assignment
-    const newAssignment = await prisma.evaluationAssignment.create({
-      data: {
-        evaluationId: parseInt(id),
-        userId: newUserId,
-        sections: sections,
-        status: 'PENDING'
-      }
-    });
-    
-    // Audit log
-    await auditService.log({
-      action: 'EVALUATOR_REASSIGNED',
-      details: { evaluationId: id, from: oldUserId, to: newUserId }
-    });
-    
-    res.json(newAssignment);
-  })
+    '/api/evaluations/:id/assignments/reassign',
+    authMiddleware,
+    requireRole(['PROCUREMENT_OFFICER', 'PROCUREMENT_MANAGER']),
+    asyncHandler(async (req, res) => {
+        const { id } = req.params;
+        const { oldUserId, newUserId, sections } = req.body;
+
+        // Delete old assignment
+        await prisma.evaluationAssignment.deleteMany({
+            where: { evaluationId: parseInt(id), userId: oldUserId },
+        });
+
+        // Create new assignment
+        const newAssignment = await prisma.evaluationAssignment.create({
+            data: {
+                evaluationId: parseInt(id),
+                userId: newUserId,
+                sections: sections,
+                status: 'PENDING',
+            },
+        });
+
+        // Audit log
+        await auditService.log({
+            action: 'EVALUATOR_REASSIGNED',
+            details: { evaluationId: id, from: oldUserId, to: newUserId },
+        });
+
+        res.json(newAssignment);
+    }),
 );
 
 // DELETE /api/evaluations/:id/assignments/:userId
 router.delete(
-  '/api/evaluations/:id/assignments/:userId',
-  authMiddleware,
-  requireRole(['PROCUREMENT_OFFICER', 'PROCUREMENT_MANAGER']),
-  asyncHandler(async (req, res) => {
-    const { id, userId } = req.params;
-    
-    await prisma.evaluationAssignment.deleteMany({
-      where: { 
-        evaluationId: parseInt(id), 
-        userId: parseInt(userId) 
-      }
-    });
-    
-    res.json({ success: true });
-  })
+    '/api/evaluations/:id/assignments/:userId',
+    authMiddleware,
+    requireRole(['PROCUREMENT_OFFICER', 'PROCUREMENT_MANAGER']),
+    asyncHandler(async (req, res) => {
+        const { id, userId } = req.params;
+
+        await prisma.evaluationAssignment.deleteMany({
+            where: {
+                evaluationId: parseInt(id),
+                userId: parseInt(userId),
+            },
+        });
+
+        res.json({ success: true });
+    }),
 );
 ```
 
 **B. Frontend Updates**
 Update `EvaluationDetail.tsx`:
+
 ```tsx
 // Add reassignment modal
 const [showReassignModal, setShowReassignModal] = useState(false);
 const [selectedAssignment, setSelectedAssignment] = useState(null);
 
 // Reassign button in evaluator list
-<button 
+<button
   className="btn btn-sm btn-outline-warning"
   onClick={() => handleReassign(assignment)}
 >
@@ -211,7 +220,7 @@ const [selectedAssignment, setSelectedAssignment] = useState(null);
 </button>
 
 // Remove button
-<button 
+<button
   className="btn btn-sm btn-outline-danger"
   onClick={() => handleRemove(assignment)}
 >
@@ -227,6 +236,7 @@ const [selectedAssignment, setSelectedAssignment] = useState(null);
 **Estimated Effort:** 4 hours
 
 #### Implementation:
+
 Enable editing of submitted Section C (Technical Evaluation):
 
 ```typescript
@@ -252,6 +262,7 @@ Frontend: Add "Enable Editing" button for procurement to unlock submitted sectio
 #### Implementation:
 
 **A. Database Enhancement**
+
 ```prisma
 model Evaluation {
   // ... existing fields
@@ -259,7 +270,7 @@ model Evaluation {
   cancelledAt   DateTime?
   cancelledBy   Int?
   cancelReason  String?   @db.Text
-  
+
   cancelledByUser User? @relation("EvaluationCanceller", fields: [cancelledBy], references: [id])
 }
 
@@ -276,31 +287,36 @@ enum EvaluationStatus {
 ```
 
 **B. Backend Endpoint**
+
 ```typescript
 // POST /api/evaluations/:id/cancel
-router.post('/api/evaluations/:id/cancel', authMiddleware, requireRole(['PROCUREMENT']), 
-  asyncHandler(async (req, res) => {
-    const { id } = req.params;
-    const { reason } = req.body;
-    const userId = req.user.sub;
-    
-    const cancelled = await prisma.evaluation.update({
-      where: { id: parseInt(id) },
-      data: {
-        status: 'CANCELLED',
-        cancelled: true,
-        cancelledAt: new Date(),
-        cancelledBy: userId,
-        cancelReason: reason
-      }
-    });
-    
-    res.json(cancelled);
-  })
+router.post(
+    '/api/evaluations/:id/cancel',
+    authMiddleware,
+    requireRole(['PROCUREMENT']),
+    asyncHandler(async (req, res) => {
+        const { id } = req.params;
+        const { reason } = req.body;
+        const userId = req.user.sub;
+
+        const cancelled = await prisma.evaluation.update({
+            where: { id: parseInt(id) },
+            data: {
+                status: 'CANCELLED',
+                cancelled: true,
+                cancelledAt: new Date(),
+                cancelledBy: userId,
+                cancelReason: reason,
+            },
+        });
+
+        res.json(cancelled);
+    }),
 );
 ```
 
 **C. Frontend**
+
 - Add "Cancel Evaluation" button in procurement view
 - Show cancelled evaluations with strikethrough/grey styling
 - Add filter to show/hide cancelled evaluations
@@ -316,41 +332,44 @@ router.post('/api/evaluations/:id/cancel', authMiddleware, requireRole(['PROCURE
 #### Implementation:
 
 **A. Data Flow**
+
 ```
 Evaluation (Completed) → Auto-fill HOD Form → Procurement Manager → ED
 ```
 
 **B. Backend Service**
+
 ```typescript
 // services/hodFormService.ts
 export async function generateHODFormFromEvaluation(evaluationId: number) {
-  const evaluation = await prisma.evaluation.findUnique({
-    where: { id: evaluationId },
-    include: {
-      request: true,
-      combinedRequest: true,
-      assignments: { include: { user: true } }
-    }
-  });
-  
-  // Extract key data from evaluation
-  const formData = {
-    rfqNumber: evaluation.rfqNumber,
-    rfqTitle: evaluation.rfqTitle,
-    totalValue: extractTotalValue(evaluation),
-    recommendedSupplier: extractRecommendedSupplier(evaluation.sectionC),
-    evaluationScore: extractScore(evaluation),
-    evaluators: evaluation.assignments.map(a => a.user.name).join(', '),
-    completionDate: evaluation.reportCompletionDate,
-    // ... other fields from evaluation
-  };
-  
-  return formData;
+    const evaluation = await prisma.evaluation.findUnique({
+        where: { id: evaluationId },
+        include: {
+            request: true,
+            combinedRequest: true,
+            assignments: { include: { user: true } },
+        },
+    });
+
+    // Extract key data from evaluation
+    const formData = {
+        rfqNumber: evaluation.rfqNumber,
+        rfqTitle: evaluation.rfqTitle,
+        totalValue: extractTotalValue(evaluation),
+        recommendedSupplier: extractRecommendedSupplier(evaluation.sectionC),
+        evaluationScore: extractScore(evaluation),
+        evaluators: evaluation.assignments.map((a) => a.user.name).join(', '),
+        completionDate: evaluation.reportCompletionDate,
+        // ... other fields from evaluation
+    };
+
+    return formData;
 }
 ```
 
 **C. Frontend Component**
 Create `src/pages/Procurement/DepartmentHead/HODFormGenerate.tsx`:
+
 - Button: "Generate from Evaluation"
 - Evaluation selector dropdown
 - Auto-populate all fields from selected evaluation
@@ -366,6 +385,7 @@ Create `src/pages/Procurement/DepartmentHead/HODFormGenerate.tsx`:
 #### Implementation:
 
 **A. Database Schema**
+
 ```prisma
 model HODForm {
   id                    Int       @id @default(autoincrement())
@@ -390,13 +410,13 @@ model HODForm {
   currentAssigneeId     Int?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
-  
+
   evaluation      Evaluation @relation(fields: [evaluationId], references: [id])
   hod             User       @relation("HODFormHOD", fields: [hodId], references: [id])
   procurementMgr  User?      @relation("HODFormPM", fields: [procurementManagerId], references: [id])
   executiveDir    User?      @relation("HODFormED", fields: [executiveDirectorId], references: [id])
   currentAssignee User?      @relation("HODFormAssignee", fields: [currentAssigneeId], references: [id])
-  
+
   @@index([evaluationId])
   @@index([status])
   @@index([currentAssigneeId])
@@ -412,48 +432,49 @@ enum HODFormStatus {
 ```
 
 **B. Workflow Logic**
+
 ```typescript
 // POST /api/hod-forms/:id/approve
 async function approveHODForm(formId, userId, comments) {
-  const form = await prisma.hODForm.findUnique({ where: { id: formId } });
-  
-  if (form.status === 'PENDING_HOD') {
-    // HOD approved → send to Procurement Manager
-    const pm = await findProcurementManager();
-    await prisma.hODForm.update({
-      where: { id: formId },
-      data: {
-        hodApprovedAt: new Date(),
-        hodComments: comments,
-        status: 'PENDING_PROCUREMENT_MANAGER',
-        procurementManagerId: pm.id,
-        currentAssigneeId: pm.id
-      }
-    });
-  } else if (form.status === 'PENDING_PROCUREMENT_MANAGER') {
-    // PM approved → send to ED
-    const ed = await findExecutiveDirector();
-    await prisma.hODForm.update({
-      where: { id: formId },
-      data: {
-        pmApprovedAt: new Date(),
-        pmComments: comments,
-        status: 'PENDING_EXECUTIVE_DIRECTOR',
-        executiveDirectorId: ed.id,
-        currentAssigneeId: ed.id
-      }
-    });
-  } else if (form.status === 'PENDING_EXECUTIVE_DIRECTOR') {
-    // ED approved → final approval
-    await prisma.hODForm.update({
-      where: { id: formId },
-      data: {
-        edApprovedAt: new Date(),
-        edComments: comments,
-        status: 'APPROVED'
-      }
-    });
-  }
+    const form = await prisma.hODForm.findUnique({ where: { id: formId } });
+
+    if (form.status === 'PENDING_HOD') {
+        // HOD approved → send to Procurement Manager
+        const pm = await findProcurementManager();
+        await prisma.hODForm.update({
+            where: { id: formId },
+            data: {
+                hodApprovedAt: new Date(),
+                hodComments: comments,
+                status: 'PENDING_PROCUREMENT_MANAGER',
+                procurementManagerId: pm.id,
+                currentAssigneeId: pm.id,
+            },
+        });
+    } else if (form.status === 'PENDING_PROCUREMENT_MANAGER') {
+        // PM approved → send to ED
+        const ed = await findExecutiveDirector();
+        await prisma.hODForm.update({
+            where: { id: formId },
+            data: {
+                pmApprovedAt: new Date(),
+                pmComments: comments,
+                status: 'PENDING_EXECUTIVE_DIRECTOR',
+                executiveDirectorId: ed.id,
+                currentAssigneeId: ed.id,
+            },
+        });
+    } else if (form.status === 'PENDING_EXECUTIVE_DIRECTOR') {
+        // ED approved → final approval
+        await prisma.hODForm.update({
+            where: { id: formId },
+            data: {
+                edApprovedAt: new Date(),
+                edComments: comments,
+                status: 'APPROVED',
+            },
+        });
+    }
 }
 ```
 
@@ -467,25 +488,27 @@ async function approveHODForm(formId, userId, comments) {
 #### Implementation:
 
 **A. Threshold Configuration**
+
 ```typescript
 // Update thresholdService.ts
 const PROCUREMENT_THRESHOLDS = {
-  GOODS: {
-    ED_APPROVAL: 3_000_000, // 3M JMD
-    SPECIAL_PROCESS: 5_000_000
-  },
-  WORKS: {
-    ED_APPROVAL: 5_000_000, // 5M JMD
-    SPECIAL_PROCESS: 10_000_000
-  }
+    GOODS: {
+        ED_APPROVAL: 3_000_000, // 3M JMD
+        SPECIAL_PROCESS: 5_000_000,
+    },
+    WORKS: {
+        ED_APPROVAL: 5_000_000, // 5M JMD
+        SPECIAL_PROCESS: 10_000_000,
+    },
 };
 
 export function requiresEDApproval(amount: number, type: 'GOODS' | 'WORKS'): boolean {
-  return amount >= PROCUREMENT_THRESHOLDS[type].ED_APPROVAL;
+    return amount >= PROCUREMENT_THRESHOLDS[type].ED_APPROVAL;
 }
 ```
 
 **B. Database Schema**
+
 ```prisma
 model EDApprovalForm {
   id                  Int       @id @default(autoincrement())
@@ -504,13 +527,13 @@ model EDApprovalForm {
   approvedAt          DateTime?
   comments            String?   @db.Text
   createdAt           DateTime  @default(now())
-  
+
   request       Request?    @relation(fields: [requestId], references: [id])
   hodForm       HODForm?    @relation(fields: [hodFormId], references: [id])
   evaluation    Evaluation? @relation(fields: [evaluationId], references: [id])
   submittedBy   User        @relation("EDFormSubmitter", fields: [submittedById], references: [id])
   approvedBy    User?       @relation("EDFormApprover", fields: [approvedById], references: [id])
-  
+
   @@index([status])
   @@index([requestId])
 }
@@ -523,33 +546,35 @@ enum EDFormStatus {
 ```
 
 **C. Workflow Integration**
+
 ```typescript
 // Modify request approval workflow
 if (action === 'APPROVE' && request.status === 'PROCUREMENT_REVIEW') {
-  const totalValue = Number(request.totalEstimated || 0);
-  const procTypes = getProcurementTypes(request);
-  const type = procTypes.includes('WORKS') ? 'WORKS' : 'GOODS';
-  
-  if (requiresEDApproval(totalValue, type)) {
-    // Create ED Approval Form
-    await prisma.eDApprovalForm.create({
-      data: {
-        requestId: request.id,
-        procurementType: type,
-        totalAmount: totalValue,
-        status: 'PENDING',
-        submittedById: userId
-      }
-    });
-    
-    nextStatus = 'EXECUTIVE_REVIEW';
-  } else {
-    nextStatus = 'FINANCE_APPROVED';
-  }
+    const totalValue = Number(request.totalEstimated || 0);
+    const procTypes = getProcurementTypes(request);
+    const type = procTypes.includes('WORKS') ? 'WORKS' : 'GOODS';
+
+    if (requiresEDApproval(totalValue, type)) {
+        // Create ED Approval Form
+        await prisma.eDApprovalForm.create({
+            data: {
+                requestId: request.id,
+                procurementType: type,
+                totalAmount: totalValue,
+                status: 'PENDING',
+                submittedById: userId,
+            },
+        });
+
+        nextStatus = 'EXECUTIVE_REVIEW';
+    } else {
+        nextStatus = 'FINANCE_APPROVED';
+    }
 }
 ```
 
 **D. Frontend Forms**
+
 - Create `src/pages/Procurement/ExecutiveDirector/EDApprovalForm.tsx`
 - Display threshold warning when amount exceeds limits
 - Required fields: Justification, Risk Assessment, Alternatives Considered
@@ -565,6 +590,7 @@ if (action === 'APPROVE' && request.status === 'PROCUREMENT_REVIEW') {
 #### Implementation:
 
 **A. Database Schema**
+
 ```prisma
 model StatusComment {
   id            Int       @id @default(autoincrement())
@@ -574,54 +600,50 @@ model StatusComment {
   comment       String    @db.Text
   commentedById Int
   createdAt     DateTime  @default(now())
-  
+
   commentedBy   User      @relation(fields: [commentedById], references: [id])
-  
+
   @@index([entityType, entityId])
   @@index([createdAt])
 }
 ```
 
 **B. Backend Service**
+
 ```typescript
 // services/commentService.ts
-export async function addStatusComment(
-  entityType: string,
-  entityId: number,
-  status: string,
-  comment: string,
-  userId: number
-) {
-  return await prisma.statusComment.create({
-    data: {
-      entityType,
-      entityId,
-      status,
-      comment,
-      commentedById: userId
-    },
-    include: {
-      commentedBy: {
-        select: { id: true, name: true, email: true }
-      }
-    }
-  });
+export async function addStatusComment(entityType: string, entityId: number, status: string, comment: string, userId: number) {
+    return await prisma.statusComment.create({
+        data: {
+            entityType,
+            entityId,
+            status,
+            comment,
+            commentedById: userId,
+        },
+        include: {
+            commentedBy: {
+                select: { id: true, name: true, email: true },
+            },
+        },
+    });
 }
 
 export async function getStatusHistory(entityType: string, entityId: number) {
-  return await prisma.statusComment.findMany({
-    where: { entityType, entityId },
-    include: {
-      commentedBy: {
-        select: { id: true, name: true }
-      }
-    },
-    orderBy: { createdAt: 'desc' }
-  });
+    return await prisma.statusComment.findMany({
+        where: { entityType, entityId },
+        include: {
+            commentedBy: {
+                select: { id: true, name: true },
+            },
+        },
+        orderBy: { createdAt: 'desc' },
+    });
 }
 ```
 
 **C. Frontend Component**
+
 ```tsx
 // components/StatusTimeline.tsx
 // Displays status changes with comments
@@ -639,40 +661,46 @@ export async function getStatusHistory(entityType: string, entityId: number) {
 #### Implementation:
 
 **A. Backend Enhancement**
+
 ```typescript
 // POST /api/combine/recombine
-router.post('/api/combine/recombine', authMiddleware, asyncHandler(async (req, res) => {
-  const { combinedRequestIds, title, description } = req.body;
-  const userId = req.user.sub;
-  
-  // Fetch all combined requests and their lots
-  const combinedRequests = await prisma.combinedRequest.findMany({
-    where: { id: { in: combinedRequestIds } },
-    include: { lots: true }
-  });
-  
-  // Collect all lot IDs from multiple combined requests
-  const allLots = combinedRequests.flatMap(cr => cr.lots.map(lot => lot.id));
-  
-  // Create new super-combined request
-  const newCombined = await prisma.combinedRequest.create({
-    data: {
-      reference: generateReference('RECOMB'),
-      title,
-      description,
-      createdBy: userId,
-      lots: {
-        connect: allLots.map(id => ({ id }))
-      }
-    },
-    include: { lots: true }
-  });
-  
-  res.json(newCombined);
-}));
+router.post(
+    '/api/combine/recombine',
+    authMiddleware,
+    asyncHandler(async (req, res) => {
+        const { combinedRequestIds, title, description } = req.body;
+        const userId = req.user.sub;
+
+        // Fetch all combined requests and their lots
+        const combinedRequests = await prisma.combinedRequest.findMany({
+            where: { id: { in: combinedRequestIds } },
+            include: { lots: true },
+        });
+
+        // Collect all lot IDs from multiple combined requests
+        const allLots = combinedRequests.flatMap((cr) => cr.lots.map((lot) => lot.id));
+
+        // Create new super-combined request
+        const newCombined = await prisma.combinedRequest.create({
+            data: {
+                reference: generateReference('RECOMB'),
+                title,
+                description,
+                createdBy: userId,
+                lots: {
+                    connect: allLots.map((id) => ({ id })),
+                },
+            },
+            include: { lots: true },
+        });
+
+        res.json(newCombined);
+    }),
+);
 ```
 
 **B. Frontend UI**
+
 - Multi-select checkbox for combined requests
 - "Re-combine Selected" button
 - Shows all underlying lots in preview
@@ -690,29 +718,29 @@ router.post('/api/combine/recombine', authMiddleware, asyncHandler(async (req, r
 ```tsx
 // components/EvaluationStatusBadge.tsx
 export function EvaluationStatusBadge({ status }: { status: string }) {
-  const getBadgeClass = (status: string) => {
-    switch (status) {
-      case 'COMPLETED':
-        return 'badge badge-outline-success';
-      case 'VALIDATED':
-        return 'badge badge-outline-primary';
-      case 'IN_PROGRESS':
-        return 'badge badge-outline-warning';
-      case 'CANCELLED':
-        return 'badge badge-outline-danger';
-      case 'REJECTED':
-        return 'badge badge-outline-danger';
-      default:
-        return 'badge badge-outline-info';
-    }
-  };
-  
-  return (
-    <span className={getBadgeClass(status)}>
-      {status === 'COMPLETED' && <IconChecks className="mr-1" />}
-      {status.replace(/_/g, ' ')}
-    </span>
-  );
+    const getBadgeClass = (status: string) => {
+        switch (status) {
+            case 'COMPLETED':
+                return 'badge badge-outline-success';
+            case 'VALIDATED':
+                return 'badge badge-outline-primary';
+            case 'IN_PROGRESS':
+                return 'badge badge-outline-warning';
+            case 'CANCELLED':
+                return 'badge badge-outline-danger';
+            case 'REJECTED':
+                return 'badge badge-outline-danger';
+            default:
+                return 'badge badge-outline-info';
+        }
+    };
+
+    return (
+        <span className={getBadgeClass(status)}>
+            {status === 'COMPLETED' && <IconChecks className="mr-1" />}
+            {status.replace(/_/g, ' ')}
+        </span>
+    );
 }
 ```
 
@@ -723,11 +751,13 @@ Add to evaluation lists and detail pages.
 ## TESTING CHECKLIST
 
 ### Dual Role
+
 - [ ] Budget Manager can approve at FINANCE_REVIEW stage
 - [ ] Finance Officer can still approve at FINANCE_REVIEW
 - [ ] Other roles are blocked from FINANCE_REVIEW
 
 ### Evaluation Features
+
 - [ ] Upload quotes during evaluation
 - [ ] Download uploaded quotes
 - [ ] Delete uploaded quotes (procurement only)
@@ -739,6 +769,7 @@ Add to evaluation lists and detail pages.
 - [ ] Completed badge displays correctly
 
 ### HOD Workflow
+
 - [ ] Generate HOD form from evaluation
 - [ ] HOD approves → goes to Procurement Manager
 - [ ] Procurement Manager approves → goes to ED
@@ -746,6 +777,7 @@ Add to evaluation lists and detail pages.
 - [ ] Rejection at any stage
 
 ### Thresholds
+
 - [ ] 3M goods triggers ED approval
 - [ ] 5M works triggers ED approval
 - [ ] ED form created automatically
@@ -753,12 +785,14 @@ Add to evaluation lists and detail pages.
 - [ ] Below threshold skips ED step
 
 ### Comments & Status
+
 - [ ] Status changes logged with comments
 - [ ] Timeline displays correctly
 - [ ] Historical comments viewable
 - [ ] User attribution correct
 
 ### Re-combine
+
 - [ ] Select multiple combined requests
 - [ ] Create super-combined request
 - [ ] All lots included

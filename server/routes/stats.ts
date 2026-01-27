@@ -394,8 +394,8 @@ router.get('/dashboard', async (req: Request, res: Response) => {
                             lt: range.end,
                         },
                     },
-                })
-            )
+                }),
+            ),
         );
 
         const trendApprovals = await Promise.all(
@@ -408,8 +408,8 @@ router.get('/dashboard', async (req: Request, res: Response) => {
                             lt: range.end,
                         },
                     },
-                })
-            )
+                }),
+            ),
         );
 
         // Department performance using real grouped counts
@@ -502,7 +502,7 @@ router.get('/system', async (req: Request, res: Response) => {
                         },
                     },
                 }),
-            'Requests this month'
+            'Requests this month',
         );
         console.log(`[Stats] Requests this month: ${requestsThisMonth}`);
 
@@ -522,7 +522,7 @@ router.get('/system', async (req: Request, res: Response) => {
                         },
                     },
                 }),
-            'Pending approvals'
+            'Pending approvals',
         );
         console.log(`[Stats] Pending approvals: ${pendingApprovals}`);
 
@@ -541,7 +541,7 @@ router.get('/system', async (req: Request, res: Response) => {
                         },
                     },
                 }),
-            'Total processed requests'
+            'Total processed requests',
         );
         console.log(`[Stats] Total processed: ${totalProcessedRequests}`);
 

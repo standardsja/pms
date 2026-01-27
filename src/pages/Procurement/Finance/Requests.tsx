@@ -222,12 +222,12 @@ const FinanceRequests = () => {
                 },
             });
             if (!res.ok) {
-                const err = await res.json().catch(() => ({} as any));
+                const err = await res.json().catch(() => ({}) as any);
                 throw new Error(err.message || 'Failed to assign to self');
             }
             const updated = await res.json();
             // Update currentAssignee client-side by refreshing list
-            setRequests((prev) => prev.map((r) => (r.id === req.id ? { ...r, /* shallow update */ } : r)));
+            setRequests((prev) => prev.map((r) => (r.id === req.id ? { ...r /* shallow update */ } : r)));
             await MySwal.fire({ icon: 'success', title: 'Assigned to You', text: 'You are now the assignee for this request.' });
         } catch (e: any) {
             MySwal.fire({ icon: 'error', title: 'Assignment Failed', text: e.message || 'Could not assign to yourself.' });
@@ -262,7 +262,7 @@ const FinanceRequests = () => {
                 body: JSON.stringify({ userId: targetUserId }),
             });
             if (!res.ok) {
-                const err = await res.json().catch(() => ({} as any));
+                const err = await res.json().catch(() => ({}) as any);
                 throw new Error(err.message || 'Failed to assign to user');
             }
             await MySwal.fire({ icon: 'success', title: 'Assigned', text: `Request assigned to user ID ${targetUserId}.` });
