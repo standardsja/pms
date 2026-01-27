@@ -2107,7 +2107,13 @@ const RequestForm = () => {
                                         </label>
                                         <div>
                                             <label className="block text-xs text-gray-500 mb-1">Date Approved:</label>
-                                            <input type="date" className="form-input w-full" value={budgetOfficerApprovedDate} onChange={(e) => setBudgetOfficerApprovedDate(e.target.value)} disabled={!canApproveBudgetOfficer} />
+                                            <input
+                                                type="date"
+                                                className="form-input w-full"
+                                                value={budgetOfficerApprovedDate}
+                                                onChange={(e) => setBudgetOfficerApprovedDate(e.target.value)}
+                                                disabled={!canApproveBudgetOfficer}
+                                            />
                                         </div>
                                         <div className="flex gap-2 mt-2">
                                             <button
@@ -2169,7 +2175,13 @@ const RequestForm = () => {
                                         </label>
                                         <div>
                                             <label className="block text-xs text-gray-500 mb-1">Date Approved:</label>
-                                            <input type="date" className="form-input w-full" value={budgetManagerApprovedDate} onChange={(e) => setBudgetManagerApprovedDate(e.target.value)} disabled={!canApproveBudgetManager} />
+                                            <input
+                                                type="date"
+                                                className="form-input w-full"
+                                                value={budgetManagerApprovedDate}
+                                                onChange={(e) => setBudgetManagerApprovedDate(e.target.value)}
+                                                disabled={!canApproveBudgetManager}
+                                            />
                                         </div>
                                         <div className="flex gap-2 mt-2">
                                             <button
