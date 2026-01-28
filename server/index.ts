@@ -3066,7 +3066,16 @@ app.get('/api/requests/:id/pdf', async (req, res) => {
         const request = await prisma.request.findUnique({
             where: { id: parseInt(id, 10) },
             include: {
-                items: true,
+                items: {
+                    select: {
+                        id: true,
+                        description: true,
+                        quantity: true,
+                        unitOfMeasure: true,
+                        unitPrice: true,
+                        partNumber: true,
+                    },
+                },
                 requester: true,
                 department: true,
                 currentAssignee: true,
@@ -3143,7 +3152,9 @@ app.get('/api/requests/:id/pdf', async (req, res) => {
           <td>${idx + 1}</td>
           <td>${item.description || '—'}</td>
           <td style="text-align: center;">${item.quantity || '—'}</td>
+          <td style="text-align: center;">${item.unitOfMeasure || '—'}</td>
           <td style="text-align: right;">${formatCurrency(item.unitPrice)}</td>
+          <td style="text-align: center;">${item.partNumber || '—'}</td>
           <td style="text-align: right;">${formatCurrency(parseFloat(String(item.quantity || 0)) * parseFloat(String(item.unitPrice || 0)))}</td>
         </tr>`,
             )
@@ -3167,13 +3178,16 @@ app.get('/api/requests/:id/pdf', async (req, res) => {
             .replace('{{currency}}', request.currency || 'JMD')
             .replace(/{{totalEstimated}}/g, formatCurrency(request.totalEstimated))
             .replace('{{description}}', request.description || '—')
+            .replace('{{justification}}', request.justification || request.description || '—')
             .replace('{{itemsRows}}', itemsRows)
             .replace('{{managerName}}', request.managerName || '—')
-            .replace('{{managerApprovalDate}}', formatDate(request.actionDate ? new Date(request.actionDate) : null))
+            .replace('{{managerApprovalDate}}', formatDate(request.managerApprovedAt))
             .replace('{{headName}}', request.headName || '—')
-            .replace('{{hodApprovalDate}}', formatDate(request.actionDate ? new Date(request.actionDate) : null))
+            .replace('{{hodApprovalDate}}', formatDate(request.headApprovedAt))
             .replace('{{budgetOfficerName}}', request.budgetOfficerName || '—')
+            .replace('{{budgetOfficerApprovalDate}}', formatDate(request.budgetOfficerApprovedAt))
             .replace('{{budgetManagerName}}', request.budgetManagerName || '—')
+            .replace('{{budgetManagerApprovalDate}}', formatDate(request.budgetManagerApprovedAt))
             .replace('{{financeApprovalDate}}', formatDate(request.actionDate ? new Date(request.actionDate) : null))
             .replace('{{commitmentNumber}}', request.commitmentNumber || '—')
             .replace('{{accountingCode}}', request.accountingCode || '—')
@@ -4087,7 +4101,17 @@ app.post('/api/requests/:id/action', async (req, res) => {
             if (enumProblem && request.status === 'FINANCE_REVIEW') {
                 // Fallback: if DB enum lacks BUDGET_MANAGER_REVIEW, treat as FINANCE_APPROVED
                 const procurement = await prisma.user.findFirst({
-                    where: { roles: { some: { role: { name: 'PROCUREMENT' } } } },
+                    where: { 
+                        roles: { 
+                            some: { 
+                                role: { 
+                                    name: { 
+                                        in: ['PROCUREMENT', 'PROCUREMENT_OFFICER', 'PROCUREMENT_MANAGER'] 
+                                    } 
+                                } 
+                            } 
+                        } 
+                    },
                 });
                 const fallbackStatus = 'FINANCE_APPROVED' as const;
                 updated = await prisma.request.update({
@@ -4280,8 +4304,8 @@ app.post('/api/requests/:id/assign/self', async (req, res) => {
     }
 });
 
-// POST /api/requests/:id/assign - Budget Manager/Finance Manager assign to specific user during finance stages
-app.post('/api/requests/:id/assign', async (req, res) => {
+// POST /api/requests/:id/assign-finance - Budget Manager/Finance Manager assign to specific user during finance stages
+app.post('/api/requests/:id/assign-finance', async (req, res) => {
     try {
         const { id } = req.params;
         const { userId: targetUserId } = req.body || {};
@@ -4366,6 +4390,7 @@ app.get('/api/users/procurement-officers', async (req, res) => {
             where: {
                 OR: [
                     { roles: { some: { role: { name: 'PROCUREMENT' } } } },
+                    { roles: { some: { role: { name: 'PROCUREMENT_OFFICER' } } } },
                     { roles: { some: { role: { name: 'PROCUREMENT_MANAGER' } } } },
                     { AND: [{ roles: { some: { role: { name: 'DEPT_MANAGER' } } } }, { department: { code: 'PROC' } }] },
                 ],
@@ -6649,13 +6674,32 @@ app.post(
     authMiddleware,
     asyncHandler(async (req, res) => {
         const { id } = req.params;
-        const { userIds, sections } = (req.body || {}) as { userIds?: number[]; sections?: string[] };
+        const { userIds, userEmails, sections } = (req.body || {}) as { userIds?: number[]; userEmails?: string[]; sections?: string[] };
         const authUser: any = (req as any).user;
-        const roles: string[] = authUser?.roles || [];
-        const isProcurement = roles.some((r: string) => r.toUpperCase().includes('PROCUREMENT'));
+        
+        console.log('[Assign Evaluators] Request received', {
+            evaluationId: id,
+            userIds,
+            userEmails,
+            sections,
+            authUser: authUser ? { id: authUser.sub || authUser.id, email: authUser.email } : null
+        });
+        
+        // Extract role names properly from the authenticated user object
+        let roleNames: string[] = [];
+        if (authUser?.roles && Array.isArray(authUser.roles)) {
+            roleNames = authUser.roles.map((r: any) => String(r.role?.name || r || '').toUpperCase()).filter(Boolean);
+        } else if (authUser?.rolesNames && Array.isArray(authUser.rolesNames)) {
+            roleNames = authUser.rolesNames.map((r: string) => String(r).toUpperCase()).filter(Boolean);
+        }
+        
+        console.log('[Assign Evaluators] Extracted roles', { roleNames });
+        
+        const isProcurement = roleNames.some((r: string) => r.includes('PROCUREMENT'));
 
         if (!isProcurement) {
-            return res.status(403).json({ success: false, message: 'Only procurement users can assign evaluators' });
+            console.log('[Assign Evaluators] Permission denied - not a procurement user');
+            return res.status(403).json({ success: false, message: 'Only procurement users can assign evaluators. Current roles: ' + roleNames.join(', ') });
         }
 
         if (!hasEvaluationDelegate()) {
@@ -6673,23 +6717,55 @@ app.post(
         });
         if (!evalRecord) throw new NotFoundError('Evaluation not found');
 
+        // Resolve emails to userIds
+        let resolvedUserIds: number[] = [...(userIds || [])];
+        if (Array.isArray(userEmails) && userEmails.length > 0) {
+            const emailUsers = await prisma.user.findMany({
+                where: { email: { in: userEmails } },
+                select: { id: true },
+            });
+            resolvedUserIds = Array.from(new Set([...resolvedUserIds, ...emailUsers.map((u) => u.id)]));
+        }
+
         // Determine requester(s) from combined lots; auto-include as assignees
         const requesterIds: number[] = Array.isArray(evalRecord?.combinedRequest?.lots) ? Array.from(new Set(evalRecord.combinedRequest.lots.map((l: any) => l.requesterId).filter(Boolean))) : [];
 
-        const uniqueUserIds = Array.from(new Set([...(userIds || []), ...requesterIds])).filter((n) => Number.isFinite(n));
+        const uniqueUserIds = Array.from(new Set([...resolvedUserIds, ...requesterIds])).filter((n) => Number.isFinite(n));
         if (uniqueUserIds.length === 0) {
             return res.status(400).json({ success: false, message: 'No valid recipients to assign' });
         }
 
         const sectionList = (Array.isArray(sections) && sections.length ? sections : ['B', 'C']).map((s) => String(s).toUpperCase());
 
+        // Capture which cells are pre-filled (non-empty) in Section B tables at assignment time
+        const prefilledCells: Record<string, boolean> = {};
+        if (sectionList.includes('B') && evalRecord?.sectionB?.bidders?.[0]) {
+            const bidder = evalRecord.sectionB.bidders[0];
+            // Track prefilled cells from eligibility, compliance, and technical evaluation tables
+            const tables = ['eligibilityRequirements', 'complianceMatrix', 'technicalEvaluation'];
+            for (const tableName of tables) {
+                const table = (bidder as any)[tableName];
+                if (table && table.rows && Array.isArray(table.rows)) {
+                    for (const row of table.rows) {
+                        if (row.data && typeof row.data === 'object') {
+                            for (const [cellId, value] of Object.entries(row.data)) {
+                                if (value && String(value).trim() !== '') {
+                                    prefilledCells[`B-${row.id}-${cellId}`] = true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // Upsert assignments
         const created: any[] = [];
         for (const uid of uniqueUserIds) {
             const assignment = await (prisma as any).evaluationAssignment.upsert({
                 where: { evaluationId_userId: { evaluationId: evalId, userId: uid } },
-                update: { sections: sectionList },
-                create: { evaluationId: evalId, userId: uid, sections: sectionList, status: 'PENDING' },
+                update: { sections: sectionList, prefilledCells: sectionList.includes('B') ? prefilledCells : null },
+                create: { evaluationId: evalId, userId: uid, sections: sectionList, status: 'PENDING', prefilledCells: sectionList.includes('B') ? prefilledCells : null },
             });
             created.push(assignment);
 
@@ -7023,6 +7099,58 @@ app.post(
         res.json({
             success: true,
             message: allSubmitted ? 'All assignments complete! Evaluation returned to procurement for Sections D & E.' : 'Assignment marked as complete and procurement notified',
+        });
+    }),
+);
+
+// DELETE /api/evaluations/assignments/:id - Remove an evaluator assignment (procurement only)
+app.delete(
+    '/api/evaluations/assignments/:id',
+    authMiddleware,
+    requireRole('PROCUREMENT', 'PROCUREMENT_OFFICER', 'PROCUREMENT_MANAGER'),
+    asyncHandler(async (req, res) => {
+        const { id } = req.params;
+
+        if (!hasEvaluationDelegate()) {
+            return res.status(501).json({ success: false, message: 'Assignments require Prisma model; please run migrations' });
+        }
+
+        const assignmentId = parseInt(id);
+        if (!Number.isFinite(assignmentId)) throw new BadRequestError('Invalid assignment ID');
+
+        const assignment = await (prisma as any).evaluationAssignment.findUnique({
+            where: { id: assignmentId },
+            include: { user: true, evaluation: true },
+        });
+
+        if (!assignment) throw new NotFoundError('Assignment not found');
+
+        // Delete the assignment
+        await (prisma as any).evaluationAssignment.delete({
+            where: { id: assignmentId },
+        });
+
+        // Notify the user that they were removed from the assignment
+        try {
+            await (prisma as any).notification.create({
+                data: {
+                    userId: assignment.userId,
+                    type: 'EVALUATION_REMOVED',
+                    message: `You have been removed from the evaluation assignment for ${assignment.evaluation.evalNumber} (${assignment.evaluation.rfqTitle})`,
+                    data: {
+                        evaluationId: assignment.evaluationId,
+                        evalNumber: assignment.evaluation.evalNumber,
+                        rfqTitle: assignment.evaluation.rfqTitle,
+                    },
+                },
+            });
+        } catch (e) {
+            console.error('Failed to notify user of assignment removal:', e);
+        }
+
+        res.json({
+            success: true,
+            message: `Evaluator ${assignment.user.name || assignment.user.email} has been removed from the evaluation`,
         });
     }),
 );

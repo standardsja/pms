@@ -130,7 +130,7 @@ const NewEvaluation = () => {
             return roleName.toUpperCase();
         });
         const hasAccess = roles.some(
-            (role) => role.includes('PROCUREMENT_OFFICER') || role.includes('PROCUREMENT_MANAGER') || role.includes('PROCUREMENT') || role.includes('MANAGER') || role.includes('REQUESTER')
+            (role) => role.includes('PROCUREMENT_OFFICER') || role.includes('PROCUREMENT_MANAGER') || role.includes('PROCUREMENT') || role.includes('MANAGER') || role.includes('REQUESTER'),
         );
         if (!hasAccess) {
             navigate('/procurement/evaluation');
@@ -376,7 +376,7 @@ const NewEvaluation = () => {
                     const currentValue = r.data[colId]?.toLowerCase();
                     const newValue = currentValue === 'yes' || currentValue === 'no' ? currentValue.charAt(0).toUpperCase() + currentValue.slice(1) : '';
                     return { ...r, data: { ...r.data, [colId]: newValue } };
-                })
+                }),
             );
         }
     };
@@ -503,21 +503,21 @@ const NewEvaluation = () => {
                         formData.procurementMethod === 'National Competitive Bidding'
                             ? 'NATIONAL_COMPETITIVE_BIDDING'
                             : formData.procurementMethod === 'International Competitive Bidding'
-                            ? 'INTERNATIONAL_COMPETITIVE_BIDDING'
-                            : formData.procurementMethod === 'Restricted Bidding'
-                            ? 'RESTRICTED_BIDDING'
-                            : formData.procurementMethod === 'Single Source'
-                            ? 'SINGLE_SOURCE'
-                            : 'EMERGENCY_SINGLE_SOURCE',
+                              ? 'INTERNATIONAL_COMPETITIVE_BIDDING'
+                              : formData.procurementMethod === 'Restricted Bidding'
+                                ? 'RESTRICTED_BIDDING'
+                                : formData.procurementMethod === 'Single Source'
+                                  ? 'SINGLE_SOURCE'
+                                  : 'EMERGENCY_SINGLE_SOURCE',
                     advertisementMethods: Array.isArray(formData.advertisementMethods) && formData.advertisementMethods.length > 0 ? formData.advertisementMethods : ['Not Specified'],
                     contractType:
                         formData.contractType === 'Goods'
                             ? 'GOODS'
                             : formData.contractType === 'Consulting Services'
-                            ? 'CONSULTING_SERVICES'
-                            : formData.contractType === 'Non-Consulting Services'
-                            ? 'NON_CONSULTING_SERVICES'
-                            : 'WORKS',
+                              ? 'CONSULTING_SERVICES'
+                              : formData.contractType === 'Non-Consulting Services'
+                                ? 'NON_CONSULTING_SERVICES'
+                                : 'WORKS',
                     bidSecurity: formData.bidSecurity || '',
                     tenderPeriodStartDate: formData.tenderPeriodStartDate || '',
                     tenderPeriodEndDate: formData.tenderPeriodEndDate || '',

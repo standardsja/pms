@@ -53,6 +53,9 @@ const EvaluationDetail = () => {
     const [selectedAssignSections, setSelectedAssignSections] = useState<string[]>([]);
     const [completingAssignment, setCompletingAssignment] = useState<boolean>(false);
     const [assignmentsRefreshKey, setAssignmentsRefreshKey] = useState(0);
+    const [availableUsers, setAvailableUsers] = useState<any[]>([]);
+    const [userSearchTerm, setUserSearchTerm] = useState<string>('');
+    const [showUserDropdown, setShowUserDropdown] = useState<boolean>(false);
 
     const toast = (title: string, icon: 'success' | 'error' | 'info' | 'warning' = 'info') =>
         Swal.fire({
@@ -229,6 +232,18 @@ const EvaluationDetail = () => {
         const loadUsersAndAssignments = async () => {
             if (!isProcurement || !id) return;
             try {
+                // Load all users for search dropdown
+                const response = await fetch('/api/admin/users', {
+                    headers: {
+                        Authorization: `Bearer ${localStorage.getItem('token')}`,
+                        'x-user-id': String(authUser?.id || ''),
+                    },
+                });
+                if (response.ok) {
+                    const users = await response.json();
+                    setAvailableUsers(users || []);
+                }
+
                 const allAssignments = await evaluationService.getAllAssignments(parseInt(id));
                 setCurrentAssignments(allAssignments || []);
                 // Disable structure editing if there are any assignments (evaluators have been assigned)
@@ -244,7 +259,7 @@ const EvaluationDetail = () => {
             }
         };
         loadUsersAndAssignments();
-    }, [isProcurement, id]);
+    }, [isProcurement, id, authUser]);
 
     if (authLoading || !authUser) {
         return (
@@ -1033,13 +1048,54 @@ const EvaluationDetail = () => {
                             return (
                                 <div key={assignment.id} className={`p-3 rounded border ${isCompleted ? 'bg-success-light border-success' : 'bg-warning-light border-warning'}`}>
                                     <div className="flex items-center justify-between">
-                                        <div>
+                                        <div className="flex-1">
                                             <span className="font-semibold">{assignment.user?.name || assignment.user?.email || `User #${assignment.userId}`}</span>
                                             <span className="text-sm ml-2">(Sections: {sections.join(', ')})</span>
+                                            {isCompleted && assignment.submittedAt && <div className="text-xs text-white-dark mt-1">Submitted: {new Date(assignment.submittedAt).toLocaleString()}</div>}
                                         </div>
-                                        <span className={`badge ${isCompleted ? 'bg-success' : 'bg-warning'}`}>{isCompleted ? '✓ Completed' : 'In Progress'}</span>
+                                        <div className="flex items-center gap-2">
+                                            <span className={`badge ${isCompleted ? 'bg-success' : 'bg-warning'}`}>{isCompleted ? '✓ Completed' : 'In Progress'}</span>
+                                            <button
+                                                type="button"
+                                                className="btn btn-sm btn-outline-danger"
+                                                onClick={async () => {
+                                                    const result = await Swal.fire({
+                                                        icon: 'warning',
+                                                        title: 'Remove Evaluator?',
+                                                        text: `Are you sure you want to remove ${assignment.user?.name || 'this evaluator'} from this evaluation?`,
+                                                        showCancelButton: true,
+                                                        confirmButtonText: 'Yes, remove',
+                                                        cancelButtonText: 'Cancel',
+                                                        confirmButtonColor: '#d33',
+                                                    });
+
+                                                    if (!result.isConfirmed) return;
+
+                                                    try {
+                                                        await evaluationService.removeAssignment(assignment.id);
+                                                        const updated = await evaluationService.getAllAssignments(evaluation.id);
+                                                        setCurrentAssignments(updated || []);
+                                                        
+                                                        Swal.fire({
+                                                            icon: 'success',
+                                                            title: 'Removed!',
+                                                            text: 'Evaluator removed successfully',
+                                                            timer: 2000,
+                                                            showConfirmButton: false,
+                                                        });
+                                                    } catch (err: any) {
+                                                        Swal.fire({
+                                                            icon: 'error',
+                                                            title: 'Removal Failed',
+                                                            text: err?.message || 'Failed to remove evaluator',
+                                                        });
+                                                    }
+                                                }}
+                                            >
+                                                Remove
+                                            </button>
+                                        </div>
                                     </div>
-                                    {isCompleted && assignment.submittedAt && <div className="text-xs text-white-dark mt-1">Submitted: {new Date(assignment.submittedAt).toLocaleString()}</div>}
                                 </div>
                             );
                         })}
@@ -1057,9 +1113,51 @@ const EvaluationDetail = () => {
                 <div className="panel mb-4 no-print">
                     <h6 className="font-semibold mb-3">Assign Evaluator</h6>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                        <div>
-                            <label className="block mb-1 text-sm">User Email or ID</label>
-                            <input type="text" className="form-input" placeholder="Enter user email or numeric ID" value={selectedUserId} onChange={(e) => setSelectedUserId(e.target.value)} />
+                        <div className="relative">
+                            <label className="block mb-1 text-sm">Search User by Name or Email</label>
+                            <input
+                                type="text"
+                                className="form-input"
+                                placeholder="Type name or email to search..."
+                                value={userSearchTerm}
+                                onChange={(e) => {
+                                    setUserSearchTerm(e.target.value);
+                                    setShowUserDropdown(e.target.value.length > 0);
+                                }}
+                                onFocus={() => setShowUserDropdown(userSearchTerm.length > 0)}
+                            />
+                            {showUserDropdown && userSearchTerm && (
+                                <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                                    {availableUsers
+                                        .filter(
+                                            (user) =>
+                                                user.name?.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
+                                                user.email?.toLowerCase().includes(userSearchTerm.toLowerCase())
+                                        )
+                                        .slice(0, 10)
+                                        .map((user) => (
+                                            <div
+                                                key={user.id}
+                                                className="px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+                                                onClick={() => {
+                                                    setSelectedUserId(String(user.id));
+                                                    setUserSearchTerm(user.name || user.email);
+                                                    setShowUserDropdown(false);
+                                                }}
+                                            >
+                                                <div className="font-medium">{user.name}</div>
+                                                <div className="text-xs text-gray-500">{user.email}</div>
+                                            </div>
+                                        ))}
+                                    {availableUsers.filter(
+                                        (user) =>
+                                            user.name?.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
+                                            user.email?.toLowerCase().includes(userSearchTerm.toLowerCase())
+                                    ).length === 0 && (
+                                        <div className="px-3 py-2 text-gray-500 text-sm">No users found</div>
+                                    )}
+                                </div>
+                            )}
                             <p className="text-xs text-gray-500 mt-1">Tip: Officers can delegate Section C to any staff here.</p>
                         </div>
                         <div>
@@ -1087,7 +1185,11 @@ const EvaluationDetail = () => {
                                 className="btn btn-primary w-full"
                                 onClick={async () => {
                                     if (!selectedUserId || selectedAssignSections.length === 0) {
-                                        alert('Enter a user and select at least one section');
+                                        Swal.fire({
+                                            icon: 'warning',
+                                            title: 'Missing Information',
+                                            text: 'Please select a user and at least one section',
+                                        });
                                         return;
                                     }
                                     try {
@@ -1101,12 +1203,25 @@ const EvaluationDetail = () => {
                                         const updated = await evaluationService.getAllAssignments(evaluation.id);
                                         setCurrentAssignments(updated || []);
                                         setSelectedUserId('');
+                                        setUserSearchTerm('');
                                         setSelectedAssignSections([]);
-                                        alert('Evaluator assigned successfully');
+                                        
+                                        Swal.fire({
+                                            icon: 'success',
+                                            title: 'Evaluator Assigned!',
+                                            text: 'The evaluator has been successfully assigned to this evaluation.',
+                                            timer: 2500,
+                                            showConfirmButton: false,
+                                        });
+                                        
                                         // Trigger refresh of editable sections
                                         setAssignmentsRefreshKey((prev) => prev + 1);
                                     } catch (err: any) {
-                                        alert(err?.message || 'Failed to assign evaluator');
+                                        Swal.fire({
+                                            icon: 'error',
+                                            title: 'Assignment Failed',
+                                            text: err?.message || 'Failed to assign evaluator',
+                                        });
                                     }
                                 }}
                             >
@@ -1198,6 +1313,7 @@ const EvaluationDetail = () => {
                 evaluation={evaluation}
                 canEditSections={canEditSections as Array<'A' | 'B' | 'C' | 'D' | 'E'>}
                 structureEditableSections={structureEditEnabled ? (['B'] as Array<'A' | 'B' | 'C' | 'D' | 'E'>) : ([] as Array<'A' | 'B' | 'C' | 'D' | 'E'>)}
+                prefilledCells={(myAssignment?.prefilledCells as Record<string, boolean>) || {}}
                 sectionCActions={
                     !isProcurement && !isCommittee && myAssignment && myAssignment.status !== 'SUBMITTED' ? (
                         <button type="button" className="btn btn-success gap-2" onClick={handleCompleteAssignment} disabled={completingAssignment}>

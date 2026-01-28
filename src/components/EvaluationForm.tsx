@@ -27,6 +27,7 @@ type Props = {
     structureEditableSections?: Array<'A' | 'B' | 'C' | 'D' | 'E'>;
     onSectionChange?: (section: 'A' | 'B' | 'C' | 'D' | 'E', data: any) => void;
     sectionCActions?: React.ReactNode;
+    prefilledCells?: Record<string, boolean>; // Track cells that were pre-filled by officer
 };
 
 // Full evaluation form matching NewEvaluation structure with conditional editability
@@ -41,25 +42,56 @@ export const EvaluationForm: React.FC<Props> = ({
     structureEditableSections = [],
     onSectionChange,
     sectionCActions,
+    prefilledCells = {},
 }) => {
-    const normalizedSectionC = useMemo<SectionC | undefined>(() => {
+    // Keep sectionC as array if multiple evaluators, or as single object if one evaluator
+    const normalizedSectionC = useMemo(() => {
         if (Array.isArray(evaluation?.sectionC)) {
-            return evaluation?.sectionC[0]?.data;
+            // Return the full array to display all evaluators' submissions
+            return evaluation?.sectionC;
         }
         return evaluation?.sectionC;
     }, [evaluation?.sectionC]);
 
     const [sectionA, setSectionA] = useState<SectionA | undefined>(evaluation?.sectionA);
     const [sectionB, setSectionB] = useState<SectionB | undefined>(evaluation?.sectionB);
-    const [sectionC, setSectionC] = useState<SectionC | undefined>(normalizedSectionC);
+    const [sectionC, setSectionC] = useState<any>(normalizedSectionC);
     const [sectionD, setSectionD] = useState<SectionD | undefined>(evaluation?.sectionD);
     const [sectionE, setSectionE] = useState<SectionE | undefined>(evaluation?.sectionE);
     const [saving, setSaving] = useState(false);
+    const [verifyingSection, setVerifyingSection] = useState<string | null>(null);
+    const [verifyNotes, setVerifyNotes] = useState<Record<string, string>>({});
 
     const canEdit = (sec: 'A' | 'B' | 'C' | 'D' | 'E') => canEditSections.includes(sec);
     const canEditStructure = (sec: 'A' | 'B' | 'C' | 'D' | 'E') => structureEditableSections.includes(sec);
     // Evaluators can only edit technical evaluation table, not eligibility or compliance
     const canEditTechnical = () => canEditSections.includes('B');
+
+    // Get section status
+    const getSectionStatus = (sec: 'A' | 'B' | 'C' | 'D' | 'E'): string => {
+        const statusKey = `section${sec}Status` as keyof typeof evaluation;
+        return (evaluation?.[statusKey] as string) || 'NOT_STARTED';
+    };
+
+    // Check if user can verify a section (procurement officer and section is submitted)
+    const canVerifySection = (sec: 'A' | 'B' | 'C' | 'D' | 'E'): boolean => {
+        if (!onVerifySection) return false;
+        const status = getSectionStatus(sec);
+        return status === 'SUBMITTED';
+    };
+
+    // Handle verify section
+    const handleVerify = async (sec: 'A' | 'B' | 'C' | 'D' | 'E') => {
+        if (!onVerifySection) return;
+        setSaving(true);
+        try {
+            await onVerifySection(sec, verifyNotes[sec]);
+            setVerifyingSection(null);
+            setVerifyNotes({ ...verifyNotes, [sec]: '' });
+        } finally {
+            setSaving(false);
+        }
+    };
 
     // Debug logging
     console.log('EvaluationForm - evaluation:', evaluation);
@@ -265,6 +297,41 @@ export const EvaluationForm: React.FC<Props> = ({
                         <button className="btn btn-primary" disabled={saving} onClick={() => saveSec('A')}>
                             {saving ? 'Saving…' : 'Save Section A'}
                         </button>
+                    </div>
+                )}
+                {canVerifySection('A') && (
+                    <div className="p-5 border-t bg-success/5">
+                        <div className="flex items-center justify-between gap-4">
+                            <div className="flex-1">
+                                <h6 className="font-semibold text-success mb-2">Verify Section A</h6>
+                                {verifyingSection === 'A' ? (
+                                    <div className="space-y-3">
+                                        <textarea
+                                            className="form-textarea w-full"
+                                            rows={2}
+                                            placeholder="Optional notes about this verification..."
+                                            value={verifyNotes['A'] || ''}
+                                            onChange={(e) => setVerifyNotes({ ...verifyNotes, A: e.target.value })}
+                                        />
+                                        <div className="flex gap-2">
+                                            <button className="btn btn-success btn-sm" disabled={saving} onClick={() => handleVerify('A')}>
+                                                {saving ? 'Verifying...' : '✓ Confirm Verification'}
+                                            </button>
+                                            <button className="btn btn-outline-secondary btn-sm" onClick={() => setVerifyingSection(null)}>
+                                                Cancel
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <button className="btn btn-success" onClick={() => setVerifyingSection('A')}>
+                                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        Verify Section A
+                                    </button>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 )}
             </div>
@@ -481,55 +548,108 @@ export const EvaluationForm: React.FC<Props> = ({
                                                     <tr key={row.id}>
                                                         {sectionB.bidders[0].eligibilityRequirements!.columns.map((col: any) => (
                                                             <td key={col.id} className="border px-2 py-2">
-                                                                {/* Eligibility table cells are editable by evaluators */}
-                                                                {col.cellType === 'radio' && canEditTechnical() ? (
-                                                                    <div className="flex items-center gap-4 justify-center">
-                                                                        <label className="flex items-center gap-1 cursor-pointer">
-                                                                            <input
-                                                                                type="radio"
-                                                                                name={`${row.id}-${col.id}`}
-                                                                                className="form-radio"
-                                                                                checked={row.data[col.id] === 'Yes'}
-                                                                                onChange={() => {
-                                                                                    const copy = { ...(sectionB as any) };
-                                                                                    copy.bidders[0].eligibilityRequirements.rows = copy.bidders[0].eligibilityRequirements.rows.map((r: any) =>
-                                                                                        r.id === row.id ? { ...r, data: { ...r.data, [col.id]: 'Yes' } } : r
-                                                                                    );
-                                                                                    setSectionB(copy);
-                                                                                }}
-                                                                            />
-                                                                            <span className="text-sm">Yes</span>
-                                                                        </label>
-                                                                        <label className="flex items-center gap-1 cursor-pointer">
-                                                                            <input
-                                                                                type="radio"
-                                                                                name={`${row.id}-${col.id}`}
-                                                                                className="form-radio"
-                                                                                checked={row.data[col.id] === 'No'}
-                                                                                onChange={() => {
-                                                                                    const copy = { ...(sectionB as any) };
-                                                                                    copy.bidders[0].eligibilityRequirements.rows = copy.bidders[0].eligibilityRequirements.rows.map((r: any) =>
-                                                                                        r.id === row.id ? { ...r, data: { ...r.data, [col.id]: 'No' } } : r
-                                                                                    );
-                                                                                    setSectionB(copy);
-                                                                                }}
-                                                                            />
-                                                                            <span className="text-sm">No</span>
-                                                                        </label>
-                                                                    </div>
-                                                                ) : canEditTechnical() ? (
-                                                                    <input
-                                                                        className="form-input w-full"
-                                                                        value={row.data[col.id] || ''}
-                                                                        onChange={(e) => {
-                                                                            const copy = { ...(sectionB as any) };
-                                                                            const table = copy.bidders[0].eligibilityRequirements;
-                                                                            table.rows = table.rows.map((r: any) => (r.id === row.id ? { ...r, data: { ...r.data, [col.id]: e.target.value } } : r));
-                                                                            setSectionB(copy);
-                                                                        }}
-                                                                    />
+                                                                {/* Eligibility table cells: officers can edit all cells, evaluators can only edit empty cells */}
+                                                                {canEditStructure('B') ? (
+                                                                    // Officer mode - always editable
+                                                                    col.cellType === 'radio' ? (
+                                                                        <div className="flex items-center gap-4 justify-center">
+                                                                            <label className="flex items-center gap-1 cursor-pointer">
+                                                                                <input
+                                                                                    type="radio"
+                                                                                    name={`${row.id}-${col.id}`}
+                                                                                    className="form-radio"
+                                                                                    checked={row.data[col.id] === 'Yes'}
+                                                                                    onChange={() => {
+                                                                                        const copy = { ...(sectionB as any) };
+                                                                                        copy.bidders[0].eligibilityRequirements.rows = copy.bidders[0].eligibilityRequirements.rows.map((r: any) =>
+                                                                                            r.id === row.id ? { ...r, data: { ...r.data, [col.id]: 'Yes' } } : r
+                                                                                        );
+                                                                                        setSectionB(copy);
+                                                                                    }}
+                                                                                />
+                                                                                <span className="text-sm">Yes</span>
+                                                                            </label>
+                                                                            <label className="flex items-center gap-1 cursor-pointer">
+                                                                                <input
+                                                                                    type="radio"
+                                                                                    name={`${row.id}-${col.id}`}
+                                                                                    className="form-radio"
+                                                                                    checked={row.data[col.id] === 'No'}
+                                                                                    onChange={() => {
+                                                                                        const copy = { ...(sectionB as any) };
+                                                                                        copy.bidders[0].eligibilityRequirements.rows = copy.bidders[0].eligibilityRequirements.rows.map((r: any) =>
+                                                                                            r.id === row.id ? { ...r, data: { ...r.data, [col.id]: 'No' } } : r
+                                                                                        );
+                                                                                        setSectionB(copy);
+                                                                                    }}
+                                                                                />
+                                                                                <span className="text-sm">No</span>
+                                                                            </label>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <input
+                                                                            className="form-input w-full"
+                                                                            value={row.data[col.id] || ''}
+                                                                            onChange={(e) => {
+                                                                                const copy = { ...(sectionB as any) };
+                                                                                const table = copy.bidders[0].eligibilityRequirements;
+                                                                                table.rows = table.rows.map((r: any) => (r.id === row.id ? { ...r, data: { ...r.data, [col.id]: e.target.value } } : r));
+                                                                                setSectionB(copy);
+                                                                            }}
+                                                                        />
+                                                                    )
+                                                                ) : canEditTechnical() && !prefilledCells[`B-${row.id}-${col.id}`] ? (
+                                                                    // Evaluator mode - only edit if cell was NOT pre-filled by officer
+                                                                    col.cellType === 'radio' ? (
+                                                                        <div className="flex items-center gap-4 justify-center">
+                                                                            <label className="flex items-center gap-1 cursor-pointer">
+                                                                                <input
+                                                                                    type="radio"
+                                                                                    name={`${row.id}-${col.id}`}
+                                                                                    className="form-radio"
+                                                                                    checked={row.data[col.id] === 'Yes'}
+                                                                                    onChange={() => {
+                                                                                        const copy = { ...(sectionB as any) };
+                                                                                        copy.bidders[0].eligibilityRequirements.rows = copy.bidders[0].eligibilityRequirements.rows.map((r: any) =>
+                                                                                            r.id === row.id ? { ...r, data: { ...r.data, [col.id]: 'Yes' } } : r
+                                                                                        );
+                                                                                        setSectionB(copy);
+                                                                                    }}
+                                                                                />
+                                                                                <span className="text-sm">Yes</span>
+                                                                            </label>
+                                                                            <label className="flex items-center gap-1 cursor-pointer">
+                                                                                <input
+                                                                                    type="radio"
+                                                                                    name={`${row.id}-${col.id}`}
+                                                                                    className="form-radio"
+                                                                                    checked={row.data[col.id] === 'No'}
+                                                                                    onChange={() => {
+                                                                                        const copy = { ...(sectionB as any) };
+                                                                                        copy.bidders[0].eligibilityRequirements.rows = copy.bidders[0].eligibilityRequirements.rows.map((r: any) =>
+                                                                                            r.id === row.id ? { ...r, data: { ...r.data, [col.id]: 'No' } } : r
+                                                                                        );
+                                                                                        setSectionB(copy);
+                                                                                    }}
+                                                                                />
+                                                                                <span className="text-sm">No</span>
+                                                                            </label>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <input
+                                                                            className="form-input w-full"
+                                                                            value={row.data[col.id] || ''}
+                                                                            onChange={(e) => {
+                                                                                const copy = { ...(sectionB as any) };
+                                                                                const table = copy.bidders[0].eligibilityRequirements;
+                                                                                table.rows = table.rows.map((r: any) => (r.id === row.id ? { ...r, data: { ...r.data, [col.id]: e.target.value } } : r));
+                                                                                setSectionB(copy);
+                                                                            }}
+                                                                        />
+                                                                    )
                                                                 ) : (
-                                                                    <span>{row.data[col.id] || '-'}</span>
+                                                                    // Cell is locked - show as read-only with disabled styling
+                                                                    <span className="block px-2 py-1 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded text-sm font-medium">{row.data[col.id] || '—'}</span>
                                                                 )}
                                                             </td>
                                                         ))}
@@ -705,56 +825,110 @@ export const EvaluationForm: React.FC<Props> = ({
                                                     <tr key={row.id}>
                                                         {(sectionB.bidders[0]?.complianceMatrix?.columns ?? []).map((col: any) => (
                                                             <td key={col.id} className="border px-2 py-2">
-                                                                {/* Compliance table cells are editable by evaluators */}
-                                                                {col.cellType === 'radio' && canEditTechnical() ? (
-                                                                    <div className="flex items-center gap-4 justify-center">
-                                                                        <label className="flex items-center gap-1 cursor-pointer">
-                                                                            <input
-                                                                                type="radio"
-                                                                                name={`${row.id}-${col.id}`}
-                                                                                className="form-radio"
-                                                                                checked={row.data[col.id] === 'Yes'}
-                                                                                onChange={() => {
-                                                                                    const copy = { ...(sectionB as any) };
-                                                                                    copy.bidders[0].complianceMatrix.rows = copy.bidders[0].complianceMatrix.rows.map((r: any) =>
-                                                                                        r.id === row.id ? { ...r, data: { ...r.data, [col.id]: 'Yes' } } : r
-                                                                                    );
-                                                                                    setSectionB(copy);
-                                                                                }}
-                                                                            />
-                                                                            <span className="text-sm">Yes</span>
-                                                                        </label>
-                                                                        <label className="flex items-center gap-1 cursor-pointer">
-                                                                            <input
-                                                                                type="radio"
-                                                                                name={`${row.id}-${col.id}`}
-                                                                                className="form-radio"
-                                                                                checked={row.data[col.id] === 'No'}
-                                                                                onChange={() => {
-                                                                                    const copy = { ...(sectionB as any) };
-                                                                                    copy.bidders[0].complianceMatrix.rows = copy.bidders[0].complianceMatrix.rows.map((r: any) =>
-                                                                                        r.id === row.id ? { ...r, data: { ...r.data, [col.id]: 'No' } } : r
-                                                                                    );
-                                                                                    setSectionB(copy);
-                                                                                }}
-                                                                            />
-                                                                            <span className="text-sm">No</span>
-                                                                        </label>
-                                                                    </div>
-                                                                ) : canEditTechnical() ? (
-                                                                    <input
-                                                                        className="form-input w-full"
-                                                                        value={row.data[col.id] || ''}
-                                                                        onChange={(e) => {
-                                                                            const copy = { ...(sectionB as any) };
-                                                                            copy.bidders[0].complianceMatrix.rows = copy.bidders[0].complianceMatrix.rows.map((r: any) =>
-                                                                                r.id === row.id ? { ...r, data: { ...r.data, [col.id]: e.target.value } } : r
-                                                                            );
-                                                                            setSectionB(copy);
-                                                                        }}
-                                                                    />
+                                                                {/* Compliance table cells: officers can edit all cells, evaluators can only edit empty cells */}
+                                                                {canEditStructure('B') ? (
+                                                                    // Officer mode - always editable
+                                                                    col.cellType === 'radio' ? (
+                                                                        <div className="flex items-center gap-4 justify-center">
+                                                                            <label className="flex items-center gap-1 cursor-pointer">
+                                                                                <input
+                                                                                    type="radio"
+                                                                                    name={`${row.id}-${col.id}`}
+                                                                                    className="form-radio"
+                                                                                    checked={row.data[col.id] === 'Yes'}
+                                                                                    onChange={() => {
+                                                                                        const copy = { ...(sectionB as any) };
+                                                                                        copy.bidders[0].complianceMatrix.rows = copy.bidders[0].complianceMatrix.rows.map((r: any) =>
+                                                                                            r.id === row.id ? { ...r, data: { ...r.data, [col.id]: 'Yes' } } : r
+                                                                                        );
+                                                                                        setSectionB(copy);
+                                                                                    }}
+                                                                                />
+                                                                                <span className="text-sm">Yes</span>
+                                                                            </label>
+                                                                            <label className="flex items-center gap-1 cursor-pointer">
+                                                                                <input
+                                                                                    type="radio"
+                                                                                    name={`${row.id}-${col.id}`}
+                                                                                    className="form-radio"
+                                                                                    checked={row.data[col.id] === 'No'}
+                                                                                    onChange={() => {
+                                                                                        const copy = { ...(sectionB as any) };
+                                                                                        copy.bidders[0].complianceMatrix.rows = copy.bidders[0].complianceMatrix.rows.map((r: any) =>
+                                                                                            r.id === row.id ? { ...r, data: { ...r.data, [col.id]: 'No' } } : r
+                                                                                        );
+                                                                                        setSectionB(copy);
+                                                                                    }}
+                                                                                />
+                                                                                <span className="text-sm">No</span>
+                                                                            </label>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <input
+                                                                            className="form-input w-full"
+                                                                            value={row.data[col.id] || ''}
+                                                                            onChange={(e) => {
+                                                                                const copy = { ...(sectionB as any) };
+                                                                                copy.bidders[0].complianceMatrix.rows = copy.bidders[0].complianceMatrix.rows.map((r: any) =>
+                                                                                    r.id === row.id ? { ...r, data: { ...r.data, [col.id]: e.target.value } } : r
+                                                                                );
+                                                                                setSectionB(copy);
+                                                                            }}
+                                                                        />
+                                                                    )
+                                                                ) : canEditTechnical() && !prefilledCells[`B-${row.id}-${col.id}`] ? (
+                                                                    // Evaluator mode - only edit if cell was NOT pre-filled by officer
+                                                                    col.cellType === 'radio' ? (
+                                                                        <div className="flex items-center gap-4 justify-center">
+                                                                            <label className="flex items-center gap-1 cursor-pointer">
+                                                                                <input
+                                                                                    type="radio"
+                                                                                    name={`${row.id}-${col.id}`}
+                                                                                    className="form-radio"
+                                                                                    checked={row.data[col.id] === 'Yes'}
+                                                                                    onChange={() => {
+                                                                                        const copy = { ...(sectionB as any) };
+                                                                                        copy.bidders[0].complianceMatrix.rows = copy.bidders[0].complianceMatrix.rows.map((r: any) =>
+                                                                                            r.id === row.id ? { ...r, data: { ...r.data, [col.id]: 'Yes' } } : r
+                                                                                        );
+                                                                                        setSectionB(copy);
+                                                                                    }}
+                                                                                />
+                                                                                <span className="text-sm">Yes</span>
+                                                                            </label>
+                                                                            <label className="flex items-center gap-1 cursor-pointer">
+                                                                                <input
+                                                                                    type="radio"
+                                                                                    name={`${row.id}-${col.id}`}
+                                                                                    className="form-radio"
+                                                                                    checked={row.data[col.id] === 'No'}
+                                                                                    onChange={() => {
+                                                                                        const copy = { ...(sectionB as any) };
+                                                                                        copy.bidders[0].complianceMatrix.rows = copy.bidders[0].complianceMatrix.rows.map((r: any) =>
+                                                                                            r.id === row.id ? { ...r, data: { ...r.data, [col.id]: 'No' } } : r
+                                                                                        );
+                                                                                        setSectionB(copy);
+                                                                                    }}
+                                                                                />
+                                                                                <span className="text-sm">No</span>
+                                                                            </label>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <input
+                                                                            className="form-input w-full"
+                                                                            value={row.data[col.id] || ''}
+                                                                            onChange={(e) => {
+                                                                                const copy = { ...(sectionB as any) };
+                                                                                copy.bidders[0].complianceMatrix.rows = copy.bidders[0].complianceMatrix.rows.map((r: any) =>
+                                                                                    r.id === row.id ? { ...r, data: { ...r.data, [col.id]: e.target.value } } : r
+                                                                                );
+                                                                                setSectionB(copy);
+                                                                            }}
+                                                                        />
+                                                                    )
                                                                 ) : (
-                                                                    <span>{row.data[col.id] || '-'}</span>
+                                                                    // Cell is locked - show as read-only with disabled styling
+                                                                    <span className="block px-2 py-1 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded text-sm font-medium">{row.data[col.id] || '—'}</span>
                                                                 )}
                                                             </td>
                                                         ))}
@@ -945,50 +1119,98 @@ export const EvaluationForm: React.FC<Props> = ({
                                                     <tr key={row.id}>
                                                         {(sectionB.bidders[0]?.technicalEvaluation?.columns ?? []).map((col: any) => (
                                                             <td key={col.id} className="border px-2 py-2">
-                                                                {/* Technical evaluation table is editable by evaluators */}
-                                                                {col.cellType === 'radio' && canEditTechnical() ? (
-                                                                    <div className="flex items-center gap-4 justify-center">
-                                                                        <label className="flex items-center gap-1 cursor-pointer">
-                                                                            <input
-                                                                                type="radio"
-                                                                                name={`${row.id}-${col.id}`}
-                                                                                className="form-radio"
-                                                                                checked={row.data[col.id] === 'Yes'}
-                                                                                onChange={() => {
-                                                                                    const copy = { ...(sectionB as any) };
-                                                                                    seedRowsIfEmpty(copy, row.id, (r: any) => ({ ...r, data: { ...r.data, [col.id]: 'Yes' } }));
-                                                                                    setSectionB(copy);
-                                                                                }}
-                                                                            />
-                                                                            <span className="text-sm">Yes</span>
-                                                                        </label>
-                                                                        <label className="flex items-center gap-1 cursor-pointer">
-                                                                            <input
-                                                                                type="radio"
-                                                                                name={`${row.id}-${col.id}`}
-                                                                                className="form-radio"
-                                                                                checked={row.data[col.id] === 'No'}
-                                                                                onChange={() => {
-                                                                                    const copy = { ...(sectionB as any) };
-                                                                                    seedRowsIfEmpty(copy, row.id, (r: any) => ({ ...r, data: { ...r.data, [col.id]: 'No' } }));
-                                                                                    setSectionB(copy);
-                                                                                }}
-                                                                            />
-                                                                            <span className="text-sm">No</span>
-                                                                        </label>
-                                                                    </div>
-                                                                ) : canEditTechnical() ? (
-                                                                    <input
-                                                                        className="form-input w-full"
-                                                                        value={row.data[col.id] || ''}
-                                                                        onChange={(e) => {
-                                                                            const copy = { ...(sectionB as any) };
-                                                                            seedRowsIfEmpty(copy, row.id, (r: any) => ({ ...r, data: { ...r.data, [col.id]: e.target.value } }));
-                                                                            setSectionB(copy);
-                                                                        }}
-                                                                    />
+                                                                {/* Technical evaluation table: officers can edit all cells, evaluators can only edit empty cells */}
+                                                                {canEditStructure('B') ? (
+                                                                    // Officer mode - always editable
+                                                                    col.cellType === 'radio' ? (
+                                                                        <div className="flex items-center gap-4 justify-center">
+                                                                            <label className="flex items-center gap-1 cursor-pointer">
+                                                                                <input
+                                                                                    type="radio"
+                                                                                    name={`${row.id}-${col.id}`}
+                                                                                    className="form-radio"
+                                                                                    checked={row.data[col.id] === 'Yes'}
+                                                                                    onChange={() => {
+                                                                                        const copy = { ...(sectionB as any) };
+                                                                                        seedRowsIfEmpty(copy, row.id, (r: any) => ({ ...r, data: { ...r.data, [col.id]: 'Yes' } }));
+                                                                                        setSectionB(copy);
+                                                                                    }}
+                                                                                />
+                                                                                <span className="text-sm">Yes</span>
+                                                                            </label>
+                                                                            <label className="flex items-center gap-1 cursor-pointer">
+                                                                                <input
+                                                                                    type="radio"
+                                                                                    name={`${row.id}-${col.id}`}
+                                                                                    className="form-radio"
+                                                                                    checked={row.data[col.id] === 'No'}
+                                                                                    onChange={() => {
+                                                                                        const copy = { ...(sectionB as any) };
+                                                                                        seedRowsIfEmpty(copy, row.id, (r: any) => ({ ...r, data: { ...r.data, [col.id]: 'No' } }));
+                                                                                        setSectionB(copy);
+                                                                                    }}
+                                                                                />
+                                                                                <span className="text-sm">No</span>
+                                                                            </label>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <input
+                                                                            className="form-input w-full"
+                                                                            value={row.data[col.id] || ''}
+                                                                            onChange={(e) => {
+                                                                                const copy = { ...(sectionB as any) };
+                                                                                seedRowsIfEmpty(copy, row.id, (r: any) => ({ ...r, data: { ...r.data, [col.id]: e.target.value } }));
+                                                                                setSectionB(copy);
+                                                                            }}
+                                                                        />
+                                                                    )
+                                                                ) : canEditTechnical() && !prefilledCells[`B-${row.id}-${col.id}`] ? (
+                                                                    // Evaluator mode - only edit if cell was NOT pre-filled by officer
+                                                                    col.cellType === 'radio' ? (
+                                                                        <div className="flex items-center gap-4 justify-center">
+                                                                            <label className="flex items-center gap-1 cursor-pointer">
+                                                                                <input
+                                                                                    type="radio"
+                                                                                    name={`${row.id}-${col.id}`}
+                                                                                    className="form-radio"
+                                                                                    checked={row.data[col.id] === 'Yes'}
+                                                                                    onChange={() => {
+                                                                                        const copy = { ...(sectionB as any) };
+                                                                                        seedRowsIfEmpty(copy, row.id, (r: any) => ({ ...r, data: { ...r.data, [col.id]: 'Yes' } }));
+                                                                                        setSectionB(copy);
+                                                                                    }}
+                                                                                />
+                                                                                <span className="text-sm">Yes</span>
+                                                                            </label>
+                                                                            <label className="flex items-center gap-1 cursor-pointer">
+                                                                                <input
+                                                                                    type="radio"
+                                                                                    name={`${row.id}-${col.id}`}
+                                                                                    className="form-radio"
+                                                                                    checked={row.data[col.id] === 'No'}
+                                                                                    onChange={() => {
+                                                                                        const copy = { ...(sectionB as any) };
+                                                                                        seedRowsIfEmpty(copy, row.id, (r: any) => ({ ...r, data: { ...r.data, [col.id]: 'No' } }));
+                                                                                        setSectionB(copy);
+                                                                                    }}
+                                                                                />
+                                                                                <span className="text-sm">No</span>
+                                                                            </label>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <input
+                                                                            className="form-input w-full"
+                                                                            value={row.data[col.id] || ''}
+                                                                            onChange={(e) => {
+                                                                                const copy = { ...(sectionB as any) };
+                                                                                seedRowsIfEmpty(copy, row.id, (r: any) => ({ ...r, data: { ...r.data, [col.id]: e.target.value } }));
+                                                                                setSectionB(copy);
+                                                                            }}
+                                                                        />
+                                                                    )
                                                                 ) : (
-                                                                    <span>{row.data[col.id] || '-'}</span>
+                                                                    // Cell is locked - show as read-only with disabled styling
+                                                                    <span className="block px-2 py-1 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded text-sm font-medium">{row.data[col.id] || '—'}</span>
                                                                 )}
                                                             </td>
                                                         ))}
@@ -1029,6 +1251,41 @@ export const EvaluationForm: React.FC<Props> = ({
                         <button className="btn btn-primary" disabled={saving} onClick={() => saveSec('B')}>
                             {saving ? 'Saving…' : 'Save Section B'}
                         </button>
+                    </div>
+                )}
+                {canVerifySection('B') && (
+                    <div className="p-5 border-t bg-success/5">
+                        <div className="flex items-center justify-between gap-4">
+                            <div className="flex-1">
+                                <h6 className="font-semibold text-success mb-2">Verify Section B</h6>
+                                {verifyingSection === 'B' ? (
+                                    <div className="space-y-3">
+                                        <textarea
+                                            className="form-textarea w-full"
+                                            rows={2}
+                                            placeholder="Optional notes about this verification..."
+                                            value={verifyNotes['B'] || ''}
+                                            onChange={(e) => setVerifyNotes({ ...verifyNotes, B: e.target.value })}
+                                        />
+                                        <div className="flex gap-2">
+                                            <button className="btn btn-success btn-sm" disabled={saving} onClick={() => handleVerify('B')}>
+                                                {saving ? 'Verifying...' : '✓ Confirm Verification'}
+                                            </button>
+                                            <button className="btn btn-outline-secondary btn-sm" onClick={() => setVerifyingSection(null)}>
+                                                Cancel
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <button className="btn btn-success" onClick={() => setVerifyingSection('B')}>
+                                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        Verify Section B
+                                    </button>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 )}
             </div>
@@ -1237,6 +1494,41 @@ export const EvaluationForm: React.FC<Props> = ({
                             {sectionCActions && <div className="flex-shrink-0">{sectionCActions}</div>}
                         </div>
                     )}
+                    {canVerifySection('C') && (
+                        <div className="p-5 border-t bg-success/5">
+                            <div className="flex items-center justify-between gap-4">
+                                <div className="flex-1">
+                                    <h6 className="font-semibold text-success mb-2">Verify Section C</h6>
+                                    {verifyingSection === 'C' ? (
+                                        <div className="space-y-3">
+                                            <textarea
+                                                className="form-textarea w-full"
+                                                rows={2}
+                                                placeholder="Optional notes about this verification..."
+                                                value={verifyNotes['C'] || ''}
+                                                onChange={(e) => setVerifyNotes({ ...verifyNotes, C: e.target.value })}
+                                            />
+                                            <div className="flex gap-2">
+                                                <button className="btn btn-success btn-sm" disabled={saving} onClick={() => handleVerify('C')}>
+                                                    {saving ? 'Verifying...' : '✓ Confirm Verification'}
+                                                </button>
+                                                <button className="btn btn-outline-secondary btn-sm" onClick={() => setVerifyingSection(null)}>
+                                                    Cancel
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <button className="btn btn-success" onClick={() => setVerifyingSection('C')}>
+                                            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                            Verify Section C
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -1261,6 +1553,41 @@ export const EvaluationForm: React.FC<Props> = ({
                         <button className="btn btn-primary" disabled={saving} onClick={() => saveSec('D')}>
                             {saving ? 'Saving…' : 'Save Section D'}
                         </button>
+                    </div>
+                )}
+                {canVerifySection('D') && (
+                    <div className="p-5 border-t bg-success/5">
+                        <div className="flex items-center justify-between gap-4">
+                            <div className="flex-1">
+                                <h6 className="font-semibold text-success mb-2">Verify Section D</h6>
+                                {verifyingSection === 'D' ? (
+                                    <div className="space-y-3">
+                                        <textarea
+                                            className="form-textarea w-full"
+                                            rows={2}
+                                            placeholder="Optional notes about this verification..."
+                                            value={verifyNotes['D'] || ''}
+                                            onChange={(e) => setVerifyNotes({ ...verifyNotes, D: e.target.value })}
+                                        />
+                                        <div className="flex gap-2">
+                                            <button className="btn btn-success btn-sm" disabled={saving} onClick={() => handleVerify('D')}>
+                                                {saving ? 'Verifying...' : '✓ Confirm Verification'}
+                                            </button>
+                                            <button className="btn btn-outline-secondary btn-sm" onClick={() => setVerifyingSection(null)}>
+                                                Cancel
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <button className="btn btn-success" onClick={() => setVerifyingSection('D')}>
+                                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        Verify Section D
+                                    </button>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 )}
             </div>
@@ -1320,6 +1647,41 @@ export const EvaluationForm: React.FC<Props> = ({
                         <button className="btn btn-primary" disabled={saving} onClick={() => saveSec('E')}>
                             {saving ? 'Saving…' : 'Save Section E'}
                         </button>
+                    </div>
+                )}
+                {canVerifySection('E') && (
+                    <div className="p-5 border-t bg-success/5">
+                        <div className="flex items-center justify-between gap-4">
+                            <div className="flex-1">
+                                <h6 className="font-semibold text-success mb-2">Verify Section E</h6>
+                                {verifyingSection === 'E' ? (
+                                    <div className="space-y-3">
+                                        <textarea
+                                            className="form-textarea w-full"
+                                            rows={2}
+                                            placeholder="Optional notes about this verification..."
+                                            value={verifyNotes['E'] || ''}
+                                            onChange={(e) => setVerifyNotes({ ...verifyNotes, E: e.target.value })}
+                                        />
+                                        <div className="flex gap-2">
+                                            <button className="btn btn-success btn-sm" disabled={saving} onClick={() => handleVerify('E')}>
+                                                {saving ? 'Verifying...' : '✓ Confirm Verification'}
+                                            </button>
+                                            <button className="btn btn-outline-secondary btn-sm" onClick={() => setVerifyingSection(null)}>
+                                                Cancel
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <button className="btn btn-success" onClick={() => setVerifyingSection('E')}>
+                                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        Verify Section E
+                                    </button>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 )}
             </div>

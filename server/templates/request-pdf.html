@@ -101,52 +101,67 @@
     <body>
         <div class="header" style="text-align: center; margin-bottom: 12px">
             <img src="{{logoData}}" alt="BSJ logo" style="height: 44px; object-fit: contain; margin: 0 auto 8px" />
-            <div class="title">BUREAU OF STANDARDS JAMAICA</div>
-            <div class="subtitle">PROCUREMENT REQUISITION FORM</div>
+            <div class="title">Bureau of Standards Jamaica</div>
+            <div class="subtitle">Procurement Requisition Form</div>
+            <div style="font-size: 14px; font-weight: 700; color: var(--primary); margin-top: 8px">{{reference}}</div>
         </div>
 
-        <div class="section-title">Section I: To be completed by Requestor</div>
+        <div class="section-title">Request Information</div>
         <div class="grid">
             <div class="field">
-                <div class="label">Requested by</div>
+                <div class="label">REFERENCE</div>
+                <div class="value">{{reference}}</div>
+            </div>
+            <div class="field">
+                <div class="label">STATUS</div>
+                <div class="value">{{status}}</div>
+            </div>
+            <div class="field">
+                <div class="label">SUBMITTED DATE</div>
+                <div class="value">{{submittedDate}}</div>
+            </div>
+        </div>
+        <div class="grid">
+            <div class="field">
+                <div class="label">REQUESTER</div>
                 <div class="value">{{requesterName}}</div>
             </div>
             <div class="field">
-                <div class="label">Email</div>
-                <div class="value">{{requesterEmail}}</div>
-            </div>
-            <div class="field">
-                <div class="label">Department</div>
+                <div class="label">DEPARTMENT</div>
                 <div class="value">{{departmentName}}</div>
             </div>
-        </div>
-        <div class="grid">
             <div class="field">
-                <div class="label">Priority</div>
+                <div class="label">PRIORITY</div>
                 <div class="value">{{priority}}</div>
-            </div>
-            <div class="field">
-                <div class="label">Currency</div>
-                <div class="value">{{currency}}</div>
-            </div>
-            <div class="field">
-                <div class="label">Estimated Total (Currency)</div>
-                <div class="value">{{totalEstimated}}</div>
             </div>
         </div>
         <div class="field">
-            <div class="label">Justification</div>
+            <div class="label">TITLE / DESCRIPTION</div>
             <div class="value">{{description}}</div>
         </div>
 
-        <div class="section-title">Items / Services</div>
+        <div class="section-title">Financial Details</div>
+        <div class="grid-2">
+            <div class="field">
+                <div class="label">CURRENCY</div>
+                <div class="value">{{currency}}</div>
+            </div>
+            <div class="field">
+                <div class="label">TOTAL AMOUNT</div>
+                <div class="value">{{currency}} ${{totalEstimated}}</div>
+            </div>
+        </div>
+
+        <div class="section-title">Requested Items</div>
         <table>
             <thead>
                 <tr>
                     <th style="width: 36px">#</th>
                     <th>Description</th>
                     <th style="width: 64px">Qty</th>
+                    <th style="width: 80px">Unit of Measure</th>
                     <th style="width: 100px">Unit Price</th>
+                    <th style="width: 100px">Part Number</th>
                     <th style="width: 110px">Subtotal</th>
                 </tr>
             </thead>
@@ -156,7 +171,12 @@
         </table>
         <div class="totals"><strong>Total:</strong> {{totalEstimated}}</div>
 
-        <div class="section-title">Section II: Approvals</div>
+        <div class="section-title">Comments / Justification</div>
+        <div class="field">
+            <div class="value" style="min-height: 60px; white-space: pre-wrap">{{justification}}</div>
+        </div>
+
+        <div class="section-title">Approvals</div>
         <div class="grid-2">
             <div class="field">
                 <div class="label">Manager Name</div>
@@ -169,7 +189,7 @@
         </div>
         <div class="grid-2">
             <div class="field">
-                <div class="label">Head of Division</div>
+                <div class="label">Head of Division Name</div>
                 <div class="value">{{headName}}</div>
             </div>
             <div class="field">
@@ -177,18 +197,24 @@
                 <div class="value">{{hodApprovalDate}}</div>
             </div>
         </div>
-        <div class="grid">
+        <div class="grid-2">
             <div class="field">
-                <div class="label">Budget Officer</div>
+                <div class="label">Chief Accountant Name</div>
                 <div class="value">{{budgetOfficerName}}</div>
             </div>
             <div class="field">
-                <div class="label">Budget Manager</div>
+                <div class="label">Chief Accountant Approval Date</div>
+                <div class="value">{{budgetOfficerApprovalDate}}</div>
+            </div>
+        </div>
+        <div class="grid-2">
+            <div class="field">
+                <div class="label">Finance Director Name</div>
                 <div class="value">{{budgetManagerName}}</div>
             </div>
             <div class="field">
-                <div class="label">Finance Approval Date</div>
-                <div class="value">{{financeApprovalDate}}</div>
+                <div class="label">Finance Director Approval Date</div>
+                <div class="value">{{budgetManagerApprovalDate}}</div>
             </div>
         </div>
         <div class="grid">
@@ -220,7 +246,7 @@
             </div>
         </div>
 
-        <div class="section-title">Section III: Procurement</div>
+        <div class="section-title">Procurement</div>
         <div class="grid">
             <div class="field">
                 <div class="label">Case Number</div>
