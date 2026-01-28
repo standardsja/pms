@@ -483,7 +483,7 @@ export const EvaluationForm: React.FC<Props> = ({
                                                                             onChange={(e) => {
                                                                                 const copy = { ...(sectionB as any) };
                                                                                 copy.bidders[0].eligibilityRequirements.columns = copy.bidders[0].eligibilityRequirements.columns.map((c: any) =>
-                                                                                    c.id === col.id ? { ...c, name: e.target.value } : c
+                                                                                    c.id === col.id ? { ...c, name: e.target.value } : c,
                                                                                 );
                                                                                 setSectionB(copy);
                                                                             }}
@@ -495,7 +495,7 @@ export const EvaluationForm: React.FC<Props> = ({
                                                                                 onClick={() => {
                                                                                     const copy = { ...(sectionB as any) };
                                                                                     copy.bidders[0].eligibilityRequirements.columns = copy.bidders[0].eligibilityRequirements.columns.filter(
-                                                                                        (c: any) => c.id !== col.id
+                                                                                        (c: any) => c.id !== col.id,
                                                                                     );
                                                                                     copy.bidders[0].eligibilityRequirements.rows = copy.bidders[0].eligibilityRequirements.rows.map((r: any) => {
                                                                                         const newData = { ...r.data };
@@ -519,7 +519,7 @@ export const EvaluationForm: React.FC<Props> = ({
                                                                         onChange={(e) => {
                                                                             const copy = { ...(sectionB as any) };
                                                                             copy.bidders[0].eligibilityRequirements.columns = copy.bidders[0].eligibilityRequirements.columns.map((c: any) =>
-                                                                                c.id === col.id ? { ...c, cellType: e.target.value } : c
+                                                                                c.id === col.id ? { ...c, cellType: e.target.value } : c,
                                                                             );
                                                                             if (e.target.value === 'radio') {
                                                                                 copy.bidders[0].eligibilityRequirements.rows = copy.bidders[0].eligibilityRequirements.rows.map((r: any) => {
@@ -562,7 +562,7 @@ export const EvaluationForm: React.FC<Props> = ({
                                                                                     onChange={() => {
                                                                                         const copy = { ...(sectionB as any) };
                                                                                         copy.bidders[0].eligibilityRequirements.rows = copy.bidders[0].eligibilityRequirements.rows.map((r: any) =>
-                                                                                            r.id === row.id ? { ...r, data: { ...r.data, [col.id]: 'Yes' } } : r
+                                                                                            r.id === row.id ? { ...r, data: { ...r.data, [col.id]: 'Yes' } } : r,
                                                                                         );
                                                                                         setSectionB(copy);
                                                                                     }}
@@ -578,7 +578,7 @@ export const EvaluationForm: React.FC<Props> = ({
                                                                                     onChange={() => {
                                                                                         const copy = { ...(sectionB as any) };
                                                                                         copy.bidders[0].eligibilityRequirements.rows = copy.bidders[0].eligibilityRequirements.rows.map((r: any) =>
-                                                                                            r.id === row.id ? { ...r, data: { ...r.data, [col.id]: 'No' } } : r
+                                                                                            r.id === row.id ? { ...r, data: { ...r.data, [col.id]: 'No' } } : r,
                                                                                         );
                                                                                         setSectionB(copy);
                                                                                     }}
@@ -593,7 +593,9 @@ export const EvaluationForm: React.FC<Props> = ({
                                                                             onChange={(e) => {
                                                                                 const copy = { ...(sectionB as any) };
                                                                                 const table = copy.bidders[0].eligibilityRequirements;
-                                                                                table.rows = table.rows.map((r: any) => (r.id === row.id ? { ...r, data: { ...r.data, [col.id]: e.target.value } } : r));
+                                                                                table.rows = table.rows.map((r: any) =>
+                                                                                    r.id === row.id ? { ...r, data: { ...r.data, [col.id]: e.target.value } } : r,
+                                                                                );
                                                                                 setSectionB(copy);
                                                                             }}
                                                                         />
@@ -611,7 +613,7 @@ export const EvaluationForm: React.FC<Props> = ({
                                                                                     onChange={() => {
                                                                                         const copy = { ...(sectionB as any) };
                                                                                         copy.bidders[0].eligibilityRequirements.rows = copy.bidders[0].eligibilityRequirements.rows.map((r: any) =>
-                                                                                            r.id === row.id ? { ...r, data: { ...r.data, [col.id]: 'Yes' } } : r
+                                                                                            r.id === row.id ? { ...r, data: { ...r.data, [col.id]: 'Yes' } } : r,
                                                                                         );
                                                                                         setSectionB(copy);
                                                                                     }}
@@ -627,7 +629,7 @@ export const EvaluationForm: React.FC<Props> = ({
                                                                                     onChange={() => {
                                                                                         const copy = { ...(sectionB as any) };
                                                                                         copy.bidders[0].eligibilityRequirements.rows = copy.bidders[0].eligibilityRequirements.rows.map((r: any) =>
-                                                                                            r.id === row.id ? { ...r, data: { ...r.data, [col.id]: 'No' } } : r
+                                                                                            r.id === row.id ? { ...r, data: { ...r.data, [col.id]: 'No' } } : r,
                                                                                         );
                                                                                         setSectionB(copy);
                                                                                     }}
@@ -642,14 +644,18 @@ export const EvaluationForm: React.FC<Props> = ({
                                                                             onChange={(e) => {
                                                                                 const copy = { ...(sectionB as any) };
                                                                                 const table = copy.bidders[0].eligibilityRequirements;
-                                                                                table.rows = table.rows.map((r: any) => (r.id === row.id ? { ...r, data: { ...r.data, [col.id]: e.target.value } } : r));
+                                                                                table.rows = table.rows.map((r: any) =>
+                                                                                    r.id === row.id ? { ...r, data: { ...r.data, [col.id]: e.target.value } } : r,
+                                                                                );
                                                                                 setSectionB(copy);
                                                                             }}
                                                                         />
                                                                     )
                                                                 ) : (
                                                                     // Cell is locked - show as read-only with disabled styling
-                                                                    <span className="block px-2 py-1 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded text-sm font-medium">{row.data[col.id] || '—'}</span>
+                                                                    <span className="block px-2 py-1 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded text-sm font-medium">
+                                                                        {row.data[col.id] || '—'}
+                                                                    </span>
                                                                 )}
                                                             </td>
                                                         ))}
@@ -760,7 +766,7 @@ export const EvaluationForm: React.FC<Props> = ({
                                                                             onChange={(e) => {
                                                                                 const copy = { ...(sectionB as any) };
                                                                                 copy.bidders[0].complianceMatrix.columns = copy.bidders[0].complianceMatrix.columns.map((c: any) =>
-                                                                                    c.id === col.id ? { ...c, name: e.target.value } : c
+                                                                                    c.id === col.id ? { ...c, name: e.target.value } : c,
                                                                                 );
                                                                                 setSectionB(copy);
                                                                             }}
@@ -772,7 +778,7 @@ export const EvaluationForm: React.FC<Props> = ({
                                                                                 onClick={() => {
                                                                                     const copy = { ...(sectionB as any) };
                                                                                     copy.bidders[0].complianceMatrix.columns = copy.bidders[0].complianceMatrix.columns.filter(
-                                                                                        (c: any) => c.id !== col.id
+                                                                                        (c: any) => c.id !== col.id,
                                                                                     );
                                                                                     copy.bidders[0].complianceMatrix.rows = copy.bidders[0].complianceMatrix.rows.map((r: any) => {
                                                                                         const newData = { ...r.data };
@@ -796,7 +802,7 @@ export const EvaluationForm: React.FC<Props> = ({
                                                                         onChange={(e) => {
                                                                             const copy = { ...(sectionB as any) };
                                                                             copy.bidders[0].complianceMatrix.columns = copy.bidders[0].complianceMatrix.columns.map((c: any) =>
-                                                                                c.id === col.id ? { ...c, cellType: e.target.value } : c
+                                                                                c.id === col.id ? { ...c, cellType: e.target.value } : c,
                                                                             );
                                                                             if (e.target.value === 'radio') {
                                                                                 copy.bidders[0].complianceMatrix.rows = copy.bidders[0].complianceMatrix.rows.map((r: any) => {
@@ -839,7 +845,7 @@ export const EvaluationForm: React.FC<Props> = ({
                                                                                     onChange={() => {
                                                                                         const copy = { ...(sectionB as any) };
                                                                                         copy.bidders[0].complianceMatrix.rows = copy.bidders[0].complianceMatrix.rows.map((r: any) =>
-                                                                                            r.id === row.id ? { ...r, data: { ...r.data, [col.id]: 'Yes' } } : r
+                                                                                            r.id === row.id ? { ...r, data: { ...r.data, [col.id]: 'Yes' } } : r,
                                                                                         );
                                                                                         setSectionB(copy);
                                                                                     }}
@@ -855,7 +861,7 @@ export const EvaluationForm: React.FC<Props> = ({
                                                                                     onChange={() => {
                                                                                         const copy = { ...(sectionB as any) };
                                                                                         copy.bidders[0].complianceMatrix.rows = copy.bidders[0].complianceMatrix.rows.map((r: any) =>
-                                                                                            r.id === row.id ? { ...r, data: { ...r.data, [col.id]: 'No' } } : r
+                                                                                            r.id === row.id ? { ...r, data: { ...r.data, [col.id]: 'No' } } : r,
                                                                                         );
                                                                                         setSectionB(copy);
                                                                                     }}
@@ -870,7 +876,7 @@ export const EvaluationForm: React.FC<Props> = ({
                                                                             onChange={(e) => {
                                                                                 const copy = { ...(sectionB as any) };
                                                                                 copy.bidders[0].complianceMatrix.rows = copy.bidders[0].complianceMatrix.rows.map((r: any) =>
-                                                                                    r.id === row.id ? { ...r, data: { ...r.data, [col.id]: e.target.value } } : r
+                                                                                    r.id === row.id ? { ...r, data: { ...r.data, [col.id]: e.target.value } } : r,
                                                                                 );
                                                                                 setSectionB(copy);
                                                                             }}
@@ -889,7 +895,7 @@ export const EvaluationForm: React.FC<Props> = ({
                                                                                     onChange={() => {
                                                                                         const copy = { ...(sectionB as any) };
                                                                                         copy.bidders[0].complianceMatrix.rows = copy.bidders[0].complianceMatrix.rows.map((r: any) =>
-                                                                                            r.id === row.id ? { ...r, data: { ...r.data, [col.id]: 'Yes' } } : r
+                                                                                            r.id === row.id ? { ...r, data: { ...r.data, [col.id]: 'Yes' } } : r,
                                                                                         );
                                                                                         setSectionB(copy);
                                                                                     }}
@@ -905,7 +911,7 @@ export const EvaluationForm: React.FC<Props> = ({
                                                                                     onChange={() => {
                                                                                         const copy = { ...(sectionB as any) };
                                                                                         copy.bidders[0].complianceMatrix.rows = copy.bidders[0].complianceMatrix.rows.map((r: any) =>
-                                                                                            r.id === row.id ? { ...r, data: { ...r.data, [col.id]: 'No' } } : r
+                                                                                            r.id === row.id ? { ...r, data: { ...r.data, [col.id]: 'No' } } : r,
                                                                                         );
                                                                                         setSectionB(copy);
                                                                                     }}
@@ -920,7 +926,7 @@ export const EvaluationForm: React.FC<Props> = ({
                                                                             onChange={(e) => {
                                                                                 const copy = { ...(sectionB as any) };
                                                                                 copy.bidders[0].complianceMatrix.rows = copy.bidders[0].complianceMatrix.rows.map((r: any) =>
-                                                                                    r.id === row.id ? { ...r, data: { ...r.data, [col.id]: e.target.value } } : r
+                                                                                    r.id === row.id ? { ...r, data: { ...r.data, [col.id]: e.target.value } } : r,
                                                                                 );
                                                                                 setSectionB(copy);
                                                                             }}
@@ -928,7 +934,9 @@ export const EvaluationForm: React.FC<Props> = ({
                                                                     )
                                                                 ) : (
                                                                     // Cell is locked - show as read-only with disabled styling
-                                                                    <span className="block px-2 py-1 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded text-sm font-medium">{row.data[col.id] || '—'}</span>
+                                                                    <span className="block px-2 py-1 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded text-sm font-medium">
+                                                                        {row.data[col.id] || '—'}
+                                                                    </span>
                                                                 )}
                                                             </td>
                                                         ))}
@@ -1054,7 +1062,7 @@ export const EvaluationForm: React.FC<Props> = ({
                                                                             onChange={(e) => {
                                                                                 const copy = { ...(sectionB as any) };
                                                                                 copy.bidders[0].technicalEvaluation.columns = copy.bidders[0].technicalEvaluation.columns.map((c: any) =>
-                                                                                    c.id === col.id ? { ...c, name: e.target.value } : c
+                                                                                    c.id === col.id ? { ...c, name: e.target.value } : c,
                                                                                 );
                                                                                 setSectionB(copy);
                                                                             }}
@@ -1066,7 +1074,7 @@ export const EvaluationForm: React.FC<Props> = ({
                                                                                 onClick={() => {
                                                                                     const copy = { ...(sectionB as any) };
                                                                                     copy.bidders[0].technicalEvaluation.columns = copy.bidders[0].technicalEvaluation.columns.filter(
-                                                                                        (c: any) => c.id !== col.id
+                                                                                        (c: any) => c.id !== col.id,
                                                                                     );
                                                                                     copy.bidders[0].technicalEvaluation.rows = copy.bidders[0].technicalEvaluation.rows.map((r: any) => {
                                                                                         const newData = { ...r.data };
@@ -1090,7 +1098,7 @@ export const EvaluationForm: React.FC<Props> = ({
                                                                         onChange={(e) => {
                                                                             const copy = { ...(sectionB as any) };
                                                                             copy.bidders[0].technicalEvaluation.columns = copy.bidders[0].technicalEvaluation.columns.map((c: any) =>
-                                                                                c.id === col.id ? { ...c, cellType: e.target.value } : c
+                                                                                c.id === col.id ? { ...c, cellType: e.target.value } : c,
                                                                             );
                                                                             if (e.target.value === 'radio') {
                                                                                 copy.bidders[0].technicalEvaluation.rows = copy.bidders[0].technicalEvaluation.rows.map((r: any) => {
@@ -1210,7 +1218,9 @@ export const EvaluationForm: React.FC<Props> = ({
                                                                     )
                                                                 ) : (
                                                                     // Cell is locked - show as read-only with disabled styling
-                                                                    <span className="block px-2 py-1 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded text-sm font-medium">{row.data[col.id] || '—'}</span>
+                                                                    <span className="block px-2 py-1 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded text-sm font-medium">
+                                                                        {row.data[col.id] || '—'}
+                                                                    </span>
                                                                 )}
                                                             </td>
                                                         ))}

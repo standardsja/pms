@@ -288,8 +288,8 @@ const EvaluationDetail = () => {
                             <div style="font-weight:700;font-size:13px;">BUREAU OF STANDARDS JAMAICA</div>
                             <div style="font-weight:600;font-size:12px;margin-top:4px;">BSJ Evaluation Report | ${data.rfqTitle}</div>
                             <div class="meta"><div style="text-align:left">${now}</div><div style="text-align:center;font-weight:600">SPINX</div><div style="text-align:right">${
-                        data.evalNumber || ''
-                    }</div></div>
+                                data.evalNumber || ''
+                            }</div></div>
                         </div>
                     `;
                 }
@@ -611,11 +611,11 @@ const EvaluationDetail = () => {
                                                         .map(
                                                             (col: any) => `
                                                         <td>${row.data[col.id] || '-'}</td>
-                                                    `
+                                                    `,
                                                         )
                                                         .join('')}
                                                 </tr>
-                                            `
+                                            `,
                                                 )
                                                 .join('')}
                                         </tbody>
@@ -643,11 +643,11 @@ const EvaluationDetail = () => {
                                                         .map(
                                                             (col: any) => `
                                                         <td>${row.data[col.id] || '-'}</td>
-                                                    `
+                                                    `,
                                                         )
                                                         .join('')}
                                                 </tr>
-                                            `
+                                            `,
                                                 )
                                                 .join('')}
                                         </tbody>
@@ -675,11 +675,11 @@ const EvaluationDetail = () => {
                                                         .map(
                                                             (col: any) => `
                                                         <td>${row.data[col.id] || '-'}</td>
-                                                    `
+                                                    `,
                                                         )
                                                         .join('')}
                                                 </tr>
-                                            `
+                                            `,
                                                 )
                                                 .join('')}
                                         </tbody>
@@ -687,7 +687,7 @@ const EvaluationDetail = () => {
                                 `
                                         : ''
                                 }
-                            `
+                            `,
                                 )
                                 .join('')}
                         </div>
@@ -797,11 +797,11 @@ const EvaluationDetail = () => {
                             }
                         </div>
                     </div>
-                    `
+                    `,
                                   )
                                   .join('')
                             : evaluation.sectionC
-                            ? `
+                              ? `
                     <div class="section">
                         <div class="section-title">Section C: Evaluation Comments</div>
                         <div class="content">
@@ -901,7 +901,7 @@ const EvaluationDetail = () => {
                         </div>
                     </div>
                     `
-                            : ''
+                              : ''
                     }
 
                     <!-- Section D: Summary -->
@@ -1051,7 +1051,9 @@ const EvaluationDetail = () => {
                                         <div className="flex-1">
                                             <span className="font-semibold">{assignment.user?.name || assignment.user?.email || `User #${assignment.userId}`}</span>
                                             <span className="text-sm ml-2">(Sections: {sections.join(', ')})</span>
-                                            {isCompleted && assignment.submittedAt && <div className="text-xs text-white-dark mt-1">Submitted: {new Date(assignment.submittedAt).toLocaleString()}</div>}
+                                            {isCompleted && assignment.submittedAt && (
+                                                <div className="text-xs text-white-dark mt-1">Submitted: {new Date(assignment.submittedAt).toLocaleString()}</div>
+                                            )}
                                         </div>
                                         <div className="flex items-center gap-2">
                                             <span className={`badge ${isCompleted ? 'bg-success' : 'bg-warning'}`}>{isCompleted ? '✓ Completed' : 'In Progress'}</span>
@@ -1075,7 +1077,7 @@ const EvaluationDetail = () => {
                                                         await evaluationService.removeAssignment(assignment.id);
                                                         const updated = await evaluationService.getAllAssignments(evaluation.id);
                                                         setCurrentAssignments(updated || []);
-                                                        
+
                                                         Swal.fire({
                                                             icon: 'success',
                                                             title: 'Removed!',
@@ -1129,11 +1131,7 @@ const EvaluationDetail = () => {
                             {showUserDropdown && userSearchTerm && (
                                 <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg max-h-60 overflow-y-auto">
                                     {availableUsers
-                                        .filter(
-                                            (user) =>
-                                                user.name?.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
-                                                user.email?.toLowerCase().includes(userSearchTerm.toLowerCase())
-                                        )
+                                        .filter((user) => user.name?.toLowerCase().includes(userSearchTerm.toLowerCase()) || user.email?.toLowerCase().includes(userSearchTerm.toLowerCase()))
                                         .slice(0, 10)
                                         .map((user) => (
                                             <div
@@ -1150,12 +1148,8 @@ const EvaluationDetail = () => {
                                             </div>
                                         ))}
                                     {availableUsers.filter(
-                                        (user) =>
-                                            user.name?.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
-                                            user.email?.toLowerCase().includes(userSearchTerm.toLowerCase())
-                                    ).length === 0 && (
-                                        <div className="px-3 py-2 text-gray-500 text-sm">No users found</div>
-                                    )}
+                                        (user) => user.name?.toLowerCase().includes(userSearchTerm.toLowerCase()) || user.email?.toLowerCase().includes(userSearchTerm.toLowerCase()),
+                                    ).length === 0 && <div className="px-3 py-2 text-gray-500 text-sm">No users found</div>}
                                 </div>
                             )}
                             <p className="text-xs text-gray-500 mt-1">Tip: Officers can delegate Section C to any staff here.</p>
@@ -1205,7 +1199,7 @@ const EvaluationDetail = () => {
                                         setSelectedUserId('');
                                         setUserSearchTerm('');
                                         setSelectedAssignSections([]);
-                                        
+
                                         Swal.fire({
                                             icon: 'success',
                                             title: 'Evaluator Assigned!',
@@ -1213,7 +1207,7 @@ const EvaluationDetail = () => {
                                             timer: 2500,
                                             showConfirmButton: false,
                                         });
-                                        
+
                                         // Trigger refresh of editable sections
                                         setAssignmentsRefreshKey((prev) => prev + 1);
                                     } catch (err: any) {

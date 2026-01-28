@@ -4101,16 +4101,16 @@ app.post('/api/requests/:id/action', async (req, res) => {
             if (enumProblem && request.status === 'FINANCE_REVIEW') {
                 // Fallback: if DB enum lacks BUDGET_MANAGER_REVIEW, treat as FINANCE_APPROVED
                 const procurement = await prisma.user.findFirst({
-                    where: { 
-                        roles: { 
-                            some: { 
-                                role: { 
-                                    name: { 
-                                        in: ['PROCUREMENT', 'PROCUREMENT_OFFICER', 'PROCUREMENT_MANAGER'] 
-                                    } 
-                                } 
-                            } 
-                        } 
+                    where: {
+                        roles: {
+                            some: {
+                                role: {
+                                    name: {
+                                        in: ['PROCUREMENT', 'PROCUREMENT_OFFICER', 'PROCUREMENT_MANAGER'],
+                                    },
+                                },
+                            },
+                        },
                     },
                 });
                 const fallbackStatus = 'FINANCE_APPROVED' as const;
@@ -6676,15 +6676,15 @@ app.post(
         const { id } = req.params;
         const { userIds, userEmails, sections } = (req.body || {}) as { userIds?: number[]; userEmails?: string[]; sections?: string[] };
         const authUser: any = (req as any).user;
-        
+
         console.log('[Assign Evaluators] Request received', {
             evaluationId: id,
             userIds,
             userEmails,
             sections,
-            authUser: authUser ? { id: authUser.sub || authUser.id, email: authUser.email } : null
+            authUser: authUser ? { id: authUser.sub || authUser.id, email: authUser.email } : null,
         });
-        
+
         // Extract role names properly from the authenticated user object
         let roleNames: string[] = [];
         if (authUser?.roles && Array.isArray(authUser.roles)) {
@@ -6692,9 +6692,9 @@ app.post(
         } else if (authUser?.rolesNames && Array.isArray(authUser.rolesNames)) {
             roleNames = authUser.rolesNames.map((r: string) => String(r).toUpperCase()).filter(Boolean);
         }
-        
+
         console.log('[Assign Evaluators] Extracted roles', { roleNames });
-        
+
         const isProcurement = roleNames.some((r: string) => r.includes('PROCUREMENT'));
 
         if (!isProcurement) {
